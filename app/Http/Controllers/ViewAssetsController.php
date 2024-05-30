@@ -27,6 +27,11 @@ class ViewAssetsController extends Controller
      *
      * @return Redirect
      */
+    public function getIndexByAssetTag($assetTag)
+    {
+        $asset = Asset::where('asset_tag', $assetTag)->firstOrFail();
+        return view('assets.view', compact('asset'));
+    }
     public function getIndex()
     {
         $user = User::with(

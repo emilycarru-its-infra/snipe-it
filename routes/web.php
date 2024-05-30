@@ -287,7 +287,7 @@ Route::group(['prefix' => 'account', 'middleware' => ['auth']], function () {
     Route::get('api', [ProfileController::class, 'api'])->name('user.api');
 
     // View Assets
-    Route::get('view-assets', [ViewAssetsController::class, 'getIndex'])->name('view-assets');
+    Route::get('view-assets/{assetTag}', [ViewSuppliesController::class, 'getIndexByAssetTag'])->name('view-assets-by-tag');
 
     Route::get('requested', [ViewAssetsController::class, 'getRequestedAssets'])->name('account.requested');
 
