@@ -36,7 +36,7 @@
 
                <div class="box-body">
 
-                   <div class="col-md-12">
+                   <div class="col-md-11">
 
                     <!-- Full Multiple Companies Support -->
                     <div class="form-group {{ $errors->has('full_multiple_companies_support') ? 'error' : '' }}">
@@ -54,7 +54,24 @@
                             </p>
                         </div>
                     </div>
+                    <!-- /.form-group -->
 
+                    <!-- Scope Locations with Full Multiple Companies Support -->
+{{--                    <div class="form-group {{ $errors->has('scope_locations_fmcs') ? 'error' : '' }}">--}}
+{{--                        <div class="col-md-3">--}}
+{{--                            {{ Form::label('scope_locations_fmcs', trans('admin/settings/general.scope_locations_fmcs_support_text')) }}--}}
+{{--                        </div>--}}
+{{--                        <div class="col-md-9">--}}
+{{--                            <label class="form-control">--}}
+{{--                                {{ Form::checkbox('scope_locations_fmcs', '1', old('scope_locations_fmcs', $setting->scope_locations_fmcs),array('class' => 'minimal', 'aria-label'=>'scope_locations_fmcs')) }}--}}
+{{--                                {{ trans('admin/settings/general.scope_locations_fmcs_support_text') }}--}}
+{{--                            </label>--}}
+{{--                            {!! $errors->first('scope_locations_fmcs', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}--}}
+{{--                            <p class="help-block">--}}
+{{--                                {{ trans('admin/settings/general.scope_locations_fmcs_support_help_text') }}--}}
+{{--                            </p>--}}
+{{--                        </div>--}}
+{{--                    </div>--}}
                     <!-- /.form-group -->
 
                     <!-- Require signature for acceptance -->
@@ -90,10 +107,10 @@
                     <!-- Email format -->
                     <div class="form-group {{ $errors->has('email_format') ? 'error' : '' }}">
                         <div class="col-md-3">
-                            <label for="email_format">{{ trans('general.email_format') }}</label>
+                            <label for="email_format">{{ trans('admin/settings/general.email_formats.email_format') }}</label>
                         </div>
                         <div class="col-md-9">
-                            {!! Form::username_format('email_format', old('email_format', $setting->email_format), 'select2') !!}
+                            {!! Form::email_format('email_format', old('email_format', $setting->email_format), 'select2') !!}
                             {!! $errors->first('email_format', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                         </div>
                     </div>
@@ -101,7 +118,7 @@
                     <!-- Username format -->
                     <div class="form-group {{ $errors->has('username_format') ? 'error' : '' }}">
                         <div class="col-md-3">
-                            <label for="username_format">{{ trans('general.username_format') }}</label>
+                            <label for="username_format">{{ trans('admin/settings/general.username_formats.username_format') }}</label>
                         </div>
                         <div class="col-md-9">
                             {!! Form::username_format('username_format', old('username_format', $setting->username_format), 'select2') !!}
@@ -505,7 +522,6 @@
 
             });
         });
-
 
     </script>
 @stop
