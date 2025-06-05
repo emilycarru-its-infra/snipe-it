@@ -926,6 +926,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'throttle:api']], functi
             ]
             )->name('api.settings.mailtest');
 
+            Route::post('backups/create',
+                [
+                    Api\SettingsController::class,
+                    'createBackup'
+                ]
+            )->name('api.settings.backups.create');
+
             Route::get('backups',
                 [
                     Api\SettingsController::class,
