@@ -212,6 +212,14 @@
             </x-info-element>
         @endif
 
+        @if ($infoPanelObj->gl_code ?? false)
+            <x-info-element icon_type="order" title="{{ trans('admin/hardware/form.gl_code') }}">
+                <x-copy-to-clipboard copy_what="gl_code" class="pull-right">
+                    {{ $infoPanelObj->gl_code }}
+                </x-copy-to-clipboard>
+            </x-info-element>
+        @endif
+
         @if ($infoPanelObj->purchase_order)
             <x-info-element icon_type="purchase_order" title="{{ trans('admin/licenses/form.purchase_order') }}">
                 <x-copy-to-clipboard copy_what="purchase_order" class="pull-right">
