@@ -385,6 +385,25 @@ return [
         ],
     ],
 
+    'Orders' => [
+        [
+            'permission' => 'orders.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'orders.create',
+            'display' => true,
+        ],
+        [
+            'permission' => 'orders.edit',
+            'display' => true,
+        ],
+        [
+            'permission' => 'orders.delete',
+            'display' => true,
+        ],
+    ],
+
     'Manufacturers' => [
         [
             'permission' => 'manufacturers.view',
