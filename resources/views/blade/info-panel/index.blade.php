@@ -167,7 +167,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->purchase_cost)
+        @if ($infoPanelObj->purchase_cost && ! ($infoPanelObj->on_maintenance_contract ?? false))
             <x-info-element>
                 <x-icon type="cost" class="fa-fw" title="{{ trans('general.unit_cost') }}" />
                 {{ trans('general.unit_cost') }}
@@ -200,7 +200,7 @@
 
         @endif
 
-        @if ($infoPanelObj->order_number)
+        @if ($infoPanelObj->order_number && ! ($infoPanelObj->on_maintenance_contract ?? false))
             <x-info-element icon_type="order" title="{{ trans('general.order_number') }}">
                 <x-copy-to-clipboard copy_what="order_number" class="pull-right">
                     @if ($infoPanelObj::class == "App\Models\Asset")
@@ -212,7 +212,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->purchase_order)
+        @if ($infoPanelObj->purchase_order && ! ($infoPanelObj->on_maintenance_contract ?? false))
             <x-info-element icon_type="purchase_order" title="{{ trans('admin/licenses/form.purchase_order') }}">
                 <x-copy-to-clipboard copy_what="purchase_order" class="pull-right">
                 {{ $infoPanelObj->purchase_order }}
@@ -420,7 +420,7 @@
 
 
 
-        @if ($infoPanelObj->purchase_date)
+        @if ($infoPanelObj->purchase_date && ! ($infoPanelObj->on_maintenance_contract ?? false))
             <x-info-element>
                 <x-icon type="calendar" class="fa-fw" title="{{ trans('general.purchase_date') }}" />
                 {{ trans('general.purchased_plain') }}
