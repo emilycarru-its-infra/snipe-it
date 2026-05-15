@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Notifications\MailTest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -357,5 +358,33 @@ class SettingsController extends Controller
         }
 
         return ($sanitized === $filename) ? $sanitized : null;
+    }
+
+    /**
+     * Triggers creation of a new system backup via the API.
+     *
+     * @author [R. Christiansen]
+     */
+    public function createBackup(): JsonResponse
+    {
+        if (! config('app.lock_passwords')) {
+            Artisan::call('snipeit:backup', ['--filename' => 'manual-backup-'.date('Y-m-d-H-i-s')]);
+            $output = Artisan::output();
+
+            if (! preg_match('/failed/', $output)) {
+                return response()->json(['message' => trans('admin/settings/message.backup.generated')], 200);
+            }
+
+            $formatted_output = str_replace('Backup completed!', '', $output);
+            $output_split = explode('...', $formatted_output);
+
+            if (array_key_exists(2, $output_split)) {
+                return response()->json(['message' => $output_split[2]], 400);
+            }
+
+            return response()->json(['message' => $formatted_output], 400);
+        }
+
+        return response()->json(['message' => trans('general.feature_disabled')], 403);
     }
 }
