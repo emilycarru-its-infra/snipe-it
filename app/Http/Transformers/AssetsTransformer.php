@@ -83,6 +83,9 @@ class AssetsTransformer
             'notes' => ($asset->notes) ? Helper::parseEscapedMarkedownInline($asset->notes) : null,
             'order_number' => ($asset->order_number) ? e($asset->order_number) : null,
             'gl_code' => ($asset->gl_code) ? e($asset->gl_code) : null,
+            'tracking_number' => ($asset->tracking_number) ? e($asset->tracking_number) : null,
+            'tracking_carrier' => ($asset->tracking_carrier) ? e($asset->tracking_carrier) : null,
+            'tracking_url' => Helper::trackingUrl($asset->tracking_carrier, $asset->tracking_number),
             'company' => ($asset->company) ? [
                 'id' => (int) $asset->company->id,
                 'name' => e($asset->company->name),
