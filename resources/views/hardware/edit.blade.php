@@ -182,6 +182,7 @@
             <div id='order_details' class="col-md-12" style="display:none">
                 @include ('partials.forms.edit.order_number')
                 @include ('partials.forms.edit.gl_code')
+                @include ('partials.forms.edit.tracking')
                 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('general.purchase_date'),'fieldname' => 'purchase_date'])
                 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/hardware/form.eol_date'),'fieldname' => 'asset_eol_date'])
                 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])

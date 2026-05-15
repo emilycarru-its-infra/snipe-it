@@ -243,6 +243,8 @@ return [
     'note_deleted' => 'Note Deleted',
     'delete_note' => 'Delete Note',
     'order_number' => 'Order Number',
+    'tracking_number' => 'Tracking Number',
+    'tracking_carrier' => 'Shipping Carrier',
     'only_deleted' => 'Only Deleted Assets',
     'page_menu' => 'Showing _MENU_ items',
     'page_error' => 'Could not determine previous page. Redirected to homepage.',
