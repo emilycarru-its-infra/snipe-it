@@ -284,7 +284,22 @@ class Consumable extends SnipeModel
      */
     public function users(): Relation
     {
-        return $this->belongsToMany(User::class, 'consumables_users', 'consumable_id', 'assigned_to')->withPivot('created_by')->withTrashed()->withTimestamps();
+        return $this->belongsToMany(User::class, 'consumables_users', 'consumable_id', 'assigned_to')
+            ->wherePivot('assigned_type', User::class)
+            ->withPivot('created_by')->withTrashed()->withTimestamps();
+    }
+
+    /**
+     * Establishes the consumable -> assets relationship for consumables
+     * that have been checked out to an asset rather than a user.
+     *
+     * @return Relation
+     */
+    public function assets(): Relation
+    {
+        return $this->belongsToMany(Asset::class, 'consumables_users', 'consumable_id', 'assigned_to')
+            ->wherePivot('assigned_type', Asset::class)
+            ->withPivot('created_by')->withTrashed()->withTimestamps();
     }
 
     /**
@@ -341,7 +356,9 @@ class Consumable extends SnipeModel
      */
     public function numCheckedOut()
     {
-        return $this->consumables_users_count ?? $this->users()->count();
+        // Count every checkout row regardless of target type (user or asset),
+        // so the remaining-quantity math stays correct for both.
+        return $this->consumables_users_count ?? $this->consumableAssignments()->count();
     }
 
     /**
