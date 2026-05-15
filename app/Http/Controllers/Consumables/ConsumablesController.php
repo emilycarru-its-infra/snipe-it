@@ -93,6 +93,7 @@ class ConsumablesController extends Controller
         $consumable->qty = $request->input('qty');
         $consumable->created_by = auth()->id();
         $consumable->notes = $request->input('notes');
+        $consumable->on_maintenance_contract = $request->filled('on_maintenance_contract');
 
         if ($request->has('use_cloned_image')) {
             $cloned_model_img = Consumable::select('image')->find($request->input('clone_image_from_id'));
@@ -186,6 +187,7 @@ class ConsumablesController extends Controller
         $consumable->purchase_cost = $request->input('purchase_cost');
         $consumable->qty = Helper::ParseFloat($request->input('qty'));
         $consumable->notes = $request->input('notes');
+        $consumable->on_maintenance_contract = $request->filled('on_maintenance_contract');
 
         $consumable = $request->handleImages($consumable);
 
