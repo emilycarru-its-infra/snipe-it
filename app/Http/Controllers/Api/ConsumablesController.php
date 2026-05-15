@@ -11,6 +11,7 @@ use App\Http\Requests\StoreConsumableRequest;
 use App\Http\Transformers\ActionlogsTransformer;
 use App\Http\Transformers\ConsumablesTransformer;
 use App\Http\Transformers\SelectlistTransformer;
+use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\Setting;
@@ -33,7 +34,7 @@ class ConsumablesController extends Controller
         $this->authorize('index', Consumable::class);
 
         $consumables = Consumable::with('company', 'location', 'category', 'supplier', 'manufacturer')
-            ->withCount('users as consumables_users_count');
+            ->withCount('consumableAssignments as consumables_users_count');
 
         // This array is what determines which fields should be allowed to be sorted on ON the table itself.
         // These must match a column on the consumables table directly.
@@ -242,7 +243,7 @@ class ConsumablesController extends Controller
             $query->orderBy($query->getModel()->getTable().'.created_at', 'DESC');
         },
             'consumableAssignments.adminuser' => function ($query) {},
-            'consumableAssignments.user' => function ($query) {},
+            'consumableAssignments.checkedOutTo' => function ($query) {},
         ])->find($consumableId);
 
         if (! Company::isCurrentUserHasAccess($consumable)) {
@@ -252,11 +253,13 @@ class ConsumablesController extends Controller
         $rows = [];
 
         foreach ($consumable->consumableAssignments as $consumable_assignment) {
+            $target = $consumable_assignment->checkedOutTo;
+            $is_asset = $consumable_assignment->assigned_type === Asset::class;
             $rows[] = [
-                'avatar' => ($consumable_assignment->user) ? e($consumable_assignment->user->present()->gravatar) : '',
-                'user' => ($consumable_assignment->user) ? [
-                    'id' => (int) $consumable_assignment->user->id,
-                    'name' => e($consumable_assignment->user->display_name),
+                'avatar' => (! $is_asset && $consumable_assignment->user) ? e($consumable_assignment->user->present()->gravatar) : '',
+                'user' => ($target && $target->exists) ? [
+                    'id' => (int) $target->id,
+                    'name' => e($is_asset ? ($target->name ?: $target->asset_tag) : $target->display_name),
                 ] : null,
                 'created_at' => Helper::getFormattedDateObject($consumable_assignment->created_at, 'datetime'),
                 'note' => ($consumable_assignment->note) ? e($consumable_assignment->note) : null,
