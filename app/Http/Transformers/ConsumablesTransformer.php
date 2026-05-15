@@ -63,6 +63,7 @@ class ConsumablesTransformer
             'total_cost' => Helper::formatCurrencyOutput($consumable->totalCostSum()),
             'purchase_date' => Helper::getFormattedDateObject($consumable->purchase_date, 'date'),
             'qty' => (int) $consumable->qty,
+            'status' => $consumable->status,
             'on_maintenance_contract' => (bool) $consumable->on_maintenance_contract,
             'notes' => ($consumable->notes) ? Helper::parseEscapedMarkedownInline($consumable->notes) : null,
             'created_by' => ($consumable->adminuser) ? [
