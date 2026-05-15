@@ -143,6 +143,13 @@ class ConsumableCheckoutController extends Controller
             $sign_in_place,
         ));
 
+        // Helper::getRedirectOption() reads these off the request to build the
+        // redirect-to-target URL when redirect_option is 'target'.
+        $request->request->add([
+            'assigned_user' => $checkout_to_type === 'user' ? $target->id : null,
+            'assigned_asset' => $checkout_to_type === 'asset' ? $target->id : null,
+        ]);
+
         session()->put([
             'redirect_option' => $request->input('redirect_option'),
             'checkout_to_type' => $checkout_to_type,
