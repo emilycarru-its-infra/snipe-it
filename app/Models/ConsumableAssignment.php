@@ -27,6 +27,23 @@ class ConsumableAssignment extends Model
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    public function asset()
+    {
+        return $this->belongsTo(Asset::class, 'assigned_to');
+    }
+
+    /**
+     * The user or asset this row was checked out to.
+     *
+     * `assigned_type` is null on rows created before asset-side checkout
+     * existed; those are always user checkouts, so fall back to User.
+     */
+    public function checkedOutTo()
+    {
+        return $this->morphTo('assigned', 'assigned_type', 'assigned_to')
+            ->withDefault();
+    }
+
     public function adminuser()
     {
         return $this->belongsTo(User::class, 'created_by')->withTrashed();
