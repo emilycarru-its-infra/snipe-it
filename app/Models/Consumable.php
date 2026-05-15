@@ -31,6 +31,19 @@ class Consumable extends SnipeModel
 
     protected $table = 'consumables';
 
+    /**
+     * Lifecycle statuses a consumable moves through, from being ordered
+     * to being retired. Ordered roughly chronologically.
+     */
+    public const STATUSES = [
+        'ordered',
+        'shipped',
+        'arrived',
+        'active',
+        'depleted',
+        'archived',
+    ];
+
     protected $casts = [
         'purchase_date' => 'datetime',
         'requestable' => 'boolean',
@@ -54,6 +67,7 @@ class Consumable extends SnipeModel
         'min_amt' => 'integer|min:0|max:99999|nullable',
         'purchase_cost' => 'numeric|nullable|gte:0|max:99999999999999999.99',
         'purchase_date' => 'date_format:Y-m-d|nullable',
+        'status' => 'string|nullable|in:ordered,shipped,arrived,active,depleted,archived',
     ];
 
     /**
@@ -90,6 +104,7 @@ class Consumable extends SnipeModel
         'min_amt',
         'requestable',
         'on_maintenance_contract',
+        'status',
         'notes',
     ];
 

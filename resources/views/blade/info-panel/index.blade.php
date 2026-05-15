@@ -146,6 +146,13 @@
             </x-info-element>
         @endif
 
+        @if (($infoPanelObj instanceof \App\Models\Consumable) && $infoPanelObj->status)
+            <x-info-element icon_type="number" title="{{ trans('admin/consumables/general.status') }}">
+                {{ trans('admin/consumables/general.status') }}
+                <span class="pull-right">{{ trans('admin/consumables/general.status_'.$infoPanelObj->status) }}</span>
+            </x-info-element>
+        @endif
+
         @if ($infoPanelObj->min_amt)
             <x-info-element>
                 <x-icon type="min-qty" class="fa-fw" title="{{ trans('general.min_amt') }}" />
