@@ -32,13 +32,25 @@
 
             <x-form.static :label="trans('admin/components/general.remaining')">{{ $consumable->numRemaining() }}</x-form.static>
 
-            <x-input.user-select
-                :label="trans('general.select_user')"
-                name="assigned_to"
-                :selected="old('assigned_to')"
-                :companyId="$consumable->company_id"
-                required
-            />
+            @include ('partials.forms.checkout-selector', ['user_select' => 'true', 'asset_select' => 'true'])
+
+            <div id="assigned_user_select" style="{{ (session('checkout_to_type') ?: 'user') == 'user' ? '' : 'display: none;' }}">
+                <x-input.user-select
+                    :label="trans('general.select_user')"
+                    name="assigned_to"
+                    :selected="old('assigned_to')"
+                    :companyId="$consumable->company_id"
+                />
+            </div>
+
+            @include ('partials.forms.edit.asset-select', [
+                'translated_name' => trans('general.select_asset'),
+                'fieldname' => 'assigned_asset',
+                'company_id' => $consumable->company_id,
+                'unselect' => 'true',
+                'model_ids' => $consumable->compatibleModels->pluck('id')->all(),
+                'style' => session('checkout_to_type') == 'asset' ? '' : 'display: none;',
+            ])
 
             @if ($consumable->requireAcceptance() || (string) $snipeSettings->require_accept_signature === '1' || $consumable->getEula() || ($snipeSettings->webhook_endpoint != ''))
                 <div class="form-group notification-callout">

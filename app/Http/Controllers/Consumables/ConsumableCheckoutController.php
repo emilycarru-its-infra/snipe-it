@@ -6,6 +6,7 @@ use App\Actions\Acceptances\CreateCheckoutAcceptanceAction;
 use App\Events\CheckoutableCheckedOut;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
+use App\Models\Asset;
 use App\Models\CheckoutAcceptance;
 use App\Models\Consumable;
 use App\Models\User;
@@ -90,24 +91,41 @@ class ConsumableCheckoutController extends Controller
         }
 
         $admin_user = auth()->user();
-        $assigned_to = e($request->input('assigned_to'));
 
-        // Check if the user exists
-        if (is_null($user = User::find($assigned_to))) {
-            // Redirect to the consumable management page with error
-            return redirect()->route('consumables.checkout.show', $consumable)->with('error', trans('admin/consumables/message.checkout.user_does_not_exist'))->withInput();
+        // A consumable can be checked out to a user (the default) or to an
+        // asset — e.g. toner assigned to a specific printer. The target type
+        // drives which relation the pivot row lands on and the assigned_type
+        // value stored on consumables_users.
+        $checkout_to_type = $request->input('checkout_to_type') === 'asset' ? 'asset' : 'user';
+
+        if ($checkout_to_type === 'asset') {
+            if (is_null($target = Asset::find($request->input('assigned_asset')))) {
+                return redirect()->route('consumables.checkout.show', $consumable)
+                    ->with('error', trans('admin/consumables/message.checkout.target_does_not_exist'))->withInput();
+            }
+            $target_type = Asset::class;
+            $relation = $consumable->assets();
+            $target_label = trans('general.asset').' "'.$target->asset_tag.'"';
+        } else {
+            if (is_null($target = User::find($request->input('assigned_to')))) {
+                return redirect()->route('consumables.checkout.show', $consumable)
+                    ->with('error', trans('admin/consumables/message.checkout.user_does_not_exist'))->withInput();
+            }
+            $target_type = User::class;
+            $relation = $consumable->users();
+            $target_label = trans('general.user').' "'.$target->username.'"';
         }
 
-        if (! $consumable->canCheckoutTo($user)) {
+        if (! $consumable->canCheckoutTo($target)) {
             return redirect()->back()->with('error', trans('general.error_checkout_company_mismatch', [
                 'item' => trans('general.consumable').' "'.$consumable->name.'"',
                 'item_company' => $consumable->company?->name ?? trans('general.unassigned'),
-                'target' => trans('general.user').' "'.$user->username.'"',
+                'target' => $target_label,
             ]));
         }
 
         // Update the consumable data
-        $consumable->assigned_to = e($request->input('assigned_to'));
+        $consumable->assigned_to = $target->id;
         $consumable->checkout_qty = $quantity;
 
         // Concurrency guard. The unlocked numRemaining() check above is
@@ -119,7 +137,7 @@ class ConsumableCheckoutController extends Controller
         // License checkout locking pattern.
         $overAllocated = false;
 
-        DB::transaction(function () use ($consumable, $request, $admin_user, $quantity, &$overAllocated): void {
+        DB::transaction(function () use ($consumable, $request, $admin_user, $quantity, $relation, $target, $target_type, &$overAllocated): void {
             $locked = Consumable::whereKey($consumable->id)->lockForUpdate()->first();
 
             if (! $locked || $locked->numRemaining() < $quantity) {
@@ -128,11 +146,15 @@ class ConsumableCheckoutController extends Controller
                 return;
             }
 
+            // assigned_type is passed explicitly rather than relying on the
+            // relation's wherePivot default, so the row is tagged correctly
+            // regardless of Laravel's attach() pivot-default behaviour.
             for ($i = 0; $i < $quantity; $i++) {
-                $consumable->users()->attach($consumable->id, [
+                $relation->attach($target->id, [
                     'consumable_id' => $consumable->id,
                     'created_by' => $admin_user->id,
-                    'assigned_to' => e($request->input('assigned_to')),
+                    'assigned_to' => $target->id,
+                    'assigned_type' => $target_type,
                     'note' => $request->input('note'),
                 ]);
             }
@@ -145,28 +167,29 @@ class ConsumableCheckoutController extends Controller
             ]));
         }
 
+        // sign-in-place only applies to user checkouts — an asset cannot sign.
+        $sign_in_place = $checkout_to_type === 'user' && $request->boolean('sign_in_place');
+
         event(new CheckoutableCheckedOut(
             $consumable,
-            $user,
+            $target,
             auth()->user(),
             $request->input('note'),
             [],
             $consumable->checkout_qty,
-            $request->boolean('sign_in_place'),
+            $sign_in_place,
         ));
-
-        $request->request->add(['checkout_to_type' => 'user']);
-        $request->request->add(['assigned_user' => $user->id]);
 
         session()->put([
             'redirect_option' => $request->input('redirect_option'),
-            'checkout_to_type' => $request->input('checkout_to_type'),
-            'sign_in_place' => $request->boolean('sign_in_place'),
+            'checkout_to_type' => $checkout_to_type,
+            'sign_in_place' => $sign_in_place,
         ]);
 
         // When sign_in_place is requested, redirect to the acceptance/signature page
         // so the user can sign in person. The signature is attributed to the target user.
-        if ($request->boolean('sign_in_place')) {
+        if ($sign_in_place) {
+            $user = $target;
             $acceptance = CheckoutAcceptance::where('checkoutable_type', Consumable::class)
                 ->where('checkoutable_id', $consumable->id)
                 ->where('assigned_to_id', $user->id)

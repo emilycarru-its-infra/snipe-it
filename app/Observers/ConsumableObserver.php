@@ -65,7 +65,8 @@ class ConsumableObserver
     public function deleting(Consumable $consumable)
     {
 
-        $consumable->users()->detach();
+        // Remove every checkout row (user- and asset-assigned alike).
+        $consumable->consumableAssignments()->delete();
         $uploads = $consumable->uploads;
 
         foreach ($uploads as $file) {
