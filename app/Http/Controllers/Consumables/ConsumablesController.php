@@ -84,6 +84,8 @@ class ConsumablesController extends Controller
         $consumable->location_id = $request->input('location_id');
         $consumable->company_id = Company::getIdForCurrentUser($request->input('company_id'));
         $consumable->order_number = $request->input('order_number');
+        $consumable->tracking_number = $request->input('tracking_number');
+        $consumable->tracking_carrier = $request->input('tracking_carrier');
         $consumable->min_amt = $request->input('min_amt');
         $consumable->manufacturer_id = $request->input('manufacturer_id');
         $consumable->model_number = $request->input('model_number');
@@ -179,6 +181,8 @@ class ConsumablesController extends Controller
         $consumable->location_id = $request->input('location_id');
         $consumable->company_id = Company::getIdForCurrentUser($request->input('company_id'));
         $consumable->order_number = $request->input('order_number');
+        $consumable->tracking_number = $request->input('tracking_number');
+        $consumable->tracking_carrier = $request->input('tracking_carrier');
         $consumable->min_amt = $request->input('min_amt');
         $consumable->manufacturer_id = $request->input('manufacturer_id');
         $consumable->model_number = $request->input('model_number');

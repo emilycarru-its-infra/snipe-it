@@ -1856,4 +1856,40 @@ class Helper
         return 'App\\Models\\'.ucwords($model);
 
     }
+
+    /**
+     * Build a carrier tracking URL from a carrier name and tracking number.
+     *
+     * Carrier matching is a loose contains-check so feed values like
+     * "FedEx Ground" or "UPS - Next Day" still resolve. Returns null when the
+     * carrier is unknown or either argument is empty — callers should fall
+     * back to showing the tracking number as plain text.
+     */
+    public static function trackingUrl($carrier, $tracking_number): ?string
+    {
+        $carrier = trim((string) $carrier);
+        $tracking_number = trim((string) $tracking_number);
+
+        if ($carrier === '' || $tracking_number === '') {
+            return null;
+        }
+
+        $patterns = [
+            'canada post' => 'https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=',
+            'purolator'   => 'https://www.purolator.com/en/shipping/tracker?pin=',
+            'ups'         => 'https://www.ups.com/track?tracknum=',
+            'fedex'       => 'https://www.fedex.com/fedextrack/?trknbr=',
+            'usps'        => 'https://tools.usps.com/go/TrackConfirmAction?tLabels=',
+            'dhl'         => 'https://www.dhl.com/ca-en/home/tracking.html?tracking-id=',
+        ];
+
+        $haystack = strtolower($carrier);
+        foreach ($patterns as $needle => $base) {
+            if (str_contains($haystack, $needle)) {
+                return $base.rawurlencode($tracking_number);
+            }
+        }
+
+        return null;
+    }
 }

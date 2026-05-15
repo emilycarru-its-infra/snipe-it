@@ -220,6 +220,26 @@
             </x-info-element>
         @endif
 
+        @if ($infoPanelObj->tracking_number ?? false)
+            @php
+                $trackingUrl = Helper::trackingUrl($infoPanelObj->tracking_carrier ?? null, $infoPanelObj->tracking_number);
+            @endphp
+            <x-info-element icon_type="order" title="{{ trans('general.tracking_number') }}">
+                <x-copy-to-clipboard copy_what="tracking_number" class="pull-right">
+                    @if ($trackingUrl)
+                        <a href="{{ $trackingUrl }}" target="_blank" rel="noopener noreferrer">{{ $infoPanelObj->tracking_number }}</a>
+                    @else
+                        {{ $infoPanelObj->tracking_number }}
+                    @endif
+                </x-copy-to-clipboard>
+            </x-info-element>
+            @if ($infoPanelObj->tracking_carrier ?? false)
+                <x-info-element icon_type="order" title="{{ trans('general.tracking_carrier') }}">
+                    {{ $infoPanelObj->tracking_carrier }}
+                </x-info-element>
+            @endif
+        @endif
+
         @if ($infoPanelObj->purchase_order && ! ($infoPanelObj->on_maintenance_contract ?? false))
             <x-info-element icon_type="purchase_order" title="{{ trans('admin/licenses/form.purchase_order') }}">
                 <x-copy-to-clipboard copy_what="purchase_order" class="pull-right">

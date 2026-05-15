@@ -81,6 +81,8 @@ class Consumable extends SnipeModel
         'supplier_id',
         'name',
         'order_number',
+        'tracking_number',
+        'tracking_carrier',
         'model_number',
         'purchase_cost',
         'purchase_date',
@@ -101,6 +103,7 @@ class Consumable extends SnipeModel
     protected $searchableAttributes = [
         'name',
         'order_number',
+        'tracking_number',
         'purchase_cost',
         'purchase_date',
         'item_no',
