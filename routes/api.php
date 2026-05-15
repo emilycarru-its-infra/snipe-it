@@ -954,6 +954,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ]
         )->name('api.settings.backups.index');
 
+        Route::post('backups/create',
+            [
+                Api\SettingsController::class,
+                'createBackup',
+            ]
+        )->name('api.settings.backups.create');
+
         Route::get('backups/download/latest',
             [
                 Api\SettingsController::class,
