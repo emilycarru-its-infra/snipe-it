@@ -34,6 +34,7 @@ class Consumable extends SnipeModel
     protected $casts = [
         'purchase_date' => 'datetime',
         'requestable' => 'boolean',
+        'on_maintenance_contract' => 'boolean',
         'category_id' => 'integer',
         'company_id' => 'integer',
         'supplier_id',
@@ -86,6 +87,7 @@ class Consumable extends SnipeModel
         'qty',
         'min_amt',
         'requestable',
+        'on_maintenance_contract',
         'notes',
     ];
 
