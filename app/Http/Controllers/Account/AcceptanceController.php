@@ -194,7 +194,7 @@ class AcceptanceController extends Controller
             'item_name' => $item->display_name, // this handles licenses seats, which don't have a 'name' field
             'item_model' => $item->model?->name,
             'item_serial' => $item->serial,
-            'item_status' => $item->status?->name,
+            'item_status' => ($item instanceof Asset) ? $item->status?->name : null,
             'eula' => $item->getEula(),
             'note' => $request->input('note'),
             'check_out_date' => Helper::getFormattedDateObject($acceptance->created_at, 'datetime', false),
