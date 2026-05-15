@@ -162,6 +162,8 @@ class AssetsController extends Controller
                 $asset->model_id = $request->input('model_id');
                 $asset->order_number = $request->input('order_number');
                 $asset->gl_code = $request->input('gl_code');
+                $asset->tracking_number = $request->input('tracking_number');
+                $asset->tracking_carrier = $request->input('tracking_carrier');
                 $asset->notes = $request->input('notes');
                 $asset->created_by = auth()->id();
                 $asset->status_id = request('status_id');
@@ -465,6 +467,8 @@ class AssetsController extends Controller
         $asset->model_id = $request->input('model_id');
         $asset->order_number = $request->input('order_number');
         $asset->gl_code = $request->input('gl_code');
+        $asset->tracking_number = $request->input('tracking_number');
+        $asset->tracking_carrier = $request->input('tracking_carrier');
 
         $asset_tags = $request->input('asset_tags');
         $asset->asset_tag = $request->input('asset_tags');
