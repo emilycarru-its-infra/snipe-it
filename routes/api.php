@@ -1080,6 +1080,20 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end suppliers API routes
 
     /**
+     * Orders API routes
+     */
+    Route::resource('orders',
+        Api\OrdersController::class,
+        ['names' => [
+            'index' => 'api.orders.index',
+            'show' => 'api.orders.show',
+        ],
+            'only' => ['index', 'show'],
+            'parameters' => ['order' => 'order_id'],
+        ]
+    ); // end orders API routes
+
+    /**
      * Users API routes
      */
     Route::group(['prefix' => 'users'], function () {
