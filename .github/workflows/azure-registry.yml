@@ -36,7 +36,7 @@ jobs:
           tags: |
             type=sha,format=short         #  <commit‑SHA>
             type=ref,event=branch         #  <branch‑name>
-            type=raw,value=latest         #  latest
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v6
         with:
