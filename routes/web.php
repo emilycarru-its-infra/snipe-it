@@ -27,6 +27,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
+use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\UploadedFilesController;
 use App\Http\Controllers\ViewAssetsController;
@@ -86,6 +87,11 @@ Route::group(['middleware' => 'auth'], function () {
     Route::resource('suppliers', SuppliersController::class);
 
     Route::post('suppliers/bulk/delete', [BulkSuppliersController::class, 'destroy'])->name('suppliers.bulk.delete');
+
+    /*
+    * Orders
+    */
+    Route::resource('orders', OrdersController::class);
 
     /*
     * Depreciations
