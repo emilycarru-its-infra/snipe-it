@@ -109,7 +109,17 @@
                     @forelse ($order->items as $lineItem)
                         <tr>
                             <td>{{ class_basename($lineItem->item_type) }}</td>
-                            <td>{{ $lineItem->item?->name ?? '—' }}</td>
+                            <td>
+                                @php $li = $lineItem->item; @endphp
+                                @if ($li && $lineItem->item_type === \App\Models\Asset::class)
+                                    <x-icon type="asset" />
+                                    <a href="{{ route('hardware.show', $li->id) }}">{{ $li->present()->fullName() }}</a>
+                                @elseif ($li)
+                                    {!! $li->present()->nameUrl() !!}
+                                @else
+                                    &mdash;
+                                @endif
+                            </td>
                             <td>{{ $lineItem->description }}</td>
                             <td>{{ $lineItem->quantity }}</td>
                             <td>{{ $lineItem->unit_cost !== null ? Helper::formatCurrencyOutput($lineItem->unit_cost) : '' }}</td>
@@ -118,7 +128,7 @@
                                     <form method="post" action="{{ route('orders.items.destroy', ['order' => $order->id, 'item' => $lineItem->id]) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/general.remove') }}?')">
                                         {{ csrf_field() }}
                                         {{ method_field('DELETE') }}
-                                        <button type="submit" class="btn btn-sm btn-danger btn-social" data-tooltip="true" title="{{ trans('admin/orders/general.remove') }}">
+                                        <button type="submit" class="btn btn-sm btn-danger" data-tooltip="true" title="{{ trans('admin/orders/general.remove') }}">
                                             <x-icon type="delete" />
                                         </button>
                                     </form>
