@@ -1,0 +1,26 @@
+<?php
+
+return [
+    'orders' => 'Orders',
+    'order' => 'Order',
+    'create' => 'Create Order',
+    'update' => 'Update Order',
+    'view' => 'View Order',
+    'order_date' => 'Order Date',
+    'expected_date' => 'Expected Date',
+    'received_date' => 'Received Date',
+    'order_cost' => 'Order Cost',
+    'line_items' => 'Line Items',
+    'no_line_items' => 'This order has no line items.',
+    'item' => 'Item',
+    'description' => 'Description',
+    'quantity' => 'Quantity',
+    'unit_cost' => 'Unit Cost',
+    'status' => 'Status',
+    'status_help' => 'Where this order sits in its lifecycle, from being placed through to being received.',
+    'status_ordered' => 'Ordered',
+    'status_shipped' => 'Shipped',
+    'status_partially_received' => 'Partially Received',
+    'status_received' => 'Received',
+    'status_cancelled' => 'Cancelled',
+];
