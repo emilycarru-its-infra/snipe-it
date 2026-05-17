@@ -63,6 +63,16 @@
                     <x-tabs.accessory-tab count="{{ $asset->assignedAccessories()->count() }}"/>
                     <x-tabs.maintenance-tab count="{{ $asset->maintenances->count() }}"/>
 
+                    @can('view', \App\Models\Order::class)
+                        <x-tabs.nav-item
+                            name="orders"
+                            icon_type="order"
+                            label="{{ trans('admin/orders/general.orders') }}"
+                            count="{{ $asset->orderItems()->distinct('order_id')->count('order_id') }}"
+                            tooltip="{{ trans('admin/orders/general.orders') }}"
+                        />
+                    @endcan
+
                     <x-tabs.nav-item
                         name="audits"
                         icon_type="audit"
@@ -401,6 +411,41 @@
                     <x-tabs.pane name="model-files">
                         <x-table.files :table_header="trans('general.additional_files')" object_type="models" :object="$asset->model"/>
                     </x-tabs.pane>
+
+                    @can('view', \App\Models\Order::class)
+                        <!-- start orders tab pane -->
+                        <x-tabs.pane name="orders">
+                            @php
+                                $assetOrders = \App\Models\Order::whereIn('id', $asset->orderItems()->pluck('order_id')->unique())
+                                    ->with('supplier')
+                                    ->orderBy('order_date', 'desc')
+                                    ->get();
+                            @endphp
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>{{ trans('general.order_number') }}</th>
+                                        <th>{{ trans('admin/orders/general.status') }}</th>
+                                        <th>{{ trans('general.supplier') }}</th>
+                                        <th>{{ trans('admin/orders/general.order_date') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @forelse ($assetOrders as $assetOrder)
+                                    <tr>
+                                        <td><a href="{{ route('orders.show', $assetOrder->id) }}">{{ $assetOrder->order_number }}</a></td>
+                                        <td>{{ trans('admin/orders/general.status_'.$assetOrder->status) }}</td>
+                                        <td>{{ $assetOrder->supplier?->name }}</td>
+                                        <td>{{ $assetOrder->order_date ? $assetOrder->order_date->format('Y-m-d') : '' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="4">{{ trans('admin/orders/message.not_linked') }}</td></tr>
+                                @endforelse
+                                </tbody>
+                            </table>
+                        </x-tabs.pane>
+                        <!-- end orders tab pane -->
+                    @endcan
 
                     <!-- start history tab pane -->
                     <x-tabs.pane name="history">

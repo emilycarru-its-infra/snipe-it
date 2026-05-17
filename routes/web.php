@@ -92,6 +92,8 @@ Route::group(['middleware' => 'auth'], function () {
     * Orders
     */
     Route::resource('orders', OrdersController::class);
+    Route::post('orders/{order}/items', [OrdersController::class, 'storeItem'])->name('orders.items.store');
+    Route::delete('orders/{order}/items/{item}', [OrdersController::class, 'destroyItem'])->name('orders.items.destroy');
 
     /*
     * Depreciations

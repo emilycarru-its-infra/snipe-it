@@ -89,32 +89,148 @@
                 </table>
 
                 <h3>{{ trans('admin/orders/general.line_items') }}</h3>
+                @php
+                    $orderTotal = $order->items->sum(fn ($li) => (float) $li->unit_cost * (int) $li->quantity);
+                @endphp
                 <table class="table table-striped">
                     <thead>
                         <tr>
+                            <th>{{ trans('admin/orders/general.item_type') }}</th>
                             <th>{{ trans('admin/orders/general.item') }}</th>
                             <th>{{ trans('admin/orders/general.description') }}</th>
                             <th>{{ trans('admin/orders/general.quantity') }}</th>
                             <th>{{ trans('admin/orders/general.unit_cost') }}</th>
+                            @can('update', \App\Models\Order::class)
+                                <th class="text-right">{{ trans('table.actions') }}</th>
+                            @endcan
                         </tr>
                     </thead>
                     <tbody>
                     @forelse ($order->items as $lineItem)
                         <tr>
+                            <td>{{ class_basename($lineItem->item_type) }}</td>
                             <td>{{ $lineItem->item?->name ?? '—' }}</td>
                             <td>{{ $lineItem->description }}</td>
                             <td>{{ $lineItem->quantity }}</td>
                             <td>{{ $lineItem->unit_cost !== null ? Helper::formatCurrencyOutput($lineItem->unit_cost) : '' }}</td>
+                            @can('update', \App\Models\Order::class)
+                                <td class="text-right">
+                                    <form method="post" action="{{ route('orders.items.destroy', ['order' => $order->id, 'item' => $lineItem->id]) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/general.remove') }}?')">
+                                        {{ csrf_field() }}
+                                        {{ method_field('DELETE') }}
+                                        <button type="submit" class="btn btn-sm btn-danger btn-social" data-tooltip="true" title="{{ trans('admin/orders/general.remove') }}">
+                                            <x-icon type="delete" />
+                                        </button>
+                                    </form>
+                                </td>
+                            @endcan
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4">{{ trans('admin/orders/general.no_line_items') }}</td>
+                            <td colspan="6">{{ trans('admin/orders/general.no_line_items') }}</td>
                         </tr>
                     @endforelse
                     </tbody>
+                    @if (!$order->items->isEmpty())
+                        <tfoot>
+                            <tr>
+                                <th colspan="4" class="text-right">{{ trans('admin/orders/general.order_cost') }}</th>
+                                <th>{{ Helper::formatCurrencyOutput($orderTotal) }}</th>
+                                @can('update', \App\Models\Order::class)
+                                    <th></th>
+                                @endcan
+                            </tr>
+                        </tfoot>
+                    @endif
                 </table>
+
+                @can('update', \App\Models\Order::class)
+                    <div class="box box-default">
+                        <div class="box-header with-border">
+                            <h3 class="box-title">{{ trans('admin/orders/general.add_line_item') }}</h3>
+                        </div>
+                        <div class="box-body">
+                            <form method="post" action="{{ route('orders.items.store', ['order' => $order->id]) }}" class="form-horizontal">
+                                {{ csrf_field() }}
+
+                                <div class="form-group">
+                                    <label for="item_type" class="col-md-3 control-label">{{ trans('admin/orders/general.item_type') }}</label>
+                                    <div class="col-md-5">
+                                        <select class="form-control" name="item_type" id="item_type" aria-label="item_type">
+                                            <option value="asset">{{ trans('admin/orders/general.type_asset') }}</option>
+                                            <option value="license">{{ trans('admin/orders/general.type_license') }}</option>
+                                            <option value="accessory">{{ trans('admin/orders/general.type_accessory') }}</option>
+                                            <option value="consumable">{{ trans('admin/orders/general.type_consumable') }}</option>
+                                            <option value="component">{{ trans('admin/orders/general.type_component') }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="col-md-3 control-label">{{ trans('admin/orders/general.item') }}</label>
+                                    <div class="col-md-7">
+                                        @foreach (['asset' => 'hardware', 'license' => 'licenses', 'accessory' => 'accessories', 'consumable' => 'consumables', 'component' => 'components'] as $key => $endpoint)
+                                            <div id="li_picker_{{ $key }}" class="li-picker" style="{{ $key === 'asset' ? '' : 'display:none' }}">
+                                                <select class="js-data-ajax" data-endpoint="{{ $endpoint }}" data-placeholder="{{ trans('admin/orders/general.select_item') }}" name="item_id_{{ $key }}" id="li_select_{{ $key }}" style="width:100%" aria-label="item_id_{{ $key }}">
+                                                    <option value="">{{ trans('admin/orders/general.select_item') }}</option>
+                                                </select>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="quantity" class="col-md-3 control-label">{{ trans('admin/orders/general.quantity') }}</label>
+                                    <div class="col-md-2">
+                                        <input type="number" class="form-control" name="quantity" id="quantity" value="1" min="1">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="unit_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.unit_cost') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="unit_cost" id="unit_cost" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="description" class="col-md-3 control-label">{{ trans('admin/orders/general.description') }}</label>
+                                    <div class="col-md-7">
+                                        <input type="text" class="form-control" name="description" id="description" maxlength="191">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="col-md-offset-3 col-md-7">
+                                        <button type="submit" class="btn btn-primary">
+                                            <x-icon type="create" /> {{ trans('admin/orders/general.add_line_item') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                @endcan
             </div>
         </div>
     </div>
 </div>
+@stop
+
+@section('moar_scripts')
+<script nonce="{{ csrf_token() }}">
+    (function () {
+        var typeSelect = document.getElementById('item_type');
+        if (!typeSelect) { return; }
+        var keys = ['asset', 'license', 'accessory', 'consumable', 'component'];
+        function syncPicker() {
+            keys.forEach(function (k) {
+                var el = document.getElementById('li_picker_' + k);
+                if (el) { el.style.display = (k === typeSelect.value) ? '' : 'none'; }
+            });
+        }
+        typeSelect.addEventListener('change', syncPicker);
+        syncPicker();
+    })();
+</script>
 @stop
