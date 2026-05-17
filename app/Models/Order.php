@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Watson\Validating\ValidatingTrait;
@@ -113,5 +114,16 @@ class Order extends SnipeModel
     public function adminuser()
     {
         return $this->belongsTo(User::class, 'created_by')->withTrashed();
+    }
+
+    /**
+     * An order has no `name` column, so the shared display_name accessor
+     * (which returns `name`) would be empty. Use the order number instead.
+     */
+    protected function displayName(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->order_number,
+        );
     }
 }
