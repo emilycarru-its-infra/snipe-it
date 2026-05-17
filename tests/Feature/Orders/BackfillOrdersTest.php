@@ -12,7 +12,7 @@ class BackfillOrdersTest extends TestCase
     {
         $asset = Asset::factory()->create([
             'order_number' => 'PO-BACKFILL-1',
-            'purchase_date' => now()->subMonths(2),
+            'purchase_date' => now()->subMonths(2)->format('Y-m-d'),
             'purchase_cost' => 100,
         ]);
 
@@ -31,7 +31,7 @@ class BackfillOrdersTest extends TestCase
     {
         Asset::factory()->create([
             'order_number' => 'PO-IDEM',
-            'purchase_date' => now()->subMonth(),
+            'purchase_date' => now()->subMonth()->format('Y-m-d'),
             'purchase_cost' => 50,
         ]);
 
@@ -45,7 +45,7 @@ class BackfillOrdersTest extends TestCase
     {
         Asset::factory()->create([
             'order_number' => 'PO-OLD',
-            'purchase_date' => now()->subMonths(20),
+            'purchase_date' => now()->subMonths(20)->format('Y-m-d'),
             'purchase_cost' => 100,
         ]);
 
