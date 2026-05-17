@@ -39,7 +39,7 @@
 <div class="form-group {{ $errors->has('order_cost') ? ' has-error' : '' }}">
     <label for="order_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.order_cost') }}</label>
     <div class="col-md-3 col-sm-12">
-        <input class="form-control" type="text" name="order_cost" id="order_cost" value="{{ old('order_cost', $item->order_cost) }}" maxlength="20" />
+        <input class="form-control" type="text" name="order_cost" id="order_cost" value="{{ old('order_cost', $item->order_cost !== null ? number_format($item->order_cost, 2, '.', '') : '') }}" maxlength="20" />
         {!! $errors->first('order_cost', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
     </div>
 </div>

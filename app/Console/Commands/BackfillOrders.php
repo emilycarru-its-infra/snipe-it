@@ -87,6 +87,8 @@ class BackfillOrders extends Command
 
             $newItems = 0;
             foreach ($groupAssets as $asset) {
+                // The line item is identified by its linked asset, so the
+                // free-text description is left empty for backfilled rows.
                 $item = OrderItem::firstOrCreate(
                     [
                         'order_id' => $order->id,
@@ -96,7 +98,6 @@ class BackfillOrders extends Command
                     [
                         'quantity' => 1,
                         'unit_cost' => $asset->purchase_cost,
-                        'description' => $asset->name ?: $asset->asset_tag,
                     ]
                 );
 
