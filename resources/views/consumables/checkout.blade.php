@@ -78,26 +78,10 @@
 
 
 
-          <!-- Checkout target type -->
-          <div class="form-group">
-            <label for="checkout_to_type" class="col-md-3 control-label">{{ trans('admin/hardware/form.checkout_to') }}</label>
-            <div class="col-md-7">
-              <select class="form-control" name="checkout_to_type" id="checkout_to_type" aria-label="checkout_to_type">
-                <option value="user" {{ old('checkout_to_type', 'user') === 'user' ? 'selected' : '' }}>{{ trans('general.user') }}</option>
-                <option value="asset" {{ old('checkout_to_type') === 'asset' ? 'selected' : '' }}>{{ trans('general.asset') }}</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Checkout target: user -->
-          <div id="checkout_to_user_wrapper">
-            @include ('partials.forms.edit.user-select', ['translated_name' => trans('general.select_user'), 'fieldname' => 'assigned_to', 'required'=> 'false'])
-          </div>
-
-          <!-- Checkout target: asset -->
-          <div id="checkout_to_asset_wrapper" style="display:none">
-            @include ('partials.forms.edit.asset-select', ['translated_name' => trans('general.select_asset'), 'fieldname' => 'assigned_asset', 'required' => 'false'])
-          </div>
+          <!-- Checkout target -->
+          @include ('partials.forms.checkout-selector', ['user_select' => 'true', 'asset_select' => 'true'])
+          @include ('partials.forms.edit.user-select', ['translated_name' => trans('general.user'), 'fieldname' => 'assigned_to', 'style' => (session('checkout_to_type') ?: 'user') == 'user' ? '' : 'display: none;'])
+          @include ('partials.forms.edit.asset-select', ['translated_name' => trans('general.select_asset'), 'fieldname' => 'assigned_asset', 'style' => session('checkout_to_type') == 'asset' ? '' : 'display: none;'])
 
 
             @if ($consumable->requireAcceptance() || (string) $snipeSettings->require_accept_signature === '1' || $consumable->getEula() || ($snipeSettings->webhook_endpoint!=''))
@@ -178,25 +162,4 @@
 
   </div>
 </div>
-@stop
-
-@section('moar_scripts')
-<script>
-  (function () {
-    var typeSelect = document.getElementById('checkout_to_type');
-    var userWrap = document.getElementById('checkout_to_user_wrapper');
-    var assetWrap = document.getElementById('checkout_to_asset_wrapper');
-
-    function syncCheckoutTarget() {
-      var isAsset = typeSelect.value === 'asset';
-      userWrap.style.display = isAsset ? 'none' : '';
-      assetWrap.style.display = isAsset ? '' : 'none';
-    }
-
-    if (typeSelect && userWrap && assetWrap) {
-      typeSelect.addEventListener('change', syncCheckoutTarget);
-      syncCheckoutTarget();
-    }
-  })();
-</script>
 @stop
