@@ -688,6 +688,15 @@ class Asset extends Depreciable
     }
 
     /**
+     * Establishes the asset -> order line items relationship.
+     * Lets the asset view surface which purchase orders it appears on.
+     */
+    public function orderItems()
+    {
+        return $this->morphMany(OrderItem::class, 'item');
+    }
+
+    /**
      * Get depreciation attribute from associated asset model
      *
      * @todo Is this still needed?

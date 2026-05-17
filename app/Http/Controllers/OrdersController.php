@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\OrderItem;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -83,6 +84,60 @@ class OrdersController extends Controller
         $order->delete();
 
         return redirect()->route('orders.index')->with('success', trans('admin/orders/message.delete.success'));
+    }
+
+    /**
+     * Item types that can be attached to an order as line items, keyed by the
+     * short form used in the add-item form.
+     */
+    public const ITEM_TYPES = [
+        'asset' => \App\Models\Asset::class,
+        'license' => \App\Models\License::class,
+        'accessory' => \App\Models\Accessory::class,
+        'consumable' => \App\Models\Consumable::class,
+        'component' => \App\Models\Component::class,
+    ];
+
+    public function storeItem(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $typeKey = $request->input('item_type');
+
+        if (! array_key_exists($typeKey, self::ITEM_TYPES)) {
+            return redirect()->route('orders.show', $order->id)->with('error', trans('admin/orders/message.item.type_invalid'));
+        }
+
+        $itemClass = self::ITEM_TYPES[$typeKey];
+
+        if (is_null($item = $itemClass::find($request->input('item_id_'.$typeKey)))) {
+            return redirect()->route('orders.show', $order->id)->with('error', trans('admin/orders/message.item.not_found'));
+        }
+
+        $quantity = (int) $request->input('quantity', 1);
+
+        $orderItem = new OrderItem;
+        $orderItem->order_id = $order->id;
+        $orderItem->item_type = $itemClass;
+        $orderItem->item_id = $item->id;
+        $orderItem->description = $request->input('description') ?: null;
+        $orderItem->quantity = $quantity > 0 ? $quantity : 1;
+        $orderItem->unit_cost = $request->input('unit_cost') ?: null;
+        $orderItem->save();
+
+        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.add_success'));
+    }
+
+    public function destroyItem(Order $order, OrderItem $item): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        // Guard against an item id from a different order being passed in.
+        if ((int) $item->order_id === (int) $order->id) {
+            $item->delete();
+        }
+
+        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.delete_success'));
     }
 
     private function fillFromRequest(Order $order, Request $request): void
