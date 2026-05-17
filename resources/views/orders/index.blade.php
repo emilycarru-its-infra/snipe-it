@@ -46,11 +46,11 @@
                                 <td>{{ $order->company?->name }}</td>
                                 <td>{{ $order->order_date ? $order->order_date->format('Y-m-d') : '' }}</td>
                                 <td>{{ $order->expected_date ? $order->expected_date->format('Y-m-d') : '' }}</td>
-                                <td>{{ $order->order_cost }}</td>
+                                <td>{{ $order->order_cost !== null ? Helper::formatCurrencyOutput($order->order_cost) : '' }}</td>
                                 <td>{{ $order->items_count }}</td>
                                 <td class="text-right">
                                     @can('update', \App\Models\Order::class)
-                                        <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-sm btn-warning btn-social" data-tooltip="true" title="{{ trans('general.update') }}">
+                                        <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-sm btn-warning" data-tooltip="true" title="{{ trans('general.update') }}">
                                             <x-icon type="edit" />
                                         </a>
                                     @endcan
@@ -58,7 +58,7 @@
                                         <form method="post" action="{{ route('orders.destroy', $order->id) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/message.delete_confirm') }}')">
                                             {{ csrf_field() }}
                                             {{ method_field('DELETE') }}
-                                            <button type="submit" class="btn btn-sm btn-danger btn-social" data-tooltip="true" title="{{ trans('general.delete') }}">
+                                            <button type="submit" class="btn btn-sm btn-danger" data-tooltip="true" title="{{ trans('general.delete') }}">
                                                 <x-icon type="delete" />
                                             </button>
                                         </form>
