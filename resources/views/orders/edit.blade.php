@@ -10,6 +10,21 @@
 
 @include ('partials.forms.edit.order_number')
 
+<!-- Purchase Order -->
+<div class="form-group {{ $errors->has('purchase_order_id') ? ' has-error' : '' }}">
+    <label for="purchase_order_id" class="col-md-3 control-label">{{ trans('admin/purchase-orders/general.purchase_order') }}</label>
+    <div class="col-md-7 col-sm-12">
+        @php $current_po = old('purchase_order_id', $item->purchase_order_id); @endphp
+        <select class="form-control" name="purchase_order_id" id="purchase_order_id" aria-label="purchase_order_id">
+            <option value="">{{ trans('admin/purchase-orders/general.none') }}</option>
+            @foreach ($purchase_orders as $po)
+                <option value="{{ $po->id }}" {{ (int) $current_po === (int) $po->id ? 'selected' : '' }}>{{ $po->po_number }}{{ $po->title ? ' — '.$po->title : '' }}</option>
+            @endforeach
+        </select>
+        {!! $errors->first('purchase_order_id', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
+
 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
 @include ('partials.forms.edit.company-select', ['translated_name' => trans('general.company'), 'fieldname' => 'company_id'])
 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/orders/general.order_date'), 'fieldname' => 'order_date'])
