@@ -28,6 +28,7 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\OrdersController;
+use App\Http\Controllers\ProcurementReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\UploadedFilesController;
@@ -604,6 +605,25 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     Route::post(
         'unaccepted_assets/{deleted?}', [ReportsController::class, 'postAssetAcceptanceReport'])
         ->name('reports/export/unaccepted_assets');
+
+    Route::prefix('procurement')->group(function () {
+        Route::get('/', [ProcurementReportsController::class, 'index'])
+            ->name('reports.procurement')
+            ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+                ->push(trans('general.reports'), route('reports.index'))
+                ->push(trans('admin/purchase-orders/general.reports'), route('reports.procurement')));
+
+        Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
+            ->name('reports.procurement.po-budget');
+        Route::get('invoices', [ProcurementReportsController::class, 'invoices'])
+            ->name('reports.procurement.invoices');
+        Route::get('receiving', [ProcurementReportsController::class, 'receiving'])
+            ->name('reports.procurement.receiving');
+        Route::get('tax', [ProcurementReportsController::class, 'tax'])
+            ->name('reports.procurement.tax');
+        Route::get('capital', [ProcurementReportsController::class, 'capital'])
+            ->name('reports.procurement.capital');
+    });
 
 });
 
