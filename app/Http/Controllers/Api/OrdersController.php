@@ -27,7 +27,7 @@ class OrdersController extends Controller
             'created_at',
         ];
 
-        $orders = Order::with('supplier', 'company', 'adminuser', 'items.item')
+        $orders = Order::with('supplier', 'company', 'adminuser', 'items.item', 'items.invoice', 'invoices')
             ->withCount('items as items_count');
 
         // This invokes the Searchable model trait scopeTextSearch
@@ -74,7 +74,7 @@ class OrdersController extends Controller
     public function show($id): array
     {
         $this->authorize('view', Order::class);
-        $order = Order::with('supplier', 'company', 'adminuser', 'items.item')->findOrFail($id);
+        $order = Order::with('supplier', 'company', 'adminuser', 'items.item', 'items.invoice', 'invoices')->findOrFail($id);
 
         return (new OrdersTransformer)->transformOrder($order);
     }
