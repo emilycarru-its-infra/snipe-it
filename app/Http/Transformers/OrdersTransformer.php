@@ -42,6 +42,7 @@ class OrdersTransformer
             'items_count' => (int) ($order->items_count ?? $order->items->count()),
             'received_items_count' => $order->items->whereNotNull('received_at')->count(),
             'items' => $this->transformOrderItems($order->items),
+            'invoices' => $this->transformInvoices($order->invoices),
             'created_by' => ($order->adminuser) ? [
                 'id' => (int) $order->adminuser->id,
                 'name' => e($order->adminuser->present()->fullName),
@@ -75,13 +76,34 @@ class OrdersTransformer
             'description' => ($item->description) ? e($item->description) : null,
             'quantity' => (int) $item->quantity,
             'unit_cost' => Helper::formatCurrencyOutput($item->unit_cost),
+            'warranty_cost' => Helper::formatCurrencyOutput($item->warranty_cost),
             'received' => ! is_null($item->received_at),
             'received_at' => Helper::getFormattedDateObject($item->received_at, 'datetime'),
+            'invoice' => ($item->invoice_id && $item->invoice) ? e($item->invoice->invoice_number) : null,
             'item' => ($item->item_type && $item->item) ? [
                 'id' => (int) $item->item->id,
                 'name' => e($item->item->name),
                 'type' => class_basename($item->item_type),
             ] : null,
         ];
+    }
+
+    public function transformInvoices($invoices)
+    {
+        $array = [];
+        foreach ($invoices as $invoice) {
+            $array[] = [
+                'id' => (int) $invoice->id,
+                'invoice_number' => e($invoice->invoice_number),
+                'invoice_date' => Helper::getFormattedDateObject($invoice->invoice_date, 'date'),
+                'subtotal' => Helper::formatCurrencyOutput($invoice->subtotal),
+                'tax_gst' => Helper::formatCurrencyOutput($invoice->tax_gst),
+                'tax_pst' => Helper::formatCurrencyOutput($invoice->tax_pst),
+                'shipping' => Helper::formatCurrencyOutput($invoice->shipping),
+                'total' => Helper::formatCurrencyOutput($invoice->total),
+            ];
+        }
+
+        return $array;
     }
 }

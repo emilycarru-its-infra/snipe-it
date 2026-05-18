@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Asset;
 use App\Models\Order;
+use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use Illuminate\Contracts\View\View;
@@ -77,7 +78,7 @@ class OrdersController extends Controller
     {
         $this->authorize('view', Order::class);
 
-        $order->load('supplier', 'company', 'adminuser', 'items.item', 'items.shipment', 'shipments');
+        $order->load('supplier', 'company', 'adminuser', 'items.item', 'items.shipment', 'items.invoice', 'shipments', 'invoices');
 
         return view('orders/view', compact('order'));
     }
@@ -121,20 +122,28 @@ class OrdersController extends Controller
 
         $quantity = (int) $request->input('quantity', 1);
 
-        // A line item may be attached to one of the order's own shipments.
+        // A line item may be attached to one of the order's own shipments
+        // and billed on one of its invoices.
         $shipmentId = $request->input('shipment_id') ?: null;
         if ($shipmentId && ! $order->shipments()->whereKey($shipmentId)->exists()) {
             $shipmentId = null;
         }
 
+        $invoiceId = $request->input('invoice_id') ?: null;
+        if ($invoiceId && ! $order->invoices()->whereKey($invoiceId)->exists()) {
+            $invoiceId = null;
+        }
+
         $orderItem = new OrderItem;
         $orderItem->order_id = $order->id;
         $orderItem->shipment_id = $shipmentId;
+        $orderItem->invoice_id = $invoiceId;
         $orderItem->item_type = $itemClass;
         $orderItem->item_id = $item->id;
         $orderItem->description = $request->input('description') ?: null;
         $orderItem->quantity = $quantity > 0 ? $quantity : 1;
         $orderItem->unit_cost = $request->input('unit_cost') ?: null;
+        $orderItem->warranty_cost = $request->input('warranty_cost') ?: null;
         $orderItem->save();
 
         return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.add_success'));
@@ -235,6 +244,43 @@ class OrdersController extends Controller
         }
 
         return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.shipment.receive_success'));
+    }
+
+    public function storeInvoice(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $invoice = new OrderInvoice;
+        $invoice->order_id = $order->id;
+        $this->fillInvoiceFromRequest($invoice, $request);
+        $invoice->save();
+
+        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.invoice.add_success'));
+    }
+
+    public function updateInvoice(Request $request, Order $order, OrderInvoice $invoice): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        if ((int) $invoice->order_id === (int) $order->id) {
+            $this->fillInvoiceFromRequest($invoice, $request);
+            $invoice->save();
+        }
+
+        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.invoice.update_success'));
+    }
+
+    public function destroyInvoice(Order $order, OrderInvoice $invoice): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        if ((int) $invoice->order_id === (int) $order->id) {
+            // Release the line items so they aren't tied to a dead invoice.
+            $invoice->items()->update(['invoice_id' => null]);
+            $invoice->delete();
+        }
+
+        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.invoice.delete_success'));
     }
 
     /**
@@ -361,5 +407,17 @@ class OrdersController extends Controller
         $shipment->shipped_date = $request->input('shipped_date') ?: null;
         $shipment->received_date = $request->input('received_date') ?: null;
         $shipment->notes = $request->input('notes') ?: null;
+    }
+
+    private function fillInvoiceFromRequest(OrderInvoice $invoice, Request $request): void
+    {
+        $invoice->invoice_number = $request->input('invoice_number');
+        $invoice->invoice_date = $request->input('invoice_date') ?: null;
+        $invoice->subtotal = $request->input('subtotal') ?: null;
+        $invoice->tax_gst = $request->input('tax_gst') ?: null;
+        $invoice->tax_pst = $request->input('tax_pst') ?: null;
+        $invoice->shipping = $request->input('shipping') ?: null;
+        $invoice->total = $request->input('total') ?: null;
+        $invoice->notes = $request->input('notes') ?: null;
     }
 }

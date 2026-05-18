@@ -104,6 +104,9 @@ Route::group(['middleware' => 'auth'], function () {
     Route::put('orders/{order}/shipments/{shipment}', [OrdersController::class, 'updateShipment'])->name('orders.shipments.update');
     Route::delete('orders/{order}/shipments/{shipment}', [OrdersController::class, 'destroyShipment'])->name('orders.shipments.destroy');
     Route::post('orders/{order}/shipments/{shipment}/receive', [OrdersController::class, 'receiveShipment'])->name('orders.shipments.receive');
+    Route::post('orders/{order}/invoices', [OrdersController::class, 'storeInvoice'])->name('orders.invoices.store');
+    Route::put('orders/{order}/invoices/{invoice}', [OrdersController::class, 'updateInvoice'])->name('orders.invoices.update');
+    Route::delete('orders/{order}/invoices/{invoice}', [OrdersController::class, 'destroyInvoice'])->name('orders.invoices.destroy');
 
     /*
     * Depreciations

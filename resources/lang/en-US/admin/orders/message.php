@@ -35,4 +35,10 @@ return [
         'delete_success' => 'Shipment removed from the order.',
         'receive_success' => 'Shipment marked as received.',
     ],
+
+    'invoice' => [
+        'add_success' => 'Invoice added to the order.',
+        'update_success' => 'Invoice updated.',
+        'delete_success' => 'Invoice removed from the order.',
+    ],
 ];

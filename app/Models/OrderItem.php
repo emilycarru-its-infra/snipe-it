@@ -14,11 +14,13 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id',
         'shipment_id',
+        'invoice_id',
         'item_type',
         'item_id',
         'description',
         'quantity',
         'unit_cost',
+        'warranty_cost',
         'received_at',
     ];
 
@@ -56,6 +58,22 @@ class OrderItem extends Model
     public function shipment()
     {
         return $this->belongsTo(OrderShipment::class, 'shipment_id');
+    }
+
+    /**
+     * The invoice this line item was billed on, when assigned.
+     */
+    public function invoice()
+    {
+        return $this->belongsTo(OrderInvoice::class, 'invoice_id');
+    }
+
+    /**
+     * The full cost of this line: equipment plus any warranty/soft cost.
+     */
+    public function lineTotal(): float
+    {
+        return ((float) $this->unit_cost * (int) $this->quantity) + (float) $this->warranty_cost;
     }
 
     /**

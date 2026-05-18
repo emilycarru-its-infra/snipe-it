@@ -97,6 +97,14 @@ class Order extends SnipeModel
     }
 
     /**
+     * Establishes the order -> invoices relationship
+     */
+    public function invoices()
+    {
+        return $this->hasMany(OrderInvoice::class, 'order_id');
+    }
+
+    /**
      * Establishes the order -> supplier relationship
      */
     public function supplier()
