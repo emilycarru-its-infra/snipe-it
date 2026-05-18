@@ -11,6 +11,8 @@
 @php
     $totalItems = $order->items->count();
     $receivedItems = $order->items->whereNotNull('received_at')->count();
+    $equipmentTotal = $order->items->sum(fn ($li) => (float) $li->unit_cost * (int) $li->quantity);
+    $warrantyTotal = $order->items->sum(fn ($li) => (float) $li->warranty_cost);
 @endphp
 <div class="row">
     <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1 col-sm-12 col-sm-offset-0">
@@ -98,9 +100,7 @@
                 </table>
 
                 <h3>{{ trans('admin/orders/general.line_items') }}</h3>
-                @php
-                    $orderTotal = $order->items->sum(fn ($li) => (float) $li->unit_cost * (int) $li->quantity);
-                @endphp
+                <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
                         <tr>
@@ -109,7 +109,9 @@
                             <th>{{ trans('admin/orders/general.description') }}</th>
                             <th>{{ trans('admin/orders/general.quantity') }}</th>
                             <th>{{ trans('admin/orders/general.unit_cost') }}</th>
+                            <th>{{ trans('admin/orders/general.warranty_cost') }}</th>
                             <th>{{ trans('admin/orders/general.shipment') }}</th>
+                            <th>{{ trans('admin/orders/general.invoice') }}</th>
                             <th>{{ trans('admin/orders/general.received') }}</th>
                             @can('update', \App\Models\Order::class)
                                 <th class="text-right">{{ trans('table.actions') }}</th>
@@ -134,11 +136,13 @@
                             <td>{{ $lineItem->description }}</td>
                             <td>{{ $lineItem->quantity }}</td>
                             <td>{{ $lineItem->unit_cost !== null ? Helper::formatCurrencyOutput($lineItem->unit_cost) : '' }}</td>
+                            <td>{{ $lineItem->warranty_cost !== null ? Helper::formatCurrencyOutput($lineItem->warranty_cost) : '' }}</td>
                             <td>
                                 @if ($lineItem->shipment)
                                     {{ $lineItem->shipment->tracking_number ?: trans('admin/orders/general.shipment').' #'.$lineItem->shipment->id }}
                                 @endif
                             </td>
+                            <td>{{ $lineItem->invoice?->invoice_number }}</td>
                             <td>
                                 @if ($lineItem->received_at)
                                     <span class="text-success">
@@ -177,7 +181,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8">{{ trans('admin/orders/general.no_line_items') }}</td>
+                            <td colspan="10">{{ trans('admin/orders/general.no_line_items') }}</td>
                         </tr>
                     @endforelse
                     </tbody>
@@ -185,9 +189,9 @@
                         <tfoot>
                             <tr>
                                 <th colspan="4" class="text-right">{{ trans('admin/orders/general.order_cost') }}</th>
-                                <th>{{ Helper::formatCurrencyOutput($orderTotal) }}</th>
-                                <th></th>
-                                <th></th>
+                                <th>{{ Helper::formatCurrencyOutput($equipmentTotal) }}</th>
+                                <th>{{ Helper::formatCurrencyOutput($warrantyTotal) }}</th>
+                                <th colspan="3" class="text-right">{{ Helper::formatCurrencyOutput($equipmentTotal + $warrantyTotal) }}</th>
                                 @can('update', \App\Models\Order::class)
                                     <th></th>
                                 @endcan
@@ -195,8 +199,10 @@
                         </tfoot>
                     @endif
                 </table>
+                </div>
 
                 <h3>{{ trans('admin/orders/general.shipments') }}</h3>
+                <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
                         <tr>
@@ -252,6 +258,57 @@
                     @endforelse
                     </tbody>
                 </table>
+                </div>
+
+                <h3>{{ trans('admin/orders/general.invoices') }}</h3>
+                <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>{{ trans('admin/orders/general.invoice_number') }}</th>
+                            <th>{{ trans('admin/orders/general.invoice_date') }}</th>
+                            <th>{{ trans('admin/orders/general.subtotal') }}</th>
+                            <th>{{ trans('admin/orders/general.tax_gst') }}</th>
+                            <th>{{ trans('admin/orders/general.tax_pst') }}</th>
+                            <th>{{ trans('admin/orders/general.shipping') }}</th>
+                            <th>{{ trans('admin/orders/general.total') }}</th>
+                            <th>{{ trans('admin/orders/general.line_items') }}</th>
+                            @can('update', \App\Models\Order::class)
+                                <th class="text-right">{{ trans('table.actions') }}</th>
+                            @endcan
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($order->invoices as $invoice)
+                        <tr>
+                            <td>{{ $invoice->invoice_number }}</td>
+                            <td>{{ $invoice->invoice_date ? $invoice->invoice_date->format('Y-m-d') : '' }}</td>
+                            <td>{{ $invoice->subtotal !== null ? Helper::formatCurrencyOutput($invoice->subtotal) : '' }}</td>
+                            <td>{{ $invoice->tax_gst !== null ? Helper::formatCurrencyOutput($invoice->tax_gst) : '' }}</td>
+                            <td>{{ $invoice->tax_pst !== null ? Helper::formatCurrencyOutput($invoice->tax_pst) : '' }}</td>
+                            <td>{{ $invoice->shipping !== null ? Helper::formatCurrencyOutput($invoice->shipping) : '' }}</td>
+                            <td>{{ $invoice->total !== null ? Helper::formatCurrencyOutput($invoice->total) : '' }}</td>
+                            <td>{{ $order->items->where('invoice_id', $invoice->id)->count() }}</td>
+                            @can('update', \App\Models\Order::class)
+                                <td class="text-right">
+                                    <form method="post" action="{{ route('orders.invoices.destroy', ['order' => $order->id, 'invoice' => $invoice->id]) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/general.remove') }}?')">
+                                        {{ csrf_field() }}
+                                        {{ method_field('DELETE') }}
+                                        <button type="submit" class="btn btn-sm btn-danger" data-tooltip="true" title="{{ trans('admin/orders/general.remove') }}">
+                                            <x-icon type="delete" />
+                                        </button>
+                                    </form>
+                                </td>
+                            @endcan
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="9">{{ trans('admin/orders/general.no_invoices') }}</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+                </div>
 
                 @can('update', \App\Models\Order::class)
                     <div class="box box-default">
@@ -294,6 +351,74 @@
                                     <div class="col-md-offset-3 col-md-7">
                                         <button type="submit" class="btn btn-primary">
                                             <x-icon type="create" /> {{ trans('admin/orders/general.add_shipment') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="box box-default">
+                        <div class="box-header with-border">
+                            <h3 class="box-title">{{ trans('admin/orders/general.add_invoice') }}</h3>
+                        </div>
+                        <div class="box-body">
+                            <form method="post" action="{{ route('orders.invoices.store', ['order' => $order->id]) }}" class="form-horizontal">
+                                {{ csrf_field() }}
+
+                                <div class="form-group">
+                                    <label for="invoice_number" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice_number') }}</label>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="invoice_number" id="invoice_number" maxlength="191" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="invoice_date" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice_date') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="date" class="form-control" name="invoice_date" id="invoice_date">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="subtotal" class="col-md-3 control-label">{{ trans('admin/orders/general.subtotal') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="subtotal" id="subtotal" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="tax_gst" class="col-md-3 control-label">{{ trans('admin/orders/general.tax_gst') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="tax_gst" id="tax_gst" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="tax_pst" class="col-md-3 control-label">{{ trans('admin/orders/general.tax_pst') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="tax_pst" id="tax_pst" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="shipping" class="col-md-3 control-label">{{ trans('admin/orders/general.shipping') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="shipping" id="shipping" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="total" class="col-md-3 control-label">{{ trans('admin/orders/general.total') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="total" id="total" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="col-md-offset-3 col-md-7">
+                                        <button type="submit" class="btn btn-primary">
+                                            <x-icon type="create" /> {{ trans('admin/orders/general.add_invoice') }}
                                         </button>
                                     </div>
                                 </div>
@@ -350,12 +475,31 @@
                                 </div>
 
                                 <div class="form-group">
+                                    <label for="warranty_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.warranty_cost') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="warranty_cost" id="warranty_cost" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
                                     <label for="shipment_id" class="col-md-3 control-label">{{ trans('admin/orders/general.shipment') }}</label>
                                     <div class="col-md-5">
                                         <select class="form-control" name="shipment_id" id="shipment_id" aria-label="shipment_id">
                                             <option value="">{{ trans('admin/orders/general.unassigned_shipment') }}</option>
                                             @foreach ($order->shipments as $shipment)
                                                 <option value="{{ $shipment->id }}">{{ $shipment->tracking_number ?: trans('admin/orders/general.shipment').' #'.$shipment->id }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="invoice_id" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice') }}</label>
+                                    <div class="col-md-5">
+                                        <select class="form-control" name="invoice_id" id="invoice_id" aria-label="invoice_id">
+                                            <option value="">{{ trans('admin/orders/general.unassigned_invoice') }}</option>
+                                            @foreach ($order->invoices as $invoice)
+                                                <option value="{{ $invoice->id }}">{{ $invoice->invoice_number }}</option>
                                             @endforeach
                                         </select>
                                     </div>
