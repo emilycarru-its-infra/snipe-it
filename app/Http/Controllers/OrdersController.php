@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
+use App\Models\PurchaseOrder;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,7 +36,9 @@ class OrdersController extends Controller
     {
         $this->authorize('create', Order::class);
 
-        return view('orders/edit')->with('item', new Order);
+        return view('orders/edit')
+            ->with('item', new Order)
+            ->with('purchase_orders', PurchaseOrder::orderBy('po_number')->get());
     }
 
     public function store(Request $request): RedirectResponse
@@ -58,7 +61,9 @@ class OrdersController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        return view('orders/edit')->with('item', $order);
+        return view('orders/edit')
+            ->with('item', $order)
+            ->with('purchase_orders', PurchaseOrder::orderBy('po_number')->get());
     }
 
     public function update(Request $request, Order $order): RedirectResponse
@@ -78,7 +83,7 @@ class OrdersController extends Controller
     {
         $this->authorize('view', Order::class);
 
-        $order->load('supplier', 'company', 'adminuser', 'items.item', 'items.shipment', 'items.invoice', 'shipments', 'invoices');
+        $order->load('supplier', 'company', 'adminuser', 'purchaseOrder', 'items.item', 'items.shipment', 'items.invoice', 'shipments', 'invoices');
 
         return view('orders/view', compact('order'));
     }
@@ -391,6 +396,7 @@ class OrdersController extends Controller
     private function fillFromRequest(Order $order, Request $request): void
     {
         $order->order_number = $request->input('order_number');
+        $order->purchase_order_id = $request->input('purchase_order_id') ?: null;
         $order->supplier_id = $request->input('supplier_id') ?: null;
         $order->company_id = $request->input('company_id') ?: null;
         $order->order_date = $request->input('order_date') ?: null;

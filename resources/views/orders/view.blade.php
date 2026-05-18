@@ -61,6 +61,14 @@
                             </td>
                         </tr>
                         <tr>
+                            <td><strong>{{ trans('admin/purchase-orders/general.purchase_order') }}</strong></td>
+                            <td>
+                                @if ($order->purchaseOrder)
+                                    <a href="{{ route('purchase-orders.show', ['purchase_order' => $order->purchaseOrder->id]) }}">{{ $order->purchaseOrder->po_number }}</a>
+                                @endif
+                            </td>
+                        </tr>
+                        <tr>
                             <td><strong>{{ trans('general.supplier') }}</strong></td>
                             <td>{{ $order->supplier?->name }}</td>
                         </tr>
