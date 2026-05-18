@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reports;
 
+use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\PurchaseOrder;
@@ -72,5 +73,19 @@ class ProcurementReportsTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString('Fiscal Year', $response->streamedContent());
+    }
+
+    public function test_refresh_forecast_report_lists_assets_near_eol()
+    {
+        Asset::factory()->create([
+            'asset_tag' => 'FORECAST-1',
+            'asset_eol_date' => now()->addMonths(6)->format('Y-m-d'),
+        ]);
+
+        $response = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.forecast'));
+
+        $response->assertOk();
+        $this->assertStringContainsString('FORECAST-1', $response->streamedContent());
     }
 }
