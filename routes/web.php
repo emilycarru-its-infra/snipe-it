@@ -93,8 +93,17 @@ Route::group(['middleware' => 'auth'], function () {
     */
     Route::resource('orders', OrdersController::class);
     Route::post('orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
+    Route::get('orders/{order}/export', [OrdersController::class, 'export'])->name('orders.export');
+    Route::post('orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('orders.cancel');
+    Route::post('orders/{order}/reopen', [OrdersController::class, 'reopen'])->name('orders.reopen');
     Route::post('orders/{order}/items', [OrdersController::class, 'storeItem'])->name('orders.items.store');
     Route::delete('orders/{order}/items/{item}', [OrdersController::class, 'destroyItem'])->name('orders.items.destroy');
+    Route::post('orders/{order}/items/{item}/receive', [OrdersController::class, 'receiveItem'])->name('orders.items.receive');
+    Route::post('orders/{order}/items/{item}/unreceive', [OrdersController::class, 'unreceiveItem'])->name('orders.items.unreceive');
+    Route::post('orders/{order}/shipments', [OrdersController::class, 'storeShipment'])->name('orders.shipments.store');
+    Route::put('orders/{order}/shipments/{shipment}', [OrdersController::class, 'updateShipment'])->name('orders.shipments.update');
+    Route::delete('orders/{order}/shipments/{shipment}', [OrdersController::class, 'destroyShipment'])->name('orders.shipments.destroy');
+    Route::post('orders/{order}/shipments/{shipment}/receive', [OrdersController::class, 'receiveShipment'])->name('orders.shipments.receive');
 
     /*
     * Depreciations

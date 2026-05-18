@@ -4,7 +4,9 @@ namespace App\Observers;
 
 use App\Models\Actionlog;
 use App\Models\Asset;
+use App\Models\OrderItem;
 use App\Models\Setting;
+use App\Models\Statuslabel;
 use Carbon\Carbon;
 
 class AssetObserver
@@ -111,6 +113,48 @@ class AssetObserver
             $logAction->setActionSource('importer');
         }
         $logAction->logaction('create');
+
+        $this->markOrderItemsReceived($asset);
+    }
+
+    /**
+     * Listen to the Asset updated event. When an asset moves into a
+     * deployable (Active) status, treat it as physically received on any
+     * orders it belongs to.
+     *
+     * @return void
+     */
+    public function updated(Asset $asset)
+    {
+        if ($asset->wasChanged('status_id')) {
+            $this->markOrderItemsReceived($asset);
+        }
+    }
+
+    /**
+     * If the asset is in a deployable status, stamp any not-yet-received
+     * order line items pointing at it as received. Saving each item rolls
+     * the parent order status forward via the OrderItem model events.
+     *
+     * @return void
+     */
+    private function markOrderItemsReceived(Asset $asset)
+    {
+        $status = $asset->status_id ? Statuslabel::find($asset->status_id) : null;
+
+        if (! $status || ! $status->deployable) {
+            return;
+        }
+
+        $items = OrderItem::where('item_type', Asset::class)
+            ->where('item_id', $asset->id)
+            ->whereNull('received_at')
+            ->get();
+
+        foreach ($items as $item) {
+            $item->received_at = now();
+            $item->save();
+        }
     }
 
     /**

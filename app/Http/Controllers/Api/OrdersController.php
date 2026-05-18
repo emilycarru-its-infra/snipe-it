@@ -24,8 +24,6 @@ class OrdersController extends Controller
             'expected_date',
             'received_date',
             'order_cost',
-            'tracking_number',
-            'tracking_carrier',
             'created_at',
         ];
 

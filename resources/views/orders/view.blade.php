@@ -8,6 +8,10 @@
 
 {{-- Page content --}}
 @section('content')
+@php
+    $totalItems = $order->items->count();
+    $receivedItems = $order->items->whereNotNull('received_at')->count();
+@endphp
 <div class="row">
     <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1 col-sm-12 col-sm-offset-0">
         <div class="box box-default">
@@ -18,7 +22,21 @@
                         <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-sm btn-primary">
                             <x-icon type="edit" /> {{ trans('general.update') }}
                         </a>
+                        @if ($order->status === 'cancelled')
+                            <form method="post" action="{{ route('orders.reopen', $order->id) }}" style="display:inline-block">
+                                {{ csrf_field() }}
+                                <button type="submit" class="btn btn-sm btn-warning">{{ trans('admin/orders/general.reopen_order') }}</button>
+                            </form>
+                        @else
+                            <form method="post" action="{{ route('orders.cancel', $order->id) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/general.cancel_confirm') }}')">
+                                {{ csrf_field() }}
+                                <button type="submit" class="btn btn-sm btn-danger">{{ trans('admin/orders/general.cancel_order') }}</button>
+                            </form>
+                        @endif
                     @endcan
+                    <a href="{{ route('orders.export', $order->id) }}" class="btn btn-sm btn-default">
+                        <x-icon type="download" /> {{ trans('admin/orders/general.export') }}
+                    </a>
                     <a href="{{ route('orders.index') }}" class="btn btn-sm btn-default">
                         {{ trans('admin/orders/general.orders') }}
                     </a>
@@ -33,7 +51,12 @@
                         </tr>
                         <tr>
                             <td><strong>{{ trans('admin/orders/general.status') }}</strong></td>
-                            <td>{{ trans('admin/orders/general.status_'.$order->status) }}</td>
+                            <td>
+                                {{ trans('admin/orders/general.status_'.$order->status) }}
+                                @if ($totalItems > 0)
+                                    <span class="text-muted">({{ trans('admin/orders/general.received_count', ['received' => $receivedItems, 'total' => $totalItems]) }})</span>
+                                @endif
+                            </td>
                         </tr>
                         <tr>
                             <td><strong>{{ trans('general.supplier') }}</strong></td>
@@ -58,20 +81,6 @@
                         <tr>
                             <td><strong>{{ trans('admin/orders/general.order_cost') }}</strong></td>
                             <td>{{ $order->order_cost !== null ? Helper::formatCurrencyOutput($order->order_cost) : '' }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('general.tracking_number') }}</strong></td>
-                            <td>
-                                @php $tracking_url = Helper::trackingUrl($order->tracking_carrier, $order->tracking_number); @endphp
-                                @if ($order->tracking_number && $tracking_url)
-                                    <a href="{{ $tracking_url }}" target="_blank" rel="noopener">{{ $order->tracking_number }}</a>
-                                @else
-                                    {{ $order->tracking_number }}
-                                @endif
-                                @if ($order->tracking_carrier)
-                                    <span class="text-muted">({{ $order->tracking_carrier }})</span>
-                                @endif
-                            </td>
                         </tr>
                         <tr>
                             <td><strong>{{ trans('general.notes') }}</strong></td>
@@ -100,6 +109,8 @@
                             <th>{{ trans('admin/orders/general.description') }}</th>
                             <th>{{ trans('admin/orders/general.quantity') }}</th>
                             <th>{{ trans('admin/orders/general.unit_cost') }}</th>
+                            <th>{{ trans('admin/orders/general.shipment') }}</th>
+                            <th>{{ trans('admin/orders/general.received') }}</th>
                             @can('update', \App\Models\Order::class)
                                 <th class="text-right">{{ trans('table.actions') }}</th>
                             @endcan
@@ -123,8 +134,37 @@
                             <td>{{ $lineItem->description }}</td>
                             <td>{{ $lineItem->quantity }}</td>
                             <td>{{ $lineItem->unit_cost !== null ? Helper::formatCurrencyOutput($lineItem->unit_cost) : '' }}</td>
+                            <td>
+                                @if ($lineItem->shipment)
+                                    {{ $lineItem->shipment->tracking_number ?: trans('admin/orders/general.shipment').' #'.$lineItem->shipment->id }}
+                                @endif
+                            </td>
+                            <td>
+                                @if ($lineItem->received_at)
+                                    <span class="text-success">
+                                        <i class="fas fa-check-circle" aria-hidden="true"></i> {{ $lineItem->received_at->format('Y-m-d') }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">{{ trans('admin/orders/general.not_received') }}</span>
+                                @endif
+                            </td>
                             @can('update', \App\Models\Order::class)
                                 <td class="text-right">
+                                    @if ($lineItem->received_at)
+                                        <form method="post" action="{{ route('orders.items.unreceive', ['order' => $order->id, 'item' => $lineItem->id]) }}" style="display:inline-block">
+                                            {{ csrf_field() }}
+                                            <button type="submit" class="btn btn-sm btn-default" data-tooltip="true" title="{{ trans('admin/orders/general.unreceive') }}">
+                                                <i class="fas fa-undo" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    @else
+                                        <form method="post" action="{{ route('orders.items.receive', ['order' => $order->id, 'item' => $lineItem->id]) }}" style="display:inline-block">
+                                            {{ csrf_field() }}
+                                            <button type="submit" class="btn btn-sm btn-success" data-tooltip="true" title="{{ trans('admin/orders/general.receive') }}">
+                                                <i class="fas fa-check" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    @endif
                                     <form method="post" action="{{ route('orders.items.destroy', ['order' => $order->id, 'item' => $lineItem->id]) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/general.remove') }}?')">
                                         {{ csrf_field() }}
                                         {{ method_field('DELETE') }}
@@ -137,7 +177,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">{{ trans('admin/orders/general.no_line_items') }}</td>
+                            <td colspan="8">{{ trans('admin/orders/general.no_line_items') }}</td>
                         </tr>
                     @endforelse
                     </tbody>
@@ -146,6 +186,8 @@
                             <tr>
                                 <th colspan="4" class="text-right">{{ trans('admin/orders/general.order_cost') }}</th>
                                 <th>{{ Helper::formatCurrencyOutput($orderTotal) }}</th>
+                                <th></th>
+                                <th></th>
                                 @can('update', \App\Models\Order::class)
                                     <th></th>
                                 @endcan
@@ -154,7 +196,111 @@
                     @endif
                 </table>
 
+                <h3>{{ trans('admin/orders/general.shipments') }}</h3>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>{{ trans('general.tracking_number') }}</th>
+                            <th>{{ trans('admin/orders/general.tracking_carrier') }}</th>
+                            <th>{{ trans('admin/orders/general.shipped_date') }}</th>
+                            <th>{{ trans('admin/orders/general.received_date') }}</th>
+                            <th>{{ trans('admin/orders/general.line_items') }}</th>
+                            @can('update', \App\Models\Order::class)
+                                <th class="text-right">{{ trans('table.actions') }}</th>
+                            @endcan
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($order->shipments as $shipment)
+                        @php $tracking_url = Helper::trackingUrl($shipment->tracking_carrier, $shipment->tracking_number); @endphp
+                        <tr>
+                            <td>
+                                @if ($shipment->tracking_number && $tracking_url)
+                                    <a href="{{ $tracking_url }}" target="_blank" rel="noopener">{{ $shipment->tracking_number }}</a>
+                                @else
+                                    {{ $shipment->tracking_number }}
+                                @endif
+                            </td>
+                            <td>{{ $shipment->tracking_carrier }}</td>
+                            <td>{{ $shipment->shipped_date ? $shipment->shipped_date->format('Y-m-d') : '' }}</td>
+                            <td>{{ $shipment->received_date ? $shipment->received_date->format('Y-m-d') : '' }}</td>
+                            <td>{{ $order->items->where('shipment_id', $shipment->id)->count() }}</td>
+                            @can('update', \App\Models\Order::class)
+                                <td class="text-right">
+                                    @unless ($shipment->received_date)
+                                        <form method="post" action="{{ route('orders.shipments.receive', ['order' => $order->id, 'shipment' => $shipment->id]) }}" style="display:inline-block">
+                                            {{ csrf_field() }}
+                                            <button type="submit" class="btn btn-sm btn-success" data-tooltip="true" title="{{ trans('admin/orders/general.mark_received') }}">
+                                                <i class="fas fa-check" aria-hidden="true"></i> {{ trans('admin/orders/general.mark_received') }}
+                                            </button>
+                                        </form>
+                                    @endunless
+                                    <form method="post" action="{{ route('orders.shipments.destroy', ['order' => $order->id, 'shipment' => $shipment->id]) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/general.remove') }}?')">
+                                        {{ csrf_field() }}
+                                        {{ method_field('DELETE') }}
+                                        <button type="submit" class="btn btn-sm btn-danger" data-tooltip="true" title="{{ trans('admin/orders/general.remove') }}">
+                                            <x-icon type="delete" />
+                                        </button>
+                                    </form>
+                                </td>
+                            @endcan
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6">{{ trans('admin/orders/general.no_shipments') }}</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+
                 @can('update', \App\Models\Order::class)
+                    <div class="box box-default">
+                        <div class="box-header with-border">
+                            <h3 class="box-title">{{ trans('admin/orders/general.add_shipment') }}</h3>
+                        </div>
+                        <div class="box-body">
+                            <form method="post" action="{{ route('orders.shipments.store', ['order' => $order->id]) }}" class="form-horizontal">
+                                {{ csrf_field() }}
+
+                                <div class="form-group">
+                                    <label for="tracking_number" class="col-md-3 control-label">{{ trans('general.tracking_number') }}</label>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="tracking_number" id="tracking_number" maxlength="191">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="tracking_carrier" class="col-md-3 control-label">{{ trans('admin/orders/general.tracking_carrier') }}</label>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="tracking_carrier" id="tracking_carrier" maxlength="191">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="shipped_date" class="col-md-3 control-label">{{ trans('admin/orders/general.shipped_date') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="date" class="form-control" name="shipped_date" id="shipped_date">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="shipment_received_date" class="col-md-3 control-label">{{ trans('admin/orders/general.received_date') }}</label>
+                                    <div class="col-md-3">
+                                        <input type="date" class="form-control" name="received_date" id="shipment_received_date">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="col-md-offset-3 col-md-7">
+                                        <button type="submit" class="btn btn-primary">
+                                            <x-icon type="create" /> {{ trans('admin/orders/general.add_shipment') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
                     <div class="box box-default">
                         <div class="box-header with-border">
                             <h3 class="box-title">{{ trans('admin/orders/general.add_line_item') }}</h3>
@@ -200,6 +346,18 @@
                                     <label for="unit_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.unit_cost') }}</label>
                                     <div class="col-md-3">
                                         <input type="text" class="form-control" name="unit_cost" id="unit_cost" maxlength="20">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="shipment_id" class="col-md-3 control-label">{{ trans('admin/orders/general.shipment') }}</label>
+                                    <div class="col-md-5">
+                                        <select class="form-control" name="shipment_id" id="shipment_id" aria-label="shipment_id">
+                                            <option value="">{{ trans('admin/orders/general.unassigned_shipment') }}</option>
+                                            @foreach ($order->shipments as $shipment)
+                                                <option value="{{ $shipment->id }}">{{ $shipment->tracking_number ?: trans('admin/orders/general.shipment').' #'.$shipment->id }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 </div>
 

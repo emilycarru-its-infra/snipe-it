@@ -38,11 +38,9 @@ class OrdersTransformer
             'expected_date' => Helper::getFormattedDateObject($order->expected_date, 'date'),
             'received_date' => Helper::getFormattedDateObject($order->received_date, 'date'),
             'order_cost' => Helper::formatCurrencyOutput($order->order_cost),
-            'tracking_number' => ($order->tracking_number) ? e($order->tracking_number) : null,
-            'tracking_carrier' => ($order->tracking_carrier) ? e($order->tracking_carrier) : null,
-            'tracking_url' => Helper::trackingUrl($order->tracking_carrier, $order->tracking_number),
             'notes' => ($order->notes) ? Helper::parseEscapedMarkedownInline($order->notes) : null,
             'items_count' => (int) ($order->items_count ?? $order->items->count()),
+            'received_items_count' => $order->items->whereNotNull('received_at')->count(),
             'items' => $this->transformOrderItems($order->items),
             'created_by' => ($order->adminuser) ? [
                 'id' => (int) $order->adminuser->id,
@@ -77,6 +75,8 @@ class OrdersTransformer
             'description' => ($item->description) ? e($item->description) : null,
             'quantity' => (int) $item->quantity,
             'unit_cost' => Helper::formatCurrencyOutput($item->unit_cost),
+            'received' => ! is_null($item->received_at),
+            'received_at' => Helper::getFormattedDateObject($item->received_at, 'datetime'),
             'item' => ($item->item_type && $item->item) ? [
                 'id' => (int) $item->item->id,
                 'name' => e($item->item->name),
