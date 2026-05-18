@@ -27,6 +27,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
+use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ProcurementReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
@@ -115,6 +116,12 @@ Route::group(['middleware' => 'auth'], function () {
     */
     Route::resource('purchase-orders', PurchaseOrdersController::class);
     Route::post('purchase-orders/bulk/delete', [PurchaseOrdersController::class, 'bulkDelete'])->name('purchase-orders.bulk.delete');
+
+    /*
+    * Lease Decisions
+    */
+    Route::resource('lease-decisions', LeaseDecisionsController::class)->except(['show']);
+    Route::post('lease-decisions/bulk/delete', [LeaseDecisionsController::class, 'bulkDelete'])->name('lease-decisions.bulk.delete');
 
     /*
     * Depreciations
@@ -623,6 +630,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.procurement.tax');
         Route::get('capital', [ProcurementReportsController::class, 'capital'])
             ->name('reports.procurement.capital');
+        Route::get('refresh-forecast', [ProcurementReportsController::class, 'refreshForecast'])
+            ->name('reports.procurement.forecast');
     });
 
 });

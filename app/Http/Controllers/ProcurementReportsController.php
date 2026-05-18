@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\PurchaseOrder;
@@ -246,6 +247,50 @@ class ProcurementReportsController extends Controller
                     $this->money($budget),
                     $this->money($committed),
                     $this->money($budget - $committed),
+                ];
+                fputcsv($handle, $formatter->escapeRecord($row));
+            }
+        });
+    }
+
+    /**
+     * Assets reaching end-of-life within the next year — the refresh
+     * pipeline. purchase_cost stands in as the replacement-cost estimate.
+     */
+    public function refreshForecast(): StreamedResponse
+    {
+        $this->authorize('reports.view');
+
+        $header = [
+            trans('admin/purchase-orders/general.forecast_asset_tag'),
+            trans('admin/purchase-orders/general.forecast_asset_name'),
+            trans('admin/purchase-orders/general.forecast_model'),
+            trans('admin/purchase-orders/general.forecast_serial'),
+            trans('admin/purchase-orders/general.forecast_purchase_date'),
+            trans('admin/purchase-orders/general.forecast_eol_date'),
+            trans('admin/purchase-orders/general.forecast_estimate'),
+            trans('admin/purchase-orders/general.forecast_status'),
+            trans('general.supplier'),
+        ];
+
+        return $this->streamCsv('refresh-forecast-report', $header, function ($handle, $formatter) {
+            $assets = Asset::with('model', 'supplier', 'status')
+                ->whereNotNull('asset_eol_date')
+                ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
+                ->orderBy('asset_eol_date')
+                ->get();
+
+            foreach ($assets as $asset) {
+                $row = [
+                    (string) $asset->asset_tag,
+                    (string) $asset->name,
+                    (string) $asset->model?->name,
+                    (string) $asset->serial,
+                    $asset->purchase_date ? $asset->purchase_date->format('Y-m-d') : '',
+                    $asset->asset_eol_date ? $asset->asset_eol_date->format('Y-m-d') : '',
+                    $this->money($asset->purchase_cost),
+                    (string) $asset->status?->name,
+                    (string) $asset->supplier?->name,
                 ];
                 fputcsv($handle, $formatter->escapeRecord($row));
             }
