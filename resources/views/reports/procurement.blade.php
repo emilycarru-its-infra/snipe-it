@@ -24,6 +24,7 @@
                         ['route' => 'reports.procurement.receiving', 'name' => 'report_receiving', 'desc' => 'report_receiving_desc'],
                         ['route' => 'reports.procurement.tax', 'name' => 'report_tax', 'desc' => 'report_tax_desc'],
                         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc'],
+                        ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc'],
                     ] as $report)
                         <tr>
                             <td>

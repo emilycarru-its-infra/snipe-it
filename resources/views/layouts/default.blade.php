@@ -1802,6 +1802,11 @@
                                                 {{ trans('admin/purchase-orders/general.purchase_orders') }}
                                             </a>
                                         </li>
+                                        <li {{!! (request()->is('lease-decisions*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('lease-decisions.index') }}">
+                                                {{ trans('admin/lease-decisions/general.lease_decisions') }}
+                                            </a>
+                                        </li>
                                     @endcan
 
                                     @can('view', \App\Models\Department::class)

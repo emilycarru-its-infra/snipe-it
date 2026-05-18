@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\PurchaseOrder;
@@ -253,12 +254,70 @@ class ProcurementReportsController extends Controller
     }
 
     /**
+     * Assets reaching end-of-life within the next year — the refresh
+     * pipeline. purchase_cost stands in as the replacement-cost estimate.
+     */
+    public function refreshForecast(): StreamedResponse
+    {
+        $this->authorize('reports.view');
+
+        $header = [
+            trans('admin/purchase-orders/general.forecast_asset_tag'),
+            trans('admin/purchase-orders/general.forecast_asset_name'),
+            trans('admin/purchase-orders/general.forecast_model'),
+            trans('admin/purchase-orders/general.forecast_serial'),
+            trans('admin/purchase-orders/general.forecast_purchase_date'),
+            trans('admin/purchase-orders/general.forecast_eol_date'),
+            trans('admin/purchase-orders/general.forecast_estimate'),
+            trans('admin/purchase-orders/general.forecast_status'),
+            trans('general.supplier'),
+        ];
+
+        return $this->streamCsv('refresh-forecast-report', $header, function ($handle, $formatter) {
+            $assets = Asset::with('model', 'supplier', 'status')
+                ->whereNotNull('asset_eol_date')
+                ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
+                ->orderBy('asset_eol_date')
+                ->get();
+
+            foreach ($assets as $asset) {
+                $row = [
+                    (string) $asset->asset_tag,
+                    (string) $asset->name,
+                    (string) $asset->model?->name,
+                    (string) $asset->serial,
+                    $this->dateString($asset->purchase_date),
+                    $this->dateString($asset->asset_eol_date),
+                    $this->money($asset->purchase_cost),
+                    (string) $asset->status?->name,
+                    (string) $asset->supplier?->name,
+                ];
+                fputcsv($handle, $formatter->escapeRecord($row));
+            }
+        });
+    }
+
+    /**
      * Format a numeric value to two decimal places for a CSV cell, or an
      * empty string when null.
      */
     private function money($value): string
     {
         return $value === null ? '' : number_format((float) $value, 2, '.', '');
+    }
+
+    /**
+     * Format a date value for a CSV cell. Snipe casts some asset date
+     * columns to Carbon and leaves others as plain strings, so handle
+     * both, and null.
+     */
+    private function dateString($value): string
+    {
+        if (empty($value)) {
+            return '';
+        }
+
+        return $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string) $value;
     }
 
     /**
