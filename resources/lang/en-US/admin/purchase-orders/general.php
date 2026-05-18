@@ -1,0 +1,28 @@
+<?php
+
+return [
+    'purchase_orders' => 'Purchase Orders',
+    'purchase_order' => 'Purchase Order',
+    'create' => 'Create Purchase Order',
+    'update' => 'Update Purchase Order',
+    'view' => 'View Purchase Order',
+    'po_number' => 'PO Number',
+    'title' => 'Title',
+    'fiscal_year' => 'Fiscal Year',
+    'budget' => 'Budget',
+    'cost_center' => 'Cost Center',
+    'order_date' => 'Order Date',
+    'orders' => 'Orders',
+    'no_orders' => 'No orders are linked to this purchase order yet.',
+    'committed' => 'Committed',
+    'invoiced' => 'Invoiced',
+    'remaining' => 'Remaining',
+    'over_budget' => 'Over budget',
+    'financial_summary' => 'Financial Summary',
+    'status' => 'Status',
+    'status_open' => 'Open',
+    'status_amended' => 'Amended',
+    'status_closed' => 'Closed',
+    'status_cancelled' => 'Cancelled',
+    'none' => 'No purchase order',
+];

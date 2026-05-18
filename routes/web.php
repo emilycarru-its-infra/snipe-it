@@ -28,6 +28,7 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\OrdersController;
+use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\UploadedFilesController;
 use App\Http\Controllers\ViewAssetsController;
@@ -107,6 +108,12 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('orders/{order}/invoices', [OrdersController::class, 'storeInvoice'])->name('orders.invoices.store');
     Route::put('orders/{order}/invoices/{invoice}', [OrdersController::class, 'updateInvoice'])->name('orders.invoices.update');
     Route::delete('orders/{order}/invoices/{invoice}', [OrdersController::class, 'destroyInvoice'])->name('orders.invoices.destroy');
+
+    /*
+    * Purchase Orders
+    */
+    Route::resource('purchase-orders', PurchaseOrdersController::class);
+    Route::post('purchase-orders/bulk/delete', [PurchaseOrdersController::class, 'bulkDelete'])->name('purchase-orders.bulk.delete');
 
     /*
     * Depreciations

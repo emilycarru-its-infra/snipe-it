@@ -1094,6 +1094,20 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end orders API routes
 
     /**
+     * Purchase Orders API routes
+     */
+    Route::resource('purchase-orders',
+        Api\PurchaseOrdersController::class,
+        ['names' => [
+            'index' => 'api.purchase-orders.index',
+            'show' => 'api.purchase-orders.show',
+        ],
+            'only' => ['index', 'show'],
+            'parameters' => ['purchase-orders' => 'purchase_order_id'],
+        ]
+    ); // end purchase orders API routes
+
+    /**
      * Users API routes
      */
     Route::group(['prefix' => 'users'], function () {
