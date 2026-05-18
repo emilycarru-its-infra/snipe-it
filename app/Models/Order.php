@@ -40,8 +40,6 @@ class Order extends SnipeModel
         'expected_date' => 'nullable|date',
         'received_date' => 'nullable|date',
         'order_cost' => 'nullable|numeric',
-        'tracking_number' => 'nullable|string|max:191',
-        'tracking_carrier' => 'nullable|string|max:191',
         'notes' => 'nullable|string|max:65535',
     ];
 
@@ -56,8 +54,6 @@ class Order extends SnipeModel
         'expected_date',
         'received_date',
         'order_cost',
-        'tracking_number',
-        'tracking_carrier',
         'notes',
     ];
 
@@ -72,7 +68,7 @@ class Order extends SnipeModel
      *
      * @var array
      */
-    protected $searchableAttributes = ['order_number', 'tracking_number', 'tracking_carrier', 'status', 'notes'];
+    protected $searchableAttributes = ['order_number', 'status', 'notes'];
 
     /**
      * The relations and their attributes that should be included when searching the model.
@@ -90,6 +86,14 @@ class Order extends SnipeModel
     public function items()
     {
         return $this->hasMany(OrderItem::class, 'order_id');
+    }
+
+    /**
+     * Establishes the order -> shipments relationship
+     */
+    public function shipments()
+    {
+        return $this->hasMany(OrderShipment::class, 'order_id');
     }
 
     /**
@@ -125,5 +129,42 @@ class Order extends SnipeModel
         return Attribute::make(
             get: fn () => $this->order_number,
         );
+    }
+
+    /**
+     * Re-derive the order status from its line items. Receiving is tracked
+     * per line item; this rolls that up to the order. A cancelled order is
+     * a manual terminal state and is left untouched.
+     *
+     * Saved quietly so it doesn't re-fire model events or validation.
+     */
+    public function recalculateStatus(): void
+    {
+        if ($this->status === 'cancelled') {
+            return;
+        }
+
+        $total = $this->items()->count();
+
+        if ($total === 0) {
+            return;
+        }
+
+        $received = $this->items()->whereNotNull('received_at')->count();
+
+        if ($received >= $total) {
+            $status = 'received';
+        } elseif ($received > 0) {
+            $status = 'partially_received';
+        } elseif ($this->shipments()->whereNotNull('shipped_date')->exists()) {
+            $status = 'shipped';
+        } else {
+            $status = 'ordered';
+        }
+
+        if ($this->status !== $status) {
+            $this->status = $status;
+            $this->saveQuietly();
+        }
     }
 }
