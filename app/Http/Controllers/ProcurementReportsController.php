@@ -286,8 +286,8 @@ class ProcurementReportsController extends Controller
                     (string) $asset->name,
                     (string) $asset->model?->name,
                     (string) $asset->serial,
-                    $asset->purchase_date ? $asset->purchase_date->format('Y-m-d') : '',
-                    $asset->asset_eol_date ? $asset->asset_eol_date->format('Y-m-d') : '',
+                    $this->dateString($asset->purchase_date),
+                    $this->dateString($asset->asset_eol_date),
                     $this->money($asset->purchase_cost),
                     (string) $asset->status?->name,
                     (string) $asset->supplier?->name,
@@ -304,6 +304,20 @@ class ProcurementReportsController extends Controller
     private function money($value): string
     {
         return $value === null ? '' : number_format((float) $value, 2, '.', '');
+    }
+
+    /**
+     * Format a date value for a CSV cell. Snipe casts some asset date
+     * columns to Carbon and leaves others as plain strings, so handle
+     * both, and null.
+     */
+    private function dateString($value): string
+    {
+        if (empty($value)) {
+            return '';
+        }
+
+        return $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string) $value;
     }
 
     /**
