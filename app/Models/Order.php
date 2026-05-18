@@ -48,6 +48,7 @@ class Order extends SnipeModel
     protected $fillable = [
         'order_number',
         'status',
+        'purchase_order_id',
         'supplier_id',
         'company_id',
         'order_date',
@@ -102,6 +103,14 @@ class Order extends SnipeModel
     public function invoices()
     {
         return $this->hasMany(OrderInvoice::class, 'order_id');
+    }
+
+    /**
+     * Establishes the order -> purchase order relationship
+     */
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
     }
 
     /**

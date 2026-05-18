@@ -1797,6 +1797,11 @@
                                                 {{ trans('admin/orders/general.orders') }}
                                             </a>
                                         </li>
+                                        <li {{!! (request()->is('purchase-orders*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('purchase-orders.index') }}">
+                                                {{ trans('admin/purchase-orders/general.purchase_orders') }}
+                                            </a>
+                                        </li>
                                     @endcan
 
                                     @can('view', \App\Models\Department::class)
