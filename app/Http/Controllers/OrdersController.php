@@ -140,6 +140,21 @@ class OrdersController extends Controller
         return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.delete_success'));
     }
 
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $this->authorize('delete', Order::class);
+
+        $ids = $request->input('ids');
+
+        if (is_array($ids) && count($ids) > 0) {
+            foreach (Order::whereIn('id', $ids)->get() as $order) {
+                $order->delete();
+            }
+        }
+
+        return redirect()->route('orders.index')->with('success', trans('admin/orders/message.delete.success'));
+    }
+
     private function fillFromRequest(Order $order, Request $request): void
     {
         $order->order_number = $request->input('order_number');

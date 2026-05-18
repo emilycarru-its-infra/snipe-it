@@ -8,73 +8,92 @@
 
 {{-- Page content --}}
 @section('content')
-<div class="row">
-    <div class="col-md-12">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h2 class="box-title">{{ trans('admin/orders/general.orders') }}</h2>
-                @can('create', \App\Models\Order::class)
-                    <div class="pull-right">
-                        <a href="{{ route('orders.create') }}" class="btn btn-primary btn-sm">
-                            <x-icon type="create" /> {{ trans('admin/orders/general.create') }}
-                        </a>
-                    </div>
-                @endcan
-            </div>
-            <div class="box-body">
-                <div class="table-responsive">
-                    <table class="table table-striped snipe-table">
-                        <thead>
-                            <tr>
-                                <th>{{ trans('general.order_number') }}</th>
-                                <th>{{ trans('admin/orders/general.status') }}</th>
-                                <th>{{ trans('general.supplier') }}</th>
-                                <th>{{ trans('general.company') }}</th>
-                                <th>{{ trans('admin/orders/general.order_date') }}</th>
-                                <th>{{ trans('admin/orders/general.expected_date') }}</th>
-                                <th>{{ trans('admin/orders/general.order_cost') }}</th>
-                                <th>{{ trans('admin/orders/general.line_items') }}</th>
-                                <th class="text-right">{{ trans('table.actions') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @forelse ($orders as $order)
-                            <tr>
-                                <td><a href="{{ route('orders.show', $order->id) }}">{{ $order->order_number }}</a></td>
-                                <td>{{ trans('admin/orders/general.status_'.$order->status) }}</td>
-                                <td>{{ $order->supplier?->name }}</td>
-                                <td>{{ $order->company?->name }}</td>
-                                <td>{{ $order->order_date ? $order->order_date->format('Y-m-d') : '' }}</td>
-                                <td>{{ $order->expected_date ? $order->expected_date->format('Y-m-d') : '' }}</td>
-                                <td>{{ $order->order_cost !== null ? Helper::formatCurrencyOutput($order->order_cost) : '' }}</td>
-                                <td>{{ $order->items_count }}</td>
-                                <td class="text-right">
-                                    @can('update', \App\Models\Order::class)
-                                        <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-sm btn-warning" data-tooltip="true" title="{{ trans('general.update') }}">
-                                            <x-icon type="edit" />
-                                        </a>
-                                    @endcan
-                                    @can('delete', \App\Models\Order::class)
-                                        <form method="post" action="{{ route('orders.destroy', $order->id) }}" style="display:inline-block" onsubmit="return confirm('{{ trans('admin/orders/message.delete_confirm') }}')">
-                                            {{ csrf_field() }}
-                                            {{ method_field('DELETE') }}
-                                            <button type="submit" class="btn btn-sm btn-danger" data-tooltip="true" title="{{ trans('general.delete') }}">
-                                                <x-icon type="delete" />
-                                            </button>
-                                        </form>
-                                    @endcan
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="9">{{ trans('admin/orders/message.none') }}</td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+    <x-container>
+        <x-box>
+
+            <x-slot:bulkactions>
+                <x-table.bulk-actions
+                        name='order'
+                        action_route="{{ route('orders.bulk.delete') }}"
+                        model_name="order"
+                >
+                    @can('delete', App\Models\Order::class)
+                        <option>{{ trans('general.delete') }}</option>
+                    @endcan
+                </x-table.bulk-actions>
+            </x-slot:bulkactions>
+
+            <x-table
+                name="order"
+                buttons="orderButtons"
+                fixed_right_number="1"
+                fixed_number="1"
+                sort_field="order_number"
+                api_url="{{ route('api.orders.index') }}"
+                :presenter="\App\Presenters\OrderPresenter::dataTableLayout()"
+                export_filename="export-orders-{{ date('Y-m-d') }}"
+            />
+
+        </x-box>
+    </x-container>
+@stop
+
+@section('moar_scripts')
+<script nonce="{{ csrf_token() }}">
+    (function () {
+        var ordersBaseUrl = "{{ route('orders.index') }}";
+        var csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+        function esc(text) {
+            return $('<span>').text(text == null ? '' : text).html();
+        }
+
+        window.ordersLinkFormatter = function (value, row) {
+            return '<a href="' + ordersBaseUrl + '/' + row.id + '">' + esc(value) + '</a>';
+        };
+
+        window.ordersObjNameFormatter = function (value) {
+            return (value && value.name) ? esc(value.name) : '';
+        };
+
+        window.ordersStatusFormatter = function (value) {
+            if (!value) { return ''; }
+            return esc(value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' '));
+        };
+
+        window.ordersActionsFormatter = function (value, row) {
+            var actions = row.available_actions || {};
+            var html = '';
+            if (actions.update) {
+                html += '<a href="' + ordersBaseUrl + '/' + row.id + '/edit" class="btn btn-warning btn-sm" data-tooltip="true" title="{{ trans('general.update') }}"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a> ';
+            }
+            if (actions.delete) {
+                html += '<form method="POST" action="' + ordersBaseUrl + '/' + row.id + '" style="display:inline-block" '
+                    + 'onsubmit="return confirm(\'{{ trans('admin/orders/message.delete_confirm') }}\')">'
+                    + '<input type="hidden" name="_token" value="' + csrfToken + '">'
+                    + '<input type="hidden" name="_method" value="DELETE">'
+                    + '<button type="submit" class="btn btn-danger btn-sm" data-tooltip="true" title="{{ trans('general.delete') }}"><i class="fas fa-trash" aria-hidden="true"></i></button>'
+                    + '</form>';
+            }
+            return html;
+        };
+
+        @can('create', \App\Models\Order::class)
+        window.orderButtons = () => ({
+            btnAdd: {
+                text: '{{ trans('admin/orders/general.create') }}',
+                icon: 'fa fa-plus',
+                event () {
+                    window.location.href = '{{ route('orders.create') }}';
+                },
+                attributes: {
+                    class: 'btn-warning',
+                    title: '{{ trans('admin/orders/general.create') }}',
+                },
+            },
+        });
+        @endcan
+    })();
+</script>
+@include ('partials.bootstrap-table', ['exportFile' => 'orders-export', 'search' => true])
 @stop
