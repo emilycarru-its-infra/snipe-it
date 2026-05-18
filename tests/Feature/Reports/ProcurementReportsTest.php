@@ -77,10 +77,11 @@ class ProcurementReportsTest extends TestCase
 
     public function test_refresh_forecast_report_lists_assets_near_eol()
     {
-        Asset::factory()->create([
-            'asset_tag' => 'FORECAST-1',
-            'asset_eol_date' => now()->addMonths(6)->format('Y-m-d'),
-        ]);
+        $asset = Asset::factory()->create(['asset_tag' => 'FORECAST-1']);
+        // The asset factory recomputes asset_eol_date in an afterMaking hook,
+        // so pin it directly to a date inside the forecast window.
+        Asset::query()->whereKey($asset->id)
+            ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
 
         $response = $this->actingAs($this->superuser())
             ->get(route('reports.procurement.forecast'));
