@@ -1108,6 +1108,19 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end purchase orders API routes
 
     /**
+     * Lease Decisions API routes
+     */
+    Route::resource('lease-decisions',
+        Api\LeaseDecisionsController::class,
+        ['names' => [
+            'index' => 'api.lease-decisions.index',
+        ],
+            'only' => ['index'],
+            'parameters' => ['lease-decisions' => 'lease_decision_id'],
+        ]
+    ); // end lease decisions API routes
+
+    /**
      * Users API routes
      */
     Route::group(['prefix' => 'users'], function () {
