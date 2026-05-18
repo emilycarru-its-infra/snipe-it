@@ -9,7 +9,7 @@
 {{-- Page content --}}
 @section('content')
 <div class="row">
-    <div class="col-md-12">
+    <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1 col-sm-12 col-sm-offset-0">
         <div class="box box-default">
             <div class="box-header with-border">
                 <h2 class="box-title"><x-icon type="order" /> {{ $order->order_number }}</h2>
