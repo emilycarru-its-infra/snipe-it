@@ -22,14 +22,15 @@ class UpdateOrderTest extends TestCase
         $this->actingAs(User::factory()->superuser()->create())
             ->put(route('orders.update', $order->id), [
                 'order_number' => 'PO-UPDATED',
-                'status' => 'received',
             ])
             ->assertRedirect(route('orders.index'));
 
+        // Status is derived from line-item receiving, not the edit form, so
+        // it is left untouched by an update.
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
             'order_number' => 'PO-UPDATED',
-            'status' => 'received',
+            'status' => 'ordered',
         ]);
     }
 }

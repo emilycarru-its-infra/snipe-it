@@ -10,25 +10,6 @@
 
 @include ('partials.forms.edit.order_number')
 
-<!-- Status -->
-<div class="form-group {{ $errors->has('status') ? ' has-error' : '' }}">
-    <label for="status" class="col-md-3 control-label">{{ trans('admin/orders/general.status') }}</label>
-    <div class="col-md-7 col-sm-12">
-        @php
-            $current_status = old('status', $item->status ?: 'ordered');
-        @endphp
-        <select class="form-control" name="status" id="status" aria-label="status">
-            @foreach (\App\Models\Order::STATUSES as $status_option)
-                <option value="{{ $status_option }}" {{ $current_status === $status_option ? 'selected' : '' }}>
-                    {{ trans('admin/orders/general.status_'.$status_option) }}
-                </option>
-            @endforeach
-        </select>
-        <p class="help-block">{{ trans('admin/orders/general.status_help') }}</p>
-        {!! $errors->first('status', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
-    </div>
-</div>
-
 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
 @include ('partials.forms.edit.company-select', ['translated_name' => trans('general.company'), 'fieldname' => 'company_id'])
 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/orders/general.order_date'), 'fieldname' => 'order_date'])
@@ -44,7 +25,6 @@
     </div>
 </div>
 
-@include ('partials.forms.edit.tracking')
 @include ('partials.forms.edit.notes')
 
 @stop
