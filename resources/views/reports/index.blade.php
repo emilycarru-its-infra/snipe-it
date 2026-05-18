@@ -60,6 +60,12 @@
             </a>
         </div>
 
+        <div class="col-md-3 col-sm-6">
+            <a href="{{ route('reports.procurement') }}" class="btn btn-theme btn-block" style="margin-bottom: 10px; white-space: normal;">
+                <x-icon type="order"/> {{ trans('admin/purchase-orders/general.reports') }}
+            </a>
+        </div>
+
     </div>
 
 
