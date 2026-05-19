@@ -64,7 +64,9 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($superuser)
             ->get(route('reports.procurement.po-budget'))
             ->assertOk()
-            ->assertSee('PO-REPORT-1');
+            ->assertSee('PO-REPORT-1')
+            // Money cells render in accounting format: $ sign, thousands separator, two decimals.
+            ->assertSee('$5,000.00');
 
         $csv = $this->actingAs($superuser)
             ->get(route('reports.procurement.po-budget', ['format' => 'csv']));
