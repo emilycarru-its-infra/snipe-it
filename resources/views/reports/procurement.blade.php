@@ -13,7 +13,7 @@
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-aqua">
             <div class="inner">
-                <h3 style="font-size:24px">{{ Helper::formatCurrencyOutput($totalBudget) }}</h3>
+                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalBudget) }}</h3>
                 <p>{{ trans('admin/purchase-orders/general.card_budget') }}</p>
             </div>
             <div class="icon"><i class="fas fa-wallet" aria-hidden="true"></i></div>
@@ -22,7 +22,7 @@
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-yellow">
             <div class="inner">
-                <h3 style="font-size:24px">{{ Helper::formatCurrencyOutput($totalCommitted) }}</h3>
+                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalCommitted) }}</h3>
                 <p>{{ trans('admin/purchase-orders/general.card_committed') }}</p>
             </div>
             <div class="icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
@@ -31,7 +31,7 @@
     <div class="col-md-4 col-sm-6">
         <div class="small-box {{ $totalRemaining < 0 ? 'bg-red' : 'bg-green' }}">
             <div class="inner">
-                <h3 style="font-size:24px">{{ Helper::formatCurrencyOutput($totalRemaining) }}</h3>
+                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalRemaining) }}</h3>
                 <p>{{ trans('admin/purchase-orders/general.card_remaining') }}</p>
             </div>
             <div class="icon"><i class="fas fa-balance-scale" aria-hidden="true"></i></div>
@@ -40,7 +40,7 @@
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-blue">
             <div class="inner">
-                <h3 style="font-size:24px">{{ Helper::formatCurrencyOutput($totalInvoiced) }}</h3>
+                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalInvoiced) }}</h3>
                 <p>{{ trans('admin/purchase-orders/general.card_invoiced') }} &middot; {{ $invoiceCount }} {{ trans('admin/orders/general.invoices') }}</p>
             </div>
             <div class="icon"><i class="fas fa-receipt" aria-hidden="true"></i></div>
@@ -49,7 +49,7 @@
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-navy">
             <div class="inner">
-                <h3 style="font-size:24px">{{ Helper::formatCurrencyOutput($plannedTotal) }}</h3>
+                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($plannedTotal) }}</h3>
                 <p>{{ trans('admin/purchase-orders/general.card_forecast') }}</p>
             </div>
             <div class="icon"><i class="fas fa-chart-line" aria-hidden="true"></i></div>
@@ -58,7 +58,7 @@
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-purple">
             <div class="inner">
-                <h3 style="font-size:24px">{{ Helper::formatCurrencyOutput($eolEstimate) }}</h3>
+                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($eolEstimate) }}</h3>
                 <p>{{ trans('admin/purchase-orders/general.card_eol', ['count' => $eolCount]) }}</p>
             </div>
             <div class="icon"><i class="fas fa-hourglass-end" aria-hidden="true"></i></div>
@@ -169,6 +169,7 @@
 @stop
 
 @section('moar_scripts')
+<script src="{{ url(mix('js/dist/Chart.min.js')) }}"></script>
 <script nonce="{{ csrf_token() }}">
     (function () {
         if (typeof Chart === 'undefined') { return; }
