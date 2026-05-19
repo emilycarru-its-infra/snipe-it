@@ -13,6 +13,7 @@
     $receivedItems = $order->items->whereNotNull('received_at')->count();
     $equipmentTotal = $order->items->sum(fn ($li) => (float) $li->unit_cost * (int) $li->quantity);
     $warrantyTotal = $order->items->sum(fn ($li) => (float) $li->warranty_cost);
+    $showForms = $errors->any();
 @endphp
 <div class="row">
     <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1 col-sm-12 col-sm-offset-0">
@@ -107,7 +108,14 @@
                     </tbody>
                 </table>
 
-                <h3>{{ trans('admin/orders/general.line_items') }}</h3>
+                <h3 style="overflow:hidden">
+                    {{ trans('admin/orders/general.line_items') }}
+                    @can('update', \App\Models\Order::class)
+                        <button type="button" class="btn btn-primary btn-sm pull-right js-order-add-toggle" data-target="order-add-line-item">
+                            <x-icon type="create" /> {{ trans('admin/orders/general.add_line_item') }}
+                        </button>
+                    @endcan
+                </h3>
                 <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
@@ -209,7 +217,112 @@
                 </table>
                 </div>
 
-                <h3>{{ trans('admin/orders/general.shipments') }}</h3>
+                @can('update', \App\Models\Order::class)
+                    <div id="order-add-line-item" class="order-add-form" style="display:{{ $showForms ? 'block' : 'none' }}">
+                        <div class="box box-default">
+                            <div class="box-body">
+                                <form method="post" action="{{ route('orders.items.store', ['order' => $order->id]) }}" class="form-horizontal">
+                                    {{ csrf_field() }}
+
+                                    <div class="form-group">
+                                        <label for="item_type" class="col-md-3 control-label">{{ trans('admin/orders/general.item_type') }}</label>
+                                        <div class="col-md-5">
+                                            <select class="form-control" name="item_type" id="item_type" aria-label="item_type">
+                                                <option value="asset">{{ trans('admin/orders/general.type_asset') }}</option>
+                                                <option value="license">{{ trans('admin/orders/general.type_license') }}</option>
+                                                <option value="accessory">{{ trans('admin/orders/general.type_accessory') }}</option>
+                                                <option value="consumable">{{ trans('admin/orders/general.type_consumable') }}</option>
+                                                <option value="component">{{ trans('admin/orders/general.type_component') }}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="col-md-3 control-label">{{ trans('admin/orders/general.item') }}</label>
+                                        <div class="col-md-7">
+                                            @foreach (['asset' => 'hardware', 'license' => 'licenses', 'accessory' => 'accessories', 'consumable' => 'consumables', 'component' => 'components'] as $key => $endpoint)
+                                                <div id="li_picker_{{ $key }}" class="li-picker" style="{{ $key === 'asset' ? '' : 'display:none' }}">
+                                                    <select class="js-data-ajax" data-endpoint="{{ $endpoint }}" data-placeholder="{{ trans('admin/orders/general.select_item') }}" name="item_id_{{ $key }}" id="li_select_{{ $key }}" style="width:100%" aria-label="item_id_{{ $key }}">
+                                                        <option value="">{{ trans('admin/orders/general.select_item') }}</option>
+                                                    </select>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="quantity" class="col-md-3 control-label">{{ trans('admin/orders/general.quantity') }}</label>
+                                        <div class="col-md-2">
+                                            <input type="number" class="form-control" name="quantity" id="quantity" value="1" min="1">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="unit_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.unit_cost') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" name="unit_cost" id="unit_cost" maxlength="20">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="warranty_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.warranty_cost') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" name="warranty_cost" id="warranty_cost" maxlength="20">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="shipment_id" class="col-md-3 control-label">{{ trans('admin/orders/general.shipment') }}</label>
+                                        <div class="col-md-5">
+                                            <select class="form-control" name="shipment_id" id="shipment_id" aria-label="shipment_id">
+                                                <option value="">{{ trans('admin/orders/general.unassigned_shipment') }}</option>
+                                                @foreach ($order->shipments as $shipment)
+                                                    <option value="{{ $shipment->id }}">{{ $shipment->tracking_number ?: trans('admin/orders/general.shipment').' #'.$shipment->id }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="invoice_id" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice') }}</label>
+                                        <div class="col-md-5">
+                                            <select class="form-control" name="invoice_id" id="invoice_id" aria-label="invoice_id">
+                                                <option value="">{{ trans('admin/orders/general.unassigned_invoice') }}</option>
+                                                @foreach ($order->invoices as $invoice)
+                                                    <option value="{{ $invoice->id }}">{{ $invoice->invoice_number }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="description" class="col-md-3 control-label">{{ trans('admin/orders/general.description') }}</label>
+                                        <div class="col-md-7">
+                                            <input type="text" class="form-control" name="description" id="description" maxlength="191">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <div class="col-md-offset-3 col-md-7">
+                                            <button type="submit" class="btn btn-primary">
+                                                <x-icon type="create" /> {{ trans('admin/orders/general.add_line_item') }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                @endcan
+
+                <h3 style="overflow:hidden">
+                    {{ trans('admin/orders/general.shipments') }}
+                    @can('update', \App\Models\Order::class)
+                        <button type="button" class="btn btn-primary btn-sm pull-right js-order-add-toggle" data-target="order-add-shipment">
+                            <x-icon type="create" /> {{ trans('admin/orders/general.add_shipment') }}
+                        </button>
+                    @endcan
+                </h3>
                 <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
@@ -268,7 +381,62 @@
                 </table>
                 </div>
 
-                <h3>{{ trans('admin/orders/general.invoices') }}</h3>
+                @can('update', \App\Models\Order::class)
+                    <div id="order-add-shipment" class="order-add-form" style="display:{{ $showForms ? 'block' : 'none' }}">
+                        <div class="box box-default">
+                            <div class="box-body">
+                                <form method="post" action="{{ route('orders.shipments.store', ['order' => $order->id]) }}" class="form-horizontal">
+                                    {{ csrf_field() }}
+
+                                    <div class="form-group">
+                                        <label for="tracking_number" class="col-md-3 control-label">{{ trans('general.tracking_number') }}</label>
+                                        <div class="col-md-5">
+                                            <input type="text" class="form-control" name="tracking_number" id="tracking_number" maxlength="191">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="tracking_carrier" class="col-md-3 control-label">{{ trans('admin/orders/general.tracking_carrier') }}</label>
+                                        <div class="col-md-5">
+                                            <input type="text" class="form-control" name="tracking_carrier" id="tracking_carrier" maxlength="191">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="shipped_date" class="col-md-3 control-label">{{ trans('admin/orders/general.shipped_date') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="date" class="form-control" name="shipped_date" id="shipped_date">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="shipment_received_date" class="col-md-3 control-label">{{ trans('admin/orders/general.received_date') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="date" class="form-control" name="received_date" id="shipment_received_date">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <div class="col-md-offset-3 col-md-7">
+                                            <button type="submit" class="btn btn-primary">
+                                                <x-icon type="create" /> {{ trans('admin/orders/general.add_shipment') }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                @endcan
+
+                <h3 style="overflow:hidden">
+                    {{ trans('admin/orders/general.invoices') }}
+                    @can('update', \App\Models\Order::class)
+                        <button type="button" class="btn btn-primary btn-sm pull-right js-order-add-toggle" data-target="order-add-invoice">
+                            <x-icon type="create" /> {{ trans('admin/orders/general.add_invoice') }}
+                        </button>
+                    @endcan
+                </h3>
                 <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
@@ -319,215 +487,70 @@
                 </div>
 
                 @can('update', \App\Models\Order::class)
-                    <div class="box box-default">
-                        <div class="box-header with-border">
-                            <h3 class="box-title">{{ trans('admin/orders/general.add_shipment') }}</h3>
-                        </div>
-                        <div class="box-body">
-                            <form method="post" action="{{ route('orders.shipments.store', ['order' => $order->id]) }}" class="form-horizontal">
-                                {{ csrf_field() }}
+                    <div id="order-add-invoice" class="order-add-form" style="display:{{ $showForms ? 'block' : 'none' }}">
+                        <div class="box box-default">
+                            <div class="box-body">
+                                <form method="post" action="{{ route('orders.invoices.store', ['order' => $order->id]) }}" class="form-horizontal">
+                                    {{ csrf_field() }}
 
-                                <div class="form-group">
-                                    <label for="tracking_number" class="col-md-3 control-label">{{ trans('general.tracking_number') }}</label>
-                                    <div class="col-md-5">
-                                        <input type="text" class="form-control" name="tracking_number" id="tracking_number" maxlength="191">
+                                    <div class="form-group">
+                                        <label for="invoice_number" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice_number') }}</label>
+                                        <div class="col-md-5">
+                                            <input type="text" class="form-control" name="invoice_number" id="invoice_number" maxlength="191" required>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label for="tracking_carrier" class="col-md-3 control-label">{{ trans('admin/orders/general.tracking_carrier') }}</label>
-                                    <div class="col-md-5">
-                                        <input type="text" class="form-control" name="tracking_carrier" id="tracking_carrier" maxlength="191">
+                                    <div class="form-group">
+                                        <label for="invoice_date" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice_date') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="date" class="form-control" name="invoice_date" id="invoice_date">
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label for="shipped_date" class="col-md-3 control-label">{{ trans('admin/orders/general.shipped_date') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="date" class="form-control" name="shipped_date" id="shipped_date">
+                                    <div class="form-group">
+                                        <label for="subtotal" class="col-md-3 control-label">{{ trans('admin/orders/general.subtotal') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" name="subtotal" id="subtotal" maxlength="20">
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label for="shipment_received_date" class="col-md-3 control-label">{{ trans('admin/orders/general.received_date') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="date" class="form-control" name="received_date" id="shipment_received_date">
+                                    <div class="form-group">
+                                        <label for="tax_gst" class="col-md-3 control-label">{{ trans('admin/orders/general.tax_gst') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" name="tax_gst" id="tax_gst" maxlength="20">
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <div class="col-md-offset-3 col-md-7">
-                                        <button type="submit" class="btn btn-primary">
-                                            <x-icon type="create" /> {{ trans('admin/orders/general.add_shipment') }}
-                                        </button>
+                                    <div class="form-group">
+                                        <label for="tax_pst" class="col-md-3 control-label">{{ trans('admin/orders/general.tax_pst') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" name="tax_pst" id="tax_pst" maxlength="20">
+                                        </div>
                                     </div>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
 
-                    <div class="box box-default">
-                        <div class="box-header with-border">
-                            <h3 class="box-title">{{ trans('admin/orders/general.add_invoice') }}</h3>
-                        </div>
-                        <div class="box-body">
-                            <form method="post" action="{{ route('orders.invoices.store', ['order' => $order->id]) }}" class="form-horizontal">
-                                {{ csrf_field() }}
-
-                                <div class="form-group">
-                                    <label for="invoice_number" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice_number') }}</label>
-                                    <div class="col-md-5">
-                                        <input type="text" class="form-control" name="invoice_number" id="invoice_number" maxlength="191" required>
+                                    <div class="form-group">
+                                        <label for="shipping" class="col-md-3 control-label">{{ trans('admin/orders/general.shipping') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" name="shipping" id="shipping" maxlength="20">
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label for="invoice_date" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice_date') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="date" class="form-control" name="invoice_date" id="invoice_date">
+                                    <div class="form-group">
+                                        <label for="total" class="col-md-3 control-label">{{ trans('admin/orders/general.total') }}</label>
+                                        <div class="col-md-3">
+                                            <input type="text" class="form-control" name="total" id="total" maxlength="20">
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label for="subtotal" class="col-md-3 control-label">{{ trans('admin/orders/general.subtotal') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="text" class="form-control" name="subtotal" id="subtotal" maxlength="20">
+                                    <div class="form-group">
+                                        <div class="col-md-offset-3 col-md-7">
+                                            <button type="submit" class="btn btn-primary">
+                                                <x-icon type="create" /> {{ trans('admin/orders/general.add_invoice') }}
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="tax_gst" class="col-md-3 control-label">{{ trans('admin/orders/general.tax_gst') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="text" class="form-control" name="tax_gst" id="tax_gst" maxlength="20">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="tax_pst" class="col-md-3 control-label">{{ trans('admin/orders/general.tax_pst') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="text" class="form-control" name="tax_pst" id="tax_pst" maxlength="20">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="shipping" class="col-md-3 control-label">{{ trans('admin/orders/general.shipping') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="text" class="form-control" name="shipping" id="shipping" maxlength="20">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="total" class="col-md-3 control-label">{{ trans('admin/orders/general.total') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="text" class="form-control" name="total" id="total" maxlength="20">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <div class="col-md-offset-3 col-md-7">
-                                        <button type="submit" class="btn btn-primary">
-                                            <x-icon type="create" /> {{ trans('admin/orders/general.add_invoice') }}
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
-                    <div class="box box-default">
-                        <div class="box-header with-border">
-                            <h3 class="box-title">{{ trans('admin/orders/general.add_line_item') }}</h3>
-                        </div>
-                        <div class="box-body">
-                            <form method="post" action="{{ route('orders.items.store', ['order' => $order->id]) }}" class="form-horizontal">
-                                {{ csrf_field() }}
-
-                                <div class="form-group">
-                                    <label for="item_type" class="col-md-3 control-label">{{ trans('admin/orders/general.item_type') }}</label>
-                                    <div class="col-md-5">
-                                        <select class="form-control" name="item_type" id="item_type" aria-label="item_type">
-                                            <option value="asset">{{ trans('admin/orders/general.type_asset') }}</option>
-                                            <option value="license">{{ trans('admin/orders/general.type_license') }}</option>
-                                            <option value="accessory">{{ trans('admin/orders/general.type_accessory') }}</option>
-                                            <option value="consumable">{{ trans('admin/orders/general.type_consumable') }}</option>
-                                            <option value="component">{{ trans('admin/orders/general.type_component') }}</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="col-md-3 control-label">{{ trans('admin/orders/general.item') }}</label>
-                                    <div class="col-md-7">
-                                        @foreach (['asset' => 'hardware', 'license' => 'licenses', 'accessory' => 'accessories', 'consumable' => 'consumables', 'component' => 'components'] as $key => $endpoint)
-                                            <div id="li_picker_{{ $key }}" class="li-picker" style="{{ $key === 'asset' ? '' : 'display:none' }}">
-                                                <select class="js-data-ajax" data-endpoint="{{ $endpoint }}" data-placeholder="{{ trans('admin/orders/general.select_item') }}" name="item_id_{{ $key }}" id="li_select_{{ $key }}" style="width:100%" aria-label="item_id_{{ $key }}">
-                                                    <option value="">{{ trans('admin/orders/general.select_item') }}</option>
-                                                </select>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="quantity" class="col-md-3 control-label">{{ trans('admin/orders/general.quantity') }}</label>
-                                    <div class="col-md-2">
-                                        <input type="number" class="form-control" name="quantity" id="quantity" value="1" min="1">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="unit_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.unit_cost') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="text" class="form-control" name="unit_cost" id="unit_cost" maxlength="20">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="warranty_cost" class="col-md-3 control-label">{{ trans('admin/orders/general.warranty_cost') }}</label>
-                                    <div class="col-md-3">
-                                        <input type="text" class="form-control" name="warranty_cost" id="warranty_cost" maxlength="20">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="shipment_id" class="col-md-3 control-label">{{ trans('admin/orders/general.shipment') }}</label>
-                                    <div class="col-md-5">
-                                        <select class="form-control" name="shipment_id" id="shipment_id" aria-label="shipment_id">
-                                            <option value="">{{ trans('admin/orders/general.unassigned_shipment') }}</option>
-                                            @foreach ($order->shipments as $shipment)
-                                                <option value="{{ $shipment->id }}">{{ $shipment->tracking_number ?: trans('admin/orders/general.shipment').' #'.$shipment->id }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="invoice_id" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice') }}</label>
-                                    <div class="col-md-5">
-                                        <select class="form-control" name="invoice_id" id="invoice_id" aria-label="invoice_id">
-                                            <option value="">{{ trans('admin/orders/general.unassigned_invoice') }}</option>
-                                            @foreach ($order->invoices as $invoice)
-                                                <option value="{{ $invoice->id }}">{{ $invoice->invoice_number }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="description" class="col-md-3 control-label">{{ trans('admin/orders/general.description') }}</label>
-                                    <div class="col-md-7">
-                                        <input type="text" class="form-control" name="description" id="description" maxlength="191">
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <div class="col-md-offset-3 col-md-7">
-                                        <button type="submit" class="btn btn-primary">
-                                            <x-icon type="create" /> {{ trans('admin/orders/general.add_line_item') }}
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 @endcan
@@ -540,6 +563,15 @@
 @section('moar_scripts')
 <script nonce="{{ csrf_token() }}">
     (function () {
+        document.querySelectorAll('.js-order-add-toggle').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var target = document.getElementById(btn.getAttribute('data-target'));
+                if (target) {
+                    target.style.display = (target.style.display === 'none') ? 'block' : 'none';
+                }
+            });
+        });
+
         var typeSelect = document.getElementById('item_type');
         if (!typeSelect) { return; }
         var keys = ['asset', 'license', 'accessory', 'consumable', 'component'];
