@@ -56,9 +56,12 @@
             return (value && value.name) ? esc(value.name) : '';
         };
 
-        window.ordersStatusFormatter = function (value) {
-            if (!value) { return ''; }
-            return esc(value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' '));
+        window.ordersStatusFormatter = function (value, row) {
+            var label = value ? esc(value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' ')) : '';
+            if (row && row.is_planned) {
+                label += ' <span class="label label-info">{{ trans('admin/orders/general.planned') }}</span>';
+            }
+            return label;
         };
 
         window.ordersActionsFormatter = function (value, row) {
