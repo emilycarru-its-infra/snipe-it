@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderItem;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 /**
@@ -16,6 +17,7 @@ class BackfillOrders extends Command
 {
     protected $signature = 'orders:backfill
         {--months=12 : Only include assets purchased within this many months}
+        {--since= : Only include assets purchased on or after this date (YYYY-MM-DD); overrides --months}
         {--limit= : Only process this many orders (most recent first)}
         {--dry-run : Report what would happen without writing anything}';
 
@@ -24,10 +26,21 @@ class BackfillOrders extends Command
     public function handle(): int
     {
         $months = (int) $this->option('months') ?: 12;
+        $since = $this->option('since');
         $limit = $this->option('limit') !== null ? (int) $this->option('limit') : null;
         $dryRun = (bool) $this->option('dry-run');
 
-        $cutoff = now()->subMonths($months);
+        if ($since) {
+            try {
+                $cutoff = Carbon::parse($since)->startOfDay();
+            } catch (\Exception $e) {
+                $this->error("Invalid --since date '{$since}'. Use YYYY-MM-DD.");
+
+                return self::FAILURE;
+            }
+        } else {
+            $cutoff = now()->subMonths($months);
+        }
 
         $assets = Asset::whereNotNull('order_number')
             ->where('order_number', '!=', '')
@@ -59,7 +72,14 @@ class BackfillOrders extends Command
 
             if ($dryRun) {
                 $exists = Order::where('order_number', $orderNumber)->exists();
-                $rows[] = [$orderNumber, $groupAssets->count(), number_format($orderCost, 2), $exists ? 'exists' : 'new'];
+                $orderDate = $groupAssets->min('purchase_date');
+                $rows[] = [
+                    $orderNumber,
+                    $groupAssets->count(),
+                    number_format($orderCost, 2),
+                    $orderDate ? $this->fiscalYear($orderDate) : '',
+                    $exists ? 'exists' : 'new',
+                ];
 
                 continue;
             }
@@ -83,6 +103,13 @@ class BackfillOrders extends Command
 
             if ($order->wasRecentlyCreated) {
                 $ordersCreated++;
+            }
+
+            // Stamp the fiscal year from the order date when it's missing,
+            // so the order groups correctly in fiscal-year reports.
+            if (empty($order->fiscal_year) && $order->order_date) {
+                $order->fiscal_year = $this->fiscalYear($order->order_date);
+                $order->saveQuietly();
             }
 
             $newItems = 0;
@@ -111,16 +138,30 @@ class BackfillOrders extends Command
                 $orderNumber,
                 $groupAssets->count(),
                 number_format($orderCost, 2),
+                (string) $order->fiscal_year,
                 $order->wasRecentlyCreated ? 'created' : "matched (+{$newItems} items)",
             ];
         }
 
-        $this->table(['Order #', 'Assets', 'Total', $dryRun ? 'State' : 'Result'], $rows);
+        $this->table(['Order #', 'Assets', 'Total', 'Fiscal Year', $dryRun ? 'State' : 'Result'], $rows);
 
         if (! $dryRun) {
             $this->info("Done. Orders created: {$ordersCreated}. Line items created: {$itemsCreated}.");
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * ECU's fiscal year runs April 1 - March 31. A date in April or later
+     * belongs to the fiscal year starting that calendar year; January to
+     * March belongs to the fiscal year that started the previous April.
+     */
+    private function fiscalYear($date): string
+    {
+        $date = $date instanceof Carbon ? $date : Carbon::parse($date);
+        $startYear = $date->month >= 4 ? $date->year : $date->year - 1;
+
+        return 'FY'.$startYear.'-'.substr((string) ($startYear + 1), -2);
     }
 }
