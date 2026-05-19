@@ -23,6 +23,18 @@ class ProcurementReportsTest extends TestCase
             ->assertOk();
     }
 
+    public function test_procurement_dashboard_renders_with_summary_and_charts()
+    {
+        PurchaseOrder::factory()->create(['po_number' => 'PO-DASH-1', 'budget' => 25000]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.dashboard_title'))
+            ->assertSee('procPoChart')
+            ->assertSee('procMonthlyChart');
+    }
+
     public function test_po_budget_report_renders_live_and_as_csv()
     {
         PurchaseOrder::factory()->create(['po_number' => 'PO-REPORT-1', 'budget' => 5000]);

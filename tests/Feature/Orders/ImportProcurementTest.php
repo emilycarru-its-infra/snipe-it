@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Orders;
 
+use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -128,5 +129,28 @@ class ImportProcurementTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertEquals(0, OrderInvoice::count());
+    }
+
+    public function test_links_line_items_to_invoices_by_serial()
+    {
+        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        $asset = Asset::factory()->create(['serial' => 'SERIAL-XYZ']);
+        $item = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+        ]);
+
+        $csv = $this->csv(<<<CSV
+        Order #,Invoice #,Invoice Date,Invoice SubTotal,Invoice Shipping Cost,Invoice Sales Tax,Invoice Total,Serial #
+        ORD-A,CDWINV-9,7/22/2025,\$1000.00,\$0.00,\$120.00,\$1120.00,SERIAL-XYZ
+        CSV);
+
+        $this->artisan('procurement:import', ['--invoices' => $csv])
+            ->assertExitCode(0);
+
+        $invoice = OrderInvoice::where('invoice_number', 'CDWINV-9')->first();
+        $this->assertNotNull($invoice);
+        $this->assertEquals($invoice->id, $item->fresh()->invoice_id);
     }
 }
