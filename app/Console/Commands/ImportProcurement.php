@@ -197,41 +197,29 @@ class ImportProcurement extends Command
     }
 
     /**
-     * Create one invoice record per distinct CDW invoice number.
+     * Create one invoice record per distinct CDW invoice number, and link
+     * each invoiced device's line item to it by serial number.
      */
     private function importInvoices(string $path, bool $dryRun): void
     {
         $this->info(($dryRun ? '[DRY RUN] ' : '').'Importing invoices from '.basename($path).'.');
 
-        $invoices = [];
-
+        $rowsByInvoice = [];
         foreach ($this->readCsv($path) as $row) {
             $number = trim($row['Invoice #'] ?? '');
-            $orderNumber = trim($row['Order #'] ?? '');
-
-            if ($number === '' || $orderNumber === '' || isset($invoices[$number])) {
-                continue;
+            if ($number !== '') {
+                $rowsByInvoice[$number][] = $row;
             }
-
-            $subtotal = $this->money($row['Invoice SubTotal'] ?? '0');
-            $tax = $this->money($row['Invoice Sales Tax'] ?? '0');
-
-            $invoices[$number] = [
-                'order' => $orderNumber,
-                'date' => $this->date($row['Invoice Date'] ?? ''),
-                'subtotal' => $subtotal,
-                'shipping' => $this->money($row['Invoice Shipping Cost'] ?? '0'),
-                'tax_gst' => round($tax * self::GST_SHARE, 2),
-                'tax_pst' => round($tax * (1 - self::GST_SHARE), 2),
-                'total' => $this->money($row['Invoice Total'] ?? '0'),
-            ];
         }
 
         $created = 0;
         $skipped = 0;
+        $itemsLinked = 0;
 
-        foreach ($invoices as $number => $invoice) {
-            $order = Order::where('order_number', $invoice['order'])->first();
+        foreach ($rowsByInvoice as $number => $rows) {
+            $first = $rows[0];
+            $orderNumber = trim($first['Order #'] ?? '');
+            $order = $orderNumber !== '' ? Order::where('order_number', $orderNumber)->first() : null;
 
             if (! $order) {
                 $skipped++;
@@ -239,29 +227,57 @@ class ImportProcurement extends Command
                 continue;
             }
 
-            if (OrderInvoice::where('order_id', $order->id)->where('invoice_number', $number)->exists()) {
+            $invoice = OrderInvoice::where('order_id', $order->id)
+                ->where('invoice_number', $number)
+                ->first();
+
+            if (! $invoice) {
+                $created++;
+
+                if (! $dryRun) {
+                    $tax = $this->money($first['Invoice Sales Tax'] ?? '0');
+                    $invoice = OrderInvoice::create([
+                        'order_id' => $order->id,
+                        'invoice_number' => $number,
+                        'invoice_date' => $this->date($first['Invoice Date'] ?? ''),
+                        'subtotal' => $this->money($first['Invoice SubTotal'] ?? '0'),
+                        'tax_gst' => round($tax * self::GST_SHARE, 2),
+                        'tax_pst' => round($tax * (1 - self::GST_SHARE), 2),
+                        'shipping' => $this->money($first['Invoice Shipping Cost'] ?? '0'),
+                        'total' => $this->money($first['Invoice Total'] ?? '0'),
+                    ]);
+                }
+            }
+
+            if ($dryRun || ! $invoice) {
                 continue;
             }
 
-            $created++;
+            // Link each invoiced device's line item to this invoice by serial.
+            foreach ($rows as $row) {
+                $serial = trim($row['Serial #'] ?? '');
+                if ($serial === '') {
+                    continue;
+                }
 
-            if ($dryRun) {
-                continue;
+                $asset = Asset::where('serial', $serial)->first();
+                if (! $asset) {
+                    continue;
+                }
+
+                $item = OrderItem::where('item_type', Asset::class)
+                    ->where('item_id', $asset->id)
+                    ->first();
+
+                if ($item && $item->invoice_id !== $invoice->id) {
+                    $item->invoice_id = $invoice->id;
+                    $item->saveQuietly();
+                    $itemsLinked++;
+                }
             }
-
-            OrderInvoice::create([
-                'order_id' => $order->id,
-                'invoice_number' => $number,
-                'invoice_date' => $invoice['date'],
-                'subtotal' => $invoice['subtotal'],
-                'tax_gst' => $invoice['tax_gst'],
-                'tax_pst' => $invoice['tax_pst'],
-                'shipping' => $invoice['shipping'],
-                'total' => $invoice['total'],
-            ]);
         }
 
-        $this->info("Invoices created: {$created}. Invoices skipped (vendor order not in Snipe): {$skipped}.");
+        $this->info("Invoices created: {$created}. Line items linked to an invoice: {$itemsLinked}. Skipped (vendor order not in Snipe): {$skipped}.");
     }
 
     /**
