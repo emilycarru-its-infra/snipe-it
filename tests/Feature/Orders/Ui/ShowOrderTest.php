@@ -21,6 +21,7 @@ class ShowOrderTest extends TestCase
             ->get(route('orders.show', Order::factory()->create()->id))
             ->assertOk()
             ->assertSee('js-order-add-toggle')
+            ->assertSee('js-order-add-cancel')
             ->assertSee('order-add-line-item')
             ->assertSee('order-add-shipment')
             ->assertSee('order-add-invoice');
