@@ -307,6 +307,9 @@
                                             <button type="submit" class="btn btn-primary">
                                                 <x-icon type="create" /> {{ trans('admin/orders/general.add_line_item') }}
                                             </button>
+                                            <button type="button" class="btn btn-default js-order-add-cancel" data-target="order-add-line-item">
+                                                {{ trans('general.cancel') }}
+                                            </button>
                                         </div>
                                     </div>
                                 </form>
@@ -404,15 +407,15 @@
 
                                     <div class="form-group">
                                         <label for="shipped_date" class="col-md-3 control-label">{{ trans('admin/orders/general.shipped_date') }}</label>
-                                        <div class="col-md-3">
-                                            <input type="date" class="form-control" name="shipped_date" id="shipped_date">
+                                        <div class="col-md-4">
+                                            <x-input.datepicker name="shipped_date" id="shipped_date" />
                                         </div>
                                     </div>
 
                                     <div class="form-group">
                                         <label for="shipment_received_date" class="col-md-3 control-label">{{ trans('admin/orders/general.received_date') }}</label>
-                                        <div class="col-md-3">
-                                            <input type="date" class="form-control" name="received_date" id="shipment_received_date">
+                                        <div class="col-md-4">
+                                            <x-input.datepicker name="received_date" id="shipment_received_date" />
                                         </div>
                                     </div>
 
@@ -420,6 +423,9 @@
                                         <div class="col-md-offset-3 col-md-7">
                                             <button type="submit" class="btn btn-primary">
                                                 <x-icon type="create" /> {{ trans('admin/orders/general.add_shipment') }}
+                                            </button>
+                                            <button type="button" class="btn btn-default js-order-add-cancel" data-target="order-add-shipment">
+                                                {{ trans('general.cancel') }}
                                             </button>
                                         </div>
                                     </div>
@@ -502,8 +508,8 @@
 
                                     <div class="form-group">
                                         <label for="invoice_date" class="col-md-3 control-label">{{ trans('admin/orders/general.invoice_date') }}</label>
-                                        <div class="col-md-3">
-                                            <input type="date" class="form-control" name="invoice_date" id="invoice_date">
+                                        <div class="col-md-4">
+                                            <x-input.datepicker name="invoice_date" id="invoice_date" />
                                         </div>
                                     </div>
 
@@ -547,6 +553,9 @@
                                             <button type="submit" class="btn btn-primary">
                                                 <x-icon type="create" /> {{ trans('admin/orders/general.add_invoice') }}
                                             </button>
+                                            <button type="button" class="btn btn-default js-order-add-cancel" data-target="order-add-invoice">
+                                                {{ trans('general.cancel') }}
+                                            </button>
                                         </div>
                                     </div>
                                 </form>
@@ -569,6 +578,13 @@
                 if (target) {
                     target.style.display = (target.style.display === 'none') ? 'block' : 'none';
                 }
+            });
+        });
+
+        document.querySelectorAll('.js-order-add-cancel').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var target = document.getElementById(btn.getAttribute('data-target'));
+                if (target) { target.style.display = 'none'; }
             });
         });
 
