@@ -25,13 +25,83 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ProcurementReportsController extends Controller
 {
     /**
-     * Landing page listing the available procurement reports.
+     * Procurement dashboard: budget/spend summary cards, charts and links
+     * to the individual reports.
      */
     public function index()
     {
         $this->authorize('reports.view');
 
-        return view('reports/procurement');
+        $purchaseOrders = PurchaseOrder::orderBy('po_number')->get();
+
+        $poRows = [];
+        $totalBudget = 0.0;
+        $totalCommitted = 0.0;
+        $totalInvoiced = 0.0;
+        $committedByFy = [];
+
+        foreach ($purchaseOrders as $po) {
+            $budget = (float) $po->budget;
+            $committed = $po->committedTotal();
+
+            $totalBudget += $budget;
+            $totalCommitted += $committed;
+            $totalInvoiced += $po->invoicedTotal();
+
+            $poRows[] = [
+                'po_number' => $po->po_number,
+                'budget' => $budget,
+                'committed' => $committed,
+            ];
+
+            $fy = $po->fiscal_year ?: '—';
+            $committedByFy[$fy] = ($committedByFy[$fy] ?? 0) + $committed;
+        }
+
+        // Planned (forecast) spend, grouped by the planned order's fiscal year.
+        $plannedByFy = [];
+        $plannedTotal = 0.0;
+
+        foreach (Order::planned()->with('items')->get() as $order) {
+            $value = (float) $order->items->sum->lineTotal();
+            $plannedTotal += $value;
+            $fy = $order->fiscal_year ?: '—';
+            $plannedByFy[$fy] = ($plannedByFy[$fy] ?? 0) + $value;
+        }
+
+        // Invoiced totals grouped by calendar month.
+        $monthly = OrderInvoice::whereNotNull('invoice_date')
+            ->orderBy('invoice_date')
+            ->get()
+            ->groupBy(fn ($invoice) => $invoice->invoice_date->format('Y-m'))
+            ->map(fn ($group) => (float) $group->sum('total'));
+
+        // Assets reaching end-of-life within the next year.
+        $eolAssets = Asset::whereNotNull('asset_eol_date')
+            ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
+            ->get();
+
+        $fiscalYears = array_keys($committedByFy + $plannedByFy);
+        sort($fiscalYears);
+
+        return view('reports/procurement', [
+            'totalBudget' => $totalBudget,
+            'totalCommitted' => $totalCommitted,
+            'totalInvoiced' => $totalInvoiced,
+            'totalRemaining' => $totalBudget - $totalCommitted,
+            'plannedTotal' => $plannedTotal,
+            'poCount' => $purchaseOrders->count(),
+            'orderCount' => Order::actual()->count(),
+            'invoiceCount' => OrderInvoice::count(),
+            'eolCount' => $eolAssets->count(),
+            'eolEstimate' => (float) $eolAssets->sum('purchase_cost'),
+            'poRows' => $poRows,
+            'fiscalYears' => array_values($fiscalYears),
+            'committedByFy' => $committedByFy,
+            'plannedByFy' => $plannedByFy,
+            'monthlyLabels' => $monthly->keys()->all(),
+            'monthlyValues' => array_values($monthly->all()),
+        ]);
     }
 
     public function poBudget(Request $request)
