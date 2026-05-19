@@ -35,6 +35,9 @@ class ImportProcurement extends Command
     /** GST is 5% and PST is 7% in BC, so combined tax splits 5:7. */
     private const GST_SHARE = 5 / 12;
 
+    /** Invoice number => purchase order number, learned from the reconciliation CSV. */
+    private array $invoicePoMap = [];
+
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
@@ -102,6 +105,14 @@ class ImportProcurement extends Command
                 'status' => trim($row['Status'] ?? ''),
                 'subtotal' => $this->money($row['Subtotal'] ?? '0'),
             ];
+
+            // Learn which purchase order each cited invoice belongs to.
+            foreach (explode(',', (string) ($row['CDW Invoice'] ?? '')) as $invoiceNumber) {
+                $invoiceNumber = trim($invoiceNumber);
+                if ($invoiceNumber !== '' && ! isset($this->invoicePoMap[$invoiceNumber])) {
+                    $this->invoicePoMap[$invoiceNumber] = $po;
+                }
+            }
         }
 
         $purchaseOrders = [];
@@ -212,6 +223,8 @@ class ImportProcurement extends Command
             }
         }
 
+        $posByNumber = PurchaseOrder::pluck('id', 'po_number');
+
         $created = 0;
         $skipped = 0;
         $itemsLinked = 0;
@@ -227,6 +240,10 @@ class ImportProcurement extends Command
                 continue;
             }
 
+            // The invoice's PO comes from the reconciliation; fall back to
+            // the order's primary PO when the invoice was not cited there.
+            $poId = $posByNumber[$this->invoicePoMap[$number] ?? ''] ?? $order->purchase_order_id;
+
             $invoice = OrderInvoice::where('order_id', $order->id)
                 ->where('invoice_number', $number)
                 ->first();
@@ -238,6 +255,7 @@ class ImportProcurement extends Command
                     $tax = $this->money($first['Invoice Sales Tax'] ?? '0');
                     $invoice = OrderInvoice::create([
                         'order_id' => $order->id,
+                        'purchase_order_id' => $poId,
                         'invoice_number' => $number,
                         'invoice_date' => $this->date($first['Invoice Date'] ?? ''),
                         'subtotal' => $this->money($first['Invoice SubTotal'] ?? '0'),
@@ -247,6 +265,9 @@ class ImportProcurement extends Command
                         'total' => $this->money($first['Invoice Total'] ?? '0'),
                     ]);
                 }
+            } elseif (! $dryRun && $poId && $invoice->purchase_order_id !== $poId) {
+                $invoice->purchase_order_id = $poId;
+                $invoice->save();
             }
 
             if ($dryRun || ! $invoice) {
