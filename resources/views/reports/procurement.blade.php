@@ -10,6 +10,24 @@
 @section('content')
 
 <div class="row">
+    <div class="col-md-12">
+        <div class="box-header" style="padding-left:0;">
+            <h1 class="box-title" style="font-size:22px; margin:0; display:inline-block; vertical-align:middle;">
+                {{ trans('admin/purchase-orders/general.dashboard_title') }}
+            </h1>
+            <form method="get" style="display:inline-block; margin-left:15px; vertical-align:middle;">
+                <select name="fiscal_year" class="form-control input-sm" style="display:inline-block; width:auto;" onchange="this.form.submit()">
+                    <option value="">{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
+                    @foreach ($allFiscalYears as $fy)
+                        <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
+                    @endforeach
+                </select>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="row">
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-aqua">
             <div class="inner">
