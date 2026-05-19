@@ -3,7 +3,6 @@
 namespace Tests\Feature\Orders;
 
 use App\Models\Order;
-use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\User;
@@ -42,18 +41,22 @@ class PlannedOrdersTest extends TestCase
             'is_planned' => false,
             'purchase_order_id' => $po->id,
         ]);
-        OrderInvoice::factory()->create(['order_id' => $actual->id, 'total' => 3000]);
+        OrderItem::factory()->create([
+            'order_id' => $actual->id, 'purchase_order_id' => $po->id,
+            'quantity' => 1, 'unit_cost' => 3000, 'warranty_cost' => 0,
+        ]);
 
         $planned = Order::factory()->create([
             'status' => 'ordered',
             'is_planned' => true,
             'purchase_order_id' => $po->id,
         ]);
-        OrderItem::factory()->create(['order_id' => $planned->id, 'quantity' => 1, 'unit_cost' => 5000]);
+        OrderItem::factory()->create([
+            'order_id' => $planned->id, 'purchase_order_id' => $po->id,
+            'quantity' => 1, 'unit_cost' => 5000, 'warranty_cost' => 0,
+        ]);
 
-        $po->load('orders.invoices', 'orders.items');
-
-        // Only the actual order's invoice counts; the planned order is excluded.
+        // Only the actual order's line item counts; the planned order is excluded.
         $this->assertEquals(3000.0, $po->committedTotal());
     }
 

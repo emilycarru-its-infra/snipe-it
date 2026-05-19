@@ -4,6 +4,7 @@ namespace Tests\Feature\Orders;
 
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use Tests\TestCase;
 
@@ -85,6 +86,21 @@ class ImportProcurementTest extends TestCase
         $this->assertEquals(1, $planned->items()->count());
         // 3 units at a 3000 subtotal.
         $this->assertEquals(1000.0, (float) $planned->items()->first()->unit_cost);
+        // The planned line item is charged to its purchase order.
+        $po = PurchaseOrder::where('po_number', 'PO-TEST-2')->first();
+        $this->assertEquals($po->id, $planned->items()->first()->purchase_order_id);
+    }
+
+    public function test_links_line_items_to_their_purchase_order()
+    {
+        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        $item = OrderItem::factory()->create(['order_id' => $order->id]);
+
+        $this->artisan('procurement:import', ['--reconciliation' => $this->reconciliationCsv()])
+            ->assertExitCode(0);
+
+        $po = PurchaseOrder::where('po_number', 'PO-TEST-1')->first();
+        $this->assertEquals($po->id, $item->fresh()->purchase_order_id);
     }
 
     public function test_creates_one_invoice_per_cdw_invoice_number()
