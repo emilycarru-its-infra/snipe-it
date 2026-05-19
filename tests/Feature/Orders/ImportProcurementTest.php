@@ -131,6 +131,28 @@ class ImportProcurementTest extends TestCase
         $this->assertEquals(0, OrderInvoice::count());
     }
 
+    public function test_invoices_are_attributed_to_a_purchase_order()
+    {
+        Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+
+        $recon = $this->csv(<<<CSV
+        PO,PO Budget,Schedule,Qty,Item Description,CDW Order,CDW Invoice,Subtotal,GST 5%,PST 7%,Status
+        PO-TEST-1,10000,003,1,Widget,ORD-A,INV-9,2000,100,140,Invoiced
+        CSV);
+
+        $invoices = $this->csv(<<<CSV
+        Order #,Invoice #,Invoice Date,Invoice SubTotal,Invoice Shipping Cost,Invoice Sales Tax,Invoice Total
+        ORD-A,INV-9,7/22/2025,\$2000.00,\$0.00,\$240.00,\$2240.00
+        CSV);
+
+        $this->artisan('procurement:import', ['--reconciliation' => $recon, '--invoices' => $invoices])
+            ->assertExitCode(0);
+
+        $po = PurchaseOrder::where('po_number', 'PO-TEST-1')->first();
+        $this->assertEquals($po->id, OrderInvoice::where('invoice_number', 'INV-9')->first()->purchase_order_id);
+        $this->assertEquals(2000.0, $po->invoicedTotal());
+    }
+
     public function test_links_line_items_to_invoices_by_serial()
     {
         $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
