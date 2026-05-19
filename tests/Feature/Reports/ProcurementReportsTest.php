@@ -23,30 +23,76 @@ class ProcurementReportsTest extends TestCase
             ->assertOk();
     }
 
-    public function test_po_budget_report_lists_purchase_orders()
+    public function test_po_budget_report_renders_live_and_as_csv()
     {
         PurchaseOrder::factory()->create(['po_number' => 'PO-REPORT-1', 'budget' => 5000]);
+        $superuser = $this->superuser();
 
-        $response = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.po-budget'));
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.po-budget'))
+            ->assertOk()
+            ->assertSee('PO-REPORT-1');
 
-        $response->assertOk();
-        $this->assertStringContainsString('PO-REPORT-1', $response->streamedContent());
+        $csv = $this->actingAs($superuser)
+            ->get(route('reports.procurement.po-budget', ['format' => 'csv']));
+        $csv->assertOk();
+        $this->assertStringContainsString('PO-REPORT-1', $csv->streamedContent());
     }
 
-    public function test_invoice_report_lists_invoices()
+    public function test_invoice_report_renders_live_and_as_csv()
     {
         $order = Order::factory()->create(['status' => 'ordered']);
         OrderInvoice::factory()->create(['order_id' => $order->id, 'invoice_number' => 'INV-REPORT-1']);
+        $superuser = $this->superuser();
 
-        $response = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.invoices'));
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.invoices'))
+            ->assertOk()
+            ->assertSee('INV-REPORT-1');
 
-        $response->assertOk();
-        $this->assertStringContainsString('INV-REPORT-1', $response->streamedContent());
+        $csv = $this->actingAs($superuser)
+            ->get(route('reports.procurement.invoices', ['format' => 'csv']));
+        $csv->assertOk();
+        $this->assertStringContainsString('INV-REPORT-1', $csv->streamedContent());
     }
 
-    public function test_receiving_report_lists_orders()
+    public function test_capital_report_renders_live_and_as_csv()
+    {
+        PurchaseOrder::factory()->create(['fiscal_year' => 'FY2025-26', 'budget' => 1000]);
+        $superuser = $this->superuser();
+
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.capital'))
+            ->assertOk()
+            ->assertSee('FY2025-26');
+
+        $csv = $this->actingAs($superuser)
+            ->get(route('reports.procurement.capital', ['format' => 'csv']));
+        $csv->assertOk();
+        $this->assertStringContainsString('Fiscal Year', $csv->streamedContent());
+    }
+
+    public function test_refresh_forecast_report_renders_live_and_as_csv()
+    {
+        $asset = Asset::factory()->create(['asset_tag' => 'FORECAST-1']);
+        // The asset factory recomputes asset_eol_date in an afterMaking hook,
+        // so pin it directly to a date inside the forecast window.
+        Asset::query()->whereKey($asset->id)
+            ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
+        $superuser = $this->superuser();
+
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.forecast'))
+            ->assertOk()
+            ->assertSee('FORECAST-1');
+
+        $csv = $this->actingAs($superuser)
+            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+        $csv->assertOk();
+        $this->assertStringContainsString('FORECAST-1', $csv->streamedContent());
+    }
+
+    public function test_receiving_report_downloads()
     {
         $order = Order::factory()->create(['order_number' => 'ORD-REPORT-1', 'status' => 'ordered']);
 
@@ -64,29 +110,5 @@ class ProcurementReportsTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString('GST', $response->streamedContent());
-    }
-
-    public function test_capital_report_downloads()
-    {
-        $response = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.capital'));
-
-        $response->assertOk();
-        $this->assertStringContainsString('Fiscal Year', $response->streamedContent());
-    }
-
-    public function test_refresh_forecast_report_lists_assets_near_eol()
-    {
-        $asset = Asset::factory()->create(['asset_tag' => 'FORECAST-1']);
-        // The asset factory recomputes asset_eol_date in an afterMaking hook,
-        // so pin it directly to a date inside the forecast window.
-        Asset::query()->whereKey($asset->id)
-            ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
-
-        $response = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.forecast'));
-
-        $response->assertOk();
-        $this->assertStringContainsString('FORECAST-1', $response->streamedContent());
     }
 }
