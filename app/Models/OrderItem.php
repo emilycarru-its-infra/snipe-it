@@ -13,6 +13,7 @@ class OrderItem extends Model
 
     protected $fillable = [
         'order_id',
+        'purchase_order_id',
         'shipment_id',
         'invoice_id',
         'item_type',
@@ -51,6 +52,16 @@ class OrderItem extends Model
     public function order()
     {
         return $this->belongsTo(Order::class, 'order_id');
+    }
+
+    /**
+     * The purchase order this line item is charged to. Carried per line
+     * item, not per order, so a single vendor order can be split across
+     * purchase orders.
+     */
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
     }
 
     /**

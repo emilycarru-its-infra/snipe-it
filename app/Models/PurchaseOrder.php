@@ -104,34 +104,33 @@ class PurchaseOrder extends SnipeModel
     }
 
     /**
-     * Total actually billed against this PO across all invoices. Planned
-     * (forecast) orders are excluded — only real commitments count.
+     * The line items charged to this purchase order. PO membership is
+     * carried per line item, so a single vendor order can be split across
+     * purchase orders. Items on planned (forecast) orders are excluded —
+     * only real commitments count.
      */
-    public function invoicedTotal(): float
+    public function lineItems()
     {
-        $total = 0.0;
-        foreach ($this->orders->where('is_planned', false) as $order) {
-            $total += (float) $order->invoices->sum('total');
-        }
-
-        return $total;
+        return $this->hasMany(OrderItem::class, 'purchase_order_id')
+            ->whereHas('order', fn ($query) => $query->where('is_planned', false));
     }
 
     /**
-     * Committed spend: billed invoice totals where an order has been
-     * invoiced, otherwise the order's line-item estimate. Planned
-     * (forecast) orders are excluded. This is the figure compared
-     * against the budget.
+     * Total actually billed against this PO: the cost of every line item
+     * that has been assigned to an invoice.
+     */
+    public function invoicedTotal(): float
+    {
+        return (float) $this->lineItems()->whereNotNull('invoice_id')->get()->sum->lineTotal();
+    }
+
+    /**
+     * Committed spend: the cost of every line item charged to this PO,
+     * invoiced or not. This is the figure compared against the budget.
      */
     public function committedTotal(): float
     {
-        $total = 0.0;
-        foreach ($this->orders->where('is_planned', false) as $order) {
-            $invoiced = (float) $order->invoices->sum('total');
-            $total += $invoiced > 0 ? $invoiced : $this->orderLineItemTotal($order);
-        }
-
-        return $total;
+        return (float) $this->lineItems()->get()->sum->lineTotal();
     }
 
     /**
@@ -152,12 +151,5 @@ class PurchaseOrder extends SnipeModel
     public function isOverBudget(): bool
     {
         return $this->budget !== null && $this->committedTotal() > (float) $this->budget;
-    }
-
-    private function orderLineItemTotal(Order $order): float
-    {
-        return $order->items->sum(
-            fn ($item) => ((float) $item->unit_cost * (int) $item->quantity) + (float) $item->warranty_cost
-        );
     }
 }
