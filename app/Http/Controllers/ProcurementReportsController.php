@@ -6,35 +6,103 @@ use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\PurchaseOrder;
-use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
 use League\Csv\EscapeFormula;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Finance-facing reports for the procurement module — purchase orders,
- * orders, invoices and receiving — streamed as CSV for hand-off to the
- * Accounts Payable department.
+ * Finance-facing reports for the procurement module. The four key reports
+ * (PO budget, invoices, capital spend, refresh forecast) render on screen
+ * as a live page, with a CSV download as the secondary option. Receiving
+ * and tax remain download-only.
+ *
+ * Each report is built once as a structured array — columns, records and
+ * an optional footer — and then either rendered or streamed as CSV.
  */
 class ProcurementReportsController extends Controller
 {
     /**
      * Landing page listing the available procurement reports.
      */
-    public function index(): View
+    public function index()
     {
         $this->authorize('reports.view');
 
         return view('reports/procurement');
     }
 
-    /**
-     * Per-purchase-order budget vs. spend.
-     */
-    public function poBudget(): StreamedResponse
+    public function poBudget(Request $request)
     {
         $this->authorize('reports.view');
 
-        $header = [
+        return $this->render(
+            $request,
+            'po-budget-report',
+            trans('admin/purchase-orders/general.report_po_budget'),
+            'reports.procurement.po-budget',
+            $this->poBudgetReport()
+        );
+    }
+
+    public function invoices(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'invoice-reconciliation-report',
+            trans('admin/purchase-orders/general.report_invoices'),
+            'reports.procurement.invoices',
+            $this->invoicesReport()
+        );
+    }
+
+    public function capital(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'capital-spend-report',
+            trans('admin/purchase-orders/general.report_capital'),
+            'reports.procurement.capital',
+            $this->capitalReport()
+        );
+    }
+
+    public function refreshForecast(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'refresh-forecast-report',
+            trans('admin/purchase-orders/general.report_forecast'),
+            'reports.procurement.forecast',
+            $this->refreshForecastReport()
+        );
+    }
+
+    public function receiving(): StreamedResponse
+    {
+        $this->authorize('reports.view');
+
+        return $this->streamReportCsv('receiving-status-report', $this->receivingReport());
+    }
+
+    public function tax(): StreamedResponse
+    {
+        $this->authorize('reports.view');
+
+        return $this->streamReportCsv('tax-summary-report', $this->taxReport());
+    }
+
+    /**
+     * Per-purchase-order budget vs. spend.
+     */
+    private function poBudgetReport(): array
+    {
+        $columns = [
             trans('admin/purchase-orders/general.po_number'),
             trans('admin/purchase-orders/general.title'),
             trans('admin/purchase-orders/general.fiscal_year'),
@@ -49,13 +117,27 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.orders'),
         ];
 
-        return $this->streamCsv('po-budget-report', $header, function ($handle, $formatter) {
-            $purchaseOrders = PurchaseOrder::with('supplier', 'orders.invoices', 'orders.items')
-                ->orderBy('po_number')
-                ->get();
+        $purchaseOrders = PurchaseOrder::with('supplier', 'orders.invoices', 'orders.items')
+            ->orderBy('po_number')
+            ->get();
 
-            foreach ($purchaseOrders as $po) {
-                $row = [
+        $records = [];
+        $totalBudget = $totalInvoiced = $totalCommitted = $totalRemaining = $totalOrders = 0.0;
+
+        foreach ($purchaseOrders as $po) {
+            $invoiced = $po->invoicedTotal();
+            $committed = $po->committedTotal();
+            $remaining = $po->remaining();
+
+            $totalBudget += (float) $po->budget;
+            $totalInvoiced += $invoiced;
+            $totalCommitted += $committed;
+            $totalRemaining += ($remaining ?? 0);
+            $totalOrders += $po->orders->count();
+
+            $records[] = [
+                'class' => $po->isOverBudget() ? 'danger' : '',
+                'cells' => [
                     $po->po_number,
                     (string) $po->title,
                     (string) $po->fiscal_year,
@@ -63,25 +145,34 @@ class ProcurementReportsController extends Controller
                     (string) $po->supplier?->name,
                     $po->status,
                     $this->money($po->budget),
-                    $this->money($po->invoicedTotal()),
-                    $this->money($po->committedTotal()),
-                    $this->money($po->remaining()),
+                    $this->money($invoiced),
+                    $this->money($committed),
+                    $remaining === null ? '' : $this->money($remaining),
                     $po->isOverBudget() ? trans('general.yes') : trans('general.no'),
                     $po->orders->count(),
-                ];
-                fputcsv($handle, $formatter->escapeRecord($row));
-            }
-        });
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '', '',
+            $this->money($totalBudget),
+            $this->money($totalInvoiced),
+            $this->money($totalCommitted),
+            $this->money($totalRemaining),
+            '',
+            (int) $totalOrders,
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
     }
 
     /**
      * Every vendor invoice with its purchase order and order linkage.
      */
-    public function invoices(): StreamedResponse
+    private function invoicesReport(): array
     {
-        $this->authorize('reports.view');
-
-        $header = [
+        $columns = [
             trans('admin/purchase-orders/general.po_number'),
             trans('general.order_number'),
             trans('admin/orders/general.invoice_number'),
@@ -94,38 +185,56 @@ class ProcurementReportsController extends Controller
             trans('admin/orders/general.line_items'),
         ];
 
-        return $this->streamCsv('invoice-reconciliation-report', $header, function ($handle, $formatter) {
-            $invoices = OrderInvoice::with('order.purchaseOrder', 'items')
-                ->orderBy('invoice_number')
-                ->get();
+        $invoices = OrderInvoice::with('order.purchaseOrder', 'items')
+            ->orderBy('invoice_number')
+            ->get();
 
-            foreach ($invoices as $invoice) {
-                $row = [
+        $records = [];
+        $totalSubtotal = $totalGst = $totalPst = $totalShipping = $totalTotal = 0.0;
+
+        foreach ($invoices as $invoice) {
+            $totalSubtotal += (float) $invoice->subtotal;
+            $totalGst += (float) $invoice->tax_gst;
+            $totalPst += (float) $invoice->tax_pst;
+            $totalShipping += (float) $invoice->shipping;
+            $totalTotal += (float) $invoice->total;
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
                     (string) $invoice->order?->purchaseOrder?->po_number,
                     (string) $invoice->order?->order_number,
                     $invoice->invoice_number,
-                    $invoice->invoice_date ? $invoice->invoice_date->format('Y-m-d') : '',
+                    $this->dateString($invoice->invoice_date),
                     $this->money($invoice->subtotal),
                     $this->money($invoice->tax_gst),
                     $this->money($invoice->tax_pst),
                     $this->money($invoice->shipping),
                     $this->money($invoice->total),
                     $invoice->items->count(),
-                ];
-                fputcsv($handle, $formatter->escapeRecord($row));
-            }
-        });
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '',
+            $this->money($totalSubtotal),
+            $this->money($totalGst),
+            $this->money($totalPst),
+            $this->money($totalShipping),
+            $this->money($totalTotal),
+            '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
     }
 
     /**
-     * Per-order receiving progress — what has arrived and what is still
-     * outstanding.
+     * Per-order receiving progress.
      */
-    public function receiving(): StreamedResponse
+    private function receivingReport(): array
     {
-        $this->authorize('reports.view');
-
-        $header = [
+        $columns = [
             trans('admin/purchase-orders/general.po_number'),
             trans('general.order_number'),
             trans('admin/orders/general.status'),
@@ -136,37 +245,38 @@ class ProcurementReportsController extends Controller
             trans('admin/orders/general.not_received'),
         ];
 
-        return $this->streamCsv('receiving-status-report', $header, function ($handle, $formatter) {
-            $orders = Order::with('purchaseOrder', 'supplier', 'items')
-                ->orderBy('order_number')
-                ->get();
+        $orders = Order::with('purchaseOrder', 'supplier', 'items')
+            ->orderBy('order_number')
+            ->get();
 
-            foreach ($orders as $order) {
-                $total = $order->items->count();
-                $received = $order->items->whereNotNull('received_at')->count();
-                $row = [
+        $records = [];
+        foreach ($orders as $order) {
+            $total = $order->items->count();
+            $received = $order->items->whereNotNull('received_at')->count();
+            $records[] = [
+                'class' => '',
+                'cells' => [
                     (string) $order->purchaseOrder?->po_number,
                     $order->order_number,
                     $order->status,
                     (string) $order->supplier?->name,
-                    $order->order_date ? $order->order_date->format('Y-m-d') : '',
+                    $this->dateString($order->order_date),
                     $total,
                     $received,
                     $total - $received,
-                ];
-                fputcsv($handle, $formatter->escapeRecord($row));
-            }
-        });
+                ],
+            ];
+        }
+
+        return ['columns' => $columns, 'records' => $records];
     }
 
     /**
-     * GST / PST totals per purchase order, for AP cash-flow planning.
+     * GST / PST totals per purchase order.
      */
-    public function tax(): StreamedResponse
+    private function taxReport(): array
     {
-        $this->authorize('reports.view');
-
-        $header = [
+        $columns = [
             trans('admin/purchase-orders/general.po_number'),
             trans('admin/purchase-orders/general.fiscal_year'),
             trans('admin/orders/general.subtotal'),
@@ -176,12 +286,14 @@ class ProcurementReportsController extends Controller
             trans('admin/orders/general.total'),
         ];
 
-        return $this->streamCsv('tax-summary-report', $header, function ($handle, $formatter) {
-            $purchaseOrders = PurchaseOrder::with('orders.invoices')->orderBy('po_number')->get();
+        $purchaseOrders = PurchaseOrder::with('orders.invoices')->orderBy('po_number')->get();
 
-            foreach ($purchaseOrders as $po) {
-                $invoices = $po->orders->flatMap->invoices;
-                $row = [
+        $records = [];
+        foreach ($purchaseOrders as $po) {
+            $invoices = $po->orders->flatMap->invoices;
+            $records[] = [
+                'class' => '',
+                'cells' => [
                     $po->po_number,
                     (string) $po->fiscal_year,
                     $this->money($invoices->sum('subtotal')),
@@ -189,17 +301,18 @@ class ProcurementReportsController extends Controller
                     $this->money($invoices->sum('tax_pst')),
                     $this->money($invoices->sum('shipping')),
                     $this->money($invoices->sum('total')),
-                ];
-                fputcsv($handle, $formatter->escapeRecord($row));
-            }
+                ],
+            ];
+        }
 
-            // Invoices on orders that aren't tied to a purchase order.
-            $orphanInvoices = OrderInvoice::whereHas('order', function ($query) {
-                $query->whereNull('purchase_order_id');
-            })->get();
+        $orphanInvoices = OrderInvoice::whereHas('order', function ($query) {
+            $query->whereNull('purchase_order_id');
+        })->get();
 
-            if ($orphanInvoices->isNotEmpty()) {
-                $row = [
+        if ($orphanInvoices->isNotEmpty()) {
+            $records[] = [
+                'class' => '',
+                'cells' => [
                     trans('admin/purchase-orders/general.none'),
                     '',
                     $this->money($orphanInvoices->sum('subtotal')),
@@ -207,20 +320,19 @@ class ProcurementReportsController extends Controller
                     $this->money($orphanInvoices->sum('tax_pst')),
                     $this->money($orphanInvoices->sum('shipping')),
                     $this->money($orphanInvoices->sum('total')),
-                ];
-                fputcsv($handle, $formatter->escapeRecord($row));
-            }
-        });
+                ],
+            ];
+        }
+
+        return ['columns' => $columns, 'records' => $records];
     }
 
     /**
      * Capital spend grouped by fiscal year and cost centre.
      */
-    public function capital(): StreamedResponse
+    private function capitalReport(): array
     {
-        $this->authorize('reports.view');
-
-        $header = [
+        $columns = [
             trans('admin/purchase-orders/general.fiscal_year'),
             trans('admin/purchase-orders/general.cost_center'),
             trans('admin/purchase-orders/general.purchase_orders'),
@@ -229,39 +341,52 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.remaining'),
         ];
 
-        return $this->streamCsv('capital-spend-report', $header, function ($handle, $formatter) {
-            $purchaseOrders = PurchaseOrder::with('orders.invoices', 'orders.items')->get();
+        $purchaseOrders = PurchaseOrder::with('orders.invoices', 'orders.items')->get();
 
-            $groups = $purchaseOrders->groupBy(function ($po) {
-                return ($po->fiscal_year ?: '—').'||'.($po->cost_center ?: '—');
-            });
+        $groups = $purchaseOrders->groupBy(function ($po) {
+            return ($po->fiscal_year ?: '—').'||'.($po->cost_center ?: '—');
+        });
 
-            foreach ($groups as $key => $group) {
-                [$fiscalYear, $costCenter] = explode('||', $key);
-                $budget = $group->sum(fn ($po) => (float) $po->budget);
-                $committed = $group->sum(fn ($po) => $po->committedTotal());
-                $row = [
+        $records = [];
+        $totalBudget = $totalCommitted = 0.0;
+
+        foreach ($groups as $key => $group) {
+            [$fiscalYear, $costCenter] = explode('||', $key);
+            $budget = $group->sum(fn ($po) => (float) $po->budget);
+            $committed = $group->sum(fn ($po) => $po->committedTotal());
+            $totalBudget += $budget;
+            $totalCommitted += $committed;
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
                     $fiscalYear,
                     $costCenter,
                     $group->count(),
                     $this->money($budget),
                     $this->money($committed),
                     $this->money($budget - $committed),
-                ];
-                fputcsv($handle, $formatter->escapeRecord($row));
-            }
-        });
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '',
+            $this->money($totalBudget),
+            $this->money($totalCommitted),
+            $this->money($totalBudget - $totalCommitted),
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
     }
 
     /**
      * Assets reaching end-of-life within the next year — the refresh
      * pipeline. purchase_cost stands in as the replacement-cost estimate.
      */
-    public function refreshForecast(): StreamedResponse
+    private function refreshForecastReport(): array
     {
-        $this->authorize('reports.view');
-
-        $header = [
+        $columns = [
             trans('admin/purchase-orders/general.forecast_asset_tag'),
             trans('admin/purchase-orders/general.forecast_asset_name'),
             trans('admin/purchase-orders/general.forecast_model'),
@@ -273,15 +398,20 @@ class ProcurementReportsController extends Controller
             trans('general.supplier'),
         ];
 
-        return $this->streamCsv('refresh-forecast-report', $header, function ($handle, $formatter) {
-            $assets = Asset::with('model', 'supplier', 'status')
-                ->whereNotNull('asset_eol_date')
-                ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
-                ->orderBy('asset_eol_date')
-                ->get();
+        $assets = Asset::with('model', 'supplier', 'status')
+            ->whereNotNull('asset_eol_date')
+            ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
+            ->orderBy('asset_eol_date')
+            ->get();
 
-            foreach ($assets as $asset) {
-                $row = [
+        $records = [];
+        $totalEstimate = 0.0;
+
+        foreach ($assets as $asset) {
+            $totalEstimate += (float) $asset->purchase_cost;
+            $records[] = [
+                'class' => '',
+                'cells' => [
                     (string) $asset->asset_tag,
                     (string) $asset->name,
                     (string) $asset->model?->name,
@@ -291,14 +421,68 @@ class ProcurementReportsController extends Controller
                     $this->money($asset->purchase_cost),
                     (string) $asset->status?->name,
                     (string) $asset->supplier?->name,
-                ];
-                fputcsv($handle, $formatter->escapeRecord($row));
-            }
-        });
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '', '',
+            $this->money($totalEstimate),
+            '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
     }
 
     /**
-     * Format a numeric value to two decimal places for a CSV cell, or an
+     * Render a report as a live page, or stream it as CSV when
+     * ?format=csv is requested.
+     */
+    private function render(Request $request, string $filename, string $title, string $routeName, array $report)
+    {
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv($filename, $report);
+        }
+
+        return view('reports/procurement/show', [
+            'reportTitle' => $title,
+            'columns' => $report['columns'],
+            'rows' => $report['records'],
+            'footer' => $report['footer'] ?? null,
+            'downloadUrl' => route($routeName, ['format' => 'csv']),
+        ]);
+    }
+
+    /**
+     * Stream a report array as a downloadable CSV with a UTF-8 BOM and
+     * formula escaping.
+     */
+    private function streamReportCsv(string $filename, array $report): StreamedResponse
+    {
+        return new StreamedResponse(function () use ($report) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+            $formatter = new EscapeFormula('`');
+
+            fputcsv($handle, $report['columns']);
+
+            foreach ($report['records'] as $record) {
+                fputcsv($handle, $formatter->escapeRecord($record['cells']));
+            }
+
+            if (! empty($report['footer'])) {
+                fputcsv($handle, $formatter->escapeRecord($report['footer']));
+            }
+
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'-'.date('Y-m-d').'.csv"',
+        ]);
+    }
+
+    /**
+     * Format a numeric value to two decimal places for a cell, or an
      * empty string when null.
      */
     private function money($value): string
@@ -307,9 +491,8 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Format a date value for a CSV cell. Snipe casts some asset date
-     * columns to Carbon and leaves others as plain strings, so handle
-     * both, and null.
+     * Format a date value for a cell. Snipe casts some asset date columns
+     * to Carbon and leaves others as plain strings, so handle both.
      */
     private function dateString($value): string
     {
@@ -318,24 +501,5 @@ class ProcurementReportsController extends Controller
         }
 
         return $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string) $value;
-    }
-
-    /**
-     * Stream rows as a downloadable CSV with a UTF-8 BOM and formula
-     * escaping, following the convention used by the other reports.
-     */
-    private function streamCsv(string $filename, array $header, \Closure $writeRows): StreamedResponse
-    {
-        return new StreamedResponse(function () use ($header, $writeRows) {
-            $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
-            $formatter = new EscapeFormula('`');
-            fputcsv($handle, $header);
-            $writeRows($handle, $formatter);
-            fclose($handle);
-        }, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'-'.date('Y-m-d').'.csv"',
-        ]);
     }
 }
