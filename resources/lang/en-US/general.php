@@ -392,6 +392,7 @@ return [
     'show_help' => 'Show help',
     'hide_help' => 'Hide help',
     'view_all' => 'view all',
+    'view' => 'View',
     'hide_deleted' => 'Hide Deleted',
     'email' => 'Email',
     'do_not_change' => 'Do not change',
