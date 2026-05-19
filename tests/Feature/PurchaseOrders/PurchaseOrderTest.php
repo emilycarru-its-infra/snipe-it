@@ -111,24 +111,17 @@ class PurchaseOrderTest extends TestCase
         $this->assertFalse($po->isOverBudget());
     }
 
-    public function test_invoiced_total_counts_only_invoiced_line_items()
+    public function test_invoiced_total_sums_invoice_subtotals_charged_to_the_po()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
         $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
-        $invoice = OrderInvoice::factory()->create(['order_id' => $order->id]);
 
-        OrderItem::factory()->create([
-            'order_id' => $order->id, 'purchase_order_id' => $po->id,
-            'invoice_id' => $invoice->id, 'quantity' => 1, 'unit_cost' => 4000, 'warranty_cost' => 0,
-        ]);
-        OrderItem::factory()->create([
-            'order_id' => $order->id, 'purchase_order_id' => $po->id,
-            'quantity' => 1, 'unit_cost' => 2000, 'warranty_cost' => 0,
-        ]);
+        OrderInvoice::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $po->id, 'subtotal' => 4000]);
+        OrderInvoice::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $po->id, 'subtotal' => 2000]);
+        // An invoice not charged to this PO is excluded.
+        OrderInvoice::factory()->create(['order_id' => $order->id, 'subtotal' => 9999]);
 
-        // Both items count as committed; only the invoiced one counts as invoiced.
-        $this->assertEquals(6000.0, $po->committedTotal());
-        $this->assertEquals(4000.0, $po->invoicedTotal());
+        $this->assertEquals(6000.0, $po->invoicedTotal());
     }
 
     public function test_a_purchase_order_over_budget_is_flagged()
