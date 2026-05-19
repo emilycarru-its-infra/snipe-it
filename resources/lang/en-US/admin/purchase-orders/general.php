@@ -68,4 +68,5 @@ return [
     'chart_utilization' => 'Budget Utilisation',
     'chart_fiscal_year' => 'Spend by Fiscal Year',
     'chart_monthly' => 'Monthly Invoiced',
+    'all_fiscal_years' => 'All Fiscal Years',
 ];

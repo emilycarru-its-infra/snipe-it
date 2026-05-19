@@ -28,11 +28,23 @@ class ProcurementReportsController extends Controller
      * Procurement dashboard: budget/spend summary cards, charts and links
      * to the individual reports.
      */
-    public function index()
+    public function index(Request $request)
     {
         $this->authorize('reports.view');
 
-        $purchaseOrders = PurchaseOrder::orderBy('po_number')->get();
+        // Fiscal years available across purchase orders and planned orders.
+        $allFiscalYears = PurchaseOrder::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')
+            ->merge(Order::planned()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
+            ->unique()->sort()->values();
+
+        $selectedFy = $request->query('fiscal_year');
+        if (! $allFiscalYears->contains($selectedFy)) {
+            $selectedFy = null;
+        }
+
+        $purchaseOrders = PurchaseOrder::when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
+            ->orderBy('po_number')
+            ->get();
 
         $poRows = [];
         $totalBudget = 0.0;
@@ -62,7 +74,12 @@ class ProcurementReportsController extends Controller
         $plannedByFy = [];
         $plannedTotal = 0.0;
 
-        foreach (Order::planned()->with('items')->get() as $order) {
+        $plannedOrders = Order::planned()
+            ->when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
+            ->with('items')
+            ->get();
+
+        foreach ($plannedOrders as $order) {
             $value = (float) $order->items->sum->lineTotal();
             $plannedTotal += $value;
             $fy = $order->fiscal_year ?: '—';
@@ -71,6 +88,10 @@ class ProcurementReportsController extends Controller
 
         // Invoiced totals grouped by calendar month.
         $monthly = OrderInvoice::whereNotNull('invoice_date')
+            ->when($selectedFy, fn ($query) => $query->whereHas(
+                'purchaseOrder',
+                fn ($po) => $po->where('fiscal_year', $selectedFy)
+            ))
             ->orderBy('invoice_date')
             ->get()
             ->groupBy(fn ($invoice) => $invoice->invoice_date->format('Y-m'))
@@ -85,14 +106,21 @@ class ProcurementReportsController extends Controller
         sort($fiscalYears);
 
         return view('reports/procurement', [
+            'allFiscalYears' => $allFiscalYears,
+            'selectedFy' => $selectedFy,
             'totalBudget' => $totalBudget,
             'totalCommitted' => $totalCommitted,
             'totalInvoiced' => $totalInvoiced,
             'totalRemaining' => $totalBudget - $totalCommitted,
             'plannedTotal' => $plannedTotal,
             'poCount' => $purchaseOrders->count(),
-            'orderCount' => Order::actual()->count(),
-            'invoiceCount' => OrderInvoice::count(),
+            'orderCount' => Order::actual()
+                ->when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
+                ->count(),
+            'invoiceCount' => OrderInvoice::when($selectedFy, fn ($query) => $query->whereHas(
+                'purchaseOrder',
+                fn ($po) => $po->where('fiscal_year', $selectedFy)
+            ))->count(),
             'eolCount' => $eolAssets->count(),
             'eolEstimate' => (float) $eolAssets->sum('purchase_cost'),
             'poRows' => $poRows,

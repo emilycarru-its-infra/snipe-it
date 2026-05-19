@@ -35,6 +35,27 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('procMonthlyChart');
     }
 
+    public function test_dashboard_filters_by_fiscal_year()
+    {
+        PurchaseOrder::factory()->create(['po_number' => 'PO-FY25', 'fiscal_year' => 'FY2025-26', 'budget' => 10000]);
+        PurchaseOrder::factory()->create(['po_number' => 'PO-FY26', 'fiscal_year' => 'FY2026-27', 'budget' => 20000]);
+        $superuser = $this->superuser();
+
+        // Unfiltered, both purchase orders are charted.
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee('PO-FY25')
+            ->assertSee('PO-FY26');
+
+        // Filtered to one fiscal year, only that year's PO appears.
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2025-26']))
+            ->assertOk()
+            ->assertSee('PO-FY25')
+            ->assertDontSee('PO-FY26');
+    }
+
     public function test_po_budget_report_renders_live_and_as_csv()
     {
         PurchaseOrder::factory()->create(['po_number' => 'PO-REPORT-1', 'budget' => 5000]);
