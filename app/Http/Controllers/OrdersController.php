@@ -396,6 +396,8 @@ class OrdersController extends Controller
     private function fillFromRequest(Order $order, Request $request): void
     {
         $order->order_number = $request->input('order_number');
+        $order->is_planned = $request->boolean('is_planned');
+        $order->fiscal_year = $request->input('fiscal_year') ?: null;
         $order->purchase_order_id = $request->input('purchase_order_id') ?: null;
         $order->supplier_id = $request->input('supplier_id') ?: null;
         $order->company_id = $request->input('company_id') ?: null;

@@ -104,12 +104,13 @@ class PurchaseOrder extends SnipeModel
     }
 
     /**
-     * Total actually billed against this PO across all invoices.
+     * Total actually billed against this PO across all invoices. Planned
+     * (forecast) orders are excluded — only real commitments count.
      */
     public function invoicedTotal(): float
     {
         $total = 0.0;
-        foreach ($this->orders as $order) {
+        foreach ($this->orders->where('is_planned', false) as $order) {
             $total += (float) $order->invoices->sum('total');
         }
 
@@ -118,13 +119,14 @@ class PurchaseOrder extends SnipeModel
 
     /**
      * Committed spend: billed invoice totals where an order has been
-     * invoiced, otherwise the order's line-item estimate. This is the
-     * figure compared against the budget.
+     * invoiced, otherwise the order's line-item estimate. Planned
+     * (forecast) orders are excluded. This is the figure compared
+     * against the budget.
      */
     public function committedTotal(): float
     {
         $total = 0.0;
-        foreach ($this->orders as $order) {
+        foreach ($this->orders->where('is_planned', false) as $order) {
             $invoiced = (float) $order->invoices->sum('total');
             $total += $invoiced > 0 ? $invoiced : $this->orderLineItemTotal($order);
         }
