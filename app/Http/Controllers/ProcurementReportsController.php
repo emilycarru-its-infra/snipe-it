@@ -706,12 +706,20 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Format a numeric value to two decimal places for a cell, or an
-     * empty string when null.
+     * Format a numeric value as accounting-style currency for a cell:
+     * a dollar sign, thousands separators, two decimals, and negatives
+     * in parentheses. Null becomes an empty string.
      */
     private function money($value): string
     {
-        return $value === null ? '' : number_format((float) $value, 2, '.', '');
+        if ($value === null) {
+            return '';
+        }
+
+        $value = (float) $value;
+        $formatted = '$'.number_format(abs($value), 2);
+
+        return $value < 0 ? '('.$formatted.')' : $formatted;
     }
 
     /**

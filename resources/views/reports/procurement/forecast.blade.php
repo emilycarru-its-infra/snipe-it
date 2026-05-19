@@ -6,6 +6,16 @@
     @parent
 @stop
 
+{{-- Page-header actions --}}
+@section('header_right')
+    <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default">
+        <x-icon type="download" /> {{ trans('general.download') }}
+    </a>
+    <a href="{{ route('reports.procurement') }}" class="btn btn-sm btn-default">
+        {{ trans('admin/purchase-orders/general.reports') }}
+    </a>
+@stop
+
 {{-- Page content --}}
 @section('content')
 <div class="row">
@@ -13,17 +23,6 @@
         <form method="POST" action="{{ route('reports.procurement.forecast.plan') }}">
             {{ csrf_field() }}
             <div class="box box-default">
-                <div class="box-header with-border">
-                    <h2 class="box-title">{{ $reportTitle }}</h2>
-                    <div class="pull-right">
-                        <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default">
-                            <x-icon type="download" /> {{ trans('general.download') }}
-                        </a>
-                        <a href="{{ route('reports.procurement') }}" class="btn btn-sm btn-default">
-                            {{ trans('admin/purchase-orders/general.reports') }}
-                        </a>
-                    </div>
-                </div>
                 <div class="box-body">
                     @if ($canCreate)
                         <p>{{ trans('admin/purchase-orders/general.forecast_intro') }}</p>
