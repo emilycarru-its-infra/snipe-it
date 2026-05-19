@@ -34,6 +34,8 @@ class Order extends SnipeModel
     protected $rules = [
         'order_number' => 'required|string|max:191',
         'status' => 'required|string|in:ordered,shipped,partially_received,received,cancelled',
+        'is_planned' => 'boolean',
+        'fiscal_year' => 'nullable|string|max:191',
         'supplier_id' => 'nullable|exists:suppliers,id',
         'company_id' => 'nullable|exists:companies,id',
         'order_date' => 'nullable|date',
@@ -48,6 +50,8 @@ class Order extends SnipeModel
     protected $fillable = [
         'order_number',
         'status',
+        'is_planned',
+        'fiscal_year',
         'purchase_order_id',
         'supplier_id',
         'company_id',
@@ -59,6 +63,7 @@ class Order extends SnipeModel
     ];
 
     protected $casts = [
+        'is_planned' => 'boolean',
         'order_date' => 'date',
         'expected_date' => 'date',
         'received_date' => 'date',
@@ -87,6 +92,22 @@ class Order extends SnipeModel
     public function items()
     {
         return $this->hasMany(OrderItem::class, 'order_id');
+    }
+
+    /**
+     * Planned orders are forecasts of future spend, not commitments.
+     */
+    public function scopePlanned($query)
+    {
+        return $query->where('is_planned', true);
+    }
+
+    /**
+     * Actual orders are real commitments, as opposed to planned forecasts.
+     */
+    public function scopeActual($query)
+    {
+        return $query->where('is_planned', false);
     }
 
     /**

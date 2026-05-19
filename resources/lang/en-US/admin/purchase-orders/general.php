@@ -37,6 +37,8 @@ return [
     'report_tax_desc' => 'GST and PST totals per purchase order, for AP cash-flow planning.',
     'report_capital' => 'Capital Spend',
     'report_capital_desc' => 'Budget and committed spend grouped by fiscal year and cost centre.',
+    'mode_actual' => 'Actual',
+    'mode_forecast' => 'Forecast',
     'report_forecast' => 'Refresh Forecast',
     'report_forecast_desc' => 'Assets reaching end-of-life within the next year, with a replacement-cost estimate.',
     'forecast_asset_tag' => 'Asset Tag',
