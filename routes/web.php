@@ -632,6 +632,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.procurement.capital');
         Route::get('refresh-forecast', [ProcurementReportsController::class, 'refreshForecast'])
             ->name('reports.procurement.forecast');
+        Route::post('refresh-forecast/planned-order', [ProcurementReportsController::class, 'createPlannedOrder'])
+            ->name('reports.procurement.forecast.plan');
     });
 
 });

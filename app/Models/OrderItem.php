@@ -17,6 +17,7 @@ class OrderItem extends Model
         'invoice_id',
         'item_type',
         'item_id',
+        'replaces_asset_id',
         'description',
         'quantity',
         'unit_cost',
@@ -74,6 +75,15 @@ class OrderItem extends Model
     public function lineTotal(): float
     {
         return ((float) $this->unit_cost * (int) $this->quantity) + (float) $this->warranty_cost;
+    }
+
+    /**
+     * The end-of-life asset this planned line item is forecast to replace,
+     * when generated from the Refresh Forecast report.
+     */
+    public function replacesAsset()
+    {
+        return $this->belongsTo(Asset::class, 'replaces_asset_id');
     }
 
     /**

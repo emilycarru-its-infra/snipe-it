@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use League\Csv\EscapeFormula;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -78,13 +81,81 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.view');
 
-        return $this->render(
-            $request,
-            'refresh-forecast-report',
-            trans('admin/purchase-orders/general.report_forecast'),
-            'reports.procurement.forecast',
-            $this->refreshForecastReport()
-        );
+        $report = $this->refreshForecastReport();
+
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv('refresh-forecast-report', $report);
+        }
+
+        return view('reports/procurement/forecast', [
+            'reportTitle' => trans('admin/purchase-orders/general.report_forecast'),
+            'columns' => $report['columns'],
+            'rows' => $report['records'],
+            'footer' => $report['footer'] ?? null,
+            'downloadUrl' => route('reports.procurement.forecast', ['format' => 'csv']),
+            'canCreate' => Gate::allows('create', Order::class),
+        ]);
+    }
+
+    /**
+     * Generate a planned order from devices selected on the Refresh
+     * Forecast report. Each selected end-of-life asset becomes a planned
+     * line item carrying its replacement-cost estimate.
+     */
+    public function createPlannedOrder(Request $request): RedirectResponse
+    {
+        $this->authorize('create', Order::class);
+
+        $validated = $request->validate([
+            'assets' => 'required|array|min:1',
+            'assets.*' => 'integer|exists:assets,id',
+            'order_number' => 'required|string|max:191',
+            'fiscal_year' => 'nullable|string|max:191',
+        ]);
+
+        // Skip any device that already has a planned replacement so the
+        // forecast can't double-book the same asset.
+        $alreadyPlanned = OrderItem::whereIn('replaces_asset_id', $validated['assets'])
+            ->pluck('replaces_asset_id')
+            ->all();
+
+        $assets = Asset::with('model')
+            ->whereIn('id', $validated['assets'])
+            ->whereNotIn('id', $alreadyPlanned)
+            ->get();
+
+        if ($assets->isEmpty()) {
+            return redirect()->route('reports.procurement.forecast')
+                ->with('error', trans('admin/purchase-orders/general.forecast_none_selected'));
+        }
+
+        $order = new Order;
+        $order->order_number = $validated['order_number'];
+        $order->status = 'ordered';
+        $order->is_planned = true;
+        $order->fiscal_year = $validated['fiscal_year'] ?? null;
+        $order->created_by = auth()->id();
+
+        if (! $order->save()) {
+            return redirect()->route('reports.procurement.forecast')
+                ->withInput()->withErrors($order->getErrors());
+        }
+
+        foreach ($assets as $asset) {
+            OrderItem::create([
+                'order_id' => $order->id,
+                'replaces_asset_id' => $asset->id,
+                'description' => trans('admin/purchase-orders/general.forecast_line_description', [
+                    'tag' => $asset->asset_tag,
+                    'model' => $asset->model?->name ?: trans('general.na'),
+                ]),
+                'quantity' => 1,
+                'unit_cost' => $asset->purchase_cost,
+            ]);
+        }
+
+        return redirect()->route('orders.show', $order->id)
+            ->with('success', trans('admin/purchase-orders/general.forecast_planned_created', ['count' => $assets->count()]));
     }
 
     public function receiving(): StreamedResponse
@@ -449,13 +520,22 @@ class ProcurementReportsController extends Controller
             ->orderBy('asset_eol_date')
             ->get();
 
+        // Devices that already have a planned replacement line item are
+        // flagged so the forecast view can show them as planned.
+        $plannedAssetIds = OrderItem::whereIn('replaces_asset_id', $assets->pluck('id'))
+            ->pluck('replaces_asset_id')
+            ->all();
+
         $records = [];
         $totalEstimate = 0.0;
 
         foreach ($assets as $asset) {
             $totalEstimate += (float) $asset->purchase_cost;
+            $planned = in_array($asset->id, $plannedAssetIds, true);
             $records[] = [
-                'class' => '',
+                'class' => $planned ? 'success' : '',
+                'asset_id' => $asset->id,
+                'planned' => $planned,
                 'cells' => [
                     (string) $asset->asset_tag,
                     (string) $asset->name,
