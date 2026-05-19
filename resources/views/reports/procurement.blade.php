@@ -153,8 +153,6 @@
                         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'live' => true],
                         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'live' => true],
                         ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'live' => true],
-                        ['route' => 'reports.procurement.receiving', 'name' => 'report_receiving', 'desc' => 'report_receiving_desc', 'live' => false],
-                        ['route' => 'reports.procurement.tax', 'name' => 'report_tax', 'desc' => 'report_tax_desc', 'live' => false],
                     ] as $report)
                         <tr>
                             <td>
@@ -206,9 +204,15 @@
         ]) !!};
 
         var money = function (value) {
-            return '$' + Number(value).toLocaleString('en-CA', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            return '$' + Number(value).toLocaleString('en-CA', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         };
         var moneyAxis = function () { return { ticks: { beginAtZero: true, callback: money } }; };
+        var barTooltip = { callbacks: { label: function (item, data) {
+            return data.datasets[item.datasetIndex].label + ': ' + money(item.yLabel);
+        } } };
+        var pieTooltip = { callbacks: { label: function (item, data) {
+            return data.labels[item.index] + ': ' + money(data.datasets[0].data[item.index]);
+        } } };
 
         new Chart(document.getElementById('procPoChart'), {
             type: 'bar',
@@ -219,7 +223,7 @@
                     { label: @json(trans('admin/purchase-orders/general.card_committed')), backgroundColor: '#f39c12', data: data.poCommitted }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, scales: { yAxes: [moneyAxis()] } }
+            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
         });
 
         new Chart(document.getElementById('procUtilChart'), {
@@ -228,7 +232,7 @@
                 labels: [@json(trans('admin/purchase-orders/general.card_committed')), @json(trans('admin/purchase-orders/general.card_remaining'))],
                 datasets: [{ backgroundColor: ['#f39c12', '#00a65a'], data: [data.committed, data.remaining] }]
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: { responsive: true, maintainAspectRatio: false, tooltips: pieTooltip }
         });
 
         new Chart(document.getElementById('procFyChart'), {
@@ -240,7 +244,7 @@
                     { label: @json(trans('admin/purchase-orders/general.card_forecast')), backgroundColor: '#001f3f', data: data.fyPlanned }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, scales: { yAxes: [moneyAxis()] } }
+            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
         });
 
         new Chart(document.getElementById('procMonthlyChart'), {
@@ -254,7 +258,7 @@
                     data: data.monthlyValues
                 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, scales: { yAxes: [moneyAxis()] } }
+            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
         });
     })();
 </script>
