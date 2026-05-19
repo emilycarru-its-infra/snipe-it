@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -146,9 +147,8 @@ class ImportProcurement extends Command
             if ($order) {
                 $linked++;
 
-                if (! $dryRun && isset($purchaseOrders[$primaryPo]) && $order->purchase_order_id !== $purchaseOrders[$primaryPo]->id) {
-                    $order->purchase_order_id = $purchaseOrders[$primaryPo]->id;
-                    $order->saveQuietly();
+                if (! $dryRun) {
+                    $this->assignLineItemPurchaseOrders($order, $orderLines, $primaryPo, $purchaseOrders);
                 }
 
                 continue;
@@ -181,6 +181,7 @@ class ImportProcurement extends Command
             foreach ($orderLines as $line) {
                 OrderItem::create([
                     'order_id' => $planned->id,
+                    'purchase_order_id' => $purchaseOrders[$line['po']]->id ?? null,
                     'description' => $line['description'],
                     'quantity' => $line['qty'],
                     'unit_cost' => $line['qty'] > 0 ? round($line['subtotal'] / $line['qty'], 4) : 0,
@@ -275,6 +276,68 @@ class ImportProcurement extends Command
         arsort($sums);
 
         return (string) array_key_first($sums);
+    }
+
+    /**
+     * Charge each of an order's line items to a purchase order. When the
+     * order's reconciliation lines all share one PO every item takes it;
+     * when they span POs each item is matched to a line by its asset model.
+     */
+    private function assignLineItemPurchaseOrders(Order $order, array $orderLines, string $primaryPo, array $purchaseOrders): void
+    {
+        if (isset($purchaseOrders[$primaryPo]) && $order->purchase_order_id !== $purchaseOrders[$primaryPo]->id) {
+            $order->purchase_order_id = $purchaseOrders[$primaryPo]->id;
+            $order->saveQuietly();
+        }
+
+        $distinctPos = array_values(array_unique(array_column($orderLines, 'po')));
+
+        foreach ($order->items as $item) {
+            $poNumber = count($distinctPos) === 1
+                ? $distinctPos[0]
+                : $this->resolveLinePurchaseOrder($item, $orderLines, $primaryPo);
+
+            $poId = $purchaseOrders[$poNumber]->id ?? ($purchaseOrders[$primaryPo]->id ?? null);
+
+            if ($poId && $item->purchase_order_id !== $poId) {
+                $item->purchase_order_id = $poId;
+                $item->saveQuietly();
+            }
+        }
+    }
+
+    /**
+     * For an order split across purchase orders, pick the PO of the
+     * reconciliation line whose description best matches a line item's
+     * asset model.
+     */
+    private function resolveLinePurchaseOrder(OrderItem $item, array $orderLines, string $fallback): string
+    {
+        $model = '';
+        if ($item->item_type === Asset::class && $item->item_id) {
+            $asset = Asset::with('model')->find($item->item_id);
+            $model = strtolower((string) ($asset?->model?->name ?? ''));
+        }
+
+        if ($model === '') {
+            return $fallback;
+        }
+
+        $modelTokens = array_filter(preg_split('/\W+/', $model));
+        $bestPo = $fallback;
+        $bestScore = 0;
+
+        foreach ($orderLines as $line) {
+            $lineTokens = array_filter(preg_split('/\W+/', strtolower($line['description'])));
+            $score = count(array_intersect($modelTokens, $lineTokens));
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestPo = $line['po'];
+            }
+        }
+
+        return $bestPo;
     }
 
     /**
