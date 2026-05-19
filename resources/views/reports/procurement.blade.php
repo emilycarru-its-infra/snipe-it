@@ -19,20 +19,30 @@
                 <table class="table table-striped">
                     <tbody>
                     @foreach ([
-                        ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc'],
-                        ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc'],
-                        ['route' => 'reports.procurement.receiving', 'name' => 'report_receiving', 'desc' => 'report_receiving_desc'],
-                        ['route' => 'reports.procurement.tax', 'name' => 'report_tax', 'desc' => 'report_tax_desc'],
-                        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc'],
-                        ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc'],
+                        ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'live' => true],
+                        ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'live' => true],
+                        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'live' => true],
+                        ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'live' => true],
+                        ['route' => 'reports.procurement.receiving', 'name' => 'report_receiving', 'desc' => 'report_receiving_desc', 'live' => false],
+                        ['route' => 'reports.procurement.tax', 'name' => 'report_tax', 'desc' => 'report_tax_desc', 'live' => false],
                     ] as $report)
                         <tr>
                             <td>
-                                <strong>{{ trans('admin/purchase-orders/general.'.$report['name']) }}</strong><br>
+                                @if ($report['live'])
+                                    <strong><a href="{{ route($report['route']) }}">{{ trans('admin/purchase-orders/general.'.$report['name']) }}</a></strong>
+                                @else
+                                    <strong>{{ trans('admin/purchase-orders/general.'.$report['name']) }}</strong>
+                                @endif
+                                <br>
                                 <span class="text-muted">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</span>
                             </td>
-                            <td class="text-right" style="vertical-align:middle">
-                                <a href="{{ route($report['route']) }}" class="btn btn-sm btn-primary">
+                            <td class="text-right" style="vertical-align:middle; white-space:nowrap">
+                                @if ($report['live'])
+                                    <a href="{{ route($report['route']) }}" class="btn btn-sm btn-primary">
+                                        <x-icon type="reports" /> {{ trans('general.view') }}
+                                    </a>
+                                @endif
+                                <a href="{{ route($report['route'], ['format' => 'csv']) }}" class="btn btn-sm btn-default">
                                     <x-icon type="download" /> {{ trans('general.download') }}
                                 </a>
                             </td>
