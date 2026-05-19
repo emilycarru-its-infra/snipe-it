@@ -1082,6 +1082,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     /**
      * Orders API routes
      */
+    Route::post('orders/ingest',
+        [Api\OrdersController::class, 'ingest']
+    )->name('api.orders.ingest');
+
     Route::resource('orders',
         Api\OrdersController::class,
         ['names' => [
