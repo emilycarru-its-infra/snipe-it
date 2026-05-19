@@ -61,12 +61,16 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.view');
 
+        $forecast = $request->query('mode') === 'forecast';
+
         return $this->render(
             $request,
             'capital-spend-report',
             trans('admin/purchase-orders/general.report_capital'),
             'reports.procurement.capital',
-            $this->capitalReport()
+            $this->capitalReport($forecast),
+            $this->capitalModeToggle($forecast),
+            ['mode' => $forecast ? 'forecast' : 'actual']
         );
     }
 
@@ -245,7 +249,8 @@ class ProcurementReportsController extends Controller
             trans('admin/orders/general.not_received'),
         ];
 
-        $orders = Order::with('purchaseOrder', 'supplier', 'items')
+        $orders = Order::actual()
+            ->with('purchaseOrder', 'supplier', 'items')
             ->orderBy('order_number')
             ->get();
 
@@ -328,9 +333,10 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Capital spend grouped by fiscal year and cost centre.
+     * Capital spend grouped by fiscal year and cost centre. In forecast
+     * mode, planned (forecast) orders are appended grouped by fiscal year.
      */
-    private function capitalReport(): array
+    private function capitalReport(bool $forecast = false): array
     {
         $columns = [
             trans('admin/purchase-orders/general.fiscal_year'),
@@ -348,7 +354,7 @@ class ProcurementReportsController extends Controller
         });
 
         $records = [];
-        $totalBudget = $totalCommitted = 0.0;
+        $totalBudget = $totalCommitted = $totalPlanned = 0.0;
 
         foreach ($groups as $key => $group) {
             [$fiscalYear, $costCenter] = explode('||', $key);
@@ -370,14 +376,53 @@ class ProcurementReportsController extends Controller
             ];
         }
 
+        if ($forecast) {
+            $plannedGroups = Order::planned()->with('items')->get()
+                ->groupBy(fn ($order) => $order->fiscal_year ?: '—');
+
+            foreach ($plannedGroups as $fiscalYear => $group) {
+                $planned = $group->sum(
+                    fn ($order) => $order->items->sum(
+                        fn ($item) => ((float) $item->unit_cost * (int) $item->quantity) + (float) $item->warranty_cost
+                    )
+                );
+                $totalPlanned += $planned;
+
+                $records[] = [
+                    'class' => 'info',
+                    'cells' => [
+                        $fiscalYear,
+                        trans('admin/orders/general.planned'),
+                        $group->count(),
+                        '',
+                        $this->money($planned),
+                        '',
+                    ],
+                ];
+            }
+        }
+
         $footer = [
             trans('admin/orders/general.total'), '', '',
             $this->money($totalBudget),
-            $this->money($totalCommitted),
-            $this->money($totalBudget - $totalCommitted),
+            $this->money($totalCommitted + $totalPlanned),
+            $this->money($totalBudget - $totalCommitted - $totalPlanned),
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * The Actual / Forecast mode toggle for the Capital Spend report.
+     */
+    private function capitalModeToggle(bool $forecast): string
+    {
+        return '<div class="btn-group" role="group">'
+            .'<a href="'.route('reports.procurement.capital').'" class="btn btn-sm '.($forecast ? 'btn-default' : 'btn-primary').'">'
+            .e(trans('admin/purchase-orders/general.mode_actual')).'</a>'
+            .'<a href="'.route('reports.procurement.capital', ['mode' => 'forecast']).'" class="btn btn-sm '.($forecast ? 'btn-primary' : 'btn-default').'">'
+            .e(trans('admin/purchase-orders/general.mode_forecast')).'</a>'
+            .'</div> ';
     }
 
     /**
@@ -438,7 +483,7 @@ class ProcurementReportsController extends Controller
      * Render a report as a live page, or stream it as CSV when
      * ?format=csv is requested.
      */
-    private function render(Request $request, string $filename, string $title, string $routeName, array $report)
+    private function render(Request $request, string $filename, string $title, string $routeName, array $report, string $controls = '', array $extraParams = [])
     {
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv($filename, $report);
@@ -449,7 +494,8 @@ class ProcurementReportsController extends Controller
             'columns' => $report['columns'],
             'rows' => $report['records'],
             'footer' => $report['footer'] ?? null,
-            'downloadUrl' => route($routeName, ['format' => 'csv']),
+            'controls' => $controls,
+            'downloadUrl' => route($routeName, array_merge(['format' => 'csv'], $extraParams)),
         ]);
     }
 

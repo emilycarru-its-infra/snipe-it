@@ -25,6 +25,26 @@
     </div>
 </div>
 
+<!-- Planned order -->
+<div class="form-group">
+    <label class="col-md-3 control-label">{{ trans('admin/orders/general.is_planned') }}</label>
+    <div class="col-md-7 col-sm-12">
+        <label class="checkbox-inline">
+            <input type="checkbox" name="is_planned" value="1" {{ old('is_planned', $item->is_planned) ? 'checked' : '' }}>
+            {{ trans('admin/orders/general.is_planned_help') }}
+        </label>
+    </div>
+</div>
+
+<!-- Fiscal Year -->
+<div class="form-group {{ $errors->has('fiscal_year') ? ' has-error' : '' }}">
+    <label for="fiscal_year" class="col-md-3 control-label">{{ trans('admin/orders/general.fiscal_year') }}</label>
+    <div class="col-md-7 col-sm-12">
+        <input class="form-control" type="text" name="fiscal_year" id="fiscal_year" value="{{ old('fiscal_year', $item->fiscal_year) }}" maxlength="191" />
+        {!! $errors->first('fiscal_year', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
+
 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
 @include ('partials.forms.edit.company-select', ['translated_name' => trans('general.company'), 'fieldname' => 'company_id'])
 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/orders/general.order_date'), 'fieldname' => 'order_date'])

@@ -26,6 +26,8 @@ class OrdersTransformer
             'id' => (int) $order->id,
             'order_number' => e($order->order_number),
             'status' => $order->status,
+            'is_planned' => (bool) $order->is_planned,
+            'fiscal_year' => ($order->fiscal_year) ? e($order->fiscal_year) : null,
             'supplier' => ($order->supplier) ? [
                 'id' => (int) $order->supplier->id,
                 'name' => e($order->supplier->name),
