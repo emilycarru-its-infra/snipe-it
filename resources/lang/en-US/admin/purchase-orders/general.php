@@ -49,4 +49,12 @@ return [
     'forecast_eol_date' => 'EOL Date',
     'forecast_estimate' => 'Replacement Estimate',
     'forecast_status' => 'Status',
+    'forecast_select' => 'Select',
+    'forecast_intro' => 'Select end-of-life devices and create a planned order to forecast their replacement spend.',
+    'forecast_order_number' => 'Planned Order Number',
+    'forecast_create_planned' => 'Create Planned Order',
+    'forecast_planned_already' => 'Planned',
+    'forecast_line_description' => 'Replacement for :tag (:model)',
+    'forecast_planned_created' => 'Planned order created with :count replacement line item(s).',
+    'forecast_none_selected' => 'Select at least one device without an existing planned replacement.',
 ];
