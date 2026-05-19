@@ -116,12 +116,22 @@ class PurchaseOrder extends SnipeModel
     }
 
     /**
-     * Total actually billed against this PO: the cost of every line item
-     * that has been assigned to an invoice.
+     * The vendor invoices charged to this purchase order. A vendor order
+     * can be split across purchase orders, so each invoice carries its
+     * own PO rather than inheriting the order's.
+     */
+    public function invoices()
+    {
+        return $this->hasMany(OrderInvoice::class, 'purchase_order_id');
+    }
+
+    /**
+     * Total billed against this PO, pre-tax — the subtotal of every
+     * invoice charged to it (budget and committed are also pre-tax).
      */
     public function invoicedTotal(): float
     {
-        return (float) $this->lineItems()->whereNotNull('invoice_id')->get()->sum->lineTotal();
+        return (float) $this->invoices()->sum('subtotal');
     }
 
     /**

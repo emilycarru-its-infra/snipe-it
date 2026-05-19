@@ -18,6 +18,7 @@ class OrderInvoice extends Model
 
     protected $fillable = [
         'order_id',
+        'purchase_order_id',
         'invoice_number',
         'invoice_date',
         'subtotal',
@@ -35,6 +36,15 @@ class OrderInvoice extends Model
     public function order()
     {
         return $this->belongsTo(Order::class, 'order_id');
+    }
+
+    /**
+     * The purchase order this invoice is charged to. A vendor order can be
+     * split across purchase orders, so the invoice carries its own PO.
+     */
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
     }
 
     /**
