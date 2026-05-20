@@ -195,7 +195,11 @@ class AcceptanceController extends Controller
             'item_model' => $item->model?->name,
             'item_serial' => $item->serial,
             'item_status' => ($item instanceof Asset) ? $item->status?->name : null,
-            'eula' => $item->getEula(),
+            // Acceptance-specific EULA wins over the asset category default
+            // — used by the Faculty Laptop Program so one asset can be
+            // attached to different agreement texts (pickup / upgrade /
+            // lease-end buyout) without category-level changes.
+            'eula' => $acceptance->eula_text_override ?: $item->getEula(),
             'note' => $request->input('note'),
             'check_out_date' => Helper::getFormattedDateObject($acceptance->created_at, 'datetime', false),
             'accepted_date' => Helper::getFormattedDateObject(now()->format('Y-m-d H:i:s'), 'datetime', false),
@@ -244,7 +248,7 @@ class AcceptanceController extends Controller
             Storage::put('private_uploads/eula-pdfs/'.$pdf_filename, $pdf_content);
 
             // Log the acceptance
-            $acceptance->accept($sig_filename, $item->getEula(), $pdf_filename, $request->input('note'));
+            $acceptance->accept($sig_filename, $acceptance->eula_text_override ?: $item->getEula(), $pdf_filename, $request->input('note'));
 
             // Send the PDF to the signing user
             if (($request->input('send_copy') === '1') && ($assignedUser->email !== '')) {
