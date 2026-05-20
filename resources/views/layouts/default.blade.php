@@ -1669,12 +1669,14 @@
                             </li>
                         @endcan
                         @can('view', \App\Models\PredefinedKit::class)
-                            <li id="kits-sidenav-option"{!! (request()->is('kits') ? ' class="active"' : '') !!}>
-                                <a href="{{ route('kits.index') }}">
-                                    <x-icon type="kits" class="fa-fw" />
-                                    <span>{{ trans('general.kits') }}</span>
-                                </a>
-                            </li>
+                            @if ($snipeSettings->show_predefined_kits)
+                                <li id="kits-sidenav-option"{!! (request()->is('kits') ? ' class="active"' : '') !!}>
+                                    <a href="{{ route('kits.index') }}">
+                                        <x-icon type="kits" class="fa-fw" />
+                                        <span>{{ trans('general.kits') }}</span>
+                                    </a>
+                                </li>
+                            @endif
                         @endcan
 
                         {{-- Catalog: asset taxonomies (models, categories, manufacturers). --}}
@@ -1711,8 +1713,8 @@
                             </li>
                         @endif
 
-                        {{-- Organization: people (nested) and org structure (departments, locations). --}}
-                        @if (Gate::allows('view', \App\Models\User::class) || Gate::allows('view', \App\Models\Department::class) || Gate::allows('view', \App\Models\Location::class))
+                        {{-- Organization: people (nested) and org structure (departments, locations, companies). --}}
+                        @if (Gate::allows('view', \App\Models\User::class) || Gate::allows('view', \App\Models\Department::class) || Gate::allows('view', \App\Models\Location::class) || Gate::allows('view', \App\Models\Company::class))
                             <li id="organization-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::OrganizationUrls()) ? ' active' : '') !!}">
                                 <a href="#">
                                     <x-icon type="organization" class="fa-fw" />
@@ -1778,6 +1780,13 @@
                                         <li {{!! (request()->is('locations*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('locations.index') }}">
                                                 {{ trans('general.locations') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\Company::class)
+                                        <li {{!! (request()->is('companies*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('companies.index') }}">
+                                                {{ trans('general.companies') }}
                                             </a>
                                         </li>
                                     @endcan
@@ -1864,14 +1873,6 @@
                                             </a>
                                         </li>
                                     @endcan
-
-                                    @can('view', \App\Models\Company::class)
-                                        <li {{!! (request()->is('companies*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('companies.index') }}">
-                                                {{ trans('general.companies') }}
-                                            </a>
-                                        </li>
-                                    @endcan
                                 </ul>
                             </li>
                         @endcan
@@ -1894,6 +1895,11 @@
                                     <li {{!! (request()->is('reports/activity') ? ' class="active"' : '') !!}}>
                                         <a href="{{ route('reports.activity') }}">
                                             {{ trans('general.activity_report') }}
+                                        </a>
+                                    </li>
+                                    <li {{!! (request()->is('reports/procurement*') ? ' class="active"' : '') !!}}>
+                                        <a href="{{ route('reports.procurement') }}">
+                                            {{ trans('admin/purchase-orders/general.reports') }}
                                         </a>
                                     </li>
                                     <li {{!! (request()->is('reports/custom') ? ' class="active"' : '') !!}}>
