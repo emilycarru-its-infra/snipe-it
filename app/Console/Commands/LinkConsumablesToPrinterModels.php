@@ -21,6 +21,7 @@ class LinkConsumablesToPrinterModels extends Command
         {--toner-category=toner : Substring matched against consumable categories (case-insensitive)}
         {--printer-category=printer : Substring matched against asset-model categories (case-insensitive)}
         {--min-model-length=4 : Skip printer-model names shorter than this to avoid spurious matches}
+        {--alias=* : Extra "haystack-substring=printer-model-name" pairs. Repeatable. Use for SKU mismatches the algorithm can\'t derive (e.g. Ricoh toner part numbers that don\'t equal the printer model name).}
         {--replace : Replace existing links (use sync) instead of additive (syncWithoutDetaching)}
         {--dry-run : Report matches without writing anything}';
 
@@ -118,6 +119,29 @@ class LinkConsumablesToPrinterModels extends Command
                 }
                 $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $needle];
             }
+        }
+
+        // Explicit aliases — for SKU mismatches that the auto-needle pipeline
+        // can't derive (e.g. Ricoh sells "IM C3500" toner that fits the
+        // "IM C3510" printer). Format: --alias="haystack-substring=printer-model-name".
+        // The right-hand side is matched case-insensitively against the
+        // asset-model name; first hit wins.
+        foreach ((array) $this->option('alias') as $alias) {
+            if (! str_contains($alias, '=')) {
+                $this->warn("Ignoring malformed --alias '{$alias}' (expected LEFT=RIGHT).");
+                continue;
+            }
+            [$left, $right] = array_map('trim', explode('=', $alias, 2));
+            if ($left === '' || $right === '') {
+                $this->warn("Ignoring empty --alias '{$alias}'.");
+                continue;
+            }
+            $model = $printerModels->first(fn ($m) => strcasecmp($m->name, $right) === 0);
+            if (! $model) {
+                $this->warn("Alias '{$alias}': no printer model matched '{$right}'. Skipping.");
+                continue;
+            }
+            $rawNeedles[] = ['id' => $model->id, 'name' => $model->name, 'needle' => strtolower($left)];
         }
 
         $needles = collect($rawNeedles)
