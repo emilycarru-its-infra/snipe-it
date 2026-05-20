@@ -175,9 +175,9 @@
 </div>
 @endif
 
-{{-- ───────────────────── ROW 3: Recent activity ───────────────────── --}}
+{{-- ───────────────────── ROW 3: Recent activity (75%) + Procurement (25%) ───────────────────── --}}
 <div class="row">
-    <div class="col-md-12">
+    <div class="col-md-{{ $procurement ? 9 : 12 }}">
         <div class="box box-default">
             <div class="box-header with-border">
                 <h2 class="box-title">{{ trans('general.recent_activity') }}</h2>
@@ -220,11 +220,70 @@
             </div>
         </div>
     </div>
+
+    @if ($procurement)
+    <div class="col-md-3">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h2 class="box-title">Procurement</h2>
+            </div>
+            <div class="box-body procurement-card">
+
+                <div class="procurement-mini-stats">
+                    <a href="{{ route('purchase-orders.index') }}?status=open" class="procurement-stat">
+                        <span class="procurement-stat-value">{{ number_format($procurement['open_po_count']) }}</span>
+                        <span class="procurement-stat-label">Open POs</span>
+                    </a>
+                    <a href="{{ route('orders.index') }}" class="procurement-stat">
+                        <span class="procurement-stat-value">{{ number_format($procurement['open_orders_count']) }}</span>
+                        <span class="procurement-stat-label">Open Orders</span>
+                    </a>
+                    <a href="{{ url('order-invoices?unmatched=1') }}" class="procurement-stat">
+                        <span class="procurement-stat-value {{ $procurement['unmatched_invoices'] > 0 ? 'procurement-warn' : '' }}">{{ number_format($procurement['unmatched_invoices']) }}</span>
+                        <span class="procurement-stat-label">Unmatched Invoices</span>
+                    </a>
+                </div>
+
+                <h4 class="procurement-section-title">Open Orders</h4>
+                @if ($procurement['open_orders']->isEmpty())
+                    <p class="procurement-empty">No open orders.</p>
+                @else
+                    <ul class="procurement-list">
+                        @foreach ($procurement['open_orders'] as $order)
+                            <li>
+                                <a href="{{ route('orders.show', $order->id) }}">
+                                    <span class="po-number">{{ $order->order_number }}</span>
+                                    <span class="po-supplier">{{ $order->supplier_name ?: '—' }}</span>
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                <h4 class="procurement-section-title">Recent Orders</h4>
+                @if ($procurement['recent_orders']->isEmpty())
+                    <p class="procurement-empty">No recent activity.</p>
+                @else
+                    <ul class="procurement-list">
+                        @foreach ($procurement['recent_orders'] as $order)
+                            <li>
+                                <a href="{{ route('orders.show', $order->id) }}">
+                                    <span class="po-number">{{ $order->order_number }}</span>
+                                    <span class="po-date">{{ $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('M j') : '—' }}</span>
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 
-{{-- ───────────────────── ROW 4: Action queue + procurement ───────────────────── --}}
+{{-- ───────────────────── ROW 4: Needs Attention (full width) ───────────────────── --}}
 <div class="row">
-    <div class="col-md-{{ $procurement ? 8 : 12 }}">
+    <div class="col-md-12">
         <div class="box box-default">
             <div class="box-header with-border">
                 <h2 class="box-title">Needs Attention</h2>
@@ -288,64 +347,7 @@
         </div>
     </div>
 
-    @if ($procurement)
-    <div class="col-md-4">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h2 class="box-title">Procurement</h2>
-            </div>
-            <div class="box-body procurement-card">
-
-                <div class="procurement-mini-stats">
-                    <a href="{{ route('purchase-orders.index') }}?status=open" class="procurement-stat">
-                        <span class="procurement-stat-value">{{ number_format($procurement['open_po_count']) }}</span>
-                        <span class="procurement-stat-label">Open POs</span>
-                    </a>
-                    <a href="{{ route('orders.index') }}" class="procurement-stat">
-                        <span class="procurement-stat-value">{{ number_format($procurement['open_orders']) }}</span>
-                        <span class="procurement-stat-label">Open Orders</span>
-                    </a>
-                    <a href="{{ url('order-invoices?unmatched=1') }}" class="procurement-stat">
-                        <span class="procurement-stat-value {{ $procurement['unmatched_invoices'] > 0 ? 'procurement-warn' : '' }}">{{ number_format($procurement['unmatched_invoices']) }}</span>
-                        <span class="procurement-stat-label">Unmatched Invoices</span>
-                    </a>
-                </div>
-
-                <h4 class="procurement-section-title">Open POs</h4>
-                @if ($procurement['open_pos']->isEmpty())
-                    <p class="procurement-empty">No open purchase orders.</p>
-                @else
-                    <ul class="procurement-list">
-                        @foreach ($procurement['open_pos'] as $po)
-                            <li>
-                                <a href="{{ route('purchase-orders.show', $po->id) }}">
-                                    <span class="po-number">{{ $po->po_number }}</span>
-                                    <span class="po-supplier">{{ $po->supplier_name ?: '—' }}</span>
-                                </a>
-                            </li>
-                        @endforeach
-                    </ul>
-                @endif
-
-                <h4 class="procurement-section-title">Recent POs</h4>
-                @if ($procurement['recent_pos']->isEmpty())
-                    <p class="procurement-empty">No recent activity.</p>
-                @else
-                    <ul class="procurement-list">
-                        @foreach ($procurement['recent_pos'] as $po)
-                            <li>
-                                <a href="{{ route('purchase-orders.show', $po->id) }}">
-                                    <span class="po-number">{{ $po->po_number }}</span>
-                                    <span class="po-date">{{ $po->order_date ? \Carbon\Carbon::parse($po->order_date)->format('M j') : '—' }}</span>
-                                </a>
-                            </li>
-                        @endforeach
-                    </ul>
-                @endif
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- Procurement column moved up into Row 3 (alongside Recent Activity). --}}
 </div>
 
 {{-- ───────────────────── ROW 5: Breakdowns ───────────────────── --}}
@@ -467,9 +469,13 @@
         transition: transform 0.1s ease;
     }
     .kpi-tile:hover { transform: translateY(-2px); color: #fff; text-decoration: none; }
-    .kpi-tile .kpi-value { font-size: 24px; font-weight: 700; line-height: 1.1; }
-    .kpi-tile .kpi-label { font-size: 12px; text-transform: uppercase; opacity: 0.9; margin-top: 2px; letter-spacing: 0.4px; }
-    .kpi-tile .kpi-sub   { font-size: 11px; opacity: 0.75; margin-top: 4px; }
+    /* Solid white text with a tiny shadow keeps the headline number legible on
+       every card background (teal, green, yellow, etc.) without re-tuning each
+       one separately. The label and subtext keep their previous hierarchy but
+       at higher opacity so the meaning of each tile is readable too. */
+    .kpi-tile .kpi-value { font-size: 24px; font-weight: 800; line-height: 1.1; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.18); }
+    .kpi-tile .kpi-label { font-size: 12px; text-transform: uppercase; font-weight: 600; opacity: 1; margin-top: 2px; letter-spacing: 0.4px; color: #fff; }
+    .kpi-tile .kpi-sub   { font-size: 11px; opacity: 0.92; margin-top: 4px; color: #fff; }
 
     .kpi-teal   { background: #39cccc; }
     .kpi-green  { background: #00a65a; }
@@ -585,8 +591,11 @@
         gap: 8px; padding: 3px 0;
     }
     .breakdown-bar-name { width: 110px; font-size: 13px; flex-shrink: 0; }
-    .breakdown-bar-track { flex: 1; height: 14px; background: rgba(127,127,127,0.1); border-radius: 3px; overflow: hidden; }
-    .breakdown-bar-fill  { height: 100%; background: #3c8dbc; }
+    /* Track is intentionally light so the filled segment carries the visual weight.
+       In dark mode the previous rgba(127,127,127,0.1) was invisible; bumping the
+       alpha to .28 keeps the track readable on both themes without going opaque. */
+    .breakdown-bar-track { flex: 1; height: 14px; background: rgba(127,127,127,0.28); border-radius: 3px; overflow: hidden; }
+    .breakdown-bar-fill  { height: 100%; background: #4ba0d6; }
     .breakdown-bar-count { width: 50px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
 </style>
 @endpush
