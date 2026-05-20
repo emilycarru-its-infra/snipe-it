@@ -25,33 +25,44 @@
 @if ($totalModels > 0)
 <div class="row">
     <div class="col-md-12">
-        <p class="text-muted">
-            {{ trans('admin/toners/general.intro') }}
-            <strong>{{ $totalModels }}</strong>
-            {{ trans_choice('admin/toners/general.model_count', $totalModels) }},
-            <strong>{{ $totalConsumables }}</strong>
-            {{ trans_choice('admin/toners/general.consumable_count', $totalConsumables) }}.
-        </p>
+        <h1 class="toner-dashboard-title">Toner</h1>
     </div>
 </div>
 
 @foreach ($modelGroups as $manufacturerName => $models)
     <div class="row">
         <div class="col-md-12">
-            <h2 style="margin-top:24px; padding-bottom:8px; border-bottom:1px solid #555;">
+            <h2 class="toner-dashboard-manufacturer">
                 {{ $manufacturerName }}
             </h2>
         </div>
     </div>
     <div class="row">
         @foreach ($models as $model)
+            @php
+                // "Auto ordering enabled" is a printer-level claim derived
+                // from its consumables: a printer is on a managed-print
+                // contract when at least one of its compatible toners is
+                // marked on_maintenance_contract (per ECU's consumable flag).
+                $autoOrdering = $model->compatibleConsumables
+                    ->contains(fn ($c) => (bool) ($c->on_maintenance_contract ?? false));
+            @endphp
             <div class="col-md-4 col-sm-6">
-                <div class="box box-default">
+                <div class="box box-default toner-printer-card">
                     <div class="box-header with-border">
-                        <h3 class="box-title">
+                        <h3 class="box-title toner-printer-card-title">
                             {{ $model->name }}
-                            <small class="text-muted">(×{{ $model->assets_count }})</small>
                         </h3>
+                        <div class="toner-printer-card-meta">
+                            <span class="toner-printer-count">
+                                {{ $model->assets_count }} {{ \Illuminate\Support\Str::plural('printer', $model->assets_count) }}
+                            </span>
+                            @if ($autoOrdering)
+                                <span class="label label-success toner-auto-order-badge" title="At least one compatible consumable is marked on_maintenance_contract">
+                                    <x-icon type="checkmark" class="fa-fw" /> Auto ordering enabled
+                                </span>
+                            @endif
+                        </div>
                     </div>
                     <div class="box-body" style="padding:0;">
                         <table class="table table-striped" style="margin-bottom:0;">
@@ -88,3 +99,47 @@
     </div>
 @endforeach
 @endif
+
+@push('css')
+<style>
+    .toner-dashboard-title {
+        margin: 4px 0 18px;
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+    }
+    .toner-dashboard-manufacturer {
+        margin-top: 24px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(127,127,127,0.35);
+        font-size: 22px;
+        font-weight: 500;
+    }
+    .toner-printer-card-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    .toner-printer-card-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        margin-top: 4px;
+    }
+    .toner-printer-count {
+        font-size: 14px;
+        font-weight: 600;
+        padding: 3px 10px;
+        background: rgba(127,127,127,0.12);
+        border-radius: 10px;
+        white-space: nowrap;
+    }
+    .toner-auto-order-badge {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 8px;
+    }
+</style>
+@endpush

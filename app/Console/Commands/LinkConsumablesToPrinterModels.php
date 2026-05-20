@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
 class LinkConsumablesToPrinterModels extends Command
 {
     protected $signature = 'consumables:link-printer-models
-        {--toner-category=toner : Substring matched against consumable categories (case-insensitive)}
+        {--toner-category=toner,ink,cartridge,head,waste,supplies : Comma-separated substrings matched against consumable category names (any-match, case-insensitive)}
         {--printer-category=printer : Substring matched against asset-model categories (case-insensitive)}
         {--min-model-length=4 : Skip printer-model names shorter than this to avoid spurious matches}
         {--alias=* : Extra "haystack-substring=printer-model-name" pairs. Repeatable. Use for SKU mismatches the algorithm can\'t derive (e.g. Ricoh toner part numbers that don\'t equal the printer model name).}
@@ -29,16 +29,23 @@ class LinkConsumablesToPrinterModels extends Command
 
     public function handle(): int
     {
-        $tonerCategoryNeedle   = strtolower((string) $this->option('toner-category'));
+        $tonerCategoryNeedles  = collect(explode(',', (string) $this->option('toner-category')))
+            ->map(fn ($s) => strtolower(trim($s)))
+            ->filter()
+            ->unique()
+            ->values();
         $printerCategoryNeedle = strtolower((string) $this->option('printer-category'));
         $minModelLength        = max(1, (int) $this->option('min-model-length'));
         $replace               = (bool) $this->option('replace');
         $dryRun                = (bool) $this->option('dry-run');
 
-        $tonerCategoryIds = Category::query()
-            ->where('category_type', 'consumable')
-            ->whereRaw('LOWER(name) LIKE ?', ['%'.$tonerCategoryNeedle.'%'])
-            ->pluck('id');
+        $tonerCategoryQuery = Category::query()->where('category_type', 'consumable');
+        $tonerCategoryQuery->where(function ($q) use ($tonerCategoryNeedles) {
+            foreach ($tonerCategoryNeedles as $needle) {
+                $q->orWhereRaw('LOWER(name) LIKE ?', ['%'.$needle.'%']);
+            }
+        });
+        $tonerCategoryIds = $tonerCategoryQuery->pluck('id');
 
         $printerCategoryIds = Category::query()
             ->where('category_type', 'asset')
@@ -46,7 +53,7 @@ class LinkConsumablesToPrinterModels extends Command
             ->pluck('id');
 
         if ($tonerCategoryIds->isEmpty()) {
-            $this->error("No consumable category matched '{$tonerCategoryNeedle}'. Aborting.");
+            $this->error("No consumable category matched '{$tonerCategoryNeedles->implode(',')}'. Aborting.");
             return self::FAILURE;
         }
         if ($printerCategoryIds->isEmpty()) {
@@ -117,7 +124,19 @@ class LinkConsumablesToPrinterModels extends Command
                 if (mb_strlen($needle) < $minModelLength) {
                     continue;
                 }
-                $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $needle];
+                $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $needle, 'normalized' => false];
+
+                // Also emit a "normalized" form with whitespace and hyphens
+                // stripped. Matches consumables whose names use a different
+                // separator convention than the printer model (e.g. printer
+                // "Canon iPF680" → "ipf680" matches consumable "iPF 680 ... Ink"
+                // after both sides are normalized; "Canon GP 200" → "gp200"
+                // matches "iPF GP-200 ... Ink"; "Canon PRO 2000" → "pro2000"
+                // matches "Pro2000-2100 ... Ink").
+                $normalized = preg_replace('/[\s\-]+/u', '', $needle);
+                if ($normalized !== $needle && mb_strlen($normalized) >= $minModelLength) {
+                    $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $normalized, 'normalized' => true];
+                }
             }
         }
 
@@ -141,7 +160,7 @@ class LinkConsumablesToPrinterModels extends Command
                 $this->warn("Alias '{$alias}': no printer model matched '{$right}'. Skipping.");
                 continue;
             }
-            $rawNeedles[] = ['id' => $model->id, 'name' => $model->name, 'needle' => strtolower($left)];
+            $rawNeedles[] = ['id' => $model->id, 'name' => $model->name, 'needle' => strtolower($left), 'normalized' => false];
         }
 
         $needles = collect($rawNeedles)
@@ -155,11 +174,13 @@ class LinkConsumablesToPrinterModels extends Command
 
         foreach ($consumables as $consumable) {
             $hay = strtolower($consumable->name);
+            $hayNormalized = preg_replace('/[\s\-]+/u', '', $hay);
             $existing = $consumable->compatibleModels->pluck('id')->all();
             $matched = [];
 
             foreach ($needles as $needle) {
-                if (str_contains($hay, $needle['needle'])) {
+                $haystack = ! empty($needle['normalized']) ? $hayNormalized : $hay;
+                if (str_contains($haystack, $needle['needle'])) {
                     $matched[$needle['id']] = $needle['name'];
                 }
             }
