@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'lease_decisions' => 'Lease Buyout & Return Tracker',
+    'lease_decisions' => 'Lease Tracking',
     'lease_decision' => 'Buyout / Return Entry',
     'create' => 'Log Buyout / Return / Extension',
     'update' => 'Update Buyout / Return Entry',

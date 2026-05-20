@@ -348,9 +348,9 @@
     @endif
 </div>
 
-{{-- ───────────────────── ROW 5: Breakdowns ───────────────────── --}}
+{{-- ───────────────────── ROW 5: Catalog (Categories | Models | Manufacturers) ───────────────────── --}}
 <div class="row">
-    <div class="col-md-6">
+    <div class="col-md-4">
         {{-- Categories --}}
         <div class="box box-default">
             <div class="box-header with-border">
@@ -365,16 +365,15 @@
                     data-show-columns="false"
                     data-fixed-number="false"
                     data-fixed-right-number="false"
-                    data-sort-order="desc"
-                    data-sort-field="assets_count"
+                    data-sort-order="asc"
+                    data-sort-name="name"
                     id="dashCategorySummary"
                     class="table table-striped snipe-table"
-                    data-url="{{ route('api.categories.index', ['sort' => 'assets_count', 'order' => 'asc']) }}">
+                    data-url="{{ route('api.categories.index', ['sort' => 'name', 'order' => 'asc']) }}">
                     <thead>
                     <tr>
-                        <th class="col-sm-4" data-visible="true" data-field="name" data-formatter="categoriesLinkFormatter" data-sortable="true">{{ trans('general.name') }}</th>
-                        <th class="col-sm-2" data-visible="true" data-field="category_type" data-sortable="true">{{ trans('general.type') }}</th>
-                        <th class="col-sm-1" data-visible="true" data-field="assets_count" data-sortable="true">
+                        <th class="col-sm-7" data-visible="true" data-field="name" data-formatter="categoriesLinkFormatter" data-sortable="true">{{ trans('general.name') }}</th>
+                        <th class="col-sm-2" data-visible="true" data-field="assets_count" data-sortable="true">
                             <x-icon type="assets" /><span class="sr-only">{{ trans('general.asset_count') }}</span>
                         </th>
                     </tr>
@@ -382,10 +381,144 @@
                 </table>
             </div>
         </div>
-
     </div>
 
-    <div class="col-md-6">
+    <div class="col-md-4">
+        {{-- Asset Models --}}
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h2 class="box-title">{{ trans('general.asset_models') }}</h2>
+            </div>
+            <div class="box-body">
+                <table
+                    data-cookie-id-table="dashModelSummary"
+                    data-height="320"
+                    data-pagination="false"
+                    data-side-pagination="server"
+                    data-show-columns="false"
+                    data-fixed-number="false"
+                    data-fixed-right-number="false"
+                    data-sort-order="desc"
+                    data-sort-name="assets_count"
+                    id="dashModelSummary"
+                    class="table table-striped snipe-table"
+                    data-url="{{ route('api.models.index', ['sort' => 'assets_count', 'order' => 'desc']) }}">
+                    <thead>
+                    <tr>
+                        <th class="col-sm-7" data-visible="true" data-field="name" data-formatter="modelsLinkFormatter" data-sortable="true">{{ trans('general.name') }}</th>
+                        <th class="col-sm-2" data-visible="true" data-field="assets_count" data-sortable="true">
+                            <x-icon type="assets" /><span class="sr-only">{{ trans('general.asset_count') }}</span>
+                        </th>
+                    </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        {{-- Manufacturers --}}
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h2 class="box-title">{{ trans('general.manufacturers') }}</h2>
+            </div>
+            <div class="box-body">
+                <table
+                    data-cookie-id-table="dashManufacturerSummary"
+                    data-height="320"
+                    data-pagination="false"
+                    data-side-pagination="server"
+                    data-show-columns="false"
+                    data-fixed-number="false"
+                    data-fixed-right-number="false"
+                    data-sort-order="desc"
+                    data-sort-name="assets_count"
+                    id="dashManufacturerSummary"
+                    class="table table-striped snipe-table"
+                    data-url="{{ route('api.manufacturers.index', ['sort' => 'assets_count', 'order' => 'desc']) }}">
+                    <thead>
+                    <tr>
+                        <th class="col-sm-7" data-visible="true" data-field="name" data-formatter="manufacturersLinkFormatter" data-sortable="true">{{ trans('general.name') }}</th>
+                        <th class="col-sm-2" data-visible="true" data-field="assets_count" data-sortable="true">
+                            <x-icon type="assets" /><span class="sr-only">{{ trans('general.asset_count') }}</span>
+                        </th>
+                    </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ───────────────────── ROW 6: Org (Departments | People | Locations) ───────────────────── --}}
+<div class="row">
+    <div class="col-md-4">
+        {{-- Departments --}}
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h2 class="box-title">{{ trans('general.departments') }}</h2>
+            </div>
+            <div class="box-body">
+                <table
+                    data-cookie-id-table="dashDepartmentSummary"
+                    data-height="320"
+                    data-pagination="false"
+                    data-side-pagination="server"
+                    data-show-columns="false"
+                    data-fixed-number="false"
+                    data-fixed-right-number="false"
+                    data-sort-order="desc"
+                    data-sort-name="users_count"
+                    id="dashDepartmentSummary"
+                    class="table table-striped snipe-table"
+                    data-url="{{ route('api.departments.index', ['sort' => 'users_count', 'order' => 'desc']) }}">
+                    <thead>
+                    <tr>
+                        <th class="col-sm-7" data-visible="true" data-field="name" data-formatter="departmentsLinkFormatter" data-sortable="true">{{ trans('general.name') }}</th>
+                        <th class="col-sm-2" data-visible="true" data-field="users_count" data-sortable="true">
+                            <x-icon type="users" /><span class="sr-only">{{ trans('general.people') }}</span>
+                        </th>
+                    </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        {{-- People --}}
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h2 class="box-title">{{ trans('general.people') }}</h2>
+            </div>
+            <div class="box-body">
+                <table
+                    data-cookie-id-table="dashUserSummary"
+                    data-height="320"
+                    data-pagination="false"
+                    data-side-pagination="server"
+                    data-show-columns="false"
+                    data-fixed-number="false"
+                    data-fixed-right-number="false"
+                    data-sort-order="desc"
+                    data-sort-name="assets_count"
+                    id="dashUserSummary"
+                    class="table table-striped snipe-table"
+                    data-url="{{ route('api.users.index', ['sort' => 'assets_count', 'order' => 'desc']) }}">
+                    <thead>
+                    <tr>
+                        <th class="col-sm-7" data-visible="true" data-field="name" data-formatter="usersLinkObjFormatter" data-sortable="true">{{ trans('general.name') }}</th>
+                        <th class="col-sm-2" data-visible="true" data-field="assets_count" data-sortable="true">
+                            <x-icon type="assets" /><span class="sr-only">{{ trans('general.asset_count') }}</span>
+                        </th>
+                    </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
         {{-- Locations --}}
         <div class="box box-default">
             <div class="box-header with-border">
@@ -400,31 +533,26 @@
                     data-sort-order="desc"
                     data-fixed-number="false"
                     data-fixed-right-number="false"
-                    data-sort-field="assets_count"
+                    data-sort-name="assets_count"
                     id="dashLocationSummary"
                     data-show-columns="false"
                     class="table table-striped snipe-table"
-                    data-url="{{ route('api.locations.index', ['sort' => 'assets_count', 'order' => 'asc']) }}">
+                    data-url="{{ route('api.locations.index', ['sort' => 'assets_count', 'order' => 'desc']) }}">
                     <thead>
                     <tr>
-                        <th class="col-sm-4" data-visible="true" data-field="name" data-formatter="locationsLinkFormatter" data-sortable="true">{{ trans('general.name') }}</th>
-                        <th class="col-sm-1" data-visible="true" data-field="assets_count" data-sortable="true">
+                        <th class="col-sm-7" data-visible="true" data-field="name" data-formatter="locationsLinkFormatter" data-sortable="true">{{ trans('general.name') }}</th>
+                        <th class="col-sm-2" data-visible="true" data-field="assets_count" data-sortable="true">
                             <x-icon type="assets" /><span class="sr-only">{{ trans('general.asset_count') }}</span>
-                        </th>
-                        <th class="col-sm-1" data-visible="true" data-field="assigned_assets_count" data-sortable="true">{{ trans('general.assigned') }}</th>
-                        <th class="col-sm-1" data-visible="true" data-field="users_count" data-sortable="true">
-                            <x-icon type="users" /><span class="sr-only">{{ trans('general.people') }}</span>
                         </th>
                     </tr>
                     </thead>
                 </table>
             </div>
         </div>
-
     </div>
 </div>
 
-{{-- ───────────────────── ROW 6: Custom-field breakdowns ───────────────────── --}}
+{{-- ───────────────────── ROW 7: Custom-field breakdowns ───────────────────── --}}
 @if (!empty($customBreakdowns))
 <div class="row">
     @foreach (['fleet', 'ownership_type', 'dms'] as $bdKey)
@@ -590,6 +718,14 @@
         gap: 16px;
         padding: 6px 0;
         border-bottom: 1px solid rgba(127,127,127,0.12);
+        color: inherit;
+        text-decoration: none;
+        transition: background-color 0.1s ease, color 0.1s ease;
+    }
+    .breakdown-row:hover, .breakdown-row:focus {
+        background: rgba(60,141,188,0.08);
+        color: inherit;
+        text-decoration: none;
     }
     .breakdown-row:last-child { border-bottom: 0; }
     .breakdown-row-name {

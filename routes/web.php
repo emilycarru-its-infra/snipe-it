@@ -80,6 +80,12 @@ Route::group(['middleware' => 'auth'], function () {
         Route::post('{manufacturers_id}/restore', [ManufacturersController::class, 'restore'])->name('restore/manufacturer');
         Route::post('seed', [ManufacturersController::class, 'seed'])->name('manufacturers.seed');
 
+        // Toner dashboard subsection re-ordering. Swaps display_order with
+        // the adjacent manufacturer (alphabetical tie-break inside the same
+        // order value). Used by the up/down arrows on /toners and the
+        // dashboard embedded above /consumables.
+        Route::post('{manufacturer}/move-up',   [ManufacturersController::class, 'moveUp'])->name('manufacturers.move-up');
+        Route::post('{manufacturer}/move-down', [ManufacturersController::class, 'moveDown'])->name('manufacturers.move-down');
     });
 
     Route::resource('manufacturers', ManufacturersController::class);
