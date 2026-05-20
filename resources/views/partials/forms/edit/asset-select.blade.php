@@ -14,6 +14,7 @@
                 {!! (!empty($asset_status_type)) ? ' data-asset-status-type="' . $asset_status_type . '"' : '' !!}
                 {!! (!empty($company_id)) ? ' data-company-id="' .$company_id.'"'  : '' !!}
                 {!! (!empty($exclude_id)) ? ' data-exclude-id="'.e($exclude_id).'"' : '' !!}
+                {!! (!empty($model_ids)) ? ' data-model-id=\'' . e(json_encode(array_values((array) $model_ids))) . '\'' : '' !!}
                 {{  ((isset($required) && ($required =='true'))) ?  ' required' : '' }}
         >
 

@@ -232,6 +232,13 @@ $(function () {
                         // that would fail the parent_must_be_top_level validator.
                         onlyTopLevel: link.data("only-top-level"),
                     };
+                    // model_id is an array (JSON in the data attribute) when
+                    // the caller wants to restrict results to specific asset
+                    // models (e.g. a consumable with compatibleModels set).
+                    var modelId = link.data("model-id");
+                    if (modelId !== undefined && modelId !== null && modelId !== '') {
+                        data.model_id = modelId;
+                    }
                     return data;
                 },
                 /* processResults: function (data, params) {
