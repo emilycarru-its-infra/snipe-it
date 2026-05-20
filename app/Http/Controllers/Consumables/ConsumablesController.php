@@ -118,6 +118,8 @@ class ConsumablesController extends Controller
         }
 
         if ($consumable->save()) {
+            $consumable->compatibleModels()->sync(array_filter((array) $request->input('compatible_models', [])));
+
             return Helper::getRedirectOption($request, $consumable->id, 'Consumables')
                 ->with('success', trans('admin/consumables/message.create.success'));
         }
@@ -200,6 +202,8 @@ class ConsumablesController extends Controller
         session()->put(['redirect_option' => $request->input('redirect_option')]);
 
         if ($consumable->save()) {
+            $consumable->compatibleModels()->sync(array_filter((array) $request->input('compatible_models', [])));
+
             return Helper::getRedirectOption($request, $consumable->id, 'Consumables')
                 ->with('success', trans('admin/consumables/message.update.success'));
         }

@@ -610,6 +610,16 @@ class AssetsController extends Controller
             $assets = $assets->RTD();
         }
 
+        // Restrict results to specific asset models. Used by the consumable
+        // checkout selector to only list assets matching the consumable's
+        // compatible models (e.g. a toner that only fits certain printers).
+        if ($request->filled('model_id')) {
+            $modelIds = is_array($request->input('model_id'))
+                ? $request->input('model_id')
+                : [$request->input('model_id')];
+            $assets->whereIn('assets.model_id', array_filter($modelIds));
+        }
+
         if ($request->filled('search')) {
             $assets = $assets->AssignedSearch($request->input('search'));
         }

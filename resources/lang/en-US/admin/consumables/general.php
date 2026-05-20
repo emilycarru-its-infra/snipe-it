@@ -2,6 +2,11 @@
 
 return [
     'checkout' => 'Checkout Consumable',
+    'compatible_models' => 'Compatible Asset Models',
+    'compatible_models_placeholder' => 'Any asset model (no restriction)',
+    'compatible_models_help' => 'Optional. Restrict checkout-to-asset to assets of the selected models. Useful for items like printer toners that only fit specific printer models. Leave empty to allow checkout to any asset.',
+    'compatible_models_none' => 'No model restriction (any asset)',
+    'compatible_models_filter_note' => 'Only assets of the consumable\'s compatible models are listed.',
     'consumable_name' => 'Consumable Name',
     'create' => 'Create Consumable',
     'item_no' => 'Item No.',
