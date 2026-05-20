@@ -84,7 +84,25 @@
           @include ('partials.forms.edit.asset-select', ['translated_name' => trans('general.select_asset'), 'fieldname' => 'assigned_asset', 'style' => session('checkout_to_type') == 'asset' ? '' : 'display: none;'])
 
 
-            @if ($consumable->requireAcceptance() || (string) $snipeSettings->require_accept_signature === '1' || $consumable->getEula() || ($snipeSettings->webhook_endpoint!=''))
+            {{-- Webhook notice: webhook fires whether the consumable is
+                 checked out to a User or an Asset, so this notice stays
+                 visible regardless of the target. --}}
+            @if ($snipeSettings->webhook_endpoint!='')
+              <div class="form-group">
+                <div class="col-md-8 col-md-offset-3">
+                  <div class="callout callout-info">
+                    <i class="fab fa-slack"></i>
+                    {{ trans('general.webhook_msg_note') }}
+                  </div>
+                </div>
+              </div>
+            @endif
+
+            {{-- User-specific notices: acceptance, EULA and checkin email
+                 only apply when the consumable is going to a user. The
+                 shared notification-callout class lets Snipe's checkout
+                 JS hide this block when the target switches to Asset. --}}
+            @if ($consumable->requireAcceptance() || (string) $snipeSettings->require_accept_signature === '1' || $consumable->getEula() || (($consumable->category) && ($consumable->category->checkin_email)))
               <div class="form-group notification-callout">
                 <div class="col-md-8 col-md-offset-3">
                   <div class="callout callout-info">
@@ -104,12 +122,6 @@
                     @if (($consumable->category) && ($consumable->category->checkin_email))
                       <i class="far fa-envelope"></i>
                       {{ trans('admin/categories/general.checkin_email_notification') }}
-                      <br>
-                    @endif
-
-                    @if ($snipeSettings->webhook_endpoint!='')
-                        <i class="fab fa-slack"></i>
-                        {{ trans('general.webhook_msg_note') }}
                     @endif
                   </div>
                 </div>
