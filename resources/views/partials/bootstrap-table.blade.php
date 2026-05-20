@@ -1617,6 +1617,13 @@
                 actions += '<a href="{{ config('app.url') }}/' + dest + '/' + row.id + '/audit" class="actions btn btn-sm btn-primary hidden-print" data-tooltip="true" title="{{ trans('general.audit') }}"><x-icon type="audit" class="fa-fw" /><span class="sr-only">{{ trans('general.audit') }}</span></a>&nbsp;';
             }
 
+            // Consumables-only: queue this consumable onto a planned (draft)
+            // order. Reaches the same form as the Order button on the consumable
+            // detail view (PR #38), but in-row so it's accessible from the list.
+            if (owner_name === 'consumables' && row.available_actions && row.available_actions.order === true) {
+                actions += '<a href="{{ config('app.url') }}/consumables/' + row.id + '/order" class="actions btn btn-sm btn-success hidden-print" data-tooltip="true" title="Add to a Draft Order"><x-icon type="orders" class="fa-fw" /><span class="sr-only">Add to a Draft Order</span></a>&nbsp;';
+            }
+
             if ((row.available_actions) && (row.available_actions.update === true)) {
                 actions += '<a href="{{ config('app.url') }}/' + dest + '/' + row.id + '/edit" class="actions btn btn-sm btn-warning hidden-print" data-tooltip="true" title="{{ trans('general.update') }}"><x-icon type="edit" class="fa-fw" /><span class="sr-only">{{ trans('general.update') }}</span></a>&nbsp;';
             } else {
