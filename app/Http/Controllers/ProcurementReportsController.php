@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Asset;
+use App\Models\CustomField;
+use App\Models\LeaseDecision;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -105,7 +108,22 @@ class ProcurementReportsController extends Controller
         $fiscalYears = array_keys($committedByFy + $plannedByFy);
         sort($fiscalYears);
 
+        // Finance triage counters — what the dashboard reader sees first.
+        // Pending-approval invoices answer Mark's monthly "can I pay
+        // this?" question; pending lease decisions catch buyout/return
+        // calls that haven't been logged yet.
+        $pendingApprovalCount = OrderInvoice::where('approval_status', 'pending')
+            ->when($selectedFy, fn ($query) => $query->whereHas(
+                'purchaseOrder',
+                fn ($po) => $po->where('fiscal_year', $selectedFy)
+            ))
+            ->count();
+
+        $pendingDecisionCount = LeaseDecision::where('status', 'pending')->count();
+
         return view('reports/procurement', [
+            'pendingApprovalCount' => $pendingApprovalCount,
+            'pendingDecisionCount' => $pendingDecisionCount,
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
             'totalBudget' => $totalBudget,
@@ -261,6 +279,230 @@ class ProcurementReportsController extends Controller
         $this->authorize('reports.view');
 
         return $this->streamReportCsv('receiving-status-report', $this->receivingReport());
+    }
+
+    public function leasesOperational(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'leases-operational-report',
+            trans('admin/purchase-orders/general.report_leases_operational'),
+            'reports.procurement.leases-operational',
+            $this->leasesOperationalReport()
+        );
+    }
+
+    public function leasesFinancial(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'leases-financial-report',
+            trans('admin/purchase-orders/general.report_leases_financial'),
+            'reports.procurement.leases-financial',
+            $this->leasesFinancialReport()
+        );
+    }
+
+    public function csiSchedule(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'csi-schedule-reconciliation-report',
+            trans('admin/purchase-orders/general.report_csi_schedule'),
+            'reports.procurement.csi-schedule',
+            $this->csiScheduleReport()
+        );
+    }
+
+    public function invoiceApproval(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'invoice-approval-queue',
+            trans('admin/purchase-orders/general.report_invoice_approval'),
+            'reports.procurement.invoice-approval',
+            $this->invoiceApprovalReport($request->query('status'))
+        );
+    }
+
+    /**
+     * Mark or unmark an invoice as approved-to-pay. Single PATCH endpoint
+     * the Invoice Approval Queue posts to so AP can clear the queue
+     * inline instead of hopping to the order page.
+     */
+    public function updateInvoiceApproval(Request $request, OrderInvoice $invoice): RedirectResponse
+    {
+        $this->authorize('reports.view');
+
+        $validated = $request->validate([
+            'approval_status' => 'required|string|in:pending,approved,disputed',
+            'is_final_invoice' => 'nullable|boolean',
+            'usage_tag' => 'nullable|string|max:191',
+            'notes' => 'nullable|string|max:65535',
+        ]);
+
+        $invoice->approval_status = $validated['approval_status'];
+        $invoice->is_final_invoice = (bool) ($validated['is_final_invoice'] ?? false);
+        if (array_key_exists('usage_tag', $validated)) {
+            $invoice->usage_tag = $validated['usage_tag'];
+        }
+        if (array_key_exists('notes', $validated)) {
+            $invoice->notes = $validated['notes'];
+        }
+
+        if ($validated['approval_status'] === 'approved') {
+            $invoice->approved_at = now();
+            $invoice->approved_by = auth()->id();
+        } elseif ($validated['approval_status'] === 'pending') {
+            // Re-opening sweeps the approval signature so the audit trail
+            // stays honest — an invoice that goes pending → approved →
+            // pending shouldn't keep the original approver's name on it.
+            $invoice->approved_at = null;
+            $invoice->approved_by = null;
+        }
+
+        $invoice->save();
+
+        return redirect()->route('reports.procurement.invoice-approval', $request->only('status'))
+            ->with('success', trans('admin/purchase-orders/general.invoice_approval_updated'));
+    }
+
+    public function leaseDecisions(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'lease-decisions-report',
+            trans('admin/purchase-orders/general.report_lease_decisions'),
+            'reports.procurement.lease-decisions',
+            $this->leaseDecisionsReport($request->query('status'))
+        );
+    }
+
+    public function poDisposition(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'po-disposition-report',
+            trans('admin/purchase-orders/general.report_po_disposition'),
+            'reports.procurement.po-disposition',
+            $this->poDispositionReport()
+        );
+    }
+
+    public function extensionWatch(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'extension-watch-report',
+            trans('admin/purchase-orders/general.report_extension_watch'),
+            'reports.procurement.extension-watch',
+            $this->extensionWatchReport()
+        );
+    }
+
+    public function aroRegister(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'aro-register-report',
+            trans('admin/purchase-orders/general.report_aro_register'),
+            'reports.procurement.aro-register',
+            $this->aroRegisterReport()
+        );
+    }
+
+    public function assetLeaseDetail(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'asset-lease-detail-report',
+            trans('admin/purchase-orders/general.report_asset_lease_detail'),
+            'reports.procurement.asset-lease-detail',
+            $this->assetLeaseDetailReport()
+        );
+    }
+
+    public function poDrilldown(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'po-drilldown-report',
+            trans('admin/purchase-orders/general.report_po_drilldown'),
+            'reports.procurement.po-drilldown',
+            $this->poDrilldownReport()
+        );
+    }
+
+    public function dispositionGrid(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'disposition-grid-report',
+            trans('admin/purchase-orders/general.report_disposition_grid'),
+            'reports.procurement.disposition-grid',
+            $this->dispositionGridReport()
+        );
+    }
+
+    public function creditTerminationLedger(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'credit-termination-ledger',
+            trans('admin/purchase-orders/general.report_credit_ledger'),
+            'reports.procurement.credit-ledger',
+            $this->creditTerminationReport()
+        );
+    }
+
+    public function lessorBreakdown(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'lessor-breakdown-report',
+            trans('admin/purchase-orders/general.report_lessor_breakdown'),
+            'reports.procurement.lessor-breakdown',
+            $this->lessorBreakdownReport()
+        );
+    }
+
+    public function pstApplicability(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'pst-applicability-report',
+            trans('admin/purchase-orders/general.report_pst_applicability'),
+            'reports.procurement.pst-applicability',
+            $this->pstApplicabilityReport()
+        );
     }
 
     public function tax(): StreamedResponse
@@ -655,6 +897,1436 @@ class ProcurementReportsController extends Controller
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Lease custom fields live on the assets table under generated columns
+     * (e.g. `_snipeit_lease_contract_id_42`). Look the columns up by field
+     * name so the report keeps working if the field IDs shift between
+     * environments.
+     */
+    private function leaseFieldColumns(): array
+    {
+        // Same field names the sharepoint.csv export uses, so reports
+        // and the SharePoint hand-off see the same dataset.
+        $names = [
+            'contract_id' => 'Lease Contract ID',
+            'contract_name' => 'Lease Contract Name',
+            'lease_end_date' => 'Lease End Date',
+            'ownership_type' => 'Ownership Type',
+            'lease_rent' => 'Lease Rent',
+            'buyout_cost' => 'Buyout Cost',
+            'usage' => 'Usage',
+            'area' => 'Area',
+            'decommission_date' => 'Decommission Date',
+            'book_value' => 'Book Value',
+        ];
+
+        $columns = [];
+        foreach ($names as $key => $name) {
+            $field = CustomField::where('name', $name)->first();
+            $columns[$key] = $field?->db_column;
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Whether a Lease Contract ID looks like a real contract reference
+     * (matches the same allow-list as the TDX contract sync).
+     */
+    private function isValidContractId(?string $contractId): bool
+    {
+        if (! $contractId) {
+            return false;
+        }
+
+        if (in_array($contractId, ['-', 'N/A', 'n/a', 'None'], true)) {
+            return false;
+        }
+
+        return str_starts_with($contractId, 'ECI') || str_starts_with($contractId, '301452-');
+    }
+
+    /**
+     * CSI Leasing handles the 301452-* schedules; Macquarie owns the
+     * ECI* contracts. Mirrors the provider mapping in the TDX sync.
+     */
+    private function contractProvider(string $contractId): string
+    {
+        return str_starts_with($contractId, '301452-') ? 'CSI Leasing' : 'Macquarie';
+    }
+
+    /**
+     * Convert a Lease End Date string to the ECU fiscal-year label (Jul-Jun).
+     * A July-December end date belongs to FY{Y}-{Y+1}; a January-June end
+     * date belongs to FY{Y-1}-{Y}.
+     */
+    private function fiscalYearFromEndDate(?string $endDateStr): ?string
+    {
+        if (empty($endDateStr)) {
+            return null;
+        }
+
+        $endDate = null;
+        foreach (['Y-m-d', 'm/d/Y', 'Y/m/d', 'd/m/Y'] as $format) {
+            $endDate = \DateTime::createFromFormat($format, $endDateStr);
+            if ($endDate !== false) {
+                break;
+            }
+        }
+
+        if (! $endDate) {
+            return null;
+        }
+
+        $month = (int) $endDate->format('m');
+        $year = (int) $endDate->format('Y');
+
+        $start = $month >= 7 ? $year : $year - 1;
+        $end = $start + 1;
+
+        return sprintf('FY%02d-%02d', $start % 100, $end % 100);
+    }
+
+    /**
+     * Group every asset that carries a recognised Lease Contract ID by
+     * contract, with the status-meta classification (active / buyout /
+     * archived) and cost rollups used by both lease reports.
+     *
+     * Status names that mark an asset as already removed from a lease:
+     *   - "Active (Buyouts)" — equipment purchased outright from the lessor
+     *   - "Active (Legacy)" — moved off the lease but still in service
+     *   - any status with status_meta = "archived"
+     */
+    private function groupedLeaseAssets(): array
+    {
+        $columns = $this->leaseFieldColumns();
+        $contractIdColumn = $columns['contract_id'];
+
+        if (! $contractIdColumn) {
+            return [];
+        }
+
+        $assets = Asset::with('model', 'status')
+            ->whereNotNull($contractIdColumn)
+            ->where($contractIdColumn, '!=', '')
+            ->get();
+
+        $groups = [];
+        foreach ($assets as $asset) {
+            $contractId = $asset->{$contractIdColumn};
+            if (! $this->isValidContractId($contractId)) {
+                continue;
+            }
+
+            if (! isset($groups[$contractId])) {
+                $groups[$contractId] = [
+                    'contract_id' => $contractId,
+                    'contract_name' => null,
+                    'lease_end_date' => null,
+                    'provider' => $this->contractProvider($contractId),
+                    'assets' => [],
+                    'model_counts' => [],
+                    'ownership_counts' => [],
+                    'usage_counts' => [],
+                    'area_counts' => [],
+                    'active' => 0,
+                    'buyout' => 0,
+                    'archived' => 0,
+                    'total_cost' => 0.0,
+                    'monthly_rent_total' => 0.0,
+                    'buyout_cost_total' => 0.0,
+                ];
+            }
+
+            $group = &$groups[$contractId];
+            $group['assets'][] = $asset;
+
+            if (! $group['contract_name'] && $columns['contract_name']) {
+                $group['contract_name'] = $asset->{$columns['contract_name']};
+            }
+            if (! $group['lease_end_date'] && $columns['lease_end_date']) {
+                $group['lease_end_date'] = $asset->{$columns['lease_end_date']};
+            }
+
+            $modelName = $asset->model?->name ?: trans('general.na');
+            $modelName = html_entity_decode($modelName, ENT_QUOTES | ENT_HTML5);
+            $group['model_counts'][$modelName] = ($group['model_counts'][$modelName] ?? 0) + 1;
+
+            if ($columns['ownership_type']) {
+                $ownership = $asset->{$columns['ownership_type']};
+                if (! empty($ownership)) {
+                    $group['ownership_counts'][$ownership] = ($group['ownership_counts'][$ownership] ?? 0) + 1;
+                }
+            }
+
+            if ($columns['usage']) {
+                $usage = $asset->{$columns['usage']};
+                if (! empty($usage)) {
+                    $group['usage_counts'][$usage] = ($group['usage_counts'][$usage] ?? 0) + 1;
+                }
+            }
+
+            if ($columns['area']) {
+                $area = $asset->{$columns['area']};
+                if (! empty($area)) {
+                    $group['area_counts'][$area] = ($group['area_counts'][$area] ?? 0) + 1;
+                }
+            }
+
+            if ($columns['lease_rent']) {
+                $group['monthly_rent_total'] += $this->parseMoney($asset->{$columns['lease_rent']});
+            }
+            if ($columns['buyout_cost']) {
+                $group['buyout_cost_total'] += $this->parseMoney($asset->{$columns['buyout_cost']});
+            }
+
+            $statusName = (string) $asset->status?->name;
+            $statusMeta = (string) $asset->status?->status_meta;
+
+            if ($statusMeta === 'archived') {
+                $group['archived']++;
+            } elseif (in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
+                $group['buyout']++;
+            } else {
+                $group['active']++;
+            }
+
+            $group['total_cost'] += (float) $asset->purchase_cost;
+            unset($group);
+        }
+
+        ksort($groups);
+
+        return $groups;
+    }
+
+    /**
+     * Lease overview — TDX-parity view. Groups assets by Lease Contract ID
+     * and exposes the same shape the snipe-to-tdx-contracts function pushes
+     * to TDX: provider, end date, fiscal year, active/buyout/archived
+     * counts, dominant model and ownership type.
+     */
+    private function leasesOperationalReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_contract_name'),
+            trans('admin/purchase-orders/general.lease_provider'),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.lease_fy_ending'),
+            trans('admin/purchase-orders/general.lease_assets'),
+            trans('admin/purchase-orders/general.lease_active'),
+            trans('admin/purchase-orders/general.lease_buyouts'),
+            trans('admin/purchase-orders/general.lease_archived'),
+            trans('admin/purchase-orders/general.lease_models'),
+            trans('admin/purchase-orders/general.lease_ownership'),
+        ];
+
+        $records = [];
+        $totalAssets = $totalActive = $totalBuyout = $totalArchived = 0;
+
+        foreach ($this->groupedLeaseAssets() as $group) {
+            $totalAssets += count($group['assets']);
+            $totalActive += $group['active'];
+            $totalBuyout += $group['buyout'];
+            $totalArchived += $group['archived'];
+
+            $records[] = [
+                // Buyout-only contracts are dimmed: they're history, not a
+                // commitment we still need to manage.
+                'class' => $group['active'] === 0 ? 'text-muted' : '',
+                'cells' => [
+                    $group['contract_id'],
+                    (string) $group['contract_name'],
+                    $group['provider'],
+                    $this->dateString($group['lease_end_date']),
+                    (string) $this->fiscalYearFromEndDate($group['lease_end_date']),
+                    count($group['assets']),
+                    $group['active'],
+                    $group['buyout'],
+                    $group['archived'],
+                    $this->summariseCounts($group['model_counts']),
+                    $this->summariseCounts($group['ownership_counts']),
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '',
+            $totalAssets, $totalActive, $totalBuyout, $totalArchived, '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Lease financial view. For every contract: equipment cost (sum of
+     * asset purchase_cost), warranty/soft cost (sum of order-item
+     * warranty_cost for the same assets), total, and the distinct PO and
+     * CDW order numbers that funded it.
+     */
+    private function leasesFinancialReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_provider'),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.lease_fy_ending'),
+            trans('admin/purchase-orders/general.lease_assets'),
+            trans('admin/purchase-orders/general.lease_equipment_cost'),
+            trans('admin/purchase-orders/general.lease_warranty_cost'),
+            trans('admin/purchase-orders/general.lease_total_cost'),
+            trans('admin/purchase-orders/general.lease_pos'),
+            trans('admin/purchase-orders/general.lease_cdw_orders'),
+        ];
+
+        $groups = $this->groupedLeaseAssets();
+
+        // Fetch every order item that lines up to a lease asset in one query,
+        // keyed by asset id, so the per-contract loop stays O(assets).
+        $assetIds = collect($groups)
+            ->flatMap(fn ($g) => collect($g['assets'])->pluck('id'))
+            ->all();
+
+        $orderItemsByAsset = OrderItem::with('order.purchaseOrder')
+            ->where('item_type', Asset::class)
+            ->whereIn('item_id', $assetIds)
+            ->get()
+            ->groupBy('item_id');
+
+        $records = [];
+        $totalAssets = 0;
+        $totalEquipment = $totalWarranty = $totalCost = 0.0;
+
+        foreach ($groups as $group) {
+            $equipmentCost = $group['total_cost'];
+            $warrantyCost = 0.0;
+            $poNumbers = [];
+            $cdwOrders = [];
+
+            foreach ($group['assets'] as $asset) {
+                foreach ($orderItemsByAsset->get($asset->id, collect()) as $item) {
+                    $warrantyCost += (float) $item->warranty_cost;
+                    if ($poNum = $item->order?->purchaseOrder?->po_number) {
+                        $poNumbers[$poNum] = true;
+                    }
+                    if ($orderNum = $item->order?->order_number) {
+                        $cdwOrders[$orderNum] = true;
+                    }
+                }
+            }
+
+            $contractTotal = $equipmentCost + $warrantyCost;
+            $totalAssets += count($group['assets']);
+            $totalEquipment += $equipmentCost;
+            $totalWarranty += $warrantyCost;
+            $totalCost += $contractTotal;
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
+                    $group['contract_id'],
+                    $group['provider'],
+                    $this->dateString($group['lease_end_date']),
+                    (string) $this->fiscalYearFromEndDate($group['lease_end_date']),
+                    count($group['assets']),
+                    $this->money($equipmentCost),
+                    $this->money($warrantyCost),
+                    $this->money($contractTotal),
+                    implode(', ', array_keys($poNumbers)),
+                    implode(', ', array_keys($cdwOrders)),
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '',
+            $totalAssets,
+            $this->money($totalEquipment),
+            $this->money($totalWarranty),
+            $this->money($totalCost),
+            '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * CSI Schedule Reconciliation. For every 301452-* contract, lists each
+     * model as its own line: qty, unit equipment cost, unit warranty cost,
+     * line total, plus the distinct POs and CDW orders the model was
+     * billed against. Mirrors the per-schedule reconciliation tables in
+     * docs/FY2026-27/CSI_Schedule_Reconciliation.md.
+     */
+    private function csiScheduleReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.forecast_model'),
+            trans('admin/purchase-orders/general.lease_qty'),
+            trans('admin/purchase-orders/general.lease_unit_equipment'),
+            trans('admin/purchase-orders/general.lease_unit_warranty'),
+            trans('admin/purchase-orders/general.lease_line_total'),
+            trans('admin/purchase-orders/general.lease_pos'),
+            trans('admin/purchase-orders/general.lease_cdw_orders'),
+            trans('admin/purchase-orders/general.lease_received'),
+        ];
+
+        // Restrict to CSI schedules — ECI* contracts have their own
+        // Macquarie reconciliation and don't fit the schedule layout.
+        $groups = array_filter(
+            $this->groupedLeaseAssets(),
+            fn ($g) => str_starts_with($g['contract_id'], '301452-')
+        );
+
+        $assetIds = collect($groups)
+            ->flatMap(fn ($g) => collect($g['assets'])->pluck('id'))
+            ->all();
+
+        $orderItemsByAsset = OrderItem::with('order.purchaseOrder')
+            ->where('item_type', Asset::class)
+            ->whereIn('item_id', $assetIds)
+            ->get()
+            ->groupBy('item_id');
+
+        $records = [];
+        $totalQty = 0;
+        $totalLine = 0.0;
+
+        foreach ($groups as $group) {
+            // Bucket the assets in this schedule by model name so each
+            // line is "Qty × Model" rather than one row per device.
+            $byModel = [];
+            foreach ($group['assets'] as $asset) {
+                $modelName = $asset->model?->name ?: trans('general.na');
+                $modelName = html_entity_decode($modelName, ENT_QUOTES | ENT_HTML5);
+
+                if (! isset($byModel[$modelName])) {
+                    $byModel[$modelName] = [
+                        'qty' => 0,
+                        'equipment_total' => 0.0,
+                        'warranty_total' => 0.0,
+                        'received' => 0,
+                        'pos' => [],
+                        'orders' => [],
+                    ];
+                }
+
+                $byModel[$modelName]['qty']++;
+                $byModel[$modelName]['equipment_total'] += (float) $asset->purchase_cost;
+
+                foreach ($orderItemsByAsset->get($asset->id, collect()) as $item) {
+                    $byModel[$modelName]['warranty_total'] += (float) $item->warranty_cost;
+                    if ($poNum = $item->order?->purchaseOrder?->po_number) {
+                        $byModel[$modelName]['pos'][$poNum] = true;
+                    }
+                    if ($orderNum = $item->order?->order_number) {
+                        $byModel[$modelName]['orders'][$orderNum] = true;
+                    }
+                    if ($item->received_at) {
+                        $byModel[$modelName]['received']++;
+                    }
+                }
+            }
+
+            ksort($byModel);
+
+            $scheduleQty = 0;
+            $scheduleLine = 0.0;
+
+            foreach ($byModel as $modelName => $row) {
+                $qty = $row['qty'];
+                $unitEquipment = $qty > 0 ? $row['equipment_total'] / $qty : 0.0;
+                $unitWarranty = $qty > 0 ? $row['warranty_total'] / $qty : 0.0;
+                $line = $row['equipment_total'] + $row['warranty_total'];
+
+                $scheduleQty += $qty;
+                $scheduleLine += $line;
+
+                $records[] = [
+                    'class' => '',
+                    'cells' => [
+                        $group['contract_id'],
+                        $modelName,
+                        $qty,
+                        $this->money($unitEquipment),
+                        $this->money($unitWarranty),
+                        $this->money($line),
+                        implode(', ', array_keys($row['pos'])),
+                        implode(', ', array_keys($row['orders'])),
+                        $row['received'].' / '.$qty,
+                    ],
+                ];
+            }
+
+            // Per-schedule subtotal row so the reader can compare against
+            // the CSI Exhibit A totals without doing the maths in their
+            // head.
+            $records[] = [
+                'class' => 'info',
+                'cells' => [
+                    $group['contract_id'].' '.trans('admin/orders/general.total'),
+                    '', $scheduleQty, '', '',
+                    $this->money($scheduleLine),
+                    '', '', '',
+                ],
+            ];
+
+            $totalQty += $scheduleQty;
+            $totalLine += $scheduleLine;
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', $totalQty, '', '',
+            $this->money($totalLine),
+            '', '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Invoice Approval Queue — what AP looks at to answer Mark's monthly
+     * "is it OK to pay this?" emails. Each row pairs the CDW invoice
+     * total with the expected amount derived from the line items billed
+     * on it; the variance is the cents-level signal that something is
+     * off. `?status=pending` (the default) shows only the work to do.
+     */
+    private function invoiceApprovalReport(?string $statusFilter = null): array
+    {
+        $statusFilter = $statusFilter ?: 'pending';
+
+        $columns = [
+            trans('admin/purchase-orders/general.po_number'),
+            trans('general.order_number'),
+            trans('admin/orders/general.invoice_number'),
+            trans('admin/orders/general.invoice_date'),
+            trans('admin/purchase-orders/general.invoice_vendor_total'),
+            trans('admin/purchase-orders/general.invoice_expected'),
+            trans('admin/purchase-orders/general.invoice_variance'),
+            trans('admin/purchase-orders/general.invoice_usage'),
+            trans('admin/purchase-orders/general.invoice_final'),
+            trans('admin/purchase-orders/general.invoice_approval_status'),
+            trans('admin/purchase-orders/general.invoice_approver'),
+        ];
+
+        $query = OrderInvoice::with('order.purchaseOrder', 'items', 'approver')
+            ->orderByRaw("FIELD(approval_status, 'pending', 'disputed', 'approved')")
+            ->orderBy('invoice_date');
+
+        if ($statusFilter !== 'all') {
+            $query->where('approval_status', $statusFilter);
+        }
+
+        $invoices = $query->get();
+
+        $records = [];
+        $totalVendor = $totalExpected = $totalVariance = 0.0;
+
+        foreach ($invoices as $invoice) {
+            $expected = $invoice->expectedSubtotal();
+            $variance = $invoice->variance();
+            $totalVendor += (float) $invoice->subtotal;
+            $totalExpected += $expected;
+            $totalVariance += $variance;
+
+            $records[] = [
+                // Variance over a dollar gets the danger class — that's
+                // the threshold below which Mark is happy to wave through.
+                'class' => abs($variance) > 1.0 && $invoice->isPendingApproval() ? 'danger' : '',
+                'cells' => [
+                    (string) $invoice->order?->purchaseOrder?->po_number,
+                    (string) $invoice->order?->order_number,
+                    $invoice->invoice_number,
+                    $this->dateString($invoice->invoice_date),
+                    $this->money($invoice->subtotal),
+                    $this->money($expected),
+                    $this->money($variance),
+                    (string) $invoice->usage_tag,
+                    $invoice->is_final_invoice ? trans('general.yes') : trans('general.no'),
+                    trans('admin/purchase-orders/general.invoice_approval_'.($invoice->approval_status ?: 'pending')),
+                    (string) $invoice->approver?->full_name,
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '',
+            $this->money($totalVendor),
+            $this->money($totalExpected),
+            $this->money($totalVariance),
+            '', '', '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Lease Decision Tracker — surfaces the buyout/return/extend/replace
+     * decisions logged against expiring leases (the PR #17 table) inside
+     * the procurement reports area so finance doesn't have to find the
+     * Settings link.
+     */
+    private function leaseDecisionsReport(?string $statusFilter = null): array
+    {
+        $columns = [
+            trans('admin/lease-decisions/general.contract_reference'),
+            trans('admin/lease-decisions/general.decision_type'),
+            trans('admin/lease-decisions/general.decision_date'),
+            trans('admin/lease-decisions/general.amount'),
+            trans('admin/lease-decisions/general.status'),
+            trans('general.notes'),
+        ];
+
+        $query = LeaseDecision::query()
+            ->orderByRaw("FIELD(status, 'pending', 'approved', 'completed', 'cancelled')")
+            ->orderBy('decision_date');
+
+        if ($statusFilter && in_array($statusFilter, LeaseDecision::STATUSES, true)) {
+            $query->where('status', $statusFilter);
+        }
+
+        $decisions = $query->get();
+
+        $records = [];
+        $totalAmount = 0.0;
+
+        foreach ($decisions as $decision) {
+            $totalAmount += (float) $decision->amount;
+
+            $records[] = [
+                'class' => $decision->status === 'pending' ? 'warning' : '',
+                'cells' => [
+                    $decision->contract_reference,
+                    trans('admin/lease-decisions/general.type_'.$decision->decision_type),
+                    $this->dateString($decision->decision_date),
+                    $this->money($decision->amount),
+                    trans('admin/lease-decisions/general.status_'.$decision->status),
+                    (string) $decision->notes,
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '',
+            $this->money($totalAmount), '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Year-End PO Disposition. For every purchase order, the over/under
+     * vs. budget and a suggested year-end disposition: close the PO,
+     * roll the remaining commitment to the next fiscal year, or
+     * reallocate the surplus to operating. Replaces the year-end
+     * walk-through Rod writes Mark by hand in Excel.
+     */
+    private function poDispositionReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.po_number'),
+            trans('admin/purchase-orders/general.fiscal_year'),
+            trans('admin/purchase-orders/general.cost_center'),
+            trans('admin/purchase-orders/general.budget'),
+            trans('admin/purchase-orders/general.invoiced'),
+            trans('admin/purchase-orders/general.committed'),
+            trans('admin/purchase-orders/general.remaining'),
+            trans('admin/purchase-orders/general.po_open_orders'),
+            trans('admin/purchase-orders/general.po_disposition'),
+        ];
+
+        $purchaseOrders = PurchaseOrder::with('orders.items', 'orders.invoices')
+            ->orderBy('fiscal_year')
+            ->orderBy('po_number')
+            ->get();
+
+        $records = [];
+        $totalBudget = $totalInvoiced = $totalCommitted = 0.0;
+
+        foreach ($purchaseOrders as $po) {
+            $budget = (float) $po->budget;
+            $invoiced = $po->invoicedTotal();
+            $committed = $po->committedTotal();
+            $remaining = $budget - $committed;
+            $openOrders = $po->orders->filter(fn ($o) => ! in_array($o->status, ['received', 'cancelled'], true))->count();
+
+            $totalBudget += $budget;
+            $totalInvoiced += $invoiced;
+            $totalCommitted += $committed;
+
+            $disposition = $this->dispositionFor($po, $remaining, $openOrders);
+
+            $records[] = [
+                'class' => $remaining < 0 ? 'danger' : ($openOrders > 0 ? 'warning' : ''),
+                'cells' => [
+                    $po->po_number,
+                    (string) $po->fiscal_year,
+                    (string) $po->cost_center,
+                    $this->money($budget),
+                    $this->money($invoiced),
+                    $this->money($committed),
+                    $this->money($remaining),
+                    $openOrders,
+                    $disposition,
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '',
+            $this->money($totalBudget),
+            $this->money($totalInvoiced),
+            $this->money($totalCommitted),
+            $this->money($totalBudget - $totalCommitted),
+            '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Suggest a year-end disposition for a purchase order. The suggestion
+     * is advisory — it's the answer Rod would write Mark on email, not
+     * an automated action.
+     */
+    private function dispositionFor(PurchaseOrder $po, float $remaining, int $openOrders): string
+    {
+        if ($po->status === 'closed' || $po->status === 'cancelled') {
+            return trans('admin/purchase-orders/general.disposition_closed');
+        }
+        if ($remaining < -1.0) {
+            return trans('admin/purchase-orders/general.disposition_overrun');
+        }
+        if ($openOrders > 0) {
+            return trans('admin/purchase-orders/general.disposition_roll');
+        }
+        if ($remaining > 1.0) {
+            return trans('admin/purchase-orders/general.disposition_reallocate');
+        }
+
+        return trans('admin/purchase-orders/general.disposition_close');
+    }
+
+    /**
+     * Extension Watch. Macquarie/CSI leases whose end date has slipped
+     * past the original term — these are the "expensive to keep
+     * extending" ones Mark flags. Heuristic: any contract whose latest
+     * Lease End Date is more than 4 years (rental) or 5 years (lease to
+     * own) past the earliest asset purchase date is treated as extended.
+     */
+    private function extensionWatchReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_provider'),
+            trans('admin/purchase-orders/general.extension_original_end'),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.extension_months'),
+            trans('admin/purchase-orders/general.lease_assets'),
+            trans('admin/purchase-orders/general.lease_active'),
+            trans('admin/purchase-orders/general.extension_monthly_cost'),
+        ];
+
+        $records = [];
+
+        foreach ($this->groupedLeaseAssets() as $group) {
+            // Use the earliest asset purchase_date in the group as the
+            // proxy for the lease start. ECI contracts are 4-year rentals
+            // (term = 48 months); 301452 schedules split between 4-year
+            // returns and 5-year lease-to-own — see the ownership counts.
+            $earliestPurchase = null;
+            foreach ($group['assets'] as $asset) {
+                if ($asset->purchase_date) {
+                    $purchase = $asset->purchase_date instanceof \DateTimeInterface
+                        ? $asset->purchase_date
+                        : new \DateTime((string) $asset->purchase_date);
+                    if ($earliestPurchase === null || $purchase < $earliestPurchase) {
+                        $earliestPurchase = $purchase;
+                    }
+                }
+            }
+
+            $leaseEnd = null;
+            foreach (['Y-m-d', 'm/d/Y'] as $fmt) {
+                if (! empty($group['lease_end_date'])) {
+                    $leaseEnd = \DateTime::createFromFormat($fmt, $group['lease_end_date']);
+                    if ($leaseEnd !== false) {
+                        break;
+                    }
+                }
+            }
+
+            if (! $earliestPurchase || ! $leaseEnd) {
+                continue;
+            }
+
+            $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
+            $termMonths = $isLeaseToOwn ? 60 : 48;
+            $originalEnd = (clone $earliestPurchase)->modify("+{$termMonths} months");
+
+            $months = (($leaseEnd->format('Y') - $originalEnd->format('Y')) * 12)
+                + ((int) $leaseEnd->format('m') - (int) $originalEnd->format('m'));
+
+            if ($months <= 0) {
+                continue;
+            }
+
+            // Prefer the real Lease Rent sum when available — the fall-back
+            // amortises the total contract cost across the original term,
+            // which is only an estimate.
+            $monthlyCost = $group['monthly_rent_total'] > 0
+                ? $group['monthly_rent_total']
+                : ($termMonths > 0 ? $group['total_cost'] / $termMonths : 0.0);
+
+            $records[] = [
+                'class' => $months > 12 ? 'danger' : 'warning',
+                'cells' => [
+                    $group['contract_id'],
+                    $group['provider'],
+                    $originalEnd->format('Y-m-d'),
+                    $leaseEnd->format('Y-m-d'),
+                    $months,
+                    count($group['assets']),
+                    $group['active'],
+                    $this->money($monthlyCost),
+                ],
+            ];
+        }
+
+        return ['columns' => $columns, 'records' => $records];
+    }
+
+    /**
+     * Asset Retirement Obligation register. Mark needs to book obligations
+     * for known end-of-useful-life costs: buyouts, return fees and disposal.
+     * This view aggregates the LeaseDecision log into one finance-ready
+     * table, one row per contract+decision-type.
+     */
+    private function aroRegisterReport(): array
+    {
+        $columns = [
+            trans('admin/lease-decisions/general.contract_reference'),
+            trans('admin/purchase-orders/general.aro_source'),
+            trans('admin/lease-decisions/general.decision_type'),
+            trans('admin/lease-decisions/general.amount'),
+            trans('admin/lease-decisions/general.status'),
+            trans('admin/lease-decisions/general.decision_date'),
+        ];
+
+        $records = [];
+        $total = 0.0;
+
+        // Real per-asset Buyout Cost values aggregated per contract —
+        // the contractual obligation regardless of whether the buyout has
+        // been booked as a LeaseDecision yet. Only shown when the field
+        // contains real numbers.
+        foreach ($this->groupedLeaseAssets() as $group) {
+            if ($group['buyout_cost_total'] <= 0) {
+                continue;
+            }
+            $total += $group['buyout_cost_total'];
+            $records[] = [
+                'class' => '',
+                'cells' => [
+                    $group['contract_id'],
+                    trans('admin/purchase-orders/general.aro_source_asset'),
+                    trans('admin/lease-decisions/general.type_buyout'),
+                    $this->money($group['buyout_cost_total']),
+                    trans('admin/purchase-orders/general.aro_status_contractual'),
+                    '',
+                ],
+            ];
+        }
+
+        // Logged decisions — buyout or return amounts a human has signed
+        // off on (or proposed). Cancelled is excluded.
+        $decisions = LeaseDecision::query()
+            ->whereIn('decision_type', ['buyout', 'return'])
+            ->whereNotIn('status', ['cancelled'])
+            ->orderBy('contract_reference')
+            ->get();
+
+        foreach ($decisions as $decision) {
+            $total += (float) $decision->amount;
+            $records[] = [
+                'class' => $decision->status === 'pending' ? 'warning' : '',
+                'cells' => [
+                    $decision->contract_reference,
+                    trans('admin/purchase-orders/general.aro_source_decision'),
+                    trans('admin/lease-decisions/general.type_'.$decision->decision_type),
+                    $this->money($decision->amount),
+                    trans('admin/lease-decisions/general.status_'.$decision->status),
+                    $this->dateString($decision->decision_date),
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '',
+            $this->money($total), '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Asset Lease Detail — the full per-asset roll-up that the
+     * sharepoint.csv export gives. Lives in /reports/procurement so the
+     * same data is available internally without having to open the
+     * SharePoint workbook. One row per leased asset, with finance,
+     * lifecycle and usage columns.
+     */
+    private function assetLeaseDetailReport(): array
+    {
+        $cols = $this->leaseFieldColumns();
+
+        $columns = [
+            trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.detail_serial'),
+            trans('admin/purchase-orders/general.detail_status'),
+            trans('admin/purchase-orders/general.detail_model'),
+            trans('admin/purchase-orders/general.invoice_usage'),
+            trans('admin/purchase-orders/general.detail_area'),
+            trans('admin/purchase-orders/general.detail_assigned_to'),
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.detail_ownership'),
+            trans('admin/purchase-orders/general.detail_purchase_cost'),
+            trans('admin/purchase-orders/general.detail_lease_rent'),
+            trans('admin/purchase-orders/general.detail_buyout_cost'),
+            trans('admin/purchase-orders/general.detail_decommission'),
+        ];
+
+        $contractIdColumn = $cols['contract_id'];
+        if (! $contractIdColumn) {
+            return ['columns' => $columns, 'records' => [], 'footer' => null];
+        }
+
+        $assets = Asset::with('model', 'status', 'assignedTo')
+            ->whereNotNull($contractIdColumn)
+            ->where($contractIdColumn, '!=', '')
+            ->orderBy($contractIdColumn)
+            ->orderBy('asset_tag')
+            ->get();
+
+        $records = [];
+        $totalPurchase = $totalRent = $totalBuyout = 0.0;
+
+        foreach ($assets as $asset) {
+            $contractId = $asset->{$contractIdColumn};
+            if (! $this->isValidContractId($contractId)) {
+                continue;
+            }
+
+            $purchase = (float) $asset->purchase_cost;
+            $rent = $cols['lease_rent'] ? $this->parseMoney($asset->{$cols['lease_rent']}) : 0.0;
+            $buyout = $cols['buyout_cost'] ? $this->parseMoney($asset->{$cols['buyout_cost']}) : 0.0;
+
+            $totalPurchase += $purchase;
+            $totalRent += $rent;
+            $totalBuyout += $buyout;
+
+            // Dim assets that have already been returned or are otherwise
+            // off the lease so the live fleet stays prominent.
+            $isReturned = ! empty($cols['decommission_date']) && ! empty($asset->{$cols['decommission_date']});
+
+            $records[] = [
+                'class' => $isReturned ? 'text-muted' : '',
+                'cells' => [
+                    (string) $asset->asset_tag,
+                    (string) $asset->serial,
+                    (string) $asset->status?->name,
+                    (string) $asset->model?->name,
+                    $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
+                    $cols['area'] ? (string) $asset->{$cols['area']} : '',
+                    (string) $this->describeAssignedTo($asset->assignedTo),
+                    $contractId,
+                    $cols['lease_end_date'] ? $this->dateString($asset->{$cols['lease_end_date']}) : '',
+                    $cols['ownership_type'] ? (string) $asset->{$cols['ownership_type']} : '',
+                    $this->money($purchase),
+                    $rent > 0 ? $this->money($rent) : '',
+                    $buyout > 0 ? $this->money($buyout) : '',
+                    $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '', '', '', '', '', '',
+            $this->money($totalPurchase),
+            $this->money($totalRent),
+            $this->money($totalBuyout),
+            '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * PO ↔ CDW drill-down. Per-PO walk of every CDW order under it, every
+     * invoice billed against those orders, and the variance between invoice
+     * subtotal and expected line-item total. Subtotal rows mark the PO
+     * boundary so a finance reader can scan top-to-bottom and see exactly
+     * what each PO funded.
+     */
+    private function poDrilldownReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.po_number'),
+            trans('general.order_number'),
+            trans('admin/orders/general.invoice_number'),
+            trans('admin/orders/general.invoice_date'),
+            trans('admin/orders/general.line_items'),
+            trans('admin/purchase-orders/general.invoice_vendor_total'),
+            trans('admin/purchase-orders/general.invoice_expected'),
+            trans('admin/purchase-orders/general.invoice_variance'),
+            trans('admin/purchase-orders/general.invoice_approval_status'),
+        ];
+
+        $purchaseOrders = PurchaseOrder::with('orders.invoices.items', 'orders.items')
+            ->orderBy('po_number')
+            ->get();
+
+        $records = [];
+        $grandVendor = $grandExpected = $grandVariance = 0.0;
+
+        foreach ($purchaseOrders as $po) {
+            $poVendor = $poExpected = $poVariance = 0.0;
+            $poRows = [];
+
+            foreach ($po->orders as $order) {
+                if ($order->invoices->isEmpty()) {
+                    $expectedFromItems = (float) $order->items->sum->lineTotal();
+                    $poExpected += $expectedFromItems;
+                    $poRows[] = [
+                        'class' => 'warning',
+                        'cells' => [
+                            $po->po_number,
+                            (string) $order->order_number,
+                            trans('admin/purchase-orders/general.po_drilldown_no_invoice'),
+                            '',
+                            $order->items->count(),
+                            '',
+                            $this->money($expectedFromItems),
+                            '',
+                            '',
+                        ],
+                    ];
+
+                    continue;
+                }
+
+                foreach ($order->invoices as $invoice) {
+                    $expected = $invoice->expectedSubtotal();
+                    $variance = $invoice->variance();
+                    $vendor = (float) $invoice->subtotal;
+
+                    $poVendor += $vendor;
+                    $poExpected += $expected;
+                    $poVariance += $variance;
+
+                    $poRows[] = [
+                        'class' => abs($variance) > 1.0 ? 'danger' : '',
+                        'cells' => [
+                            $po->po_number,
+                            (string) $order->order_number,
+                            $invoice->invoice_number,
+                            $this->dateString($invoice->invoice_date),
+                            $invoice->items->count(),
+                            $this->money($vendor),
+                            $this->money($expected),
+                            $this->money($variance),
+                            trans('admin/purchase-orders/general.invoice_approval_'.($invoice->approval_status ?: 'pending')),
+                        ],
+                    ];
+                }
+            }
+
+            $grandVendor += $poVendor;
+            $grandExpected += $poExpected;
+            $grandVariance += $poVariance;
+
+            $records = array_merge($records, $poRows);
+
+            // PO subtotal row so the eye can find boundaries quickly.
+            $records[] = [
+                'class' => 'info',
+                'cells' => [
+                    $po->po_number.' '.trans('admin/orders/general.total'),
+                    '', '', '', '',
+                    $this->money($poVendor),
+                    $this->money($poExpected),
+                    $this->money($poVariance),
+                    '',
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '',
+            $this->money($grandVendor),
+            $this->money($grandExpected),
+            $this->money($grandVariance),
+            '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Per-Serial Disposition Grid. One row per leased asset, grouped by
+     * contract, showing the latest LeaseDecision action (if any) against
+     * that asset's contract reference. Sohee's ledger for confirming
+     * buyout/return/extend decisions per serial without an email back-
+     * and-forth.
+     */
+    private function dispositionGridReport(): array
+    {
+        $cols = $this->leaseFieldColumns();
+
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.detail_serial'),
+            trans('admin/purchase-orders/general.detail_model'),
+            trans('admin/purchase-orders/general.detail_status'),
+            trans('admin/purchase-orders/general.invoice_usage'),
+            trans('admin/purchase-orders/general.detail_buyout_cost'),
+            trans('admin/purchase-orders/general.disposition_action'),
+            trans('admin/lease-decisions/general.status'),
+            trans('admin/purchase-orders/general.disposition_decided_on'),
+        ];
+
+        $contractIdColumn = $cols['contract_id'];
+        if (! $contractIdColumn) {
+            return ['columns' => $columns, 'records' => [], 'footer' => null];
+        }
+
+        // Latest decision per contract_reference — Sohee logs one entry
+        // per buyout/return/extend event but a contract can collect many
+        // over time. The latest wins.
+        $latestDecisions = LeaseDecision::query()
+            ->orderBy('contract_reference')
+            ->orderByDesc('decision_date')
+            ->get()
+            ->groupBy('contract_reference')
+            ->map(fn ($group) => $group->first());
+
+        $assets = Asset::with('model', 'status')
+            ->whereNotNull($contractIdColumn)
+            ->where($contractIdColumn, '!=', '')
+            ->orderBy($contractIdColumn)
+            ->orderBy('asset_tag')
+            ->get();
+
+        $records = [];
+        foreach ($assets as $asset) {
+            $contractId = $asset->{$contractIdColumn};
+            if (! $this->isValidContractId($contractId)) {
+                continue;
+            }
+
+            $decision = $latestDecisions->get($contractId);
+            $buyoutCost = $cols['buyout_cost'] ? $this->parseMoney($asset->{$cols['buyout_cost']}) : 0.0;
+
+            $records[] = [
+                'class' => $decision && $decision->status === 'pending' ? 'warning' : '',
+                'cells' => [
+                    $contractId,
+                    (string) $asset->asset_tag,
+                    (string) $asset->serial,
+                    (string) $asset->model?->name,
+                    (string) $asset->status?->name,
+                    $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
+                    $buyoutCost > 0 ? $this->money($buyoutCost) : '',
+                    $decision ? trans('admin/lease-decisions/general.type_'.$decision->decision_type) : trans('admin/purchase-orders/general.disposition_none'),
+                    $decision ? trans('admin/lease-decisions/general.status_'.$decision->status) : '',
+                    $decision ? $this->dateString($decision->decision_date) : '',
+                ],
+            ];
+        }
+
+        return ['columns' => $columns, 'records' => $records];
+    }
+
+    /**
+     * Credit & Termination Ledger. The lease invoice stream is not just
+     * monthly rent — every contract eventually accumulates credit memos
+     * and a final termination invoice. Splitting them out lets finance
+     * see how much credit is outstanding and confirm the closing
+     * termination matches the schedule.
+     */
+    private function creditTerminationReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/orders/general.invoice_number'),
+            trans('admin/purchase-orders/general.credit_invoice_type'),
+            trans('admin/orders/general.invoice_date'),
+            trans('admin/orders/general.subtotal'),
+            trans('admin/orders/general.tax_gst'),
+            trans('admin/orders/general.tax_pst'),
+            trans('admin/orders/general.total'),
+            trans('admin/purchase-orders/general.invoice_approval_status'),
+        ];
+
+        $invoices = OrderInvoice::with('order.purchaseOrder')
+            ->whereIn('invoice_type', ['credit', 'termination', 'buyout'])
+            ->orderBy('contract_reference')
+            ->orderBy('invoice_date')
+            ->get();
+
+        $records = [];
+        $totalSubtotal = $totalTotal = 0.0;
+
+        foreach ($invoices as $invoice) {
+            $totalSubtotal += (float) $invoice->subtotal;
+            $totalTotal += (float) $invoice->total;
+
+            $records[] = [
+                'class' => $invoice->invoice_type === 'credit' ? 'success' : ($invoice->invoice_type === 'termination' ? 'info' : ''),
+                'cells' => [
+                    (string) $invoice->contract_reference,
+                    $invoice->invoice_number,
+                    trans('admin/purchase-orders/general.invoice_type_'.$invoice->invoice_type),
+                    $this->dateString($invoice->invoice_date),
+                    $this->money($invoice->subtotal),
+                    $this->money($invoice->tax_gst),
+                    $this->money($invoice->tax_pst),
+                    $this->money($invoice->total),
+                    trans('admin/purchase-orders/general.invoice_approval_'.($invoice->approval_status ?: 'pending')),
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '',
+            $this->money($totalSubtotal), '', '',
+            $this->money($totalTotal), '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Lessor / Vendor breakdown. Mirrors the TDX provider mapping in the
+     * sync function: CSI Leasing (301452-*) and Macquarie / CCA Financial
+     * (ECI*). The CCA naming reflects Macquarie's mid-2025 portfolio sale
+     * to CCA Financial — same ECI contract IDs, new lessor.
+     */
+    private function lessorBreakdownReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.lease_provider'),
+            trans('admin/purchase-orders/general.lessor_contracts'),
+            trans('admin/purchase-orders/general.lease_assets'),
+            trans('admin/purchase-orders/general.lease_active'),
+            trans('admin/purchase-orders/general.lease_buyouts'),
+            trans('admin/purchase-orders/general.lease_total_cost'),
+            trans('admin/purchase-orders/general.extension_monthly_cost'),
+            trans('admin/purchase-orders/general.lessor_ownership_mix'),
+        ];
+
+        $byLessor = [];
+        foreach ($this->groupedLeaseAssets() as $group) {
+            $key = $group['provider'];
+            if (! isset($byLessor[$key])) {
+                $byLessor[$key] = [
+                    'contracts' => 0,
+                    'assets' => 0,
+                    'active' => 0,
+                    'buyout' => 0,
+                    'cost' => 0.0,
+                    'rent' => 0.0,
+                    'ownership' => [],
+                ];
+            }
+            $byLessor[$key]['contracts']++;
+            $byLessor[$key]['assets'] += count($group['assets']);
+            $byLessor[$key]['active'] += $group['active'];
+            $byLessor[$key]['buyout'] += $group['buyout'];
+            $byLessor[$key]['cost'] += $group['total_cost'];
+            $byLessor[$key]['rent'] += $group['monthly_rent_total'];
+            foreach ($group['ownership_counts'] as $type => $count) {
+                $byLessor[$key]['ownership'][$type] = ($byLessor[$key]['ownership'][$type] ?? 0) + $count;
+            }
+        }
+
+        ksort($byLessor);
+
+        $records = [];
+        $totalContracts = $totalAssets = $totalActive = $totalBuyout = 0;
+        $totalCost = $totalRent = 0.0;
+
+        foreach ($byLessor as $lessor => $data) {
+            $totalContracts += $data['contracts'];
+            $totalAssets += $data['assets'];
+            $totalActive += $data['active'];
+            $totalBuyout += $data['buyout'];
+            $totalCost += $data['cost'];
+            $totalRent += $data['rent'];
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
+                    $lessor,
+                    $data['contracts'],
+                    $data['assets'],
+                    $data['active'],
+                    $data['buyout'],
+                    $this->money($data['cost']),
+                    $this->money($data['rent']),
+                    $this->summariseCounts($data['ownership']),
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'),
+            $totalContracts, $totalAssets, $totalActive, $totalBuyout,
+            $this->money($totalCost),
+            $this->money($totalRent),
+            '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * PST Applicability. Curriculum-tagged assets are PST-exempt under
+     * BC's school-supplies exemption; Admin-tagged assets are not. Per
+     * contract: split the dollar value between exempt and taxable and
+     * compute the estimated PST exposure (7% of the taxable share).
+     */
+    private function pstApplicabilityReport(): array
+    {
+        $cols = $this->leaseFieldColumns();
+        $pstRate = 0.07;
+
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_assets'),
+            trans('admin/purchase-orders/general.pst_curriculum_share'),
+            trans('admin/purchase-orders/general.pst_admin_share'),
+            trans('admin/purchase-orders/general.pst_exempt_value'),
+            trans('admin/purchase-orders/general.pst_taxable_value'),
+            trans('admin/purchase-orders/general.pst_estimated_pst'),
+        ];
+
+        $records = [];
+        $totalExempt = $totalTaxable = $totalPst = 0.0;
+
+        foreach ($this->groupedLeaseAssets() as $group) {
+            $exemptCost = $taxableCost = 0.0;
+            $curriculumCount = $adminCount = 0;
+
+            foreach ($group['assets'] as $asset) {
+                $cost = (float) $asset->purchase_cost;
+                $usage = $cols['usage'] ? (string) $asset->{$cols['usage']} : '';
+
+                if (stripos($usage, 'curriculum') !== false) {
+                    $exemptCost += $cost;
+                    $curriculumCount++;
+                } elseif (stripos($usage, 'admin') !== false) {
+                    $taxableCost += $cost;
+                    $adminCount++;
+                } else {
+                    // No usage tag — treat as taxable for the worst-case
+                    // PST exposure so finance doesn't under-budget.
+                    $taxableCost += $cost;
+                }
+            }
+
+            $estPst = $taxableCost * $pstRate;
+            $totalExempt += $exemptCost;
+            $totalTaxable += $taxableCost;
+            $totalPst += $estPst;
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
+                    $group['contract_id'],
+                    count($group['assets']),
+                    $curriculumCount,
+                    $adminCount,
+                    $this->money($exemptCost),
+                    $this->money($taxableCost),
+                    $this->money($estPst),
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '',
+            $this->money($totalExempt),
+            $this->money($totalTaxable),
+            $this->money($totalPst),
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Asset `assigned_to` is morphTo so the target can be a User, Asset,
+     * or Location. Each surfaces its identifier under a different name —
+     * return the most-meaningful one for whichever flavour came back.
+     */
+    private function describeAssignedTo($target): string
+    {
+        if ($target === null) {
+            return '';
+        }
+        if ($target instanceof User) {
+            return (string) $target->full_name;
+        }
+        if ($target instanceof Asset) {
+            return (string) $target->asset_tag;
+        }
+
+        return (string) ($target->name ?? '');
+    }
+
+    /**
+     * Custom-field money columns are stored as text on the assets table —
+     * users type "1,234.56" or "$1,234.56" — so coerce them to floats
+     * defensively. Returns 0.0 on empty / unparseable input.
+     */
+    private function parseMoney($value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $cleaned = preg_replace('/[^0-9.\-]/', '', (string) $value);
+
+        return $cleaned === '' ? 0.0 : (float) $cleaned;
+    }
+
+    /**
+     * Render a "(N) Item" summary for a count-keyed map. Most-common first,
+     * ties broken alphabetically so the output is stable run-to-run.
+     */
+    private function summariseCounts(array $counts): string
+    {
+        if (empty($counts)) {
+            return '';
+        }
+
+        $entries = array_map(
+            fn ($name, $count) => ['name' => $name, 'count' => $count],
+            array_keys($counts),
+            array_values($counts)
+        );
+
+        usort($entries, fn ($a, $b) => $b['count'] <=> $a['count'] ?: strcmp($a['name'], $b['name']));
+
+        return implode(', ', array_map(fn ($e) => '('.$e['count'].') '.$e['name'], $entries));
     }
 
     /**

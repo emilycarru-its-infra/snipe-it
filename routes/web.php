@@ -634,6 +634,36 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.procurement.forecast');
         Route::post('refresh-forecast/planned-order', [ProcurementReportsController::class, 'createPlannedOrder'])
             ->name('reports.procurement.forecast.plan');
+        Route::get('leases-operational', [ProcurementReportsController::class, 'leasesOperational'])
+            ->name('reports.procurement.leases-operational');
+        Route::get('leases-financial', [ProcurementReportsController::class, 'leasesFinancial'])
+            ->name('reports.procurement.leases-financial');
+        Route::get('csi-schedule', [ProcurementReportsController::class, 'csiSchedule'])
+            ->name('reports.procurement.csi-schedule');
+        Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
+            ->name('reports.procurement.invoice-approval');
+        Route::patch('invoice-approval/{invoice}', [ProcurementReportsController::class, 'updateInvoiceApproval'])
+            ->name('reports.procurement.invoice-approval.update');
+        Route::get('lease-decisions', [ProcurementReportsController::class, 'leaseDecisions'])
+            ->name('reports.procurement.lease-decisions');
+        Route::get('po-disposition', [ProcurementReportsController::class, 'poDisposition'])
+            ->name('reports.procurement.po-disposition');
+        Route::get('extension-watch', [ProcurementReportsController::class, 'extensionWatch'])
+            ->name('reports.procurement.extension-watch');
+        Route::get('aro-register', [ProcurementReportsController::class, 'aroRegister'])
+            ->name('reports.procurement.aro-register');
+        Route::get('asset-lease-detail', [ProcurementReportsController::class, 'assetLeaseDetail'])
+            ->name('reports.procurement.asset-lease-detail');
+        Route::get('po-drilldown', [ProcurementReportsController::class, 'poDrilldown'])
+            ->name('reports.procurement.po-drilldown');
+        Route::get('disposition-grid', [ProcurementReportsController::class, 'dispositionGrid'])
+            ->name('reports.procurement.disposition-grid');
+        Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
+            ->name('reports.procurement.credit-ledger');
+        Route::get('lessor-breakdown', [ProcurementReportsController::class, 'lessorBreakdown'])
+            ->name('reports.procurement.lessor-breakdown');
+        Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
+            ->name('reports.procurement.pst-applicability');
     });
 
 });
