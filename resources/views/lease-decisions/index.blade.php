@@ -9,6 +9,10 @@
 {{-- Page content --}}
 @section('content')
     <x-container>
+        <div class="alert alert-info" style="margin-bottom: 15px;">
+            <strong>{{ trans('admin/lease-decisions/general.lease_decisions') }}.</strong>
+            {{ trans('admin/lease-decisions/general.help_intro') }}
+        </div>
         <x-box>
 
             <x-slot:bulkactions>

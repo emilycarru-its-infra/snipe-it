@@ -82,6 +82,39 @@
             <div class="icon"><i class="fas fa-hourglass-end" aria-hidden="true"></i></div>
         </div>
     </div>
+    <div class="col-md-4 col-sm-6">
+        <a href="{{ route('reports.procurement.invoice-approval') }}" class="small-box-link">
+            <div class="small-box {{ $pendingApprovalCount > 0 ? 'bg-red' : 'bg-green' }}">
+                <div class="inner">
+                    <h3 style="font-size:24px">{{ $pendingApprovalCount }}</h3>
+                    <p>{{ trans('admin/purchase-orders/general.card_pending_approvals', ['count' => $pendingApprovalCount]) }}</p>
+                </div>
+                <div class="icon"><i class="fas fa-clipboard-check" aria-hidden="true"></i></div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <a href="{{ route('reports.procurement.lease-decisions', ['status' => 'pending']) }}" class="small-box-link">
+            <div class="small-box {{ $pendingDecisionCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
+                <div class="inner">
+                    <h3 style="font-size:24px">{{ $pendingDecisionCount }}</h3>
+                    <p>{{ trans('admin/purchase-orders/general.card_pending_decisions', ['count' => $pendingDecisionCount]) }}</p>
+                </div>
+                <div class="icon"><i class="fas fa-handshake" aria-hidden="true"></i></div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <a href="{{ route('reports.procurement.faculty-ledger') }}" class="small-box-link">
+            <div class="small-box {{ $facultyAwaitingSignatureCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
+                <div class="inner">
+                    <h3 style="font-size:24px">{{ $facultyAwaitingSignatureCount }}</h3>
+                    <p>{{ trans('admin/purchase-orders/general.card_faculty_unsigned', ['count' => $facultyAwaitingSignatureCount]) }}</p>
+                </div>
+                <div class="icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
+            </div>
+        </a>
+    </div>
 </div>
 
 <div class="row">
@@ -153,6 +186,21 @@
                         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'live' => true],
                         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'live' => true],
                         ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'live' => true],
+                        ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc', 'live' => true],
+                        ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc', 'live' => true],
+                        ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc', 'live' => true],
+                        ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc', 'live' => true],
+                        ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc', 'live' => true],
+                        ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'live' => true],
+                        ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc', 'live' => true],
+                        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'live' => true],
+                        ['route' => 'reports.procurement.asset-lease-detail', 'name' => 'report_asset_lease_detail', 'desc' => 'report_asset_lease_detail_desc', 'live' => true],
+                        ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc', 'live' => true],
+                        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'live' => true],
+                        ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'live' => true],
+                        ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc', 'live' => true],
+                        ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'live' => true],
+                        ['route' => 'reports.procurement.faculty-ledger', 'name' => 'report_faculty_ledger', 'desc' => 'report_faculty_ledger_desc', 'live' => true],
                     ] as $report)
                         <tr>
                             <td>
