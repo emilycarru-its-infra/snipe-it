@@ -32,6 +32,7 @@ use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ProcurementReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
+use App\Http\Controllers\TonersController;
 use App\Http\Controllers\UploadedFilesController;
 use App\Http\Controllers\ViewAssetsController;
 use App\Livewire\Importer;
@@ -127,6 +128,11 @@ Route::group(['middleware' => 'auth'], function () {
     * Depreciations
      */
     Route::resource('depreciations', DepreciationsController::class);
+
+    /*
+    * Toners — printer/consumable stock dashboard
+    */
+    Route::get('toners', [TonersController::class, 'index'])->name('toners.index');
 
     /*
     * Status Labels

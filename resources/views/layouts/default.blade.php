@@ -1679,6 +1679,19 @@
                             @endif
                         @endcan
 
+                        {{-- Toners: per-printer (asset model) consumables dashboard.
+                             Driven by the consumable → asset model compatibility
+                             pivot, so this entry is only shown to users who can
+                             view consumables. --}}
+                        @can('view', \App\Models\Consumable::class)
+                            <li id="toners-sidenav-option"{!! (request()->is('toners*') ? ' class="active"' : '') !!}>
+                                <a href="{{ route('toners.index') }}">
+                                    <x-icon type="toners" class="fa-fw" />
+                                    <span>{{ trans('admin/toners/general.toners') }}</span>
+                                </a>
+                            </li>
+                        @endcan
+
                         {{-- Catalog: asset taxonomies (models, categories, manufacturers). --}}
                         @if (Gate::allows('view', \App\Models\AssetModel::class) || Gate::allows('view', \App\Models\Category::class) || Gate::allows('view', \App\Models\Manufacturer::class))
                             <li id="catalog-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::CatalogUrls()) ? ' active' : '') !!}">
