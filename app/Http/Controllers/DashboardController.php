@@ -280,30 +280,37 @@ class DashboardController extends Controller
             return null;
         }
 
-        $openPos = DB::table('purchase_orders')
-            ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
-            ->whereIn('purchase_orders.status', ['open', 'amended'])
-            ->whereNull('purchase_orders.deleted_at')
-            ->orderByDesc('purchase_orders.order_date')
-            ->limit(5)
-            ->select(
-                'purchase_orders.id', 'purchase_orders.po_number', 'purchase_orders.title',
-                'purchase_orders.status', 'purchase_orders.order_date', 'purchase_orders.budget',
-                'suppliers.name as supplier_name'
-            )->get();
+        $hasOrders = Schema::hasTable('orders');
 
-        $recentPos = DB::table('purchase_orders')
-            ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
-            ->whereNull('purchase_orders.deleted_at')
-            ->orderByDesc('purchase_orders.order_date')
-            ->limit(5)
-            ->select(
-                'purchase_orders.id', 'purchase_orders.po_number', 'purchase_orders.title',
-                'purchase_orders.status', 'purchase_orders.order_date',
-                'suppliers.name as supplier_name'
-            )->get();
+        // Listings below the procurement glance are vendor orders (the
+        // operational unit), not purchase orders (the budget unit). Top-of-card
+        // counts stay broken out separately so the relationship is visible.
+        $openOrdersList = $hasOrders
+            ? DB::table('orders')
+                ->leftJoin('suppliers', 'orders.supplier_id', '=', 'suppliers.id')
+                ->whereIn('orders.status', ['ordered', 'shipped', 'partially_received'])
+                ->whereNull('orders.deleted_at')
+                ->orderByDesc('orders.order_date')
+                ->limit(5)
+                ->select(
+                    'orders.id', 'orders.order_number', 'orders.status',
+                    'orders.order_date', 'suppliers.name as supplier_name'
+                )->get()
+            : collect();
 
-        $openOrders = Schema::hasTable('orders')
+        $recentOrdersList = $hasOrders
+            ? DB::table('orders')
+                ->leftJoin('suppliers', 'orders.supplier_id', '=', 'suppliers.id')
+                ->whereNull('orders.deleted_at')
+                ->orderByDesc('orders.order_date')
+                ->limit(5)
+                ->select(
+                    'orders.id', 'orders.order_number', 'orders.status',
+                    'orders.order_date', 'suppliers.name as supplier_name'
+                )->get()
+            : collect();
+
+        $openOrderCount = $hasOrders
             ? DB::table('orders')
                 ->whereIn('status', ['ordered', 'shipped', 'partially_received'])
                 ->whereNull('deleted_at')->count()
@@ -314,9 +321,9 @@ class DashboardController extends Controller
             : 0;
 
         return [
-            'open_pos'           => $openPos,
-            'recent_pos'         => $recentPos,
-            'open_orders'        => $openOrders,
+            'open_orders'        => $openOrdersList,
+            'recent_orders'      => $recentOrdersList,
+            'open_orders_count'  => $openOrderCount,
             'unmatched_invoices' => $unmatchedInvoices,
             'open_po_count'      => DB::table('purchase_orders')
                 ->whereIn('status', ['open', 'amended'])
