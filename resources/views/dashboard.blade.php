@@ -383,12 +383,6 @@
             </div>
         </div>
 
-        @if (!empty($customBreakdowns['chip']))
-            @include('partials.dashboard-breakdown', ['data' => $customBreakdowns['chip']])
-        @endif
-        @if (!empty($customBreakdowns['ownership_type']))
-            @include('partials.dashboard-breakdown', ['data' => $customBreakdowns['ownership_type']])
-        @endif
     </div>
 
     <div class="col-md-6">
@@ -427,17 +421,21 @@
             </div>
         </div>
 
-        @if (!empty($customBreakdowns['memory']))
-            @include('partials.dashboard-breakdown', ['data' => $customBreakdowns['memory']])
-        @endif
-        @if (!empty($customBreakdowns['fleet']))
-            @include('partials.dashboard-breakdown', ['data' => $customBreakdowns['fleet']])
-        @endif
-        @if (!empty($customBreakdowns['mdm']))
-            @include('partials.dashboard-breakdown', ['data' => $customBreakdowns['mdm']])
-        @endif
     </div>
 </div>
+
+{{-- ───────────────────── ROW 6: Custom-field breakdowns ───────────────────── --}}
+@if (!empty($customBreakdowns))
+<div class="row">
+    @foreach (['fleet', 'ownership_type', 'dms'] as $bdKey)
+        @if (!empty($customBreakdowns[$bdKey]))
+            <div class="col-md-4">
+                @include('partials.dashboard-breakdown', ['data' => $customBreakdowns[$bdKey]])
+            </div>
+        @endif
+    @endforeach
+</div>
+@endif
 
 @endif
 
@@ -584,6 +582,28 @@
     .procurement-list .po-supplier, .procurement-list .po-date { opacity: 0.65; font-size: 12px; }
     .procurement-empty { font-size: 12px; opacity: 0.6; font-style: italic; }
 
+    .breakdown-list { padding: 4px 14px 8px; }
+    .breakdown-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(127,127,127,0.12);
+    }
+    .breakdown-row:last-child { border-bottom: 0; }
+    .breakdown-row-name {
+        flex: 1;
+        white-space: nowrap;
+        font-size: 14px;
+        line-height: 1.3;
+    }
+    .breakdown-row-count {
+        font-size: 16px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+    }
     .breakdown-bar {
         display: flex; align-items: center;
         gap: 8px; padding: 3px 0;

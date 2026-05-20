@@ -9,6 +9,7 @@
 {{-- Page content --}}
 @section('content')
     <x-container>
+        @include('toners._dashboard')
         <x-box>
             <x-table.consumables :route="route('api.consumables.index')" />
         </x-box>
