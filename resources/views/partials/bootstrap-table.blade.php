@@ -1621,7 +1621,7 @@
             // order. Reaches the same form as the Order button on the consumable
             // detail view (PR #38), but in-row so it's accessible from the list.
             if (owner_name === 'consumables' && row.available_actions && row.available_actions.order === true) {
-                actions += '<a href="{{ config('app.url') }}/consumables/' + row.id + '/order" class="actions btn btn-sm btn-success hidden-print" data-tooltip="true" title="Add to a Draft Order"><x-icon type="orders" class="fa-fw" /><span class="sr-only">Add to a Draft Order</span></a>&nbsp;';
+                actions += '<a href="{{ config('app.url') }}/consumables/' + row.id + '/order" class="actions btn btn-sm btn-success hidden-print" data-tooltip="true" title="Add to a Draft Order"><x-icon type="order" class="fa-fw" /><span class="sr-only">Add to a Draft Order</span></a>&nbsp;';
             }
 
             if ((row.available_actions) && (row.available_actions.update === true)) {
