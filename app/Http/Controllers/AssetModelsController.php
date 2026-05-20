@@ -505,4 +505,31 @@ class AssetModelsController extends Controller
     {
         $model->defaultValues()->detach();
     }
+
+    /**
+     * Reorder a set of asset models by their position in the posted id list.
+     * Used by the toner dashboard's drag-drop grid — the JS sends the full
+     * (re-arranged) list of printer model ids after each drop, and this
+     * method writes display_order so the next page render reflects the new
+     * positions.
+     */
+    public function reorder(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('update', AssetModel::class);
+
+        $ids = array_values(array_filter(
+            (array) $request->input('ids', []),
+            fn ($id) => ctype_digit((string) $id) && (int) $id > 0
+        ));
+
+        if (empty($ids)) {
+            return response()->json(['status' => 'error', 'messages' => ['No ids provided']], 422);
+        }
+
+        foreach ($ids as $position => $id) {
+            AssetModel::where('id', (int) $id)->update(['display_order' => $position]);
+        }
+
+        return response()->json(['status' => 'success', 'count' => count($ids)]);
+    }
 }
