@@ -29,6 +29,11 @@ class OrderInvoice extends Model
         'termination',
     ];
 
+    public const ATTESTATION_TYPES = [
+        'vendor_invoice',
+        'lessor_okp',
+    ];
+
     protected $fillable = [
         'order_id',
         'purchase_order_id',
@@ -47,6 +52,7 @@ class OrderInvoice extends Model
         'usage_tag',
         'invoice_type',
         'contract_reference',
+        'attestation_type',
     ];
 
     protected $casts = [
