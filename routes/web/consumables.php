@@ -20,7 +20,17 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
     Route::get('{consumable}/clone',
         [Consumables\ConsumablesController::class, 'clone']
     )->name('consumables.clone.create');
-    
+
+    // Add the consumable to an existing planned order, or create a new one.
+    Route::get(
+        '{consumable}/order',
+        [Consumables\ConsumableOrderController::class, 'create']
+    )->name('consumables.order.create');
+
+    Route::post(
+        '{consumable}/order',
+        [Consumables\ConsumableOrderController::class, 'store']
+    )->name('consumables.order.store');
 
 });
     
