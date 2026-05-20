@@ -16,7 +16,13 @@
             ->withCount('assets')
             ->orderBy('name')
             ->get();
-        $modelGroups      = $_printerModels->groupBy(fn ($m) => $m->manufacturer?->name ?: trans('general.unknown'));
+        // Order subsections by manufacturer.display_order ASC, name ASC fallback
+        // for any manufacturer that hasn't been re-ordered yet.
+        $modelGroups = $_printerModels
+            ->sortBy(fn ($m) => sprintf('%05d|%s',
+                $m->manufacturer?->display_order ?? 999,
+                strtolower($m->manufacturer?->name ?? '~')))
+            ->groupBy(fn ($m) => $m->manufacturer?->name ?: trans('general.unknown'));
         $totalModels      = $_printerModels->count();
         $totalConsumables = $_printerModels->sum(fn ($m) => $m->compatibleConsumables->count());
     }
@@ -30,10 +36,33 @@
 </div>
 
 @foreach ($modelGroups as $manufacturerName => $models)
+    @php
+        $_manufacturerId = $models->first()?->manufacturer?->id;
+    @endphp
     <div class="row">
         <div class="col-md-12">
             <h2 class="toner-dashboard-manufacturer">
-                {{ $manufacturerName }}
+                <span class="toner-dashboard-manufacturer-name">{{ $manufacturerName }}</span>
+                @can('update', \App\Models\Manufacturer::class)
+                    @if ($_manufacturerId)
+                        <span class="toner-dashboard-manufacturer-controls">
+                            <form action="{{ route('manufacturers.move-up', $_manufacturerId) }}" method="POST" class="toner-reorder-form">
+                                @csrf
+                                <button type="submit" class="btn btn-xs btn-default" data-tooltip="true" title="Move up">
+                                    <x-icon type="arrow-up" />
+                                    <span class="sr-only">Move up</span>
+                                </button>
+                            </form>
+                            <form action="{{ route('manufacturers.move-down', $_manufacturerId) }}" method="POST" class="toner-reorder-form">
+                                @csrf
+                                <button type="submit" class="btn btn-xs btn-default" data-tooltip="true" title="Move down">
+                                    <x-icon type="arrow-down" />
+                                    <span class="sr-only">Move down</span>
+                                </button>
+                            </form>
+                        </span>
+                    @endif
+                @endcan
             </h2>
         </div>
     </div>
@@ -109,12 +138,24 @@
         letter-spacing: 0.4px;
     }
     .toner-dashboard-manufacturer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         margin-top: 24px;
         padding-bottom: 8px;
         border-bottom: 1px solid rgba(127,127,127,0.35);
         font-size: 22px;
         font-weight: 500;
     }
+    .toner-dashboard-manufacturer-name { flex: 1; }
+    .toner-dashboard-manufacturer-controls {
+        display: inline-flex;
+        gap: 4px;
+        font-size: 12px;
+        opacity: 0.7;
+    }
+    .toner-dashboard-manufacturer-controls:hover { opacity: 1; }
+    .toner-reorder-form { display: inline-block; margin: 0; }
     .toner-printer-card-title {
         font-size: 18px;
         font-weight: 600;

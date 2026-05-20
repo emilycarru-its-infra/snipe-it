@@ -249,4 +249,66 @@ class ManufacturersController extends Controller
         return redirect()->route('manufacturers.index')->with('error', trans('admin/manufacturers/message.does_not_exist'));
 
     }
+
+    /**
+     * Swap this manufacturer's display_order with the neighbour above
+     * (moveUp) or below (moveDown). Used by the toner dashboard's
+     * per-subsection up/down arrows; redirects back to the referring page.
+     */
+    public function moveUp(int $id): RedirectResponse
+    {
+        $this->authorize('update', Manufacturer::class);
+        return $this->swapWithNeighbour($id, 'up');
+    }
+
+    public function moveDown(int $id): RedirectResponse
+    {
+        $this->authorize('update', Manufacturer::class);
+        return $this->swapWithNeighbour($id, 'down');
+    }
+
+    private function swapWithNeighbour(int $id, string $direction): RedirectResponse
+    {
+        $current = Manufacturer::findOrFail($id);
+        $query   = Manufacturer::query()->where('id', '!=', $current->id);
+
+        if ($direction === 'up') {
+            $neighbour = $query
+                ->where(function ($q) use ($current) {
+                    $q->where('display_order', '<', $current->display_order)
+                      ->orWhere(function ($qq) use ($current) {
+                          $qq->where('display_order', $current->display_order)
+                             ->where('name', '<', $current->name);
+                      });
+                })
+                ->orderByDesc('display_order')
+                ->orderByDesc('name')
+                ->first();
+        } else {
+            $neighbour = $query
+                ->where(function ($q) use ($current) {
+                    $q->where('display_order', '>', $current->display_order)
+                      ->orWhere(function ($qq) use ($current) {
+                          $qq->where('display_order', $current->display_order)
+                             ->where('name', '>', $current->name);
+                      });
+                })
+                ->orderBy('display_order')
+                ->orderBy('name')
+                ->first();
+        }
+
+        if ($neighbour) {
+            $a = $current->display_order;
+            $b = $neighbour->display_order;
+            // If both share the same order, nudge so the swap actually moves them.
+            if ($a === $b) {
+                $b = $a + ($direction === 'up' ? -1 : 1);
+            }
+            $current->update(['display_order' => $b]);
+            $neighbour->update(['display_order' => $a]);
+        }
+
+        return back();
+    }
 }

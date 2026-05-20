@@ -98,7 +98,7 @@ return [
     'lease_received' => 'Received',
     'report_invoice_approval' => 'Invoice Approval Queue',
     'report_invoice_approval_desc' => 'CDW invoices waiting on a Devices approval-to-pay sign-off — with expected amount, variance, and is-this-final-invoice flag.',
-    'report_lease_decisions' => 'Lease Buyout & Return Tracker',
+    'report_lease_decisions' => 'Lease Tracking',
     'report_lease_decisions_desc' => 'Every buyout, return, extension and replacement logged against an expiring lease, with cost impact and approval status.',
     'report_po_disposition' => 'PO Year-End Disposition',
     'report_po_disposition_desc' => 'Per-PO over/under, open orders, and suggested year-end action: close, roll to next fiscal, or reallocate.',
