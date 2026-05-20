@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Events\CheckoutAccepted;
 use App\Listeners\CheckoutableListener;
 use App\Listeners\CheckoutablesCheckedOutInBulkListener;
 use App\Listeners\LogFailedLogin;
 use App\Listeners\LogListener;
 use App\Listeners\LogSuccessfulLogin;
+use App\Listeners\UpdateFacultyAgreementOnAccept;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -23,6 +25,10 @@ class EventServiceProvider extends ServiceProvider
 
         'Illuminate\Auth\Events\Failed' => [
             LogFailedLogin::class,
+        ],
+
+        CheckoutAccepted::class => [
+            UpdateFacultyAgreementOnAccept::class,
         ],
     ];
 

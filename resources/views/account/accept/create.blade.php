@@ -70,10 +70,13 @@
                             </p>
                         </div>
 
-                    @if ($acceptance->checkoutable->getEula())
+                    @php
+                        $eulaText = $acceptance->eula_text_override ?: $acceptance->checkoutable->getEula();
+                    @endphp
+                    @if ($eulaText)
                             <div class="col-md-12" style="padding-top: 5px; padding-bottom: 15px;">
                                 <div style="background-color: rgba(211,211,211,0.25); padding: 10px; border: var(--box-header-bottom-border-color) 1px solid;">
-                                    {!!  str_replace('<p>', '<p dir="auto">', Helper::parseEscapedMarkedown($acceptance->checkoutable->getEula())) !!}
+                                    {!!  str_replace('<p>', '<p dir="auto">', Helper::parseEscapedMarkedown($eulaText)) !!}
                                 </div>
                             </div>
                         @endif

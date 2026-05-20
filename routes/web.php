@@ -27,6 +27,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
+use App\Http\Controllers\FacultyAgreementsController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ProcurementReportsController;
@@ -122,6 +123,15 @@ Route::group(['middleware' => 'auth'], function () {
     */
     Route::resource('lease-decisions', LeaseDecisionsController::class)->except(['show']);
     Route::post('lease-decisions/bulk/delete', [LeaseDecisionsController::class, 'bulkDelete'])->name('lease-decisions.bulk.delete');
+
+    /*
+    * Faculty Laptop Program agreements
+    */
+    Route::resource('faculty-agreements', FacultyAgreementsController::class);
+    Route::post('faculty-agreements/{facultyAgreement}/send-for-signature', [FacultyAgreementsController::class, 'sendForSignature'])
+        ->name('faculty-agreements.send-for-signature');
+    Route::get('faculty-agreements/{facultyAgreement}/pdf', [FacultyAgreementsController::class, 'downloadPdf'])
+        ->name('faculty-agreements.pdf');
 
     /*
     * Depreciations
