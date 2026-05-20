@@ -337,13 +337,11 @@ class DashboardController extends Controller
      */
     private function buildCustomBreakdowns(): array
     {
+        // Order matches the dashboard render order: Fleet, Ownership, DMS.
         $candidates = [
-            'chip'           => ['column' => '_snipeit_chip_7',                        'label' => 'Chip',       'limit' => 10],
-            'memory'         => ['column' => '_snipeit_memory_9',                      'label' => 'Memory',     'limit' => 8],
-            'storage'        => ['column' => '_snipeit_storage_10',                    'label' => 'Storage',    'limit' => 8],
-            'ownership_type' => ['column' => '_snipeit_ownership_type_20',             'label' => 'Ownership',  'limit' => 6],
-            'fleet'          => ['column' => '_snipeit_fleet_41',                      'label' => 'Fleet',      'limit' => 10],
-            'mdm'            => ['column' => '_snipeit_device_management_service_44',  'label' => 'MDM',        'limit' => 6],
+            'fleet'          => ['column' => '_snipeit_fleet_41',                      'label' => 'Fleet',                       'limit' => 12],
+            'ownership_type' => ['column' => '_snipeit_ownership_type_20',             'label' => 'Ownership',                   'limit' => 8],
+            'dms'            => ['column' => '_snipeit_device_management_service_44',  'label' => 'Device Management Service',   'limit' => 8],
         ];
 
         $out = [];
