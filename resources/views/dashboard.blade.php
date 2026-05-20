@@ -305,7 +305,7 @@
                         <span class="procurement-stat-value">{{ number_format($procurement['open_orders_count']) }}</span>
                         <span class="procurement-stat-label">Open Orders</span>
                     </a>
-                    <a href="{{ url('order-invoices?unmatched=1') }}" class="procurement-stat">
+                    <a href="{{ route('reports.procurement.invoices') }}" class="procurement-stat">
                         <span class="procurement-stat-value {{ $procurement['unmatched_invoices'] > 0 ? 'procurement-warn' : '' }}">{{ number_format($procurement['unmatched_invoices']) }}</span>
                         <span class="procurement-stat-label">Unmatched Invoices</span>
                     </a>
