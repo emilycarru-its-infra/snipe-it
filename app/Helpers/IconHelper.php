@@ -288,6 +288,8 @@ class IconHelper
                 return 'fa-solid fa-sitemap';
             case 'procurement':
                 return 'fa-solid fa-cart-shopping';
+            case 'toners':
+                return 'fa-solid fa-print';
 
         }
     }
