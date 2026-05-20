@@ -64,6 +64,39 @@
                     :selected="old('location_id', $item->location_id)"
                 />
 
+                {{-- Compatible asset models: optional whitelist. When set, checkout-to-asset
+                     only lists assets of these models (e.g. a toner that fits specific printer
+                     models). Empty means the consumable can be checked out to any asset. --}}
+                @php
+                    $oldCompatible = old('compatible_models');
+                    if ($oldCompatible === null) {
+                        $oldCompatible = $item->exists ? $item->compatibleModels->pluck('id')->all() : [];
+                    }
+                @endphp
+                <div class="form-group">
+                    <label class="col-md-3 control-label" for="compatible_models">{{ trans('admin/consumables/general.compatible_models') }}</label>
+                    <div class="col-md-7">
+                        <select
+                            class="js-data-ajax select2"
+                            data-endpoint="models"
+                            data-placeholder="{{ trans('admin/consumables/general.compatible_models_placeholder') }}"
+                            name="compatible_models[]"
+                            id="compatible_models"
+                            aria-label="compatible_models"
+                            multiple="multiple"
+                            style="width: 100%">
+                            @foreach ((array) $oldCompatible as $compatibleModelId)
+                                @if ($compatibleModel = \App\Models\AssetModel::find($compatibleModelId))
+                                    <option value="{{ $compatibleModel->id }}" selected="selected">
+                                        {{ $compatibleModel->name }}
+                                    </option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <p class="help-block">{{ trans('admin/consumables/general.compatible_models_help') }}</p>
+                    </div>
+                </div>
+
                 <x-form.row
                     :label="trans('general.model_no')"
                     :$item
