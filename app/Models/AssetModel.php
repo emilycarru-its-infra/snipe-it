@@ -143,6 +143,16 @@ class AssetModel extends SnipeModel
         return $this->hasMany(Asset::class, 'model_id');
     }
 
+    /**
+     * The consumables explicitly marked as compatible with this asset model
+     * (printer-toner-style restriction). Inverse of Consumable::compatibleModels.
+     */
+    public function compatibleConsumables()
+    {
+        return $this->belongsToMany(Consumable::class, 'consumables_asset_models', 'asset_model_id', 'consumable_id')
+            ->withTimestamps();
+    }
+
     public function availableAssets()
     {
         return $this->hasMany(Asset::class, 'model_id')->RTD();
