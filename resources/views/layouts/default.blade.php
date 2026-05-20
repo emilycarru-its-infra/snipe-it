@@ -1677,54 +1677,160 @@
                             </li>
                         @endcan
 
-                        @can('view', \App\Models\User::class)
-                                <li class="treeview{{ (request()->is('users*') ? ' active' : '') }}" id="users-sidenav-option">
-                                    <a href="#" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=6" : ''}}>
-                                        <x-icon type="users" class="fa-fw" />
-                                        <span>{{ trans('general.people') }}</span>
-                                        <x-icon type="angle-left" class="pull-right fa-fw"/>
-                                    </a>
+                        {{-- Catalog: asset taxonomies (models, categories, manufacturers). --}}
+                        @if (Gate::allows('view', \App\Models\AssetModel::class) || Gate::allows('view', \App\Models\Category::class) || Gate::allows('view', \App\Models\Manufacturer::class))
+                            <li id="catalog-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::CatalogUrls()) ? ' active' : '') !!}">
+                                <a href="#">
+                                    <x-icon type="catalog" class="fa-fw" />
+                                    <span>{{ trans('general.catalog') }}</span>
+                                    <x-icon type="angle-left" class="pull-right fa-fw"/>
+                                </a>
+                                <ul class="treeview-menu">
+                                    @can('view', \App\Models\AssetModel::class)
+                                        <li {{!! (request()->is('models*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('models.index') }}">
+                                                {{ trans('general.asset_models') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\Category::class)
+                                        <li {{!! (request()->is('categories*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('categories.index') }}">
+                                                {{ trans('general.categories') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\Manufacturer::class)
+                                        <li {{!! (request()->is('manufacturers*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('manufacturers.index') }}">
+                                                {{ trans('general.manufacturers') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                </ul>
+                            </li>
+                        @endif
 
-                                    <ul class="treeview-menu">
-                                        <li {!! ((request()->is('users')  && (request()->input() == null)) ? ' class="active"' : '') !!} id="users-sidenav-list-all">
-                                            <a href="{{ route('users.index') }}">
-                                                <x-icon type="circle" class="text-grey fa-fw fa-fw"/>
-                                                {{ trans('general.list_all') }}
+                        {{-- Organization: people (nested) and org structure (departments, locations). --}}
+                        @if (Gate::allows('view', \App\Models\User::class) || Gate::allows('view', \App\Models\Department::class) || Gate::allows('view', \App\Models\Location::class))
+                            <li id="organization-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::OrganizationUrls()) ? ' active' : '') !!}">
+                                <a href="#">
+                                    <x-icon type="organization" class="fa-fw" />
+                                    <span>{{ trans('general.organization') }}</span>
+                                    <x-icon type="angle-left" class="pull-right fa-fw"/>
+                                </a>
+                                <ul class="treeview-menu">
+                                    @can('view', \App\Models\User::class)
+                                        <li class="treeview{{ (request()->is('users*') ? ' active' : '') }}" id="users-sidenav-option">
+                                            <a href="#" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=6" : ''}}>
+                                                <x-icon type="users" class="fa-fw" />
+                                                {{ trans('general.people') }}
+                                                <x-icon type="angle-left" class="pull-right fa-fw"/>
+                                            </a>
+                                            <ul class="treeview-menu">
+                                                <li {!! ((request()->is('users')  && (request()->input() == null)) ? ' class="active"' : '') !!} id="users-sidenav-list-all">
+                                                    <a href="{{ route('users.index') }}">
+                                                        <x-icon type="circle" class="text-grey fa-fw fa-fw"/>
+                                                        {{ trans('general.list_all') }}
+                                                    </a>
+                                                </li>
+                                                <li class="{{ (request()->is('users') && request()->input('superadmins') == "true") ? 'active' : '' }}" id="users-sidenav-superadmins">
+                                                    <a href="{{ route('users.index', ['superadmins' => 'true']) }}">
+                                                        <x-icon type="superadmin" class="text-danger fa-fw"/>
+                                                        {{ trans('general.show_superadmins') }}
+                                                    </a>
+                                                </li>
+                                                <li class="{{ (request()->is('users') && request()->input('admins') == "true") ? 'active' : '' }}" id="users-sidenav-list-admins">
+                                                    <a href="{{ route('users.index', ['admins' => 'true']) }}">
+                                                        <x-icon type="admin" class="text-warning fa-fw"/>
+                                                        {{ trans('general.show_admins') }}
+                                                    </a>
+                                                </li>
+                                                <li class="{{ (request()->is('users') && request()->input('status') == "deleted") ? 'active' : '' }}" id="users-sidenav-deleted">
+                                                    <a href="{{ route('users.index', ['status' => 'deleted']) }}">
+                                                        <x-icon type="x" class="text-danger fa-fw"/>
+                                                        {{ trans('general.deleted_users') }}
+                                                    </a>
+                                                </li>
+                                                <li class="{{ (request()->is('users') && request()->input('activated') == "1") ? 'active' : '' }}" id="users-sidenav-activated">
+                                                    <a href="{{ route('users.index', ['activated' => true]) }}">
+                                                        <i class="fa-solid fa-person-circle-check text-success fa-fw"></i>
+                                                        {{ trans('general.login_enabled') }}
+                                                    </a>
+                                                </li>
+                                                <li class="{{ (request()->is('users') && request()->input('activated') == "0") ? 'active' : '' }}" id="users-sidenav-not-activated">
+                                                    <a href="{{ route('users.index', ['activated' => false]) }}">
+                                                        <i class="fa-solid fa-person-circle-xmark text-danger fa-fw"></i>
+                                                        {{ trans('general.login_disabled') }}
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\Department::class)
+                                        <li {{!! (request()->is('departments*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('departments.index') }}">
+                                                {{ trans('general.departments') }}
                                             </a>
                                         </li>
-                                        <li class="{{ (request()->is('users') && request()->input('superadmins') == "true") ? 'active' : '' }}" id="users-sidenav-superadmins">
-                                            <a href="{{ route('users.index', ['superadmins' => 'true']) }}">
-                                                <x-icon type="superadmin" class="text-danger fa-fw"/>
-                                                {{ trans('general.show_superadmins') }}
+                                    @endcan
+                                    @can('view', \App\Models\Location::class)
+                                        <li {{!! (request()->is('locations*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('locations.index') }}">
+                                                {{ trans('general.locations') }}
                                             </a>
                                         </li>
-                                        <li class="{{ (request()->is('users') && request()->input('admins') == "true") ? 'active' : '' }}" id="users-sidenav-list-admins">
-                                            <a href="{{ route('users.index', ['admins' => 'true']) }}">
-                                                <x-icon type="admin" class="text-warning fa-fw"/>
-                                                {{ trans('general.show_admins') }}
+                                    @endcan
+                                </ul>
+                            </li>
+                        @endif
+
+                        {{-- Procurement: operational purchasing data. --}}
+                        @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class))
+                            <li id="procurement-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
+                                <a href="#">
+                                    <x-icon type="procurement" class="fa-fw" />
+                                    <span>{{ trans('general.procurement') }}</span>
+                                    <x-icon type="angle-left" class="pull-right fa-fw"/>
+                                </a>
+                                <ul class="treeview-menu">
+                                    @can('view', \App\Models\Order::class)
+                                        <li {{!! (request()->is('orders*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('orders.index') }}">
+                                                {{ trans('admin/orders/general.orders') }}
                                             </a>
                                         </li>
-                                        <li class="{{ (request()->is('users') && request()->input('status') == "deleted") ? 'active' : '' }}" id="users-sidenav-deleted">
-                                            <a href="{{ route('users.index', ['status' => 'deleted']) }}">
-                                                <x-icon type="x" class="text-danger fa-fw"/>
-                                                {{ trans('general.deleted_users') }}
+                                        <li {{!! (request()->is('purchase-orders*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('purchase-orders.index') }}">
+                                                {{ trans('admin/purchase-orders/general.purchase_orders') }}
                                             </a>
                                         </li>
-                                        <li class="{{ (request()->is('users') && request()->input('activated') == "1") ? 'active' : '' }}" id="users-sidenav-activated">
-                                            <a href="{{ route('users.index', ['activated' => true]) }}">
-                                                <i class="fa-solid fa-person-circle-check text-success fa-fw"></i>
-                                                {{ trans('general.login_enabled') }}
+                                    @endcan
+                                    @can('view', \App\Models\Supplier::class)
+                                        <li {{!! (request()->is('suppliers*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('suppliers.index') }}">
+                                                {{ trans('general.suppliers') }}
                                             </a>
                                         </li>
-                                        <li class="{{ (request()->is('users') && request()->input('activated') == "0") ? 'active' : '' }}" id="users-sidenav-not-activated">
-                                            <a href="{{ route('users.index', ['activated' => false]) }}">
-                                                <i class="fa-solid fa-person-circle-xmark text-danger fa-fw"></i>
-                                                {{ trans('general.login_disabled') }}
+                                    @endcan
+                                    @can('view', \App\Models\Order::class)
+                                        <li {{!! (request()->is('lease-decisions*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('lease-decisions.index') }}">
+                                                {{ trans('admin/lease-decisions/general.lease_decisions') }}
                                             </a>
                                         </li>
-                                    </ul>
-                                </li>
-                        @endcan
+                                    @endcan
+                                    @can('view', \App\Models\Depreciation::class)
+                                        <li {{!! (request()->is('depreciations*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('depreciations.index') }}">
+                                                {{ trans('general.depreciation') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                </ul>
+                            </li>
+                        @endif
+
                         @can('import')
                             <li id="import-sidenav-option"{!! (request()->is('import*') ? ' class="active"' : '') !!}>
                                 <a href="{{ route('imports.index') }}">
@@ -1759,84 +1865,10 @@
                                         </li>
                                     @endcan
 
-                                    @can('view', \App\Models\AssetModel::class)
-                                        <li {{!! (request()->is('models*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('models.index') }}">
-                                                {{ trans('general.asset_models') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
-                                    @can('view', \App\Models\Category::class)
-                                        <li {{!! (request()->is('categories*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('categories.index') }}">
-                                                {{ trans('general.categories') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
-                                    @can('view', \App\Models\Manufacturer::class)
-                                        <li {{!! (request()->is('manufacturers*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('manufacturers.index') }}">
-                                                {{ trans('general.manufacturers') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
-                                    @can('view', \App\Models\Supplier::class)
-                                        <li {{!! (request()->is('suppliers*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('suppliers.index') }}">
-                                                {{ trans('general.suppliers') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
-                                    @can('view', \App\Models\Order::class)
-                                        <li {{!! (request()->is('orders*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('orders.index') }}">
-                                                {{ trans('admin/orders/general.orders') }}
-                                            </a>
-                                        </li>
-                                        <li {{!! (request()->is('purchase-orders*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('purchase-orders.index') }}">
-                                                {{ trans('admin/purchase-orders/general.purchase_orders') }}
-                                            </a>
-                                        </li>
-                                        <li {{!! (request()->is('lease-decisions*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('lease-decisions.index') }}">
-                                                {{ trans('admin/lease-decisions/general.lease_decisions') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
-                                    @can('view', \App\Models\Department::class)
-                                        <li {{!! (request()->is('departments*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('departments.index') }}">
-                                                {{ trans('general.departments') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
-                                    @can('view', \App\Models\Location::class)
-                                        <li {{!! (request()->is('locations*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('locations.index') }}">
-                                                {{ trans('general.locations') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
                                     @can('view', \App\Models\Company::class)
                                         <li {{!! (request()->is('companies*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('companies.index') }}">
                                                 {{ trans('general.companies') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-
-                                    @can('view', \App\Models\Depreciation::class)
-                                        <li  {{!! (request()->is('depreciations*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('depreciations.index') }}">
-                                                {{ trans('general.depreciation') }}
                                             </a>
                                         </li>
                                     @endcan

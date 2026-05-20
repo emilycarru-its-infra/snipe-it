@@ -1420,21 +1420,59 @@ class Helper
      */
     public static function SettingUrls()
     {
-        $settings = [
+        return [
             '#',
             'fields*',
             'statuslabels*',
+            'companies*',
+        ];
+    }
+
+    /**
+     * URL patterns under the sidebar's Catalog group — asset taxonomies
+     * (models, categories, manufacturers). Used to highlight the Catalog
+     * treeview as active when the user is on one of these pages.
+     */
+    public static function CatalogUrls()
+    {
+        return [
+            '#',
             'models*',
             'categories*',
             'manufacturers*',
-            'suppliers*',
+        ];
+    }
+
+    /**
+     * URL patterns under the sidebar's Organization group — people and the
+     * org structure (users, departments, locations).
+     */
+    public static function OrganizationUrls()
+    {
+        return [
+            '#',
+            'users*',
             'departments*',
             'locations*',
-            'companies*',
-            'depreciations*',
         ];
+    }
 
-        return $settings;
+    /**
+     * URL patterns under the sidebar's Procurement group — operational
+     * purchasing data (orders, purchase orders, suppliers, lease decisions,
+     * depreciations).
+     */
+    public static function ProcurementUrls()
+    {
+        return [
+            '#',
+            'orders*',
+            'purchase-orders*',
+            'suppliers*',
+            'lease-decisions*',
+            'depreciations*',
+            'reports/procurement*',
+        ];
     }
 
     /*

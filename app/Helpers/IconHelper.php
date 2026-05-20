@@ -282,6 +282,12 @@ class IconHelper
                 return 'fa-solid fa-boxes-stacked';
             case 'min-qty':
                 return 'fa-solid fa-chart-pie';
+            case 'catalog':
+                return 'fa-solid fa-book';
+            case 'organization':
+                return 'fa-solid fa-sitemap';
+            case 'procurement':
+                return 'fa-solid fa-cart-shopping';
 
         }
     }
