@@ -175,7 +175,74 @@
 </div>
 @endif
 
-{{-- ───────────────────── ROW 3: Recent activity (75%) + Procurement (25%) ───────────────────── --}}
+{{-- ───────────────────── ROW 3: Needs Attention (full width) ───────────────────── --}}
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h2 class="box-title">Needs Attention</h2>
+            </div>
+            <div class="box-body">
+                <div class="action-grid">
+
+                    <a class="action-card action-warranty" href="{{ route('hardware.index') }}">
+                        <div class="action-title">Warranties expiring</div>
+                        <div class="action-buckets">
+                            <span><strong>{{ $actionQueue['warranty_30'] }}</strong> ≤ 30d</span>
+                            <span><strong>{{ $actionQueue['warranty_60'] }}</strong> ≤ 60d</span>
+                            <span><strong>{{ $actionQueue['warranty_90'] }}</strong> ≤ 90d</span>
+                        </div>
+                    </a>
+
+                    @if ($actionQueue['lease_30'] !== null)
+                    <a class="action-card action-lease" href="{{ route('hardware.index') }}">
+                        <div class="action-title">Leases ending</div>
+                        <div class="action-buckets">
+                            <span><strong>{{ $actionQueue['lease_30'] }}</strong> ≤ 30d</span>
+                            <span><strong>{{ $actionQueue['lease_60'] }}</strong> ≤ 60d</span>
+                            <span><strong>{{ $actionQueue['lease_90'] }}</strong> ≤ 90d</span>
+                        </div>
+                    </a>
+                    @endif
+
+                    <a class="action-card action-audit" href="{{ route('assets.audit.due') }}">
+                        <div class="action-title">Audits</div>
+                        <div class="action-buckets">
+                            <span class="action-bad"><strong>{{ $actionQueue['audit_overdue'] }}</strong> overdue</span>
+                            <span><strong>{{ $actionQueue['audit_due_30'] }}</strong> due 30d</span>
+                        </div>
+                    </a>
+
+                    <a class="action-card action-checkin" href="{{ route('assets.checkins.due') }}">
+                        <div class="action-title">Checkins</div>
+                        <div class="action-buckets">
+                            <span><strong>{{ $actionQueue['checkin_due'] }}</strong> due</span>
+                        </div>
+                    </a>
+
+                    <a class="action-card action-processing" href="{{ route('hardware.index') }}">
+                        <div class="action-title">Stuck in Processing</div>
+                        <div class="action-buckets">
+                            <span class="action-bad"><strong>{{ $actionQueue['stuck_processing'] }}</strong> &gt; 14 days</span>
+                        </div>
+                    </a>
+
+                    <a class="action-card action-maint" href="{{ url('maintenances') }}">
+                        <div class="action-title">Maintenances</div>
+                        <div class="action-buckets">
+                            <span><strong>{{ $actionQueue['in_progress_maint'] }}</strong> in-progress</span>
+                            <span><strong>{{ $actionQueue['scheduled_maint'] }}</strong> scheduled</span>
+                            <span><strong>{{ $actionQueue['open_maint'] }}</strong> open</span>
+                        </div>
+                    </a>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ───────────────────── ROW 4: Recent activity (75%) + Procurement (25%) ───────────────────── --}}
 <div class="row">
     <div class="col-md-{{ $procurement ? 9 : 12 }}">
         <div class="box box-default">
@@ -279,75 +346,6 @@
         </div>
     </div>
     @endif
-</div>
-
-{{-- ───────────────────── ROW 4: Needs Attention (full width) ───────────────────── --}}
-<div class="row">
-    <div class="col-md-12">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h2 class="box-title">Needs Attention</h2>
-            </div>
-            <div class="box-body">
-                <div class="action-grid">
-
-                    <a class="action-card action-warranty" href="{{ route('hardware.index') }}">
-                        <div class="action-title">Warranties expiring</div>
-                        <div class="action-buckets">
-                            <span><strong>{{ $actionQueue['warranty_30'] }}</strong> ≤ 30d</span>
-                            <span><strong>{{ $actionQueue['warranty_60'] }}</strong> ≤ 60d</span>
-                            <span><strong>{{ $actionQueue['warranty_90'] }}</strong> ≤ 90d</span>
-                        </div>
-                    </a>
-
-                    @if ($actionQueue['lease_30'] !== null)
-                    <a class="action-card action-lease" href="{{ route('hardware.index') }}">
-                        <div class="action-title">Leases ending</div>
-                        <div class="action-buckets">
-                            <span><strong>{{ $actionQueue['lease_30'] }}</strong> ≤ 30d</span>
-                            <span><strong>{{ $actionQueue['lease_60'] }}</strong> ≤ 60d</span>
-                            <span><strong>{{ $actionQueue['lease_90'] }}</strong> ≤ 90d</span>
-                        </div>
-                    </a>
-                    @endif
-
-                    <a class="action-card action-audit" href="{{ route('assets.audit.due') }}">
-                        <div class="action-title">Audits</div>
-                        <div class="action-buckets">
-                            <span class="action-bad"><strong>{{ $actionQueue['audit_overdue'] }}</strong> overdue</span>
-                            <span><strong>{{ $actionQueue['audit_due_30'] }}</strong> due 30d</span>
-                        </div>
-                    </a>
-
-                    <a class="action-card action-checkin" href="{{ route('assets.checkins.due') }}">
-                        <div class="action-title">Checkins</div>
-                        <div class="action-buckets">
-                            <span><strong>{{ $actionQueue['checkin_due'] }}</strong> due</span>
-                        </div>
-                    </a>
-
-                    <a class="action-card action-processing" href="{{ route('hardware.index') }}">
-                        <div class="action-title">Stuck in Processing</div>
-                        <div class="action-buckets">
-                            <span class="action-bad"><strong>{{ $actionQueue['stuck_processing'] }}</strong> &gt; 14 days</span>
-                        </div>
-                    </a>
-
-                    <a class="action-card action-maint" href="{{ url('maintenances') }}">
-                        <div class="action-title">Maintenances</div>
-                        <div class="action-buckets">
-                            <span><strong>{{ $actionQueue['in_progress_maint'] }}</strong> in-progress</span>
-                            <span><strong>{{ $actionQueue['scheduled_maint'] }}</strong> scheduled</span>
-                            <span><strong>{{ $actionQueue['open_maint'] }}</strong> open</span>
-                        </div>
-                    </a>
-
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Procurement column moved up into Row 3 (alongside Recent Activity). --}}
 </div>
 
 {{-- ───────────────────── ROW 5: Breakdowns ───────────────────── --}}
