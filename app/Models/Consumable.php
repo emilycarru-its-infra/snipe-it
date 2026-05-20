@@ -318,6 +318,19 @@ class Consumable extends SnipeModel
     }
 
     /**
+     * Asset models this consumable is compatible with. When set, only assets
+     * of these models appear in the asset selector at checkout time — useful
+     * for things like printer toners where a cartridge only fits specific
+     * printer models. The relationship is recommended, not required: an
+     * empty list means the consumable can be checked out to any asset.
+     */
+    public function compatibleModels(): Relation
+    {
+        return $this->belongsToMany(AssetModel::class, 'consumables_asset_models', 'consumable_id', 'asset_model_id')
+            ->withTimestamps();
+    }
+
+    /**
      * Establishes the item -> supplier relationship
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]

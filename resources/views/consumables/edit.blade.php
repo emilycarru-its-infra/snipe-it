@@ -23,6 +23,37 @@
 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
 @include ('partials.forms.edit.manufacturer-select', ['translated_name' => trans('general.manufacturer'), 'fieldname' => 'manufacturer_id'])
 @include ('partials.forms.edit.location-select', ['translated_name' => trans('general.location'), 'fieldname' => 'location_id'])
+
+{{-- Compatible asset models: optional whitelist. When set, checkout-to-asset
+     only lists assets of these models (e.g. a toner that fits specific printer
+     models). Empty means the consumable can be checked out to any asset. --}}
+<div class="form-group">
+    <label class="col-md-3 control-label" for="compatible_models">{{ trans('admin/consumables/general.compatible_models') }}</label>
+    <div class="col-md-7">
+        <select
+            class="js-data-ajax select2"
+            data-endpoint="models"
+            data-placeholder="{{ trans('admin/consumables/general.compatible_models_placeholder') }}"
+            name="compatible_models[]"
+            id="compatible_models"
+            aria-label="compatible_models"
+            multiple="multiple"
+            style="width: 100%">
+            @php
+                $oldCompatible = old('compatible_models');
+                if ($oldCompatible === null) {
+                    $oldCompatible = isset($item) ? $item->compatibleModels->pluck('id')->all() : [];
+                }
+            @endphp
+            @foreach ((array) $oldCompatible as $compatibleModelId)
+                <option value="{{ $compatibleModelId }}" selected="selected">
+                    {{ optional(\App\Models\AssetModel::find($compatibleModelId))->name }}
+                </option>
+            @endforeach
+        </select>
+        <p class="help-block">{{ trans('admin/consumables/general.compatible_models_help') }}</p>
+    </div>
+</div>
 @include ('partials.forms.edit.model_number')
 @include ('partials.forms.edit.item_number')
 @include ('partials.forms.edit.order_number')
