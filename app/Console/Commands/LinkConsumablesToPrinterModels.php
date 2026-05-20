@@ -61,9 +61,10 @@ class LinkConsumablesToPrinterModels extends Command
             Str::plural('category', $printerCategoryIds->count()),
         ));
 
-        $printerModels = AssetModel::whereIn('category_id', $printerCategoryIds)
+        $printerModels = AssetModel::with('manufacturer:id,name')
+            ->whereIn('category_id', $printerCategoryIds)
             ->whereNull('deleted_at')
-            ->get(['id', 'name'])
+            ->get(['id', 'name', 'model_number', 'manufacturer_id'])
             ->filter(fn ($m) => mb_strlen(trim($m->name)) >= $minModelLength)
             ->values();
 
@@ -81,10 +82,45 @@ class LinkConsumablesToPrinterModels extends Command
             return self::SUCCESS;
         }
 
-        // Precompute lowercase needles and an index by length descending so the
-        // most-specific names match first (e.g. "M428fdn" before "M428").
-        $needles = $printerModels
-            ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'needle' => strtolower(trim($m->name))])
+        // Build several needles per printer model so we don't miss obvious
+        // matches because of naming-style differences:
+        //   1. Full model name as-is        ("Ricoh IM 5000")
+        //   2. Manufacturer stripped        ("IM 5000")          — consumables rarely repeat the brand
+        //   3. Model number column          ("IM 5000F")         — manufacturer's part number, sometimes used verbatim
+        //   4. Trailing 1-2 capital letters dropped from the stripped form ("IM 350" from "IM 350F")
+        //
+        // Each needle gets the same model id, so a hit on any of them
+        // counts as a match. Sorted longest-first across all variants so a
+        // specific needle beats a generic one (e.g. "IM C300F" before "IM 300").
+        $rawNeedles = [];
+        foreach ($printerModels as $m) {
+            $variants = [];
+            $variants[] = $m->name;
+            if ($m->manufacturer && $m->manufacturer->name) {
+                $stripped = trim(preg_replace('/^'.preg_quote($m->manufacturer->name, '/').'\s+/i', '', $m->name));
+                if ($stripped !== '' && $stripped !== $m->name) {
+                    $variants[] = $stripped;
+                    // Drop trailing 1-2 capital letters (e.g. F, FB) — common suffix
+                    // family marker on multifunction printers.
+                    $trimmed = trim(preg_replace('/\s*[A-Z]{1,2}\s*$/', '', $stripped));
+                    if ($trimmed !== '' && $trimmed !== $stripped) {
+                        $variants[] = $trimmed;
+                    }
+                }
+            }
+            if (! empty($m->model_number)) {
+                $variants[] = $m->model_number;
+            }
+            foreach (array_unique(array_filter($variants)) as $variant) {
+                $needle = strtolower(trim($variant));
+                if (mb_strlen($needle) < $minModelLength) {
+                    continue;
+                }
+                $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $needle];
+            }
+        }
+
+        $needles = collect($rawNeedles)
             ->sortByDesc(fn ($row) => mb_strlen($row['needle']))
             ->values();
 
