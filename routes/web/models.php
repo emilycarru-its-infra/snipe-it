@@ -82,6 +82,11 @@ Route::group(['prefix' => 'models', 'middleware' => ['auth']], function () {
 
 
 
+    // Drag-drop reorder endpoint for the toner dashboard's printer grid.
+    // Accepts {ids:[...]} and writes display_order positionally.
+    Route::post('reorder', [AssetModelsController::class, 'reorder'])
+        ->name('models.reorder');
+
 });
 
 Route::resource('models', AssetModelsController::class, [
