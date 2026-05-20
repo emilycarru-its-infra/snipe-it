@@ -69,6 +69,12 @@
                         <x-button.clone :item="$consumable" :route="route('consumables.clone.create', $consumable->id)"/>
                         <x-button.delete :item="$consumable"/>
                         <x-button.checkout :item="$consumable" :route="route('consumables.checkout.show', $consumable->id)" />
+                        @can('checkout', $consumable)
+                            <a href="{{ route('consumables.order.create', $consumable->id) }}" class="btn btn-sm btn-warning">
+                                <i class="fa-solid fa-cart-plus" aria-hidden="true"></i>
+                                {{ trans('admin/consumables/general.order') }}
+                            </a>
+                        @endcan
                     </x-slot:buttons>
 
                 </x-info-panel>
