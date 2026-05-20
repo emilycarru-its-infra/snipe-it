@@ -1424,7 +1424,6 @@ class Helper
             '#',
             'fields*',
             'statuslabels*',
-            'companies*',
         ];
     }
 
@@ -1454,6 +1453,7 @@ class Helper
             'users*',
             'departments*',
             'locations*',
+            'companies*',
         ];
     }
 

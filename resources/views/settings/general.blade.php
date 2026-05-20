@@ -225,6 +225,18 @@
                                </div>
                            </div>
 
+                           <!-- Show Predefined Kits in the sidebar -->
+                           <div class="form-group {{ $errors->has('show_predefined_kits') ? 'error' : '' }}">
+                               <div class="col-md-8 col-md-offset-3">
+                                   <label class="form-control">
+                                       <input type="checkbox" name="show_predefined_kits" value="1" {{ old('show_predefined_kits', $setting->show_predefined_kits) ? 'checked' : '' }}>
+                                       {{ trans('admin/settings/general.show_predefined_kits') }}
+                                   </label>
+                                   {!! $errors->first('show_predefined_kits', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                                   <p class="help-block">{{ trans('admin/settings/general.show_predefined_kits_help_text') }}</p>
+                               </div>
+                           </div>
+
 
                            <!-- Archived in List -->
                            <div class="form-group {{ $errors->has('show_archived_in_list') ? 'error' : '' }}">

@@ -253,6 +253,8 @@ return [
     'webhook_test_help' => 'Test whether your :app integration is configured correctly. YOU MUST SAVE YOUR UPDATED :app SETTINGS FIRST.',
     'shortcuts_enabled' => 'Enable Shortcuts',
     'shortcuts_help_text' => '<strong>Windows</strong>: Alt + Access key, <strong>Mac</strong>: Control + Option + Access key',
+    'show_predefined_kits' => 'Show Predefined Kits in the sidebar',
+    'show_predefined_kits_help_text' => 'Uncheck to hide the Predefined Kits link from the main navigation. Existing kits remain accessible by URL and via the API.',
     'snipe_version' => 'Snipe-IT version',
     'support_footer' => 'Support Footer Links ',
     'support_footer_help' => 'Specify who sees the links to the Snipe-IT Support info and Users Manual',
