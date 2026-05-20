@@ -52,7 +52,11 @@ class DashboardController extends Controller
             Artisan::call('passport:install', ['--no-interaction' => true]);
         }
 
-        $settings = Setting::getSettings();
+        // Fresh installs (and the in-memory test database) may not have a
+        // settings row yet; fall back to an empty Setting so the typed
+        // builder signatures and Asset::DueForAudit/Checkin scopes can
+        // safely dereference fields like audit_warning_days as null/0.
+        $settings = Setting::getSettings() ?? new Setting;
 
         return view('dashboard')
             ->with('asset_stats', null)
@@ -209,16 +213,29 @@ class DashboardController extends Controller
     {
         $now = Carbon::now();
 
-        $warrantyBucket = function (int $days) use ($now) {
+        // The warranty expiry is purchase_date + warranty_months months. SQL
+        // dialects don't agree on date arithmetic — branch by driver so the
+        // dashboard works on production MySQL and on the SQLite-backed test
+        // suite alike.
+        $driver = DB::connection()->getDriverName();
+        $warrantyExpr = match ($driver) {
+            'sqlite' => "date(purchase_date, '+' || warranty_months || ' months')",
+            'pgsql' => "(purchase_date + (warranty_months || ' months')::interval)",
+            default => 'DATE_ADD(purchase_date, INTERVAL warranty_months MONTH)',
+        };
+
+        $warrantyBucket = function (int $days) use ($now, $warrantyExpr) {
             return Asset::AssetsForShow()
                 ->whereNotNull('warranty_months')
                 ->whereNotNull('purchase_date')
-                ->whereRaw('DATE_ADD(purchase_date, INTERVAL warranty_months MONTH) BETWEEN ? AND ?', [
+                ->whereRaw($warrantyExpr.' BETWEEN ? AND ?', [
                     $now->copy()->toDateString(),
                     $now->copy()->addDays($days)->toDateString(),
                 ])->count();
         };
 
+        // The lease-end column is a 'Y-m-d' string custom field, so a
+        // lexicographic BETWEEN works on every driver without STR_TO_DATE.
         $leaseColumn = Schema::hasColumn('assets', '_snipeit_lease_end_date_14')
             ? '_snipeit_lease_end_date_14' : null;
         $leaseBucket = function (int $days) use ($now, $leaseColumn) {
@@ -226,7 +243,7 @@ class DashboardController extends Controller
             return Asset::AssetsForShow()
                 ->whereNotNull($leaseColumn)
                 ->where($leaseColumn, '!=', '')
-                ->whereRaw("STR_TO_DATE(`$leaseColumn`, '%Y-%m-%d') BETWEEN ? AND ?", [
+                ->whereBetween($leaseColumn, [
                     $now->copy()->toDateString(),
                     $now->copy()->addDays($days)->toDateString(),
                 ])->count();
