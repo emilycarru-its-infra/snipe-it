@@ -78,10 +78,32 @@
 
 
 
+          @php
+              // Consumables default to checkout-to-Asset (a consumable like a
+              // toner is normally installed in a printer, not handed to a
+              // person). The user can still flip to the User tab.
+              $consumableCheckoutType = session('checkout_to_type') ?: 'asset';
+              $compatibleModelIds = $consumable->compatibleModels->pluck('id')->all();
+          @endphp
+
           <!-- Checkout target -->
-          @include ('partials.forms.checkout-selector', ['user_select' => 'true', 'asset_select' => 'true'])
-          @include ('partials.forms.edit.user-select', ['translated_name' => trans('general.user'), 'fieldname' => 'assigned_to', 'style' => (session('checkout_to_type') ?: 'user') == 'user' ? '' : 'display: none;'])
-          @include ('partials.forms.edit.asset-select', ['translated_name' => trans('general.select_asset'), 'fieldname' => 'assigned_asset', 'style' => session('checkout_to_type') == 'asset' ? '' : 'display: none;'])
+          @include ('partials.forms.checkout-selector', ['user_select' => 'true', 'asset_select' => 'true', 'default_type' => 'asset'])
+          @include ('partials.forms.edit.user-select', ['translated_name' => trans('general.user'), 'fieldname' => 'assigned_to', 'style' => $consumableCheckoutType == 'user' ? '' : 'display: none;'])
+          @include ('partials.forms.edit.asset-select', ['translated_name' => trans('general.select_asset'), 'fieldname' => 'assigned_asset', 'style' => $consumableCheckoutType == 'asset' ? '' : 'display: none;', 'model_ids' => $compatibleModelIds])
+
+          {{-- Surface the model restriction so the user understands why the
+               asset list is narrower than usual. --}}
+          @if (! empty($compatibleModelIds))
+              <div id="compatible-models-filter-note" class="form-group" style="{{ $consumableCheckoutType == 'asset' ? '' : 'display: none;' }}">
+                  <div class="col-md-8 col-md-offset-3">
+                      <div class="callout callout-info">
+                          <i class="fa-solid fa-filter"></i>
+                          {{ trans('admin/consumables/general.compatible_models_filter_note') }}
+                          <strong>{{ $consumable->compatibleModels->pluck('name')->join(', ') }}</strong>
+                      </div>
+                  </div>
+              </div>
+          @endif
 
 
             {{-- Webhook notice: webhook fires whether the consumable is
@@ -174,4 +196,19 @@
 
   </div>
 </div>
+@stop
+
+@section('moar_scripts')
+<script nonce="{{ csrf_token() }}">
+    // Toggle the "compatible models" filter banner alongside the Asset tab.
+    // Snipe's shared checkout JS already shows/hides #assigned_asset on the
+    // radio change; we mirror its visibility for the banner.
+    $(function () {
+        var note = document.getElementById('compatible-models-filter-note');
+        if (!note) { return; }
+        $('input[name=checkout_to_type]').on('change', function () {
+            note.style.display = this.value === 'asset' ? '' : 'none';
+        });
+    });
+</script>
 @stop
