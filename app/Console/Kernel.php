@@ -25,6 +25,15 @@ class Kernel extends ConsoleKernel
         $schedule->command('backup:clean')->daily();
         $schedule->command('auth:clear-resets')->everyFifteenMinutes();
         $schedule->command('saml:clear_expired_nonces')->weekly();
+
+        // Nightly toner ↔ printer compatibility backfill. Idempotent
+        // (syncWithoutDetaching), so adding a new printer model or toner
+        // consumable will get wired up automatically — no code change or
+        // redeploy needed. Known SKU mismatches that the auto-needle
+        // pipeline can't bridge are passed as explicit --alias pairs here.
+        $schedule->command('consumables:link-printer-models', [
+            '--alias' => ['IM C3500=Ricoh IM C3510'],
+        ])->dailyAt('02:30');
     }
 
     /**

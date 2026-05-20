@@ -97,9 +97,19 @@ class LinkConsumablesToPrinterModels extends Command
         //   3. Model number column          ("IM 5000F")         — manufacturer's part number, sometimes used verbatim
         //   4. Trailing 1-2 capital letters dropped from the stripped form ("IM 350" from "IM 350F")
         //
-        // Each needle gets the same model id, so a hit on any of them
-        // counts as a match. Sorted longest-first across all variants so a
-        // specific needle beats a generic one (e.g. "IM C300F" before "IM 300").
+        // Every needle is normalized (lowercased + whitespace + hyphens
+        // stripped) and matched against the equally-normalized haystack.
+        // That neutralizes separator-style differences in one shot — printer
+        // "Canon iPF680" matches consumable "iPF 680 PFI-207 Ink", "Canon
+        // GP 200" matches "iPF GP-200 ...", "Canon PRO 2000" matches
+        // "Pro2000-2100 ...", and "Ricoh IM 5000" still matches "IM 5000
+        // Black Toner". One pass, no carve-outs.
+        //
+        // Sorted longest-first across all variants so a specific needle
+        // beats a generic one (e.g. "IM C300F" before "IM 300").
+        $normalize = static fn (string $s): string =>
+            strtolower(preg_replace('/[\s\-]+/u', '', trim($s)));
+
         $rawNeedles = [];
         foreach ($printerModels as $m) {
             $variants = [];
@@ -120,23 +130,11 @@ class LinkConsumablesToPrinterModels extends Command
                 $variants[] = $m->model_number;
             }
             foreach (array_unique(array_filter($variants)) as $variant) {
-                $needle = strtolower(trim($variant));
+                $needle = $normalize($variant);
                 if (mb_strlen($needle) < $minModelLength) {
                     continue;
                 }
-                $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $needle, 'normalized' => false];
-
-                // Also emit a "normalized" form with whitespace and hyphens
-                // stripped. Matches consumables whose names use a different
-                // separator convention than the printer model (e.g. printer
-                // "Canon iPF680" → "ipf680" matches consumable "iPF 680 ... Ink"
-                // after both sides are normalized; "Canon GP 200" → "gp200"
-                // matches "iPF GP-200 ... Ink"; "Canon PRO 2000" → "pro2000"
-                // matches "Pro2000-2100 ... Ink").
-                $normalized = preg_replace('/[\s\-]+/u', '', $needle);
-                if ($normalized !== $needle && mb_strlen($normalized) >= $minModelLength) {
-                    $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $normalized, 'normalized' => true];
-                }
+                $rawNeedles[] = ['id' => $m->id, 'name' => $m->name, 'needle' => $needle];
             }
         }
 
@@ -144,7 +142,8 @@ class LinkConsumablesToPrinterModels extends Command
         // can't derive (e.g. Ricoh sells "IM C3500" toner that fits the
         // "IM C3510" printer). Format: --alias="haystack-substring=printer-model-name".
         // The right-hand side is matched case-insensitively against the
-        // asset-model name; first hit wins.
+        // asset-model name; first hit wins. Left side is normalized too so
+        // the user doesn't have to think about separator style.
         foreach ((array) $this->option('alias') as $alias) {
             if (! str_contains($alias, '=')) {
                 $this->warn("Ignoring malformed --alias '{$alias}' (expected LEFT=RIGHT).");
@@ -160,10 +159,14 @@ class LinkConsumablesToPrinterModels extends Command
                 $this->warn("Alias '{$alias}': no printer model matched '{$right}'. Skipping.");
                 continue;
             }
-            $rawNeedles[] = ['id' => $model->id, 'name' => $model->name, 'needle' => strtolower($left), 'normalized' => false];
+            $rawNeedles[] = ['id' => $model->id, 'name' => $model->name, 'needle' => $normalize($left)];
         }
 
+        // Drop duplicate (id, needle) pairs so the preview-table count stays
+        // honest when, say, the full name and the manufacturer-stripped name
+        // normalize to the same thing.
         $needles = collect($rawNeedles)
+            ->unique(fn ($row) => $row['id'].'|'.$row['needle'])
             ->sortByDesc(fn ($row) => mb_strlen($row['needle']))
             ->values();
 
@@ -173,14 +176,12 @@ class LinkConsumablesToPrinterModels extends Command
         $unmatched   = [];
 
         foreach ($consumables as $consumable) {
-            $hay = strtolower($consumable->name);
-            $hayNormalized = preg_replace('/[\s\-]+/u', '', $hay);
+            $hay = $normalize($consumable->name);
             $existing = $consumable->compatibleModels->pluck('id')->all();
             $matched = [];
 
             foreach ($needles as $needle) {
-                $haystack = ! empty($needle['normalized']) ? $hayNormalized : $hay;
-                if (str_contains($haystack, $needle['needle'])) {
+                if (str_contains($hay, $needle['needle'])) {
                     $matched[$needle['id']] = $needle['name'];
                 }
             }
