@@ -664,6 +664,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.procurement.lessor-breakdown');
         Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
             ->name('reports.procurement.pst-applicability');
+        Route::get('faculty-ledger', [ProcurementReportsController::class, 'facultyLedger'])
+            ->name('reports.procurement.faculty-ledger');
     });
 
 });

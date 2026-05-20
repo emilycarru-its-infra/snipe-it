@@ -4,6 +4,7 @@ namespace Tests\Feature\Reports;
 
 use App\Models\Asset;
 use App\Models\CustomField;
+use App\Models\FacultyAgreement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -357,6 +358,104 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('PO-DRILL-1')
             ->assertSee('PMCN-DRILL-1')
             ->assertSee('INV-DRILL-1');
+    }
+
+    public function test_invoice_approval_queue_filters_by_attestation_type()
+    {
+        $order = Order::factory()->create();
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'invoice_number' => 'INV-VENDOR-OKP',
+            'attestation_type' => 'vendor_invoice',
+            'approval_status' => 'pending',
+        ]);
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'invoice_number' => 'INV-LESSOR-OKP',
+            'attestation_type' => 'lessor_okp',
+            'approval_status' => 'pending',
+        ]);
+
+        // Asking for the lessor-OKP filter shows only the CSI attestation
+        // and hides the regular vendor invoice.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.invoice-approval', ['attestation_type' => 'lessor_okp']))
+            ->assertOk()
+            ->assertSee('INV-LESSOR-OKP')
+            ->assertDontSee('INV-VENDOR-OKP');
+    }
+
+    public function test_faculty_ledger_report_renders()
+    {
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.faculty-ledger'))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.report_faculty_ledger'));
+    }
+
+    public function test_faculty_ledger_shows_lifecycle_and_balance()
+    {
+        $user = User::factory()->create(['first_name' => 'Carlo', 'last_name' => 'Ghioni']);
+        FacultyAgreement::create([
+            'agreement_type' => 'upgrade',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'in_repayment',
+            'base_program_price' => 2200,
+            'device_cost' => 3400,
+            'top_up_amount' => 1200,
+            'payment_method' => 'payroll_deduction',
+            'installment_count' => 24,
+            'installment_amount' => 50,
+            'balance_paid' => 200,
+            'balance_remaining' => 1000,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.faculty-ledger'))
+            ->assertOk()
+            ->assertSee('Carlo Ghioni')
+            ->assertSee(trans('admin/purchase-orders/general.faculty_stage_in_repayment'))
+            ->assertSee('$1,200.00')
+            ->assertSee('$1,000.00');
+    }
+
+    public function test_faculty_ledger_filters_by_agreement_type()
+    {
+        $user = User::factory()->create();
+        FacultyAgreement::create([
+            'agreement_type' => 'upgrade',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'agreement_signed',
+            'top_up_amount' => 500,
+        ]);
+        FacultyAgreement::create([
+            'agreement_type' => 'lease_end_purchase',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'closed_buyout',
+            'buyout_cost' => 800,
+            'old_asset_tag' => 'F-OLD-1',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.faculty-ledger', ['agreement_type' => 'lease_end_purchase']))
+            ->assertOk()
+            ->assertSee('$800.00')
+            ->assertDontSee('$500.00');
+    }
+
+    public function test_dashboard_shows_faculty_unsigned_card()
+    {
+        $user = User::factory()->create();
+        FacultyAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'agreement_sent',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.card_faculty_unsigned', ['count' => 1]));
     }
 
     public function test_disposition_grid_report_renders()

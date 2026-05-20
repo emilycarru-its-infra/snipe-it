@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Asset;
 use App\Models\CustomField;
+use App\Models\FacultyAgreement;
 use App\Models\LeaseDecision;
 use App\Models\Order;
 use App\Models\OrderInvoice;
@@ -121,9 +122,18 @@ class ProcurementReportsController extends Controller
 
         $pendingDecisionCount = LeaseDecision::where('status', 'pending')->count();
 
+        // Faculty agreements waiting for a signature — Sohee's chase
+        // list. Stuck in 'quoted' or 'agreement_sent' is the failure
+        // mode that holds up the Apple account on a pending pickup.
+        $facultyAwaitingSignatureCount = FacultyAgreement::whereIn(
+            'lifecycle_stage',
+            ['quoted', 'agreement_sent']
+        )->count();
+
         return view('reports/procurement', [
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
+            'facultyAwaitingSignatureCount' => $facultyAwaitingSignatureCount,
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
             'totalBudget' => $totalBudget,
@@ -329,7 +339,20 @@ class ProcurementReportsController extends Controller
             'invoice-approval-queue',
             trans('admin/purchase-orders/general.report_invoice_approval'),
             'reports.procurement.invoice-approval',
-            $this->invoiceApprovalReport($request->query('status'))
+            $this->invoiceApprovalReport($request->query('status'), $request->query('attestation_type'))
+        );
+    }
+
+    public function facultyLedger(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'faculty-program-ledger',
+            trans('admin/purchase-orders/general.report_faculty_ledger'),
+            'reports.procurement.faculty-ledger',
+            $this->facultyLedgerReport($request->query('agreement_type'), $request->query('stage'))
         );
     }
 
@@ -1394,11 +1417,12 @@ class ProcurementReportsController extends Controller
      * on it; the variance is the cents-level signal that something is
      * off. `?status=pending` (the default) shows only the work to do.
      */
-    private function invoiceApprovalReport(?string $statusFilter = null): array
+    private function invoiceApprovalReport(?string $statusFilter = null, ?string $attestationFilter = null): array
     {
         $statusFilter = $statusFilter ?: 'pending';
 
         $columns = [
+            trans('admin/purchase-orders/general.attestation_type'),
             trans('admin/purchase-orders/general.po_number'),
             trans('general.order_number'),
             trans('admin/orders/general.invoice_number'),
@@ -1420,6 +1444,13 @@ class ProcurementReportsController extends Controller
             $query->where('approval_status', $statusFilter);
         }
 
+        // Filter on attestation_type so the lessor-OKP queue (Sohee's
+        // "reply okay to pay" sign-off) can be opened in its own view
+        // without losing the shared schema with vendor invoices.
+        if ($attestationFilter && in_array($attestationFilter, OrderInvoice::ATTESTATION_TYPES, true)) {
+            $query->where('attestation_type', $attestationFilter);
+        }
+
         $invoices = $query->get();
 
         $records = [];
@@ -1437,6 +1468,7 @@ class ProcurementReportsController extends Controller
                 // the threshold below which Mark is happy to wave through.
                 'class' => abs($variance) > 1.0 && $invoice->isPendingApproval() ? 'danger' : '',
                 'cells' => [
+                    trans('admin/purchase-orders/general.attestation_'.($invoice->attestation_type ?: 'vendor_invoice')),
                     (string) $invoice->order?->purchaseOrder?->po_number,
                     (string) $invoice->order?->order_number,
                     $invoice->invoice_number,
@@ -1453,11 +1485,104 @@ class ProcurementReportsController extends Controller
         }
 
         $footer = [
+            '',
             trans('admin/orders/general.total'), '', '', '',
             $this->money($totalVendor),
             $this->money($totalExpected),
             $this->money($totalVariance),
             '', '', '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Faculty Laptop Program Top-Up Ledger. Every faculty agreement
+     * — pickup, paid upgrade, or lease-end buyout — appears on one
+     * timeline with its lifecycle stage, financial impact and signed-
+     * agreement status. Replaces the multi-sheet SharePoint workbook
+     * Sohee maintains by hand.
+     */
+    private function facultyLedgerReport(?string $typeFilter = null, ?string $stageFilter = null): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.faculty_agreement_type'),
+            trans('admin/purchase-orders/general.faculty_member'),
+            trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.detail_serial'),
+            trans('admin/purchase-orders/general.faculty_stage'),
+            trans('admin/purchase-orders/general.faculty_contract_value'),
+            trans('admin/purchase-orders/general.faculty_payment_method'),
+            trans('admin/purchase-orders/general.faculty_balance_paid'),
+            trans('admin/purchase-orders/general.faculty_balance_remaining'),
+            trans('admin/purchase-orders/general.faculty_signed_at'),
+            trans('admin/purchase-orders/general.faculty_payroll_at'),
+        ];
+
+        $query = FacultyAgreement::with('user', 'asset')
+            ->orderByRaw("FIELD(lifecycle_stage, 'eligible', 'quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed')")
+            ->orderBy('updated_at', 'desc');
+
+        if ($typeFilter && in_array($typeFilter, FacultyAgreement::AGREEMENT_TYPES, true)) {
+            $query->where('agreement_type', $typeFilter);
+        }
+        if ($stageFilter && in_array($stageFilter, FacultyAgreement::LIFECYCLE_STAGES, true)) {
+            $query->where('lifecycle_stage', $stageFilter);
+        }
+
+        $agreements = $query->get();
+
+        $records = [];
+        $totalValue = $totalPaid = $totalRemaining = 0.0;
+
+        foreach ($agreements as $agreement) {
+            $value = $agreement->contractValue();
+            $paid = (float) $agreement->balance_paid;
+            $remaining = $agreement->balance_remaining !== null
+                ? (float) $agreement->balance_remaining
+                : max($value - $paid, 0.0);
+
+            $totalValue += $value;
+            $totalPaid += $paid;
+            $totalRemaining += $remaining;
+
+            // Stage colour cues so Sohee can spot stuck agreements at a
+            // glance: signed-but-not-deployed and quoted-but-not-signed
+            // are the rows that need chasing.
+            $class = match ($agreement->lifecycle_stage) {
+                'quoted', 'agreement_sent' => 'warning',
+                'agreement_signed' => 'info',
+                'paid_off', 'closed_buyout', 'closed' => 'text-muted',
+                default => '',
+            };
+
+            $records[] = [
+                'class' => $class,
+                'cells' => [
+                    trans('admin/purchase-orders/general.faculty_type_'.$agreement->agreement_type),
+                    (string) ($agreement->user?->full_name ?? '—'),
+                    (string) ($agreement->asset?->asset_tag ?? ''),
+                    (string) ($agreement->asset?->serial ?? ''),
+                    trans('admin/purchase-orders/general.faculty_stage_'.$agreement->lifecycle_stage),
+                    $this->money($value),
+                    $agreement->payment_method
+                        ? trans('admin/purchase-orders/general.faculty_payment_'.$agreement->payment_method)
+                        : '',
+                    $this->money($paid),
+                    $this->money($remaining),
+                    $this->dateString($agreement->signed_at),
+                    $this->dateString($agreement->sent_to_payroll_at),
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '',
+            $this->money($totalValue),
+            '',
+            $this->money($totalPaid),
+            $this->money($totalRemaining),
+            '', '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];

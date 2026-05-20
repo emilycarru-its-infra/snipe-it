@@ -104,6 +104,17 @@
             </div>
         </a>
     </div>
+    <div class="col-md-4 col-sm-6">
+        <a href="{{ route('reports.procurement.faculty-ledger') }}" class="small-box-link">
+            <div class="small-box {{ $facultyAwaitingSignatureCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
+                <div class="inner">
+                    <h3 style="font-size:24px">{{ $facultyAwaitingSignatureCount }}</h3>
+                    <p>{{ trans('admin/purchase-orders/general.card_faculty_unsigned', ['count' => $facultyAwaitingSignatureCount]) }}</p>
+                </div>
+                <div class="icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
+            </div>
+        </a>
+    </div>
 </div>
 
 <div class="row">
@@ -189,6 +200,7 @@
                         ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'live' => true],
                         ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc', 'live' => true],
                         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'live' => true],
+                        ['route' => 'reports.procurement.faculty-ledger', 'name' => 'report_faculty_ledger', 'desc' => 'report_faculty_ledger_desc', 'live' => true],
                     ] as $report)
                         <tr>
                             <td>
