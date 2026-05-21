@@ -30,9 +30,11 @@ use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\Department;
+use App\Models\LeaseSchedule;
 use App\Models\License;
 use App\Models\Location;
 use App\Models\Maintenance;
+use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Traits\DisablesDebugbar;
@@ -61,6 +63,8 @@ abstract class Controller extends BaseController
         'models' => AssetModel::class,
         'suppliers' => Supplier::class,
         'users' => User::class,
+        'purchase-orders' => PurchaseOrder::class,
+        'lease-schedules' => LeaseSchedule::class,
     ];
 
     public static $map_storage_path = [
@@ -78,6 +82,8 @@ abstract class Controller extends BaseController
         'models' => 'private_uploads/models/',
         'suppliers' => 'private_uploads/suppliers/',
         'users' => 'private_uploads/users/',
+        'purchase-orders' => 'private_uploads/purchase-orders/',
+        'lease-schedules' => 'private_uploads/lease-schedules/',
     ];
 
     public static $map_file_prefix = [
@@ -95,6 +101,8 @@ abstract class Controller extends BaseController
         'models' => 'model',
         'suppliers' => 'supplier',
         'users' => 'user',
+        'purchase-orders' => 'po',
+        'lease-schedules' => 'lease-schedule',
     ];
 
     public function __construct()
