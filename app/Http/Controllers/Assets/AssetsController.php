@@ -586,7 +586,11 @@ class AssetsController extends Controller
     }
 
     /**
-     * Searches the assets table by asset tag, and redirects if it finds one
+     * Looks up an asset from the topbar search box. Matches against asset_tag,
+     * serial, or name (exact). Excludes archived statuses — soft-deletes are
+     * already excluded by the default scope. Single hit redirects to the asset
+     * view; zero or multiple matches fall back to the hardware index with the
+     * query pre-filled in the list search.
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]
      *
@@ -594,22 +598,37 @@ class AssetsController extends Controller
      */
     public function getAssetByTag(Request $request, $tag = null): RedirectResponse
     {
-        $tag = $tag ? $tag : $request->input('assetTag');
+        $query = trim($tag ?? $request->input('assetTag', $request->input('q', '')));
         $topsearch = ($request->input('topsearch') == 'true');
 
-        // Search for an exact and unique asset tag match
-        $assets = Asset::where('asset_tag', '=', $tag);
-
-        // If not a unique result, redirect to the index view
-        if ($assets->count() != 1) {
-            return redirect()->route('hardware.index')
-                ->with('search', $tag)
-                ->with('warning', trans('admin/hardware/message.does_not_exist_var', ['asset_tag' => $tag]));
+        if ($query === '') {
+            return redirect()->route('hardware.index');
         }
-        $asset = $assets->first();
-        $this->authorize('view', $asset);
 
-        return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+        $assets = Asset::where(function ($builder) use ($query) {
+            $builder->where('asset_tag', '=', $query)
+                ->orWhere('serial', '=', $query)
+                ->orWhere('name', '=', $query);
+        })->whereHas('status', function ($builder) {
+            $builder->where('archived', '!=', 1);
+        });
+
+        $count = $assets->count();
+
+        if ($count === 1) {
+            $asset = $assets->first();
+            $this->authorize('view', $asset);
+
+            return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+        }
+
+        $message = $count === 0
+            ? trans('admin/hardware/message.lookup_no_match', ['query' => $query])
+            : trans('admin/hardware/message.lookup_multiple_matches', ['query' => $query]);
+
+        return redirect()->route('hardware.index')
+            ->with('search', $query)
+            ->with('warning', $message);
     }
 
     /**

@@ -1270,9 +1270,9 @@
 
                                                 <div class="input-group col-xs-12" style="border: 0 !important;">
                                                     <label class="sr-only" for="tagSearch">
-                                                        {{ trans('general.lookup_by_tag') }}
+                                                        {{ trans('general.lookup_by_tag_serial_name') }}
                                                     </label>
-                                                    <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_by_tag') }}">
+                                                    <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_by_tag_serial_name') }}">
                                                     <span class="input-group-btn">
                                                         <button type="submit" id="topSearchButton" class="btn btn-sm btn-theme" style="padding: 7px 10px 7px 10px; "><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
                                                     </span>
