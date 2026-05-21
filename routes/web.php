@@ -28,6 +28,7 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\FacultyAgreementsController;
+use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ProcurementReportsController;
@@ -139,6 +140,13 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('faculty-agreements.send-for-signature');
     Route::get('faculty-agreements/{facultyAgreement}/pdf', [FacultyAgreementsController::class, 'downloadPdf'])
         ->name('faculty-agreements.pdf');
+
+    /*
+    * Lease Schedules
+    */
+    Route::resource('lease-schedules', LeaseSchedulesController::class);
+    Route::post('lease-schedules/{leaseSchedule}/mark-signed', [LeaseSchedulesController::class, 'markSigned'])
+        ->name('lease-schedules.mark-signed');
 
     /*
     * Depreciations
@@ -694,6 +702,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.procurement.gl-transfer.post');
         Route::post('gl-transfer/transfer', [ProcurementReportsController::class, 'markGlTransactionsTransferred'])
             ->name('reports.procurement.gl-transfer.transfer');
+        Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
+            ->name('reports.procurement.schedule-signing');
     });
 
 });
