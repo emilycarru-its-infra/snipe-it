@@ -31,6 +31,21 @@
                 </div>
             </div>
             <div class="box-body">
+                <ul class="nav nav-tabs" role="tablist" style="margin-bottom: 15px;">
+                    <li role="presentation" class="active">
+                        <a href="#po-overview" aria-controls="po-overview" role="tab" data-toggle="tab">
+                            {{ trans('general.info') }}
+                        </a>
+                    </li>
+                    <li role="presentation">
+                        <a href="#po-documents" aria-controls="po-documents" role="tab" data-toggle="tab">
+                            {{ trans('admin/lease-schedules/general.documents') }}
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                <div role="tabpanel" class="tab-pane active" id="po-overview">
                 <table class="table table-striped">
                     <tbody>
                         <tr>
@@ -133,8 +148,20 @@
                     @endforelse
                     </tbody>
                 </table>
+                </div>{{-- /#po-overview --}}
+
+                <div role="tabpanel" class="tab-pane" id="po-documents">
+                    @include('partials.object-documents', ['object' => $purchaseOrder, 'object_type' => 'purchase-orders'])
+                </div>
+                </div>{{-- /.tab-content --}}
             </div>
         </div>
     </div>
 </div>
+@stop
+
+@section('moar_scripts')
+    @can('files', $purchaseOrder)
+        @include ('modals.upload-file', ['item_type' => 'purchase-order', 'item_id' => $purchaseOrder->id])
+    @endcan
 @stop
