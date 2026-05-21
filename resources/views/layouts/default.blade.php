@@ -686,8 +686,17 @@
         Active and hover for top tier sidenav items
          */
 
+        /**
+        The sidebar and the topbar share a colour — both anchor to
+        --main-theme-color (the same `header_color` setting the topbar
+        uses) so a custom theme paints the whole chrome consistently
+        instead of leaving the sidebar as an unrelated dark slab.
+        Active / hover backgrounds are a darker shade of the same hue
+        so the row separation stays readable.
+         */
+
         .main-sidebar {
-            background-color: #1e282c;
+            background-color: var(--main-theme-color);
         }
 
 
@@ -696,24 +705,24 @@
         .treeview-menu>li> a
         {
             color: var(--sidenav-text-hover-color) !important;
-            border-left-color: var(--main-theme-color);
+            border-left-color: hsl(from var(--main-theme-color) h s calc(l - 20));
         }
 
         .sidebar-menu > li:hover > a,
         .sidebar-menu > li.active > a
         {
-            border-left-color: var(--main-theme-color);
+            border-left-color: hsl(from var(--main-theme-color) h s calc(l - 20));
             padding-left: 12px;
         }
 
 
         .sidebar-menu > li:hover {
-            background-color: #2c3b41;
+            background-color: hsl(from var(--main-theme-color) h s calc(l - 8));
         }
 
         .sidebar-menu>li>.treeview-menu
         {
-            background-color: #1e282c;
+            background-color: hsl(from var(--main-theme-color) h s calc(l - 5));
         }
 
 
@@ -731,8 +740,8 @@
         .sidebar-menu > li.active > a,
         .sidebar-menu > li:hover > a
         {
-            background-color: #1e282c;
-            border-left-color: var(--main-theme-color);
+            background-color: hsl(from var(--main-theme-color) h s calc(l - 10));
+            border-left-color: hsl(from var(--main-theme-color) h s calc(l - 20));
             border-left-style: solid;
             border-left-width: 3px;
             color: var(--sidenav-text-hover-color) !important;
@@ -912,7 +921,7 @@
 
 
         .treeview-menu > li {
-            background-color: #2c3b41;
+            background-color: hsl(from var(--main-theme-color) h s calc(l - 8));
             color: var(--sidenav-text-nohover-color) !important;
         }
 
