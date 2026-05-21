@@ -13,12 +13,14 @@ use App\Models\CustomField;
 use App\Models\CustomFieldset;
 use App\Models\Department;
 use App\Models\Depreciation;
+use App\Models\LeaseSchedule;
 use App\Models\License;
 use App\Models\Location;
 use App\Models\Maintenance;
 use App\Models\Manufacturer;
 use App\Models\Order;
 use App\Models\PredefinedKit;
+use App\Models\PurchaseOrder;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -33,12 +35,14 @@ use App\Policies\CustomFieldPolicy;
 use App\Policies\CustomFieldsetPolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\DepreciationPolicy;
+use App\Policies\LeaseSchedulePolicy;
 use App\Policies\LicensePolicy;
 use App\Policies\LocationPolicy;
 use App\Policies\MaintenancePolicy;
 use App\Policies\ManufacturerPolicy;
 use App\Policies\OrderPolicy;
 use App\Policies\PredefinedKitPolicy;
+use App\Policies\PurchaseOrderPolicy;
 use App\Policies\StatuslabelPolicy;
 use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
@@ -74,6 +78,8 @@ class AuthServiceProvider extends ServiceProvider
         Location::class => LocationPolicy::class,
         Maintenance::class => MaintenancePolicy::class,
         Order::class => OrderPolicy::class,
+        PurchaseOrder::class => PurchaseOrderPolicy::class,
+        LeaseSchedule::class => LeaseSchedulePolicy::class,
         PredefinedKit::class => PredefinedKitPolicy::class,
         Statuslabel::class => StatuslabelPolicy::class,
         Supplier::class => SupplierPolicy::class,
