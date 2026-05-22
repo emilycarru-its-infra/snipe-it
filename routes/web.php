@@ -688,6 +688,12 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.procurement.pst-applicability');
         Route::get('faculty-ledger', [ProcurementReportsController::class, 'facultyLedger'])
             ->name('reports.procurement.faculty-ledger');
+        Route::get('gl-transfer', [ProcurementReportsController::class, 'glJournalTransfer'])
+            ->name('reports.procurement.gl-transfer');
+        Route::post('gl-transfer/post', [ProcurementReportsController::class, 'markGlTransactionsPosted'])
+            ->name('reports.procurement.gl-transfer.post');
+        Route::post('gl-transfer/transfer', [ProcurementReportsController::class, 'markGlTransactionsTransferred'])
+            ->name('reports.procurement.gl-transfer.transfer');
     });
 
 });

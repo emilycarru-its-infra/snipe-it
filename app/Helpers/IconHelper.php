@@ -12,9 +12,9 @@ class IconHelper
             case 'google':
                 return 'fa-brands fa-google';
             case 'checkout':
-                return 'fa-solid fa-rotate-left';
+                return 'fa-solid fa-arrow-right-from-bracket';
             case 'checkin':
-                return 'fa-solid fa-rotate-right';
+                return 'fa-solid fa-arrow-right-to-bracket';
             case 'edit':
             case 'update':
                 return 'fas fa-pencil-alt';

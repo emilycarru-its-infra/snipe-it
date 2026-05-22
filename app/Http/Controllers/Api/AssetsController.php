@@ -599,6 +599,7 @@ class AssetsController extends Controller
             'assets.assigned_to',
             'assets.assigned_type',
             'assets.status_id',
+            'assets.gl_code',
         ])->with('model', 'status', 'assignedTo')
             ->NotArchived();
 
