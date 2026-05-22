@@ -138,7 +138,14 @@ class ConsumableCheckoutController extends Controller
         $createGlTransaction = ! $request->has('create_gl_transaction')
             || $request->boolean('create_gl_transaction');
         if ($checkout_to_type === 'asset' && $createGlTransaction) {
-            ConsumableTransaction::recordCheckout($consumable, $target, $quantity, $request->input('note'), $admin_user->id);
+            ConsumableTransaction::recordCheckout(
+                $consumable,
+                $target,
+                $quantity,
+                $request->input('note'),
+                $admin_user->id,
+                $request->input('gl_code'),
+            );
         }
 
         $consumable->checkout_qty = $quantity;
