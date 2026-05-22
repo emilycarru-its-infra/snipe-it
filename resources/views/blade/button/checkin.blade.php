@@ -9,9 +9,7 @@
     @if ($item->showCheckinButton($item) == 'show-active')
         <a href="{{ $route  }}" class="btn btn-sm bg-purple hidden-print" data-tooltip="true"  data-placement="top" data-title="{{ trans('general.checkin') }}">
             <x-icon type="checkin" class="fa-fw" />
-            @if ($wide=='true')
-                {{ trans('general.checkin') }}
-            @endif
+            {{ trans('general.checkin') }}
         </a>
     @endif
 @endcan
