@@ -428,7 +428,11 @@ class ProcurementReportsController extends Controller
 
         $controls = view('reports.procurement._gl-transfer-controls', [
             'fiscalYear' => $fiscalYear,
-            'draftCount' => ConsumableTransaction::draft()
+            'status' => $status,
+            'draftCount' => ConsumableTransaction::where('status', ConsumableTransaction::STATUS_DRAFT)
+                ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
+                ->count(),
+            'postedCount' => ConsumableTransaction::where('status', ConsumableTransaction::STATUS_POSTED)
                 ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
                 ->count(),
         ])->render();
@@ -462,6 +466,26 @@ class ProcurementReportsController extends Controller
         return redirect()
             ->route('reports.procurement.gl-transfer', array_filter(['fiscal_year' => $fiscalYear]))
             ->with('success', trans('admin/purchase-orders/general.gl_transfer_posted', ['count' => $posted]));
+    }
+
+    /**
+     * Mark posted GL transactions as transferred — Finance has confirmed
+     * the journal entry went through. Closes the lifecycle. Scoped to a
+     * fiscal year when one is supplied.
+     */
+    public function markGlTransactionsTransferred(Request $request): RedirectResponse
+    {
+        $this->authorize('reports.view');
+
+        $fiscalYear = $request->input('fiscal_year');
+
+        $transferred = ConsumableTransaction::where('status', ConsumableTransaction::STATUS_POSTED)
+            ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
+            ->update(['status' => ConsumableTransaction::STATUS_TRANSFERRED]);
+
+        return redirect()
+            ->route('reports.procurement.gl-transfer', array_filter(['fiscal_year' => $fiscalYear]))
+            ->with('success', trans('admin/purchase-orders/general.gl_transfer_transferred', ['count' => $transferred]));
     }
 
     public function poDisposition(Request $request)

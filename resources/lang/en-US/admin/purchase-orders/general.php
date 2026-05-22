@@ -183,6 +183,8 @@ return [
     'gl_transfer_subtotal' => 'GL subtotal',
     'gl_transfer_mark_posted' => 'Mark :count draft transaction(s) as posted',
     'gl_transfer_posted' => ':count GL transaction(s) marked as posted.',
+    'gl_transfer_mark_transferred' => 'Confirm :count posted transaction(s) as transferred',
+    'gl_transfer_transferred' => ':count GL transaction(s) confirmed as transferred.',
     'card_faculty_unsigned' => ':count faculty agreements awaiting signature',
     'faculty_agreement_type' => 'Type',
     'faculty_type_pickup' => 'New Laptop Pickup',

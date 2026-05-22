@@ -611,4 +611,18 @@ class ProcurementReportsTest extends TestCase
 
         $this->assertEquals(ConsumableTransaction::STATUS_POSTED, $txn->fresh()->status);
     }
+
+    public function test_gl_journal_transfer_mark_transferred_flips_posted_transactions()
+    {
+        $posted = $this->glTransaction(['status' => ConsumableTransaction::STATUS_POSTED]);
+        $draft = $this->glTransaction(['status' => ConsumableTransaction::STATUS_DRAFT]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.gl-transfer.transfer'), ['fiscal_year' => 'FY2026-27'])
+            ->assertRedirect(route('reports.procurement.gl-transfer', ['fiscal_year' => 'FY2026-27']));
+
+        // posted → transferred; a draft row is untouched (only posted advances)
+        $this->assertEquals(ConsumableTransaction::STATUS_TRANSFERRED, $posted->fresh()->status);
+        $this->assertEquals(ConsumableTransaction::STATUS_DRAFT, $draft->fresh()->status);
+    }
 }
