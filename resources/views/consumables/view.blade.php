@@ -66,12 +66,16 @@
                     <!-- start transactions tab pane -->
                     <x-tabs.pane name="gl-transactions">
                         @php $glTransactions = $consumable->transactions()->with('asset')->get(); @endphp
-                        @if ($glTransactions->isEmpty())
-                            <p class="text-muted" style="padding: 10px 0;">
-                                {{ trans('admin/consumables/general.gl_transactions_empty') }}
-                            </p>
-                        @else
-                            <div style="margin-bottom: 12px;">
+
+                        <div style="margin-bottom: 12px;">
+                            @can('update', $consumable)
+                                <a href="{{ route('consumables.transactions.create', $consumable->id) }}"
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                    {{ trans('admin/consumables/general.new_transaction') }}
+                                </a>
+                            @endcan
+                            @if ($glTransactions->isNotEmpty())
                                 <a href="{{ route('consumables.transactions.export', ['consumable' => $consumable->id, 'format' => 'csv']) }}"
                                    class="btn btn-sm btn-default">
                                     <i class="fa-solid fa-file-csv" aria-hidden="true"></i>
@@ -82,7 +86,14 @@
                                     <i class="fa-solid fa-print" aria-hidden="true"></i>
                                     {{ trans('admin/consumables/general.transactions_print_report') }}
                                 </a>
-                            </div>
+                            @endif
+                        </div>
+
+                        @if ($glTransactions->isEmpty())
+                            <p class="text-muted" style="padding: 10px 0;">
+                                {{ trans('admin/consumables/general.gl_transactions_empty') }}
+                            </p>
+                        @else
                             <table class="table table-striped snipe-table">
                                 <thead>
                                     <tr>

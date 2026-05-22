@@ -32,11 +32,21 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
         [Consumables\ConsumableOrderController::class, 'store']
     )->name('consumables.order.store');
 
-    // Transactions (journal-transfer lines): export, and after-the-fact edit.
+    // Transactions (journal-transfer lines): export, hand-create, after-the-fact edit.
     Route::get(
         '{consumable}/transactions/export',
         [Consumables\ConsumableTransactionController::class, 'export']
     )->name('consumables.transactions.export');
+
+    Route::get(
+        '{consumable}/transactions/create',
+        [Consumables\ConsumableTransactionController::class, 'create']
+    )->name('consumables.transactions.create');
+
+    Route::post(
+        '{consumable}/transactions',
+        [Consumables\ConsumableTransactionController::class, 'store']
+    )->name('consumables.transactions.store');
 
     Route::get(
         '{consumable}/transactions/{transaction}/edit',

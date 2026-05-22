@@ -153,6 +153,19 @@
             </x-info-element>
         @endif
 
+        {{-- Compatible printer models — the consumable↔model relationship,
+             surfaced here instead of being buried in a free-text note. --}}
+        @if (($infoPanelObj instanceof \App\Models\Consumable) && $infoPanelObj->compatibleModels->isNotEmpty())
+            <x-info-element icon_type="print" title="{{ trans('admin/consumables/general.compatible_models') }}">
+                {{ trans('admin/consumables/general.compatible_models') }}
+                <span class="pull-right">
+                    @foreach ($infoPanelObj->compatibleModels as $compatibleModel)
+                        <a href="{{ route('models.show', $compatibleModel->id) }}">{{ $compatibleModel->name }}</a>{{ $loop->last ? '' : ', ' }}
+                    @endforeach
+                </span>
+            </x-info-element>
+        @endif
+
         @if ($infoPanelObj->min_amt)
             <x-info-element>
                 <x-icon type="min-qty" class="fa-fw" title="{{ trans('general.min_amt') }}" />

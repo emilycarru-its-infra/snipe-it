@@ -232,6 +232,7 @@ class ConsumableCheckoutTest extends TestCase
                 'checkout_to_type' => 'asset',
                 'assigned_asset' => $printer->id,
                 'checkout_qty' => 3,
+                'create_gl_transaction' => 1,
                 'redirect_option' => 'index',
             ]);
 
@@ -252,6 +253,28 @@ class ConsumableCheckoutTest extends TestCase
         $consumable = Consumable::factory()->create();
         $printer = Asset::factory()->create();
 
+        // Toggle on, but the printer has no GL and no custom code was given —
+        // there is nothing to charge, so no transaction is recorded.
+        $this->actingAs(User::factory()->admin()->create())
+            ->post(route('consumables.checkout.store', $consumable), [
+                'checkout_to_type' => 'asset',
+                'assigned_asset' => $printer->id,
+                'checkout_qty' => 1,
+                'create_gl_transaction' => 1,
+                'redirect_option' => 'index',
+            ]);
+
+        $this->assertEquals(0, ConsumableTransaction::where('consumable_id', $consumable->id)->count());
+    }
+
+    public function test_checkout_without_the_toggle_records_no_gl_transaction()
+    {
+        $consumable = Consumable::factory()->create();
+        $printer = Asset::factory()->create();
+        $printer->update(['gl_code' => '6100-200-3300']);
+
+        // The toggle is opt-in: omitting it (its default, unchecked) records
+        // nothing even though the printer carries a GL code.
         $this->actingAs(User::factory()->admin()->create())
             ->post(route('consumables.checkout.store', $consumable), [
                 'checkout_to_type' => 'asset',
@@ -315,6 +338,7 @@ class ConsumableCheckoutTest extends TestCase
                 'checkout_to_type' => 'asset',
                 'assigned_asset' => $printer->id,
                 'checkout_qty' => 1,
+                'create_gl_transaction' => 1,
                 'gl_code' => '6200-CUSTOM',
                 'redirect_option' => 'index',
             ]);
@@ -334,6 +358,7 @@ class ConsumableCheckoutTest extends TestCase
                 'checkout_to_type' => 'asset',
                 'assigned_asset' => $printer->id,
                 'checkout_qty' => 1,
+                'create_gl_transaction' => 1,
                 'gl_code' => '6300-ONEOFF',
                 'redirect_option' => 'index',
             ]);

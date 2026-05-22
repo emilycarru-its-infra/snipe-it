@@ -24,6 +24,63 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ConsumableTransactionController extends Controller
 {
     /**
+     * Show the form to create a transaction by hand — the "produce a GL
+     * after the fact" path for a checkout that recorded none (the toggle
+     * is opt-in, so most checkouts don't).
+     */
+    public function create(Consumable $consumable): View
+    {
+        $this->authorize('update', $consumable);
+
+        return view('consumables.transactions.create', [
+            'consumable' => $consumable,
+            'compatibleModelIds' => $consumable->compatibleModels->pluck('id')->all(),
+        ]);
+    }
+
+    /**
+     * Persist a hand-created transaction. total_cost is computed from
+     * quantity × unit cost; fiscal year from the transaction date.
+     */
+    public function store(Request $request, Consumable $consumable): RedirectResponse
+    {
+        $this->authorize('update', $consumable);
+
+        $validated = $request->validate([
+            'asset_id' => 'required|integer|exists:assets,id',
+            'gl_code' => 'nullable|string|max:191',
+            'transaction_date' => 'required|date',
+            'quantity' => 'required|integer|min:1',
+            'unit_cost' => 'nullable|numeric|min:0',
+            'status' => 'required|in:'.implode(',', [
+                ConsumableTransaction::STATUS_DRAFT,
+                ConsumableTransaction::STATUS_POSTED,
+                ConsumableTransaction::STATUS_TRANSFERRED,
+            ]),
+            'notes' => 'nullable|string|max:65535',
+        ]);
+
+        $unitCost = $validated['unit_cost'] !== null ? (float) $validated['unit_cost'] : null;
+
+        ConsumableTransaction::create([
+            'consumable_id' => $consumable->id,
+            'asset_id' => $validated['asset_id'],
+            'gl_code' => $validated['gl_code'] ?: null,
+            'quantity' => $validated['quantity'],
+            'unit_cost' => $unitCost,
+            'total_cost' => $unitCost !== null ? $unitCost * $validated['quantity'] : null,
+            'transaction_date' => $validated['transaction_date'],
+            'fiscal_year' => ConsumableTransaction::fiscalYearFor($validated['transaction_date']),
+            'status' => $validated['status'],
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => auth()->id(),
+        ]);
+
+        return redirect()->to(route('consumables.show', $consumable->id).'#gl-transactions')
+            ->with('success', trans('admin/consumables/message.transaction.create_success'));
+    }
+
+    /**
      * Show the edit form for a single transaction.
      */
     public function edit(Consumable $consumable, ConsumableTransaction $transaction): View|RedirectResponse
@@ -78,7 +135,7 @@ class ConsumableTransactionController extends Controller
         ]);
         $transaction->save();
 
-        return redirect()->route('consumables.show', $consumable->id)
+        return redirect()->to(route('consumables.show', $consumable->id).'#gl-transactions')
             ->with('success', trans('admin/consumables/message.transaction.update_success'));
     }
 
@@ -94,7 +151,7 @@ class ConsumableTransactionController extends Controller
             $transaction->delete();
         }
 
-        return redirect()->route('consumables.show', $consumable->id)
+        return redirect()->to(route('consumables.show', $consumable->id).'#gl-transactions')
             ->with('success', trans('admin/consumables/message.transaction.void_success'));
     }
 
