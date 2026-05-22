@@ -123,6 +123,19 @@
               </div>
           </div>
 
+          {{-- GL code for this checkout. Pre-fills from the selected printer's
+               own GL code, but is editable — a one-off charge to a different
+               GL, or a printer with no default GL, can still be entered. --}}
+          <div id="gl-code-field" class="form-group" style="{{ $consumableCheckoutType == 'asset' ? '' : 'display: none;' }}">
+              <label for="gl_code" class="col-md-3 control-label">{{ trans('admin/consumables/general.gl_txn_code') }}</label>
+              <div class="col-md-4">
+                  <input type="text" name="gl_code" id="gl_code" class="form-control"
+                         value="{{ old('gl_code') }}" maxlength="191"
+                         placeholder="{{ trans('admin/consumables/general.gl_code_checkout_placeholder') }}">
+                  <p class="help-block">{{ trans('admin/consumables/general.gl_code_checkout_help') }}</p>
+              </div>
+          </div>
+
 
             {{-- Webhook notice: webhook fires whether the consumable is
                  checked out to a User or an Asset, so this notice stays
@@ -219,17 +232,29 @@
 @section('moar_scripts')
 <script nonce="{{ csrf_token() }}">
     // Show the asset-only blocks (compatible-models banner, GL transaction
-    // toggle) alongside the Asset tab. Snipe's shared checkout JS already
-    // shows/hides #assigned_asset on the radio change; we mirror it.
+    // toggle, GL code field) alongside the Asset tab. Snipe's shared checkout
+    // JS already shows/hides #assigned_asset on the radio change; we mirror it.
     $(function () {
-        var assetOnly = ['compatible-models-filter-note', 'gl-transaction-toggle']
+        var assetOnly = ['compatible-models-filter-note', 'gl-transaction-toggle', 'gl-code-field']
             .map(function (id) { return document.getElementById(id); })
             .filter(Boolean);
-        if (!assetOnly.length) { return; }
-        $('input[name=checkout_to_type]').on('change', function () {
-            var show = this.value === 'asset';
-            assetOnly.forEach(function (el) { el.style.display = show ? '' : 'none'; });
-        });
+        if (assetOnly.length) {
+            $('input[name=checkout_to_type]').on('change', function () {
+                var show = this.value === 'asset';
+                assetOnly.forEach(function (el) { el.style.display = show ? '' : 'none'; });
+            });
+        }
+
+        // Pre-fill the GL code from the printer the moment it is selected.
+        // The selectlist response carries each asset's gl_code, so this needs
+        // no extra request. The field stays editable for a custom override.
+        var glField = document.getElementById('gl_code');
+        if (glField) {
+            $('#assigned_asset_select').on('select2:select', function (e) {
+                var data = e.params && e.params.data ? e.params.data : {};
+                glField.value = data.gl_code || '';
+            });
+        }
     });
 </script>
 @stop

@@ -90,18 +90,25 @@ class ConsumableTransaction extends Model
     /**
      * Record a transaction for a consumable checked out to an asset.
      *
-     * Returns null — recording nothing — when the asset has no GL code. A
-     * printer without a GL code (a general/student printer) is intentionally
-     * not chargeable, so its toner checkouts produce no journal-transfer line.
+     * The GL code defaults to the printer's own `gl_code`, but a custom
+     * code entered at checkout ($glCodeOverride) wins — so a one-off charge
+     * to a different GL, or a printer that has no default GL of its own,
+     * can still be billed. With no code from either source there is
+     * nothing chargeable, so nothing is recorded (returns null).
      */
     public static function recordCheckout(
         Consumable $consumable,
         Asset $asset,
         int $quantity,
         ?string $note,
-        ?int $userId
+        ?int $userId,
+        ?string $glCodeOverride = null
     ): ?self {
-        if (empty($asset->gl_code)) {
+        $glCode = ($glCodeOverride !== null && trim($glCodeOverride) !== '')
+            ? trim($glCodeOverride)
+            : $asset->gl_code;
+
+        if (empty($glCode)) {
             return null;
         }
 
@@ -111,7 +118,7 @@ class ConsumableTransaction extends Model
         return self::create([
             'consumable_id' => $consumable->id,
             'asset_id' => $asset->id,
-            'gl_code' => $asset->gl_code,
+            'gl_code' => $glCode,
             'quantity' => $quantity,
             'unit_cost' => $unitCost,
             'total_cost' => $unitCost !== null ? $unitCost * $quantity : null,
