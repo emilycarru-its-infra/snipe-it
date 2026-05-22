@@ -45,4 +45,9 @@ return [
     'gl_txn_status' => 'Status',
     'create_gl_transaction' => 'Record a GL transaction for this checkout',
     'create_gl_transaction_help' => 'On by default. When the printer carries a GL code, this checkout is logged as a journal-transfer line. Uncheck to skip — e.g. a correction, or a printer whose GL should not be charged this time.',
+    'edit_transaction' => 'Edit GL Transaction',
+    'void_transaction' => 'Void',
+    'void_transaction_confirm' => 'Void this GL transaction? It is removed from the ledger and the GL Journal Transfer report.',
+    'gl_code_edit_help' => 'Correct the GL code if the printer was wrongly coded when this checkout happened.',
+    'unit_cost_edit_help' => 'The line total recalculates from quantity × unit cost on save.',
 ];

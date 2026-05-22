@@ -32,6 +32,22 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
         [Consumables\ConsumableOrderController::class, 'store']
     )->name('consumables.order.store');
 
+    // After-the-fact maintenance of GL transactions (journal-transfer lines).
+    Route::get(
+        '{consumable}/transactions/{transaction}/edit',
+        [Consumables\ConsumableTransactionController::class, 'edit']
+    )->name('consumables.transactions.edit');
+
+    Route::put(
+        '{consumable}/transactions/{transaction}',
+        [Consumables\ConsumableTransactionController::class, 'update']
+    )->name('consumables.transactions.update');
+
+    Route::delete(
+        '{consumable}/transactions/{transaction}',
+        [Consumables\ConsumableTransactionController::class, 'destroy']
+    )->name('consumables.transactions.void');
+
 });
     
 Route::resource('consumables', Consumables\ConsumablesController::class, [
