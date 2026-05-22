@@ -105,18 +105,17 @@
               </div>
           @endif
 
-          {{-- GL transaction toggle. A checkout to a printer that carries a
-               GL code records a journal-transfer line; on by default.
-               Uncheck to skip — e.g. a correction, or a printer whose GL
-               should not be charged this time. Only meaningful for Asset
-               checkouts, so it hides alongside the Asset tab. The hidden
-               input guarantees a value is posted even when unchecked. --}}
+          {{-- GL transaction toggle. Opt-in: off by default — check it to
+               log this checkout as a journal-transfer line against the
+               printer's GL. Only meaningful for Asset checkouts, so it
+               hides alongside the Asset tab. The hidden input guarantees a
+               value is posted even when unchecked. --}}
           <div id="gl-transaction-toggle" class="form-group" style="{{ $consumableCheckoutType == 'asset' ? '' : 'display: none;' }}">
               <div class="col-md-7 col-md-offset-3">
                   <label class="form-control">
                       <input type="hidden" name="create_gl_transaction" value="0">
                       <input type="checkbox" name="create_gl_transaction" value="1"
-                             @checked(old('create_gl_transaction', true)) aria-label="create_gl_transaction">
+                             @checked(old('create_gl_transaction', false)) aria-label="create_gl_transaction">
                       {{ trans('admin/consumables/general.create_gl_transaction') }}
                   </label>
                   <p class="help-block">{{ trans('admin/consumables/general.create_gl_transaction_help') }}</p>

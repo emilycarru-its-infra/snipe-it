@@ -107,4 +107,48 @@ class ConsumableTransactionTest extends TestCase
             ->assertOk()
             ->assertSee('6100-REPORT');
     }
+
+    public function test_create_form_renders()
+    {
+        $consumable = Consumable::factory()->create();
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('consumables.transactions.create', $consumable->id))
+            ->assertOk();
+    }
+
+    public function test_creating_requires_permission()
+    {
+        $consumable = Consumable::factory()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('consumables.transactions.create', $consumable->id))
+            ->assertForbidden();
+    }
+
+    public function test_store_creates_a_transaction_after_the_fact()
+    {
+        $consumable = Consumable::factory()->create();
+        $printer = Asset::factory()->create();
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('consumables.transactions.store', $consumable->id), [
+                'asset_id' => $printer->id,
+                'gl_code' => '6100-AFTER',
+                'transaction_date' => '2026-05-12',
+                'quantity' => 2,
+                'unit_cost' => 75,
+                'status' => ConsumableTransaction::STATUS_DRAFT,
+            ])
+            ->assertRedirect(route('consumables.show', $consumable->id));
+
+        $txn = ConsumableTransaction::where('consumable_id', $consumable->id)->first();
+        $this->assertNotNull($txn);
+        $this->assertEquals($printer->id, $txn->asset_id);
+        $this->assertEquals('6100-AFTER', $txn->gl_code);
+        $this->assertEquals(2, $txn->quantity);
+        // total recomputed from quantity × unit cost
+        $this->assertEquals(150.0, (float) $txn->total_cost);
+        $this->assertEquals('FY2026-27', $txn->fiscal_year);
+    }
 }
