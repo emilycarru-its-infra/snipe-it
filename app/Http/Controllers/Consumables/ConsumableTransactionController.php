@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Consumables;
 use App\Http\Controllers\Controller;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use League\Csv\EscapeFormula;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * After-the-fact maintenance of GL transactions (journal-transfer lines).
@@ -93,5 +96,74 @@ class ConsumableTransactionController extends Controller
 
         return redirect()->route('consumables.show', $consumable->id)
             ->with('success', trans('admin/consumables/message.transaction.void_success'));
+    }
+
+    /**
+     * Export the consumable's transactions. `?format=csv` streams a CSV;
+     * otherwise a print-ready report page is returned (the browser's
+     * print-to-PDF turns it into the document Finance gets).
+     */
+    public function export(Consumable $consumable, Request $request): View|StreamedResponse
+    {
+        $this->authorize('view', $consumable);
+
+        $transactions = $consumable->transactions()->with('asset')->get();
+
+        if ($request->query('format') === 'csv') {
+            return $this->streamCsv($consumable, $transactions);
+        }
+
+        return view('consumables.transactions.report', [
+            'consumable' => $consumable,
+            'transactions' => $transactions,
+            'total' => $transactions->sum(fn ($txn) => (float) $txn->total_cost),
+        ]);
+    }
+
+    /**
+     * Stream the transactions as a CSV with a UTF-8 BOM, formula escaping,
+     * and a trailing total row.
+     */
+    private function streamCsv(Consumable $consumable, $transactions): StreamedResponse
+    {
+        $columns = [
+            trans('admin/consumables/general.gl_txn_date'),
+            trans('admin/consumables/general.gl_txn_printer'),
+            trans('admin/consumables/general.gl_txn_code'),
+            trans('admin/consumables/general.gl_txn_qty'),
+            trans('admin/consumables/general.gl_txn_unit_cost'),
+            trans('admin/consumables/general.gl_txn_total'),
+            trans('admin/consumables/general.gl_txn_fiscal_year'),
+            trans('admin/consumables/general.gl_txn_status'),
+        ];
+
+        return new StreamedResponse(function () use ($columns, $transactions) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+            $formatter = new EscapeFormula('`');
+
+            fputcsv($handle, $columns);
+
+            $total = 0.0;
+            foreach ($transactions as $txn) {
+                $total += (float) $txn->total_cost;
+                fputcsv($handle, $formatter->escapeRecord([
+                    optional($txn->transaction_date)->format('Y-m-d'),
+                    $txn->asset?->present()->name() ?? '',
+                    (string) $txn->gl_code,
+                    (string) $txn->quantity,
+                    $txn->unit_cost,
+                    $txn->total_cost,
+                    (string) $txn->fiscal_year,
+                    ucfirst((string) $txn->status),
+                ]));
+            }
+
+            fputcsv($handle, $formatter->escapeRecord(['', '', '', '', trans('admin/orders/general.total'), $total, '', '']));
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="transactions-'.Str::slug($consumable->name).'-'.date('Y-m-d').'.csv"',
+        ]);
     }
 }

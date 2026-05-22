@@ -36,9 +36,9 @@ return [
     ],
 
     'transaction' => [
-        'does_not_exist' => 'That GL transaction does not belong to this consumable.',
-        'update_success' => 'GL transaction updated successfully.',
-        'void_success' => 'GL transaction voided.',
+        'does_not_exist' => 'That transaction does not belong to this consumable.',
+        'update_success' => 'Transaction updated successfully.',
+        'void_success' => 'Transaction voided.',
     ],
 
 ];
