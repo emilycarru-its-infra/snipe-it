@@ -692,6 +692,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.procurement.gl-transfer');
         Route::post('gl-transfer/post', [ProcurementReportsController::class, 'markGlTransactionsPosted'])
             ->name('reports.procurement.gl-transfer.post');
+        Route::post('gl-transfer/transfer', [ProcurementReportsController::class, 'markGlTransactionsTransferred'])
+            ->name('reports.procurement.gl-transfer.transfer');
     });
 
 });

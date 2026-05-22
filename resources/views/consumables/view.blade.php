@@ -82,6 +82,9 @@
                                         <th class="text-right">{{ trans('admin/consumables/general.gl_txn_total') }}</th>
                                         <th>{{ trans('admin/consumables/general.gl_txn_fiscal_year') }}</th>
                                         <th>{{ trans('admin/consumables/general.gl_txn_status') }}</th>
+                                        @can('update', $consumable)
+                                            <th class="text-right">{{ trans('table.actions') }}</th>
+                                        @endcan
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -99,6 +102,25 @@
                                         <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($txn->total_cost) }}</td>
                                         <td>{{ $txn->fiscal_year }}</td>
                                         <td>{{ ucfirst($txn->status) }}</td>
+                                        @can('update', $consumable)
+                                            <td class="text-right" style="white-space:nowrap;">
+                                                <a href="{{ route('consumables.transactions.edit', [$consumable->id, $txn->id]) }}"
+                                                   class="btn btn-sm btn-default" data-tooltip="true"
+                                                   title="{{ trans('admin/consumables/general.edit_transaction') }}">
+                                                    <i class="fa-solid fa-pencil" aria-hidden="true"></i>
+                                                </a>
+                                                <form method="post" style="display:inline;"
+                                                      action="{{ route('consumables.transactions.void', [$consumable->id, $txn->id]) }}"
+                                                      onsubmit="return confirm('{{ trans('admin/consumables/general.void_transaction_confirm') }}');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-danger" data-tooltip="true"
+                                                            title="{{ trans('admin/consumables/general.void_transaction') }}">
+                                                        <i class="fa-solid fa-ban" aria-hidden="true"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        @endcan
                                     </tr>
                                 @endforeach
                                 </tbody>
