@@ -1417,6 +1417,26 @@ class ProcurementReportsController extends Controller
      * on it; the variance is the cents-level signal that something is
      * off. `?status=pending` (the default) shows only the work to do.
      */
+    /**
+     * Portable replacement for MySQL's `FIELD()` ordering. Emits a `CASE`
+     * expression that sorts $column by the position of its value in $values,
+     * with anything unmatched sorted last. `FIELD()` does not exist in
+     * SQLite, which is one leg of the test matrix; `CASE` runs on both.
+     *
+     * Returns `[sql, bindings]` ready to spread into `orderByRaw()`.
+     */
+    private function fieldOrder(string $column, array $values): array
+    {
+        $cases = '';
+        $bindings = [];
+        foreach (array_values($values) as $i => $value) {
+            $cases .= " when ? then {$i}";
+            $bindings[] = $value;
+        }
+
+        return ["case {$column}{$cases} else ".count($values).' end', $bindings];
+    }
+
     private function invoiceApprovalReport(?string $statusFilter = null, ?string $attestationFilter = null): array
     {
         $statusFilter = $statusFilter ?: 'pending';
@@ -1437,7 +1457,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $query = OrderInvoice::with('order.purchaseOrder', 'items', 'approver')
-            ->orderByRaw("FIELD(approval_status, 'pending', 'disputed', 'approved')")
+            ->orderByRaw(...$this->fieldOrder('approval_status', ['pending', 'disputed', 'approved']))
             ->orderBy('invoice_date');
 
         if ($statusFilter !== 'all') {
@@ -1520,7 +1540,10 @@ class ProcurementReportsController extends Controller
         ];
 
         $query = FacultyAgreement::with('user', 'asset')
-            ->orderByRaw("FIELD(lifecycle_stage, 'eligible', 'quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed')")
+            ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
+                'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
+                'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed',
+            ]))
             ->orderBy('updated_at', 'desc');
 
         if ($typeFilter && in_array($typeFilter, FacultyAgreement::AGREEMENT_TYPES, true)) {
@@ -1606,7 +1629,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $query = LeaseDecision::query()
-            ->orderByRaw("FIELD(status, 'pending', 'approved', 'completed', 'cancelled')")
+            ->orderByRaw(...$this->fieldOrder('status', ['pending', 'approved', 'completed', 'cancelled']))
             ->orderBy('decision_date');
 
         if ($statusFilter && in_array($statusFilter, LeaseDecision::STATUSES, true)) {
