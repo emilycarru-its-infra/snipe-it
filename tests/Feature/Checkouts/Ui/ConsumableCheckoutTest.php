@@ -284,4 +284,23 @@ class ConsumableCheckoutTest extends TestCase
         $this->assertEquals('FY2026-27', ConsumableTransaction::fiscalYearFor('2027-03-31'));
         $this->assertEquals('FY2025-26', ConsumableTransaction::fiscalYearFor('2026-03-31'));
     }
+
+    public function test_gl_transaction_toggle_off_skips_recording()
+    {
+        $consumable = Consumable::factory()->create(['purchase_cost' => 90.00]);
+        $printer = Asset::factory()->create();
+        $printer->update(['gl_code' => '6100-200-3300']);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->post(route('consumables.checkout.store', $consumable), [
+                'checkout_to_type' => 'asset',
+                'assigned_asset' => $printer->id,
+                'checkout_qty' => 1,
+                'create_gl_transaction' => 0,
+                'redirect_option' => 'index',
+            ]);
+
+        // The printer has a GL code, but the checkout opted out — no line.
+        $this->assertEquals(0, ConsumableTransaction::where('consumable_id', $consumable->id)->count());
+    }
 }
