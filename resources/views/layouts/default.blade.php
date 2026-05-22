@@ -597,6 +597,15 @@
 
         }
 
+        /* Topbar quick-nav: icon + spelled-out label instead of a bare icon. */
+        .topbar-nav-label {
+            margin-left: 6px;
+        }
+        @media (max-width: 991px) {
+            /* Reclaim the room on smaller screens — fall back to icon-only. */
+            .topbar-nav-label { display: none; }
+        }
+
         .btn-tableButton.active.focus,
         .btn-tableButton.active:focus,
         .btn-tableButton.active:hover,
@@ -1218,7 +1227,7 @@
                                 <li aria-hidden="true"{!! (request()->is('hardware*') ? ' class="active"' : '') !!}>
                                     <a href="{{ url('hardware') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=1" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.assets') }}">
                                         <x-icon type="assets" class="fa-fw" />
-                                        <span class="sr-only">{{ trans('general.assets') }}</span>
+                                        <span class="topbar-nav-label">{{ trans('general.assets') }}</span>
                                     </a>
                                 </li>
                             @endcan
@@ -1226,7 +1235,7 @@
                                 <li aria-hidden="true"{!! (request()->is('licenses*') ? ' class="active"' : '') !!}>
                                     <a href="{{ route('licenses.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=2" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.licenses') }}">
                                         <x-icon type="licenses" class="fa-fw" />
-                                        <span class="sr-only">{{ trans('general.licenses') }}</span>
+                                        <span class="topbar-nav-label">{{ trans('general.licenses') }}</span>
                                     </a>
                                 </li>
                             @endcan
@@ -1234,7 +1243,7 @@
                                 <li aria-hidden="true"{!! (request()->is('accessories*') ? ' class="active"' : '') !!}>
                                     <a href="{{ route('accessories.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=3" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.accessories') }}">
                                         <x-icon type="accessories" class="fa-fw" />
-                                        <span class="sr-only">{{ trans('general.accessories') }}</span>
+                                        <span class="topbar-nav-label">{{ trans('general.accessories') }}</span>
                                     </a>
                                 </li>
                             @endcan
@@ -1242,7 +1251,7 @@
                                 <li aria-hidden="true"{!! (request()->is('consumables*') ? ' class="active"' : '') !!}>
                                     <a href="{{ url('consumables') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=4" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.consumables') }}">
                                         <x-icon type="consumables" class="fa-fw" />
-                                        <span class="sr-only">{{ trans('general.consumables') }}</span>
+                                        <span class="topbar-nav-label">{{ trans('general.consumables') }}</span>
                                     </a>
                                 </li>
                             @endcan
@@ -1250,7 +1259,7 @@
                                 <li aria-hidden="true"{!! (request()->is('components*') ? ' class="active"' : '') !!}>
                                     <a href="{{ route('components.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=5" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.components') }}">
                                         <x-icon type="components" class="fa-fw" />
-                                        <span class="sr-only">{{ trans('general.components') }}</span>
+                                        <span class="topbar-nav-label">{{ trans('general.components') }}</span>
                                     </a>
                                 </li>
                             @endcan
@@ -1259,7 +1268,7 @@
                                 <li aria-hidden="true"{!! (request()->is('users*') ? ' class="active"' : '') !!}>
                                     <a href="{{ route('users.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=6" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.users') }}">
                                         <x-icon type="users" class="fa-fw" />
-                                        <span class="sr-only">{{ trans('general.users') }}</span>
+                                        <span class="topbar-nav-label">{{ trans('general.users') }}</span>
                                     </a>
                                 </li>
                             @endcan
