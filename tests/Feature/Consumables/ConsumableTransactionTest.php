@@ -86,4 +86,25 @@ class ConsumableTransactionTest extends TestCase
             ->assertRedirect(route('consumables.show', $otherConsumable->id))
             ->assertSessionHas('error');
     }
+
+    public function test_export_csv_returns_a_csv_download()
+    {
+        $txn = $this->transaction();
+
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('consumables.transactions.export', ['consumable' => $txn->consumable_id, 'format' => 'csv']));
+
+        $response->assertOk();
+        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
+    }
+
+    public function test_export_renders_the_print_report()
+    {
+        $txn = $this->transaction(['gl_code' => '6100-REPORT']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('consumables.transactions.export', $txn->consumable_id))
+            ->assertOk()
+            ->assertSee('6100-REPORT');
+    }
 }

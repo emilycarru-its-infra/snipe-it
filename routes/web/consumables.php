@@ -32,7 +32,12 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
         [Consumables\ConsumableOrderController::class, 'store']
     )->name('consumables.order.store');
 
-    // After-the-fact maintenance of GL transactions (journal-transfer lines).
+    // Transactions (journal-transfer lines): export, and after-the-fact edit.
+    Route::get(
+        '{consumable}/transactions/export',
+        [Consumables\ConsumableTransactionController::class, 'export']
+    )->name('consumables.transactions.export');
+
     Route::get(
         '{consumable}/transactions/{transaction}/edit',
         [Consumables\ConsumableTransactionController::class, 'edit']
