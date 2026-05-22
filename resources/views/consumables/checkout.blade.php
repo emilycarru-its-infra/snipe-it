@@ -105,6 +105,24 @@
               </div>
           @endif
 
+          {{-- GL transaction toggle. A checkout to a printer that carries a
+               GL code records a journal-transfer line; on by default.
+               Uncheck to skip — e.g. a correction, or a printer whose GL
+               should not be charged this time. Only meaningful for Asset
+               checkouts, so it hides alongside the Asset tab. The hidden
+               input guarantees a value is posted even when unchecked. --}}
+          <div id="gl-transaction-toggle" class="form-group" style="{{ $consumableCheckoutType == 'asset' ? '' : 'display: none;' }}">
+              <div class="col-md-7 col-md-offset-3">
+                  <label class="form-control">
+                      <input type="hidden" name="create_gl_transaction" value="0">
+                      <input type="checkbox" name="create_gl_transaction" value="1"
+                             @checked(old('create_gl_transaction', true)) aria-label="create_gl_transaction">
+                      {{ trans('admin/consumables/general.create_gl_transaction') }}
+                  </label>
+                  <p class="help-block">{{ trans('admin/consumables/general.create_gl_transaction_help') }}</p>
+              </div>
+          </div>
+
 
             {{-- Webhook notice: webhook fires whether the consumable is
                  checked out to a User or an Asset, so this notice stays
@@ -200,14 +218,17 @@
 
 @section('moar_scripts')
 <script nonce="{{ csrf_token() }}">
-    // Toggle the "compatible models" filter banner alongside the Asset tab.
-    // Snipe's shared checkout JS already shows/hides #assigned_asset on the
-    // radio change; we mirror its visibility for the banner.
+    // Show the asset-only blocks (compatible-models banner, GL transaction
+    // toggle) alongside the Asset tab. Snipe's shared checkout JS already
+    // shows/hides #assigned_asset on the radio change; we mirror it.
     $(function () {
-        var note = document.getElementById('compatible-models-filter-note');
-        if (!note) { return; }
+        var assetOnly = ['compatible-models-filter-note', 'gl-transaction-toggle']
+            .map(function (id) { return document.getElementById(id); })
+            .filter(Boolean);
+        if (!assetOnly.length) { return; }
         $('input[name=checkout_to_type]').on('change', function () {
-            note.style.display = this.value === 'asset' ? '' : 'none';
+            var show = this.value === 'asset';
+            assetOnly.forEach(function (el) { el.style.display = show ? '' : 'none'; });
         });
     });
 </script>

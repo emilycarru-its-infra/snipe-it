@@ -43,4 +43,6 @@ return [
     'gl_txn_total' => 'Total',
     'gl_txn_fiscal_year' => 'Fiscal Year',
     'gl_txn_status' => 'Status',
+    'create_gl_transaction' => 'Record a GL transaction for this checkout',
+    'create_gl_transaction_help' => 'On by default. When the printer carries a GL code, this checkout is logged as a journal-transfer line. Uncheck to skip — e.g. a correction, or a printer whose GL should not be charged this time.',
 ];
