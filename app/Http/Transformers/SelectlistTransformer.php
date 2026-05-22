@@ -30,6 +30,9 @@ class SelectlistTransformer
                 'text' => ($select_item->use_text) ? $select_item->use_text : $select_item->name,
                 'image' => ($select_item->use_image) ? $select_item->use_image : null,
                 'tag_color' => ($select_item->tag_color) ? $select_item->tag_color : null,
+                // gl_code is only set on asset selectlists; null elsewhere. Lets
+                // the consumable checkout form pre-fill the GL code field.
+                'gl_code' => $select_item->gl_code ?? null,
 
             ];
         }

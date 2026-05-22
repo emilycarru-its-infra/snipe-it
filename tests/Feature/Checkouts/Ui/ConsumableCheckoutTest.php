@@ -303,4 +303,43 @@ class ConsumableCheckoutTest extends TestCase
         // The printer has a GL code, but the checkout opted out — no line.
         $this->assertEquals(0, ConsumableTransaction::where('consumable_id', $consumable->id)->count());
     }
+
+    public function test_custom_gl_code_at_checkout_overrides_the_printer_default()
+    {
+        $consumable = Consumable::factory()->create(['purchase_cost' => 100.00]);
+        $printer = Asset::factory()->create();
+        $printer->update(['gl_code' => '6100-DEFAULT']);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->post(route('consumables.checkout.store', $consumable), [
+                'checkout_to_type' => 'asset',
+                'assigned_asset' => $printer->id,
+                'checkout_qty' => 1,
+                'gl_code' => '6200-CUSTOM',
+                'redirect_option' => 'index',
+            ]);
+
+        $txn = ConsumableTransaction::where('consumable_id', $consumable->id)->first();
+        $this->assertNotNull($txn);
+        $this->assertEquals('6200-CUSTOM', $txn->gl_code);
+    }
+
+    public function test_custom_gl_code_lets_a_printer_without_a_gl_be_charged()
+    {
+        $consumable = Consumable::factory()->create(['purchase_cost' => 100.00]);
+        $printer = Asset::factory()->create(); // no gl_code
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->post(route('consumables.checkout.store', $consumable), [
+                'checkout_to_type' => 'asset',
+                'assigned_asset' => $printer->id,
+                'checkout_qty' => 1,
+                'gl_code' => '6300-ONEOFF',
+                'redirect_option' => 'index',
+            ]);
+
+        $txn = ConsumableTransaction::where('consumable_id', $consumable->id)->first();
+        $this->assertNotNull($txn, 'a custom GL code should record a transaction even with no printer GL');
+        $this->assertEquals('6300-ONEOFF', $txn->gl_code);
+    }
 }
