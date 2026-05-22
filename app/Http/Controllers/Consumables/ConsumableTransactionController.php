@@ -76,7 +76,7 @@ class ConsumableTransactionController extends Controller
             'created_by' => auth()->id(),
         ]);
 
-        return redirect()->route('consumables.show', $consumable->id)
+        return redirect()->to(route('consumables.show', $consumable->id).'#gl-transactions')
             ->with('success', trans('admin/consumables/message.transaction.create_success'));
     }
 
@@ -135,7 +135,7 @@ class ConsumableTransactionController extends Controller
         ]);
         $transaction->save();
 
-        return redirect()->route('consumables.show', $consumable->id)
+        return redirect()->to(route('consumables.show', $consumable->id).'#gl-transactions')
             ->with('success', trans('admin/consumables/message.transaction.update_success'));
     }
 
@@ -151,7 +151,7 @@ class ConsumableTransactionController extends Controller
             $transaction->delete();
         }
 
-        return redirect()->route('consumables.show', $consumable->id)
+        return redirect()->to(route('consumables.show', $consumable->id).'#gl-transactions')
             ->with('success', trans('admin/consumables/message.transaction.void_success'));
     }
 

@@ -55,7 +55,7 @@ class ConsumableTransactionTest extends TestCase
                 'unit_cost' => 50,
                 'status' => ConsumableTransaction::STATUS_POSTED,
             ])
-            ->assertRedirect(route('consumables.show', $txn->consumable_id));
+            ->assertRedirect(route('consumables.show', $txn->consumable_id).'#gl-transactions');
 
         $txn->refresh();
         $this->assertEquals('6200-RIGHT', $txn->gl_code);
@@ -71,7 +71,7 @@ class ConsumableTransactionTest extends TestCase
 
         $this->actingAs(User::factory()->superuser()->create())
             ->delete(route('consumables.transactions.void', [$txn->consumable_id, $txn->id]))
-            ->assertRedirect(route('consumables.show', $txn->consumable_id));
+            ->assertRedirect(route('consumables.show', $txn->consumable_id).'#gl-transactions');
 
         $this->assertSoftDeleted($txn);
     }
@@ -140,7 +140,7 @@ class ConsumableTransactionTest extends TestCase
                 'unit_cost' => 75,
                 'status' => ConsumableTransaction::STATUS_DRAFT,
             ])
-            ->assertRedirect(route('consumables.show', $consumable->id));
+            ->assertRedirect(route('consumables.show', $consumable->id).'#gl-transactions');
 
         $txn = ConsumableTransaction::where('consumable_id', $consumable->id)->first();
         $this->assertNotNull($txn);
