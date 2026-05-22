@@ -59,6 +59,9 @@
                     @endif
                     <div class="toner-printer-card-titleblock">
                         <h3 class="box-title toner-printer-card-title">{{ $model->name }}</h3>
+                        @if ($model->manufacturer)
+                            <div class="toner-printer-card-manufacturer">{{ $model->manufacturer->name }}</div>
+                        @endif
                         <div class="toner-printer-card-meta">
                             <span class="toner-printer-count">
                                 {{ $model->assets_count }} {{ \Illuminate\Support\Str::plural('printer', $model->assets_count) }}
@@ -238,10 +241,15 @@
     .toner-printer-card-title {
         font-size: 18px;
         font-weight: 600;
-        margin: 0 0 6px;
+        margin: 0 0 2px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    .toner-printer-card-manufacturer {
+        font-size: 12px;
+        opacity: 0.6;
+        margin: 0 0 6px;
     }
     .toner-printer-card-meta {
         display: flex;

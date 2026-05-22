@@ -49,9 +49,9 @@ class TonersDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Ricoh')
             ->assertSee('IM C300')
-            // The (×2) badge surfaces how many physical printers of this
-            // model are in service — useful for ranking stock priorities.
-            ->assertSee('×2')
+            // The card surfaces how many physical printers of this model
+            // are in service — useful for ranking stock priorities.
+            ->assertSee('2 printers')
             ->assertSee('IM C300 Black Toner')
             ->assertSee('IM C300 Cyan Toner');
     }
