@@ -3,6 +3,8 @@
 namespace Tests\Feature\Reports;
 
 use App\Models\Asset;
+use App\Models\Consumable;
+use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
 use App\Models\FacultyAgreement;
 use App\Models\Order;
@@ -551,5 +553,62 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('PMCN-FIN-1')
             ->assertSee('$155.70')
             ->assertSee('$1,155.70');
+    }
+
+    /**
+     * Creates a GL transaction row directly (no factory — the model is a
+     * plain ledger row populated at checkout time).
+     */
+    private function glTransaction(array $overrides = []): ConsumableTransaction
+    {
+        return ConsumableTransaction::create(array_merge([
+            'consumable_id' => Consumable::factory()->create()->id,
+            'asset_id' => Asset::factory()->create()->id,
+            'gl_code' => '6100-100',
+            'quantity' => 1,
+            'unit_cost' => 100,
+            'total_cost' => 100,
+            'transaction_date' => '2026-05-01',
+            'fiscal_year' => 'FY2026-27',
+            'status' => ConsumableTransaction::STATUS_DRAFT,
+        ], $overrides));
+    }
+
+    public function test_gl_journal_transfer_report_groups_by_gl_with_subtotals()
+    {
+        $this->glTransaction(['gl_code' => '6100-100', 'total_cost' => 100]);
+        $this->glTransaction(['gl_code' => '6100-100', 'total_cost' => 100, 'transaction_date' => '2026-05-02']);
+        $this->glTransaction(['gl_code' => '6200-200', 'total_cost' => 50, 'transaction_date' => '2026-05-03']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.gl-transfer'))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.report_gl_transfer'))
+            ->assertSee('6100-100')
+            ->assertSee('6200-200')
+            ->assertSee('$200.00')   // 6100-100 subtotal
+            ->assertSee('$250.00');  // grand total
+    }
+
+    public function test_gl_journal_transfer_exports_csv()
+    {
+        $this->glTransaction(['gl_code' => '6100-100']);
+
+        $response = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.gl-transfer', ['format' => 'csv']));
+
+        $response->assertOk();
+        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
+    }
+
+    public function test_gl_journal_transfer_mark_posted_flips_draft_transactions()
+    {
+        $txn = $this->glTransaction(['status' => ConsumableTransaction::STATUS_DRAFT]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.gl-transfer.post'), ['fiscal_year' => 'FY2026-27'])
+            ->assertRedirect(route('reports.procurement.gl-transfer', ['fiscal_year' => 'FY2026-27']));
+
+        $this->assertEquals(ConsumableTransaction::STATUS_POSTED, $txn->fresh()->status);
     }
 }
