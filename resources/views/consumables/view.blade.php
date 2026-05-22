@@ -63,7 +63,7 @@
                     </x-tabs.pane>
                     <!-- end history tab pane -->
 
-                    <!-- start GL transactions tab pane -->
+                    <!-- start transactions tab pane -->
                     <x-tabs.pane name="gl-transactions">
                         @php $glTransactions = $consumable->transactions()->with('asset')->get(); @endphp
                         @if ($glTransactions->isEmpty())
@@ -71,6 +71,18 @@
                                 {{ trans('admin/consumables/general.gl_transactions_empty') }}
                             </p>
                         @else
+                            <div style="margin-bottom: 12px;">
+                                <a href="{{ route('consumables.transactions.export', ['consumable' => $consumable->id, 'format' => 'csv']) }}"
+                                   class="btn btn-sm btn-default">
+                                    <i class="fa-solid fa-file-csv" aria-hidden="true"></i>
+                                    {{ trans('admin/consumables/general.transactions_export_csv') }}
+                                </a>
+                                <a href="{{ route('consumables.transactions.export', $consumable->id) }}" target="_blank"
+                                   class="btn btn-sm btn-default">
+                                    <i class="fa-solid fa-print" aria-hidden="true"></i>
+                                    {{ trans('admin/consumables/general.transactions_print_report') }}
+                                </a>
+                            </div>
                             <table class="table table-striped snipe-table">
                                 <thead>
                                     <tr>
@@ -127,7 +139,7 @@
                             </table>
                         @endif
                     </x-tabs.pane>
-                    <!-- end GL transactions tab pane -->
+                    <!-- end transactions tab pane -->
 
                 </x-slot:tabpanes>
 
