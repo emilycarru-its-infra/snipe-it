@@ -55,8 +55,8 @@
           <div class="form-group {{ $errors->has('transaction_date') ? 'has-error' : '' }}">
             <label for="transaction_date" class="col-md-3 control-label">{{ trans('admin/consumables/general.gl_txn_date') }}</label>
             <div class="col-md-4">
-              <input class="form-control" type="date" name="transaction_date" id="transaction_date"
-                     value="{{ old('transaction_date', now()->format('Y-m-d')) }}" required>
+              <x-input.datepicker name="transaction_date" id="transaction_date"
+                                  value="{{ old('transaction_date', now()->format('Y-m-d')) }}" required="1" />
               {!! $errors->first('transaction_date', '<span class="alert-msg"><i class="fas fa-times"></i> :message</span>') !!}
             </div>
           </div>
