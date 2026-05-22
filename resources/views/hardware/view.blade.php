@@ -199,6 +199,12 @@
                                     </x-data-row>
                                 @endif
 
+                                @if ($asset->gl_code)
+                                    <x-data-row :label="trans('admin/hardware/form.gl_code')" copy_what="gl_code">
+                                        {{ $asset->gl_code }}
+                                    </x-data-row>
+                                @endif
+
 
                                 @if (($asset->model) && ($asset->model->fieldset))
                                     @foreach($asset->model->fieldset->fields as $field)

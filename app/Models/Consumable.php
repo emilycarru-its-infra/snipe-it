@@ -331,6 +331,16 @@ class Consumable extends SnipeModel
     }
 
     /**
+     * GL transactions (journal-transfer lines) recorded for this consumable.
+     * One row per checkout to a GL-tracked printer. See ConsumableTransaction.
+     */
+    public function transactions(): Relation
+    {
+        return $this->hasMany(ConsumableTransaction::class, 'consumable_id')
+            ->orderBy('transaction_date', 'desc');
+    }
+
+    /**
      * Establishes the item -> supplier relationship
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]

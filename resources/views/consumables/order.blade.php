@@ -33,41 +33,43 @@
                         </div>
                     @endif
 
-                    {{-- Target: existing planned order vs new one. The two
-                         radios drive the visibility of the dependent inputs
-                         via the small inline script below. --}}
-                    <div class="form-group {{ $errors->has('target') ? 'has-error' : '' }}">
-                        <label class="col-sm-3 control-label">{{ trans('admin/consumables/general.order_target') }}</label>
-                        <div class="col-md-7">
-                            <label class="radio-inline">
-                                <input type="radio" name="target" value="existing" {{ old('target', $plannedOrders->isNotEmpty() ? 'existing' : 'new') === 'existing' ? 'checked' : '' }} {{ $plannedOrders->isEmpty() ? 'disabled' : '' }}>
-                                {{ trans('admin/consumables/general.order_target_existing') }}
-                            </label>
-                            <label class="radio-inline">
-                                <input type="radio" name="target" value="new" {{ old('target', $plannedOrders->isNotEmpty() ? 'existing' : 'new') === 'new' ? 'checked' : '' }}>
-                                {{ trans('admin/consumables/general.order_target_new') }}
-                            </label>
-                            {!! $errors->first('target', '<span class="alert-msg"><i class="fas fa-times"></i> :message</span>') !!}
-                        </div>
-                    </div>
+                    {{-- Order: a searchable dropdown of existing planned
+                         orders, with a New button on the right to create one
+                         instead — mirrors the user/asset checkout selectors.
+                         A hidden `target` field tracks the mode, so the
+                         controller branch (existing vs new) is unchanged. --}}
+                    @php
+                        $orderTarget = old('target', $plannedOrders->isNotEmpty() ? 'existing' : 'new');
+                    @endphp
+                    <input type="hidden" name="target" id="order_target" value="{{ $orderTarget }}">
 
-                    {{-- Existing planned order dropdown. --}}
-                    <div id="order-target-existing" class="form-group {{ $errors->has('order_id') ? 'has-error' : '' }}" style="{{ old('target', $plannedOrders->isNotEmpty() ? 'existing' : 'new') === 'existing' ? '' : 'display: none;' }}">
-                        <label class="col-sm-3 control-label" for="order_id">{{ trans('admin/consumables/general.order_planned_order') }}</label>
+                    <div id="order-target-existing" class="form-group {{ $errors->has('order_id') ? 'has-error' : '' }}"
+                         style="{{ $orderTarget === 'existing' ? '' : 'display: none;' }}">
+                        <label class="col-sm-3 control-label" for="order_id">{{ trans('admin/consumables/general.order_field') }}</label>
                         <div class="col-md-7">
-                            <select name="order_id" id="order_id" class="form-control">
-                                @foreach ($plannedOrders as $plannedOrder)
-                                    <option value="{{ $plannedOrder->id }}" {{ (int) old('order_id') === (int) $plannedOrder->id ? 'selected' : '' }}>
-                                        {{ $plannedOrder->order_number }}@if ($plannedOrder->fiscal_year) — {{ $plannedOrder->fiscal_year }}@endif
-                                    </option>
-                                @endforeach
-                            </select>
+                            <div style="display: flex; gap: 8px; align-items: flex-start;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <select name="order_id" id="order_id" class="form-control" style="width: 100%;"
+                                            data-placeholder="{{ trans('admin/consumables/general.order_field_placeholder') }}">
+                                        <option value=""></option>
+                                        @foreach ($plannedOrders as $plannedOrder)
+                                            <option value="{{ $plannedOrder->id }}" {{ (int) old('order_id') === (int) $plannedOrder->id ? 'selected' : '' }}>
+                                                {{ $plannedOrder->order_number }}@if ($plannedOrder->fiscal_year) — {{ $plannedOrder->fiscal_year }}@endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="button" id="order-new-btn" class="btn btn-default">
+                                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                                    {{ trans('admin/consumables/general.order_new_button') }}
+                                </button>
+                            </div>
                             {!! $errors->first('order_id', '<span class="alert-msg"><i class="fas fa-times"></i> :message</span>') !!}
                         </div>
                     </div>
 
                     {{-- New planned order fields. --}}
-                    <div id="order-target-new" style="{{ old('target', $plannedOrders->isNotEmpty() ? 'existing' : 'new') === 'new' ? '' : 'display: none;' }}">
+                    <div id="order-target-new" style="{{ $orderTarget === 'new' ? '' : 'display: none;' }}">
                         <div class="form-group {{ $errors->has('new_order_number') ? 'has-error' : '' }}">
                             <label class="col-sm-3 control-label" for="new_order_number">{{ trans('general.order_number') }}</label>
                             <div class="col-md-7">
@@ -83,6 +85,17 @@
                                 {!! $errors->first('fiscal_year', '<span class="alert-msg"><i class="fas fa-times"></i> :message</span>') !!}
                             </div>
                         </div>
+
+                        @if ($plannedOrders->isNotEmpty())
+                            <div class="form-group">
+                                <div class="col-sm-7 col-sm-offset-3">
+                                    <a href="#" id="order-use-existing-btn">
+                                        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                                        {{ trans('admin/consumables/general.order_use_existing') }}
+                                    </a>
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="form-group {{ $errors->has('quantity') ? 'has-error' : '' }}">
@@ -118,10 +131,25 @@
 @section('moar_scripts')
 <script nonce="{{ csrf_token() }}">
     $(function () {
-        $('input[name=target]').on('change', function () {
-            var target = $('input[name=target]:checked').val();
-            $('#order-target-existing').toggle(target === 'existing');
-            $('#order-target-new').toggle(target === 'new');
+        // Searchable dropdown — same select2 UX as the user/asset checkout
+        // selectors. allowClear lets the field be emptied again.
+        $('#order_id').select2({
+            placeholder: $('#order_id').data('placeholder'),
+            allowClear: true,
+            width: '100%',
+        });
+
+        // The New button / "use existing" link flip a hidden `target` field
+        // and the two dependent blocks; the controller keys off `target`.
+        function setMode(mode) {
+            $('#order_target').val(mode);
+            $('#order-target-existing').toggle(mode === 'existing');
+            $('#order-target-new').toggle(mode === 'new');
+        }
+        $('#order-new-btn').on('click', function () { setMode('new'); });
+        $('#order-use-existing-btn').on('click', function (e) {
+            e.preventDefault();
+            setMode('existing');
         });
     });
 </script>

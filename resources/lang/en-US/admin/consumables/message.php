@@ -35,4 +35,10 @@ return [
         'user_does_not_exist' => 'That user is invalid. Please try again.',
     ],
 
+    'transaction' => [
+        'does_not_exist' => 'That transaction does not belong to this consumable.',
+        'update_success' => 'Transaction updated successfully.',
+        'void_success' => 'Transaction voided.',
+    ],
+
 ];

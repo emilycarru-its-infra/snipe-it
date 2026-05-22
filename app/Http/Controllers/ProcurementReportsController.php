@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Asset;
+use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
 use App\Models\FacultyAgreement;
 use App\Models\LeaseDecision;
@@ -409,6 +410,82 @@ class ProcurementReportsController extends Controller
             'reports.procurement.lease-decisions',
             $this->leaseDecisionsReport($request->query('status'))
         );
+    }
+
+    /**
+     * GL Journal Transfer — the finance-ready chargeback form. Every
+     * consumable (toner) checked out to a GL-coded printer is one line;
+     * lines are grouped by GL code with a per-GL subtotal (the amount to
+     * journal to that department) and a grand total. `?fiscal_year=` and
+     * `?status=` narrow it.
+     */
+    public function glJournalTransfer(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        $fiscalYear = $request->query('fiscal_year');
+        $status = $request->query('status');
+
+        $controls = view('reports.procurement._gl-transfer-controls', [
+            'fiscalYear' => $fiscalYear,
+            'status' => $status,
+            'draftCount' => ConsumableTransaction::where('status', ConsumableTransaction::STATUS_DRAFT)
+                ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
+                ->count(),
+            'postedCount' => ConsumableTransaction::where('status', ConsumableTransaction::STATUS_POSTED)
+                ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
+                ->count(),
+        ])->render();
+
+        return $this->render(
+            $request,
+            'gl-journal-transfer',
+            trans('admin/purchase-orders/general.report_gl_transfer'),
+            'reports.procurement.gl-transfer',
+            $this->glJournalTransferReport($fiscalYear, $status),
+            $controls,
+            array_filter(['fiscal_year' => $fiscalYear, 'status' => $status]),
+        );
+    }
+
+    /**
+     * Mark draft GL transactions as posted — the "journal transfer has
+     * been generated and handed to Finance" step. Scoped to a fiscal year
+     * when one is supplied.
+     */
+    public function markGlTransactionsPosted(Request $request): RedirectResponse
+    {
+        $this->authorize('reports.view');
+
+        $fiscalYear = $request->input('fiscal_year');
+
+        $posted = ConsumableTransaction::draft()
+            ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
+            ->update(['status' => ConsumableTransaction::STATUS_POSTED]);
+
+        return redirect()
+            ->route('reports.procurement.gl-transfer', array_filter(['fiscal_year' => $fiscalYear]))
+            ->with('success', trans('admin/purchase-orders/general.gl_transfer_posted', ['count' => $posted]));
+    }
+
+    /**
+     * Mark posted GL transactions as transferred — Finance has confirmed
+     * the journal entry went through. Closes the lifecycle. Scoped to a
+     * fiscal year when one is supplied.
+     */
+    public function markGlTransactionsTransferred(Request $request): RedirectResponse
+    {
+        $this->authorize('reports.view');
+
+        $fiscalYear = $request->input('fiscal_year');
+
+        $transferred = ConsumableTransaction::where('status', ConsumableTransaction::STATUS_POSTED)
+            ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
+            ->update(['status' => ConsumableTransaction::STATUS_TRANSFERRED]);
+
+        return redirect()
+            ->route('reports.procurement.gl-transfer', array_filter(['fiscal_year' => $fiscalYear]))
+            ->with('success', trans('admin/purchase-orders/general.gl_transfer_transferred', ['count' => $transferred]));
     }
 
     public function poDisposition(Request $request)
@@ -1663,6 +1740,102 @@ class ProcurementReportsController extends Controller
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Builds the GL Journal Transfer report: consumable transactions
+     * sorted by GL code then date, a subtotal row closing each GL group,
+     * and a grand total in the footer.
+     */
+    private function glJournalTransferReport(?string $fiscalYear = null, ?string $statusFilter = null): array
+    {
+        $columns = [
+            trans('admin/consumables/general.gl_txn_code'),
+            trans('admin/consumables/general.gl_txn_date'),
+            trans('admin/consumables/general.gl_txn_printer'),
+            trans('general.consumable'),
+            trans('admin/consumables/general.gl_txn_qty'),
+            trans('admin/consumables/general.gl_txn_unit_cost'),
+            trans('admin/consumables/general.gl_txn_total'),
+            trans('admin/consumables/general.gl_txn_fiscal_year'),
+            trans('admin/consumables/general.gl_txn_status'),
+        ];
+
+        $query = ConsumableTransaction::with('consumable', 'asset')
+            ->orderBy('gl_code')
+            ->orderBy('transaction_date');
+
+        if ($fiscalYear) {
+            $query->where('fiscal_year', $fiscalYear);
+        }
+        if (in_array($statusFilter, [
+            ConsumableTransaction::STATUS_DRAFT,
+            ConsumableTransaction::STATUS_POSTED,
+            ConsumableTransaction::STATUS_TRANSFERRED,
+        ], true)) {
+            $query->where('status', $statusFilter);
+        }
+
+        $records = [];
+        $grandTotal = 0.0;
+        $groupTotal = 0.0;
+        $currentGl = null;
+
+        foreach ($query->get() as $txn) {
+            if ($currentGl !== null && $txn->gl_code !== $currentGl) {
+                $records[] = $this->glSubtotalRow($currentGl, $groupTotal);
+                $groupTotal = 0.0;
+            }
+            $currentGl = $txn->gl_code;
+
+            $lineTotal = (float) $txn->total_cost;
+            $groupTotal += $lineTotal;
+            $grandTotal += $lineTotal;
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
+                    (string) $txn->gl_code,
+                    $this->dateString($txn->transaction_date),
+                    $txn->asset?->present()->name() ?? '',
+                    $txn->consumable?->name ?? '',
+                    (string) $txn->quantity,
+                    $this->money($txn->unit_cost),
+                    $this->money($txn->total_cost),
+                    (string) $txn->fiscal_year,
+                    ucfirst((string) $txn->status),
+                ],
+            ];
+        }
+
+        if ($currentGl !== null) {
+            $records[] = $this->glSubtotalRow($currentGl, $groupTotal);
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '', '',
+            $this->money($grandTotal), '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * A per-GL subtotal row for the GL Journal Transfer report — the
+     * amount to journal to that GL code.
+     */
+    private function glSubtotalRow(string $glCode, float $total): array
+    {
+        return [
+            'class' => 'info',
+            'cells' => [
+                $glCode,
+                trans('admin/purchase-orders/general.gl_transfer_subtotal'),
+                '', '', '', '',
+                $this->money($total),
+                '', '',
+            ],
+        ];
     }
 
     /**
