@@ -129,15 +129,14 @@ class ConsumableCheckoutController extends Controller
             ]);
         }
 
-        // Internal-transaction capture: a consumable checked out to an asset
-        // that carries a GL code produces a journal-transfer line (one per
-        // checkout event, with the full quantity). An asset with no GL code —
-        // a general/student printer — is not chargeable and records nothing.
-        // The checkout form's "create GL transaction" toggle can opt out;
-        // when the field is absent (e.g. API callers) the default is to record.
-        $createGlTransaction = ! $request->has('create_gl_transaction')
-            || $request->boolean('create_gl_transaction');
-        if ($checkout_to_type === 'asset' && $createGlTransaction) {
+        // Internal-transaction capture is opt-in: the checkout form's
+        // "record a transaction" toggle is off by default, so a checkout
+        // logs a journal-transfer line only when it is explicitly checked.
+        // A transaction can also be created after the fact from the
+        // consumable's Transactions tab. (An asset with no GL code still
+        // records nothing even when the toggle is on, unless a custom GL
+        // is supplied — see ConsumableTransaction::recordCheckout.)
+        if ($checkout_to_type === 'asset' && $request->boolean('create_gl_transaction')) {
             ConsumableTransaction::recordCheckout(
                 $consumable,
                 $target,

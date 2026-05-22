@@ -37,6 +37,7 @@ return [
 
     'transaction' => [
         'does_not_exist' => 'That transaction does not belong to this consumable.',
+        'create_success' => 'Transaction created successfully.',
         'update_success' => 'Transaction updated successfully.',
         'void_success' => 'Transaction voided.',
     ],
