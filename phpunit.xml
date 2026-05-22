@@ -26,6 +26,9 @@
     <env name="QUEUE_DRIVER" value="sync"/>
     <env name="SESSION_DRIVER" value="array"/>
     <ini name="display_errors" value="true"/>
+    <!-- PDF generation (tcpdf) routinely exceeds PHP's 128M default, which
+         aborts the whole run with a fatal error. 512M matches production. -->
+    <ini name="memory_limit" value="512M"/>
   </php>
   <source>
     <include>
