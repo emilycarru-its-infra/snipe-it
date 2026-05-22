@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\CheckoutAcceptance;
 use App\Models\Consumable;
+use App\Models\ConsumableTransaction;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
@@ -126,6 +127,14 @@ class ConsumableCheckoutController extends Controller
                 'assigned_type' => $target_type,
                 'note' => $request->input('note'),
             ]);
+        }
+
+        // Internal-transaction capture: a consumable checked out to an asset
+        // that carries a GL code produces a journal-transfer line (one per
+        // checkout event, with the full quantity). An asset with no GL code —
+        // a general/student printer — is not chargeable and records nothing.
+        if ($checkout_to_type === 'asset') {
+            ConsumableTransaction::recordCheckout($consumable, $target, $quantity, $request->input('note'), $admin_user->id);
         }
 
         $consumable->checkout_qty = $quantity;
