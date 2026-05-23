@@ -27,6 +27,8 @@ return [
     'none' => 'No purchase order',
     'reports' => 'Procurement Reports',
     'reports_intro' => 'Download procurement and finance reports as CSV for hand-off to Accounts Payable.',
+    'report_hide' => 'Hide from my list',
+    'reports_hidden_count' => ':count hidden — show all',
     'report_po_budget' => 'PO Budget & Spend',
     'report_po_budget_desc' => 'Budget, invoiced, committed and remaining for every purchase order.',
     'report_invoices' => 'Invoice Reconciliation',
