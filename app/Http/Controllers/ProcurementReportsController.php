@@ -7,6 +7,7 @@ use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
 use App\Models\FacultyAgreement;
 use App\Models\LeaseDecision;
+use App\Models\LeaseSchedule;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -131,10 +132,19 @@ class ProcurementReportsController extends Controller
             ['quoted', 'agreement_sent']
         )->count();
 
+        // Lease schedules sitting in the chase queue — drafts or
+        // awaiting Viktor / Mark's signature. The lessor is blocked
+        // from finalising until this clears.
+        $scheduleSigningQueueCount = LeaseSchedule::whereIn(
+            'lifecycle_stage',
+            LeaseSchedule::OPEN_STAGES
+        )->count();
+
         return view('reports/procurement', [
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
             'facultyAwaitingSignatureCount' => $facultyAwaitingSignatureCount,
+            'scheduleSigningQueueCount' => $scheduleSigningQueueCount,
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
             'totalBudget' => $totalBudget,
@@ -354,6 +364,19 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.report_faculty_ledger'),
             'reports.procurement.faculty-ledger',
             $this->facultyLedgerReport($request->query('agreement_type'), $request->query('stage'))
+        );
+    }
+
+    public function scheduleSigningQueue(Request $request)
+    {
+        $this->authorize('reports.view');
+
+        return $this->render(
+            $request,
+            'schedule-signing-queue',
+            trans('admin/purchase-orders/general.report_schedule_signing'),
+            'reports.procurement.schedule-signing',
+            $this->scheduleSigningQueueReport($request->query('stage'))
         );
     }
 
@@ -2627,6 +2650,111 @@ class ProcurementReportsController extends Controller
         $cleaned = preg_replace('/[^0-9.\-]/', '', (string) $value);
 
         return $cleaned === '' ? 0.0 : (float) $cleaned;
+    }
+
+    /**
+     * Schedule Signing Queue. The chase view Sohee uses when she needs to
+     * know which lease schedules are still draft / awaiting Viktor +
+     * Mark's signature. Default filter is the open stages; `?stage=all`
+     * exposes signed / active history too. Each row shows the days
+     * pending (so old schedules float to the top) and the vendor-on-hold
+     * flag (Apple account on hold pattern).
+     */
+    private function scheduleSigningQueueReport(?string $stageFilter = null): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.schedule_ref'),
+            trans('admin/purchase-orders/general.lease_provider'),
+            trans('admin/purchase-orders/general.schedule_type_term'),
+            trans('admin/purchase-orders/general.schedule_received'),
+            trans('admin/purchase-orders/general.schedule_stage'),
+            trans('admin/purchase-orders/general.schedule_days_pending'),
+            trans('admin/purchase-orders/general.schedule_vendor_hold'),
+            trans('admin/purchase-orders/general.schedule_expected_cost'),
+            trans('admin/purchase-orders/general.schedule_expected_assets'),
+            trans('admin/purchase-orders/general.schedule_received_assets'),
+            trans('admin/purchase-orders/general.invoice_usage'),
+        ];
+
+        $query = LeaseSchedule::query()
+            ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
+                'draft', 'awaiting_signature', 'signed', 'active', 'cancelled',
+            ]))
+            ->orderBy('received_at');
+
+        if ($stageFilter === null || $stageFilter === 'open') {
+            $query->whereIn('lifecycle_stage', LeaseSchedule::OPEN_STAGES);
+        } elseif ($stageFilter !== 'all' && in_array($stageFilter, LeaseSchedule::LIFECYCLE_STAGES, true)) {
+            $query->where('lifecycle_stage', $stageFilter);
+        }
+
+        $schedules = $query->get();
+
+        // Real-asset counts per schedule_ref via the existing Lease
+        // Contract ID custom field — gives Sohee a quick "Annexure says
+        // 18, we received 14" signal. The full Annexure A diff lives in
+        // a separate report.
+        $contractIdColumn = $this->leaseFieldColumns()['contract_id'] ?? null;
+        $assetCounts = [];
+        if ($contractIdColumn && $schedules->isNotEmpty()) {
+            $refs = $schedules->pluck('schedule_ref')->all();
+            $assetCounts = Asset::query()
+                ->whereIn($contractIdColumn, $refs)
+                ->selectRaw("$contractIdColumn as ref, COUNT(*) as total")
+                ->groupBy($contractIdColumn)
+                ->pluck('total', 'ref')
+                ->all();
+        }
+
+        $records = [];
+        $openCount = 0;
+        $heldCount = 0;
+
+        foreach ($schedules as $schedule) {
+            $days = $schedule->daysPending();
+            $receivedAssets = $assetCounts[$schedule->schedule_ref] ?? 0;
+
+            // > 10 working days on the chase list is the threshold Sohee
+            // flagged in email — over that it likely means the Apple
+            // account is sitting blocked. Vendor-on-hold gets the
+            // strongest cue regardless of age.
+            $class = $schedule->vendor_on_hold
+                ? 'danger'
+                : ($schedule->isOpen() && $days > 10 ? 'warning' : '');
+
+            if ($schedule->isOpen()) {
+                $openCount++;
+            }
+            if ($schedule->vendor_on_hold) {
+                $heldCount++;
+            }
+
+            $records[] = [
+                'class' => $class,
+                'cells' => [
+                    $schedule->schedule_ref,
+                    (string) $schedule->lessor,
+                    trim(($schedule->lease_type ?? '').($schedule->term_months ? ' / '.$schedule->term_months.'mo' : '')),
+                    $this->dateString($schedule->received_at),
+                    trans('admin/purchase-orders/general.schedule_stage_'.$schedule->lifecycle_stage),
+                    $schedule->isOpen() ? $days : '',
+                    $schedule->vendor_on_hold ? trans('general.yes') : trans('general.no'),
+                    $this->money($schedule->expected_acquisition_cost),
+                    (int) ($schedule->expected_asset_count ?? 0),
+                    $receivedAssets,
+                    (string) $schedule->usage_tag,
+                ],
+            ];
+        }
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '',
+            '',
+            $openCount, $heldCount,
+            '', '', '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
     }
 
     /**
