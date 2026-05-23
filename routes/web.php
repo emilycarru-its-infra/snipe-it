@@ -147,6 +147,8 @@ Route::group(['middleware' => 'auth'], function () {
     Route::resource('lease-schedules', LeaseSchedulesController::class);
     Route::post('lease-schedules/{leaseSchedule}/mark-signed', [LeaseSchedulesController::class, 'markSigned'])
         ->name('lease-schedules.mark-signed');
+    Route::get('lease-schedules/{leaseSchedule}/annexure-diff', [LeaseSchedulesController::class, 'annexureDiff'])
+        ->name('lease-schedules.annexure-diff');
 
     /*
     * Depreciations
@@ -831,7 +833,7 @@ Route::group(['middleware' => 'web'], function () {
             'show',
         ]
     )->name('ui.files.show')
-        ->where(['object_type' => 'assets|audits|maintenances|hardware|models|users|locations|accessories|consumables|licenses|suppliers|components|companies|departments']);
+        ->where(['object_type' => 'assets|audits|maintenances|hardware|models|users|locations|accessories|consumables|licenses|suppliers|components|companies|departments|purchase-orders|lease-schedules']);
 
     // Upload files(s)
     Route::post('{object_type}/{id}/files',
@@ -840,7 +842,7 @@ Route::group(['middleware' => 'web'], function () {
             'store',
         ]
     )->name('ui.files.store')
-        ->where(['object_type' => 'assets|audits|maintenances|hardware|models|users|locations|accessories|consumables|licenses|suppliers|components|companies|departments']);
+        ->where(['object_type' => 'assets|audits|maintenances|hardware|models|users|locations|accessories|consumables|licenses|suppliers|components|companies|departments|purchase-orders|lease-schedules']);
 
     // Delete files(s)
     Route::delete('{object_type}/{id}/files/{file_id}/delete',
@@ -849,7 +851,7 @@ Route::group(['middleware' => 'web'], function () {
             'destroy',
         ]
     )->name('ui.files.destroy')
-        ->where(['object_type' => 'assets|maintenances|hardware|models|users|locations|accessories|consumables|licenses|suppliers|components|companies|departments']);
+        ->where(['object_type' => 'assets|maintenances|hardware|models|users|locations|accessories|consumables|licenses|suppliers|components|companies|departments|purchase-orders|lease-schedules']);
 });
 
 /*

@@ -47,6 +47,9 @@
                 <a class="btn btn-warning" href="{{ route('lease-schedules.edit', $schedule) }}">
                     <i class="fas fa-pencil-alt"></i> {{ trans('general.update') }}
                 </a>
+                <a class="btn btn-default" href="{{ route('lease-schedules.annexure-diff', $schedule) }}">
+                    <i class="fas fa-not-equal"></i> {{ trans('admin/lease-schedules/general.annexure_run_diff') }}
+                </a>
                 @if (! $schedule->isSigned())
                     <form method="POST" action="{{ route('lease-schedules.mark-signed', $schedule) }}" class="pull-right" style="display:inline-block;">
                         {{ csrf_field() }}
@@ -57,6 +60,14 @@
                 @endif
             </div>
         </div>
+
+        @include('partials.object-documents', ['object' => $schedule, 'object_type' => 'lease-schedules'])
     </div>
 </div>
+@stop
+
+@section('moar_scripts')
+    @can('files', $schedule)
+        @include ('modals.upload-file', ['item_type' => 'lease-schedule', 'item_id' => $schedule->id])
+    @endcan
 @stop

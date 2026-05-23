@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Actionlog;
+use App\Models\Asset;
+use App\Models\CustomField;
 use App\Models\LeaseSchedule;
 use App\Models\Order;
+use App\Services\AnnexureParser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 /**
  * CRUD plus mark-signed action for lease schedules. The read view lives
@@ -103,5 +108,76 @@ class LeaseSchedulesController extends Controller
 
         return redirect()->route('lease-schedules.show', $leaseSchedule)
             ->with('success', trans('admin/lease-schedules/message.signed'));
+    }
+
+    /**
+     * Annexure A diff. Reads the most recently uploaded file attached
+     * to the schedule, extracts serials, and compares them to assets
+     * carrying the matching Lease Contract ID custom field. The result
+     * is bucketed three ways so Sohee can see at a glance what the
+     * lessor sent that we haven't received yet, and what we've received
+     * that isn't on their Annexure.
+     */
+    public function annexureDiff(LeaseSchedule $leaseSchedule, AnnexureParser $parser): View|RedirectResponse
+    {
+        $this->authorize('view', Order::class);
+
+        $upload = Actionlog::where('item_type', LeaseSchedule::class)
+            ->where('item_id', $leaseSchedule->id)
+            ->where('action_type', 'uploaded')
+            ->whereNotNull('filename')
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (! $upload) {
+            return redirect()->route('lease-schedules.show', $leaseSchedule)
+                ->with('error', trans('admin/lease-schedules/message.annexure_no_upload'));
+        }
+
+        $path = 'private_uploads/lease-schedules/'.$upload->filename;
+        $annexureSerials = collect($parser->serialsFromPdf($path));
+
+        // Look up the Lease Contract ID column on assets once — the
+        // schedule_ref string match mirrors the existing data flow.
+        $contractIdColumn = CustomField::where('name', 'Lease Contract ID')->value('db_column');
+        $snipeSerials = collect();
+
+        if ($contractIdColumn) {
+            $snipeSerials = Asset::query()
+                ->where($contractIdColumn, $leaseSchedule->schedule_ref)
+                ->whereNotNull('serial')
+                ->where('serial', '!=', '')
+                ->orderBy('serial')
+                ->get(['id', 'asset_tag', 'serial', 'status_id']);
+        }
+
+        $snipeSerialIndex = $snipeSerials->keyBy(fn ($a) => strtoupper($a->serial));
+        $annexureSerialUpper = $annexureSerials->map(fn ($s) => strtoupper($s));
+
+        $matched = [];
+        $missingInSnipe = [];
+        foreach ($annexureSerialUpper as $serial) {
+            if (isset($snipeSerialIndex[$serial])) {
+                $matched[] = ['serial' => $serial, 'asset' => $snipeSerialIndex[$serial]];
+            } else {
+                $missingInSnipe[] = $serial;
+            }
+        }
+
+        $annexureSet = $annexureSerialUpper->flip();
+        $missingInAnnexure = $snipeSerials
+            ->filter(fn ($a) => ! isset($annexureSet[strtoupper($a->serial)]))
+            ->values();
+
+        return view('lease-schedules/annexure-diff', [
+            'schedule' => $leaseSchedule,
+            'upload' => $upload,
+            'annexureCount' => $annexureSerialUpper->count(),
+            'snipeCount' => $snipeSerials->count(),
+            'matched' => $matched,
+            'missingInSnipe' => $missingInSnipe,
+            'missingInAnnexure' => $missingInAnnexure,
+            'parserUsable' => (bool) $contractIdColumn,
+        ]);
     }
 }
