@@ -13,6 +13,7 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -2854,5 +2855,24 @@ class ProcurementReportsController extends Controller
         }
 
         return $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string) $value;
+    }
+
+    /**
+     * Persist the current user's hidden-report preferences for the
+     * procurement reports list. Body: `{hidden: [report_key, ...]}` —
+     * the full list, not a delta. Returns the saved list as JSON.
+     */
+    public function updateVisibility(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'hidden' => 'nullable|array',
+            'hidden.*' => 'string|max:191',
+        ]);
+
+        $user = $request->user();
+        $user->hidden_procurement_reports = array_values(array_unique($validated['hidden'] ?? []));
+        $user->save();
+
+        return response()->json(['hidden' => $user->hidden_procurement_reports]);
     }
 }

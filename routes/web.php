@@ -646,66 +646,96 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         ->name('reports/export/unaccepted_assets');
 
     Route::prefix('procurement')->group(function () {
+        // Each procurement report's breadcrumb chains off the procurement
+        // landing — same Home > Reports > Procurement Reports > <Title> shape.
+        $crumb = fn (string $routeName, string $titleKey) =>
+            fn (Trail $trail) => $trail->parent('reports.procurement')
+                ->push(trans("admin/purchase-orders/general.$titleKey"), route($routeName));
+
         Route::get('/', [ProcurementReportsController::class, 'index'])
             ->name('reports.procurement')
             ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
                 ->push(trans('general.reports'), route('reports.index'))
                 ->push(trans('admin/purchase-orders/general.reports'), route('reports.procurement')));
 
+        Route::patch('visibility', [ProcurementReportsController::class, 'updateVisibility'])
+            ->name('reports.procurement.visibility');
+
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
-            ->name('reports.procurement.po-budget');
+            ->name('reports.procurement.po-budget')
+            ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
         Route::get('invoices', [ProcurementReportsController::class, 'invoices'])
-            ->name('reports.procurement.invoices');
+            ->name('reports.procurement.invoices')
+            ->breadcrumbs($crumb('reports.procurement.invoices', 'report_invoices'));
         Route::get('receiving', [ProcurementReportsController::class, 'receiving'])
             ->name('reports.procurement.receiving');
         Route::get('tax', [ProcurementReportsController::class, 'tax'])
             ->name('reports.procurement.tax');
         Route::get('capital', [ProcurementReportsController::class, 'capital'])
-            ->name('reports.procurement.capital');
+            ->name('reports.procurement.capital')
+            ->breadcrumbs($crumb('reports.procurement.capital', 'report_capital'));
         Route::get('refresh-forecast', [ProcurementReportsController::class, 'refreshForecast'])
-            ->name('reports.procurement.forecast');
+            ->name('reports.procurement.forecast')
+            ->breadcrumbs($crumb('reports.procurement.forecast', 'report_forecast'));
         Route::post('refresh-forecast/planned-order', [ProcurementReportsController::class, 'createPlannedOrder'])
             ->name('reports.procurement.forecast.plan');
         Route::get('leases-operational', [ProcurementReportsController::class, 'leasesOperational'])
-            ->name('reports.procurement.leases-operational');
+            ->name('reports.procurement.leases-operational')
+            ->breadcrumbs($crumb('reports.procurement.leases-operational', 'report_leases_operational'));
         Route::get('leases-financial', [ProcurementReportsController::class, 'leasesFinancial'])
-            ->name('reports.procurement.leases-financial');
+            ->name('reports.procurement.leases-financial')
+            ->breadcrumbs($crumb('reports.procurement.leases-financial', 'report_leases_financial'));
         Route::get('csi-schedule', [ProcurementReportsController::class, 'csiSchedule'])
-            ->name('reports.procurement.csi-schedule');
+            ->name('reports.procurement.csi-schedule')
+            ->breadcrumbs($crumb('reports.procurement.csi-schedule', 'report_csi_schedule'));
         Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
-            ->name('reports.procurement.invoice-approval');
+            ->name('reports.procurement.invoice-approval')
+            ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
         Route::patch('invoice-approval/{invoice}', [ProcurementReportsController::class, 'updateInvoiceApproval'])
             ->name('reports.procurement.invoice-approval.update');
         Route::get('lease-decisions', [ProcurementReportsController::class, 'leaseDecisions'])
-            ->name('reports.procurement.lease-decisions');
+            ->name('reports.procurement.lease-decisions')
+            ->breadcrumbs($crumb('reports.procurement.lease-decisions', 'report_lease_decisions'));
         Route::get('po-disposition', [ProcurementReportsController::class, 'poDisposition'])
-            ->name('reports.procurement.po-disposition');
+            ->name('reports.procurement.po-disposition')
+            ->breadcrumbs($crumb('reports.procurement.po-disposition', 'report_po_disposition'));
         Route::get('extension-watch', [ProcurementReportsController::class, 'extensionWatch'])
-            ->name('reports.procurement.extension-watch');
+            ->name('reports.procurement.extension-watch')
+            ->breadcrumbs($crumb('reports.procurement.extension-watch', 'report_extension_watch'));
         Route::get('aro-register', [ProcurementReportsController::class, 'aroRegister'])
-            ->name('reports.procurement.aro-register');
+            ->name('reports.procurement.aro-register')
+            ->breadcrumbs($crumb('reports.procurement.aro-register', 'report_aro_register'));
         Route::get('asset-lease-detail', [ProcurementReportsController::class, 'assetLeaseDetail'])
-            ->name('reports.procurement.asset-lease-detail');
+            ->name('reports.procurement.asset-lease-detail')
+            ->breadcrumbs($crumb('reports.procurement.asset-lease-detail', 'report_asset_lease_detail'));
         Route::get('po-drilldown', [ProcurementReportsController::class, 'poDrilldown'])
-            ->name('reports.procurement.po-drilldown');
+            ->name('reports.procurement.po-drilldown')
+            ->breadcrumbs($crumb('reports.procurement.po-drilldown', 'report_po_drilldown'));
         Route::get('disposition-grid', [ProcurementReportsController::class, 'dispositionGrid'])
-            ->name('reports.procurement.disposition-grid');
+            ->name('reports.procurement.disposition-grid')
+            ->breadcrumbs($crumb('reports.procurement.disposition-grid', 'report_disposition_grid'));
         Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
-            ->name('reports.procurement.credit-ledger');
+            ->name('reports.procurement.credit-ledger')
+            ->breadcrumbs($crumb('reports.procurement.credit-ledger', 'report_credit_ledger'));
         Route::get('lessor-breakdown', [ProcurementReportsController::class, 'lessorBreakdown'])
-            ->name('reports.procurement.lessor-breakdown');
+            ->name('reports.procurement.lessor-breakdown')
+            ->breadcrumbs($crumb('reports.procurement.lessor-breakdown', 'report_lessor_breakdown'));
         Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
-            ->name('reports.procurement.pst-applicability');
+            ->name('reports.procurement.pst-applicability')
+            ->breadcrumbs($crumb('reports.procurement.pst-applicability', 'report_pst_applicability'));
         Route::get('faculty-ledger', [ProcurementReportsController::class, 'facultyLedger'])
-            ->name('reports.procurement.faculty-ledger');
+            ->name('reports.procurement.faculty-ledger')
+            ->breadcrumbs($crumb('reports.procurement.faculty-ledger', 'report_faculty_ledger'));
         Route::get('gl-transfer', [ProcurementReportsController::class, 'glJournalTransfer'])
-            ->name('reports.procurement.gl-transfer');
+            ->name('reports.procurement.gl-transfer')
+            ->breadcrumbs($crumb('reports.procurement.gl-transfer', 'report_gl_transfer'));
         Route::post('gl-transfer/post', [ProcurementReportsController::class, 'markGlTransactionsPosted'])
             ->name('reports.procurement.gl-transfer.post');
         Route::post('gl-transfer/transfer', [ProcurementReportsController::class, 'markGlTransactionsTransferred'])
             ->name('reports.procurement.gl-transfer.transfer');
         Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
-            ->name('reports.procurement.schedule-signing');
+            ->name('reports.procurement.schedule-signing')
+            ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));
     });
 
 });
