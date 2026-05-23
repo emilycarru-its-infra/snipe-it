@@ -63,7 +63,10 @@ class AnnexureDiffTest extends TestCase
 
         // Stamp an upload log entry; the diff reads the file via the
         // AnnexureParser, which we'll mock at the controller boundary.
-        Actionlog::create([
+        // Actionlog::$fillable doesn't include 'filename'; forceCreate
+        // bypasses mass-assignment protection so the stamped row has the
+        // file the controller's whereNotNull('filename') query needs.
+        Actionlog::forceCreate([
             'item_type' => LeaseSchedule::class,
             'item_id' => $schedule->id,
             'action_type' => 'uploaded',
