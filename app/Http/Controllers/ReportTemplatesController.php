@@ -12,7 +12,7 @@ class ReportTemplatesController extends Controller
 {
     public function store(Request $request): RedirectResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.templates.manage');
 
         // Ignore "options" rules since data does not come in under that key...
         $validated = $request->validate(Arr::except((new ReportTemplate)->getRules(), 'options'));
@@ -30,7 +30,7 @@ class ReportTemplatesController extends Controller
 
     public function show(ReportTemplate $reportTemplate)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.custom.view');
 
         $customfields = CustomField::get();
         $report_templates = ReportTemplate::orderBy('name')->get();
@@ -44,7 +44,7 @@ class ReportTemplatesController extends Controller
 
     public function edit(ReportTemplate $reportTemplate)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.templates.manage');
 
         if ($reportTemplate->created_by != auth()->id()) {
             return redirect()
@@ -60,7 +60,7 @@ class ReportTemplatesController extends Controller
 
     public function update(Request $request, ReportTemplate $reportTemplate): RedirectResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.templates.manage');
 
         if ($reportTemplate->created_by != auth()->id()) {
             return redirect()
@@ -93,7 +93,7 @@ class ReportTemplatesController extends Controller
 
     public function destroy(ReportTemplate $reportTemplate): RedirectResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.templates.manage');
 
         if ($reportTemplate->creator()->isNot(auth()->user())) {
             return redirect()

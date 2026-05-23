@@ -38,7 +38,7 @@ class AccessoriesController extends Controller
      */
     public function index(Request $request)
     {
-        if ($request->user()->cannot('reports.view')) {
+        if ($request->user()->cannot('reports.accessories.view')) {
             $this->authorize('view', Accessory::class);
         }
 

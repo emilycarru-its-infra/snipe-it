@@ -34,6 +34,46 @@ return [
             'permission' => 'reports.view',
             'display' => true,
         ],
+        [
+            'permission' => 'reports.custom.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.activity.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.audit.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.depreciation.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.licenses.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.accessories.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.maintenances.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.unaccepted.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.templates.manage',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.procurement.view',
+            'display' => true,
+        ],
     ],
 
     'Assets' => [
