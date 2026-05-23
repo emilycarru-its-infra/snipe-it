@@ -115,6 +115,17 @@
             </div>
         </a>
     </div>
+    <div class="col-md-4 col-sm-6">
+        <a href="{{ route('reports.procurement.schedule-signing') }}" class="small-box-link">
+            <div class="small-box {{ $scheduleSigningQueueCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
+                <div class="inner">
+                    <h3 style="font-size:24px">{{ $scheduleSigningQueueCount }}</h3>
+                    <p>{{ trans('admin/purchase-orders/general.card_schedules_unsigned', ['count' => $scheduleSigningQueueCount]) }}</p>
+                </div>
+                <div class="icon"><i class="fas fa-stamp" aria-hidden="true"></i></div>
+            </div>
+        </a>
+    </div>
 </div>
 
 <div class="row">
@@ -202,6 +213,7 @@
                         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'live' => true],
                         ['route' => 'reports.procurement.faculty-ledger', 'name' => 'report_faculty_ledger', 'desc' => 'report_faculty_ledger_desc', 'live' => true],
                         ['route' => 'reports.procurement.gl-transfer', 'name' => 'report_gl_transfer', 'desc' => 'report_gl_transfer_desc', 'live' => true],
+                        ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc', 'live' => true],
                     ] as $report)
                         <tr>
                             <td>
