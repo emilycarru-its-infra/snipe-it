@@ -190,9 +190,21 @@
             </div>
             <div class="box-body">
                 <p class="text-muted">{{ trans('admin/purchase-orders/general.reports_intro') }}</p>
+
+                @php $hiddenReports = (array) (auth()->user()?->hidden_procurement_reports ?? []); @endphp
+
+                @if (! empty($hiddenReports))
+                    <p>
+                        <a href="#" id="show-all-procurement-reports">
+                            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                            {{ trans('admin/purchase-orders/general.reports_hidden_count', ['count' => count($hiddenReports)]) }}
+                        </a>
+                    </p>
+                @endif
+
                 <table class="table table-striped">
                     <tbody>
-                    @foreach ([
+                    @foreach (collect([
                         ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'live' => true],
                         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'live' => true],
                         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'live' => true],
@@ -214,7 +226,7 @@
                         ['route' => 'reports.procurement.faculty-ledger', 'name' => 'report_faculty_ledger', 'desc' => 'report_faculty_ledger_desc', 'live' => true],
                         ['route' => 'reports.procurement.gl-transfer', 'name' => 'report_gl_transfer', 'desc' => 'report_gl_transfer_desc', 'live' => true],
                         ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc', 'live' => true],
-                    ] as $report)
+                    ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true)) as $report)
                         <tr>
                             <td>
                                 @if ($report['live'])
@@ -233,6 +245,11 @@
                                 @endif
                                 <a href="{{ route($report['route'], ['format' => 'csv']) }}" class="btn btn-sm btn-default">
                                     <x-icon type="download" /> {{ trans('general.download') }}
+                                </a>
+                                <a href="#" class="btn btn-sm btn-default text-muted hide-procurement-report"
+                                   data-report="{{ $report['name'] }}"
+                                   data-tooltip="true" title="{{ trans('admin/purchase-orders/general.report_hide') }}">
+                                    <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
                                 </a>
                             </td>
                         </tr>
@@ -321,6 +338,44 @@
             },
             options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
         });
+    })();
+
+    // Per-user show/hide for the procurement reports list. Each click
+    // PATCHes the user's full hidden list to the visibility endpoint and
+    // reloads. Persists across sessions via users.hidden_procurement_reports.
+    (function () {
+        var url = @json(route('reports.procurement.visibility'));
+        var csrf = @json(csrf_token());
+        var hidden = @json($hiddenReports);
+
+        function save(list) {
+            return fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ hidden: list })
+            }).then(function () { window.location.reload(); });
+        }
+
+        document.querySelectorAll('.hide-procurement-report').forEach(function (el) {
+            el.addEventListener('click', function (e) {
+                e.preventDefault();
+                var name = el.dataset.report;
+                if (hidden.indexOf(name) !== -1) return;
+                save(hidden.concat([name]));
+            });
+        });
+
+        var showAll = document.getElementById('show-all-procurement-reports');
+        if (showAll) {
+            showAll.addEventListener('click', function (e) {
+                e.preventDefault();
+                save([]);
+            });
+        }
     })();
 </script>
 @stop

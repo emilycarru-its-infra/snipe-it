@@ -101,6 +101,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'hidden_procurement_reports' => 'array',
     ];
 
     /**

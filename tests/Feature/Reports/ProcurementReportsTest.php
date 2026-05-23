@@ -625,4 +625,50 @@ class ProcurementReportsTest extends TestCase
         $this->assertEquals(ConsumableTransaction::STATUS_TRANSFERRED, $posted->fresh()->status);
         $this->assertEquals(ConsumableTransaction::STATUS_DRAFT, $draft->fresh()->status);
     }
+
+    public function test_updating_visibility_persists_the_users_hidden_reports()
+    {
+        $user = $this->superuser();
+
+        $this->actingAs($user)
+            ->patchJson(route('reports.procurement.visibility'), [
+                'hidden' => ['report_po_budget', 'report_invoices'],
+            ])
+            ->assertOk()
+            ->assertJson(['hidden' => ['report_po_budget', 'report_invoices']]);
+
+        $this->assertEquals(
+            ['report_po_budget', 'report_invoices'],
+            $user->fresh()->hidden_procurement_reports
+        );
+    }
+
+    public function test_reports_landing_filters_hidden_reports_and_shows_restore_link()
+    {
+        $user = $this->superuser();
+        $user->hidden_procurement_reports = ['report_po_budget'];
+        $user->save();
+
+        $this->actingAs($user)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            // "1 hidden — show all" surfaces above the list when anything is hidden.
+            ->assertSee(trans('admin/purchase-orders/general.reports_hidden_count', ['count' => 1]))
+            // The hidden report's link is not rendered in the table.
+            ->assertDontSee('href="'.route('reports.procurement.po-budget').'"', false);
+    }
+
+    public function test_visibility_endpoint_accepts_an_empty_list_to_restore_all()
+    {
+        $user = $this->superuser();
+        $user->hidden_procurement_reports = ['report_po_budget'];
+        $user->save();
+
+        $this->actingAs($user)
+            ->patchJson(route('reports.procurement.visibility'), ['hidden' => []])
+            ->assertOk()
+            ->assertJson(['hidden' => []]);
+
+        $this->assertEquals([], $user->fresh()->hidden_procurement_reports);
+    }
 }
