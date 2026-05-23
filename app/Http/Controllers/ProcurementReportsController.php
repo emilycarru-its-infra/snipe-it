@@ -2677,7 +2677,9 @@ class ProcurementReportsController extends Controller
         ];
 
         $query = LeaseSchedule::query()
-            ->orderByRaw("FIELD(lifecycle_stage, 'draft', 'awaiting_signature', 'signed', 'active', 'cancelled')")
+            ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
+                'draft', 'awaiting_signature', 'signed', 'active', 'cancelled',
+            ]))
             ->orderBy('received_at');
 
         if ($stageFilter === null || $stageFilter === 'open') {
