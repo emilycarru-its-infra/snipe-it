@@ -30,8 +30,63 @@ return [
     ],
 
     'reports' => [
-        'name' => 'Reports Access',
-        'note' => 'Determines whether the user has access to the Reports section of the application.',
+        'name' => 'Reports',
+        'note' => 'Grants access to the Reports section of the application. Use the sub-permissions below to allow access to individual reports.',
+    ],
+
+    'reportsview' => [
+        'name' => 'View Reports Landing Page',
+        'note' => 'Allows the user to load the Reports index page. Access to individual reports is controlled by the more specific permissions below.',
+    ],
+
+    'reportscustomview' => [
+        'name' => 'Custom Asset Report',
+        'note' => 'View and export the custom asset report, including managing saved report templates the user owns.',
+    ],
+
+    'reportsactivityview' => [
+        'name' => 'Activity Report',
+        'note' => 'View and export the activity log report (web and API), including the activity chart.',
+    ],
+
+    'reportsauditview' => [
+        'name' => 'Audit Report',
+        'note' => 'View the asset audit report.',
+    ],
+
+    'reportsdepreciationview' => [
+        'name' => 'Depreciation Report',
+        'note' => 'View and export the asset depreciation report.',
+    ],
+
+    'reportslicensesview' => [
+        'name' => 'License Report',
+        'note' => 'View and export the license report.',
+    ],
+
+    'reportsaccessoriesview' => [
+        'name' => 'Accessory Report',
+        'note' => 'View and export the accessory report.',
+    ],
+
+    'reportsmaintenancesview' => [
+        'name' => 'Maintenance Report',
+        'note' => 'View and export the asset maintenance report.',
+    ],
+
+    'reportsunacceptedview' => [
+        'name' => 'Unaccepted Assets Report',
+        'note' => 'View the unaccepted assets report, resend acceptance reminders, and delete pending acceptance records.',
+    ],
+
+    'reportstemplatesmanage' => [
+        'name' => 'Manage Report Templates',
+        'note' => 'Create, edit, and delete saved templates for the custom asset report. Requires Custom Asset Report access to view templates.',
+    ],
+
+    'reportsprocurementview' => [
+        'name' => 'Procurement Reports',
+        'note' => 'View the procurement reports section (PO budget, invoices, leases, capital, GL transfers, etc.).',
     ],
 
     'assets' => [
