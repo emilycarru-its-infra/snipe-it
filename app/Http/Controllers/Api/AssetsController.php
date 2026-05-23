@@ -85,7 +85,7 @@ class AssetsController extends Controller
         if (Route::currentRouteName() == 'api.depreciation-report.index') {
             $filter_non_deprecable_assets = true;
             $transformer = 'App\Http\Transformers\DepreciationReportTransformer';
-            $this->authorize('reports.view');
+            $this->authorize('reports.depreciation.view');
         } else {
             $transformer = 'App\Http\Transformers\AssetsTransformer';
             $this->authorize('index', Asset::class);

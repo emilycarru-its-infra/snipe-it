@@ -1504,7 +1504,18 @@
                             </li>
                         @endcan
 
-                        @can('reports.view')
+                        @canany([
+                            'reports.view',
+                            'reports.activity.view',
+                            'reports.procurement.view',
+                            'reports.custom.view',
+                            'reports.audit.view',
+                            'reports.depreciation.view',
+                            'reports.licenses.view',
+                            'reports.maintenances.view',
+                            'reports.unaccepted.view',
+                            'reports.accessories.view',
+                        ])
                             <li class="treeview{{ (request()->is('reports*') ? ' active' : '') }}">
 
                                 <a href="#" class="dropdown-toggle">
@@ -1514,58 +1525,78 @@
                                 </a>
 
                                 <ul class="treeview-menu">
-                                    <li {{!! (request()->is('reports') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ route('reports.index') }}">
-                                            {{ trans('general.list_all') }}
-                                        </a>
-                                    </li>
-                                    <li {{!! (request()->is('reports/activity') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ route('reports.activity') }}">
-                                            {{ trans('general.activity_report') }}
-                                        </a>
-                                    </li>
-                                    <li {{!! (request()->is('reports/procurement*') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ route('reports.procurement') }}">
-                                            {{ trans('admin/purchase-orders/general.reports') }}
-                                        </a>
-                                    </li>
-                                    <li {{!! (request()->is('reports/custom') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ url('reports/custom') }}">
-                                            {{ trans('general.custom_report') }}
-                                        </a>
-                                    </li>
-                                    <li {{!! (request()->is('reports/audit') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ route('reports.audit') }}">
-                                            {{ trans('general.audit_report') }}</a>
-                                    </li>
-                                    <li {{!! (request()->is('reports/depreciation') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ url('reports/depreciation') }}">
-                                            {{ trans('general.depreciation_report') }}
-                                        </a>
-                                    </li>
-                                    <li {{!! (request()->is('reports/licenses') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ url('reports/licenses') }}">
-                                            {{ trans('general.license_report') }}
-                                        </a>
-                                    </li>
-                                    <li {{!! (request()->is('ui.reports.maintenances') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ route('ui.reports.maintenances') }}">
-                                            {{ trans('general.asset_maintenance_report') }}
-                                        </a>
-                                    </li>
-                                    <li {{!! (request()->is('reports/unaccepted_assets') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ url('reports/unaccepted_assets') }}">
-                                            {{ trans('general.unaccepted_asset_report') }}
-                                        </a>
-                                    </li>
-                                    <li  {{!! (request()->is('reports/accessories') ? ' class="active"' : '') !!}}>
-                                        <a href="{{ url('reports/accessories') }}">
-                                            {{ trans('general.accessory_report') }}
-                                        </a>
-                                    </li>
+                                    @can('reports.view')
+                                        <li {{!! (request()->is('reports') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.index') }}">
+                                                {{ trans('general.list_all') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.activity.view')
+                                        <li {{!! (request()->is('reports/activity') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.activity') }}">
+                                                {{ trans('general.activity_report') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.procurement.view')
+                                        <li {{!! (request()->is('reports/procurement*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.procurement') }}">
+                                                {{ trans('admin/purchase-orders/general.reports') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.custom.view')
+                                        <li {{!! (request()->is('reports/custom') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ url('reports/custom') }}">
+                                                {{ trans('general.custom_report') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.audit.view')
+                                        <li {{!! (request()->is('reports/audit') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.audit') }}">
+                                                {{ trans('general.audit_report') }}</a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.depreciation.view')
+                                        <li {{!! (request()->is('reports/depreciation') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ url('reports/depreciation') }}">
+                                                {{ trans('general.depreciation_report') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.licenses.view')
+                                        <li {{!! (request()->is('reports/licenses') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ url('reports/licenses') }}">
+                                                {{ trans('general.license_report') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.maintenances.view')
+                                        <li {{!! (request()->is('ui.reports.maintenances') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('ui.reports.maintenances') }}">
+                                                {{ trans('general.asset_maintenance_report') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.unaccepted.view')
+                                        <li {{!! (request()->is('reports/unaccepted_assets') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ url('reports/unaccepted_assets') }}">
+                                                {{ trans('general.unaccepted_asset_report') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.accessories.view')
+                                        <li  {{!! (request()->is('reports/accessories') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ url('reports/accessories') }}">
+                                                {{ trans('general.accessory_report') }}
+                                            </a>
+                                        </li>
+                                    @endcan
                                 </ul>
                             </li>
-                        @endcan
+                        @endcanany
 
                         @can('index', \App\Models\Asset::class)
                             <li class="treeview{{ ((request()->is('statuslabels/*') || request()->is(['hardware*', 'maintenances*'])) ? ' active' : '') }}">

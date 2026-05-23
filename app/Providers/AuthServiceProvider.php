@@ -194,17 +194,40 @@ class AuthServiceProvider extends ServiceProvider
         // -----------------------------------------
         // Reports
         // -----------------------------------------
+        // Each report has its own permission key, mirroring how Assets,
+        // Consumables, etc. expose multiple peer permissions. `reports.view`
+        // gates only the Reports landing page; the per-report keys gate the
+        // individual reports.
         Gate::define('reports.view', function ($user) {
             if ($user->hasAccess('reports.view')) {
                 return true;
             }
         });
 
+        foreach ([
+            'reports.custom.view',
+            'reports.activity.view',
+            'reports.audit.view',
+            'reports.depreciation.view',
+            'reports.licenses.view',
+            'reports.accessories.view',
+            'reports.maintenances.view',
+            'reports.unaccepted.view',
+            'reports.templates.manage',
+            'reports.procurement.view',
+        ] as $reportPermission) {
+            Gate::define($reportPermission, function ($user) use ($reportPermission) {
+                if ($user->hasAccess($reportPermission)) {
+                    return true;
+                }
+            });
+        }
+
         // -----------------------------------------
         // Activity
         // -----------------------------------------
         Gate::define('activity.view', function ($user) {
-            if (($user->hasAccess('reports.view')) || ($user->hasAccess('admin'))) {
+            if (($user->hasAccess('reports.activity.view')) || ($user->hasAccess('admin'))) {
                 return true;
             }
         });

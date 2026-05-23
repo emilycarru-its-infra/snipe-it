@@ -1,15 +1,10 @@
 
 @foreach ($permissions as $main_section => $main_section_permission)
 
-  <!-- handle superadmin and reports, and anything else with only one option -->
+  <!-- handle superadmin, admin, and anything else with only one option -->
   @php
-    // Ugh, this sucks, but we need to special case reports to map to reports.view
     $sectionPermission = $main_section_permission[0];
-    if ((str_slug($main_section)) == 'reports') {
-        $section_name = 'reports.view';
-    } else {
-        $section_name =  str_slug($main_section);
-    }
+    $section_name = str_slug($main_section);
   @endphp
 
   @if (str_slug($main_section) == 'superuser' && !auth()->user()->isSuperUser())

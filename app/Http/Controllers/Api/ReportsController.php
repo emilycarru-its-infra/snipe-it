@@ -144,7 +144,7 @@ class ReportsController extends Controller
      */
     public function activityChart(Request $request): JsonResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.activity.view');
 
         $allowedDays = [7, 14, 30, 60, 90, 180, 365];
 

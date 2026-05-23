@@ -37,7 +37,7 @@ class ProcurementReportsController extends Controller
      */
     public function index(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         // Fiscal years available across purchase orders and planned orders.
         $allFiscalYears = PurchaseOrder::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')
@@ -174,7 +174,7 @@ class ProcurementReportsController extends Controller
 
     public function poBudget(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -187,7 +187,7 @@ class ProcurementReportsController extends Controller
 
     public function invoices(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -200,7 +200,7 @@ class ProcurementReportsController extends Controller
 
     public function capital(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         $forecast = $request->query('mode') === 'forecast';
 
@@ -217,7 +217,7 @@ class ProcurementReportsController extends Controller
 
     public function refreshForecast(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         $report = $this->refreshForecastReport();
 
@@ -298,14 +298,14 @@ class ProcurementReportsController extends Controller
 
     public function receiving(): StreamedResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->streamReportCsv('receiving-status-report', $this->receivingReport());
     }
 
     public function leasesOperational(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -318,7 +318,7 @@ class ProcurementReportsController extends Controller
 
     public function leasesFinancial(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -331,7 +331,7 @@ class ProcurementReportsController extends Controller
 
     public function csiSchedule(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -344,7 +344,7 @@ class ProcurementReportsController extends Controller
 
     public function invoiceApproval(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -357,7 +357,7 @@ class ProcurementReportsController extends Controller
 
     public function facultyLedger(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -370,7 +370,7 @@ class ProcurementReportsController extends Controller
 
     public function scheduleSigningQueue(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -388,7 +388,7 @@ class ProcurementReportsController extends Controller
      */
     public function updateInvoiceApproval(Request $request, OrderInvoice $invoice): RedirectResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         $validated = $request->validate([
             'approval_status' => 'required|string|in:pending,approved,disputed',
@@ -425,7 +425,7 @@ class ProcurementReportsController extends Controller
 
     public function leaseDecisions(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -445,7 +445,7 @@ class ProcurementReportsController extends Controller
      */
     public function glJournalTransfer(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         $fiscalYear = $request->query('fiscal_year');
         $status = $request->query('status');
@@ -479,7 +479,7 @@ class ProcurementReportsController extends Controller
      */
     public function markGlTransactionsPosted(Request $request): RedirectResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         $fiscalYear = $request->input('fiscal_year');
 
@@ -499,7 +499,7 @@ class ProcurementReportsController extends Controller
      */
     public function markGlTransactionsTransferred(Request $request): RedirectResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         $fiscalYear = $request->input('fiscal_year');
 
@@ -514,7 +514,7 @@ class ProcurementReportsController extends Controller
 
     public function poDisposition(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -527,7 +527,7 @@ class ProcurementReportsController extends Controller
 
     public function extensionWatch(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -540,7 +540,7 @@ class ProcurementReportsController extends Controller
 
     public function aroRegister(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -553,7 +553,7 @@ class ProcurementReportsController extends Controller
 
     public function assetLeaseDetail(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -566,7 +566,7 @@ class ProcurementReportsController extends Controller
 
     public function poDrilldown(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -579,7 +579,7 @@ class ProcurementReportsController extends Controller
 
     public function dispositionGrid(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -592,7 +592,7 @@ class ProcurementReportsController extends Controller
 
     public function creditTerminationLedger(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -605,7 +605,7 @@ class ProcurementReportsController extends Controller
 
     public function lessorBreakdown(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -618,7 +618,7 @@ class ProcurementReportsController extends Controller
 
     public function pstApplicability(Request $request)
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->render(
             $request,
@@ -631,7 +631,7 @@ class ProcurementReportsController extends Controller
 
     public function tax(): StreamedResponse
     {
-        $this->authorize('reports.view');
+        $this->authorize('reports.procurement.view');
 
         return $this->streamReportCsv('tax-summary-report', $this->taxReport());
     }
