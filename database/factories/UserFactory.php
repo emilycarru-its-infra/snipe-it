@@ -377,7 +377,25 @@ class UserFactory extends Factory
 
     public function canViewReports()
     {
-        return $this->appendPermission(['reports.view' => '1']);
+        // Mirror the per-report permission split shipped in the migration
+        // backfill_per_report_permissions: anyone who had the legacy
+        // `reports.view` grant should keep access to every individual
+        // report. Without granting the sub-keys here, tests that relied on
+        // canViewReports() get 403 on report endpoints they used to pass,
+        // because the controllers now authorize the specific keys.
+        return $this->appendPermission([
+            'reports.view' => '1',
+            'reports.custom.view' => '1',
+            'reports.activity.view' => '1',
+            'reports.audit.view' => '1',
+            'reports.depreciation.view' => '1',
+            'reports.licenses.view' => '1',
+            'reports.accessories.view' => '1',
+            'reports.maintenances.view' => '1',
+            'reports.unaccepted.view' => '1',
+            'reports.templates.manage' => '1',
+            'reports.procurement.view' => '1',
+        ]);
     }
 
     public function canImport()

@@ -181,7 +181,7 @@ class CustomReportTest extends TestCase implements TestsPermissionsRequirement
 
         $user = User::factory()->create([
             'permissions' => json_encode([
-                'reports.view' => '1',
+                'reports.custom.view' => '1',
                 'assets.view.encrypted_custom_fields' => '1',
             ]),
         ]);
