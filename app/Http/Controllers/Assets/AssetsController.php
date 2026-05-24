@@ -643,11 +643,61 @@ class AssetsController extends Controller
             }
         }
 
+        // 5. Exact asset.tracking_number match — receiving workflow: scan
+        // the carrier tracking number and jump to the asset that arrived
+        // in that shipment.
+        if ($tag) {
+            $byTracking = Asset::where('tracking_number', '=', $tag);
+            if ($byTracking->count() === 1) {
+                $asset = $byTracking->first();
+                $this->authorize('view', $asset);
+                return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+            }
+        }
+
+        // 6. Exact asset.name match — only redirects when the typed term
+        // identifies a single asset uniquely. Names like "Lab Printer"
+        // appear on multiple rows; those fall through to the search-results
+        // fallback below.
+        if ($tag) {
+            $byName = Asset::where('name', '=', $tag);
+            if ($byName->count() === 1) {
+                $asset = $byName->first();
+                $this->authorize('view', $asset);
+                return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+            }
+        }
+
+        // 7. Exact match on any custom field flagged `show_in_listview`.
+        // Admin-tunable: marking a custom field visible in the list view
+        // also opts it in to top-bar lookup. Useful for MAC address, IMEI,
+        // service tag, and similar device-side identifiers the team
+        // physically scans. Encrypted fields are skipped — exact-match on
+        // ciphertext is meaningless.
+        if ($tag) {
+            $customFields = \App\Models\CustomField::where('show_in_listview', '=', 1)
+                ->where('field_encrypted', '=', 0)
+                ->get();
+            foreach ($customFields as $customField) {
+                $column = $customField->db_column;
+                if (! $column || ! \Illuminate\Support\Facades\Schema::hasColumn('assets', $column)) {
+                    continue;
+                }
+                $byCustom = Asset::where($column, '=', $tag);
+                if ($byCustom->count() === 1) {
+                    $asset = $byCustom->first();
+                    $this->authorize('view', $asset);
+                    return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+                }
+            }
+        }
+
         // Nothing matched — fall back to the asset index with the search
-        // term pre-populated, same as before.
+        // term pre-populated. No warning flash: the index will show the
+        // search results (or an empty state) without scolding the user
+        // for typing something that didn't exact-match.
         return redirect()->route('hardware.index')
-            ->with('search', $tag)
-            ->with('warning', trans('admin/hardware/message.does_not_exist_var', ['asset_tag' => $tag]));
+            ->with('search', $tag);
     }
 
     /**
