@@ -371,6 +371,11 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
                 ->push(trans('admin/settings/general.backups'), route('settings.backups.index')));
     });
 
+    Route::get('groups/audit', [GroupsController::class, 'audit'])
+        ->name('groups.audit')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('groups.index')
+            ->push(trans('admin/groups/general.audit_title'), route('groups.audit')));
+
     Route::resource('groups', GroupsController::class);
 
     /**

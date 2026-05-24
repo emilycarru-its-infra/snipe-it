@@ -6,8 +6,12 @@
 @parent
 @stop
 
-
-
+@section('header_right')
+    <a href="{{ route('groups.audit') }}" class="btn btn-default pull-right" style="margin-left: 5px;">
+        <i class="fas fa-table" aria-hidden="true"></i>
+        {{ trans('admin/groups/general.audit_title') }}
+    </a>
+@stop
 
 {{-- Page content --}}
 @section('content')
