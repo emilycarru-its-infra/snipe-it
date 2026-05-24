@@ -66,6 +66,14 @@
             </a>
         </div>
 
+        @can('reports.contracts.view')
+        <div class="col-md-3 col-sm-6">
+            <a href="{{ route('reports.contracts') }}" class="btn btn-theme btn-block" style="margin-bottom: 10px; white-space: normal;">
+                <i class="fas fa-file-contract" aria-hidden="true"></i> {{ trans('admin/contracts/general.reports') }}
+            </a>
+        </div>
+        @endcan
+
     </div>
 
 
