@@ -31,6 +31,7 @@ use App\Http\Controllers\FacultyAgreementsController;
 use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
+use App\Http\Controllers\ContractReportsController;
 use App\Http\Controllers\ProcurementReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
@@ -736,6 +737,40 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
             ->name('reports.procurement.schedule-signing')
             ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));
+    });
+
+    Route::prefix('contracts')->group(function () {
+        $crumb = fn (string $routeName, string $titleKey) =>
+            fn (Trail $trail) => $trail->parent('reports.contracts')
+                ->push(trans("admin/contracts/general.$titleKey"), route($routeName));
+
+        Route::get('/', [ContractReportsController::class, 'index'])
+            ->name('reports.contracts')
+            ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+                ->push(trans('general.reports'), route('reports.index'))
+                ->push(trans('admin/contracts/general.reports'), route('reports.contracts')));
+
+        Route::get('expiring-soon', [ContractReportsController::class, 'expiringSoon'])
+            ->name('reports.contracts.expiring-soon')
+            ->breadcrumbs($crumb('reports.contracts.expiring-soon', 'report_expiring_soon_title'));
+        Route::get('umbrellas', [ContractReportsController::class, 'umbrellas'])
+            ->name('reports.contracts.umbrellas')
+            ->breadcrumbs($crumb('reports.contracts.umbrellas', 'report_umbrellas_title'));
+        Route::get('by-theme', [ContractReportsController::class, 'byTheme'])
+            ->name('reports.contracts.by-theme')
+            ->breadcrumbs($crumb('reports.contracts.by-theme', 'report_by_theme_title'));
+        Route::get('by-provider', [ContractReportsController::class, 'byProvider'])
+            ->name('reports.contracts.by-provider')
+            ->breadcrumbs($crumb('reports.contracts.by-provider', 'report_by_provider_title'));
+        Route::get('serial-register', [ContractReportsController::class, 'serialRegister'])
+            ->name('reports.contracts.serial-register')
+            ->breadcrumbs($crumb('reports.contracts.serial-register', 'report_serial_register_title'));
+        Route::get('naming-violators', [ContractReportsController::class, 'namingViolatorsReport'])
+            ->name('reports.contracts.naming-violators')
+            ->breadcrumbs($crumb('reports.contracts.naming-violators', 'report_naming_violators_title'));
+        Route::get('stale', [ContractReportsController::class, 'staleReport'])
+            ->name('reports.contracts.stale')
+            ->breadcrumbs($crumb('reports.contracts.stale', 'report_stale_title'));
     });
 
 });

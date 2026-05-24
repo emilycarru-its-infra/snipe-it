@@ -1851,6 +1851,7 @@
         'companies',
         'components',
         'consumables',
+        'contracts',
         'departments',
         'depreciations',
         'fieldsets',

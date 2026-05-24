@@ -74,6 +74,10 @@ return [
             'permission' => 'reports.procurement.view',
             'display' => true,
         ],
+        [
+            'permission' => 'reports.contracts.view',
+            'display' => true,
+        ],
     ],
 
     'Assets' => [
@@ -219,6 +223,29 @@ return [
         ],
         [
             'permission' => 'licenses.files',
+            'display' => true,
+        ],
+    ],
+
+    'Contracts' => [
+        [
+            'permission' => 'contracts.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'contracts.create',
+            'display' => true,
+        ],
+        [
+            'permission' => 'contracts.edit',
+            'display' => true,
+        ],
+        [
+            'permission' => 'contracts.delete',
+            'display' => true,
+        ],
+        [
+            'permission' => 'contracts.files',
             'display' => true,
         ],
     ],

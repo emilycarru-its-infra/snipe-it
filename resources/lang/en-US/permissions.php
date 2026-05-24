@@ -89,6 +89,11 @@ return [
         'note' => 'View the procurement reports section (PO budget, invoices, leases, capital, GL transfers, etc.).',
     ],
 
+    'reportscontractsview' => [
+        'name' => 'Contracts Reports',
+        'note' => 'View the contracts reports dashboard and its sub-reports (umbrellas, fiscal-year rollups, serial register, etc.).',
+    ],
+
     'assets' => [
         'name' => 'Assets',
         'note' => 'Grants access to the Assets section of the application.',

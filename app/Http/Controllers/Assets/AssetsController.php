@@ -597,19 +597,57 @@ class AssetsController extends Controller
         $tag = $tag ? $tag : $request->input('assetTag');
         $topsearch = ($request->input('topsearch') == 'true');
 
-        // Search for an exact and unique asset tag match
+        // 1. Exact asset_tag match — the original behavior.
         $assets = Asset::where('asset_tag', '=', $tag);
-
-        // If not a unique result, redirect to the index view
-        if ($assets->count() != 1) {
-            return redirect()->route('hardware.index')
-                ->with('search', $tag)
-                ->with('warning', trans('admin/hardware/message.does_not_exist_var', ['asset_tag' => $tag]));
+        if ($assets->count() === 1) {
+            $asset = $assets->first();
+            $this->authorize('view', $asset);
+            return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
         }
-        $asset = $assets->first();
-        $this->authorize('view', $asset);
 
-        return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+        // 2. Exact serial match. Users frequently scan a barcode that
+        // reads the device serial, not the asset tag. Snipe already
+        // indexes serials so this is cheap.
+        if ($tag) {
+            $bySerial = Asset::where('serial', '=', $tag);
+            if ($bySerial->count() === 1) {
+                $asset = $bySerial->first();
+                $this->authorize('view', $asset);
+                return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+            }
+        }
+
+        // 3. Contract serial register — for items whose serial only
+        // lives on a contract (e.g. a FortiWifi appliance referenced
+        // in a TDX contract Description). TDX cannot do this; Snipe
+        // can. Match exact, jump to the contract.
+        if ($tag && \Illuminate\Support\Facades\Schema::hasTable('contract_serials')) {
+            $contractSerial = \App\Models\ContractSerial::where('serial', '=', strtoupper($tag))
+                ->orWhere('serial', '=', $tag)
+                ->first();
+            if ($contractSerial && $contractSerial->contract_id) {
+                return redirect()->route('contracts.show', $contractSerial->contract_id)
+                    ->with('topsearch', $topsearch)
+                    ->with('info', trans('admin/contracts/general.found_via_serial', ['serial' => $tag]));
+            }
+        }
+
+        // 4. Contract name exact match — last fallback before giving up.
+        if ($tag && class_exists(\App\Models\Contract::class)) {
+            $contract = \App\Models\Contract::where('name', '=', $tag)
+                ->orWhere('contract_number', '=', $tag)
+                ->first();
+            if ($contract) {
+                return redirect()->route('contracts.show', $contract->id)
+                    ->with('topsearch', $topsearch);
+            }
+        }
+
+        // Nothing matched — fall back to the asset index with the search
+        // term pre-populated, same as before.
+        return redirect()->route('hardware.index')
+            ->with('search', $tag)
+            ->with('warning', trans('admin/hardware/message.does_not_exist_var', ['asset_tag' => $tag]));
     }
 
     /**
