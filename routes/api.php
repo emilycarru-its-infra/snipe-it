@@ -726,6 +726,34 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end license API routes
 
     /**
+     * Contracts API routes
+     */
+    Route::group(['prefix' => 'contracts'], function () {
+        // Upsert-by-tdx-id endpoint that the TDX→Snipe Azure Function
+        // calls once per contract per reconciliation run.
+        Route::post('upsert',
+            [
+                Api\ContractsController::class,
+                'upsert',
+            ]
+        )->name('api.contracts.upsert');
+    });
+
+    Route::resource('contracts',
+        Api\ContractsController::class,
+        ['names' => [
+            'index'   => 'api.contracts.index',
+            'show'    => 'api.contracts.show',
+            'update'  => 'api.contracts.update',
+            'store'   => 'api.contracts.store',
+            'destroy' => 'api.contracts.destroy',
+        ],
+            'except' => ['create', 'edit'],
+            'parameters' => ['contracts' => 'contract_id'],
+        ]
+    );
+
+    /**
      * Locations API routes
      */
     Route::group(['prefix' => 'locations'], function () {
