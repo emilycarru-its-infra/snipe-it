@@ -239,4 +239,62 @@ class GroupsController extends Controller
     {
         return view('groups/view', compact('group'));
     }
+
+    /**
+     * Org-wide permissions audit: a matrix of every group's grants/denies
+     * across every permission key, plus a panel listing users who aren't
+     * in any group (the cohort the matrix can't represent).
+     *
+     * Lives under the same superuser-only `/admin` prefix as the rest of
+     * the Groups controller so it does not need its own authorize() call.
+     */
+    public function audit(): View
+    {
+        $permissionsConfig = config('permissions');
+
+        $sections = [];
+        foreach ($permissionsConfig as $sectionName => $permissions) {
+            $displayed = collect($permissions)
+                ->where('display', true)
+                ->values()
+                ->all();
+
+            if (empty($displayed)) {
+                continue;
+            }
+
+            $sections[] = [
+                'name' => $sectionName,
+                'permissions' => $displayed,
+            ];
+        }
+
+        $groups = Group::withCount('users')->orderBy('name')->get()->map(function (Group $group) {
+            $decoded = $group->decodePermissions();
+
+            return [
+                'id' => $group->id,
+                'name' => $group->name,
+                'users_count' => $group->users_count,
+                'permissions' => is_array($decoded) ? $decoded : [],
+            ];
+        });
+
+        $usersWithoutGroup = User::query()
+            ->whereDoesntHave('groups')
+            ->where('activated', '=', 1)
+            ->whereNull('deleted_at')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $usersWithoutGroupCount = $usersWithoutGroup->count();
+
+        return view('groups/audit', compact(
+            'sections',
+            'groups',
+            'usersWithoutGroup',
+            'usersWithoutGroupCount',
+        ));
+    }
 }
