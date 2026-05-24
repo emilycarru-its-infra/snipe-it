@@ -324,8 +324,67 @@ class ActionlogsTransformer
             unset($clean_meta['asset_eol_date']);
         }
 
+        if (array_key_exists('permissions', $clean_meta)) {
+            $clean_meta = $this->renderPermissionsDiff($clean_meta);
+        }
+
         return $clean_meta;
 
+    }
+
+    /**
+     * Replace the raw JSON old/new of the `permissions` field with a
+     * human-readable diff showing only the keys that actually changed,
+     * with Allow / Deny / Inherit labels.
+     *
+     * Without this, an audit log entry for a permission edit reads as
+     * `{"permissions": {"old": "{\"reports.view\":\"1\", ...}", "new":
+     * "{\"reports.view\":\"-1\", ...}"}}` which is unreadable. After this
+     * it reads as `reports.view: Allow → reports.view: Deny`.
+     */
+    private function renderPermissionsDiff(array $clean_meta): array
+    {
+        // clean_field() ran HTML-entity escape over the raw JSON strings, so
+        // reverse it before parsing or json_decode returns null.
+        $oldPerms = json_decode(html_entity_decode((string) ($clean_meta['permissions']['old'] ?? ''), ENT_QUOTES, 'UTF-8'), true);
+        $newPerms = json_decode(html_entity_decode((string) ($clean_meta['permissions']['new'] ?? ''), ENT_QUOTES, 'UTF-8'), true);
+        $oldPerms = is_array($oldPerms) ? $oldPerms : [];
+        $newPerms = is_array($newPerms) ? $newPerms : [];
+
+        $allKeys = array_unique(array_merge(array_keys($oldPerms), array_keys($newPerms)));
+        sort($allKeys);
+
+        $labelFor = function ($value): string {
+            $value = (string) $value;
+            if ($value === '1') {
+                return trans('admin/groups/titles.allow');
+            }
+            if ($value === '-1') {
+                return trans('admin/groups/titles.deny');
+            }
+
+            return trans('admin/users/table.inherit');
+        };
+
+        $oldLines = [];
+        $newLines = [];
+        foreach ($allKeys as $key) {
+            $oldValue = (string) ($oldPerms[$key] ?? '0');
+            $newValue = (string) ($newPerms[$key] ?? '0');
+            if ($oldValue === $newValue) {
+                continue;
+            }
+            $safeKey = e($key);
+            $oldLines[] = $safeKey.': '.e($labelFor($oldValue));
+            $newLines[] = $safeKey.': '.e($labelFor($newValue));
+        }
+
+        if (! empty($oldLines) || ! empty($newLines)) {
+            $clean_meta['permissions']['old'] = implode('<br>', $oldLines);
+            $clean_meta['permissions']['new'] = implode('<br>', $newLines);
+        }
+
+        return $clean_meta;
     }
 
     private function getQuantity(Actionlog $actionlog): ?int
