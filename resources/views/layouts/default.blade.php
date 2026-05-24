@@ -1908,6 +1908,14 @@
                                                         {{ trans('general.login_disabled') }}
                                                     </a>
                                                 </li>
+                                                @if (auth()->user()->isSuperUser())
+                                                    <li class="{{ (request()->is('admin/groups*') ? 'active' : '') }}" id="users-sidenav-groups">
+                                                        <a href="{{ route('groups.index') }}">
+                                                            <x-icon type="groups" class="text-grey fa-fw"/>
+                                                            {{ trans('general.groups') }}
+                                                        </a>
+                                                    </li>
+                                                @endif
                                             </ul>
                                         </li>
                                     @endcan
