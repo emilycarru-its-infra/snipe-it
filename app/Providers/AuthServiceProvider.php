@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
+use App\Models\Contract;
 use App\Models\CustomField;
 use App\Models\CustomFieldset;
 use App\Models\Department;
@@ -31,6 +32,7 @@ use App\Policies\CategoryPolicy;
 use App\Policies\CompanyPolicy;
 use App\Policies\ComponentPolicy;
 use App\Policies\ConsumablePolicy;
+use App\Policies\ContractPolicy;
 use App\Policies\CustomFieldPolicy;
 use App\Policies\CustomFieldsetPolicy;
 use App\Policies\DepartmentPolicy;
@@ -70,6 +72,7 @@ class AuthServiceProvider extends ServiceProvider
         Category::class => CategoryPolicy::class,
         Component::class => ComponentPolicy::class,
         Consumable::class => ConsumablePolicy::class,
+        Contract::class => ContractPolicy::class,
         CustomField::class => CustomFieldPolicy::class,
         CustomFieldset::class => CustomFieldsetPolicy::class,
         Department::class => DepartmentPolicy::class,

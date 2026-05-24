@@ -1292,9 +1292,9 @@
 
                                                 <div class="input-group col-xs-12" style="border: 0 !important;">
                                                     <label class="sr-only" for="tagSearch">
-                                                        {{ trans('general.lookup_by_tag') }}
+                                                        {{ trans('general.lookup_anything') }}
                                                     </label>
-                                                    <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_by_tag') }}">
+                                                    <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_anything') }}">
                                                     <span class="input-group-btn">
                                                         <button type="submit" id="topSearchButton" class="btn btn-sm btn-theme" style="padding: 7px 10px 7px 10px; "><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
                                                     </span>
@@ -1508,6 +1508,7 @@
                             'reports.view',
                             'reports.activity.view',
                             'reports.procurement.view',
+                            'reports.contracts.view',
                             'reports.custom.view',
                             'reports.audit.view',
                             'reports.depreciation.view',
@@ -1543,6 +1544,13 @@
                                         <li {{!! (request()->is('reports/procurement*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.procurement') }}">
                                                 {{ trans('admin/purchase-orders/general.reports') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('reports.contracts.view')
+                                        <li {{!! (request()->is('reports/contracts*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.contracts') }}">
+                                                {{ trans('admin/contracts/general.reports') }}
                                             </a>
                                         </li>
                                     @endcan
@@ -1753,14 +1761,31 @@
                                 </ul>
                             </li>
                         @endcan
-                        @can('view', \App\Models\License::class)
-                            <li{!! (request()->is('licenses*') ? ' class="active"' : '') !!}>
-                                <a href="{{ route('licenses.index') }}">
+                        @if (Gate::allows('view', \App\Models\License::class) || Gate::allows('view', \App\Models\Contract::class))
+                            <li id="licenses-sidenav-option" class="treeview {{ (request()->is('licenses*') || request()->is('contracts*')) ? 'active' : '' }}">
+                                <a href="#">
                                     <x-icon type="licenses" class="fa-fw"/>
                                     <span>{{ trans('general.licenses') }}</span>
+                                    <x-icon type="angle-left" class="pull-right fa-fw"/>
                                 </a>
+                                <ul class="treeview-menu">
+                                    @can('view', \App\Models\License::class)
+                                        <li {!! (request()->is('licenses*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('licenses.index') }}">
+                                                {{ trans('general.licenses') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\Contract::class)
+                                        <li {!! (request()->is('contracts*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('contracts.index') }}">
+                                                {{ trans('admin/contracts/general.contracts') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                </ul>
                             </li>
-                        @endcan
+                        @endif
                         @can('index', \App\Models\Accessory::class)
                             <li id="accessories-sidenav-option"{!! (request()->is('accessories*') ? ' class="active"' : '') !!}>
                                 <a href="{{ route('accessories.index') }}">
