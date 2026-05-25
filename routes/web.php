@@ -379,6 +379,19 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
 
     Route::resource('groups', GroupsController::class);
 
+    Route::resource('license-models', \App\Http\Controllers\LicenseModelsController::class, [
+        'names' => [
+            'index'   => 'license-models.index',
+            'create'  => 'license-models.create',
+            'store'   => 'license-models.store',
+            'show'    => 'license-models.show',
+            'edit'    => 'license-models.edit',
+            'update'  => 'license-models.update',
+            'destroy' => 'license-models.destroy',
+        ],
+        'parameters' => ['license-models' => 'licenseModel'],
+    ]);
+
     /**
      * This breadcrumb is repeated for groups in the BreadcrumbServiceProvider, since groups uses resource routes
      * and that servcie provider cannot see the breadcrumbs defined below
