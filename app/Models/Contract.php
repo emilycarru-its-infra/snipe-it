@@ -50,8 +50,15 @@ class Contract extends Model
         'supplier_id'        => 'nullable|integer|exists:suppliers,id',
         'parent_contract_id' => 'nullable|integer|exists:contracts,id',
         'tdx_id'             => 'nullable|integer|unique:contracts,tdx_id,NULL,id,deleted_at,NULL',
-        'start_date'         => 'nullable|date_format:Y-m-d',
-        'end_date'           => 'nullable|date_format:Y-m-d',
+        // Use `date` (not `date_format:Y-m-d`) because the model casts these
+        // columns to Carbon on fill(). `date_format` validates against the
+        // raw input string but by validation time the value is already a
+        // Carbon instance — `date_format` then rejects every Carbon
+        // regardless of the input format. `date` validates Carbon and
+        // YYYY-MM-DD strings both, which is what we want here. See:
+        // https://laravel.com/docs/validation#rule-date-format
+        'start_date'         => 'nullable|date',
+        'end_date'           => 'nullable|date',
         'total_cost'         => 'nullable|numeric|gte:0|max:99999999999.9999',
         'currency'           => 'nullable|string|size:3',
         'ticket_url'         => 'nullable|url|max:512',
