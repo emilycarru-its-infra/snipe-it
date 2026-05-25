@@ -18,21 +18,27 @@
             <x-tabs>
                 <x-slot:tabnav>
 
+                    @php $licenseModel = $license->effectiveLicenseModel(); @endphp
+
+                    @if ($licenseModel->has_seats)
                     <x-tabs.nav-item
                             name="seats"
                             icon_type="checkedout"
                             label="{{ trans('general.assigned') }}"
                             count="{{ $license->assignedCount()->count() }}"
                     />
+                    @endif
 
-                    @can('checkout', $license)
-                    <x-tabs.nav-item
-                            name="available"
-                            icon_type="available"
-                            label="{{ trans('general.available') }}"
-                            count="{{ $license->availCount()->count() }}"
-                    />
-                    @endcan
+                    @if ($licenseModel->has_checkout)
+                        @can('checkout', $license)
+                        <x-tabs.nav-item
+                                name="available"
+                                icon_type="available"
+                                label="{{ trans('general.available') }}"
+                                count="{{ $license->availCount()->count() }}"
+                        />
+                        @endcan
+                    @endif
 
                     <x-tabs.files-tab :item="$license" count="{{ $license->uploads()->count() }}"/>
                     <x-tabs.history-tab count="{{ $license->history()->count() }}" :model="$license"/>
@@ -41,6 +47,7 @@
 
                 <x-slot:tabpanes>
 
+                    @if ($licenseModel->has_seats)
                     <x-tabs.pane name="seats">
                         <x-slot:table_header>
                             {{ trans('general.assigned') }}
@@ -55,8 +62,10 @@
                         />
 
                     </x-tabs.pane>
+                    @endif
 
 
+                    @if ($licenseModel->has_checkout)
                     @can('checkout', $license)
                     <x-tabs.pane name="available">
                         <x-slot:table_header>
@@ -72,6 +81,7 @@
 
                     </x-tabs.pane>
                     @endcan
+                    @endif
 
 
                     <!-- start history tab pane -->
@@ -99,36 +109,39 @@
                     <x-slot:buttons>
                         <x-button.edit :item="$license" :route="route('licenses.edit', $license->id)"/>
                         <x-button.clone :item="$license" :route="route('clone/license', $license->id)"/>
-                        <x-button.checkout permission="checkout" :item="$license" :route="route('licenses.checkout', $license->id)" />
 
-                        @can('checkout', $license)
+                        @if ($licenseModel->has_checkout)
+                            <x-button.checkout permission="checkout" :item="$license" :route="route('licenses.checkout', $license->id)" />
 
-                            @if (($license->availCount()->count() > 0) && (!$license->isInactive()))
+                            @can('checkout', $license)
 
-                                <a href="#" class="btn bg-maroon btn-sm hidden-print" data-toggle="modal" data-tooltip="true" title="{{ trans('admin/licenses/general.bulk.checkout_all.enabled_tooltip') }}" data-target="#checkoutFromAllModal">
-                                    <x-icon type="checkout-all" class="fa-fw"/>
-                                </a>
+                                @if (($license->availCount()->count() > 0) && (!$license->isInactive()))
 
-                            @else
-                                <span data-tooltip="true" title="{{ ($license->availCount()->count() == 0) ? trans('admin/licenses/general.bulk.checkout_all.disabled_tooltip') : trans('admin/licenses/message.checkout.license_is_inactive') }}" class="btn bg-maroon btn-sm hidden-print disabled" title="{{ trans('general.checkout') }}">
-                                      <x-icon type="checkout-all" class="fa-fw"/>
-                                  </span>
-                            @endif
-                        @endcan
+                                    <a href="#" class="btn bg-maroon btn-sm hidden-print" data-toggle="modal" data-tooltip="true" title="{{ trans('admin/licenses/general.bulk.checkout_all.enabled_tooltip') }}" data-target="#checkoutFromAllModal">
+                                        <x-icon type="checkout-all" class="fa-fw"/>
+                                    </a>
+
+                                @else
+                                    <span data-tooltip="true" title="{{ ($license->availCount()->count() == 0) ? trans('admin/licenses/general.bulk.checkout_all.disabled_tooltip') : trans('admin/licenses/message.checkout.license_is_inactive') }}" class="btn bg-maroon btn-sm hidden-print disabled" title="{{ trans('general.checkout') }}">
+                                          <x-icon type="checkout-all" class="fa-fw"/>
+                                      </span>
+                                @endif
+                            @endcan
 
 
-                        @can('checkin', $license)
+                            @can('checkin', $license)
 
-                            @if (($license->seats - $license->availCount()->count()) <= 0 )
-                                <span data-tooltip="true" title=" {{ trans('admin/licenses/general.bulk.checkin_all.disabled_tooltip') }}">
-                                        <a href="#" class="btn btn-primary bg-purple btn-sm hidden-print disabled"><x-icon type="checkin-all" class="fa-fw"/></a>
-                                    </span>
-                            @else
-                                <a href="#" class="btn bg-purple btn-sm hidden-print" data-toggle="modal" data-tooltip="true" data-target="#checkinFromAllModal" data-content="{{ trans('general.sure_to_delete') }} title=" {{ trans('admin/licenses/general.bulk.checkin_all.button') }} data-title=" {{ trans('admin/licenses/general.bulk.checkin_all.button') }}">
-                                    <x-icon type="checkin-all" class="fa-fw"/>
-                                </a>
-                            @endif
-                        @endcan
+                                @if (($license->seats - $license->availCount()->count()) <= 0 )
+                                    <span data-tooltip="true" title=" {{ trans('admin/licenses/general.bulk.checkin_all.disabled_tooltip') }}">
+                                            <a href="#" class="btn btn-primary bg-purple btn-sm hidden-print disabled"><x-icon type="checkin-all" class="fa-fw"/></a>
+                                        </span>
+                                @else
+                                    <a href="#" class="btn bg-purple btn-sm hidden-print" data-toggle="modal" data-tooltip="true" data-target="#checkinFromAllModal" data-content="{{ trans('general.sure_to_delete') }} title=" {{ trans('admin/licenses/general.bulk.checkin_all.button') }} data-title=" {{ trans('admin/licenses/general.bulk.checkin_all.button') }}">
+                                        <x-icon type="checkin-all" class="fa-fw"/>
+                                    </a>
+                                @endif
+                            @endcan
+                        @endif
 
 
                         <x-button.delete :item="$license" />
