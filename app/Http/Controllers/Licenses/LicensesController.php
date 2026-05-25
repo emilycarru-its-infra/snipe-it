@@ -67,6 +67,7 @@ class LicensesController extends Controller
         return view('licenses/edit')
             ->with('depreciation_list', Helper::depreciationList())
             ->with('maintained_list', $maintained_list)
+            ->with('license_models', \App\Models\LicenseModel::orderBy('name')->get())
             ->with('item', new License);
     }
 
@@ -108,6 +109,7 @@ class LicensesController extends Controller
         $license->serial = $request->input('serial');
         $license->supplier_id = $request->input('supplier_id');
         $license->category_id = $request->input('category_id');
+        $license->license_model_id = $request->input('license_model_id') ?: null;
         $license->termination_date = $request->input('termination_date');
         $license->created_by = auth()->id();
         $license->min_amt = $request->input('min_amt');
@@ -153,7 +155,8 @@ class LicensesController extends Controller
         return view('licenses/edit')
             ->with('item', $license)
             ->with('depreciation_list', Helper::depreciationList())
-            ->with('maintained_list', $maintained_list);
+            ->with('maintained_list', $maintained_list)
+            ->with('license_models', \App\Models\LicenseModel::orderBy('name')->get());
     }
 
     /**
@@ -194,6 +197,7 @@ class LicensesController extends Controller
         $license->manufacturer_id = $request->input('manufacturer_id');
         $license->supplier_id = $request->input('supplier_id');
         $license->category_id = $request->input('category_id');
+        $license->license_model_id = $request->input('license_model_id') ?: null;
         $license->min_amt = $request->input('min_amt');
 
         session()->put(['redirect_option' => $request->input('redirect_option')]);
