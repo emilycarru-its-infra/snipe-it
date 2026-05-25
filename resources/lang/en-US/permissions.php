@@ -268,6 +268,22 @@ return [
         'name' => 'Manage License Keys',
         'note' => 'Allows the user to view product keys associated with licenses.',
     ],
+
+    'licensemodelsview' => [
+        'name' => 'View License Models',
+        'note' => 'View the list of license model definitions (SaaS, Product Key, License Server, etc.) that categorise licenses by behavior.',
+    ],
+    'licensemodelscreate' => [
+        'name' => 'Create License Models',
+    ],
+    'licensemodelsedit' => [
+        'name' => 'Edit License Models',
+    ],
+    'licensemodelsdelete' => [
+        'name' => 'Delete License Models',
+        'note' => 'Deleting a license model removes the categorization from any licenses that used it (they fall back to default Product Key behavior).',
+    ],
+
     'components' => [
         'name' => 'Components',
         'note' => 'Grants access to the Components section of the application.',

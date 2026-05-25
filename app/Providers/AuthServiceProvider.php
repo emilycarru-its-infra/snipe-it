@@ -38,6 +38,7 @@ use App\Policies\CustomFieldsetPolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\DepreciationPolicy;
 use App\Policies\LeaseSchedulePolicy;
+use App\Policies\LicenseModelPolicy;
 use App\Policies\LicensePolicy;
 use App\Policies\LocationPolicy;
 use App\Policies\MaintenancePolicy;
@@ -78,6 +79,7 @@ class AuthServiceProvider extends ServiceProvider
         Department::class => DepartmentPolicy::class,
         Depreciation::class => DepreciationPolicy::class,
         License::class => LicensePolicy::class,
+        \App\Models\LicenseModel::class => LicenseModelPolicy::class,
         Location::class => LocationPolicy::class,
         Maintenance::class => MaintenancePolicy::class,
         Order::class => OrderPolicy::class,
