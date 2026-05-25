@@ -754,6 +754,23 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     );
 
     /**
+     * License Models API routes
+     */
+    Route::resource('license-models',
+        Api\LicenseModelsController::class,
+        ['names' => [
+            'index'   => 'api.licensemodels.index',
+            'show'    => 'api.licensemodels.show',
+            'update'  => 'api.licensemodels.update',
+            'store'   => 'api.licensemodels.store',
+            'destroy' => 'api.licensemodels.destroy',
+        ],
+            'except' => ['create', 'edit'],
+            'parameters' => ['license-models' => 'license_model_id'],
+        ]
+    );
+
+    /**
      * Locations API routes
      */
     Route::group(['prefix' => 'locations'], function () {

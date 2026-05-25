@@ -225,6 +225,22 @@ return [
             'permission' => 'licenses.files',
             'display' => true,
         ],
+        [
+            'permission' => 'licensemodels.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'licensemodels.create',
+            'display' => true,
+        ],
+        [
+            'permission' => 'licensemodels.edit',
+            'display' => true,
+        ],
+        [
+            'permission' => 'licensemodels.delete',
+            'display' => true,
+        ],
     ],
 
     'Contracts' => [
