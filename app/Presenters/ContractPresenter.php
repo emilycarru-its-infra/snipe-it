@@ -93,12 +93,21 @@ class ContractPresenter extends Presenter
                 'visible' => false,
                 'title' => trans('admin/contracts/general.gl_code'),
             ], [
+                'field' => 'source',
+                'searchable' => true,
+                'sortable' => true,
+                'switchable' => true,
+                'visible' => true,
+                'title' => trans('admin/contracts/general.source'),
+                'formatter' => 'contractsSourceBadgeFormatter',
+            ], [
                 'field' => 'tdx_id',
                 'searchable' => true,
                 'sortable' => true,
                 'switchable' => true,
                 'visible' => false,
                 'title' => trans('admin/contracts/general.tdx_id'),
+                'formatter' => 'contractsTdxIdLinkFormatter',
             ], [
                 'field' => 'actions',
                 'searchable' => false,

@@ -1999,6 +1999,29 @@
 
     
 
+    // Render the contract `source` field as a Bootstrap label.
+    // 'tdx' = blue (managed by the TDX reconciler), anything else = grey.
+    function contractsSourceBadgeFormatter(value) {
+        if (!value) return '';
+        var safe = String(value).replace(/[&<>"]/g, function (c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+        });
+        if (value === 'tdx') {
+            return '<span class="label label-info">' + safe.toUpperCase() + '</span>';
+        }
+        return '<span class="label label-default">' + safe + '</span>';
+    }
+
+    // Turn tdx_id into a clickable link back to the TDX UI for that contract.
+    function contractsTdxIdLinkFormatter(value) {
+        if (!value) return '';
+        var n = parseInt(value, 10);
+        if (!n) return '';
+        return '<a href="https://servicedesk.emilycarru.ca/TDNext/Apps/116/Assets/Contracts?ContractID=' + n +
+               '" target="_blank" rel="noopener" data-tooltip="true" title="{{ trans('admin/contracts/general.open_in_tdx') }}">' + n +
+               ' <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>';
+    }
+
     // Create a linked phone number in the table list
     function phoneFormatter(value) {
         if (value) {
