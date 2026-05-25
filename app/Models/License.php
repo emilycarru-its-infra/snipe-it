@@ -78,6 +78,7 @@ class License extends Depreciable
         'expiration_date',
         'license_email',
         'license_name', // actually licensed_to
+        'license_model_id',
         'maintained',
         'manufacturer_id',
         'category_id',
@@ -421,6 +422,33 @@ class License extends Depreciable
     public function category()
     {
         return $this->belongsTo(Category::class, 'category_id')->withTrashed();
+    }
+
+    /**
+     * Establishes the license -> license model relationship.
+     *
+     * LicenseModel categorises this license by behavior (SaaS,
+     * product-key, license-server, etc.). Nullable: rows without a
+     * model fall through `effectiveLicenseModel()` to the default
+     * "Product Key" behavior.
+     *
+     * @see LicenseModel
+     * @see License::effectiveLicenseModel()
+     */
+    public function licenseModel()
+    {
+        return $this->belongsTo(LicenseModel::class, 'license_model_id');
+    }
+
+    /**
+     * Resolved LicenseModel for this row. Returns the assigned one if
+     * present; otherwise the seeded default ("Product Key" type). UI
+     * conditional renderers should call this and consult its flags
+     * rather than null-checking license_model_id directly.
+     */
+    public function effectiveLicenseModel(): LicenseModel
+    {
+        return $this->licenseModel ?: LicenseModel::defaultForLegacy();
     }
 
     /**
