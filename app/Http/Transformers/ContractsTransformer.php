@@ -57,6 +57,11 @@ class ContractsTransformer
                 'id'   => (int) $contract->parent->id,
                 'name' => e($contract->parent->name),
             ] : null,
+            'admin_user' => $contract->owner ? [
+                'id'    => (int) $contract->owner->id,
+                'name'  => e($contract->owner->display_name),
+                'email' => e($contract->owner->email),
+            ] : null,
             'children_count'  => (int) ($contract->children_count ?? $contract->children()->count()),
             'children_cost_sum' => $contract->children_count > 0
                 ? (float) ($contract->children_cost_sum ?? $contract->childrenCostSum())

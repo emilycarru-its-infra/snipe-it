@@ -76,7 +76,7 @@ class ContractsController extends Controller
     {
         $this->authorize('view', Contract::class);
 
-        $contract->load(['supplier', 'parent', 'children', 'licenses', 'assets', 'serials', 'attributes', 'adminuser']);
+        $contract->load(['supplier', 'parent', 'children', 'licenses', 'assets', 'serials', 'attributes', 'adminuser', 'owner']);
 
         return view('contracts.view', compact('contract'));
     }
