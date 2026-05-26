@@ -73,30 +73,30 @@
 {{-- ── Reports menu ─────────────────────────────────────────────────── --}}
 <div class="box box-default">
     <div class="box-header with-border">
-        <h3 class="box-title">Transactions Reports</h3>
-        <p class="box-subtitle" style="margin:6px 0 0; color:#aaa; font-size:12px;">
-            View or download the reports that back the two final Reconcile tabs Finance receives.
-        </p>
+        <h3 class="box-title">Reconciliations history</h3>
     </div>
     <div class="box-body table-responsive no-padding">
         <table class="table table-hover">
-            <tbody>
-            @foreach ($reports as $r)
+            <thead>
                 <tr>
-                    <td style="padding:12px 15px;">
-                        <a href="{{ route($r['route'], ['year' => $current->period_year, 'month' => $current->period_month]) }}"
-                           style="font-weight:600;">{{ $r['title'] }}</a>
-                        <div style="color:#999; font-size:12px; margin-top:2px;">{{ $r['desc'] }}</div>
-                    </td>
-                    <td class="text-right" style="white-space:nowrap; padding:12px 15px;">
-                        <a class="btn btn-sm btn-default"
-                           href="{{ route($r['route'], ['year' => $current->period_year, 'month' => $current->period_month]) }}">
-                            <i class="far fa-eye"></i> View
-                        </a>
-                        <a class="btn btn-sm btn-default"
-                           href="{{ route($r['route'], ['year' => $current->period_year, 'month' => $current->period_month, 'format' => 'csv']) }}">
-                            <i class="fas fa-download"></i> Download
-                        </a>
+                    <th>Period</th>
+                    <th>Generated</th>
+                    <th>Status</th>
+                    <th class="text-right">Workbook</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach ($latest as $r)
+                <tr>
+                    <td><a href="{{ route('reports.transactions.show', ['ym' => $r->period_label]) }}">{{ $r->period_label }}</a></td>
+                    <td>{{ $r->generated_at?->diffForHumans() ?? '—' }}</td>
+                    <td><span class="label label-{{ $r->status === 'published' ? 'success' : 'warning' }}">{{ $r->status }}</span></td>
+                    <td class="text-right">
+                        @if ($r->sharepoint_url)
+                            <a class="btn btn-xs btn-default" href="{{ $r->sharepoint_url }}" target="_blank" rel="noopener">
+                                <i class="far fa-file-excel"></i> Open in SharePoint
+                            </a>
+                        @endif
                     </td>
                 </tr>
             @endforeach
@@ -105,14 +105,186 @@
     </div>
 </div>
 
-@push('js')
-<script>
+{{-- ── Drill-down widgets ───────────────────────────────────────────── --}}
+<div class="row">
+    {{-- GL Breakdown --}}
+    <div class="col-md-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">GL Breakdown <small style="color:#999;">— top 8 by dollar total (calendar period)</small></h3>
+                <div class="box-tools pull-right">
+                    <a class="btn btn-xs btn-default"
+                       href="{{ route('reports.transactions.gl-breakdown', ['year' => $current->period_year, 'month' => $current->period_month]) }}">
+                        View all <i class="fas fa-angle-right"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="box-body table-responsive no-padding">
+                <table class="table table-hover">
+                    <thead>
+                        <tr><th>GL code</th><th class="text-right">Dollars</th><th class="text-right">Fee share</th></tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($widgets['gl'] ?? [] as $g)
+                        <tr>
+                            <td>{{ $g->gl_code }}</td>
+                            <td class="text-right">${{ number_format((float) $g->dollar_total, 2) }}</td>
+                            <td class="text-right">${{ number_format((float) $g->fee_share, 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3" class="text-center" style="padding:18px; color:#aaa;">No GL rows for this period.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Mail Room Allocation --}}
+    <div class="col-md-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">Mail Room Allocation <small style="color:#999;">— most recent 8 jobs</small></h3>
+                <div class="box-tools pull-right">
+                    <a class="btn btn-xs btn-default"
+                       href="{{ route('reports.transactions.mail-room', ['year' => $current->period_year, 'month' => $current->period_month]) }}">
+                        View all <i class="fas fa-angle-right"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="box-body table-responsive no-padding">
+                <table class="table table-hover">
+                    <thead>
+                        <tr><th>User</th><th>Department</th><th class="text-right">Cost</th></tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($widgets['mailroom'] ?? [] as $m)
+                        <tr>
+                            <td>{{ $m->row_data['user'] ?? '—' }}</td>
+                            <td>{{ $m->row_data['department'] ?? $m->row_data['mapped_department'] ?? '—' }}</td>
+                            <td class="text-right">${{ number_format((float) ($m->row_data['cost'] ?? 0), 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3" class="text-center" style="padding:18px; color:#aaa;">No mail-room jobs for this period.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {{-- Refunds Posted --}}
+    <div class="col-md-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">Refunds Posted <small style="color:#999;">— recent 8 refunds in period</small></h3>
+                <div class="box-tools pull-right">
+                    <a class="btn btn-xs btn-default"
+                       href="{{ route('reports.transactions.refunds', ['year' => $current->period_year, 'month' => $current->period_month]) }}">
+                        View all <i class="fas fa-angle-right"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="box-body table-responsive no-padding">
+                <table class="table table-hover">
+                    <thead>
+                        <tr><th>User</th><th>Type</th><th class="text-right">Amount</th></tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($widgets['refunds'] ?? [] as $r)
+                        <tr>
+                            <td>{{ $r->row_data['user'] ?? '—' }}</td>
+                            <td>{{ $r->row_data['transaction type'] ?? '—' }}</td>
+                            <td class="text-right">${{ number_format((float) ($r->row_data['amount'] ?? 0), 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3" class="text-center" style="padding:18px; color:#aaa;">No refunds posted in this period.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Self-Serve Print breakdown --}}
+    <div class="col-md-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">Self-Serve Print — per-department JT</h3>
+                <p class="box-subtitle" style="margin:6px 0 0; color:#aaa; font-size:12px;">
+                    The single Finance posts to Colleague each month.
+                </p>
+            </div>
+            <div class="box-body table-responsive no-padding">
+                <table class="table table-hover">
+                    <thead>
+                        <tr><th>Department</th><th class="text-right">Amount</th></tr>
+                    </thead>
+                    <tbody>
+                    @php $jtTotal = 0; @endphp
+                    @forelse ($widgets['selfServe'] ?? [] as $row)
+                        @php
+                            $label = ucwords(str_replace(['revenue_', '_'], ['', ' '], $row->line_key));
+                            $jtTotal += (float) $row->amount;
+                        @endphp
+                        <tr>
+                            <td>{{ $label }}</td>
+                            <td class="text-right">${{ number_format((float) $row->amount, 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="2" class="text-center" style="padding:18px; color:#aaa;">No per-department revenue rows.</td></tr>
+                    @endforelse
+                    </tbody>
+                    @if (! empty($widgets['selfServe']) && count($widgets['selfServe']) > 0)
+                    <tfoot>
+                        <tr><th>Total</th><th class="text-right">${{ number_format($jtTotal, 2) }}</th></tr>
+                    </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ── Settings / admin links (not really "reports") ─────────────────── --}}
+@canany(['reports.transactions.overrides'])
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title"><i class="fas fa-cog"></i> Reconciliation settings</h3>
+    </div>
+    <div class="box-body" style="padding:12px 15px;">
+        <a class="btn btn-sm btn-default"
+           href="{{ route('reports.transactions.overrides', ['year' => $current->period_year, 'month' => $current->period_month]) }}">
+            <i class="fas fa-pen-to-square"></i> Manual overrides
+        </a>
+        <a class="btn btn-sm btn-default"
+           href="{{ route('reports.transactions.line-items', ['year' => $current->period_year, 'month' => $current->period_month]) }}">
+            <i class="fas fa-list"></i> Effective line items
+        </a>
+        <span style="color:#aaa; font-size:12px; margin-left:8px;">
+            Per-line corrections (overrides win over derived) and the flat-table view of every Reconcile-tab cell.
+        </span>
+    </div>
+</div>
+@endcanany
+
+@endif
+
+@stop
+
+@section('moar_scripts')
+<script src="{{ url(mix('js/dist/Chart.min.js')) }}"></script>
+<script nonce="{{ csrf_token() }}">
 (function() {
-    const monthly = @json($monthly);
-    const deptMix = @json($deptMix);
+    if (typeof Chart === 'undefined') { return; }
+
+    const monthly = @json($monthly ?? []);
+    const deptMix = @json($deptMix ?? []);
 
     const monthlyCtx = document.getElementById('transactionsMonthlyChart');
-    if (monthlyCtx && window.Chart) {
+    if (monthlyCtx) {
         new Chart(monthlyCtx, {
             type: 'line',
             data: {
@@ -135,7 +307,7 @@
     }
 
     const deptCtx = document.getElementById('transactionsDeptChart');
-    if (deptCtx && window.Chart) {
+    if (deptCtx) {
         new Chart(deptCtx, {
             type: 'doughnut',
             data: {
@@ -163,8 +335,4 @@
     }
 })();
 </script>
-@endpush
-
-@endif
-
 @stop

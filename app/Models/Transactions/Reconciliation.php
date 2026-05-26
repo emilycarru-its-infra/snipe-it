@@ -2,6 +2,7 @@
 
 namespace App\Models\Transactions;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class Reconciliation extends Model
@@ -14,12 +15,22 @@ class Reconciliation extends Model
         'summary_json', 'workbook_blob_url', 'sharepoint_url',
     ];
 
+    // generated_at is intentionally NOT cast as 'datetime' — the Function App
+    // writes it via MySQL NOW() on Azure MySQL Flex, which stores UTC. The
+    // default Eloquent cast would re-interpret the bare string in the app
+    // timezone (America/Vancouver), producing a +7h shift and the user-visible
+    // "Generated: 6 hours from now" bug. The accessor below parses the column
+    // explicitly as UTC and then converts to the app timezone for display.
     protected $casts = [
         'period_year'   => 'integer',
         'period_month'  => 'integer',
-        'generated_at'  => 'datetime',
         'summary_json'  => 'array',
     ];
+
+    public function getGeneratedAtAttribute($value): ?Carbon
+    {
+        return $value ? Carbon::parse($value, 'UTC')->setTimezone(config('app.timezone')) : null;
+    }
 
     public function getPeriodLabelAttribute(): string
     {

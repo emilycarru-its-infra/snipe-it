@@ -11,7 +11,7 @@
     <label>{{ trans('admin/reports/transactions.col_period') }}:</label>
     <input type="number" name="year"  value="{{ $year }}"  class="form-control input-sm" style="width:90px"/>
     <input type="number" name="month" value="{{ $month }}" min="1" max="12" class="form-control input-sm" style="width:70px"/>
-    <button class="btn btn-sm btn-primary" type="submit">{{ trans('general.filter') }}</button>
+    <button class="btn btn-sm btn-primary" type="submit">Filter</button>
 </form>
 
 @if (session('success'))
