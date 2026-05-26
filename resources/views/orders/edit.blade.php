@@ -45,6 +45,21 @@
     </div>
 </div>
 
+<!-- Area -->
+<div class="form-group {{ $errors->has('area') ? ' has-error' : '' }}">
+    <label for="area" class="col-md-3 control-label">{{ trans('admin/budget-allocations/general.area') }}</label>
+    <div class="col-md-7 col-sm-12">
+        <input class="form-control" type="text" name="area" id="area" value="{{ old('area', $item->area) }}" maxlength="191" list="known-areas" placeholder="Admin / Curriculum / Faculty Program / Research" />
+        <datalist id="known-areas">
+            @foreach (\App\Models\Order::query()->whereNotNull('area')->distinct()->orderBy('area')->pluck('area') as $known)
+                <option value="{{ $known }}"></option>
+            @endforeach
+        </datalist>
+        <span class="help-block">{{ trans('admin/budget-allocations/general.area_help') }}</span>
+        {!! $errors->first('area', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
+
 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
 @include ('partials.forms.edit.company-select', ['translated_name' => trans('general.company'), 'fieldname' => 'company_id'])
 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/orders/general.order_date'), 'fieldname' => 'order_date'])
