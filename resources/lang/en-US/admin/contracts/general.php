@@ -94,4 +94,7 @@ return [
     'tile_expiring_90' => 'Expiring 90d',
     'tile_synthesized' => 'Synthesized',
     'filter_by_theme'  => 'Filter by theme',
+
+    'children_cost_sum'      => 'Sum of children',
+    'children_cost_sum_help' => 'rolled up from :count linked contracts',
 ];
