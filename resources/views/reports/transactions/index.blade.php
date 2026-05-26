@@ -105,14 +105,21 @@
     </div>
 </div>
 
-@push('js')
-<script>
+@endif
+
+@stop
+
+@section('moar_scripts')
+<script src="{{ url(mix('js/dist/Chart.min.js')) }}"></script>
+<script nonce="{{ csrf_token() }}">
 (function() {
-    const monthly = @json($monthly);
-    const deptMix = @json($deptMix);
+    if (typeof Chart === 'undefined') { return; }
+
+    const monthly = @json($monthly ?? []);
+    const deptMix = @json($deptMix ?? []);
 
     const monthlyCtx = document.getElementById('transactionsMonthlyChart');
-    if (monthlyCtx && window.Chart) {
+    if (monthlyCtx) {
         new Chart(monthlyCtx, {
             type: 'line',
             data: {
@@ -135,7 +142,7 @@
     }
 
     const deptCtx = document.getElementById('transactionsDeptChart');
-    if (deptCtx && window.Chart) {
+    if (deptCtx) {
         new Chart(deptCtx, {
             type: 'doughnut',
             data: {
@@ -163,8 +170,4 @@
     }
 })();
 </script>
-@endpush
-
-@endif
-
 @stop
