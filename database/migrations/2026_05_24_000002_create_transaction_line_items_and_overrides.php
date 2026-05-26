@@ -40,9 +40,12 @@ return new class extends Migration {
         });
 
         // Lookup view (read-only): the effective line items the workbook
-        // would use right now — override wins over derived.
+        // would use right now — override wins over derived. SQLite (test DB)
+        // does not support CREATE OR REPLACE VIEW; drop-then-create works on
+        // both SQLite and MySQL.
+        DB::statement('DROP VIEW IF EXISTS transaction_effective_line_items');
         DB::statement(<<<'SQL'
-            CREATE OR REPLACE VIEW transaction_effective_line_items AS
+            CREATE VIEW transaction_effective_line_items AS
             SELECT
                 COALESCE(o.period_year,  d.period_year)  AS period_year,
                 COALESCE(o.period_month, d.period_month) AS period_month,
