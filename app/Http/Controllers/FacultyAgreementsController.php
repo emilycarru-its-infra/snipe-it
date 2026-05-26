@@ -98,6 +98,60 @@ class FacultyAgreementsController extends Controller
      * model's saved() hook also handles this path when someone edits
      * the stage directly, so this stays idempotent.
      */
+    /**
+     * On-demand bulk pre-gen — same logic as the scheduled artisan
+     * command `snipeit:faculty-pregen-pdfs`, fired from a UI button.
+     *
+     * The scheduler runs this command at 05:00 daily. This handler
+     * exists so Sohee can pre-gen on her own cadence (e.g. right
+     * before opening the summer Faculty Laptop Program) without
+     * waiting for the next 05:00.
+     */
+    public function pregenAll(Request $request): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $force = $request->boolean('force');
+        $all   = $request->boolean('include_sent');
+
+        $stages = $all ? ['eligible', 'quoted', 'agreement_sent'] : ['eligible', 'quoted'];
+
+        $query = FacultyAgreement::query()
+            ->whereIn('lifecycle_stage', $stages)
+            ->whereNotNull('user_id')
+            ->whereNotNull('asset_id');
+
+        if (! $force) {
+            $query->whereNull('pdf_path');
+        }
+
+        $agreements = $query->with(['user', 'asset.model'])->get();
+
+        $rendered = 0;
+        $skipped  = 0;
+        $errors   = 0;
+        foreach ($agreements as $agreement) {
+            try {
+                $path = $agreement->storeUnsignedPdf();
+                if ($path) {
+                    $rendered++;
+                } else {
+                    $skipped++;
+                }
+            } catch (\Throwable $e) {
+                $errors++;
+                \Log::error('faculty-pregen on-demand failed for FA#'.$agreement->id, ['exception' => $e]);
+            }
+        }
+
+        return redirect()->route('reports.procurement.faculty-ledger')
+            ->with('success', trans('admin/faculty-agreements/message.pregen_done', [
+                'rendered' => $rendered,
+                'skipped'  => $skipped,
+                'errors'   => $errors,
+            ]));
+    }
+
     public function sendForSignature(FacultyAgreement $facultyAgreement): RedirectResponse
     {
         $this->authorize('update', Order::class);
