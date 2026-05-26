@@ -97,4 +97,7 @@ return [
 
     'children_cost_sum'      => 'Sum of children',
     'children_cost_sum_help' => 'rolled up from :count linked contracts',
+
+    'admin_user'       => 'Admin user (renewal contact)',
+    'admin_user_unset' => 'Not set — alerts go to the global alert email',
 ];
