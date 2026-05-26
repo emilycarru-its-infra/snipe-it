@@ -50,7 +50,18 @@ class ProcurementReportsController extends Controller
             $selectedFy = null;
         }
 
+        $allAreas = PurchaseOrder::whereNotNull('area')->distinct()->pluck('area')
+            ->merge(Order::whereNotNull('area')->distinct()->pluck('area'))
+            ->merge(BudgetAllocation::whereNotNull('area')->distinct()->pluck('area'))
+            ->unique()->sort()->values();
+
+        $selectedArea = $request->query('area');
+        if ($selectedArea !== null && ! $allAreas->contains($selectedArea)) {
+            $selectedArea = null;
+        }
+
         $purchaseOrders = PurchaseOrder::when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
+            ->when($selectedArea, fn ($query) => $query->where('area', $selectedArea))
             ->orderBy('po_number')
             ->get();
 
@@ -82,6 +93,7 @@ class ProcurementReportsController extends Controller
         // year's pot. Without an FY filter, sum the entire ledger.
         $allocationsQuery = BudgetAllocation::query()
             ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy))
+            ->when($selectedArea, fn ($q) => $q->where('area', $selectedArea))
             ->with('creator')
             ->orderBy('created_at');
         $allocations = $allocationsQuery->get();
@@ -158,6 +170,8 @@ class ProcurementReportsController extends Controller
             'scheduleSigningQueueCount' => $scheduleSigningQueueCount,
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
+            'allAreas' => $allAreas,
+            'selectedArea' => $selectedArea,
             'totalBudget' => $totalBudget,
             'totalCommitted' => $totalCommitted,
             'totalInvoiced' => $totalInvoiced,
