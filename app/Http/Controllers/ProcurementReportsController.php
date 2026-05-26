@@ -109,7 +109,19 @@ class ProcurementReportsController extends Controller
             ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
             ->get();
 
-        $fiscalYears = array_keys($committedByFy + $plannedByFy);
+        // Lease-end pre-approval — devices whose lease ends in each
+        // FY drive that FY's replacement budget (CSI/Macquarie schedules
+        // are already pre-approved at signing). The selected-FY card
+        // surfaces this; the FY chart overlays it on committed/planned.
+        $leaseExpiryByFy = $this->leaseExpiryByFy();
+        $leaseExpiryTotal = $selectedFy
+            ? (float) ($leaseExpiryByFy[$selectedFy]['cost'] ?? 0.0)
+            : (float) array_sum(array_column($leaseExpiryByFy, 'cost'));
+        $leaseExpiryCount = $selectedFy
+            ? (int) ($leaseExpiryByFy[$selectedFy]['count'] ?? 0)
+            : (int) array_sum(array_column($leaseExpiryByFy, 'count'));
+
+        $fiscalYears = array_keys($committedByFy + $plannedByFy + $leaseExpiryByFy);
         sort($fiscalYears);
 
         // Finance triage counters — what the dashboard reader sees first.
@@ -163,10 +175,13 @@ class ProcurementReportsController extends Controller
             ))->count(),
             'eolCount' => $eolAssets->count(),
             'eolEstimate' => (float) $eolAssets->sum('purchase_cost'),
+            'leaseExpiryTotal' => $leaseExpiryTotal,
+            'leaseExpiryCount' => $leaseExpiryCount,
             'poRows' => $poRows,
             'fiscalYears' => array_values($fiscalYears),
             'committedByFy' => $committedByFy,
             'plannedByFy' => $plannedByFy,
+            'leaseExpiryByFy' => $leaseExpiryByFy,
             'monthlyLabels' => $monthly->keys()->all(),
             'monthlyValues' => array_values($monthly->all()),
         ]);
@@ -1111,6 +1126,61 @@ class ProcurementReportsController extends Controller
         $end = $start + 1;
 
         return sprintf('FY%02d-%02d', $start % 100, $end % 100);
+    }
+
+    /**
+     * Devices whose lease end falls within each FY, with $-rollup.
+     * Drives the "Lease-end pre-approval" card and the third dataset
+     * on the FY chart: a lease ending in FYNN is the implicit
+     * replacement budget for FYNN (CSI/Macquarie already pre-approved
+     * the equivalent spend when the original schedule was signed).
+     *
+     * Buyout and archived assets are excluded — they're no longer
+     * commitments. purchase_cost stands in as the replacement-cost
+     * estimate (same convention as the EOL refresh forecast).
+     */
+    private function leaseExpiryByFy(): array
+    {
+        $columns = $this->leaseFieldColumns();
+        $endDateColumn = $columns['lease_end_date'];
+        $contractIdColumn = $columns['contract_id'];
+
+        if (! $endDateColumn || ! $contractIdColumn) {
+            return [];
+        }
+
+        $assets = Asset::with('status')
+            ->whereNotNull($endDateColumn)
+            ->where($endDateColumn, '!=', '')
+            ->whereNotNull($contractIdColumn)
+            ->where($contractIdColumn, '!=', '')
+            ->get();
+
+        $byFy = [];
+        foreach ($assets as $asset) {
+            if (! $this->isValidContractId($asset->{$contractIdColumn})) {
+                continue;
+            }
+
+            $statusName = (string) $asset->status?->name;
+            $statusMeta = (string) $asset->status?->status_meta;
+            if ($statusMeta === 'archived'
+                || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
+                continue;
+            }
+
+            $fy = $this->fiscalYearFromEndDate($asset->{$endDateColumn});
+            if (! $fy) {
+                continue;
+            }
+
+            $byFy[$fy] ??= ['count' => 0, 'cost' => 0.0];
+            $byFy[$fy]['count']++;
+            $byFy[$fy]['cost'] += (float) $asset->purchase_cost;
+        }
+
+        ksort($byFy);
+        return $byFy;
     }
 
     /**

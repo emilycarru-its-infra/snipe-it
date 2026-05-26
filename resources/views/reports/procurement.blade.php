@@ -83,6 +83,20 @@
         </div>
     </div>
     <div class="col-md-4 col-sm-6">
+        <div class="small-box bg-teal">
+            <div class="inner">
+                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($leaseExpiryTotal) }}</h3>
+                <p>{!! trans(
+                    $selectedFy
+                        ? 'admin/purchase-orders/general.card_lease_preapproval'
+                        : 'admin/purchase-orders/general.card_lease_preapproval_all',
+                    ['count' => $leaseExpiryCount]
+                ) !!}</p>
+            </div>
+            <div class="icon"><i class="fas fa-calendar-alt" aria-hidden="true"></i></div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
         <a href="{{ route('reports.procurement.invoice-approval') }}" class="small-box-link">
             <div class="small-box {{ $pendingApprovalCount > 0 ? 'bg-red' : 'bg-green' }}">
                 <div class="inner">
@@ -277,6 +291,7 @@
             'fyLabels' => $fiscalYears,
             'fyCommitted' => array_map(fn ($fy) => $committedByFy[$fy] ?? 0, $fiscalYears),
             'fyPlanned' => array_map(fn ($fy) => $plannedByFy[$fy] ?? 0, $fiscalYears),
+            'fyLeaseEnding' => array_map(fn ($fy) => $leaseExpiryByFy[$fy]['cost'] ?? 0, $fiscalYears),
             'monthlyLabels' => $monthlyLabels,
             'monthlyValues' => $monthlyValues,
         ]) !!};
@@ -319,7 +334,8 @@
                 labels: data.fyLabels,
                 datasets: [
                     { label: @json(trans('admin/purchase-orders/general.card_committed')), backgroundColor: '#f39c12', data: data.fyCommitted },
-                    { label: @json(trans('admin/purchase-orders/general.card_forecast')), backgroundColor: '#001f3f', data: data.fyPlanned }
+                    { label: @json(trans('admin/purchase-orders/general.card_forecast')), backgroundColor: '#001f3f', data: data.fyPlanned },
+                    { label: @json(trans('admin/purchase-orders/general.chart_lease_ending')), backgroundColor: '#39cccc', data: data.fyLeaseEnding }
                 ]
             },
             options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
