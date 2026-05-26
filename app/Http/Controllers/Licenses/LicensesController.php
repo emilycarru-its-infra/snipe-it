@@ -6,6 +6,7 @@ use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\License;
+use App\Models\LicenseModel;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
@@ -40,7 +41,32 @@ class LicensesController extends Controller
     {
         $this->authorize('view', License::class);
 
-        return view('licenses/index');
+        $models = LicenseModel::orderBy('name')->get();
+
+        $countsByModel = License::query()
+            ->selectRaw('license_model_id, COUNT(*) AS n, COALESCE(SUM(seats),0) AS total_seats')
+            ->groupBy('license_model_id')
+            ->get()
+            ->keyBy(fn ($row) => $row->license_model_id === null ? '_null' : (int) $row->license_model_id);
+
+        $tiles = $models->map(function ($model) use ($countsByModel) {
+            $row = $countsByModel->get((int) $model->id);
+            return [
+                'id'    => $model->id,
+                'name'  => $model->name,
+                'icon'  => $model->icon ?: 'fa-tag',
+                'count' => (int) ($row->n ?? 0),
+                'seats' => (int) ($row->total_seats ?? 0),
+            ];
+        });
+
+        $totalSeats = (int) $countsByModel->sum('total_seats');
+        $totalCount = (int) $countsByModel->sum('n');
+        $expiring90 = License::whereNotNull('expiration_date')
+            ->whereBetween('expiration_date', [now()->toDateString(), now()->addDays(90)->toDateString()])
+            ->count();
+
+        return view('licenses/index', compact('tiles', 'totalSeats', 'totalCount', 'expiring90'));
     }
 
     /**

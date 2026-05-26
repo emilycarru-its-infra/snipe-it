@@ -83,6 +83,16 @@ class LicensesController extends Controller
             $licenses->where('depreciation_id', '=', $request->input('depreciation_id'));
         }
 
+        if ($request->filled('license_model_id')) {
+            $licenses->where('license_model_id', '=', $request->input('license_model_id'));
+        }
+
+        if ($request->filled('expiring_within_days')) {
+            $days = max(0, (int) $request->input('expiring_within_days'));
+            $licenses->whereNotNull('expiration_date')
+                ->whereBetween('expiration_date', [now()->toDateString(), now()->addDays($days)->toDateString()]);
+        }
+
         if ($request->filled('created_by')) {
             $licenses->where('created_by', '=', $request->input('created_by'));
         }
