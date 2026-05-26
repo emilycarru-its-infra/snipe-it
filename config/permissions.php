@@ -78,6 +78,26 @@ return [
             'permission' => 'reports.contracts.view',
             'display' => true,
         ],
+        [
+            'permission' => 'reports.transactions.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.transactions.gl',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.transactions.mailroom',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.transactions.refunds',
+            'display' => true,
+        ],
+        [
+            'permission' => 'reports.transactions.overrides',
+            'display' => true,
+        ],
     ],
 
     'Assets' => [

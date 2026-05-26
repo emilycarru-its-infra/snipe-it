@@ -1,0 +1,370 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Models\Transactions\EffectiveLineItem;
+use App\Models\Transactions\GlTotal;
+use App\Models\Transactions\LineItem;
+use App\Models\Transactions\Override;
+use App\Models\Transactions\RawRow;
+use App\Models\Transactions\Reconciliation;
+use Illuminate\Http\Request;
+
+/**
+ * Dashboard for the TouchNet/PaperCut reconciliation pipeline.
+ *
+ * Reads exclusively from the `transaction_*` tables that the Azure Function
+ * App populates. This controller never reaches out to Azure -- if the
+ * Function App is down, the dashboard simply shows the last successful
+ * roll-up. That keeps the dashboard side fully independent of the
+ * SharePoint / blob output of the pipeline.
+ *
+ * Routes:
+ *   GET /reports/transactions                              -> index
+ *   GET /reports/transactions/reconciliations              -> reconciliations
+ *   GET /reports/transactions/reconciliations/{ym}         -> show
+ *   GET /reports/transactions/gl-breakdown                 -> glBreakdown
+ *   GET /reports/transactions/mail-room                    -> mailRoom
+ *   GET /reports/transactions/refunds                      -> refunds
+ *
+ * Pattern mirrors ProcurementReportsController. Each method is a thin
+ * data-loader plus a `view()` call; no business logic lives here.
+ */
+class TransactionsReportsController extends Controller
+{
+    public function index(Request $request)
+    {
+        $fiscalYear = $request->input('fiscal_year');
+
+        // Trailing 12 months of reconciliations, ordered most-recent first.
+        $latest = Reconciliation::orderByDesc('period_year')
+            ->orderByDesc('period_month')
+            ->limit(12)
+            ->get();
+
+        $current = $latest->first();
+
+        // Headline cards — pulled from the *effective* line items (override
+        // wins). Per Carlos's PaperCut_10-2082 Reconcile tab.
+        $cards = $current
+            ? $this->buildHeadlineCards($current->period_year, $current->period_month)
+            : [];
+
+        // Charts: trailing-12 revenue + per-department mix.
+        $monthly = $this->monthlySeries($latest);
+        $deptMix = $current
+            ? $this->departmentMix($current->period_year, $current->period_month)
+            : [];
+
+        // Reports menu — one row per Carlos-style tab + every per-month
+        // downloadable workbook. Permission-gated downstream.
+        $reports = $this->reportMenu();
+
+        return view('reports.transactions.index', [
+            'latest'    => $latest,
+            'current'   => $current,
+            'cards'     => $cards,
+            'monthly'   => $monthly,
+            'deptMix'   => $deptMix,
+            'reports'   => $reports,
+        ]);
+    }
+
+    /**
+     * The 6 headline status cards rendered at the top of the dashboard.
+     * Order matches the procurement dashboard's pattern: revenue, refunds,
+     * balance change, override count, status, reconciling difference.
+     */
+    private function buildHeadlineCards(int $year, int $month): array
+    {
+        $lines = EffectiveLineItem::forPeriod($year, $month)->get()
+            ->keyBy('line_key');
+
+        $get = fn (string $k) => (float) optional($lines->get($k))->amount;
+
+        $revenue   = $get('pc_self_serve_revenue');
+        $refunds   = $get('pc_printing_refunds');
+        $startBal  = $get('pc_account_balance_start');
+        $endBal    = $get('pc_account_balance_end');
+        $autoXfer  = $get('pc_auto_transfers_from_dw');
+        $dwDeposits = $get('dw_oneweb_deposits');
+
+        $balanceDelta = $endBal - $startBal;
+
+        // Month Reconciling Difference (C20 on Carlos's PC tab):
+        //   total_transactions - balance_delta
+        $totalTxn = $refunds + $autoXfer + $get('pc_events_funds_added')
+                    + $get('pc_manual_misc_to_papercut')
+                    + $get('pc_manual_migration_dw_to_pc')
+                    - $revenue
+                    - $get('pc_manual_migration_pc_to_dw')
+                    - $get('pc_manual_misc_from_papercut');
+        $reconciling = $totalTxn - $balanceDelta;
+
+        $overrideCount = Override::forPeriod($year, $month)->count();
+
+        return [
+            ['label' => 'Self-Serve Print Revenue', 'value' => $revenue,
+             'fmt' => 'money', 'tone' => 'aqua', 'icon' => 'fa-print'],
+            ['label' => 'Digital Wallet Deposits',  'value' => $dwDeposits,
+             'fmt' => 'money', 'tone' => 'green', 'icon' => 'fa-wallet'],
+            ['label' => 'Refunds Posted',           'value' => $refunds,
+             'fmt' => 'money', 'tone' => 'yellow', 'icon' => 'fa-undo'],
+            ['label' => 'PaperCut Balance Change',  'value' => $balanceDelta,
+             'fmt' => 'money', 'tone' => 'blue', 'icon' => 'fa-balance-scale'],
+            ['label' => 'Month Reconciling Difference', 'value' => $reconciling,
+             'fmt' => 'money', 'tone' => abs($reconciling) < 0.01 ? 'green' : 'red',
+             'icon' => 'fa-check-circle'],
+            ['label' => 'Manual Overrides Applied', 'value' => $overrideCount,
+             'fmt' => 'count', 'tone' => $overrideCount > 0 ? 'purple' : 'navy',
+             'icon' => 'fa-pen-to-square'],
+        ];
+    }
+
+    private function monthlySeries($reconciliations): array
+    {
+        $series = [];
+        foreach ($reconciliations->reverse() as $r) {
+            $lines = EffectiveLineItem::forPeriod($r->period_year, $r->period_month)
+                ->get()->keyBy('line_key');
+            $get = fn ($k) => (float) optional($lines->get($k))->amount;
+            $series[] = [
+                'label'    => $r->period_label,
+                'revenue'  => $get('pc_self_serve_revenue'),
+                'deposits' => $get('dw_oneweb_deposits'),
+                'refunds'  => $get('pc_printing_refunds'),
+            ];
+        }
+        return $series;
+    }
+
+    private function departmentMix(int $year, int $month): array
+    {
+        $rows = EffectiveLineItem::forPeriod($year, $month)
+            ->where('line_key', 'like', 'revenue_%')
+            ->where('line_key', '<>', 'revenue_papercut')
+            ->get();
+        $out = [];
+        foreach ($rows as $r) {
+            $label = ucwords(str_replace(['revenue_', '_'], ['', ' '], $r->line_key));
+            $out[] = ['label' => $label, 'value' => (float) $r->amount];
+        }
+        usort($out, fn ($a, $b) => $b['value'] <=> $a['value']);
+        return $out;
+    }
+
+    /**
+     * The download list — one row per supporting tab + the two final
+     * Reconcile tabs + the full multi-tab workbook. Each row maps to a
+     * `View` route and a `Download` action that streams the same data
+     * as CSV / xlsx.
+     */
+    private function reportMenu(): array
+    {
+        return [
+            ['key' => 'reconciliations',     'title' => 'Reconciliations history',
+             'desc' => 'Every month produced, with status and links to the workbook in blob + SharePoint.',
+             'route' => 'reports.transactions.reconciliations'],
+            ['key' => 'gl-breakdown',         'title' => 'GL Breakdown',
+             'desc' => 'Per-department revenue with calendar vs Global-Payments-period roll-ups.',
+             'route' => 'reports.transactions.gl-breakdown'],
+            ['key' => 'mail-room',            'title' => 'Mail Room Allocation',
+             'desc' => 'Every mail-room print job with the department it was charged to (resolved via the mapping table).',
+             'route' => 'reports.transactions.mail-room'],
+            ['key' => 'refunds',              'title' => 'Refunds Posted',
+             'desc' => 'PaperCut refund transactions for the period — what went back to users.',
+             'route' => 'reports.transactions.refunds'],
+            ['key' => 'self-serve',           'title' => 'Self-Serve Print Report',
+             'desc' => 'Per-GL journal-transfer breakdown Finance posts to Colleague. The single output that drives the JT.',
+             'route' => 'reports.transactions.self-serve'],
+            ['key' => 'overrides',            'title' => 'Manual Overrides',
+             'desc' => 'Per-line corrections Carlos has applied. Override wins over derived in the emitted workbook.',
+             'route' => 'reports.transactions.overrides'],
+            ['key' => 'line-items',           'title' => 'Effective Line Items',
+             'desc' => 'Every cell of the two final Reconcile tabs as a flat table, with source = derived or override.',
+             'route' => 'reports.transactions.line-items'],
+        ];
+    }
+
+    public function reconciliations()
+    {
+        $all = Reconciliation::orderByDesc('period_year')
+            ->orderByDesc('period_month')
+            ->paginate(24);
+
+        return view('reports.transactions.reconciliations', ['items' => $all]);
+    }
+
+    public function show(string $ym)
+    {
+        [$year, $month] = $this->parseYm($ym);
+        $recon = Reconciliation::where('period_year', $year)
+            ->where('period_month', $month)
+            ->firstOrFail();
+
+        $glCalendar = GlTotal::forPeriod($year, $month, 'calendar')
+            ->orderByDesc('dollar_total')
+            ->get();
+        $glGp = GlTotal::forPeriod($year, $month, 'gp_period')
+            ->orderByDesc('dollar_total')
+            ->get();
+
+        return view('reports.transactions.show', [
+            'recon'      => $recon,
+            'glCalendar' => $glCalendar,
+            'glGp'       => $glGp,
+        ]);
+    }
+
+    public function glBreakdown(Request $request)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $month = (int) $request->input('month', date('n'));
+        $kind = $request->input('kind', 'calendar');
+
+        $rows = GlTotal::forPeriod($year, $month, $kind)
+            ->orderByDesc('dollar_total')
+            ->get();
+
+        $grand = $rows->sum('dollar_total');
+
+        return view('reports.transactions.gl-breakdown', [
+            'rows'  => $rows,
+            'grand' => $grand,
+            'year'  => $year,
+            'month' => $month,
+            'kind'  => $kind,
+        ]);
+    }
+
+    public function mailRoom(Request $request)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $month = (int) $request->input('month', date('n'));
+
+        $rows = RawRow::forPeriod($year, $month)
+            ->ofKind('papercut.print_logs.mailroom')
+            ->orderBy('id')
+            ->limit(2000)
+            ->get();
+
+        return view('reports.transactions.mail-room', [
+            'rows'  => $rows,
+            'year'  => $year,
+            'month' => $month,
+        ]);
+    }
+
+    public function refunds(Request $request)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $month = (int) $request->input('month', date('n'));
+
+        $rows = RawRow::forPeriod($year, $month)
+            ->ofKind('papercut.transactions')
+            ->get()
+            ->filter(fn ($r) => str_starts_with(
+                strtoupper($r->row_data['transaction type'] ?? ''),
+                'REFUND'
+            ));
+
+        return view('reports.transactions.refunds', [
+            'rows'  => $rows,
+            'year'  => $year,
+            'month' => $month,
+        ]);
+    }
+
+    public function selfServe(Request $request)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $month = (int) $request->input('month', date('n'));
+
+        $rows = EffectiveLineItem::forPeriod($year, $month)
+            ->where('line_key', 'like', 'revenue_%')
+            ->where('line_key', '<>', 'revenue_papercut')
+            ->get();
+
+        return view('reports.transactions.self-serve', [
+            'rows'  => $rows,
+            'year'  => $year,
+            'month' => $month,
+        ]);
+    }
+
+    public function overrides(Request $request)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $month = (int) $request->input('month', date('n'));
+
+        $derived = LineItem::forPeriod($year, $month)->get()->keyBy('line_key');
+        $overrides = Override::forPeriod($year, $month)->get()->keyBy('line_key');
+
+        // Union of keys so admin sees every line — derived-only, override-only, and both.
+        $keys = $derived->keys()->merge($overrides->keys())->unique()->sort();
+
+        return view('reports.transactions.overrides', [
+            'year'      => $year,
+            'month'     => $month,
+            'keys'      => $keys,
+            'derived'   => $derived,
+            'overrides' => $overrides,
+        ]);
+    }
+
+    public function storeOverride(Request $request)
+    {
+        $data = $request->validate([
+            'period_year'  => 'required|integer|min:2020|max:2100',
+            'period_month' => 'required|integer|min:1|max:12',
+            'line_key'     => 'required|string|max:64',
+            'amount'       => 'required|numeric',
+            'note'         => 'nullable|string|max:500',
+        ]);
+        $data['set_by'] = auth()->user()->username ?? 'unknown';
+        $data['set_at'] = now();
+        Override::updateOrCreate(
+            [
+                'period_year'  => $data['period_year'],
+                'period_month' => $data['period_month'],
+                'line_key'     => $data['line_key'],
+            ],
+            $data,
+        );
+        return redirect()->route('reports.transactions.overrides', [
+            'year' => $data['period_year'],
+            'month' => $data['period_month'],
+        ])->with('success', 'Override saved.');
+    }
+
+    public function deleteOverride(Request $request, int $id)
+    {
+        Override::findOrFail($id)->delete();
+        return back()->with('success', 'Override removed.');
+    }
+
+    public function lineItems(Request $request)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $month = (int) $request->input('month', date('n'));
+
+        $rows = EffectiveLineItem::forPeriod($year, $month)
+            ->orderBy('line_key')
+            ->get();
+
+        return view('reports.transactions.line-items', [
+            'rows'  => $rows,
+            'year'  => $year,
+            'month' => $month,
+        ]);
+    }
+
+    private function parseYm(string $ym): array
+    {
+        if (! preg_match('/^(\d{4})-(\d{1,2})$/', $ym, $m)) {
+            abort(404);
+        }
+        return [(int) $m[1], (int) $m[2]];
+    }
+}
