@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Asset;
+use App\Models\BudgetAllocation;
 use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
 use App\Models\FacultyAgreement;
@@ -54,7 +55,6 @@ class ProcurementReportsController extends Controller
             ->get();
 
         $poRows = [];
-        $totalBudget = 0.0;
         $totalCommitted = 0.0;
         $totalInvoiced = 0.0;
         $committedByFy = [];
@@ -63,7 +63,6 @@ class ProcurementReportsController extends Controller
             $budget = (float) $po->budget;
             $committed = $po->committedTotal();
 
-            $totalBudget += $budget;
             $totalCommitted += $committed;
             $totalInvoiced += $po->invoicedTotal();
 
@@ -76,6 +75,17 @@ class ProcurementReportsController extends Controller
             $fy = $po->fiscal_year ?: '—';
             $committedByFy[$fy] = ($committedByFy[$fy] ?? 0) + $committed;
         }
+
+        // Approved Budget is sourced from the budget_allocations ledger,
+        // not per-PO budgets. Each allocation is one event (forecast seed,
+        // supplemental top-up, or adjustment); summing them yields the
+        // year's pot. Without an FY filter, sum the entire ledger.
+        $allocationsQuery = BudgetAllocation::query()
+            ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy))
+            ->with('creator')
+            ->orderBy('created_at');
+        $allocations = $allocationsQuery->get();
+        $totalBudget = (float) $allocations->sum('amount');
 
         // Planned (forecast) spend, grouped by the planned order's fiscal year.
         $plannedByFy = [];
@@ -169,6 +179,8 @@ class ProcurementReportsController extends Controller
             'plannedByFy' => $plannedByFy,
             'monthlyLabels' => $monthly->keys()->all(),
             'monthlyValues' => array_values($monthly->all()),
+            'allocations' => $allocations,
+            'budgetSourceLabels' => BudgetAllocation::SOURCES,
         ]);
     }
 

@@ -32,6 +32,7 @@ use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ContractReportsController;
+use App\Http\Controllers\BudgetAllocationsController;
 use App\Http\Controllers\ProcurementReportsController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
@@ -680,6 +681,11 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
 
         Route::patch('visibility', [ProcurementReportsController::class, 'updateVisibility'])
             ->name('reports.procurement.visibility');
+
+        Route::post('budget-allocations', [BudgetAllocationsController::class, 'store'])
+            ->name('budget_allocations.store');
+        Route::delete('budget-allocations/{budget_allocation}', [BudgetAllocationsController::class, 'destroy'])
+            ->name('budget_allocations.destroy');
 
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
