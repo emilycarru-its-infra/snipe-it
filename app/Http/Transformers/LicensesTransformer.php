@@ -59,6 +59,17 @@ class LicensesTransformer
                 'name' => e($license->category->name),
                 'tag_color' => ($license->category->tag_color) ? e($license->category->tag_color) : null,
             ] : null,
+            'license_model_id' => $license->license_model_id ? (int) $license->license_model_id : null,
+            'license_model' => ($license->licenseModel) ? [
+                'id' => (int) $license->licenseModel->id,
+                'name' => e($license->licenseModel->name),
+                'type_code' => e($license->licenseModel->type_code),
+                'has_seats' => (bool) $license->licenseModel->has_seats,
+                'has_product_key' => (bool) $license->licenseModel->has_product_key,
+                'has_checkout' => (bool) $license->licenseModel->has_checkout,
+                'has_expiration' => (bool) $license->licenseModel->has_expiration,
+                'is_subscription' => (bool) $license->licenseModel->is_subscription,
+            ] : null,
             'created_by' => ($license->adminuser) ? [
                 'id' => (int) $license->adminuser->id,
                 'name' => e($license->adminuser->display_name),
