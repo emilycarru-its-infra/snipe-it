@@ -11,6 +11,7 @@ return [
     'allocations'          => 'allocations',
     'total'                => 'Total Approved Budget',
     'area'                 => 'Area',
+    'all_areas'            => 'All areas',
     'area_help'            => 'Free-form: Admin, Curriculum, Faculty Program, Research, etc. Leave blank if the allocation covers all areas.',
     'amount'               => 'Amount',
     'amount_help'          => 'Use a negative value for adjustments that reduce the budget.',

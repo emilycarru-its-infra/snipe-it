@@ -54,6 +54,21 @@
     </div>
 </div>
 
+<!-- Area -->
+<div class="form-group {{ $errors->has('area') ? ' has-error' : '' }}">
+    <label for="area" class="col-md-3 control-label">{{ trans('admin/budget-allocations/general.area') }}</label>
+    <div class="col-md-7 col-sm-12">
+        <input class="form-control" type="text" name="area" id="area" value="{{ old('area', $item->area) }}" maxlength="191" list="known-areas" placeholder="Admin / Curriculum / Faculty Program / Research" />
+        <datalist id="known-areas">
+            @foreach (\App\Models\PurchaseOrder::query()->whereNotNull('area')->distinct()->orderBy('area')->pluck('area') as $known)
+                <option value="{{ $known }}"></option>
+            @endforeach
+        </datalist>
+        <span class="help-block">{{ trans('admin/budget-allocations/general.area_help') }}</span>
+        {!! $errors->first('area', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
+
 <!-- Budget -->
 <div class="form-group {{ $errors->has('budget') ? ' has-error' : '' }}">
     <label for="budget" class="col-md-3 control-label">{{ trans('admin/purchase-orders/general.budget') }}</label>
