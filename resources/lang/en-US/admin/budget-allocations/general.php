@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'manage_title'         => 'Approved Budget — Allocations',
+    'add_title'            => 'Add an allocation',
+    'add_action'           => 'Add to Budget',
+    'help'                 => 'Each row below is one allocation event. The Approved Budget tile sums the entire ledger for the selected fiscal year. The ledger is append-only — correct mistakes with an adjustment row (negative amount) so the audit history stays intact.',
+    'none_yet'             => 'No allocations on file yet for this fiscal year.',
+    'allocation_added'     => 'Budget allocation added.',
+    'allocation_removed'   => 'Budget allocation removed.',
+    'allocations'          => 'allocations',
+    'total'                => 'Total Approved Budget',
+    'area'                 => 'Area',
+    'area_help'            => 'Free-form: Admin, Curriculum, Faculty Program, Research, etc. Leave blank if the allocation covers all areas.',
+    'amount'               => 'Amount',
+    'amount_help'          => 'Use a negative value for adjustments that reduce the budget.',
+    'source'               => 'Source',
+    'source_forecast'      => 'Forecast',
+    'source_supplemental'  => 'Supplemental',
+    'source_adjustment'    => 'Adjustment',
+    'effective_date'       => 'Effective date',
+    'description'          => 'Description',
+    'description_placeholder' => 'e.g. "Q3 top-up from VP Academic" or "reverses allocation #42 — entered against wrong FY"',
+    'added_by'             => 'Added by',
+];
