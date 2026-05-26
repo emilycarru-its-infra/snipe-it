@@ -20,7 +20,8 @@ class ContractsController extends Controller
         $this->authorize('view', Contract::class);
 
         $contracts = Contract::with('supplier', 'parent', 'adminuser')
-            ->withCount(['children', 'licenses', 'assets', 'serials']);
+            ->withCount(['children', 'licenses', 'assets', 'serials'])
+            ->withSum('children as children_cost_sum', 'total_cost');
 
         foreach (['theme', 'product', 'fiscal_year', 'type', 'workflow_status', 'supplier_id', 'gl_code', 'tdx_id', 'parent_contract_id', 'source'] as $field) {
             if ($request->filled($field)) {

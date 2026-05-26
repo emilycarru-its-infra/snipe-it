@@ -169,6 +169,20 @@ class Contract extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * Sum of `total_cost` across direct children. Returns null when the
+     * contract has no children, so callers can distinguish "no rollup
+     * applies" from "rollup is zero".
+     */
+    public function childrenCostSum(): ?float
+    {
+        if ($this->children->isEmpty()) {
+            return null;
+        }
+
+        return (float) $this->children->sum(fn ($child) => (float) $child->total_cost);
+    }
+
     // ─── Scopes ─────────────────────────────────────────────────────────
 
     public function scopeActive($query)
