@@ -163,7 +163,22 @@ class ProcurementReportsController extends Controller
             LeaseSchedule::OPEN_STAGES
         )->count();
 
+        // Live forecast breakdown:
+        //   Realized  = $totalCommitted (PO committed totals)
+        //   Planned   = $plannedTotal   (planned-order line items)
+        //   Available = $totalBudget − Realized − Planned (can go negative if over-committed)
+        $availableTotal = $totalBudget - $totalCommitted - $plannedTotal;
+
+        // Per-area breakdown for the stacked bar. Only includes areas that
+        // appear somewhere in this FY's data — POs, planned orders, or
+        // allocations.
+        $areaBreakdown = $this->buildAreaBreakdown($selectedFy, $selectedArea);
+
         return view('reports/procurement', [
+            'realizedTotal' => $totalCommitted,
+            'plannedTotalForBreakdown' => $plannedTotal,
+            'availableTotal' => $availableTotal,
+            'areaBreakdown' => $areaBreakdown,
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
             'facultyAwaitingSignatureCount' => $facultyAwaitingSignatureCount,
@@ -196,6 +211,63 @@ class ProcurementReportsController extends Controller
             'allocations' => $allocations,
             'budgetSourceLabels' => BudgetAllocation::SOURCES,
         ]);
+    }
+
+    /**
+     * Returns an array of ['area' => string, 'realized' => float,
+     * 'planned' => float, 'available' => float] rows, one per area
+     * with any activity in the selected fiscal year.
+     */
+    private function buildAreaBreakdown(?string $selectedFy, ?string $selectedArea): array
+    {
+        $poQuery = PurchaseOrder::query()
+            ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy))
+            ->when($selectedArea, fn ($q) => $q->where('area', $selectedArea))
+            ->whereNotNull('area');
+
+        $realizedByArea = [];
+        foreach ($poQuery->get() as $po) {
+            $area = $po->area ?: '—';
+            $realizedByArea[$area] = ($realizedByArea[$area] ?? 0) + (float) $po->committedTotal();
+        }
+
+        $plannedByArea = [];
+        $plannedOrders = Order::planned()
+            ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy))
+            ->when($selectedArea, fn ($q) => $q->where('area', $selectedArea))
+            ->whereNotNull('area')
+            ->with('items')
+            ->get();
+        foreach ($plannedOrders as $order) {
+            $area = $order->area ?: '—';
+            $plannedByArea[$area] = ($plannedByArea[$area] ?? 0) + (float) $order->items->sum->lineTotal();
+        }
+
+        $budgetByArea = BudgetAllocation::query()
+            ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy))
+            ->when($selectedArea, fn ($q) => $q->where('area', $selectedArea))
+            ->whereNotNull('area')
+            ->get()
+            ->groupBy('area')
+            ->map(fn ($rows) => (float) $rows->sum('amount'))
+            ->all();
+
+        $areas = collect(array_keys($realizedByArea + $plannedByArea + $budgetByArea))->unique()->sort()->values();
+
+        return $areas->map(function ($area) use ($realizedByArea, $plannedByArea, $budgetByArea) {
+            $budget    = (float) ($budgetByArea[$area] ?? 0);
+            $realized  = (float) ($realizedByArea[$area] ?? 0);
+            $planned   = (float) ($plannedByArea[$area] ?? 0);
+            $available = $budget - $realized - $planned;
+
+            return [
+                'area'      => $area,
+                'budget'    => $budget,
+                'realized'  => $realized,
+                'planned'   => $planned,
+                'available' => $available,
+            ];
+        })->all();
     }
 
     public function poBudget(Request $request)
