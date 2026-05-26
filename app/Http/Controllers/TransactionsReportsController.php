@@ -84,14 +84,16 @@ class TransactionsReportsController extends Controller
             ->limit(8)
             ->get();
 
+        // PaperCut's "Transactions by Type" report is already a per-type
+        // summary (one row per type code: PRINT, PRINT_REFUND, ADJUST,
+        // ADJUST_EXTERNAL, …). Show them all — the widget flags the
+        // refund-typed rows visually rather than pre-filtering, because
+        // the non-refund rows carry the same kind of operator context.
         $refunds = RawRow::forPeriod($year, $month)
             ->ofKind('papercut.transactions')
-            ->get()
-            ->filter(fn ($r) => str_starts_with(
-                strtoupper($r->row_data['transaction type'] ?? ''),
-                'REFUND'
-            ))
-            ->take(8);
+            ->orderBy('id')
+            ->limit(8)
+            ->get();
 
         $selfServe = EffectiveLineItem::forPeriod($year, $month)
             ->where('line_key', 'like', 'revenue_%')
