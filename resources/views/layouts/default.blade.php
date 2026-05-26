@@ -1786,7 +1786,7 @@
                                     @can('view', \App\Models\LicenseModel::class)
                                         <li {!! (request()->is('admin/license-models*') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('license-models.index') }}">
-                                                {{ trans('admin/licensemodels/general.license_models') }}
+                                                {{ trans('admin/licensemodels/general.sidebar_label') }}
                                             </a>
                                         </li>
                                     @endcan

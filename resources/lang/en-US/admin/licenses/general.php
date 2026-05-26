@@ -47,4 +47,8 @@ return [
 
     'below_threshold' => 'There are only :remaining_count seats left for this license with a minimum quantity of :min_amt. You may want to consider purchasing more seats.',
     'below_threshold_short' => 'This item is below the minimum required quantity.',
+
+    'tile_all'           => 'All Licenses',
+    'tile_expiring_90'   => 'Expiring 90d',
+    'tile_total_seats'   => 'Total Seats',
 ];
