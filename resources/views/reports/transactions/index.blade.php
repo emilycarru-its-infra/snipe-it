@@ -155,17 +155,18 @@
             <div class="box-body table-responsive no-padding">
                 <table class="table table-hover">
                     <thead>
-                        <tr><th>User</th><th>Department</th><th class="text-right">Cost</th></tr>
+                        <tr><th>User</th><th>Department</th><th>Document</th><th class="text-right">Pages</th></tr>
                     </thead>
                     <tbody>
                     @forelse ($widgets['mailroom'] ?? [] as $m)
                         <tr>
-                            <td>{{ $m->row_data['user'] ?? '—' }}</td>
-                            <td>{{ $m->row_data['department'] ?? $m->row_data['mapped_department'] ?? '—' }}</td>
-                            <td class="text-right">${{ number_format((float) ($m->row_data['cost'] ?? 0), 2) }}</td>
+                            <td>{{ $m->row_data['full name'] ?? $m->row_data['username'] ?? '—' }}</td>
+                            <td>{{ $m->row_data['user department'] ?? $m->row_data['mapped_department'] ?? '—' }}</td>
+                            <td style="max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $m->row_data['document'] ?? '—' }}</td>
+                            <td class="text-right">{{ $m->row_data['total printed pages'] ?? $m->row_data['copies'] ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="3" class="text-center" style="padding:18px; color:#aaa;">No mail-room jobs for this period.</td></tr>
+                        <tr><td colspan="4" class="text-center" style="padding:18px; color:#aaa;">No mail-room jobs for this period.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
@@ -179,7 +180,7 @@
     <div class="col-md-6">
         <div class="box box-default">
             <div class="box-header with-border">
-                <h3 class="box-title">Refunds Posted <small style="color:#999;">— recent 8 refunds in period</small></h3>
+                <h3 class="box-title">Transactions Summary <small style="color:#999;">— PaperCut totals by type</small></h3>
                 <div class="box-tools pull-right">
                     <a class="btn btn-xs btn-default"
                        href="{{ route('reports.transactions.refunds', ['year' => $current->period_year, 'month' => $current->period_month]) }}">
@@ -190,17 +191,26 @@
             <div class="box-body table-responsive no-padding">
                 <table class="table table-hover">
                     <thead>
-                        <tr><th>User</th><th>Type</th><th class="text-right">Amount</th></tr>
+                        <tr><th>Type</th><th class="text-right">Count</th><th class="text-right">Net</th></tr>
                     </thead>
                     <tbody>
                     @forelse ($widgets['refunds'] ?? [] as $r)
+                        @php
+                            $type = $r->row_data['transaction type'] ?? '—';
+                            $debits = (int) ($r->row_data['no. of debits'] ?? 0);
+                            $credits = (int) ($r->row_data['no. of credits'] ?? 0);
+                            $count = $debits + $credits;
+                            // PaperCut prefixes negative numbers with a stray apostrophe; strip it.
+                            $net = (float) ltrim((string) ($r->row_data['net'] ?? '0'), "'");
+                            $isRefund = str_contains(strtoupper($type), 'REFUND');
+                        @endphp
                         <tr>
-                            <td>{{ $r->row_data['user'] ?? '—' }}</td>
-                            <td>{{ $r->row_data['transaction type'] ?? '—' }}</td>
-                            <td class="text-right">${{ number_format((float) ($r->row_data['amount'] ?? 0), 2) }}</td>
+                            <td>{{ $type }}{!! $isRefund ? ' <span class="label label-success">refund</span>' : '' !!}</td>
+                            <td class="text-right">{{ number_format($count) }}</td>
+                            <td class="text-right">${{ number_format($net, 2) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="3" class="text-center" style="padding:18px; color:#aaa;">No refunds posted in this period.</td></tr>
+                        <tr><td colspan="3" class="text-center" style="padding:18px; color:#aaa;">No transactions for this period.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
