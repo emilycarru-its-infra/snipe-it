@@ -125,4 +125,13 @@ return [
     'contract_renewal_alert_14d_heading'     => ':count contract(s) renewing in 14 days — please act',
     'contract_renewal_alert_expired_heading' => ':count contract(s) expired in the last 7 days',
     'contract_renewal_alert_footer'          => 'You are listed as the admin user on these contracts, or you receive the global alert list. Reply to ITAM if this is wrong.',
+
+    'faculty_signature_request_pickup'      => 'Your Faculty Laptop pickup agreement is ready to sign (:asset_tag)',
+    'faculty_signature_request_upgrade'     => 'Your Faculty Laptop upgrade agreement is ready to sign (:asset_tag)',
+    'faculty_signature_request_buyout'      => 'Your Faculty Laptop buyout agreement is ready to sign (:asset_tag)',
+    'faculty_signature_request_greeting'    => 'Hi :name,',
+    'faculty_signature_request_body'        => 'Your :type agreement for :asset_tag (:model) is ready for your signature. Please review and sign at your convenience.',
+    'faculty_signature_request_cta'         => 'Review and sign',
+    'faculty_signature_request_attachment_note' => 'A copy of the unsigned agreement is attached for your records.',
+    'faculty_signature_request_footer'      => 'Questions? Reply to this email and the ITAM team will help.',
 ];

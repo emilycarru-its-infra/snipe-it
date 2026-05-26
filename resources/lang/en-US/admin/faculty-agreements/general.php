@@ -30,4 +30,11 @@ return [
     'awaiting_signature' => 'Awaiting signature',
     'signed' => 'Signed',
     'native_signing_intro' => 'Faculty Laptop Program agreements use Snipe-IT\'s built-in acceptance workflow. Hitting Send for Signature creates an acceptance against the faculty member\'s account; they sign in their own Snipe-IT session, and the signed PDF lands on this record automatically.',
+
+    'serial'       => 'Serial',
+    'base_price'   => 'Program base price',
+    'upgrade_amount' => 'Upgrade amount',
+    'type_pickup'  => 'new laptop pickup',
+    'type_upgrade' => 'paid upgrade',
+    'type_buyout'  => 'lease-end buyout',
 ];
