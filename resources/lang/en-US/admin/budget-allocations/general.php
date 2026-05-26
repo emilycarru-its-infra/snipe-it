@@ -22,4 +22,12 @@ return [
     'description'          => 'Description',
     'description_placeholder' => 'e.g. "Q3 top-up from VP Academic" or "reverses allocation #42 — entered against wrong FY"',
     'added_by'             => 'Added by',
+
+    'seed_action'                       => 'Seed :fy from forecast',
+    'seed_help'                         => 'Replaces existing forecast rows for the selected FY with fresh totals from planned orders, EOL refresh, and lease renewals. Supplemental and adjustment rows are untouched.',
+    'seed_confirm'                      => 'Re-seed forecast allocations for :fy? Existing forecast rows for this fiscal year will be replaced.',
+    'forecast_seeded'                   => 'Forecast seeded: :count row(s), $:total total.',
+    'seed_description_planned_orders'   => 'Forecast — planned orders for the fiscal year',
+    'seed_description_eol_refresh'      => 'Forecast — devices reaching end-of-life this fiscal year',
+    'seed_description_lease_renewals'   => 'Forecast — lease renewals (lease end date this fiscal year)',
 ];

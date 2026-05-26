@@ -684,6 +684,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
 
         Route::post('budget-allocations', [BudgetAllocationsController::class, 'store'])
             ->name('budget_allocations.store');
+        Route::post('budget-allocations/seed-forecast', [BudgetAllocationsController::class, 'seedFromForecast'])
+            ->name('budget_allocations.seed_forecast');
         Route::delete('budget-allocations/{budget_allocation}', [BudgetAllocationsController::class, 'destroy'])
             ->name('budget_allocations.destroy');
 
