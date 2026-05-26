@@ -22,6 +22,14 @@
                         <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
                     @endforeach
                 </select>
+                @if (($allAreas ?? collect())->isNotEmpty())
+                    <select name="area" class="form-control input-sm" style="display:inline-block; width:auto; margin-left:5px;" onchange="this.form.submit()">
+                        <option value="">{{ trans('admin/budget-allocations/general.all_areas') }}</option>
+                        @foreach ($allAreas as $area)
+                            <option value="{{ $area }}" {{ ($selectedArea ?? '') === $area ? 'selected' : '' }}>{{ $area }}</option>
+                        @endforeach
+                    </select>
+                @endif
             </form>
         </div>
     </div>
