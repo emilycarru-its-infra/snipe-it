@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use App\Helpers\Helper;
+use App\Mail\FacultyAgreementSignatureRequestMail;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Watson\Validating\ValidatingTrait;
 
 /**
@@ -275,6 +280,18 @@ class FacultyAgreement extends SnipeModel
         }
         $this->saveQuietly();
 
+        // Mail the faculty member with the sign link + attached unsigned
+        // PDF (if pre-rendered by snipeit:faculty-pregen-pdfs). Wrapped in
+        // try/catch so a flaky SMTP run can't roll back the stage
+        // transition — that's a higher-cost recovery than a missed email.
+        try {
+            if ($this->user && $this->user->email) {
+                Mail::to($this->user->email)->send(new FacultyAgreementSignatureRequestMail($this));
+            }
+        } catch (\Throwable $e) {
+            Log::error('faculty signature-request email failed for FA#'.$this->id, ['exception' => $e]);
+        }
+
         return $acceptance;
     }
 
@@ -295,5 +312,66 @@ class FacultyAgreement extends SnipeModel
     private function formatMoney(float $value): string
     {
         return '$'.number_format($value, 2);
+    }
+
+    /**
+     * Render the unsigned EULA as PDF bytes (in-memory). Shared by the
+     * controller's preview/download endpoint and by the bulk pre-gen
+     * artisan command. Mirrors FacultyAgreementsController::renderUnsignedPdf
+     * so a single code path produces the output regardless of caller.
+     */
+    public function renderUnsignedPdfBytes(): string
+    {
+        $settings  = Setting::getSettings();
+        $variables = $this->mergeVariables();
+
+        $data = [
+            'item_tag'      => $variables['asset_tag']  ?? '',
+            'item_name'     => $variables['model']      ?? '',
+            'item_model'    => $variables['model']      ?? '',
+            'item_serial'   => $variables['serial']     ?? '',
+            'item_status'   => null,
+            'eula'          => $this->eulaBody(),
+            'note'          => null,
+            'check_out_date' => Helper::getFormattedDateObject(now(), 'datetime', false),
+            'accepted_date' => '',
+            'declined_date' => '',
+            'assigned_to'   => $variables['faculty_name'] ?? '',
+            'email'         => (string) ($this->user?->email ?? ''),
+            'employee_num'  => (string) ($this->user?->employee_num ?? ''),
+            'site_name'     => $settings->site_name,
+            'company_name'  => $settings->site_name,
+            'signature'     => null,
+            'logo'          => null,
+            'date_settings' => $settings->date_display_format,
+            'qty'           => 1,
+        ];
+
+        $acceptance = $this->checkoutAcceptance ?: new CheckoutAcceptance;
+
+        return $acceptance->generateAcceptancePdf($data, 'preview.pdf');
+    }
+
+    /**
+     * Render the unsigned PDF and persist it to private storage so it's
+     * ready to attach to a signature request without re-rendering. Path
+     * convention: `private_uploads/faculty-agreements/{id}-{type}.pdf`.
+     * Returns the relative storage path (or null if dependencies are
+     * incomplete — no asset / no user).
+     */
+    public function storeUnsignedPdf(): ?string
+    {
+        if (! $this->asset || ! $this->user) {
+            return null;
+        }
+
+        $relative = 'private_uploads/faculty-agreements/'.$this->id.'-'.$this->agreement_type.'.pdf';
+        Storage::put($relative, $this->renderUnsignedPdfBytes());
+
+        $this->pdf_path = $relative;
+        $this->pdf_generated_at = now();
+        $this->saveQuietly();
+
+        return $relative;
     }
 }
