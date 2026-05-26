@@ -3,6 +3,7 @@
 return [
     'license_models'      => 'License Models',
     'license_model'       => 'License Model',
+    'sidebar_label'       => 'Types',
     'license_type'        => 'License Type',
     'license_type_help'   => 'Choose the type that best matches this license. The form below adjusts to show only the fields that apply (e.g. SaaS subscriptions don\'t have a Product Key or per-seat checkout).',
     'default_product_key' => 'Product Key (default)',
