@@ -45,6 +45,18 @@
                         <tr><th>{{ trans('admin/contracts/general.start_date') }}</th><td>{{ optional($contract->start_date)->toDateString() ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.end_date') }}</th><td>{{ optional($contract->end_date)->toDateString() ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.total_cost') }}</th><td>{{ $contract->total_cost ? '$' . \App\Helpers\Helper::formatCurrencyOutput($contract->total_cost) . ' ' . $contract->currency : '—' }}</td></tr>
+                        @php $rollup = $contract->childrenCostSum(); @endphp
+                        @if ($rollup !== null)
+                            <tr>
+                                <th>{{ trans('admin/contracts/general.children_cost_sum') }}</th>
+                                <td>
+                                    ${{ \App\Helpers\Helper::formatCurrencyOutput($rollup) }} {{ $contract->currency }}
+                                    <small class="text-muted">
+                                        ({{ trans('admin/contracts/general.children_cost_sum_help', ['count' => $contract->children->count()]) }})
+                                    </small>
+                                </td>
+                            </tr>
+                        @endif
                         <tr><th>{{ trans('admin/contracts/general.gl_code') }}</th><td>{{ $contract->gl_code ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.requisition_number') }}</th><td>{{ $contract->requisition_number ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.voucher_number') }}</th><td>{{ $contract->voucher_number ?? '—' }}</td></tr>
