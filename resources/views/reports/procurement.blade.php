@@ -148,6 +148,40 @@
 </div>
 
 <div class="row">
+    <div class="col-md-5">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/budget-allocations/general.chart_realized_planned_available') }}</h3>
+            </div>
+            <div class="box-body">
+                <div style="position:relative; height:300px;">
+                    <canvas id="procDonutChart"></canvas>
+                </div>
+                <p class="text-muted small" style="text-align:center; margin-top:8px;">
+                    {{ trans('admin/budget-allocations/general.chart_realized_planned_available_help') }}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/budget-allocations/general.chart_area_breakdown') }}</h3>
+            </div>
+            <div class="box-body">
+                @if (! empty($areaBreakdown))
+                    <div style="position:relative; height:{{ max(160, count($areaBreakdown) * 36 + 60) }}px;">
+                        <canvas id="procAreaChart"></canvas>
+                    </div>
+                @else
+                    <p class="text-muted" style="margin-top:20px;">{{ trans('admin/budget-allocations/general.chart_area_breakdown_empty') }}</p>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
     <div class="col-md-7">
         <div class="box box-default">
             <div class="box-header with-border">
@@ -307,6 +341,15 @@
             'fyPlanned' => array_map(fn ($fy) => $plannedByFy[$fy] ?? 0, $fiscalYears),
             'monthlyLabels' => $monthlyLabels,
             'monthlyValues' => $monthlyValues,
+            'donutRealized' => $realizedTotal,
+            'donutPlanned'  => $plannedTotalForBreakdown,
+            'donutAvailable' => max($availableTotal, 0),
+            'donutOver' => max(-$availableTotal, 0),
+            'areaLabels' => array_column($areaBreakdown, 'area'),
+            'areaRealized' => array_column($areaBreakdown, 'realized'),
+            'areaPlanned' => array_column($areaBreakdown, 'planned'),
+            'areaAvailable' => array_map(fn ($r) => max($r['available'], 0), $areaBreakdown),
+            'areaOver' => array_map(fn ($r) => max(-$r['available'], 0), $areaBreakdown),
         ]) !!};
 
         var money = function (value) {
@@ -319,6 +362,55 @@
         var pieTooltip = { callbacks: { label: function (item, data) {
             return data.labels[item.index] + ': ' + money(data.datasets[0].data[item.index]);
         } } };
+
+        // Realized / Planned / Available donut + per-area stacked bar (PR 4).
+        var donutEl = document.getElementById('procDonutChart');
+        if (donutEl) {
+            var donutLabels  = [
+                @json(trans('admin/budget-allocations/general.chart_slice_realized')),
+                @json(trans('admin/budget-allocations/general.chart_slice_planned')),
+                @json(trans('admin/budget-allocations/general.chart_slice_available')),
+            ];
+            var donutData = [data.donutRealized, data.donutPlanned, data.donutAvailable];
+            var donutColors = ['#f39c12', '#001f3f', '#00a65a'];
+            if (data.donutOver > 0) {
+                donutLabels.push(@json(trans('admin/budget-allocations/general.chart_slice_over')));
+                donutData.push(data.donutOver);
+                donutColors.push('#dd4b39');
+            }
+            new Chart(donutEl, {
+                type: 'doughnut',
+                data: { labels: donutLabels, datasets: [{ backgroundColor: donutColors, data: donutData }] },
+                options: { responsive: true, maintainAspectRatio: false, tooltips: pieTooltip }
+            });
+        }
+
+        var areaEl = document.getElementById('procAreaChart');
+        if (areaEl && data.areaLabels && data.areaLabels.length) {
+            var hBarTooltip = { callbacks: { label: function (item, d) {
+                return d.datasets[item.datasetIndex].label + ': ' + money(item.xLabel);
+            } } };
+            new Chart(areaEl, {
+                type: 'horizontalBar',
+                data: {
+                    labels: data.areaLabels,
+                    datasets: [
+                        { label: @json(trans('admin/budget-allocations/general.chart_slice_realized')),  backgroundColor: '#f39c12', data: data.areaRealized,  stack: 'totals' },
+                        { label: @json(trans('admin/budget-allocations/general.chart_slice_planned')),   backgroundColor: '#001f3f', data: data.areaPlanned,   stack: 'totals' },
+                        { label: @json(trans('admin/budget-allocations/general.chart_slice_available')), backgroundColor: '#00a65a', data: data.areaAvailable, stack: 'totals' },
+                        { label: @json(trans('admin/budget-allocations/general.chart_slice_over')),     backgroundColor: '#dd4b39', data: data.areaOver,      stack: 'totals' },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    tooltips: hBarTooltip,
+                    scales: {
+                        xAxes: [{ stacked: true, ticks: { beginAtZero: true, callback: money } }],
+                        yAxes: [{ stacked: true }]
+                    }
+                }
+            });
+        }
 
         new Chart(document.getElementById('procPoChart'), {
             type: 'bar',

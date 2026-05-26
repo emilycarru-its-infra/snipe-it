@@ -31,4 +31,13 @@ return [
     'seed_description_planned_orders'   => 'Forecast — planned orders for the fiscal year',
     'seed_description_eol_refresh'      => 'Forecast — devices reaching end-of-life this fiscal year',
     'seed_description_lease_renewals'   => 'Forecast — lease renewals (lease end date this fiscal year)',
+
+    'chart_realized_planned_available'        => 'Realized / Planned / Available',
+    'chart_realized_planned_available_help'   => 'Realized = PO commitments. Planned = planned orders not yet POed. Available = Budget − Realized − Planned. Red wedge means you are over-allocated.',
+    'chart_area_breakdown'                    => 'Per-area breakdown',
+    'chart_area_breakdown_empty'              => 'No areas tagged in the current filter yet — set Area on Orders / Purchase Orders / Allocations to populate this chart.',
+    'chart_slice_realized'  => 'Realized (PO committed)',
+    'chart_slice_planned'   => 'Planned (planned orders)',
+    'chart_slice_available' => 'Available',
+    'chart_slice_over'      => 'Over-allocated',
 ];
