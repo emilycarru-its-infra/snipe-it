@@ -280,40 +280,62 @@
 (function() {
     if (typeof Chart === 'undefined') { return; }
 
-    const monthly = @json($monthly ?? []);
-    const deptMix = @json($deptMix ?? []);
+    // Snipe-IT ships Chart.js v2.9 — uses tooltips (not plugins.tooltip),
+    // yAxes (not scales.y), and legacy callback signatures. Configuring
+    // for v3+ silently no-ops, which is how an unformatted "Tool Checkout:
+    // -3743.77" tooltip slipped through.
+    var money = function (v) {
+        var n = Number(v);
+        var abs = Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return (n < 0 ? '-$' : '$') + abs;
+    };
 
-    const monthlyCtx = document.getElementById('transactionsMonthlyChart');
+    var monthly = @json($monthly ?? []);
+    var deptMix = @json($deptMix ?? []);
+
+    var monthlyCtx = document.getElementById('transactionsMonthlyChart');
     if (monthlyCtx) {
         new Chart(monthlyCtx, {
             type: 'line',
             data: {
-                labels: monthly.map(m => m.label),
+                labels: monthly.map(function (m) { return m.label; }),
                 datasets: [
-                    { label: 'Self-Serve Revenue', data: monthly.map(m => m.revenue),
-                      borderColor: '#1976d2', backgroundColor: 'rgba(25,118,210,0.15)', tension: 0.3, fill: true },
-                    { label: 'DW Deposits',       data: monthly.map(m => m.deposits),
-                      borderColor: '#43a047', backgroundColor: 'rgba(67,160,71,0.15)', tension: 0.3, fill: true },
-                    { label: 'Refunds Posted',    data: monthly.map(m => m.refunds),
-                      borderColor: '#fbc02d', backgroundColor: 'rgba(251,192,45,0.15)', tension: 0.3, fill: true },
+                    { label: 'Self-Serve Revenue', data: monthly.map(function (m) { return m.revenue; }),
+                      borderColor: '#1976d2', backgroundColor: 'rgba(25,118,210,0.15)', lineTension: 0.3, fill: true },
+                    { label: 'DW Deposits',       data: monthly.map(function (m) { return m.deposits; }),
+                      borderColor: '#43a047', backgroundColor: 'rgba(67,160,71,0.15)', lineTension: 0.3, fill: true },
+                    { label: 'Refunds Posted',    data: monthly.map(function (m) { return m.refunds; }),
+                      borderColor: '#fbc02d', backgroundColor: 'rgba(251,192,45,0.15)', lineTension: 0.3, fill: true },
                 ],
             },
             options: {
                 responsive: true,
-                plugins: { legend: { position: 'top' } },
-                scales: { y: { ticks: { callback: v => '$' + Number(v).toLocaleString() } } },
+                legend: { position: 'top' },
+                tooltips: {
+                    callbacks: {
+                        label: function (item, data) {
+                            var ds = data.datasets[item.datasetIndex].label || '';
+                            return ds + ': ' + money(item.yLabel);
+                        }
+                    }
+                },
+                scales: {
+                    yAxes: [{
+                        ticks: { callback: function (v) { return money(v); } }
+                    }]
+                },
             },
         });
     }
 
-    const deptCtx = document.getElementById('transactionsDeptChart');
+    var deptCtx = document.getElementById('transactionsDeptChart');
     if (deptCtx) {
         new Chart(deptCtx, {
             type: 'doughnut',
             data: {
-                labels: deptMix.map(d => d.label),
+                labels: deptMix.map(function (d) { return d.label; }),
                 datasets: [{
-                    data: deptMix.map(d => d.value),
+                    data: deptMix.map(function (d) { return d.value; }),
                     backgroundColor: [
                         '#1976d2', '#43a047', '#fbc02d', '#e53935', '#8e24aa',
                         '#00897b', '#fb8c00', '#3949ab', '#c0ca33', '#00acc1',
@@ -322,11 +344,13 @@
                 }],
             },
             options: {
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 10 } } },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ctx.label + ': $' + Number(ctx.parsed).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                legend: { position: 'bottom', labels: { fontSize: 10 } },
+                tooltips: {
+                    callbacks: {
+                        label: function (item, data) {
+                            var label = data.labels[item.index];
+                            var value = data.datasets[0].data[item.index];
+                            return label + ': ' + money(value);
                         }
                     }
                 },
