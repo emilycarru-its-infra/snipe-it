@@ -75,6 +75,10 @@ return [
             'display' => true,
         ],
         [
+            'permission' => 'budget_allocations.manage',
+            'display' => true,
+        ],
+        [
             'permission' => 'reports.contracts.view',
             'display' => true,
         ],

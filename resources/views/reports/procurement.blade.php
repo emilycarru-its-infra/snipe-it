@@ -29,13 +29,24 @@
 
 <div class="row">
     <div class="col-md-4 col-sm-6">
-        <div class="small-box bg-aqua">
-            <div class="inner">
-                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalBudget) }}</h3>
-                <p>{{ trans('admin/purchase-orders/general.card_budget') }}</p>
+        @can('budget_allocations.manage')
+            <a href="#" data-toggle="modal" data-target="#budgetAllocationsModal" class="small-box-link" style="text-decoration:none;">
+        @endcan
+            <div class="small-box bg-aqua">
+                <div class="inner">
+                    <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalBudget) }}</h3>
+                    <p>
+                        {{ trans('admin/purchase-orders/general.card_budget') }}
+                        @can('budget_allocations.manage')
+                            &middot; {{ $allocations->count() }} {{ trans('admin/budget-allocations/general.allocations') }}
+                        @endcan
+                    </p>
+                </div>
+                <div class="icon"><i class="fas fa-wallet" aria-hidden="true"></i></div>
             </div>
-            <div class="icon"><i class="fas fa-wallet" aria-hidden="true"></i></div>
-        </div>
+        @can('budget_allocations.manage')
+            </a>
+        @endcan
     </div>
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-yellow">
@@ -260,6 +271,15 @@
         </div>
     </div>
 </div>
+
+@can('budget_allocations.manage')
+@include('reports.partials.budget-allocations-modal', [
+    'allocations'        => $allocations,
+    'selectedFy'         => $selectedFy,
+    'allFiscalYears'     => $allFiscalYears,
+    'budgetSourceLabels' => $budgetSourceLabels,
+])
+@endcan
 @stop
 
 @section('moar_scripts')
