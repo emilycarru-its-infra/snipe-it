@@ -37,6 +37,9 @@ class Contract extends Model
         'end_date'          => 'date',
         'tdx_modified_date' => 'datetime',
         'total_cost'        => 'decimal:4',
+        'last_renewal_alert_30d_at'      => 'datetime',
+        'last_renewal_alert_14d_at'      => 'datetime',
+        'last_renewal_alert_expired_at'  => 'datetime',
     ];
 
     protected $rules = [
@@ -63,6 +66,7 @@ class Contract extends Model
         'currency'           => 'nullable|string|size:3',
         'ticket_url'         => 'nullable|url|max:512',
         'source'             => 'nullable|in:tdx,manual,synthesized',
+        'admin_user_id'      => 'nullable|integer|exists:users,id',
     ];
 
     protected $fillable = [
@@ -94,6 +98,10 @@ class Contract extends Model
         'tdx_modified_date',
         'notes',
         'created_by',
+        'admin_user_id',
+        'last_renewal_alert_30d_at',
+        'last_renewal_alert_14d_at',
+        'last_renewal_alert_expired_at',
     ];
 
     // Columns that the bootstrap-table search will scan when the user
@@ -181,6 +189,16 @@ class Contract extends Model
         }
 
         return (float) $this->children->sum(fn ($child) => (float) $child->total_cost);
+    }
+
+    /**
+     * Designated owner / renewal contact for the contract. Distinct from
+     * `adminuser` (which is the creator). Set per-row; renewal alerts
+     * fall back to Setting::alert_email when this is null.
+     */
+    public function owner()
+    {
+        return $this->belongsTo(User::class, 'admin_user_id');
     }
 
     // ─── Scopes ─────────────────────────────────────────────────────────

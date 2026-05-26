@@ -117,4 +117,12 @@ return [
     'your_assets' => 'View Your Assets',
     'your_credentials' => 'Your Snipe-IT credentials',
     'mail_sent' => 'Mail sent successfully!',
+
+    'contract_renewal_alert_30d'             => 'Contracts renewing in the next 30 days (:count)',
+    'contract_renewal_alert_14d'             => 'Contracts renewing in the next 14 days (:count) — urgent',
+    'contract_renewal_alert_expired'         => 'Contracts that have just expired (:count)',
+    'contract_renewal_alert_30d_heading'     => ':count contract(s) renewing in 30 days',
+    'contract_renewal_alert_14d_heading'     => ':count contract(s) renewing in 14 days — please act',
+    'contract_renewal_alert_expired_heading' => ':count contract(s) expired in the last 7 days',
+    'contract_renewal_alert_footer'          => 'You are listed as the admin user on these contracts, or you receive the global alert list. Reply to ITAM if this is wrong.',
 ];
