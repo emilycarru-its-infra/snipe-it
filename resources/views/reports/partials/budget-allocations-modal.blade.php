@@ -12,6 +12,23 @@
                     {{ trans('admin/budget-allocations/general.help') }}
                 </p>
 
+                {{-- Seed from forecast --}}
+                <div class="well well-sm" style="margin-bottom:15px;">
+                    <form method="POST" action="{{ route('budget_allocations.seed_forecast') }}" style="display:inline;">
+                        @csrf
+                        <input type="hidden" name="fiscal_year" value="{{ $selectedFy ?: '' }}">
+                        <button type="submit" class="btn btn-primary btn-sm"
+                                @disabled(! $selectedFy)
+                                onclick="return confirm('{{ trans('admin/budget-allocations/general.seed_confirm', ['fy' => $selectedFy ?? '']) }}');">
+                            <i class="fas fa-magic" aria-hidden="true"></i>
+                            {{ trans('admin/budget-allocations/general.seed_action', ['fy' => $selectedFy ?? '—']) }}
+                        </button>
+                    </form>
+                    <span class="text-muted" style="margin-left:10px;">
+                        {{ trans('admin/budget-allocations/general.seed_help') }}
+                    </span>
+                </div>
+
                 {{-- Existing allocations --}}
                 @if ($allocations->isNotEmpty())
                     <table class="table table-striped table-condensed">
