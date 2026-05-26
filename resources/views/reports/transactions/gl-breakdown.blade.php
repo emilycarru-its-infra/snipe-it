@@ -15,7 +15,7 @@
         <option value="calendar"  {{ $kind === 'calendar' ? 'selected' : '' }}>{{ trans('admin/reports/transactions.period_kind_calendar') }}</option>
         <option value="gp_period" {{ $kind === 'gp_period' ? 'selected' : '' }}>{{ trans('admin/reports/transactions.period_kind_gp_period') }}</option>
     </select>
-    <button class="btn btn-sm btn-primary" type="submit">{{ trans('general.filter') }}</button>
+    <button class="btn btn-sm btn-primary" type="submit">Filter</button>
 </form>
 
 <div class="box box-default">

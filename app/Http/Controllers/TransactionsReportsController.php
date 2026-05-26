@@ -35,8 +35,6 @@ class TransactionsReportsController extends Controller
 {
     public function index(Request $request)
     {
-        $fiscalYear = $request->input('fiscal_year');
-
         // Trailing 12 months of reconciliations, ordered most-recent first.
         $latest = Reconciliation::orderByDesc('period_year')
             ->orderByDesc('period_month')
@@ -57,18 +55,56 @@ class TransactionsReportsController extends Controller
             ? $this->departmentMix($current->period_year, $current->period_month)
             : [];
 
-        // Reports menu — one row per Carlos-style tab + every per-month
-        // downloadable workbook. Permission-gated downstream.
-        $reports = $this->reportMenu();
+        // Inline widgets — same data the dedicated drill-down pages render,
+        // capped to the top rows so the dashboard stays scannable.
+        $widgets = $current
+            ? $this->buildWidgets($current->period_year, $current->period_month)
+            : [];
 
         return view('reports.transactions.index', [
-            'latest'    => $latest,
-            'current'   => $current,
-            'cards'     => $cards,
-            'monthly'   => $monthly,
-            'deptMix'   => $deptMix,
-            'reports'   => $reports,
+            'latest'  => $latest,
+            'current' => $current,
+            'cards'   => $cards,
+            'monthly' => $monthly,
+            'deptMix' => $deptMix,
+            'widgets' => $widgets,
         ]);
+    }
+
+    private function buildWidgets(int $year, int $month): array
+    {
+        $glRows = GlTotal::forPeriod($year, $month, 'calendar')
+            ->orderByDesc('dollar_total')
+            ->limit(8)
+            ->get();
+
+        $mailRoom = RawRow::forPeriod($year, $month)
+            ->ofKind('papercut.print_logs.mailroom')
+            ->orderBy('id')
+            ->limit(8)
+            ->get();
+
+        $refunds = RawRow::forPeriod($year, $month)
+            ->ofKind('papercut.transactions')
+            ->get()
+            ->filter(fn ($r) => str_starts_with(
+                strtoupper($r->row_data['transaction type'] ?? ''),
+                'REFUND'
+            ))
+            ->take(8);
+
+        $selfServe = EffectiveLineItem::forPeriod($year, $month)
+            ->where('line_key', 'like', 'revenue_%')
+            ->where('line_key', '<>', 'revenue_papercut')
+            ->orderBy('line_key')
+            ->get();
+
+        return [
+            'gl'        => $glRows,
+            'mailroom'  => $mailRoom,
+            'refunds'   => $refunds,
+            'selfServe' => $selfServe,
+        ];
     }
 
     /**
@@ -152,39 +188,6 @@ class TransactionsReportsController extends Controller
         }
         usort($out, fn ($a, $b) => $b['value'] <=> $a['value']);
         return $out;
-    }
-
-    /**
-     * The download list — one row per supporting tab + the two final
-     * Reconcile tabs + the full multi-tab workbook. Each row maps to a
-     * `View` route and a `Download` action that streams the same data
-     * as CSV / xlsx.
-     */
-    private function reportMenu(): array
-    {
-        return [
-            ['key' => 'reconciliations',     'title' => 'Reconciliations history',
-             'desc' => 'Every month produced, with status and links to the workbook in blob + SharePoint.',
-             'route' => 'reports.transactions.reconciliations'],
-            ['key' => 'gl-breakdown',         'title' => 'GL Breakdown',
-             'desc' => 'Per-department revenue with calendar vs Global-Payments-period roll-ups.',
-             'route' => 'reports.transactions.gl-breakdown'],
-            ['key' => 'mail-room',            'title' => 'Mail Room Allocation',
-             'desc' => 'Every mail-room print job with the department it was charged to (resolved via the mapping table).',
-             'route' => 'reports.transactions.mail-room'],
-            ['key' => 'refunds',              'title' => 'Refunds Posted',
-             'desc' => 'PaperCut refund transactions for the period — what went back to users.',
-             'route' => 'reports.transactions.refunds'],
-            ['key' => 'self-serve',           'title' => 'Self-Serve Print Report',
-             'desc' => 'Per-GL journal-transfer breakdown Finance posts to Colleague. The single output that drives the JT.',
-             'route' => 'reports.transactions.self-serve'],
-            ['key' => 'overrides',            'title' => 'Manual Overrides',
-             'desc' => 'Per-line corrections Carlos has applied. Override wins over derived in the emitted workbook.',
-             'route' => 'reports.transactions.overrides'],
-            ['key' => 'line-items',           'title' => 'Effective Line Items',
-             'desc' => 'Every cell of the two final Reconcile tabs as a flat table, with source = derived or override.',
-             'route' => 'reports.transactions.line-items'],
-        ];
     }
 
     public function reconciliations()
