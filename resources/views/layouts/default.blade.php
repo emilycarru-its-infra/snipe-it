@@ -1762,7 +1762,7 @@
                             </li>
                         @endcan
                         @if (Gate::allows('view', \App\Models\License::class) || Gate::allows('view', \App\Models\Contract::class))
-                            <li id="licenses-sidenav-option" class="treeview {{ (request()->is('licenses*') || request()->is('contracts*')) ? 'active' : '' }}">
+                            <li id="licenses-sidenav-option" class="treeview {{ (request()->is('licenses*') || request()->is('contracts*') || request()->is('admin/license-models*')) ? 'active' : '' }}">
                                 <a href="#">
                                     <x-icon type="licenses" class="fa-fw"/>
                                     <span>{{ trans('general.licenses') }}</span>
@@ -1780,6 +1780,13 @@
                                         <li {!! (request()->is('contracts*') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('contracts.index') }}">
                                                 {{ trans('admin/contracts/general.contracts') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\LicenseModel::class)
+                                        <li {!! (request()->is('admin/license-models*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('license-models.index') }}">
+                                                {{ trans('admin/licensemodels/general.license_models') }}
                                             </a>
                                         </li>
                                     @endcan
