@@ -74,6 +74,22 @@
                     <div class="well well-sm">{!! \App\Helpers\Helper::parseEscapedMarkedown($contract->notes) !!}</div>
                 @endif
             </x-box>
+
+            @can('files', $contract)
+                <x-box>
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                        <h3 style="margin:0;">
+                            {{ trans('general.files') }}
+                            <small class="text-muted">({{ $contract->uploads()->count() }})</small>
+                        </h3>
+                        <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#uploadFileModal">
+                            <i class="fas fa-upload" aria-hidden="true"></i>
+                            {{ trans('general.file_upload') }}
+                        </button>
+                    </div>
+                    <x-table.files object_type="contracts" :object="$contract"/>
+                </x-box>
+            @endcan
         </x-page-column>
 
         <x-page-column class="col-md-4 side-panel">
@@ -166,3 +182,10 @@
         </x-page-column>
     </x-container>
 @stop
+
+@section('moar_scripts')
+    @can('files', $contract)
+        @include ('modals.upload-file', ['item_type' => 'contract', 'item_id' => $contract->id])
+    @endcan
+    @include ('partials.bootstrap-table')
+@endsection
