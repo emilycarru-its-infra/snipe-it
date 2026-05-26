@@ -386,12 +386,15 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
+        $controls = view('reports.procurement._faculty-pregen-trigger')->render();
+
         return $this->render(
             $request,
             'faculty-program-ledger',
             trans('admin/purchase-orders/general.report_faculty_ledger'),
             'reports.procurement.faculty-ledger',
-            $this->facultyLedgerReport($request->query('agreement_type'), $request->query('stage'))
+            $this->facultyLedgerReport($request->query('agreement_type'), $request->query('stage')),
+            $controls,
         );
     }
 

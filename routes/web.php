@@ -138,6 +138,8 @@ Route::group(['middleware' => 'auth'], function () {
     /*
     * Faculty Laptop Program agreements
     */
+    Route::post('faculty-agreements/pregen-pdfs', [FacultyAgreementsController::class, 'pregenAll'])
+        ->name('faculty-agreements.pregen-pdfs');
     Route::resource('faculty-agreements', FacultyAgreementsController::class);
     Route::post('faculty-agreements/{facultyAgreement}/send-for-signature', [FacultyAgreementsController::class, 'sendForSignature'])
         ->name('faculty-agreements.send-for-signature');
