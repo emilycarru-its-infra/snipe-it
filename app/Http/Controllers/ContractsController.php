@@ -22,7 +22,31 @@ class ContractsController extends Controller
     {
         $this->authorize('view', Contract::class);
 
-        return view('contracts.index');
+        $totalCount     = Contract::count();
+        $activeCount    = Contract::active()->count();
+        $umbrellaCount  = Contract::umbrellas()->count();
+        $expiring90     = Contract::expiringWithin(90)->count();
+        $expiring30     = Contract::expiringWithin(30)->count();
+        $synthesizedCount = Contract::where('is_synthesized', true)->count();
+
+        $themes = Contract::select('theme')
+            ->whereNotNull('theme')
+            ->where('theme', '!=', '')
+            ->selectRaw('COUNT(*) AS n')
+            ->groupBy('theme')
+            ->orderByDesc('n')
+            ->limit(6)
+            ->get();
+
+        return view('contracts.index', compact(
+            'totalCount',
+            'activeCount',
+            'umbrellaCount',
+            'expiring90',
+            'expiring30',
+            'synthesizedCount',
+            'themes',
+        ));
     }
 
     public function create(): View

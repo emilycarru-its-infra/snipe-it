@@ -86,4 +86,12 @@ return [
 
     'found_via_serial' => 'Matched serial `:serial` to a contract — the matching Snipe asset (if any) is linked above.',
     'contract'         => 'Contract',
+
+    'tile_all'         => 'All Contracts',
+    'tile_active'      => 'Active',
+    'tile_umbrellas'   => 'Umbrellas',
+    'tile_expiring_30' => 'Expiring 30d',
+    'tile_expiring_90' => 'Expiring 90d',
+    'tile_synthesized' => 'Synthesized',
+    'filter_by_theme'  => 'Filter by theme',
 ];
