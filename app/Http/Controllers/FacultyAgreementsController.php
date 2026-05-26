@@ -140,34 +140,7 @@ class FacultyAgreementsController extends Controller
 
     private function renderUnsignedPdf(FacultyAgreement $facultyAgreement): Response
     {
-        $settings = Setting::getSettings();
-        $variables = $facultyAgreement->mergeVariables();
-
-        $data = [
-            'item_tag' => $variables['asset_tag'],
-            'item_name' => $variables['model'],
-            'item_model' => $variables['model'],
-            'item_serial' => $variables['serial'],
-            'item_status' => null,
-            'eula' => $facultyAgreement->eulaBody(),
-            'note' => null,
-            'check_out_date' => Helper::getFormattedDateObject(now(), 'datetime', false),
-            'accepted_date' => '',
-            'declined_date' => '',
-            'assigned_to' => $variables['faculty_name'],
-            'email' => (string) ($facultyAgreement->user?->email ?? ''),
-            'employee_num' => (string) ($facultyAgreement->user?->employee_num ?? ''),
-            'site_name' => $settings->site_name,
-            'company_name' => $settings->site_name,
-            'signature' => null,
-            'logo' => null,
-            'date_settings' => $settings->date_display_format,
-            'qty' => 1,
-        ];
-
-        $acceptance = $facultyAgreement->checkoutAcceptance ?: new CheckoutAcceptance;
-        $pdf = $acceptance->generateAcceptancePdf($data, 'preview.pdf');
-
+        $pdf = $facultyAgreement->renderUnsignedPdfBytes();
         $filename = 'faculty-agreement-'.$facultyAgreement->id.'-preview.pdf';
 
         return response($pdf, 200, [
