@@ -33,6 +33,7 @@ use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ContractReportsController;
 use App\Http\Controllers\ProcurementReportsController;
+use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\TonersController;
@@ -755,6 +756,54 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
             ->name('reports.procurement.schedule-signing')
             ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));
+    });
+
+    Route::prefix('transactions')->group(function () {
+        Route::get('/', [TransactionsReportsController::class, 'index'])
+            ->name('reports.transactions.index')
+            ->middleware('can:reports.transactions.view');
+
+        Route::get('reconciliations', [TransactionsReportsController::class, 'reconciliations'])
+            ->name('reports.transactions.reconciliations')
+            ->middleware('can:reports.transactions.view');
+
+        Route::get('reconciliations/{ym}', [TransactionsReportsController::class, 'show'])
+            ->name('reports.transactions.show')
+            ->middleware('can:reports.transactions.view')
+            ->where('ym', '\\d{4}-\\d{1,2}');
+
+        Route::get('gl-breakdown', [TransactionsReportsController::class, 'glBreakdown'])
+            ->name('reports.transactions.gl-breakdown')
+            ->middleware('can:reports.transactions.gl');
+
+        Route::get('mail-room', [TransactionsReportsController::class, 'mailRoom'])
+            ->name('reports.transactions.mail-room')
+            ->middleware('can:reports.transactions.mailroom');
+
+        Route::get('refunds', [TransactionsReportsController::class, 'refunds'])
+            ->name('reports.transactions.refunds')
+            ->middleware('can:reports.transactions.refunds');
+
+        Route::get('self-serve', [TransactionsReportsController::class, 'selfServe'])
+            ->name('reports.transactions.self-serve')
+            ->middleware('can:reports.transactions.view');
+
+        Route::get('line-items', [TransactionsReportsController::class, 'lineItems'])
+            ->name('reports.transactions.line-items')
+            ->middleware('can:reports.transactions.view');
+
+        Route::get('overrides', [TransactionsReportsController::class, 'overrides'])
+            ->name('reports.transactions.overrides')
+            ->middleware('can:reports.transactions.overrides');
+
+        Route::post('overrides', [TransactionsReportsController::class, 'storeOverride'])
+            ->name('reports.transactions.overrides.store')
+            ->middleware('can:reports.transactions.overrides');
+
+        Route::delete('overrides/{id}', [TransactionsReportsController::class, 'deleteOverride'])
+            ->name('reports.transactions.overrides.delete')
+            ->middleware('can:reports.transactions.overrides')
+            ->whereNumber('id');
     });
 
     Route::prefix('contracts')->group(function () {

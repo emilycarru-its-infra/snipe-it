@@ -74,6 +74,14 @@
         </div>
         @endcan
 
+        @can('reports.transactions.view')
+        <div class="col-md-3 col-sm-6">
+            <a href="{{ route('reports.transactions.index') }}" class="btn btn-theme btn-block" style="margin-bottom: 10px; white-space: normal;">
+                <i class="fas fa-cash-register" aria-hidden="true"></i> {{ trans('admin/reports/transactions.dashboard_title') }}
+            </a>
+        </div>
+        @endcan
+
     </div>
 
 
