@@ -7,24 +7,17 @@
 
 @section('content')
 
-<div class="row">
-    <div class="col-md-12">
-        <div class="box-header" style="padding-left:0;">
-            <h1 class="box-title" style="font-size:22px; margin:0; display:inline-block; vertical-align:middle;">
-                {{ trans('admin/reports/transactions.dashboard_title') }}
-            </h1>
-            @if ($current)
-                <span style="margin-left:15px; color:#888;">
-                    {{ trans('admin/reports/transactions.col_period') }}:
-                    <strong>{{ $current->period_label }}</strong>
-                    &middot;
-                    {{ trans('admin/reports/transactions.col_generated') }}:
-                    {{ $current->generated_at?->diffForHumans() ?? '—' }}
-                </span>
-            @endif
+@if ($current)
+    <div class="row">
+        <div class="col-md-12" style="margin-bottom:15px; color:#888;">
+            {{ trans('admin/reports/transactions.col_period') }}:
+            <strong>{{ $current->period_label }}</strong>
+            &middot;
+            {{ trans('admin/reports/transactions.col_generated') }}:
+            {{ $current->generated_at?->diffForHumans() ?? '—' }}
         </div>
     </div>
-</div>
+@endif
 
 @if (! $current)
     <div class="alert alert-info">
