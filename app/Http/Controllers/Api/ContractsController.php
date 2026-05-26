@@ -19,7 +19,7 @@ class ContractsController extends Controller
     {
         $this->authorize('view', Contract::class);
 
-        $contracts = Contract::with('supplier', 'parent', 'adminuser')
+        $contracts = Contract::with('supplier', 'parent', 'adminuser', 'owner')
             ->withCount(['children', 'licenses', 'assets', 'serials'])
             ->withSum('children as children_cost_sum', 'total_cost');
 
@@ -108,7 +108,7 @@ class ContractsController extends Controller
     {
         $this->authorize('view', Contract::class);
 
-        $contract = Contract::with(['supplier', 'parent', 'children', 'licenses', 'assets', 'serials', 'attributes', 'adminuser'])
+        $contract = Contract::with(['supplier', 'parent', 'children', 'licenses', 'assets', 'serials', 'attributes', 'adminuser', 'owner'])
             ->findOrFail($id);
 
         return (new ContractsTransformer)->transformContract($contract);

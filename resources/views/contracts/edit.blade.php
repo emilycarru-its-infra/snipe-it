@@ -56,6 +56,12 @@
 
 @include('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
 
+@include('partials.forms.edit.user-select', [
+    'translated_name' => trans('admin/contracts/general.admin_user'),
+    'fieldname'       => 'admin_user_id',
+    'hide_new'        => 'true',
+])
+
 <div class="form-group {{ $errors->has('type') ? ' has-error' : '' }}">
     <label for="type" class="col-md-3 control-label">{{ trans('admin/contracts/general.contract_type') }}</label>
     <div class="col-md-7">

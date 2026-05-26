@@ -42,6 +42,16 @@
                                 <a href="{{ route('suppliers.show', $contract->supplier) }}">{{ $contract->supplier->name }}</a>
                             @else — @endif
                         </td></tr>
+                        <tr><th>{{ trans('admin/contracts/general.admin_user') }}</th><td>
+                            @if ($contract->owner)
+                                <a href="{{ route('users.show', $contract->owner) }}">{{ $contract->owner->present()->fullName }}</a>
+                                @if ($contract->owner->email)
+                                    <span class="text-muted">&lt;{{ $contract->owner->email }}&gt;</span>
+                                @endif
+                            @else
+                                <span class="text-muted">{{ trans('admin/contracts/general.admin_user_unset') }}</span>
+                            @endif
+                        </td></tr>
                         <tr><th>{{ trans('admin/contracts/general.start_date') }}</th><td>{{ optional($contract->start_date)->toDateString() ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.end_date') }}</th><td>{{ optional($contract->end_date)->toDateString() ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.total_cost') }}</th><td>{{ $contract->total_cost ? '$' . \App\Helpers\Helper::formatCurrencyOutput($contract->total_cost) . ' ' . $contract->currency : '—' }}</td></tr>
