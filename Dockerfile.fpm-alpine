@@ -3,6 +3,7 @@ ARG SNIPEIT_RELEASE=6.1.0
 ARG PHP_VERSION=8.2
 ARG PHP_ALPINE_VERSION=3.17
 ARG COMPOSER_VERSION=2
+ARG GIT_SHA=""
 
 # Cannot use arguments with 'COPY --from' workaround
 # https://github.com/moby/moby/issues/34482#issuecomment-454716952
@@ -22,6 +23,8 @@ ARG ENVIRONMENT
 ENV ENVIRONMENT ${ENVIRONMENT}
 ARG SNIPEIT_RELEASE
 ENV SNIPEIT_RELEASE ${SNIPEIT_RELEASE}
+ARG GIT_SHA
+ENV ECU_BUILD_SHA=${GIT_SHA}
 
 # Cribbed from wordpress-fpm-alpine image
 # set recommended PHP.ini settings

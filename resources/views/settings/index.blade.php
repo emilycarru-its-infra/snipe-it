@@ -353,7 +353,7 @@
               <strong>{{ trans('admin/settings/general.snipe_version') }}:</strong>
             </div>
             <div class="col-md-4">
-              {{ config('version.app_version') }}  build {{ config('version.build_version') }} ({{ config('version.hash_version') }})
+              {{ config('version.app_version') }}{{ config('ecu.version_suffix') }}@if (config('ecu.build_sha')).{{ \Illuminate\Support\Str::limit(config('ecu.build_sha'), 7, '') }}@endif  build {{ config('version.build_version') }} ({{ config('version.hash_version') }})
             </div>
 
             <div class="col-md-2">
@@ -363,6 +363,21 @@
                 AGPL3
                 <a href="https://www.gnu.org/licenses/agpl-3.0.en.html" target="_blank" data-tooltip="true" title="{{ trans('general.documentation') }}"><x-icon type="external-link" /></a>
            </div>
+          </div>
+          <!-- / row -->
+
+          <!-- row -->
+          <div class="row">
+            <div class="col-md-2">
+              <strong>Source code:</strong>
+            </div>
+            <div class="col-md-10">
+                <a href="{{ config('ecu.fork_source_url') }}" target="_blank" rel="noopener">{{ config('ecu.fork_source_url') }}</a>
+                <x-icon type="external-link" />
+                <p class="help-block">
+                    AGPL-3.0 requires the source of the running modified version to be available to network users. This instance runs an Emily Carr University fork of Snipe-IT — the link above is the corresponding source.
+                </p>
+            </div>
           </div>
           <!-- / row -->
 
