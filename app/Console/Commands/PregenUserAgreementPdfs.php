@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Bulk-render unsigned user-agreement PDFs to disk so each
  * agreement is "signature-ready" before any email goes out. Backs the
- * summer User Agreement Program rollout: each eligible the laptop
+ * summer User Agreement Program rollout: each eligible laptop
  * has up to three UserAgreement rows (pickup / upgrade /
  * lease_end_purchase), and Sohee wants the PDFs cached so opening or
  * sending one is instant.

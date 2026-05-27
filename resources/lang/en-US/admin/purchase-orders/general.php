@@ -182,7 +182,7 @@ return [
     'attestation_vendor_invoice' => 'CDW Invoice',
     'attestation_lessor_okp' => 'Lessor Okay to Pay',
     'report_user_agreement_ledger' => 'Faculty Program Ledger',
-    'report_user_agreement_ledger_desc' => 'Every the laptop agreement — pickup, upgrade, lease-end buyout — with lifecycle stage, top-up amount, payroll deduction state and balance remaining.',
+    'report_user_agreement_ledger_desc' => 'Every faculty laptop agreement — pickup, upgrade, lease-end buyout — with lifecycle stage, top-up amount, payroll deduction state and balance remaining.',
     'report_gl_transfer' => 'GL Journal Transfer',
     'report_gl_transfer_desc' => 'Toner checkouts to GL-coded printers, grouped by GL with a per-department subtotal and grand total — the journal-transfer form to hand to Finance.',
     'gl_transfer_subtotal' => 'GL subtotal',

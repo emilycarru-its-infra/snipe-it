@@ -176,7 +176,7 @@ class UserAgreementsController extends Controller
      * Download a PDF for this agreement. If the assigned user has
      * signed, return the stored signed PDF. Otherwise render an
      * unsigned preview through Snipe's existing TCPDF generator so the
-     * admin can review what the the user will see.
+     * admin can review what the user will see.
      */
     public function downloadPdf(UserAgreement $userAgreement)
     {

@@ -6,7 +6,7 @@
     };
 @endphp
 @component('mail::message')
-# {{ trans('mail.user_agreement_signature_request_greeting', ['name' => $agreement->user->first_name ?? '']) }}
+# {{ trans('mail.user_agreement_signature_request_greeting', ['name' => $agreement->user?->first_name ?? '']) }}
 
 {{ trans('mail.user_agreement_signature_request_body', ['type' => $typeLabel, 'asset_tag' => $variables['asset_tag'] ?? '—', 'model' => $variables['model'] ?? '—']) }}
 
