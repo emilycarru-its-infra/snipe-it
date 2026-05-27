@@ -767,42 +767,59 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     });
 
     Route::prefix('transactions')->group(function () {
+        $txCrumb = fn (string $routeName, string $titleKey) =>
+            fn (Trail $trail) => $trail->parent('reports.transactions.index')
+                ->push(trans("admin/reports/transactions.$titleKey"), route($routeName));
+
         Route::get('/', [TransactionsReportsController::class, 'index'])
             ->name('reports.transactions.index')
-            ->middleware('can:reports.transactions.view');
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+                ->push(trans('general.reports'), route('reports.index'))
+                ->push(trans('admin/reports/transactions.dashboard_title'), route('reports.transactions.index')));
 
         Route::get('reconciliations', [TransactionsReportsController::class, 'reconciliations'])
             ->name('reports.transactions.reconciliations')
-            ->middleware('can:reports.transactions.view');
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs($txCrumb('reports.transactions.reconciliations', 'crumb_reconciliations'));
 
         Route::get('reconciliations/{ym}', [TransactionsReportsController::class, 'show'])
             ->name('reports.transactions.show')
             ->middleware('can:reports.transactions.view')
-            ->where('ym', '\\d{4}-\\d{1,2}');
+            ->where('ym', '\\d{4}-\\d{1,2}')
+            ->breadcrumbs(fn (Trail $trail, string $ym) => $trail
+                ->parent('reports.transactions.reconciliations')
+                ->push(trans('admin/reports/transactions.crumb_period', ['ym' => $ym]), route('reports.transactions.show', $ym)));
 
         Route::get('gl-breakdown', [TransactionsReportsController::class, 'glBreakdown'])
             ->name('reports.transactions.gl-breakdown')
-            ->middleware('can:reports.transactions.gl');
+            ->middleware('can:reports.transactions.gl')
+            ->breadcrumbs($txCrumb('reports.transactions.gl-breakdown', 'crumb_gl_breakdown'));
 
         Route::get('mail-room', [TransactionsReportsController::class, 'mailRoom'])
             ->name('reports.transactions.mail-room')
-            ->middleware('can:reports.transactions.mailroom');
+            ->middleware('can:reports.transactions.mailroom')
+            ->breadcrumbs($txCrumb('reports.transactions.mail-room', 'crumb_mail_room'));
 
         Route::get('refunds', [TransactionsReportsController::class, 'refunds'])
             ->name('reports.transactions.refunds')
-            ->middleware('can:reports.transactions.refunds');
+            ->middleware('can:reports.transactions.refunds')
+            ->breadcrumbs($txCrumb('reports.transactions.refunds', 'crumb_refunds'));
 
         Route::get('self-serve', [TransactionsReportsController::class, 'selfServe'])
             ->name('reports.transactions.self-serve')
-            ->middleware('can:reports.transactions.view');
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs($txCrumb('reports.transactions.self-serve', 'crumb_self_serve'));
 
         Route::get('line-items', [TransactionsReportsController::class, 'lineItems'])
             ->name('reports.transactions.line-items')
-            ->middleware('can:reports.transactions.view');
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs($txCrumb('reports.transactions.line-items', 'crumb_line_items'));
 
         Route::get('overrides', [TransactionsReportsController::class, 'overrides'])
             ->name('reports.transactions.overrides')
-            ->middleware('can:reports.transactions.overrides');
+            ->middleware('can:reports.transactions.overrides')
+            ->breadcrumbs($txCrumb('reports.transactions.overrides', 'crumb_overrides'));
 
         Route::post('overrides', [TransactionsReportsController::class, 'storeOverride'])
             ->name('reports.transactions.overrides.store')
