@@ -34,6 +34,7 @@ use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ContractReportsController;
 use App\Http\Controllers\BudgetAllocationsController;
 use App\Http\Controllers\ProcurementReportsController;
+use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
@@ -864,6 +865,13 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->name('reports.contracts.stale')
             ->breadcrumbs($crumb('reports.contracts.stale', 'report_stale_title'));
     });
+
+    Route::get('printing', [PrintingReportsController::class, 'index'])
+        ->name('reports.printing')
+        ->middleware('can:view,App\Models\Asset')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/reports/printing.dashboard_title'), route('reports.printing')));
 
 });
 
