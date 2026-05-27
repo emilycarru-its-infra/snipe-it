@@ -18,6 +18,7 @@ use App\Models\Checkoutable;
 use App\Models\CheckoutAcceptance;
 use App\Models\Component;
 use App\Models\Consumable;
+use App\Models\Contract;
 use App\Models\CustomField;
 use App\Models\Depreciation;
 use App\Models\License;
@@ -59,26 +60,103 @@ class ReportsController extends Controller
     public function index(): View
     {
         $this->authorize('reports.view');
-        $settings = Setting::getSettings();
 
-        $audit_alert_count = Asset::DueOrOverdueForAudit($settings)->count();
-        $checkin_alert_count = Asset::DueOrOverdueForCheckin($settings)->count();
-        // CheckoutAcceptance has no company_id column; scope through the checkoutable
-        // relationship so each type's CompanyableTrait global scope is applied.
-        $pending_acceptance_count = CheckoutAcceptance::pending()
-            ->whereHasMorph('checkoutable', [Asset::class, LicenseSeat::class, Accessory::class, Component::class, Consumable::class])
-            ->count();
-        $licenses_low_count = License::withCount(['freeSeats as free_seats_count'])
-            ->get()
-            ->filter(fn ($l) => $l->free_seats_count <= 0)
-            ->count();
+        return view('reports/index', [
+            'fleetRefresh'        => $this->fleetRefreshByFiscalYear(6),
+            'contractExpirations' => $this->contractExpirationsByQuarter(8),
+        ]);
+    }
 
-        return view('reports/index', compact(
-            'audit_alert_count',
-            'checkin_alert_count',
-            'pending_acceptance_count',
-            'licenses_low_count',
-        ));
+    /**
+     * Asset EOL distribution for the next N fiscal years, plus a "past" bucket
+     * for anything already overdue and a "future" bucket past the window. ECU's
+     * fiscal year runs Apr 1 → Mar 31, labelled "FY26-27" for 2026-04 → 2027-03.
+     */
+    private function fleetRefreshByFiscalYear(int $years): array
+    {
+        // Going through Asset::query() keeps CompanyableTrait's global scope active
+        // (matters under FMCS). The EOL expression mirrors the eolDate accessor.
+        $eolExpr = 'COALESCE(assets.asset_eol_date, DATE_ADD(assets.purchase_date, INTERVAL models.eol MONTH))';
+        $rows = Asset::query()
+            ->leftJoin('models', 'models.id', '=', 'assets.model_id')
+            ->whereRaw("$eolExpr IS NOT NULL")
+            ->selectRaw("YEAR($eolExpr) - (MONTH($eolExpr) < 4) AS fy_start, COUNT(*) AS n")
+            ->groupBy('fy_start')
+            ->pluck('n', 'fy_start');
+
+        $today  = Carbon::today();
+        $startY = (int) $today->format('n') >= 4 ? (int) $today->format('Y') : (int) $today->format('Y') - 1;
+        $buckets = ['__past__' => 0];
+        for ($i = 0; $i < $years; $i++) {
+            $y = $startY + $i;
+            $buckets[sprintf('FY%02d-%02d', $y % 100, ($y + 1) % 100)] = 0;
+        }
+        $buckets['__future__'] = 0;
+        $endY = $startY + $years - 1;
+
+        foreach ($rows as $eolStartY => $count) {
+            $eolStartY = (int) $eolStartY;
+            $count     = (int) $count;
+            if ($eolStartY < $startY) {
+                $buckets['__past__'] += $count;
+            } elseif ($eolStartY > $endY) {
+                $buckets['__future__'] += $count;
+            } else {
+                $buckets[sprintf('FY%02d-%02d', $eolStartY % 100, ($eolStartY + 1) % 100)] += $count;
+            }
+        }
+
+        $labels = [];
+        $counts = [];
+        if ($buckets['__past__'] > 0) {
+            $labels[] = trans('admin/reports/general.bucket_past');
+            $counts[] = $buckets['__past__'];
+        }
+        foreach ($buckets as $label => $count) {
+            if ($label === '__past__' || $label === '__future__') {
+                continue;
+            }
+            $labels[] = $label;
+            $counts[] = $count;
+        }
+        if ($buckets['__future__'] > 0) {
+            $labels[] = trans('admin/reports/general.bucket_future');
+            $counts[] = $buckets['__future__'];
+        }
+
+        return ['labels' => $labels, 'counts' => $counts];
+    }
+
+    /**
+     * Contracts expiring over the next N quarters, grouped by calendar quarter.
+     * Uses the real (non-synthesized) Contract scope to keep umbrella parents out.
+     */
+    private function contractExpirationsByQuarter(int $quarters): array
+    {
+        $start    = Carbon::today()->startOfQuarter();
+        $end      = $start->copy()->addQuarters($quarters);
+        $buckets  = [];
+        $cursor   = $start->copy();
+        while ($cursor->lt($end)) {
+            $buckets[$cursor->format('Y').'-Q'.$cursor->quarter] = 0;
+            $cursor->addQuarter();
+        }
+
+        $rows = Contract::realOnly()
+            ->whereNotNull('end_date')
+            ->whereBetween('end_date', [$start->toDateString(), $end->copy()->subDay()->toDateString()])
+            ->selectRaw('YEAR(end_date) AS y, QUARTER(end_date) AS q, COUNT(*) AS n')
+            ->groupBy('y', 'q')
+            ->get();
+
+        foreach ($rows as $row) {
+            $key = ((int) $row->y).'-Q'.((int) $row->q);
+            if (isset($buckets[$key])) {
+                $buckets[$key] = (int) $row->n;
+            }
+        }
+
+        return ['labels' => array_keys($buckets), 'counts' => array_values($buckets)];
     }
 
     /**

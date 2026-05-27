@@ -1422,13 +1422,6 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 'index',
             ]
         )->name('api.activity.index');
-
-        Route::get('activity/chart',
-            [
-                Api\ReportsController::class,
-                'activityChart',
-            ]
-        )->name('api.reports.activity.chart');
     }); // end reports api routes
 
     /**
