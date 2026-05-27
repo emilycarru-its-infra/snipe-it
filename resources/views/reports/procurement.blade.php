@@ -130,11 +130,11 @@
         </a>
     </div>
     <div class="col-md-4 col-sm-6">
-        <a href="{{ route('reports.procurement.faculty-ledger') }}" class="small-box-link">
-            <div class="small-box {{ $facultyAwaitingSignatureCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
+        <a href="{{ route('reports.procurement.user-agreement-ledger') }}" class="small-box-link">
+            <div class="small-box {{ $userAgreementsAwaitingSignatureCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
                 <div class="inner">
-                    <h3 style="font-size:24px">{{ $facultyAwaitingSignatureCount }}</h3>
-                    <p>{{ trans('admin/purchase-orders/general.card_faculty_unsigned', ['count' => $facultyAwaitingSignatureCount]) }}</p>
+                    <h3 style="font-size:24px">{{ $userAgreementsAwaitingSignatureCount }}</h3>
+                    <p>{{ trans('admin/purchase-orders/general.card_user_agreements_unsigned', ['count' => $userAgreementsAwaitingSignatureCount]) }}</p>
                 </div>
                 <div class="icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
             </div>
@@ -248,7 +248,7 @@
                         ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'live' => true],
                         ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc', 'live' => true],
                         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'live' => true],
-                        ['route' => 'reports.procurement.faculty-ledger', 'name' => 'report_faculty_ledger', 'desc' => 'report_faculty_ledger_desc', 'live' => true],
+                        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc', 'live' => true],
                         ['route' => 'reports.procurement.gl-transfer', 'name' => 'report_gl_transfer', 'desc' => 'report_gl_transfer_desc', 'live' => true],
                         ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc', 'live' => true],
                     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true)) as $report)

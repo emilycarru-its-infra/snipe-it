@@ -6,7 +6,7 @@ use App\Models\Asset;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
-use App\Models\FacultyAgreement;
+use App\Models\UserAgreement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -387,18 +387,18 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('INV-VENDOR-OKP');
     }
 
-    public function test_faculty_ledger_report_renders()
+    public function test_user_agreement_ledger_report_renders()
     {
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.faculty-ledger'))
+            ->get(route('reports.procurement.user-agreement-ledger'))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.report_faculty_ledger'));
+            ->assertSee(trans('admin/purchase-orders/general.report_user_agreement_ledger'));
     }
 
-    public function test_faculty_ledger_shows_lifecycle_and_balance()
+    public function test_user_agreement_ledger_shows_lifecycle_and_balance()
     {
         $user = User::factory()->create(['first_name' => 'Carlo', 'last_name' => 'Ghioni']);
-        FacultyAgreement::create([
+        UserAgreement::create([
             'agreement_type' => 'upgrade',
             'user_id' => $user->id,
             'lifecycle_stage' => 'in_repayment',
@@ -413,24 +413,24 @@ class ProcurementReportsTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.faculty-ledger'))
+            ->get(route('reports.procurement.user-agreement-ledger'))
             ->assertOk()
             ->assertSee('Carlo Ghioni')
-            ->assertSee(trans('admin/purchase-orders/general.faculty_stage_in_repayment'))
+            ->assertSee(trans('admin/purchase-orders/general.user_agreement_stage_value_in_repayment'))
             ->assertSee('$1,200.00')
             ->assertSee('$1,000.00');
     }
 
-    public function test_faculty_ledger_filters_by_agreement_type()
+    public function test_user_agreement_ledger_filters_by_agreement_type()
     {
         $user = User::factory()->create();
-        FacultyAgreement::create([
+        UserAgreement::create([
             'agreement_type' => 'upgrade',
             'user_id' => $user->id,
             'lifecycle_stage' => 'agreement_signed',
             'top_up_amount' => 500,
         ]);
-        FacultyAgreement::create([
+        UserAgreement::create([
             'agreement_type' => 'lease_end_purchase',
             'user_id' => $user->id,
             'lifecycle_stage' => 'closed_buyout',
@@ -439,16 +439,16 @@ class ProcurementReportsTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.faculty-ledger', ['agreement_type' => 'lease_end_purchase']))
+            ->get(route('reports.procurement.user-agreement-ledger', ['agreement_type' => 'lease_end_purchase']))
             ->assertOk()
             ->assertSee('$800.00')
             ->assertDontSee('$500.00');
     }
 
-    public function test_dashboard_shows_faculty_unsigned_card()
+    public function test_dashboard_shows_user_agreements_unsigned_card()
     {
         $user = User::factory()->create();
-        FacultyAgreement::create([
+        UserAgreement::create([
             'agreement_type' => 'pickup',
             'user_id' => $user->id,
             'lifecycle_stage' => 'agreement_sent',
@@ -457,7 +457,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement'))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.card_faculty_unsigned', ['count' => 1]));
+            ->assertSee(trans('admin/purchase-orders/general.card_user_agreements_unsigned', ['count' => 1]));
     }
 
     public function test_disposition_grid_report_renders()

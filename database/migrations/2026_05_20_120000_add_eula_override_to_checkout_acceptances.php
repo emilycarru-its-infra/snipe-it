@@ -11,7 +11,7 @@ class AddEulaOverrideToCheckoutAcceptances extends Migration
         if (! Schema::hasColumn('checkout_acceptances', 'eula_text_override')) {
             Schema::table('checkout_acceptances', function (Blueprint $table) {
                 // Snipe's native acceptance flow pulls its EULA from the
-                // asset category. The Faculty Laptop Program needs three
+                // asset category. The User Agreement Program needs three
                 // distinct EULA bodies (pickup, paid upgrade, lease-end
                 // buyout) against assets that share one category, so
                 // this column lets a specific acceptance override the

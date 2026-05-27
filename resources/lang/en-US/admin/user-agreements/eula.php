@@ -9,7 +9,7 @@
  * — Lease End Purchase Template.docx
  *
  * Merge variables ({{faculty_name}}, {{asset_tag}}, ...) are
- * substituted at PDF time by FacultyAgreement::eulaBody().
+ * substituted at PDF time by UserAgreement::eulaBody().
  */
 return [
 

@@ -196,7 +196,7 @@ class AcceptanceController extends Controller
             'item_serial' => $item->serial,
             'item_status' => ($item instanceof Asset) ? $item->status?->name : null,
             // Acceptance-specific EULA wins over the asset category default
-            // — used by the Faculty Laptop Program so one asset can be
+            // — used by the User Agreement Program so one asset can be
             // attached to different agreement texts (pickup / upgrade /
             // lease-end buyout) without category-level changes.
             'eula' => $acceptance->eula_text_override ?: $item->getEula(),

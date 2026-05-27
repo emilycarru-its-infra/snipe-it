@@ -1,13 +1,13 @@
 <?php
 
 return [
-    'faculty_agreements' => 'Faculty Laptop Program',
+    'user_agreements' => 'Faculty Laptop Program',
     'agreement' => 'Faculty Agreement',
     'create' => 'New Faculty Agreement',
     'update' => 'Update Agreement',
     'type' => 'Agreement Type',
     'lifecycle_stage' => 'Lifecycle Stage',
-    'faculty_member' => 'Faculty Member',
+    'user_agreement_member' => 'Faculty Member',
     'asset' => 'Assigned Device',
     'base_program_price' => 'Base Program Price',
     'device_cost' => 'Full Device Cost',
