@@ -1413,6 +1413,15 @@
                                                 </a></li>
                                         @endcan
 
+                                        @if (\App\Http\Controllers\UserFormController::isEligible(Auth::user()))
+                                            <li {!! (request()->is('user-form*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('user-form.show') }}">
+                                                    <i class="fas fa-laptop fa-fw" aria-hidden="true"></i>
+                                                    {{ trans('admin/user-form/general.menu_link') }}
+                                                </a>
+                                            </li>
+                                        @endif
+
                                         @can('self.profile')
                                         <li {!! (request()->is('account/accept') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('account.accept') }}">
