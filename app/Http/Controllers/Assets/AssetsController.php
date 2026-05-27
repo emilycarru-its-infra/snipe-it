@@ -18,6 +18,7 @@ use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\User;
 use App\Observers\AssetObserver;
+use App\Services\Transactions\PrinterUsageService;
 use App\View\Label;
 use Carbon\Carbon;
 use Com\Tecnick\Barcode\Barcode;
@@ -372,6 +373,13 @@ class AssetsController extends Controller
 
             $total_cost_for_asset = $asset->purchase_cost + $total_maintenance_cost + $total_asset_cost + $total_license_cost + $total_accessory_cost + $total_component_cost;
 
+            // Per-asset Printing usage tab — only computed when the asset's
+            // model uses a printer fieldset, so non-printer assets don't pay
+            // the query cost. See printer-roadmap.md §2.3.
+            $printerUsage = PrinterUsageService::assetIsPrinter($asset)
+                ? app(PrinterUsageService::class)->summary($asset)
+                : null;
+
             return view('hardware/view', compact('asset', 'qr_code', 'settings'))
                 ->with('total_maintenance_cost', $total_maintenance_cost)
                 ->with('total_asset_cost', $total_asset_cost)
@@ -380,7 +388,8 @@ class AssetsController extends Controller
                 ->with('total_component_cost', $total_component_cost)
                 ->with('total_cost_for_asset', $total_cost_for_asset)
                 ->with('use_currency', $use_currency)
-                ->with('audit_log', $audit_log);
+                ->with('audit_log', $audit_log)
+                ->with('printerUsage', $printerUsage);
         }
 
         return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.does_not_exist'));

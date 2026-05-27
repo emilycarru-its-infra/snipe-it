@@ -63,6 +63,15 @@
                     <x-tabs.accessory-tab count="{{ $asset->assignedAccessories()->count() }}"/>
                     <x-tabs.maintenance-tab count="{{ $asset->maintenances->count() }}"/>
 
+                    @if (! empty($printerUsage))
+                        <x-tabs.nav-item
+                            name="printing"
+                            icon_type="print"
+                            label="{{ trans('admin/hardware/printing.tab_label') }}"
+                            tooltip="{{ trans('admin/hardware/printing.tab_label') }}"
+                        />
+                    @endif
+
                     @can('view', \App\Models\Order::class)
                         <x-tabs.nav-item
                             name="orders"
@@ -388,6 +397,12 @@
                         />
                     </x-tabs.pane>
                     <!-- end maintenances tab pane -->
+
+                    @if (! empty($printerUsage))
+                        <x-tabs.pane name="printing">
+                            @include('hardware.printing', ['usage' => $printerUsage])
+                        </x-tabs.pane>
+                    @endif
 
                     <!-- start audits tab pane -->
                     <x-tabs.pane name="audits">

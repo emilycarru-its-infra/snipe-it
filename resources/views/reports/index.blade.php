@@ -65,15 +65,19 @@
     </div>
     @endcan
 
+    @can('view', \App\Models\Asset::class)
     <div class="col-md-3 col-sm-6">
-        <div class="small-box bg-gray" style="opacity:0.85;">
-            <div class="inner">
-                <h3 style="font-size:22px;">{{ trans('admin/reports/general.hub_tile_printing') }}</h3>
-                <p>{{ trans('admin/reports/general.hub_tile_printing_help') }}</p>
+        <a href="{{ route('reports.printing') }}" class="small-box-link" style="text-decoration:none;">
+            <div class="small-box bg-yellow">
+                <div class="inner">
+                    <h3 style="font-size:22px;">{{ trans('admin/reports/general.hub_tile_printing') }}</h3>
+                    <p>{{ trans('admin/reports/general.hub_tile_printing_help') }}</p>
+                </div>
+                <div class="icon"><i class="fas fa-print" aria-hidden="true"></i></div>
             </div>
-            <div class="icon"><i class="fas fa-print" aria-hidden="true"></i></div>
-        </div>
+        </a>
     </div>
+    @endcan
 
 </div>
 

@@ -1,0 +1,28 @@
+<?php
+
+return [
+    'tab_label'             => 'Printing usage',
+    'no_data'               => 'No print activity recorded for this printer yet.',
+    'no_data_hint'          => 'Job data appears here once the monthly TouchNet/PaperCut reconciliation has ingested rows for this printer\'s serial number.',
+    'last_30_days'          => 'Last 30 days',
+    'jobs'                  => 'Jobs',
+    'pages'                 => 'Pages',
+    'cost'                  => 'Cost',
+    'refund_rate'           => 'Refund rate',
+    'monthly_volume'        => 'Monthly volume — trailing 12 months',
+    'top_users'             => 'Top users',
+    'top_users_subtitle'    => 'in :period — ranked by job count',
+    'recent_jobs'           => 'Recent 20 jobs',
+    'gl_allocation'         => 'GL allocation',
+    'gl_allocation_subtitle'=> 'cost breakdown for :period',
+    'col_when'              => 'When',
+    'col_user'              => 'User',
+    'col_document'          => 'Document',
+    'col_pages'             => 'Pages',
+    'col_cost'              => 'Cost',
+    'col_gl'                => 'GL code',
+    'col_share'             => 'Share',
+    'mailroom'              => 'mail room',
+    'refund_badge'          => 'refund',
+    'fleet_link'            => 'See all printers',
+];

@@ -31,13 +31,19 @@
         <div class="col-md-4 col-sm-6">
             <div class="small-box bg-{{ $card['tone'] }}">
                 <div class="inner">
-                    <h3 style="font-size:24px">
-                        @if ($card['fmt'] === 'money')
-                            ${{ number_format($card['value'], 2) }}
-                        @else
-                            {{ number_format($card['value']) }}
-                        @endif
-                    </h3>
+                    @if (! empty($card['placeholder']))
+                        <h3 style="font-size:14px; line-height:1.3; padding-top:6px;">
+                            {{ $card['placeholder'] }}
+                        </h3>
+                    @else
+                        <h3 style="font-size:24px">
+                            @if ($card['fmt'] === 'money')
+                                ${{ number_format($card['value'], 2) }}
+                            @else
+                                {{ number_format($card['value']) }}
+                            @endif
+                        </h3>
+                    @endif
                     <p>{{ $card['label'] }}</p>
                 </div>
                 <div class="icon"><i class="fas {{ $card['icon'] }}" aria-hidden="true"></i></div>
@@ -54,7 +60,16 @@
                 <h3 class="box-title">Monthly Revenue, Deposits & Refunds</h3>
             </div>
             <div class="box-body">
-                <canvas id="transactionsMonthlyChart" height="120"></canvas>
+                @if (count($monthly) < 2)
+                    <div class="text-center" style="padding:48px 18px; color:#888;">
+                        <i class="far fa-chart-bar fa-3x" style="color:#ccc;" aria-hidden="true"></i>
+                        <p style="margin-top:14px;">
+                            Data accumulating &mdash; full chart available after the second monthly run.
+                        </p>
+                    </div>
+                @else
+                    <canvas id="transactionsMonthlyChart" height="120"></canvas>
+                @endif
             </div>
         </div>
     </div>
