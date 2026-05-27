@@ -1,6 +1,9 @@
 FROM ubuntu:24.04
 LABEL maintainer="Brady Wetherington <bwetherington@grokability.com>"
 
+ARG GIT_SHA=""
+ENV ECU_BUILD_SHA=$GIT_SHA
+
 # No need to add `apt-get clean` here, reference:
 # - https://github.com/grokability/snipe-it/pull/9201
 # - https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#apt-get
