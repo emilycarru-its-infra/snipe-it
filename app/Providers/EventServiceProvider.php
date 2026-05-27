@@ -8,7 +8,7 @@ use App\Listeners\CheckoutablesCheckedOutInBulkListener;
 use App\Listeners\LogFailedLogin;
 use App\Listeners\LogListener;
 use App\Listeners\LogSuccessfulLogin;
-use App\Listeners\UpdateFacultyAgreementOnAccept;
+use App\Listeners\UpdateUserAgreementOnAccept;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -28,7 +28,7 @@ class EventServiceProvider extends ServiceProvider
         ],
 
         CheckoutAccepted::class => [
-            UpdateFacultyAgreementOnAccept::class,
+            UpdateUserAgreementOnAccept::class,
         ],
     ];
 

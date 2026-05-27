@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\Helper;
 use App\Models\CheckoutAcceptance;
-use App\Models\FacultyAgreement;
+use App\Models\UserAgreement;
 use App\Models\Order;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
@@ -13,32 +13,32 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * CRUD and signing actions for Faculty Laptop Program agreements. The
- * read-only ledger lives at /reports/procurement/faculty-ledger; this
+ * CRUD and signing actions for User Agreement Program agreements. The
+ * read-only ledger lives at /reports/procurement/user-agreement-ledger; this
  * controller owns creation, editing, the explicit Send-for-Signature
  * action, and PDF preview / signed-PDF download.
  */
-class FacultyAgreementsController extends Controller
+class UserAgreementsController extends Controller
 {
     public function index(): RedirectResponse
     {
         // The ledger already lists every agreement with filters — no
         // point in a second list view that competes with it.
-        return redirect()->route('reports.procurement.faculty-ledger');
+        return redirect()->route('reports.procurement.user-agreement-ledger');
     }
 
     public function create(Request $request)
     {
         $this->authorize('create', Order::class);
 
-        return view('faculty-agreements/create');
+        return view('user-agreements/create');
     }
 
     public function store(Request $request): RedirectResponse
     {
         $this->authorize('create', Order::class);
 
-        $agreement = new FacultyAgreement;
+        $agreement = new UserAgreement;
         $agreement->fill($request->all());
         $agreement->lifecycle_stage = $request->input('lifecycle_stage', 'eligible');
         $agreement->created_by = auth()->id();
@@ -47,49 +47,49 @@ class FacultyAgreementsController extends Controller
             return redirect()->back()->withInput()->withErrors($agreement->getErrors());
         }
 
-        return redirect()->route('faculty-agreements.show', $agreement)
-            ->with('success', trans('admin/faculty-agreements/message.created'));
+        return redirect()->route('user-agreements.show', $agreement)
+            ->with('success', trans('admin/user-agreements/message.created'));
     }
 
-    public function show(FacultyAgreement $facultyAgreement)
+    public function show(UserAgreement $userAgreement)
     {
         $this->authorize('view', Order::class);
 
-        return view('faculty-agreements/show', [
-            'agreement' => $facultyAgreement->load('user', 'asset', 'checkoutAcceptance'),
-            'eulaPreview' => $facultyAgreement->eulaBody(),
+        return view('user-agreements/show', [
+            'agreement' => $userAgreement->load('user', 'asset', 'checkoutAcceptance'),
+            'eulaPreview' => $userAgreement->eulaBody(),
         ]);
     }
 
-    public function edit(FacultyAgreement $facultyAgreement)
+    public function edit(UserAgreement $userAgreement)
     {
         $this->authorize('update', Order::class);
 
-        return view('faculty-agreements/edit', ['agreement' => $facultyAgreement]);
+        return view('user-agreements/edit', ['agreement' => $userAgreement]);
     }
 
-    public function update(Request $request, FacultyAgreement $facultyAgreement): RedirectResponse
+    public function update(Request $request, UserAgreement $userAgreement): RedirectResponse
     {
         $this->authorize('update', Order::class);
 
-        $facultyAgreement->fill($request->all());
+        $userAgreement->fill($request->all());
 
-        if (! $facultyAgreement->save()) {
-            return redirect()->back()->withInput()->withErrors($facultyAgreement->getErrors());
+        if (! $userAgreement->save()) {
+            return redirect()->back()->withInput()->withErrors($userAgreement->getErrors());
         }
 
-        return redirect()->route('faculty-agreements.show', $facultyAgreement)
-            ->with('success', trans('admin/faculty-agreements/message.updated'));
+        return redirect()->route('user-agreements.show', $userAgreement)
+            ->with('success', trans('admin/user-agreements/message.updated'));
     }
 
-    public function destroy(FacultyAgreement $facultyAgreement): RedirectResponse
+    public function destroy(UserAgreement $userAgreement): RedirectResponse
     {
         $this->authorize('delete', Order::class);
 
-        $facultyAgreement->delete();
+        $userAgreement->delete();
 
-        return redirect()->route('reports.procurement.faculty-ledger')
-            ->with('success', trans('admin/faculty-agreements/message.deleted'));
+        return redirect()->route('reports.procurement.user-agreement-ledger')
+            ->with('success', trans('admin/user-agreements/message.deleted'));
     }
 
     /**
@@ -100,11 +100,11 @@ class FacultyAgreementsController extends Controller
      */
     /**
      * On-demand bulk pre-gen — same logic as the scheduled artisan
-     * command `snipeit:faculty-pregen-pdfs`, fired from a UI button.
+     * command `snipeit:user-pregen-pdfs`, fired from a UI button.
      *
      * The scheduler runs this command at 05:00 daily. This handler
      * exists so Sohee can pre-gen on her own cadence (e.g. right
-     * before opening the summer Faculty Laptop Program) without
+     * before opening the summer User Agreement Program) without
      * waiting for the next 05:00.
      */
     public function pregenAll(Request $request): RedirectResponse
@@ -116,7 +116,7 @@ class FacultyAgreementsController extends Controller
 
         $stages = $all ? ['eligible', 'quoted', 'agreement_sent'] : ['eligible', 'quoted'];
 
-        $query = FacultyAgreement::query()
+        $query = UserAgreement::query()
             ->whereIn('lifecycle_stage', $stages)
             ->whereNotNull('user_id')
             ->whereNotNull('asset_id');
@@ -140,62 +140,62 @@ class FacultyAgreementsController extends Controller
                 }
             } catch (\Throwable $e) {
                 $errors++;
-                \Log::error('faculty-pregen on-demand failed for FA#'.$agreement->id, ['exception' => $e]);
+                \Log::error('user-pregen on-demand failed for FA#'.$agreement->id, ['exception' => $e]);
             }
         }
 
-        return redirect()->route('reports.procurement.faculty-ledger')
-            ->with('success', trans('admin/faculty-agreements/message.pregen_done', [
+        return redirect()->route('reports.procurement.user-agreement-ledger')
+            ->with('success', trans('admin/user-agreements/message.pregen_done', [
                 'rendered' => $rendered,
                 'skipped'  => $skipped,
                 'errors'   => $errors,
             ]));
     }
 
-    public function sendForSignature(FacultyAgreement $facultyAgreement): RedirectResponse
+    public function sendForSignature(UserAgreement $userAgreement): RedirectResponse
     {
         $this->authorize('update', Order::class);
 
-        if (! $facultyAgreement->asset_id || ! $facultyAgreement->user_id) {
-            return redirect()->route('faculty-agreements.show', $facultyAgreement)
-                ->with('error', trans('admin/faculty-agreements/message.missing_asset_or_user'));
+        if (! $userAgreement->asset_id || ! $userAgreement->user_id) {
+            return redirect()->route('user-agreements.show', $userAgreement)
+                ->with('error', trans('admin/user-agreements/message.missing_asset_or_user'));
         }
 
-        $acceptance = $facultyAgreement->sendForSignature();
+        $acceptance = $userAgreement->sendForSignature();
 
         if (! $acceptance) {
-            return redirect()->route('faculty-agreements.show', $facultyAgreement)
-                ->with('error', trans('admin/faculty-agreements/message.send_failed'));
+            return redirect()->route('user-agreements.show', $userAgreement)
+                ->with('error', trans('admin/user-agreements/message.send_failed'));
         }
 
-        return redirect()->route('faculty-agreements.show', $facultyAgreement)
-            ->with('success', trans('admin/faculty-agreements/message.sent', ['id' => $acceptance->id]));
+        return redirect()->route('user-agreements.show', $userAgreement)
+            ->with('success', trans('admin/user-agreements/message.sent', ['id' => $acceptance->id]));
     }
 
     /**
-     * Download a PDF for this agreement. If the faculty member has
+     * Download a PDF for this agreement. If the assigned user has
      * signed, return the stored signed PDF. Otherwise render an
      * unsigned preview through Snipe's existing TCPDF generator so the
-     * admin can review what the faculty will see.
+     * admin can review what the the user will see.
      */
-    public function downloadPdf(FacultyAgreement $facultyAgreement)
+    public function downloadPdf(UserAgreement $userAgreement)
     {
         $this->authorize('view', Order::class);
 
-        if ($facultyAgreement->signed_pdf_path) {
-            $path = 'private_uploads/eula-pdfs/'.$facultyAgreement->signed_pdf_path;
+        if ($userAgreement->signed_pdf_path) {
+            $path = 'private_uploads/eula-pdfs/'.$userAgreement->signed_pdf_path;
             if (Storage::exists($path)) {
-                return Storage::download($path, $facultyAgreement->signed_pdf_path);
+                return Storage::download($path, $userAgreement->signed_pdf_path);
             }
         }
 
-        return $this->renderUnsignedPdf($facultyAgreement);
+        return $this->renderUnsignedPdf($userAgreement);
     }
 
-    private function renderUnsignedPdf(FacultyAgreement $facultyAgreement): Response
+    private function renderUnsignedPdf(UserAgreement $userAgreement): Response
     {
-        $pdf = $facultyAgreement->renderUnsignedPdfBytes();
-        $filename = 'faculty-agreement-'.$facultyAgreement->id.'-preview.pdf';
+        $pdf = $userAgreement->renderUnsignedPdfBytes();
+        $filename = 'user-agreement-'.$userAgreement->id.'-preview.pdf';
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',

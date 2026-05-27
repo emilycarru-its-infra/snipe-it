@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Helpers\Helper;
-use App\Mail\FacultyAgreementSignatureRequestMail;
+use App\Mail\UserAgreementSignatureRequestMail;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -15,13 +15,13 @@ use Illuminate\Support\Facades\Storage;
 use Watson\Validating\ValidatingTrait;
 
 /**
- * Faculty Laptop Program agreement — a single record covers any of the
+ * User Agreement Program agreement — a single record covers any of the
  * three form types (new laptop pickup, paid upgrade above the program
  * base price, lease-end buyout) through their shared lifecycle:
  * eligible → quoted → agreement_sent → agreement_signed → deployed →
  * in_repayment → paid_off (or closed_buyout, for lease-end purchases).
  */
-class FacultyAgreement extends SnipeModel
+class UserAgreement extends SnipeModel
 {
     use HasFactory;
     use Loggable;
@@ -29,7 +29,7 @@ class FacultyAgreement extends SnipeModel
     use SoftDeletes;
     use ValidatingTrait;
 
-    protected $table = 'faculty_agreements';
+    protected $table = 'user_agreements';
 
     public const AGREEMENT_TYPES = [
         'pickup',
@@ -141,7 +141,7 @@ class FacultyAgreement extends SnipeModel
 
     /**
      * Display name used by Searchable / nav cards — no `name` column on
-     * this table so fall back to a synthetic "<type> for <faculty>".
+     * this table so fall back to a synthetic "<type> for <user>".
      */
     protected function displayName(): Attribute
     {
@@ -177,10 +177,10 @@ class FacultyAgreement extends SnipeModel
     {
         // Flipping the stage to agreement_sent (either via the explicit
         // Send for Signature button or a direct stage edit) auto-creates
-        // the CheckoutAcceptance with the rendered EULA so the faculty
+        // the CheckoutAcceptance with the rendered EULA so the user
         // member sees it in Snipe's native signing UI. Idempotent: an
         // agreement that already has a linked acceptance is skipped.
-        static::saved(function (FacultyAgreement $agreement) {
+        static::saved(function (UserAgreement $agreement) {
             if (
                 $agreement->lifecycle_stage === 'agreement_sent'
                 && empty($agreement->checkout_acceptance_id)
@@ -196,6 +196,12 @@ class FacultyAgreement extends SnipeModel
      * PDF for this agreement. All keys are guaranteed to exist — missing
      * data renders as an empty string rather than leaving the {{...}}
      * placeholder in the final document.
+     *
+     * The 'faculty_name' key is intentionally retained: it matches the
+     * {{faculty_name}} placeholder in the .docx templates stored in
+     * SharePoint. Renaming the key here without also updating the
+     * templates would break PDF generation. If the templates are ever
+     * updated, swap to 'user_name' and update both sides together.
      */
     public function mergeVariables(): array
     {
@@ -225,15 +231,15 @@ class FacultyAgreement extends SnipeModel
 
     /**
      * Render the agreement-type-specific body with merge variables filled
-     * in. Pulled from resources/lang/.../admin/faculty-agreements/eula.php
+     * in. Pulled from resources/lang/.../admin/user-agreements/eula.php
      * so non-engineers can update the legal text without code changes.
      */
     public function eulaBody(): string
     {
         $key = match ($this->agreement_type) {
-            'pickup' => 'admin/faculty-agreements/eula.pickup_body',
-            'upgrade' => 'admin/faculty-agreements/eula.upgrade_body',
-            'lease_end_purchase' => 'admin/faculty-agreements/eula.lease_end_body',
+            'pickup' => 'admin/user-agreements/eula.pickup_body',
+            'upgrade' => 'admin/user-agreements/eula.upgrade_body',
+            'lease_end_purchase' => 'admin/user-agreements/eula.lease_end_body',
             default => null,
         };
 
@@ -251,9 +257,9 @@ class FacultyAgreement extends SnipeModel
     }
 
     /**
-     * Create the CheckoutAcceptance that drives the faculty signing UI.
+     * Create the CheckoutAcceptance that drives the agreement signing UI.
      * The acceptance is attached to the agreement's asset and to the
-     * faculty user, with the merge-rendered EULA captured in
+     * assigned user, with the merge-rendered EULA captured in
      * `eula_text_override` so neither the asset's category nor any other
      * checkouts are affected. Returns the new acceptance, or null if the
      * agreement is missing the asset / user link.
@@ -280,23 +286,23 @@ class FacultyAgreement extends SnipeModel
         }
         $this->saveQuietly();
 
-        // Mail the faculty member with the sign link + attached unsigned
-        // PDF (if pre-rendered by snipeit:faculty-pregen-pdfs). Wrapped in
+        // Mail the assigned user with the sign link + attached unsigned
+        // PDF (if pre-rendered by snipeit:user-pregen-pdfs). Wrapped in
         // try/catch so a flaky SMTP run can't roll back the stage
         // transition — that's a higher-cost recovery than a missed email.
         try {
             if ($this->user && $this->user->email) {
-                Mail::to($this->user->email)->send(new FacultyAgreementSignatureRequestMail($this));
+                Mail::to($this->user->email)->send(new UserAgreementSignatureRequestMail($this));
             }
         } catch (\Throwable $e) {
-            Log::error('faculty signature-request email failed for FA#'.$this->id, ['exception' => $e]);
+            Log::error('user agreement signature-request email failed for FA#'.$this->id, ['exception' => $e]);
         }
 
         return $acceptance;
     }
 
     /**
-     * Called from the CheckoutAccepted event listener when the faculty
+     * Called from the CheckoutAccepted event listener when the user
      * member signs in Snipe. Captures the signed-PDF filename and bumps
      * the lifecycle to agreement_signed; downstream stage transitions
      * (deployed, in_repayment, paid_off) are still manual.
@@ -317,7 +323,7 @@ class FacultyAgreement extends SnipeModel
     /**
      * Render the unsigned EULA as PDF bytes (in-memory). Shared by the
      * controller's preview/download endpoint and by the bulk pre-gen
-     * artisan command. Mirrors FacultyAgreementsController::renderUnsignedPdf
+     * artisan command. Mirrors UserAgreementsController::renderUnsignedPdf
      * so a single code path produces the output regardless of caller.
      */
     public function renderUnsignedPdfBytes(): string
@@ -355,7 +361,7 @@ class FacultyAgreement extends SnipeModel
     /**
      * Render the unsigned PDF and persist it to private storage so it's
      * ready to attach to a signature request without re-rendering. Path
-     * convention: `private_uploads/faculty-agreements/{id}-{type}.pdf`.
+     * convention: `private_uploads/user-agreements/{id}-{type}.pdf`.
      * Returns the relative storage path (or null if dependencies are
      * incomplete — no asset / no user).
      */
@@ -365,7 +371,7 @@ class FacultyAgreement extends SnipeModel
             return null;
         }
 
-        $relative = 'private_uploads/faculty-agreements/'.$this->id.'-'.$this->agreement_type.'.pdf';
+        $relative = 'private_uploads/user-agreements/'.$this->id.'-'.$this->agreement_type.'.pdf';
         Storage::put($relative, $this->renderUnsignedPdfBytes());
 
         $this->pdf_path = $relative;

@@ -2,15 +2,15 @@
 
 namespace App\Console\Commands;
 
-use App\Models\FacultyAgreement;
+use App\Models\UserAgreement;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Bulk-render unsigned faculty-agreement PDFs to disk so each
+ * Bulk-render unsigned user-agreement PDFs to disk so each
  * agreement is "signature-ready" before any email goes out. Backs the
- * summer Faculty Laptop Program rollout: each eligible faculty laptop
- * has up to three FacultyAgreement rows (pickup / upgrade /
+ * summer User Agreement Program rollout: each eligible the laptop
+ * has up to three UserAgreement rows (pickup / upgrade /
  * lease_end_purchase), and Sohee wants the PDFs cached so opening or
  * sending one is instant.
  *
@@ -19,9 +19,9 @@ use Illuminate\Support\Facades\Log;
  * --force to re-render even when `pdf_path` is set, or --all to
  * include `agreement_sent` rows too.
  */
-class PregenFacultyAgreementPdfs extends Command
+class PregenUserAgreementPdfs extends Command
 {
-    protected $signature = 'snipeit:faculty-pregen-pdfs
+    protected $signature = 'snipeit:user-pregen-pdfs
                             {--user= : Limit to a single user_id}
                             {--asset= : Limit to a single asset_id}
                             {--type= : Limit to one agreement_type (pickup|upgrade|lease_end_purchase)}
@@ -29,7 +29,7 @@ class PregenFacultyAgreementPdfs extends Command
                             {--force : Re-render even when pdf_path is already set}
                             {--dry-run : Report what would be rendered without writing}';
 
-    protected $description = 'Pre-generate unsigned PDFs for Faculty Agreement rows so they are signature-ready.';
+    protected $description = 'Pre-generate unsigned PDFs for User Agreement rows so they are signature-ready.';
 
     public function handle(): int
     {
@@ -37,7 +37,7 @@ class PregenFacultyAgreementPdfs extends Command
             ? ['eligible', 'quoted', 'agreement_sent']
             : ['eligible', 'quoted'];
 
-        $query = FacultyAgreement::query()
+        $query = UserAgreement::query()
             ->whereIn('lifecycle_stage', $stages)
             ->whereNotNull('user_id')
             ->whereNotNull('asset_id');
@@ -53,7 +53,7 @@ class PregenFacultyAgreementPdfs extends Command
         $agreements = $query->with(['user', 'asset.model'])->get();
 
         if ($agreements->isEmpty()) {
-            $this->info('Nothing to do — no matching faculty agreements.');
+            $this->info('Nothing to do — no matching user agreements.');
             return self::SUCCESS;
         }
 
@@ -88,7 +88,7 @@ class PregenFacultyAgreementPdfs extends Command
             } catch (\Throwable $e) {
                 $errors++;
                 $this->error("failed {$tag}: ".$e->getMessage());
-                Log::error('faculty-pregen-pdfs failed for '.$tag, ['exception' => $e]);
+                Log::error('user-pregen-pdfs failed for '.$tag, ['exception' => $e]);
             }
         }
 

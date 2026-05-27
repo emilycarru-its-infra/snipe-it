@@ -27,7 +27,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
-use App\Http\Controllers\FacultyAgreementsController;
+use App\Http\Controllers\UserAgreementsController;
 use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
@@ -137,15 +137,15 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('lease-decisions/bulk/delete', [LeaseDecisionsController::class, 'bulkDelete'])->name('lease-decisions.bulk.delete');
 
     /*
-    * Faculty Laptop Program agreements
+    * User Agreement Program agreements
     */
-    Route::post('faculty-agreements/pregen-pdfs', [FacultyAgreementsController::class, 'pregenAll'])
-        ->name('faculty-agreements.pregen-pdfs');
-    Route::resource('faculty-agreements', FacultyAgreementsController::class);
-    Route::post('faculty-agreements/{facultyAgreement}/send-for-signature', [FacultyAgreementsController::class, 'sendForSignature'])
-        ->name('faculty-agreements.send-for-signature');
-    Route::get('faculty-agreements/{facultyAgreement}/pdf', [FacultyAgreementsController::class, 'downloadPdf'])
-        ->name('faculty-agreements.pdf');
+    Route::post('user-agreements/pregen-pdfs', [UserAgreementsController::class, 'pregenAll'])
+        ->name('user-agreements.pregen-pdfs');
+    Route::resource('user-agreements', UserAgreementsController::class);
+    Route::post('user-agreements/{userAgreement}/send-for-signature', [UserAgreementsController::class, 'sendForSignature'])
+        ->name('user-agreements.send-for-signature');
+    Route::get('user-agreements/{userAgreement}/pdf', [UserAgreementsController::class, 'downloadPdf'])
+        ->name('user-agreements.pdf');
 
     /*
     * Lease Schedules
@@ -752,9 +752,9 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
             ->name('reports.procurement.pst-applicability')
             ->breadcrumbs($crumb('reports.procurement.pst-applicability', 'report_pst_applicability'));
-        Route::get('faculty-ledger', [ProcurementReportsController::class, 'facultyLedger'])
-            ->name('reports.procurement.faculty-ledger')
-            ->breadcrumbs($crumb('reports.procurement.faculty-ledger', 'report_faculty_ledger'));
+        Route::get('user-agreement-ledger', [ProcurementReportsController::class, 'userAgreementLedger'])
+            ->name('reports.procurement.user-agreement-ledger')
+            ->breadcrumbs($crumb('reports.procurement.user-agreement-ledger', 'report_user_agreement_ledger'));
         Route::get('gl-transfer', [ProcurementReportsController::class, 'glJournalTransfer'])
             ->name('reports.procurement.gl-transfer')
             ->breadcrumbs($crumb('reports.procurement.gl-transfer', 'report_gl_transfer'));
