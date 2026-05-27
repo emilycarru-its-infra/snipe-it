@@ -6,7 +6,7 @@ use App\Models\Asset;
 use App\Models\BudgetAllocation;
 use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
-use App\Models\FacultyAgreement;
+use App\Models\UserAgreement;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
 use App\Models\Order;
@@ -147,10 +147,10 @@ class ProcurementReportsController extends Controller
 
         $pendingDecisionCount = LeaseDecision::where('status', 'pending')->count();
 
-        // Faculty agreements waiting for a signature — Sohee's chase
+        // User agreements waiting for a signature — Sohee's chase
         // list. Stuck in 'quoted' or 'agreement_sent' is the failure
         // mode that holds up the Apple account on a pending pickup.
-        $facultyAwaitingSignatureCount = FacultyAgreement::whereIn(
+        $userAgreementsAwaitingSignatureCount = UserAgreement::whereIn(
             'lifecycle_stage',
             ['quoted', 'agreement_sent']
         )->count();
@@ -166,7 +166,7 @@ class ProcurementReportsController extends Controller
         return view('reports/procurement', [
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
-            'facultyAwaitingSignatureCount' => $facultyAwaitingSignatureCount,
+            'userAgreementsAwaitingSignatureCount' => $userAgreementsAwaitingSignatureCount,
             'scheduleSigningQueueCount' => $scheduleSigningQueueCount,
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
@@ -382,18 +382,18 @@ class ProcurementReportsController extends Controller
         );
     }
 
-    public function facultyLedger(Request $request)
+    public function userAgreementLedger(Request $request)
     {
         $this->authorize('reports.procurement.view');
 
-        $controls = view('reports.procurement._faculty-pregen-trigger')->render();
+        $controls = view('reports.procurement._user-pregen-trigger')->render();
 
         return $this->render(
             $request,
-            'faculty-program-ledger',
-            trans('admin/purchase-orders/general.report_faculty_ledger'),
-            'reports.procurement.faculty-ledger',
-            $this->facultyLedgerReport($request->query('agreement_type'), $request->query('stage')),
+            'user-agreement-ledger',
+            trans('admin/purchase-orders/general.report_user_agreement_ledger'),
+            'reports.procurement.user-agreement-ledger',
+            $this->userAgreementLedgerReport($request->query('agreement_type'), $request->query('stage')),
             $controls,
         );
     }
@@ -1703,39 +1703,39 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Faculty Laptop Program Top-Up Ledger. Every faculty agreement
+     * User Agreement Program Top-Up Ledger. Every user agreement
      * — pickup, paid upgrade, or lease-end buyout — appears on one
      * timeline with its lifecycle stage, financial impact and signed-
      * agreement status. Replaces the multi-sheet SharePoint workbook
      * Sohee maintains by hand.
      */
-    private function facultyLedgerReport(?string $typeFilter = null, ?string $stageFilter = null): array
+    private function userAgreementLedgerReport(?string $typeFilter = null, ?string $stageFilter = null): array
     {
         $columns = [
-            trans('admin/purchase-orders/general.faculty_agreement_type'),
-            trans('admin/purchase-orders/general.faculty_member'),
+            trans('admin/purchase-orders/general.user_agreement_type'),
+            trans('admin/purchase-orders/general.user_agreement_member'),
             trans('admin/purchase-orders/general.detail_asset_tag'),
             trans('admin/purchase-orders/general.detail_serial'),
-            trans('admin/purchase-orders/general.faculty_stage'),
-            trans('admin/purchase-orders/general.faculty_contract_value'),
-            trans('admin/purchase-orders/general.faculty_payment_method'),
-            trans('admin/purchase-orders/general.faculty_balance_paid'),
-            trans('admin/purchase-orders/general.faculty_balance_remaining'),
-            trans('admin/purchase-orders/general.faculty_signed_at'),
-            trans('admin/purchase-orders/general.faculty_payroll_at'),
+            trans('admin/purchase-orders/general.user_agreement_stage'),
+            trans('admin/purchase-orders/general.user_agreement_contract_value'),
+            trans('admin/purchase-orders/general.user_agreement_payment_method'),
+            trans('admin/purchase-orders/general.user_agreement_balance_paid'),
+            trans('admin/purchase-orders/general.user_agreement_balance_remaining'),
+            trans('admin/purchase-orders/general.user_agreement_signed_at'),
+            trans('admin/purchase-orders/general.user_agreement_payroll_at'),
         ];
 
-        $query = FacultyAgreement::with('user', 'asset')
+        $query = UserAgreement::with('user', 'asset')
             ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
                 'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
                 'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed',
             ]))
             ->orderBy('updated_at', 'desc');
 
-        if ($typeFilter && in_array($typeFilter, FacultyAgreement::AGREEMENT_TYPES, true)) {
+        if ($typeFilter && in_array($typeFilter, UserAgreement::AGREEMENT_TYPES, true)) {
             $query->where('agreement_type', $typeFilter);
         }
-        if ($stageFilter && in_array($stageFilter, FacultyAgreement::LIFECYCLE_STAGES, true)) {
+        if ($stageFilter && in_array($stageFilter, UserAgreement::LIFECYCLE_STAGES, true)) {
             $query->where('lifecycle_stage', $stageFilter);
         }
 
@@ -1768,14 +1768,14 @@ class ProcurementReportsController extends Controller
             $records[] = [
                 'class' => $class,
                 'cells' => [
-                    trans('admin/purchase-orders/general.faculty_type_'.$agreement->agreement_type),
+                    trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type),
                     (string) ($agreement->user?->full_name ?? '—'),
                     (string) ($agreement->asset?->asset_tag ?? ''),
                     (string) ($agreement->asset?->serial ?? ''),
-                    trans('admin/purchase-orders/general.faculty_stage_'.$agreement->lifecycle_stage),
+                    trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage),
                     $this->money($value),
                     $agreement->payment_method
-                        ? trans('admin/purchase-orders/general.faculty_payment_'.$agreement->payment_method)
+                        ? trans('admin/purchase-orders/general.user_agreement_payment_value_'.$agreement->payment_method)
                         : '',
                     $this->money($paid),
                     $this->money($remaining),

@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\FacultyAgreement;
+use App\Models\UserAgreement;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Attachment;
@@ -12,20 +12,20 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Sent to the faculty member when their FacultyAgreement transitions
+ * Sent to the assigned user when their UserAgreement transitions
  * to `agreement_sent` (via the model's sendForSignature() helper or
  * direct stage edit in the UI). One email per agreement. The PDF is
  * attached when an unsigned copy has already been rendered by
- * `snipeit:faculty-pregen-pdfs`; otherwise the email just carries the
+ * `snipeit:user-pregen-pdfs`; otherwise the email just carries the
  * sign link.
  */
-class FacultyAgreementSignatureRequestMail extends BaseMailable
+class UserAgreementSignatureRequestMail extends BaseMailable
 {
     use Queueable, SerializesModels;
 
-    public FacultyAgreement $agreement;
+    public UserAgreement $agreement;
 
-    public function __construct(FacultyAgreement $agreement)
+    public function __construct(UserAgreement $agreement)
     {
         $this->agreement = $agreement->loadMissing(['user', 'asset.model']);
     }
@@ -33,9 +33,9 @@ class FacultyAgreementSignatureRequestMail extends BaseMailable
     public function envelope(): Envelope
     {
         $subjectKey = match ($this->agreement->agreement_type) {
-            'upgrade'            => 'mail.faculty_signature_request_upgrade',
-            'lease_end_purchase' => 'mail.faculty_signature_request_buyout',
-            default              => 'mail.faculty_signature_request_pickup',
+            'upgrade'            => 'mail.user_agreement_signature_request_upgrade',
+            'lease_end_purchase' => 'mail.user_agreement_signature_request_buyout',
+            default              => 'mail.user_agreement_signature_request_pickup',
         };
 
         return new Envelope(
@@ -50,7 +50,7 @@ class FacultyAgreementSignatureRequestMail extends BaseMailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'notifications.markdown.faculty-agreement-signature-request',
+            markdown: 'notifications.markdown.user-agreement-signature-request',
             with: [
                 'agreement' => $this->agreement,
                 'variables' => $this->agreement->mergeVariables(),
@@ -73,7 +73,7 @@ class FacultyAgreementSignatureRequestMail extends BaseMailable
 
         return [
             Attachment::fromStorage($this->agreement->pdf_path)
-                ->as('faculty-agreement-'.$this->agreement->id.'.pdf')
+                ->as('user-agreement-'.$this->agreement->id.'.pdf')
                 ->withMime('application/pdf'),
         ];
     }

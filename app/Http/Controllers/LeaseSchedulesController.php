@@ -19,7 +19,7 @@ use Illuminate\View\View;
  * lifecycle bumps.
  *
  * Authorization piggy-backs on the orders permission set — same pattern
- * as LeaseDecisions and FacultyAgreements.
+ * as LeaseDecisions and UserAgreements.
  */
 class LeaseSchedulesController extends Controller
 {

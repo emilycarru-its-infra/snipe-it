@@ -1,17 +1,17 @@
 <?php
 
-namespace Tests\Feature\FacultyAgreements;
+namespace Tests\Feature\UserAgreements;
 
 use App\Events\CheckoutAccepted;
-use App\Listeners\UpdateFacultyAgreementOnAccept;
+use App\Listeners\UpdateUserAgreementOnAccept;
 use App\Models\Asset;
 use App\Models\CheckoutAcceptance;
-use App\Models\FacultyAgreement;
+use App\Models\UserAgreement;
 use App\Models\Statuslabel;
 use App\Models\User;
 use Tests\TestCase;
 
-class FacultyAgreementSigningTest extends TestCase
+class UserAgreementSigningTest extends TestCase
 {
     private function superuser(): User
     {
@@ -27,20 +27,20 @@ class FacultyAgreementSigningTest extends TestCase
 
     public function test_send_for_signature_creates_acceptance_with_rendered_eula()
     {
-        $faculty = User::factory()->create(['first_name' => 'Carlo', 'last_name' => 'Ghioni']);
+        $user = User::factory()->create(['first_name' => 'Carlo', 'last_name' => 'Ghioni']);
         $asset = $this->newAssignedAsset();
 
-        $agreement = FacultyAgreement::create([
+        $agreement = UserAgreement::create([
             'agreement_type' => 'lease_end_purchase',
-            'user_id' => $faculty->id,
+            'user_id' => $user->id,
             'asset_id' => $asset->id,
             'lifecycle_stage' => 'quoted',
             'buyout_cost' => 350,
         ]);
 
         $this->actingAs($this->superuser())
-            ->post(route('faculty-agreements.send-for-signature', $agreement))
-            ->assertRedirect(route('faculty-agreements.show', $agreement));
+            ->post(route('user-agreements.send-for-signature', $agreement))
+            ->assertRedirect(route('user-agreements.show', $agreement));
 
         $agreement->refresh();
         $this->assertNotNull($agreement->checkout_acceptance_id);
@@ -48,7 +48,7 @@ class FacultyAgreementSigningTest extends TestCase
 
         $acceptance = CheckoutAcceptance::find($agreement->checkout_acceptance_id);
         $this->assertNotNull($acceptance);
-        // EULA body picks up the faculty name and the buyout amount
+        // EULA body picks up the user name and the buyout amount
         // from the merge variables.
         $this->assertStringContainsString('Carlo Ghioni', $acceptance->eula_text_override);
         $this->assertStringContainsString('$350.00', $acceptance->eula_text_override);
@@ -56,27 +56,27 @@ class FacultyAgreementSigningTest extends TestCase
 
     public function test_send_without_asset_or_user_returns_an_error_redirect()
     {
-        $agreement = FacultyAgreement::create([
+        $agreement = UserAgreement::create([
             'agreement_type' => 'pickup',
             'lifecycle_stage' => 'eligible',
         ]);
 
         $this->actingAs($this->superuser())
-            ->post(route('faculty-agreements.send-for-signature', $agreement))
-            ->assertRedirect(route('faculty-agreements.show', $agreement))
-            ->assertSessionHas('error', trans('admin/faculty-agreements/message.missing_asset_or_user'));
+            ->post(route('user-agreements.send-for-signature', $agreement))
+            ->assertRedirect(route('user-agreements.show', $agreement))
+            ->assertSessionHas('error', trans('admin/user-agreements/message.missing_asset_or_user'));
 
         $this->assertNull($agreement->fresh()->checkout_acceptance_id);
     }
 
     public function test_stage_change_to_agreement_sent_auto_creates_acceptance()
     {
-        $faculty = User::factory()->create();
+        $user = User::factory()->create();
         $asset = $this->newAssignedAsset();
 
-        $agreement = FacultyAgreement::create([
+        $agreement = UserAgreement::create([
             'agreement_type' => 'upgrade',
-            'user_id' => $faculty->id,
+            'user_id' => $user->id,
             'asset_id' => $asset->id,
             'lifecycle_stage' => 'quoted',
             'base_program_price' => 2200,
@@ -96,11 +96,11 @@ class FacultyAgreementSigningTest extends TestCase
 
     public function test_checkout_accepted_event_marks_agreement_signed()
     {
-        $faculty = User::factory()->create();
+        $user = User::factory()->create();
         $asset = $this->newAssignedAsset();
-        $agreement = FacultyAgreement::create([
+        $agreement = UserAgreement::create([
             'agreement_type' => 'pickup',
-            'user_id' => $faculty->id,
+            'user_id' => $user->id,
             'asset_id' => $asset->id,
             'lifecycle_stage' => 'agreement_sent',
         ]);
@@ -112,7 +112,7 @@ class FacultyAgreementSigningTest extends TestCase
         $acceptance->stored_eula_file = 'accepted-test.pdf';
         $acceptance->save();
 
-        (new UpdateFacultyAgreementOnAccept)->handle(new CheckoutAccepted($acceptance));
+        (new UpdateUserAgreementOnAccept)->handle(new CheckoutAccepted($acceptance));
 
         $agreement->refresh();
         $this->assertEquals('agreement_signed', $agreement->lifecycle_stage);
@@ -122,17 +122,17 @@ class FacultyAgreementSigningTest extends TestCase
 
     public function test_unsigned_pdf_preview_returns_pdf_content_type()
     {
-        $faculty = User::factory()->create();
+        $user = User::factory()->create();
         $asset = $this->newAssignedAsset();
-        $agreement = FacultyAgreement::create([
+        $agreement = UserAgreement::create([
             'agreement_type' => 'pickup',
-            'user_id' => $faculty->id,
+            'user_id' => $user->id,
             'asset_id' => $asset->id,
             'lifecycle_stage' => 'quoted',
         ]);
 
         $response = $this->actingAs($this->superuser())
-            ->get(route('faculty-agreements.pdf', $agreement));
+            ->get(route('user-agreements.pdf', $agreement));
 
         $response->assertOk();
         $this->assertStringStartsWith('application/pdf', $response->headers->get('Content-Type'));
@@ -140,18 +140,18 @@ class FacultyAgreementSigningTest extends TestCase
 
     public function test_show_view_renders_eula_preview()
     {
-        $faculty = User::factory()->create(['first_name' => 'Daphne', 'last_name' => 'Plessner']);
+        $user = User::factory()->create(['first_name' => 'Daphne', 'last_name' => 'Plessner']);
         $asset = $this->newAssignedAsset();
-        $agreement = FacultyAgreement::create([
+        $agreement = UserAgreement::create([
             'agreement_type' => 'lease_end_purchase',
-            'user_id' => $faculty->id,
+            'user_id' => $user->id,
             'asset_id' => $asset->id,
             'lifecycle_stage' => 'quoted',
             'buyout_cost' => 450,
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('faculty-agreements.show', $agreement))
+            ->get(route('user-agreements.show', $agreement))
             ->assertOk()
             ->assertSee('Daphne Plessner')
             ->assertSee('$450.00');
