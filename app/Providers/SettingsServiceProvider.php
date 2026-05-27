@@ -32,6 +32,13 @@ class SettingsServiceProvider extends ServiceProvider
             $view->with('snipeSettings', Setting::getSettings());
         });
 
+        // Cache the user-form eligibility flag once per request, then
+        // share it with the layout that renders the account dropdown.
+        // The lookup runs at most once per request via the cached() static.
+        view()->composer('layouts.default', function ($view) {
+            $view->with('userFormEligible', \App\Http\Controllers\UserFormController::isEligible(auth()->user()));
+        });
+
         // Make sure the limit is actually set, is an integer and does not exceed system limits
         app()->singleton('api_limit_value', function () {
             $limit = config('app.max_results');

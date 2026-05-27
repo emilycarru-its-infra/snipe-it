@@ -93,6 +93,7 @@ class UserAgreement extends SnipeModel
         'pdf_generated_at',
         'pdf_path',
         'signed_at',
+        'terms_accepted_at',
         'signed_pdf_path',
         'sent_to_payroll_at',
         'deployed_at',
@@ -107,6 +108,7 @@ class UserAgreement extends SnipeModel
     protected $casts = [
         'pdf_generated_at' => 'datetime',
         'signed_at' => 'datetime',
+        'terms_accepted_at' => 'datetime',
         'sent_to_payroll_at' => 'datetime',
         'deployed_at' => 'datetime',
         'closed_at' => 'datetime',
