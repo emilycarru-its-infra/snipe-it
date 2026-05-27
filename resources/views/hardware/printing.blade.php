@@ -15,7 +15,11 @@
     $periodLabel = $latest
         ? \Carbon\Carbon::create($latest['year'], $latest['month'], 1)->format('M Y')
         : null;
-    $hasAnyData = $last30['jobs'] > 0 || ! empty($monthly) || $recentJobs->isNotEmpty();
+    // $monthly is always 12 entries (one per trailing month, zeros included),
+    // so its presence isn't a signal -- only its contents are. Sum job
+    // counts across the series instead.
+    $monthlyJobs = collect($monthly)->sum('jobs');
+    $hasAnyData = $last30['jobs'] > 0 || $monthlyJobs > 0 || $recentJobs->isNotEmpty();
 @endphp
 
 <div class="clearfix visible-lg-block" style="padding: 6px;"></div>
