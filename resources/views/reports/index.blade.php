@@ -23,6 +23,7 @@
 </h2>
 <div class="row">
 
+    @can('reports.procurement.view')
     <div class="col-md-3 col-sm-6">
         <a href="{{ route('reports.procurement') }}" class="small-box-link" style="text-decoration:none;">
             <div class="small-box bg-aqua">
@@ -34,6 +35,7 @@
             </div>
         </a>
     </div>
+    @endcan
 
     @can('reports.contracts.view')
     <div class="col-md-3 col-sm-6">
@@ -219,7 +221,7 @@
             data: {
                 labels: fleetData.labels,
                 datasets: [{
-                    label: '{!! addslashes(trans('general.assets')) !!}',
+                    label: @json(trans('general.assets')),
                     data: fleetData.counts,
                     backgroundColor: c.bar,
                     borderColor: c.bar,
@@ -247,7 +249,7 @@
             data: {
                 labels: contractData.labels,
                 datasets: [{
-                    label: '{!! addslashes(trans('admin/contracts/general.contracts')) !!}',
+                    label: @json(trans('admin/contracts/general.contracts')),
                     data: contractData.counts,
                     borderColor: c.line,
                     backgroundColor: c.line,

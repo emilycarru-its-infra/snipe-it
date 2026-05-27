@@ -33,7 +33,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Mail\Mailable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -75,12 +74,15 @@ class ReportsController extends Controller
      */
     private function fleetRefreshByFiscalYear(int $years): array
     {
-        $rows = DB::table('assets')
+        // Going through Asset::query() keeps CompanyableTrait's global scope active
+        // (matters under FMCS). The EOL expression mirrors the eolDate accessor.
+        $eolExpr = 'COALESCE(assets.asset_eol_date, DATE_ADD(assets.purchase_date, INTERVAL models.eol MONTH))';
+        $rows = Asset::query()
             ->leftJoin('models', 'models.id', '=', 'assets.model_id')
-            ->whereNull('assets.deleted_at')
-            ->whereRaw('COALESCE(assets.asset_eol_date, DATE_ADD(assets.purchase_date, INTERVAL models.eol MONTH)) IS NOT NULL')
-            ->selectRaw('COALESCE(assets.asset_eol_date, DATE_ADD(assets.purchase_date, INTERVAL models.eol MONTH)) AS eol_date')
-            ->get();
+            ->whereRaw("$eolExpr IS NOT NULL")
+            ->selectRaw("YEAR($eolExpr) - (MONTH($eolExpr) < 4) AS fy_start, COUNT(*) AS n")
+            ->groupBy('fy_start')
+            ->pluck('n', 'fy_start');
 
         $today  = Carbon::today();
         $startY = (int) $today->format('n') >= 4 ? (int) $today->format('Y') : (int) $today->format('Y') - 1;
@@ -90,17 +92,17 @@ class ReportsController extends Controller
             $buckets[sprintf('FY%02d-%02d', $y % 100, ($y + 1) % 100)] = 0;
         }
         $buckets['__future__'] = 0;
+        $endY = $startY + $years - 1;
 
-        foreach ($rows as $row) {
-            $eol = Carbon::parse($row->eol_date);
-            $eolStartY = (int) $eol->format('n') >= 4 ? (int) $eol->format('Y') : (int) $eol->format('Y') - 1;
-            $label = sprintf('FY%02d-%02d', $eolStartY % 100, ($eolStartY + 1) % 100);
+        foreach ($rows as $eolStartY => $count) {
+            $eolStartY = (int) $eolStartY;
+            $count     = (int) $count;
             if ($eolStartY < $startY) {
-                $buckets['__past__']++;
-            } elseif (isset($buckets[$label])) {
-                $buckets[$label]++;
+                $buckets['__past__'] += $count;
+            } elseif ($eolStartY > $endY) {
+                $buckets['__future__'] += $count;
             } else {
-                $buckets['__future__']++;
+                $buckets[sprintf('FY%02d-%02d', $eolStartY % 100, ($eolStartY + 1) % 100)] += $count;
             }
         }
 
@@ -143,14 +145,14 @@ class ReportsController extends Controller
         $rows = Contract::realOnly()
             ->whereNotNull('end_date')
             ->whereBetween('end_date', [$start->toDateString(), $end->copy()->subDay()->toDateString()])
-            ->selectRaw('end_date, total_cost')
+            ->selectRaw('YEAR(end_date) AS y, QUARTER(end_date) AS q, COUNT(*) AS n')
+            ->groupBy('y', 'q')
             ->get();
 
         foreach ($rows as $row) {
-            $d   = Carbon::parse($row->end_date);
-            $key = $d->format('Y').'-Q'.$d->quarter;
+            $key = ((int) $row->y).'-Q'.((int) $row->q);
             if (isset($buckets[$key])) {
-                $buckets[$key]++;
+                $buckets[$key] = (int) $row->n;
             }
         }
 
