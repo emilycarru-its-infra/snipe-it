@@ -1,4 +1,8 @@
 FROM alpine:3.23
+
+ARG GIT_SHA=""
+ENV ECU_BUILD_SHA=$GIT_SHA
+
 # Apache + PHP
 RUN  apk add --no-cache \
         apache2 \
