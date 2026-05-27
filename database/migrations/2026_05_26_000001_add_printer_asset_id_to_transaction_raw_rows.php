@@ -21,6 +21,14 @@ return new class extends Migration {
         // is only here to catch the ~57k rows that landed before the FK
         // existed. Restricted to print-log sources -- transactions and
         // user_list rows don't carry a printer serial.
+        //
+        // Skip on non-MySQL drivers. The UPDATE...JOIN + JSON_UNQUOTE/EXTRACT
+        // syntax is MySQL-specific, and the SQLite/Postgres test workflows
+        // don't have meaningful raw-row data to backfill anyway.
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         $serialPath = '$."printer serial number"';
 
         DB::statement(<<<SQL

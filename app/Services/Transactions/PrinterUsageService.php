@@ -196,27 +196,52 @@ class PrinterUsageService
 
     /**
      * Fleet-level "this month" snapshot, one row per printer-asset.
-     * Used by /reports/printing. Single aggregate query; per-printer
-     * detail comes from {@see summary()}.
+     * Used by /reports/printing. On MySQL this is a single grouped query
+     * with JSON_EXTRACT; on other drivers (SQLite/Postgres test env) it
+     * falls back to in-memory aggregation since the test fixtures are
+     * small and we only need cross-driver behavioural parity.
      */
     public function fleetMonth(int $year, int $month): Collection
     {
-        return RawRow::query()
+        $base = RawRow::query()
             ->whereNotNull('printer_asset_id')
             ->whereIn('source_kind', self::PRINT_LOG_KINDS)
             ->where('period_year', $year)
-            ->where('period_month', $month)
-            ->select([
-                'printer_asset_id',
-                DB::raw('COUNT(*)                            AS jobs'),
-                DB::raw("COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.\"total printed pages\"')) AS UNSIGNED)), 0) AS pages"),
-                DB::raw("COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.cost')) AS DECIMAL(12,4))), 0) AS cost"),
-                DB::raw("SUM(CASE WHEN JSON_EXTRACT(row_data, '$.refunded') = true OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.refunded'))) IN ('1','yes','true') THEN 1 ELSE 0 END) AS refunds"),
-                DB::raw('MAX(ingested_at)                    AS last_seen'),
-            ])
+            ->where('period_month', $month);
+
+        if (DB::connection()->getDriverName() === 'mysql') {
+            return $base
+                ->select([
+                    'printer_asset_id',
+                    DB::raw('COUNT(*)                            AS jobs'),
+                    DB::raw("COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.\"total printed pages\"')) AS UNSIGNED)), 0) AS pages"),
+                    DB::raw("COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.cost')) AS DECIMAL(12,4))), 0) AS cost"),
+                    DB::raw("SUM(CASE WHEN JSON_EXTRACT(row_data, '$.refunded') = true OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.refunded'))) IN ('1','yes','true') THEN 1 ELSE 0 END) AS refunds"),
+                    DB::raw('MAX(ingested_at)                    AS last_seen'),
+                ])
+                ->groupBy('printer_asset_id')
+                ->get()
+                ->keyBy('printer_asset_id');
+        }
+
+        return $base
+            ->get(['printer_asset_id', 'row_data', 'ingested_at'])
             ->groupBy('printer_asset_id')
-            ->get()
-            ->keyBy('printer_asset_id');
+            ->map(function ($rows, $printerId) {
+                $agg = $this->aggregateJobs($rows);
+                $pages = 0;
+                foreach ($rows as $r) {
+                    $pages += (int) (($r->row_data['total printed pages'] ?? $r->row_data['pages'] ?? 0));
+                }
+                return (object) [
+                    'printer_asset_id' => $printerId,
+                    'jobs'             => $agg['jobs'],
+                    'pages'            => $pages,
+                    'cost'             => $agg['cost'],
+                    'refunds'          => $agg['refunds'],
+                    'last_seen'        => $rows->max('ingested_at'),
+                ];
+            });
     }
 
     /** Does an asset's model use a fieldset configured for printers? */
