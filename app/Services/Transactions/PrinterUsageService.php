@@ -75,7 +75,10 @@ class PrinterUsageService
      */
     public function monthlyVolume(int $assetId, int $months = 12): array
     {
-        $cutoff = Carbon::now()->startOfMonth()->subMonths($months - 1);
+        // Capture a single anchor so a request that straddles a month
+        // boundary still produces a coherent window + labels.
+        $base = Carbon::now()->startOfMonth();
+        $cutoff = $base->copy()->subMonths($months - 1);
 
         $rows = RawRow::forPrinter($assetId)
             ->whereIn('source_kind', self::PRINT_LOG_KINDS)
@@ -92,7 +95,7 @@ class PrinterUsageService
 
         $series = [];
         for ($i = $months - 1; $i >= 0; $i--) {
-            $month = Carbon::now()->startOfMonth()->subMonths($i);
+            $month = $base->copy()->subMonths($i);
             $key = $month->format('Y-m');
             $bucket = $grouped->get($key, collect());
             $agg = $this->aggregateJobs($bucket);
@@ -210,13 +213,18 @@ class PrinterUsageService
             ->where('period_month', $month);
 
         if (DB::connection()->getDriverName() === 'mysql') {
+            // Keep the refund detection rules in sync with looksLikeRefund():
+            // boolean true, the truthy string values '1'/'yes'/'true'/'y',
+            // and the "transaction type" column containing the substring
+            // REFUND. Drifting between the two paths shows up as fleet-vs-
+            // per-asset refund-rate disagreements.
             return $base
                 ->select([
                     'printer_asset_id',
                     DB::raw('COUNT(*)                            AS jobs'),
                     DB::raw("COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.\"total printed pages\"')) AS UNSIGNED)), 0) AS pages"),
                     DB::raw("COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.cost')) AS DECIMAL(12,4))), 0) AS cost"),
-                    DB::raw("SUM(CASE WHEN JSON_EXTRACT(row_data, '$.refunded') = true OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.refunded'))) IN ('1','yes','true') THEN 1 ELSE 0 END) AS refunds"),
+                    DB::raw("SUM(CASE WHEN JSON_EXTRACT(row_data, '$.refunded') = true OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.refunded'))) IN ('1','yes','true','y') OR UPPER(JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.\"transaction type\"'))) LIKE '%REFUND%' THEN 1 ELSE 0 END) AS refunds"),
                     DB::raw('MAX(ingested_at)                    AS last_seen'),
                 ])
                 ->groupBy('printer_asset_id')

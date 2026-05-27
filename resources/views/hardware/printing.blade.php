@@ -40,7 +40,7 @@
             $cards = [
                 ['label' => trans('admin/hardware/printing.jobs'),        'value' => number_format($last30['jobs']),                 'tone' => 'aqua',   'icon' => 'fa-print'],
                 ['label' => trans('admin/hardware/printing.pages'),       'value' => number_format($last30['pages']),                'tone' => 'green',  'icon' => 'fa-file-alt'],
-                ['label' => trans('admin/hardware/printing.cost'),        'value' => '$'.number_format($last30['cost'], 2),          'tone' => 'blue',   'icon' => 'fa-dollar-sign'],
+                ['label' => trans('admin/hardware/printing.cost'),        'value' => Helper::formatCurrencyOutput($last30['cost']),  'tone' => 'blue',   'icon' => 'fa-dollar-sign'],
                 ['label' => trans('admin/hardware/printing.refund_rate'), 'value' => number_format($last30['refundRate'] * 100, 1).'%', 'tone' => $last30['refundRate'] > 0.1 ? 'red' : 'navy', 'icon' => 'fa-undo'],
             ];
         @endphp
@@ -86,7 +86,7 @@
                 @php $only = $glAllocation->first(); @endphp
                 <div class="text-center" style="padding:18px 0;">
                     <p style="font-size:18px; margin:0;"><strong>{{ $only['gl'] }}</strong></p>
-                    <p class="text-muted" style="margin:6px 0 0;">${{ number_format($only['cost'], 2) }}</p>
+                    <p class="text-muted" style="margin:6px 0 0;">{{ Helper::formatCurrencyOutput($only['cost']) }}</p>
                 </div>
             @else
                 <canvas id="printerGlChart-{{ $asset->id }}" height="200"></canvas>
@@ -160,7 +160,7 @@
                             @endif
                         </td>
                         <td class="text-right">{{ number_format($job['pages']) }}</td>
-                        <td class="text-right">${{ number_format($job['cost'], 2) }}</td>
+                        <td class="text-right">{{ Helper::formatCurrencyOutput($job['cost']) }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="5" class="text-center" style="padding:14px; color:#aaa;">—</td></tr>

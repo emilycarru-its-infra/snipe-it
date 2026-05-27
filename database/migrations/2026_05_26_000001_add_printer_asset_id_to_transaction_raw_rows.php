@@ -9,7 +9,10 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('transaction_raw_rows', function (Blueprint $table) {
-            $table->unsignedBigInteger('printer_asset_id')->nullable()->after('source_kind');
+            // `assets.id` is unsignedInteger, not unsignedBigInteger -- keep
+            // the FK column the same width so the index is smaller and a real
+            // foreign-key constraint can be added later if needed.
+            $table->unsignedInteger('printer_asset_id')->nullable()->after('source_kind');
             $table->index(
                 ['printer_asset_id', 'period_year', 'period_month'],
                 'transaction_raw_rows_printer_period'

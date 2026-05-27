@@ -35,7 +35,7 @@
             @forelse ($rows as $r)
                 <tr>
                     <td>
-                        <a href="{{ route('hardware.show', $r['asset']) }}">
+                        <a href="{{ route('hardware.show', $r['asset']) }}#printing">
                             {{ $r['asset']->name ?: $r['asset']->asset_tag }}
                         </a>
                         <small style="color:#999;">{{ $r['asset']->asset_tag }}</small>
@@ -50,7 +50,7 @@
                     </td>
                     <td class="text-right">{{ number_format($r['jobs']) }}</td>
                     <td class="text-right">{{ number_format($r['pages']) }}</td>
-                    <td class="text-right">${{ number_format($r['cost'], 2) }}</td>
+                    <td class="text-right">{{ Helper::formatCurrencyOutput($r['cost']) }}</td>
                     <td class="text-right">
                         @if ($r['jobs'] > 0)
                             <span class="@if ($r['refund_rate'] > 0.1) text-danger @endif">

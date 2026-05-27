@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
+use App\Models\User;
 use App\Services\Transactions\PrinterUsageService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -23,14 +24,25 @@ class PrintingReportsController extends Controller
     public function index(Request $request, PrinterUsageService $usage)
     {
         $now = Carbon::now();
-        $year = (int) $request->input('year', $now->year);
-        $month = (int) $request->input('month', $now->month);
+        // Constrain year/month to valid Carbon ranges -- raw request input
+        // would otherwise 500 the page if month=0/13 reaches Carbon::create.
+        $year = max(2000, min(2100, (int) $request->input('year', $now->year)));
+        $month = max(1, min(12, (int) $request->input('month', $now->month)));
 
         $printers = Asset::query()
             ->whereHas('model.fieldset', function ($q) {
                 $q->whereIn('name', PrinterUsageService::PRINTER_FIELDSET_NAMES);
             })
-            ->with(['model.fieldset', 'assignedTo', 'defaultLoc'])
+            ->with([
+                'model.fieldset',
+                'defaultLoc',
+                // Eager-load the polymorphic assignee + its department only
+                // when it's a User; otherwise the dept lookup is an N+1 per
+                // printer.
+                'assignedTo' => function ($morph) {
+                    $morph->morphWith([User::class => ['department']]);
+                },
+            ])
             ->orderBy('name')
             ->get();
 
