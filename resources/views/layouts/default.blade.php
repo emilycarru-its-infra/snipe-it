@@ -2177,8 +2177,10 @@
                     <div class="pull-right">
                     @if ($snipeSettings->version_footer!='off')
                         @if (($snipeSettings->version_footer=='on') || (($snipeSettings->version_footer=='admin') && (Auth::user()->isSuperUser()=='1')))
-                            &nbsp; {{ trans('general.version') }} {{ config('version.app_version') }} -
+                            &nbsp; {{ trans('general.version') }} {{ config('version.app_version') }}{{ config('ecu.version_suffix') }}@if (config('ecu.build_sha')).{{ \Illuminate\Support\Str::limit(config('ecu.build_sha'), 7, '') }}@endif -
                             {{ trans('general.build') }} {{ config('version.build_version') }} ({{ config('version.branch') }})
+                            &middot;
+                            <a target="_blank" rel="noopener" href="{{ config('ecu.fork_source_url') }}" data-tooltip="true" data-title="View source on GitHub (AGPL-3.0)">Source</a>
                         @endif
                     @endif
 
