@@ -10,6 +10,7 @@ use App\Models\Transactions\Override;
 use App\Models\Transactions\RawRow;
 use App\Models\Transactions\Reconciliation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Dashboard for the TouchNet/PaperCut reconciliation pipeline.
@@ -43,10 +44,21 @@ class TransactionsReportsController extends Controller
 
         $current = $latest->first();
 
+        // PaperCut balance change needs two month-boundary user_list
+        // snapshots to be meaningful (start-of-month + end-of-month). When
+        // only one has landed, the cell renders an "awaiting snapshot" note
+        // instead of a misleading $0.00.
+        $userListSnapshots = $current
+            ? RawRow::forPeriod($current->period_year, $current->period_month)
+                ->ofKind('papercut.user_list')
+                ->distinct()
+                ->count(DB::raw('DATE(ingested_at)'))
+            : 0;
+
         // Headline cards — pulled from the *effective* line items (override
         // wins). Per Carlos's PaperCut_10-2082 Reconcile tab.
         $cards = $current
-            ? $this->buildHeadlineCards($current->period_year, $current->period_month)
+            ? $this->buildHeadlineCards($current->period_year, $current->period_month, $userListSnapshots)
             : [];
 
         // Charts: trailing-12 revenue + per-department mix.
@@ -114,7 +126,7 @@ class TransactionsReportsController extends Controller
      * Order matches the procurement dashboard's pattern: revenue, refunds,
      * balance change, override count, status, reconciling difference.
      */
-    private function buildHeadlineCards(int $year, int $month): array
+    private function buildHeadlineCards(int $year, int $month, int $userListSnapshots = 2): array
     {
         $lines = EffectiveLineItem::forPeriod($year, $month)->get()
             ->keyBy('line_key');
@@ -150,7 +162,10 @@ class TransactionsReportsController extends Controller
             ['label' => 'Refunds Posted',           'value' => $refunds,
              'fmt' => 'money', 'tone' => 'yellow', 'icon' => 'fa-undo'],
             ['label' => 'PaperCut Balance Change',  'value' => $balanceDelta,
-             'fmt' => 'money', 'tone' => 'blue', 'icon' => 'fa-balance-scale'],
+             'fmt' => 'money', 'tone' => 'blue', 'icon' => 'fa-balance-scale',
+             'placeholder' => $userListSnapshots < 2
+                ? 'Awaiting next month-boundary snapshot'
+                : null],
             ['label' => 'Month Reconciling Difference', 'value' => $reconciling,
              'fmt' => 'money', 'tone' => abs($reconciling) < 0.01 ? 'green' : 'red',
              'icon' => 'fa-check-circle'],
