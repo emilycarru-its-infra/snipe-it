@@ -28,6 +28,7 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\UserAgreementsController;
+use App\Http\Controllers\UserFormController;
 use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
@@ -545,6 +546,21 @@ Route::group(['prefix' => 'account', 'middleware' => ['auth']], function () {
 
 Route::group(['middleware' => ['auth']], function () {
     Route::post('notes', [NotesController::class, 'store'])->name('notes.store');
+});
+
+Route::group(['middleware' => ['auth']], function () {
+    Route::get('user-form', [UserFormController::class, 'show'])
+        ->name('user-form.show')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('admin/user-form/general.title'), route('user-form.show')));
+
+    Route::post('user-form', [UserFormController::class, 'submit'])
+        ->name('user-form.submit');
+
+    Route::get('user-form/success', [UserFormController::class, 'success'])
+        ->name('user-form.success')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('user-form.show')
+            ->push(trans('admin/user-form/general.success_crumb'), route('user-form.success')));
 });
 
 Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
