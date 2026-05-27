@@ -27,6 +27,7 @@ return [
     'comments_review'       => 'Comments / Review',
     'source'                => 'Source',
     'tdx_id'                => 'TDX ID',
+    'open_in_tdx'           => 'Open this contract in TDX',
     'parent'                => 'Parent Contract',
     'children'              => 'Children',
     'hierarchy'             => 'Hierarchy',
