@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('user_agreements', function (Blueprint $table) {
-            $table->timestamp('terms_accepted_at')->nullable()->after('signed_at');
+            $table->timestamp('terms_accepted_at')->nullable()->after('signed_pdf_path');
         });
     }
 

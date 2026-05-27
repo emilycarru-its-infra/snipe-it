@@ -90,14 +90,14 @@
                     @endif
 
                     <div class="form-group" style="margin-top:10px;">
-                        <label class="col-md-3 control-label">{{ trans('admin/user-form/general.buyout_asset_tag') }}</label>
+                        <label for="buyout_asset_tag" class="col-md-3 control-label">{{ trans('admin/user-form/general.buyout_asset_tag') }}</label>
                         <div class="col-md-4">
-                            <input type="text" name="buyout_asset_tag" class="form-control" maxlength="191"
+                            <input type="text" id="buyout_asset_tag" name="buyout_asset_tag" class="form-control" maxlength="191"
                                    value="{{ old('buyout_asset_tag', $priorAsset?->asset_tag) }}">
                         </div>
-                        <label class="col-md-2 control-label">{{ trans('admin/user-form/general.buyout_serial') }}</label>
+                        <label for="buyout_serial" class="col-md-2 control-label">{{ trans('admin/user-form/general.buyout_serial') }}</label>
                         <div class="col-md-3">
-                            <input type="text" name="buyout_serial" class="form-control" maxlength="191"
+                            <input type="text" id="buyout_serial" name="buyout_serial" class="form-control" maxlength="191"
                                    value="{{ old('buyout_serial', $priorAsset?->serial) }}">
                         </div>
                     </div>

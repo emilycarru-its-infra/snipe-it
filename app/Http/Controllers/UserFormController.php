@@ -22,7 +22,7 @@ class UserFormController extends Controller
     public function show(): View|RedirectResponse
     {
         $user = Auth::user();
-        abort_unless($this->isEligible($user), 403, trans('admin/user-form/general.not_eligible'));
+        abort_unless(self::isEligible($user), 403, trans('admin/user-form/general.not_eligible'));
 
         return view('user-form.show', [
             'user'           => $user,
@@ -38,7 +38,7 @@ class UserFormController extends Controller
     public function submit(Request $request): RedirectResponse
     {
         $user = Auth::user();
-        abort_unless($this->isEligible($user), 403, trans('admin/user-form/general.not_eligible'));
+        abort_unless(self::isEligible($user), 403, trans('admin/user-form/general.not_eligible'));
 
         $validated = $request->validate([
             'payment_method'    => 'required|string|in:'.implode(',', UserAgreement::PAYMENT_METHODS),
@@ -83,21 +83,33 @@ class UserFormController extends Controller
     public function success(): View|RedirectResponse
     {
         $user = Auth::user();
-        abort_unless($this->isEligible($user), 403, trans('admin/user-form/general.not_eligible'));
+        abort_unless(self::isEligible($user), 403, trans('admin/user-form/general.not_eligible'));
 
         return view('user-form.success', [
             'externalPurchaseUrl' => config('user-form.external_purchase_url'),
         ]);
     }
 
+    /**
+     * Whether the user can use the intake form. Memoized per request so
+     * the same lookup invoked from a view composer + the controller's
+     * abort_unless guards doesn't fire multiple DB queries.
+     */
     public static function isEligible(?User $user): bool
     {
+        static $cache = [];
+
         $group = config('user-form.group');
         if (! $user || ! $group) {
             return false;
         }
 
-        return $user->groups()->where('name', $group)->exists();
+        $key = $user->id.'|'.$group;
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        return $cache[$key] = $user->groups()->where('name', $group)->exists();
     }
 
     /**
@@ -109,7 +121,6 @@ class UserFormController extends Controller
     {
         return Asset::where('assigned_to', $user->id)
             ->where('assigned_type', User::class)
-            ->whereNull('deleted_at')
             ->orderByDesc('last_checkout')
             ->orderByDesc('purchase_date')
             ->first();

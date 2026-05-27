@@ -1413,7 +1413,7 @@
                                                 </a></li>
                                         @endcan
 
-                                        @if (\App\Http\Controllers\UserFormController::isEligible(Auth::user()))
+                                        @if (! empty($userFormEligible))
                                             <li {!! (request()->is('user-form*') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('user-form.show') }}">
                                                     <i class="fas fa-laptop fa-fw" aria-hidden="true"></i>
