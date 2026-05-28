@@ -5,10 +5,20 @@
     @parent
 @stop
 
+@push('css')
+<style>
+    .forms-radio-group { display: flex; flex-wrap: wrap; gap: 16px 24px; }
+    .forms-radio-group--stacked { flex-direction: column; gap: 12px; }
+    .forms-radio { display: inline-flex; align-items: center; gap: 12px; font-weight: normal; margin: 0; cursor: pointer; }
+    .forms-radio input[type="radio"], .forms-radio input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+    .forms-radio span { line-height: 1.4; }
+</style>
+@endpush
+
 @section('content')
 
 <div class="row">
-    <div class="col-md-8 col-md-offset-2">
+    <div class="col-md-8">
 
         <h1 style="margin-top:0;">{{ trans('admin/forms/faculty-program.title') }}</h1>
         <p class="text-muted">{{ trans('admin/forms/faculty-program.intro') }}</p>
@@ -31,14 +41,14 @@
                 <div class="box-body">
                     <p class="text-muted">{{ trans('admin/forms/faculty-program.payment_help') }}</p>
                     <div class="form-group {{ $errors->has('payment_method') ? 'has-error' : '' }}" style="margin-bottom:0;">
-                        <div class="col-md-12">
-                            <label class="radio-inline" style="margin-right:24px;">
+                        <div class="col-md-12 forms-radio-group">
+                            <label class="forms-radio">
                                 <input type="radio" name="payment_method" value="pay_in_full" {{ old('payment_method') === 'pay_in_full' ? 'checked' : '' }} required>
-                                {{ trans('admin/forms/faculty-program.payment_pay_in_full') }}
+                                <span>{{ trans('admin/forms/faculty-program.payment_pay_in_full') }}</span>
                             </label>
-                            <label class="radio-inline">
+                            <label class="forms-radio">
                                 <input type="radio" name="payment_method" value="payroll_deduction" {{ old('payment_method') === 'payroll_deduction' ? 'checked' : '' }}>
-                                {{ trans('admin/forms/faculty-program.payment_payroll_deduction') }}
+                                <span>{{ trans('admin/forms/faculty-program.payment_payroll_deduction') }}</span>
                             </label>
                             @if ($errors->has('payment_method'))
                                 <p class="help-block">{{ $errors->first('payment_method') }}</p>
@@ -57,25 +67,19 @@
                     <p class="text-muted">{{ trans('admin/forms/faculty-program.buyout_help') }}</p>
 
                     <div class="form-group {{ $errors->has('buyout_decision') ? 'has-error' : '' }}">
-                        <div class="col-md-12">
-                            <div class="radio">
-                                <label>
-                                    <input type="radio" name="buyout_decision" value="yes" {{ old('buyout_decision') === 'yes' ? 'checked' : '' }} required>
-                                    {{ trans('admin/forms/faculty-program.buyout_yes') }}
-                                </label>
-                            </div>
-                            <div class="radio">
-                                <label>
-                                    <input type="radio" name="buyout_decision" value="no" {{ old('buyout_decision') === 'no' ? 'checked' : '' }}>
-                                    {{ trans('admin/forms/faculty-program.buyout_no') }}
-                                </label>
-                            </div>
-                            <div class="radio">
-                                <label>
-                                    <input type="radio" name="buyout_decision" value="no_prior_laptop" {{ old('buyout_decision') === 'no_prior_laptop' ? 'checked' : '' }}>
-                                    {{ trans('admin/forms/faculty-program.buyout_no_prior_laptop') }}
-                                </label>
-                            </div>
+                        <div class="col-md-12 forms-radio-group forms-radio-group--stacked">
+                            <label class="forms-radio">
+                                <input type="radio" name="buyout_decision" value="yes" {{ old('buyout_decision') === 'yes' ? 'checked' : '' }} required>
+                                <span>{{ trans('admin/forms/faculty-program.buyout_yes') }}</span>
+                            </label>
+                            <label class="forms-radio">
+                                <input type="radio" name="buyout_decision" value="no" {{ old('buyout_decision') === 'no' ? 'checked' : '' }}>
+                                <span>{{ trans('admin/forms/faculty-program.buyout_no') }}</span>
+                            </label>
+                            <label class="forms-radio">
+                                <input type="radio" name="buyout_decision" value="no_prior_laptop" {{ old('buyout_decision') === 'no_prior_laptop' ? 'checked' : '' }}>
+                                <span>{{ trans('admin/forms/faculty-program.buyout_no_prior_laptop') }}</span>
+                            </label>
                             @if ($errors->has('buyout_decision'))
                                 <p class="help-block">{{ $errors->first('buyout_decision') }}</p>
                             @endif
@@ -131,10 +135,10 @@
                     <p>{{ trans('admin/forms/faculty-program.terms_intro') }}</p>
                     <div class="well well-sm" style="white-space:pre-line;">{{ trans('admin/forms/faculty-program.terms_body') }}</div>
                     <div class="form-group {{ $errors->has('accept_terms') ? 'has-error' : '' }}" style="margin-bottom:0;">
-                        <div class="col-md-12">
-                            <label class="checkbox-inline">
+                        <div class="col-md-12 forms-radio-group">
+                            <label class="forms-radio">
                                 <input type="checkbox" name="accept_terms" value="1" {{ old('accept_terms') ? 'checked' : '' }} required>
-                                <strong>{{ trans('admin/forms/faculty-program.terms_accept') }}</strong>
+                                <span><strong>{{ trans('admin/forms/faculty-program.terms_accept') }}</strong></span>
                             </label>
                             @if ($errors->has('accept_terms'))
                                 <p class="help-block">{{ $errors->first('accept_terms') }}</p>
