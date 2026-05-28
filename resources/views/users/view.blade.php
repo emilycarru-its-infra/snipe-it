@@ -26,6 +26,12 @@
 
         <x-page-column class="col-md-9 main-panel">
 
+            @php
+                $canSeeAgreements = \App\Services\FormAccess::canViewSubmission(auth()->user(), $user->id);
+                $userAgreements = $canSeeAgreements
+                    ? \App\Models\UserAgreement::with('asset')->where('user_id', $user->id)->orderByDesc('created_at')->get()
+                    : collect();
+            @endphp
             <x-tabs>
                 <x-slot:tabnav>
                     <x-tabs.details-tab/>
@@ -34,6 +40,9 @@
                     <x-tabs.accessory-tab count="{{ $user->accessories()->count() }}"/>
                     <x-tabs.consumable-tab count="{{ $user->consumables()->count() }}"/>
                     <x-tabs.files-tab :item="$user" count="{{ $user->uploads()->count() }}"/>
+                    @if ($canSeeAgreements)
+                        <x-tabs.agreements-tab count="{{ $userAgreements->count() }}"/>
+                    @endif
                     <x-tabs.eula-tab count="{{ $user->eulas()->count() }}"/>
                     <x-tabs.location-tab count="{{ $user->managedLocations()->count() }}"/>
                     <x-tabs.user-tab count="{{ $user->managesUsers()->count() }}" name="managed-users" icon_type="manager" :label="trans('admin/users/table.managed_users')"/>
@@ -485,6 +494,12 @@
                     <x-tabs.pane name="files" :count="$user->uploads()->count()">
                         <x-table.files object_type="users" :object="$user"/>
                     </x-tabs.pane>
+
+                    @if ($canSeeAgreements)
+                        <x-tabs.pane name="agreements" :count="$userAgreements->count()">
+                            @include('users._agreements-tab', ['agreements' => $userAgreements])
+                        </x-tabs.pane>
+                    @endif
 
                     <x-tabs.pane name="eulas" :count="$user->accessories()->count()">
                         <x-slot:table_header>
