@@ -4,6 +4,7 @@ namespace App\Forms\FacultyProgram;
 
 use App\Forms\FormDefinition;
 use App\Models\Asset;
+use App\Models\CustomField;
 use App\Models\User;
 use App\Models\UserAgreement;
 use Illuminate\Database\Eloquent\Builder;
@@ -31,10 +32,13 @@ class FacultyProgramForm extends FormDefinition
 
     public function show(User $user): View
     {
+        $priorAsset = $this->findPriorAsset($user);
+
         return view('forms.faculty-program.show', [
-            'user'           => $user,
-            'priorAsset'     => $this->findPriorAsset($user),
-            'existingPickup' => $this->existingPickup($user),
+            'user'             => $user,
+            'priorAsset'       => $priorAsset,
+            'priorBuyoutCost'  => $this->buyoutCostFor($priorAsset),
+            'existingPickup'   => $this->existingPickup($user),
         ]);
     }
 
@@ -143,5 +147,25 @@ class FacultyProgramForm extends FormDefinition
             ->orderByDesc('last_checkout')
             ->orderByDesc('purchase_date')
             ->first();
+    }
+
+    /**
+     * Snipe-IT custom fields land as columns named `_snipeit_<slug>_<id>`,
+     * where <id> is the field's auto-increment primary key and so
+     * differs between environments. Look the field up by display name
+     * ("Buyout Cost") instead — that's stable across envs. Returns null
+     * when the field isn't installed or the asset has no value.
+     */
+    private function buyoutCostFor(?Asset $asset): ?float
+    {
+        if (! $asset) {
+            return null;
+        }
+        $field = CustomField::where('name', 'Buyout Cost')->first();
+        if (! $field) {
+            return null;
+        }
+        $value = $asset->{$field->db_column_name()};
+        return is_numeric($value) ? (float) $value : null;
     }
 }

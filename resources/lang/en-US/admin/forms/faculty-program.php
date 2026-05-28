@@ -32,6 +32,7 @@ return [
     'buyout_no'              => 'No, I will return it',
     'buyout_no_prior_laptop' => 'I do not have a previous leased laptop',
     'buyout_prior_asset'     => 'Detected prior laptop',
+    'buyout_cost'            => 'Lease-end buyout cost',
     'buyout_asset_tag'       => 'Asset tag',
     'buyout_serial'          => 'Serial number',
     'buyout_no_match'        => 'No assigned laptop found on your account. If you do have one, type the asset tag below.',
