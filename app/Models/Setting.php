@@ -65,6 +65,7 @@ class Setting extends Model
         'google_client_id',
         'google_client_secret',
         'manager_view_enabled',
+        'forms_admin_group_prefix',
     ];
 
     protected $casts = [

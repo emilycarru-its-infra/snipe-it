@@ -32,11 +32,11 @@ class SettingsServiceProvider extends ServiceProvider
             $view->with('snipeSettings', Setting::getSettings());
         });
 
-        // Cache the user-form eligibility flag once per request, then
-        // share it with the layout that renders the account dropdown.
-        // The lookup runs at most once per request via the cached() static.
+        // Share the /forms accessibility flag with the layout that
+        // renders the account dropdown. FormRegistry + FormAccess
+        // memoize per-request so this composer is cheap to run.
         view()->composer('layouts.default', function ($view) {
-            $view->with('userFormEligible', \App\Http\Controllers\UserFormController::isEligible(auth()->user()));
+            $view->with('formsAccessible', \App\Forms\FormRegistry::anyAccessibleTo(auth()->user()));
         });
 
         // Make sure the limit is actually set, is an integer and does not exceed system limits

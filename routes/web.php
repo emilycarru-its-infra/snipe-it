@@ -27,8 +27,8 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
 use App\Http\Controllers\StorageProxyController;
+use App\Http\Controllers\FormsController;
 use App\Http\Controllers\UserAgreementsController;
-use App\Http\Controllers\UserFormController;
 use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
@@ -295,6 +295,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
     Route::post('ldap', [SettingsController::class, 'postLdapSettings'])
         ->name('settings.ldap.save');
 
+    Route::get('forms', [SettingsController::class, 'getForms'])
+        ->name('settings.forms.index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
+            ->push(trans('admin/forms/general.settings_title'), route('settings.forms.index')));
+
+    Route::post('forms', [SettingsController::class, 'postForms'])
+        ->name('settings.forms.save');
+
     Route::get('phpinfo', [SettingsController::class, 'getPhpInfo'])
         ->name('settings.phpinfo.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
@@ -548,19 +556,45 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('notes', [NotesController::class, 'store'])->name('notes.store');
 });
 
-Route::group(['middleware' => ['auth']], function () {
-    Route::get('user-form', [UserFormController::class, 'show'])
-        ->name('user-form.show')
+Route::group(['middleware' => ['auth'], 'prefix' => 'forms'], function () {
+    Route::get('/', [FormsController::class, 'index'])
+        ->name('forms.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('admin/user-form/general.title'), route('user-form.show')));
+            ->push(trans('admin/forms/general.title'), route('forms.index')));
 
-    Route::post('user-form', [UserFormController::class, 'submit'])
-        ->name('user-form.submit');
+    Route::get('{slug}', [FormsController::class, 'show'])
+        ->name('forms.show')
+        ->breadcrumbs(fn (Trail $trail, string $slug) => $trail->parent('forms.index')
+            ->push(\App\Forms\FormRegistry::find($slug)
+                ? trans(\App\Forms\FormRegistry::modules()[$slug]['label_key'])
+                : $slug, route('forms.show', $slug)));
 
-    Route::get('user-form/success', [UserFormController::class, 'success'])
-        ->name('user-form.success')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('user-form.show')
-            ->push(trans('admin/user-form/general.success_crumb'), route('user-form.success')));
+    Route::post('{slug}', [FormsController::class, 'submit'])
+        ->name('forms.submit');
+
+    Route::get('{slug}/success', [FormsController::class, 'success'])
+        ->name('forms.success')
+        ->breadcrumbs(fn (Trail $trail, string $slug) => $trail->parent('forms.show', $slug)
+            ->push(trans('admin/forms/general.success_crumb'), route('forms.success', $slug)));
+
+    Route::get('{slug}/submissions', [FormsController::class, 'submissionsIndex'])
+        ->name('forms.submissions.index')
+        ->breadcrumbs(fn (Trail $trail, string $slug) => $trail->parent('forms.show', $slug)
+            ->push(trans('admin/forms/general.submissions'), route('forms.submissions.index', $slug)));
+
+    Route::get('{slug}/submissions/{id}', [FormsController::class, 'submissionShow'])
+        ->name('forms.submissions.show')
+        ->breadcrumbs(fn (Trail $trail, string $slug, $id) => $trail->parent('forms.submissions.index', $slug)
+            ->push('#'.$id, route('forms.submissions.show', [$slug, $id])));
+});
+
+// Legacy /user-form URLs preserved as redirects so any external links
+// (emails, bookmarks) keep working after the /forms pivot.
+Route::group(['middleware' => ['auth']], function () {
+    Route::get('user-form', fn () => redirect()->route('forms.show', 'faculty-program'))
+        ->name('user-form.show');
+    Route::get('user-form/success', fn () => redirect()->route('forms.success', 'faculty-program'))
+        ->name('user-form.success');
 });
 
 Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
