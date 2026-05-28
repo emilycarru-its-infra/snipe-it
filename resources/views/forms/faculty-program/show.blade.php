@@ -90,6 +90,11 @@
                         <div class="alert alert-info" style="margin-bottom:0;">
                             <strong>{{ trans('admin/forms/faculty-program.buyout_prior_asset') }}:</strong>
                             {{ $priorAsset->asset_tag }} &middot; {{ $priorAsset->serial }} &middot; {{ $priorAsset->model?->name }}
+                            @if (! is_null($priorBuyoutCost))
+                                <br>
+                                <strong>{{ trans('admin/forms/faculty-program.buyout_cost') }}:</strong>
+                                ${{ \App\Helpers\Helper::formatCurrencyOutput($priorBuyoutCost) }}
+                            @endif
                         </div>
                     @endif
 
