@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('form_eligibility', function (Blueprint $table) {
             $table->id();
             $table->string('form_slug', 64);
-            $table->unsignedBigInteger('group_id');
+            $table->unsignedInteger('group_id');
             $table->timestamps();
 
             $table->unique(['form_slug', 'group_id']);
