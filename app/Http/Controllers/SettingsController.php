@@ -15,8 +15,11 @@ use App\Http\Requests\StoreSecuritySettings;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\CustomField;
+use App\Forms\FormRegistry;
+use App\Models\FormEligibility;
 use App\Models\Group;
 use App\Models\Setting;
+use App\Services\FormAccess;
 use App\Models\User;
 use App\Notifications\MailTest;
 use Illuminate\Contracts\View\View;
@@ -503,6 +506,54 @@ class SettingsController extends Controller
      *
      * @since [v4.0]
      */
+    public function getForms(): View
+    {
+        $setting = Setting::getSettings();
+        $modules = FormRegistry::modules();
+        $eligibility = FormEligibility::all()->groupBy('form_slug')
+            ->map(fn ($rows) => $rows->pluck('group_id')->all())
+            ->all();
+        $groups = Group::query()->orderBy('name')->get();
+        $matchedAdminGroups = FormAccess::adminGroups();
+
+        return view('settings.forms', compact('setting', 'modules', 'eligibility', 'groups', 'matchedAdminGroups'));
+    }
+
+    public function postForms(Request $request): RedirectResponse
+    {
+        if (is_null($setting = Setting::getSettings())) {
+            return redirect()->to('admin')->with('error', trans('admin/settings/message.update.error'));
+        }
+
+        $prefix = trim((string) $request->input('forms_admin_group_prefix', ''));
+        $setting->forms_admin_group_prefix = $prefix === '' ? null : $prefix;
+
+        if (! $setting->save()) {
+            return redirect()->back()->withInput()->withErrors($setting->getErrors());
+        }
+
+        $eligibility = $request->input('eligibility', []);
+        foreach (array_keys(FormRegistry::modules()) as $slug) {
+            $desired = array_filter(array_map('intval', (array) ($eligibility[$slug] ?? [])));
+            $existing = FormEligibility::where('form_slug', $slug)->pluck('group_id')->map(fn ($id) => (int) $id)->all();
+
+            $toAdd = array_diff($desired, $existing);
+            $toRemove = array_diff($existing, $desired);
+
+            foreach ($toAdd as $groupId) {
+                FormEligibility::create(['form_slug' => $slug, 'group_id' => $groupId]);
+            }
+            if (! empty($toRemove)) {
+                FormEligibility::where('form_slug', $slug)->whereIn('group_id', $toRemove)->delete();
+            }
+        }
+
+        FormAccess::flush();
+
+        return redirect()->route('settings.forms.index')
+            ->with('success', trans('admin/forms/general.settings_saved'));
+    }
+
     public function getPhpInfo(): View|RedirectResponse
     {
         if (config('app.debug') === true) {

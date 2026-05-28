@@ -1413,11 +1413,11 @@
                                                 </a></li>
                                         @endcan
 
-                                        @if (! empty($userFormEligible))
-                                            <li {!! (request()->is('user-form*') ? ' class="active"' : '') !!}>
-                                                <a href="{{ route('user-form.show') }}">
-                                                    <i class="fas fa-laptop fa-fw" aria-hidden="true"></i>
-                                                    {{ trans('admin/user-form/general.menu_link') }}
+                                        @if (! empty($formsAccessible))
+                                            <li {!! (request()->is('forms*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('forms.index') }}">
+                                                    <i class="fas fa-file-alt fa-fw" aria-hidden="true"></i>
+                                                    {{ trans('admin/forms/general.menu_link') }}
                                                 </a>
                                             </li>
                                         @endif
