@@ -1173,6 +1173,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
      * User Agreements API routes
      */
     Route::group(['prefix' => 'user-agreements'], function () {
+        // Reconciler must be declared BEFORE the `{userAgreement}/...`
+        // routes — otherwise the `reconcile` literal gets bound as a
+        // userAgreement id by the route model binder.
+        Route::post('reconcile',
+            [Api\UserAgreementsController::class, 'reconcile']
+        )->name('api.user-agreements.reconcile');
+
         Route::post('{userAgreement}/send-for-signature',
             [Api\UserAgreementsController::class, 'sendForSignature']
         )->name('api.user-agreements.send-for-signature');
