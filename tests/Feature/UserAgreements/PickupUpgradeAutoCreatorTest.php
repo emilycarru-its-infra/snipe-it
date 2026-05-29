@@ -184,3 +184,4 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         $this->assertDatabaseMissing('user_agreements', ['asset_id' => $newAsset->id]);
     }
 }
+
