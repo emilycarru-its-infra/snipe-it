@@ -147,8 +147,8 @@ class AssetObserver
             app(PurchaseAutoCreator::class)->ensureFor($asset);
         } catch (\Throwable $e) {
             Log::error('purchase auto-create failed', [
-                'asset_id' => $asset->id,
-                'message'  => $e->getMessage(),
+                'asset_id'  => $asset->id,
+                'exception' => $e,
             ]);
         }
     }

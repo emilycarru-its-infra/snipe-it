@@ -11,6 +11,15 @@ use Tests\TestCase;
 
 class PurchaseAutoCreatorTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Pin the trigger to a known name regardless of the test
+        // environment so these tests do not depend on the
+        // USER_AGREEMENT_LEASE_END_STATUS_LABELS env default.
+        config()->set('forms.purchase_auto_create.lease_end_status_labels', ['Active (Lease End)']);
+    }
+
     private function leaseEndStatus(): Statuslabel
     {
         return Statuslabel::factory()->create([
@@ -96,8 +105,10 @@ class PurchaseAutoCreatorTest extends TestCase
         $leaseEnd = $this->leaseEndStatus();
         $asset    = $this->assetAssignedTo($user, $leaseEnd, 600.00);
 
-        // Initial save already created the row via the observer; calling
-        // the service again with the same asset must not duplicate.
+        // Asset::factory()->create() runs the `creating` lifecycle, not
+        // `updated`, so the observer's auto-create path never fires
+        // here. Both ensureFor() calls below exercise the service
+        // directly to assert idempotency.
         $first  = app(PurchaseAutoCreator::class)->ensureFor($asset);
         $second = app(PurchaseAutoCreator::class)->ensureFor($asset);
 
