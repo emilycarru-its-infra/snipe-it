@@ -36,7 +36,7 @@ return [
     'upgrade_amount' => 'Upgrade amount',
     'type_pickup'  => 'new laptop pickup',
     'type_upgrade' => 'paid upgrade',
-    'type_buyout'  => 'lease-end buyout',
+    'type_purchase' => 'purchase',
 
     'pregen_panel_title'   => 'Pre-generate unsigned PDFs',
     'pregen_panel_help'    => 'Caches an unsigned PDF for every eligible/quoted agreement so signing requests open instantly. Runs nightly at 05:00; trigger now to skip the wait.',

@@ -71,7 +71,7 @@ class FacultyProgramFormTest extends TestCase
         $this->assertSame('no upgrades please', $pickup->notes);
     }
 
-    public function test_buyout_yes_also_creates_lease_end_purchase_agreement(): void
+    public function test_buyout_yes_also_creates_purchase_agreement(): void
     {
         $user = $this->facultyUser();
 
@@ -89,7 +89,7 @@ class FacultyProgramFormTest extends TestCase
         $agreements = UserAgreement::where('user_id', $user->id)->get();
         $this->assertCount(2, $agreements);
 
-        $buyout = $agreements->firstWhere('agreement_type', 'lease_end_purchase');
+        $buyout = $agreements->firstWhere('agreement_type', 'purchase');
         $this->assertNotNull($buyout);
         $this->assertSame('quoted', $buyout->lifecycle_stage);
         $this->assertSame('ECI-12345', $buyout->old_asset_tag);

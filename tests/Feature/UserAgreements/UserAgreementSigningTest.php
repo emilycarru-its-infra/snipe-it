@@ -31,7 +31,7 @@ class UserAgreementSigningTest extends TestCase
         $asset = $this->newAssignedAsset();
 
         $agreement = UserAgreement::create([
-            'agreement_type' => 'lease_end_purchase',
+            'agreement_type' => 'purchase',
             'user_id' => $user->id,
             'asset_id' => $asset->id,
             'lifecycle_stage' => 'quoted',
@@ -143,7 +143,7 @@ class UserAgreementSigningTest extends TestCase
         $user = User::factory()->create(['first_name' => 'Daphne', 'last_name' => 'Plessner']);
         $asset = $this->newAssignedAsset();
         $agreement = UserAgreement::create([
-            'agreement_type' => 'lease_end_purchase',
+            'agreement_type' => 'purchase',
             'user_id' => $user->id,
             'asset_id' => $asset->id,
             'lifecycle_stage' => 'quoted',

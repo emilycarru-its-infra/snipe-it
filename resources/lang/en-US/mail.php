@@ -128,7 +128,7 @@ return [
 
     'user_agreement_signature_request_pickup'      => 'Your Faculty Laptop pickup agreement is ready to sign (:asset_tag)',
     'user_agreement_signature_request_upgrade'     => 'Your Faculty Laptop upgrade agreement is ready to sign (:asset_tag)',
-    'user_agreement_signature_request_buyout'      => 'Your Faculty Laptop buyout agreement is ready to sign (:asset_tag)',
+    'user_agreement_signature_request_purchase'    => 'Your Faculty Laptop purchase agreement is ready to sign (:asset_tag)',
     'user_agreement_signature_request_greeting'    => 'Hi :name,',
     'user_agreement_signature_request_body'        => 'Your :type agreement for :asset_tag (:model) is ready for your signature. Please review and sign at your convenience.',
     'user_agreement_signature_request_cta'         => 'Review and sign',

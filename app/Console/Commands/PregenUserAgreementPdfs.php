@@ -10,9 +10,9 @@ use Illuminate\Support\Facades\Log;
  * Bulk-render unsigned user-agreement PDFs to disk so each
  * agreement is "signature-ready" before any email goes out. Backs the
  * summer User Agreement Program rollout: each eligible laptop
- * has up to three UserAgreement rows (pickup / upgrade /
- * lease_end_purchase), and Sohee wants the PDFs cached so opening or
- * sending one is instant.
+ * has up to three UserAgreement rows (pickup / upgrade / purchase),
+ * and Sohee wants the PDFs cached so opening or sending one is
+ * instant.
  *
  * By default operates on agreements still in early lifecycle stages
  * (`eligible`, `quoted`) that don't already have a stored PDF. Use
@@ -24,7 +24,7 @@ class PregenUserAgreementPdfs extends Command
     protected $signature = 'snipeit:user-pregen-pdfs
                             {--user= : Limit to a single user_id}
                             {--asset= : Limit to a single asset_id}
-                            {--type= : Limit to one agreement_type (pickup|upgrade|lease_end_purchase)}
+                            {--type= : Limit to one agreement_type (pickup|upgrade|purchase)}
                             {--all : Include agreement_sent stage in addition to eligible/quoted}
                             {--force : Re-render even when pdf_path is already set}
                             {--dry-run : Report what would be rendered without writing}';

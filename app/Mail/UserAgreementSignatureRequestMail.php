@@ -33,9 +33,9 @@ class UserAgreementSignatureRequestMail extends BaseMailable
     public function envelope(): Envelope
     {
         $subjectKey = match ($this->agreement->agreement_type) {
-            'upgrade'            => 'mail.user_agreement_signature_request_upgrade',
-            'lease_end_purchase' => 'mail.user_agreement_signature_request_buyout',
-            default              => 'mail.user_agreement_signature_request_pickup',
+            'upgrade'  => 'mail.user_agreement_signature_request_upgrade',
+            'purchase' => 'mail.user_agreement_signature_request_purchase',
+            default    => 'mail.user_agreement_signature_request_pickup',
         };
 
         return new Envelope(

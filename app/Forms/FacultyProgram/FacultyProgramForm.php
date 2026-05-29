@@ -68,7 +68,7 @@ class FacultyProgramForm extends FormDefinition
         $buyout = null;
         if ($validated['buyout_decision'] === 'yes') {
             $buyout = UserAgreement::create([
-                'agreement_type'    => 'lease_end_purchase',
+                'agreement_type'    => 'purchase',
                 'user_id'           => $user->id,
                 'lifecycle_stage'   => 'quoted',
                 'payment_method'    => $validated['payment_method'],
