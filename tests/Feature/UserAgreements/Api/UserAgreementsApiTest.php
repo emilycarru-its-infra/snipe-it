@@ -266,3 +266,4 @@ class UserAgreementsApiTest extends TestCase
         $this->assertStringStartsWith('application/pdf', $response->headers->get('Content-Type'));
     }
 }
+
