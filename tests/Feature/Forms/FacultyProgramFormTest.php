@@ -53,6 +53,7 @@ class FacultyProgramFormTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('forms.submit', 'faculty-program'), [
+                'acknowledge_top_up' => '1',
                 'payment_method'  => 'pay_in_full',
                 'buyout_decision' => 'no_prior_laptop',
                 'notes'           => 'no upgrades please',
@@ -76,6 +77,7 @@ class FacultyProgramFormTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('forms.submit', 'faculty-program'), [
+                'acknowledge_top_up' => '1',
                 'payment_method'   => 'payroll_deduction',
                 'buyout_decision'  => 'yes',
                 'buyout_asset_tag' => 'ECI-12345',
@@ -106,6 +108,21 @@ class FacultyProgramFormTest extends TestCase
                 'accept_terms'    => '1',
             ])
             ->assertSessionHasErrors('buyout_asset_tag');
+
+        $this->assertCount(0, UserAgreement::where('user_id', $user->id)->get());
+    }
+
+    public function test_missing_top_up_acknowledgment_fails_validation(): void
+    {
+        $user = $this->facultyUser();
+
+        $this->actingAs($user)
+            ->post(route('forms.submit', 'faculty-program'), [
+                'payment_method'  => 'pay_in_full',
+                'buyout_decision' => 'no_prior_laptop',
+                'accept_terms'    => '1',
+            ])
+            ->assertSessionHasErrors('acknowledge_top_up');
 
         $this->assertCount(0, UserAgreement::where('user_id', $user->id)->get());
     }
