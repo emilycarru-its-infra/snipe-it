@@ -7,7 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\FilterRequest;
 use App\Http\Transformers\UserAgreementsTransformer;
 use App\Models\Order;
+use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\UserAgreements\ReconciliationReport;
+use App\Services\UserAgreements\Reconciler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -265,5 +268,98 @@ class UserAgreementsController extends Controller
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$filename.'"',
         ]);
+    }
+
+    /**
+     * Trigger a Reconciler sweep over every faculty-eligible user, or
+     * scope to one with `user_id`. Pass `dry_run=true` to preview the
+     * plan without writing. Returns aggregate counts plus the
+     * per-user reports for any user that produced changes / plans.
+     *
+     * Same write path as the nightly `snipeit:user-agreements-reconcile`
+     * artisan command — wraps the Reconciler service so the prod path
+     * does not require shell access.
+     */
+    public function reconcile(Request $request, Reconciler $reconciler): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $dryRun = filter_var($request->input('dry_run', false), FILTER_VALIDATE_BOOLEAN);
+
+        $reports = [];
+        if ($userId = $request->input('user_id')) {
+            $user = User::find($userId);
+            if (! $user) {
+                return response()->json(Helper::formatStandardApiResponse(
+                    'error',
+                    null,
+                    'User #'.$userId.' not found.'
+                ), 404);
+            }
+            $reports = [$reconciler->reconcileForUser($user, $dryRun)];
+        } else {
+            $reports = $reconciler->reconcileAll($dryRun);
+        }
+
+        $totals = [
+            'pickup'   => 0,
+            'upgrade'  => 0,
+            'purchase' => 0,
+            'status'   => 0,
+        ];
+        $changedReports = [];
+
+        foreach ($reports as $r) {
+            if ($dryRun) {
+                $totals['pickup']   += $r->plannedPickup;
+                $totals['upgrade']  += $r->plannedUpgrade;
+                $totals['purchase'] += $r->plannedPurchase;
+                $totals['status']   += $r->plannedStatusFlip;
+                if ($r->hasPlans()) {
+                    $changedReports[] = self::reportToArray($r, $dryRun);
+                }
+            } else {
+                $totals['pickup']   += $r->createdPickup;
+                $totals['upgrade']  += $r->createdUpgrade;
+                $totals['purchase'] += $r->createdPurchase;
+                $totals['status']   += $r->statusFlipped;
+                if ($r->hasChanges()) {
+                    $changedReports[] = self::reportToArray($r, $dryRun);
+                }
+            }
+        }
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            [
+                'dry_run'       => $dryRun,
+                'users_scanned' => count($reports),
+                'users_changed' => count($changedReports),
+                'totals'        => $totals,
+                'reports'       => $changedReports,
+            ],
+            $dryRun
+                ? 'Reconciler dry-run complete.'
+                : 'Reconciler pass complete.'
+        ));
+    }
+
+    /** @return array<string, mixed> */
+    private static function reportToArray(ReconciliationReport $r, bool $dryRun): array
+    {
+        return $dryRun ? [
+            'user_id'              => $r->userId,
+            'planned_pickup'       => $r->plannedPickup,
+            'planned_upgrade'      => $r->plannedUpgrade,
+            'planned_purchase'     => $r->plannedPurchase,
+            'planned_status_flip'  => $r->plannedStatusFlip,
+        ] : [
+            'user_id'        => $r->userId,
+            'created_pickup' => $r->createdPickup,
+            'created_upgrade' => $r->createdUpgrade,
+            'created_purchase' => $r->createdPurchase,
+            'status_flipped' => $r->statusFlipped,
+            'created_row_ids' => $r->createdRowIds,
+        ];
     }
 }
