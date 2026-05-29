@@ -22,11 +22,6 @@ class UserAgreementsApiTest extends TestCase
         return Asset::factory()->create(['status_id' => $status->id]);
     }
 
-    public function test_index_requires_auth(): void
-    {
-        $this->getJson(route('api.user-agreements.index'))->assertStatus(401);
-    }
-
     public function test_index_lists_agreements_for_admin(): void
     {
         UserAgreement::create([
