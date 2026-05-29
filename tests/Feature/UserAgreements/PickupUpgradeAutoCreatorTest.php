@@ -21,6 +21,10 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         $group = Group::factory()->create(['name' => 'Regular Faculty']);
         $user->groups()->attach($group->id);
         FormEligibility::create(['form_slug' => 'faculty-program', 'group_id' => $group->id]);
+        // FormAccess memoises canSubmit per-request; if anything called
+        // it before the eligibility row existed (model factories, the
+        // settings provider, etc.) the cached "false" would stick.
+        \App\Services\FormAccess::flush();
         return $user;
     }
 
