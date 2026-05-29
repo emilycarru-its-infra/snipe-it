@@ -22,13 +22,8 @@ class PurchaseAutoCreatorTest extends TestCase
 
     private function leaseEndStatus(): Statuslabel
     {
-        return Statuslabel::factory()->create([
-            'name'          => 'Active (Lease End)',
-            'status_type'   => 'deployable',
-            'deployable'    => 1,
-            'pending'       => 0,
-            'archived'      => 0,
-            'show_in_nav'   => 1,
+        return Statuslabel::factory()->rtd()->create([
+            'name' => 'Active (Lease End)',
         ]);
     }
 
