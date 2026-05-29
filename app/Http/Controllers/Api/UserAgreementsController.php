@@ -97,12 +97,38 @@ class UserAgreementsController extends Controller
         );
     }
 
+    /**
+     * Fields a client is allowed to set through store/update. PDF
+     * paths, signature stamps, acceptance FK, reminder bookkeeping,
+     * and lifecycle timestamps are all set by the server (the model's
+     * sendForSignature/markSigned helpers, the pregen artisan, the
+     * reminder cron). Keeping them off this list prevents a caller
+     * with API access from forging a signed/sent state by hand.
+     */
+    private const CLIENT_EDITABLE_FIELDS = [
+        'agreement_type',
+        'user_id',
+        'asset_id',
+        'lifecycle_stage',
+        'base_program_price',
+        'device_cost',
+        'top_up_amount',
+        'buyout_cost',
+        'payment_method',
+        'installment_count',
+        'installment_amount',
+        'old_asset_tag',
+        'old_serial',
+        'lease_contract',
+        'notes',
+    ];
+
     public function store(Request $request): JsonResponse
     {
         $this->authorize('create', Order::class);
 
         $agreement = new UserAgreement;
-        $agreement->fill($request->all());
+        $agreement->fill($request->only(self::CLIENT_EDITABLE_FIELDS));
         $agreement->lifecycle_stage = $request->input('lifecycle_stage', 'eligible');
         $agreement->created_by      = auth()->id();
 
@@ -121,7 +147,7 @@ class UserAgreementsController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        $userAgreement->fill($request->all());
+        $userAgreement->fill($request->only(self::CLIENT_EDITABLE_FIELDS));
 
         if (! $userAgreement->save()) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $userAgreement->getErrors()));
