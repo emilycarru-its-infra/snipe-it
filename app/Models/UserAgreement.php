@@ -120,6 +120,8 @@ class UserAgreement extends SnipeModel
         'lease_contract',
         'checkout_acceptance_id',
         'notes',
+        'reminders_sent',
+        'last_reminder_sent_at',
     ];
 
     protected $casts = [
@@ -129,6 +131,8 @@ class UserAgreement extends SnipeModel
         'sent_to_payroll_at' => 'datetime',
         'deployed_at' => 'datetime',
         'closed_at' => 'datetime',
+        'last_reminder_sent_at' => 'datetime',
+        'reminders_sent' => 'integer',
     ];
 
     protected $searchableAttributes = ['agreement_type', 'lifecycle_stage', 'old_asset_tag', 'old_serial', 'lease_contract', 'notes'];
