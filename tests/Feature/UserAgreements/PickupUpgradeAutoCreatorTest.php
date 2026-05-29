@@ -136,6 +136,21 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         $this->assertDatabaseMissing('user_agreements', ['asset_id' => $newAsset->id]);
     }
 
+    public function test_skip_when_other_asset_lease_already_ended(): void
+    {
+        $user = $this->facultyUser();
+        // Lease end is in the past — window is "near future", not
+        // "any past date" — so this user does not qualify.
+        $this->assetWithLeaseEndingAt($user, Carbon::now()->subMonths(2), 2200.00);
+
+        $newAsset = Asset::factory()->create(['status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
+        $newAsset->assigned_to   = $user->id;
+        $newAsset->assigned_type = User::class;
+        $newAsset->save();
+
+        $this->assertDatabaseMissing('user_agreements', ['asset_id' => $newAsset->id]);
+    }
+
     public function test_is_idempotent_on_repeat_call(): void
     {
         $user = $this->facultyUser();

@@ -173,8 +173,8 @@ class AssetObserver
             app(PickupUpgradeAutoCreator::class)->ensureForCheckout($asset);
         } catch (\Throwable $e) {
             Log::error('pickup/upgrade auto-create failed', [
-                'asset_id' => $asset->id,
-                'message'  => $e->getMessage(),
+                'asset_id'  => $asset->id,
+                'exception' => $e,
             ]);
         }
     }
