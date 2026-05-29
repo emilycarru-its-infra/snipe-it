@@ -34,4 +34,7 @@ enum ActionType: string
     // File Uploads
     case Uploaded = 'uploaded';
     case UploadDeleted = 'upload deleted';
+
+    // UserAgreements
+    case UserAgreementReminder = 'user agreement reminder';
 }
