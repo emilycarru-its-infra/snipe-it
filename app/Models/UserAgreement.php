@@ -229,7 +229,24 @@ class UserAgreement extends SnipeModel
             'buyout_cost' => $this->formatMoney($buyout),
             'monthly_12' => $this->formatMoney($top > 0 ? $top / 12 : 0),
             'monthly_24' => $this->formatMoney($top > 0 ? $top / 24 : 0),
+            'payment_phrase' => $this->paymentPhrase(),
         ];
+    }
+
+    /**
+     * Human-readable description of the chosen payment method, slotted
+     * into agreement bodies via the {{payment_phrase}} merge variable.
+     * Falls back to a neutral "as agreed" when no method is set yet, so
+     * a preview rendered before the user picks one still produces a
+     * grammatical sentence.
+     */
+    private function paymentPhrase(): string
+    {
+        return match ($this->payment_method) {
+            'pay_in_full'        => 'via a one-time payment',
+            'payroll_deduction'  => 'via payroll deductions',
+            default              => 'as agreed',
+        };
     }
 
     /**

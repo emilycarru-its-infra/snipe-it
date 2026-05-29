@@ -52,7 +52,7 @@ return [
     'purchase_title' => 'Faculty Laptop Purchase Agreement',
     'purchase_body' => "Faculty Laptop Purchase Agreement\n\n".
         "I, {{faculty_name}}, hereby acknowledge I would like to purchase the laptop {{model}} with serial number {{serial}} (Asset Tag: {{asset_tag}}) which I have been using as my assigned device under the Faculty Laptop Program.\n\n".
-        "I agree to pay the residual cost of {{buyout_cost}} via one-time payroll deduction.\n\n".
+        "I agree to pay the residual cost of {{buyout_cost}} {{payment_phrase}}.\n\n".
         "I agree that I am purchasing the laptop in its as-is condition.\n\n".
         "I agree and understand that this device will be un-managed by Emily Carr and thus is to be treated as a personally owned device and that ITS is no longer able and willing to provide technical support for this laptop.\n\n".
         "Date: {{date}}",

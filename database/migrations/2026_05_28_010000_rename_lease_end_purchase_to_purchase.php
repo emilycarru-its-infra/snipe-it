@@ -11,7 +11,13 @@ use Illuminate\Support\Facades\DB;
  * the type generic prevents a second near-duplicate enum.
  *
  * `agreement_type` is a plain string column with no DB enum, so this is
- * a pure data backfill. Reversible.
+ * a pure data backfill.
+ *
+ * NOT safely reversible. Once new code accepts `purchase` for rows
+ * that were never the old `lease_end_purchase` type (outright sales,
+ * accessory bundles), there is no way to tell at rollback time which
+ * `purchase` rows were converted from `lease_end_purchase` and which
+ * were created fresh. `down()` is therefore a no-op.
  */
 return new class extends Migration {
     public function up(): void
@@ -23,8 +29,6 @@ return new class extends Migration {
 
     public function down(): void
     {
-        DB::table('user_agreements')
-            ->where('agreement_type', 'purchase')
-            ->update(['agreement_type' => 'lease_end_purchase']);
+        // Intentionally no-op — see class docblock.
     }
 };
