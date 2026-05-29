@@ -1,8 +1,8 @@
 @php
     $typeLabel = match ($agreement->agreement_type) {
-        'upgrade'            => trans('admin/user-agreements/general.type_upgrade'),
-        'lease_end_purchase' => trans('admin/user-agreements/general.type_buyout'),
-        default              => trans('admin/user-agreements/general.type_pickup'),
+        'upgrade'  => trans('admin/user-agreements/general.type_upgrade'),
+        'purchase' => trans('admin/user-agreements/general.type_purchase'),
+        default    => trans('admin/user-agreements/general.type_pickup'),
     };
 @endphp
 @component('mail::message')

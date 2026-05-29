@@ -16,10 +16,11 @@ use Watson\Validating\ValidatingTrait;
 
 /**
  * User Agreement Program agreement — a single record covers any of the
- * three form types (new laptop pickup, paid upgrade above the program
- * base price, lease-end buyout) through their shared lifecycle:
- * eligible → quoted → agreement_sent → agreement_signed → deployed →
- * in_repayment → paid_off (or closed_buyout, for lease-end purchases).
+ * three agreement types (new laptop pickup, paid upgrade above the
+ * program base price, outright purchase incl. lease-end buyouts)
+ * through their shared lifecycle: eligible → quoted → agreement_sent
+ * → agreement_signed → deployed → in_repayment → paid_off
+ * (or closed_buyout, for purchases).
  */
 class UserAgreement extends SnipeModel
 {
@@ -34,7 +35,7 @@ class UserAgreement extends SnipeModel
     public const AGREEMENT_TYPES = [
         'pickup',
         'upgrade',
-        'lease_end_purchase',
+        'purchase',
     ];
 
     public const LIFECYCLE_STAGES = [
@@ -55,7 +56,7 @@ class UserAgreement extends SnipeModel
     ];
 
     protected $rules = [
-        'agreement_type' => 'required|string|in:pickup,upgrade,lease_end_purchase',
+        'agreement_type' => 'required|string|in:pickup,upgrade,purchase',
         'user_id' => 'nullable|exists:users,id',
         'asset_id' => 'nullable|exists:assets,id',
         'lifecycle_stage' => 'required|string|in:eligible,quoted,agreement_sent,agreement_signed,deployed,in_repayment,paid_off,closed_buyout,closed',
@@ -154,13 +155,13 @@ class UserAgreement extends SnipeModel
 
     /**
      * Total contract value finance cares about — top-up for upgrades,
-     * buyout for lease-end purchases, device cost for plain pickups.
+     * buyout for purchases, device cost for plain pickups.
      */
     public function contractValue(): float
     {
         return match ($this->agreement_type) {
             'upgrade' => (float) $this->top_up_amount,
-            'lease_end_purchase' => (float) $this->buyout_cost,
+            'purchase' => (float) $this->buyout_cost,
             default => (float) ($this->device_cost ?? 0.0),
         };
     }
@@ -241,7 +242,7 @@ class UserAgreement extends SnipeModel
         $key = match ($this->agreement_type) {
             'pickup' => 'admin/user-agreements/eula.pickup_body',
             'upgrade' => 'admin/user-agreements/eula.upgrade_body',
-            'lease_end_purchase' => 'admin/user-agreements/eula.lease_end_body',
+            'purchase' => 'admin/user-agreements/eula.purchase_body',
             default => null,
         };
 

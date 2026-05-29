@@ -80,8 +80,8 @@
                         {{ trans('admin/user-agreements/eula.pickup_title') }}
                     @elseif ($agreement->agreement_type === 'upgrade')
                         {{ trans('admin/user-agreements/eula.upgrade_title') }}
-                    @elseif ($agreement->agreement_type === 'lease_end_purchase')
-                        {{ trans('admin/user-agreements/eula.lease_end_title') }}
+                    @elseif ($agreement->agreement_type === 'purchase')
+                        {{ trans('admin/user-agreements/eula.purchase_title') }}
                     @endif
                 </h3>
             </div>

@@ -49,9 +49,8 @@ return [
         "  [ ] 24-month payment plan: {{monthly_24}}/month (recommended)\n\n".
         "Date: {{date}}",
 
-    'lease_end_title' => 'Faculty Laptop Lease-End Purchase Agreement',
-    'lease_end_body' => "Faculty Laptop Purchase Agreement\n".
-        "Lease End Purchase Option\n\n".
+    'purchase_title' => 'Faculty Laptop Purchase Agreement',
+    'purchase_body' => "Faculty Laptop Purchase Agreement\n\n".
         "I, {{faculty_name}}, hereby acknowledge I would like to purchase the laptop {{model}} with serial number {{serial}} (Asset Tag: {{asset_tag}}) which I have been using as my assigned device under the Faculty Laptop Program.\n\n".
         "I agree to pay the residual cost of {{buyout_cost}} via one-time payroll deduction.\n\n".
         "I agree that I am purchasing the laptop in its as-is condition.\n\n".

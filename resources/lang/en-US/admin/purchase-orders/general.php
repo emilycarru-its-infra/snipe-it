@@ -194,7 +194,7 @@ return [
     'user_agreement_type' => 'Type',
     'user_agreement_type_value_pickup' => 'New Laptop Pickup',
     'user_agreement_type_value_upgrade' => 'Paid Upgrade',
-    'user_agreement_type_value_lease_end_purchase' => 'Lease-End Buyout',
+    'user_agreement_type_value_purchase' => 'Purchase',
     'user_agreement_member' => 'Faculty Member',
     'user_agreement_stage' => 'Stage',
     'user_agreement_stage_value_eligible' => 'Eligible',
