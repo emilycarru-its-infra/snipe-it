@@ -431,7 +431,7 @@ class ProcurementReportsTest extends TestCase
             'top_up_amount' => 500,
         ]);
         UserAgreement::create([
-            'agreement_type' => 'lease_end_purchase',
+            'agreement_type' => 'purchase',
             'user_id' => $user->id,
             'lifecycle_stage' => 'closed_buyout',
             'buyout_cost' => 800,
@@ -439,7 +439,7 @@ class ProcurementReportsTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.user-agreement-ledger', ['agreement_type' => 'lease_end_purchase']))
+            ->get(route('reports.procurement.user-agreement-ledger', ['agreement_type' => 'purchase']))
             ->assertOk()
             ->assertSee('$800.00')
             ->assertDontSee('$500.00');
