@@ -659,6 +659,18 @@ class Asset extends Depreciable
     }
 
     /**
+     * Inverse of Contract::assets() — needed by the UserAgreement auto-create
+     * pipeline so it can ask an asset for the contract whose end_date drives
+     * the "within N months of lease end" check.
+     */
+    public function contracts()
+    {
+        return $this->belongsToMany(Contract::class, 'contract_asset')
+            ->withPivot(['valid_from', 'valid_to', 'notes'])
+            ->withTimestamps();
+    }
+
+    /**
      * Establishes the asset -> depreciation relationship
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]

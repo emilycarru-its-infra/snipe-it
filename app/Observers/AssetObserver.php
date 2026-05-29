@@ -7,6 +7,8 @@ use App\Models\Asset;
 use App\Models\OrderItem;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Models\User;
+use App\Services\UserAgreements\PickupUpgradeAutoCreator;
 use App\Services\UserAgreements\PurchaseAutoCreator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -131,6 +133,49 @@ class AssetObserver
         if ($asset->wasChanged('status_id')) {
             $this->markOrderItemsReceived($asset);
             $this->autoCreatePurchaseIfLeaseEnd($asset);
+        }
+
+        if ($this->wasJustCheckedOutToUser($asset)) {
+            $this->autoCreatePickupOnCheckout($asset);
+        }
+    }
+
+    /**
+     * True when this save flipped `assigned_to` from "not a user" to "a
+     * specific user" — i.e. a fresh checkout. Re-saves of an already
+     * assigned asset, or check-ins (assigned_to → null), return false.
+     */
+    private function wasJustCheckedOutToUser(Asset $asset): bool
+    {
+        if (! $asset->wasChanged('assigned_to') && ! $asset->wasChanged('assigned_type')) {
+            return false;
+        }
+
+        if ($asset->assigned_type !== User::class || ! $asset->assigned_to) {
+            return false;
+        }
+
+        $previousType = $asset->getOriginal('assigned_type');
+        $previousId   = $asset->getOriginal('assigned_to');
+
+        // Already assigned to the same user before this save → not a
+        // new checkout.
+        if ($previousType === User::class && (int) $previousId === (int) $asset->assigned_to) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function autoCreatePickupOnCheckout(Asset $asset): void
+    {
+        try {
+            app(PickupUpgradeAutoCreator::class)->ensureForCheckout($asset);
+        } catch (\Throwable $e) {
+            Log::error('pickup/upgrade auto-create failed', [
+                'asset_id'  => $asset->id,
+                'exception' => $e,
+            ]);
         }
     }
 

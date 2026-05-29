@@ -27,6 +27,10 @@ use Illuminate\Support\Facades\Log;
  */
 class PurchaseAutoCreator
 {
+    public function __construct(private readonly CostResolver $costs)
+    {
+    }
+
     public function ensureFor(Asset $asset): ?UserAgreement
     {
         if (! $this->isLeaseEndStatus($asset)) {
@@ -59,7 +63,7 @@ class PurchaseAutoCreator
                 'user_id'         => $userId,
                 'asset_id'        => $asset->id,
                 'lifecycle_stage' => 'quoted',
-                'buyout_cost'     => $asset->purchase_cost === null ? null : (float) $asset->purchase_cost,
+                'buyout_cost'     => $this->costs->buyoutCost($asset),
                 'old_asset_tag'   => $asset->asset_tag,
                 'old_serial'      => $asset->serial,
             ]);
