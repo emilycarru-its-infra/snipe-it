@@ -36,7 +36,7 @@ class CostResolver
 
     public function deviceCost(Asset $asset): ?float
     {
-        return $asset->purchase_cost === null ? null : (float) $asset->purchase_cost;
+        return $asset->purchase_cost ? (float) $asset->purchase_cost : null;
     }
 
     public function topUpAmount(Asset $asset, ?float $deviceCost = null, ?float $basePrice = null): ?float
@@ -53,6 +53,6 @@ class CostResolver
 
     public function buyoutCost(Asset $asset): ?float
     {
-        return $asset->purchase_cost === null ? null : (float) $asset->purchase_cost;
+        return $asset->purchase_cost ? (float) $asset->purchase_cost : null;
     }
 }

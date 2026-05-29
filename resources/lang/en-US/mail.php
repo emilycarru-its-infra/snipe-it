@@ -134,4 +134,9 @@ return [
     'user_agreement_signature_request_cta'         => 'Review and sign',
     'user_agreement_signature_request_attachment_note' => 'A copy of the unsigned agreement is attached for your records.',
     'user_agreement_signature_request_footer'      => 'Questions? Reply to this email and the ITAM team will help.',
+
+    'user_agreement_signature_reminder_subject'    => 'Reminder #:number — your Faculty Laptop agreement is still waiting (:asset_tag)',
+    'user_agreement_signature_reminder_greeting'   => 'Hi :name,',
+    'user_agreement_signature_reminder_body'       => 'This is a reminder (#:number) that your :type agreement for :asset_tag (:model) is still waiting for your signature. Please review and sign when you have a moment.',
+    'user_agreement_signature_reminder_cta'        => 'Review and sign now',
 ];

@@ -27,6 +27,8 @@ use Illuminate\Support\Facades\Log;
  */
 class PurchaseAutoCreator
 {
+    private const OPEN_STAGES = ['eligible', 'quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment'];
+
     public function __construct(private readonly CostResolver $costs)
     {
     }
@@ -50,31 +52,22 @@ class PurchaseAutoCreator
             ->where('user_id', $userId)
             ->where('asset_id', $asset->id)
             ->where('agreement_type', 'purchase')
-            ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
+            ->whereIn('lifecycle_stage', self::OPEN_STAGES)
             ->first();
 
         if ($existing) {
             return $existing;
         }
 
-        try {
-            $agreement = UserAgreement::create([
-                'agreement_type'  => 'purchase',
-                'user_id'         => $userId,
-                'asset_id'        => $asset->id,
-                'lifecycle_stage' => 'quoted',
-                'buyout_cost'     => $this->costs->buyoutCost($asset),
-                'old_asset_tag'   => $asset->asset_tag,
-                'old_serial'      => $asset->serial,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('purchase auto-create: DB write failed, skipping', [
-                'asset_id'  => $asset->id,
-                'user_id'   => $userId,
-                'exception' => $e,
-            ]);
-            return null;
-        }
+        $agreement = UserAgreement::create([
+            'agreement_type'  => 'purchase',
+            'user_id'         => $userId,
+            'asset_id'        => $asset->id,
+            'lifecycle_stage' => 'quoted',
+            'buyout_cost'     => $this->costs->buyoutCost($asset),
+            'old_asset_tag'   => $asset->asset_tag,
+            'old_serial'      => $asset->serial,
+        ]);
 
         Log::info('purchase auto-create: row created', [
             'agreement_id' => $agreement->id,
@@ -99,8 +92,8 @@ class PurchaseAutoCreator
         }
 
         // Avoid a query when the relation is already loaded.
-        $status = $asset->relationLoaded('status')
-            ? $asset->status
+        $status = $asset->relationLoaded('assetstatus')
+            ? $asset->assetstatus
             : Statuslabel::find($statusId);
 
         return $status && in_array($status->name, $configured, true);
