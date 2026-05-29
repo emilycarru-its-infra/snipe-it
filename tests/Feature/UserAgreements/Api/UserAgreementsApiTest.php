@@ -115,6 +115,61 @@ class UserAgreementsApiTest extends TestCase
         ]);
     }
 
+    public function test_store_ignores_server_managed_fields(): void
+    {
+        $user  = User::factory()->create();
+        $asset = $this->newAsset();
+
+        $this->actingAsForApi($this->superuser())
+            ->postJson(route('api.user-agreements.store'), [
+                'agreement_type'         => 'pickup',
+                'user_id'                => $user->id,
+                'asset_id'               => $asset->id,
+                'lifecycle_stage'        => 'quoted',
+                // These must NOT land — they are server-managed.
+                'pdf_path'               => 'forged/path.pdf',
+                'signed_pdf_path'        => 'forged/signed.pdf',
+                'signed_at'              => '2020-01-01 00:00:00',
+                'terms_accepted_at'      => '2020-01-01 00:00:00',
+                'checkout_acceptance_id' => 999999,
+                'reminders_sent'         => 99,
+            ])
+            ->assertOk();
+
+        $row = UserAgreement::where('user_id', $user->id)->first();
+        $this->assertNull($row->pdf_path);
+        $this->assertNull($row->signed_pdf_path);
+        $this->assertNull($row->signed_at);
+        $this->assertNull($row->terms_accepted_at);
+        $this->assertNull($row->checkout_acceptance_id);
+    }
+
+    public function test_update_ignores_server_managed_fields(): void
+    {
+        $agreement = UserAgreement::create([
+            'agreement_type'  => 'pickup',
+            'user_id'         => User::factory()->create()->id,
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        $this->actingAsForApi($this->superuser())
+            ->patchJson(route('api.user-agreements.update', $agreement), [
+                'notes'                  => 'real edit',
+                'pdf_path'               => 'forged/path.pdf',
+                'signed_pdf_path'        => 'forged/signed.pdf',
+                'signed_at'              => '2020-01-01 00:00:00',
+                'checkout_acceptance_id' => 999999,
+            ])
+            ->assertOk();
+
+        $row = $agreement->fresh();
+        $this->assertSame('real edit', $row->notes);
+        $this->assertNull($row->pdf_path);
+        $this->assertNull($row->signed_pdf_path);
+        $this->assertNull($row->signed_at);
+        $this->assertNull($row->checkout_acceptance_id);
+    }
+
     public function test_show_returns_a_single_agreement(): void
     {
         $agreement = UserAgreement::create([
