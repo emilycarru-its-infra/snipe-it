@@ -7,7 +7,9 @@ use App\Models\Asset;
 use App\Models\OrderItem;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Services\UserAgreements\PurchaseAutoCreator;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class AssetObserver
 {
@@ -128,6 +130,26 @@ class AssetObserver
     {
         if ($asset->wasChanged('status_id')) {
             $this->markOrderItemsReceived($asset);
+            $this->autoCreatePurchaseIfLeaseEnd($asset);
+        }
+    }
+
+    /**
+     * Hand the asset to the purchase auto-creator. Wrapped in
+     * try/catch so a transient failure in the agreement layer (e.g.
+     * validation regression, missing config) never blocks an asset
+     * status update — the status save has already committed by the
+     * time this fires.
+     */
+    private function autoCreatePurchaseIfLeaseEnd(Asset $asset): void
+    {
+        try {
+            app(PurchaseAutoCreator::class)->ensureFor($asset);
+        } catch (\Throwable $e) {
+            Log::error('purchase auto-create failed', [
+                'asset_id' => $asset->id,
+                'message'  => $e->getMessage(),
+            ]);
         }
     }
 
