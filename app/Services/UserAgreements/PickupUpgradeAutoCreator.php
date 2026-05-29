@@ -35,10 +35,6 @@ class PickupUpgradeAutoCreator
     {
     }
 
-    public function __construct(private readonly CostResolver $costs)
-    {
-    }
-
     /** @return array{pickup: ?UserAgreement, upgrade: ?UserAgreement} */
     public function ensureForCheckout(Asset $newAsset): array
     {
