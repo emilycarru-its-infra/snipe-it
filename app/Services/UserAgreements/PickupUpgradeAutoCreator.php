@@ -4,9 +4,9 @@ namespace App\Services\UserAgreements;
 
 use App\Models\Asset;
 use App\Models\Contract;
-use App\Models\FormEligibility;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\FormAccess;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -31,8 +31,6 @@ use Illuminate\Support\Facades\Log;
  */
 class PickupUpgradeAutoCreator
 {
-    private const OPEN_STAGES = ['eligible', 'quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment'];
-
     /** @return array{pickup: ?UserAgreement, upgrade: ?UserAgreement} */
     public function ensureForCheckout(Asset $newAsset): array
     {
@@ -90,28 +88,32 @@ class PickupUpgradeAutoCreator
         return $asset->assigned_to ? (int) $asset->assigned_to : null;
     }
 
+    /**
+     * Single source of truth for "is this user a faculty member?" —
+     * delegates to FormAccess::canSubmit so the auto-create gate
+     * stays aligned with whatever eligibility logic the intake form
+     * uses. Re-deriving the query here would silently drift if
+     * FormAccess ever grows new rules (per-company gating, expiry,
+     * etc).
+     */
     private function isFacultyEligible(User $user): bool
     {
         $slug = (string) config('forms.pickup_auto_create.eligibility_form_slug', 'faculty-program');
-
-        $groupIds = FormEligibility::where('form_slug', $slug)->pluck('group_id')->all();
-        if (empty($groupIds)) {
-            return false;
-        }
-
-        return $user->groups()->whereIn('permission_groups.id', $groupIds)->exists();
+        return FormAccess::canSubmit($user, $slug);
     }
 
     /**
      * True if this user has any asset *other than* the new one whose
-     * earliest linked contract end_date falls within the configured
-     * window. Older Snipe data with no contract bridge fails the check,
-     * which is intentional — without an end_date we can't justify
-     * auto-creating a pickup.
+     * linked contract end_date is in the future AND no more than
+     * `lease_end_within_months` away. Without a lower bound, a
+     * contract that ended months or years ago would still count as
+     * "nearing lease end" — auto-creating a fresh pickup for a stale
+     * record. The window matches `Contract::scopeExpiringWithin`.
      */
     private function hasOtherAssetNearingLeaseEnd(User $user, Asset $newAsset): bool
     {
-        $cutoff = Carbon::now()->addMonths(
+        $now    = Carbon::now();
+        $cutoff = $now->copy()->addMonths(
             (int) config('forms.pickup_auto_create.lease_end_within_months', 6)
         );
 
@@ -127,7 +129,7 @@ class PickupUpgradeAutoCreator
 
         return Contract::query()
             ->whereNotNull('end_date')
-            ->where('end_date', '<=', $cutoff)
+            ->whereBetween('end_date', [$now->toDateString(), $cutoff->toDateString()])
             ->whereHas('assets', fn ($q) => $q->whereIn('assets.id', $otherAssetIds))
             ->exists();
     }
@@ -138,7 +140,7 @@ class PickupUpgradeAutoCreator
             ->where('user_id', $user->id)
             ->where('asset_id', $asset->id)
             ->where('agreement_type', 'pickup')
-            ->whereIn('lifecycle_stage', self::OPEN_STAGES)
+            ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
             ->first();
 
         if ($existing) {
@@ -161,7 +163,7 @@ class PickupUpgradeAutoCreator
             ->where('user_id', $user->id)
             ->where('asset_id', $asset->id)
             ->where('agreement_type', 'upgrade')
-            ->whereIn('lifecycle_stage', self::OPEN_STAGES)
+            ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
             ->first();
 
         if ($existing) {
