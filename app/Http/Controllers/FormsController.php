@@ -39,7 +39,7 @@ class FormsController extends Controller
     {
         $form = $this->resolveOrFail($slug);
         $user = Auth::user();
-        abort_unless(FormAccess::canSubmit($user, $slug), 403, trans('admin/forms/general.not_eligible'));
+        abort_unless(FormAccess::canAccess($user, $slug), 403, trans('admin/forms/general.not_eligible'));
         return $form->submit($request, $user);
     }
 

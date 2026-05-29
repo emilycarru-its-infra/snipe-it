@@ -45,6 +45,7 @@ class FacultyProgramForm extends FormDefinition
     public function submit(Request $request, User $user): RedirectResponse
     {
         $validated = $request->validate([
+            'acknowledge_top_up' => 'accepted',
             'payment_method'    => 'required|string|in:'.implode(',', UserAgreement::PAYMENT_METHODS),
             'buyout_decision'   => 'required|string|in:yes,no,no_prior_laptop',
             'buyout_asset_tag'  => 'nullable|string|max:191|required_if:buyout_decision,yes',
