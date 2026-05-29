@@ -312,7 +312,8 @@ a.logo.no-hover a:hover {
 }
 
 
-input:required, select:required {
+input:required:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]):not([type="button"]),
+select:required {
   border-right: 5px solid orange;
 }
 select:required + .select2-container .select2-selection, select:required + .select2-container .select2-selection .select2-selection--multiple  {
