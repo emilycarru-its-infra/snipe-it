@@ -1170,6 +1170,36 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end lease decisions API routes
 
     /**
+     * User Agreements API routes
+     */
+    Route::group(['prefix' => 'user-agreements'], function () {
+        Route::post('{userAgreement}/send-for-signature',
+            [Api\UserAgreementsController::class, 'sendForSignature']
+        )->name('api.user-agreements.send-for-signature');
+
+        Route::post('{userAgreement}/pregen-pdf',
+            [Api\UserAgreementsController::class, 'pregenPdf']
+        )->name('api.user-agreements.pregen-pdf');
+
+        Route::get('{userAgreement}/pdf',
+            [Api\UserAgreementsController::class, 'downloadPdf']
+        )->name('api.user-agreements.pdf');
+    });
+
+    Route::resource('user-agreements',
+        Api\UserAgreementsController::class,
+        ['names' => [
+            'index'   => 'api.user-agreements.index',
+            'show'    => 'api.user-agreements.show',
+            'store'   => 'api.user-agreements.store',
+            'update'  => 'api.user-agreements.update',
+            'destroy' => 'api.user-agreements.destroy',
+        ],
+            'except' => ['create', 'edit'],
+        ]
+    ); // end user agreements API routes
+
+    /**
      * Users API routes
      */
     Route::group(['prefix' => 'users'], function () {

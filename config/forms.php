@@ -27,4 +27,28 @@ return [
         'external_purchase_url' => env('USER_FORM_EXTERNAL_PURCHASE_URL', 'https://cdw.ca/emilycarru'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | UserAgreement auto-create
+    |--------------------------------------------------------------------------
+    |
+    | Triggers that produce UserAgreement rows without anyone clicking
+    | through the form / admin UI.
+    |
+    | `lease_end_status_labels` — when an asset is updated and its new
+    | Statuslabel name appears in this list, the auto-creator emits a
+    | `purchase` UserAgreement row for the assigned user (if any),
+    | pulling buyout_cost from the asset's purchase_cost. Idempotent:
+    | re-saving does nothing if an open purchase row already covers
+    | this (user, asset) pair.
+    |
+    */
+
+    'purchase_auto_create' => [
+        'lease_end_status_labels' => array_filter(array_map('trim', explode(
+            ',',
+            env('USER_AGREEMENT_LEASE_END_STATUS_LABELS', 'Active (Lease End)')
+        ))),
+    ],
+
 ];

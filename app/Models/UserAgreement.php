@@ -50,6 +50,22 @@ class UserAgreement extends SnipeModel
         'closed',
     ];
 
+    /**
+     * Lifecycle stages considered "open" — i.e. an agreement in any of
+     * these still occupies the (user, asset, type) slot from the
+     * auto-creators' point of view. Mirrors isOpen() but as a usable
+     * array for whereIn() queries so callers don't have to redefine the
+     * closed-stage list (drift risk).
+     */
+    public const OPEN_LIFECYCLE_STAGES = [
+        'eligible',
+        'quoted',
+        'agreement_sent',
+        'agreement_signed',
+        'deployed',
+        'in_repayment',
+    ];
+
     public const PAYMENT_METHODS = [
         'payroll_deduction',
         'pay_in_full',
@@ -168,7 +184,7 @@ class UserAgreement extends SnipeModel
 
     public function isOpen(): bool
     {
-        return ! in_array($this->lifecycle_stage, ['paid_off', 'closed_buyout', 'closed'], true);
+        return in_array($this->lifecycle_stage, self::OPEN_LIFECYCLE_STAGES, true);
     }
 
     public function isAwaitingSignature(): bool
