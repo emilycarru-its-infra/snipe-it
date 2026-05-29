@@ -22,6 +22,7 @@ class Kernel extends ConsoleKernel
             $schedule->command('snipeit:upcoming-audits')->daily();
             $schedule->command('snipeit:contract-renewals')->dailyAt('07:30');
             $schedule->command('snipeit:user-pregen-pdfs')->dailyAt('05:00');
+            $schedule->command('snipeit:user-agreement-signature-reminders')->dailyAt('06:00');
         }
         $schedule->command('snipeit:backup')->weekly();
         $schedule->command('backup:clean')->daily();

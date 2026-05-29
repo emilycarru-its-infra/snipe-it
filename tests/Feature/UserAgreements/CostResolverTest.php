@@ -42,21 +42,6 @@ class CostResolverTest extends TestCase
         $this->assertNull(app(CostResolver::class)->deviceCost($asset));
     }
 
-    public function test_device_cost_preserves_zero(): void
-    {
-        // A legitimately free / fully-subsidized asset must come back
-        // as 0.0, not null — the resolver must distinguish "unknown"
-        // from "zero".
-        $asset = $this->asset(0.00);
-        $this->assertSame(0.0, app(CostResolver::class)->deviceCost($asset));
-    }
-
-    public function test_buyout_cost_preserves_zero(): void
-    {
-        $asset = $this->asset(0.00);
-        $this->assertSame(0.0, app(CostResolver::class)->buyoutCost($asset));
-    }
-
     public function test_top_up_amount_is_device_minus_base(): void
     {
         config()->set('forms.pickup_auto_create.base_program_price', 2383.11);

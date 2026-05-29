@@ -72,4 +72,22 @@ return [
         'eligibility_form_slug'   => env('USER_AGREEMENT_PICKUP_FORM_SLUG', 'faculty-program'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Signature reminders
+    |--------------------------------------------------------------------------
+    |
+    | The snipeit:user-agreement-signature-reminders command runs
+    | daily and emails users whose agreement_sent agreements are still
+    | unsigned after `interval_days`, capped at `max_reminders` per
+    | row so the same user is not spammed indefinitely.
+    |
+    */
+
+    'signature_reminders' => [
+        'enabled'       => env('USER_AGREEMENT_REMINDERS_ENABLED', true),
+        'interval_days' => (int) env('USER_AGREEMENT_REMINDER_INTERVAL_DAYS', 3),
+        'max_reminders' => (int) env('USER_AGREEMENT_MAX_REMINDERS', 5),
+    ],
+
 ];
