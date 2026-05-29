@@ -2,8 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\ActionType;
 use App\Mail\UserAgreementSignatureReminderMail;
 use App\Models\Actionlog;
+use App\Models\Setting;
 use App\Models\UserAgreement;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -35,6 +37,16 @@ class SendUserAgreementSignatureReminders extends Command
 
     public function handle(): int
     {
+        // Honour the same alerts_enabled gate the schedule entry uses,
+        // so an ad-hoc `artisan` invocation does not bypass the global
+        // alert kill-switch. The scheduler already wraps this command
+        // in `alerts_enabled === 1`; re-checking here keeps both paths
+        // consistent (matches the snipeit:contract-renewals pattern).
+        if (Setting::getSettings()?->alerts_enabled !== 1) {
+            $this->info('Global alerts_enabled is off — nothing to send.');
+            return self::SUCCESS;
+        }
+
         if (! (bool) config('forms.signature_reminders.enabled', true)) {
             $this->info('Reminders disabled by config — nothing to do.');
             return self::SUCCESS;
@@ -107,15 +119,13 @@ class SendUserAgreementSignatureReminders extends Command
                 $agreement->last_reminder_sent_at = now();
                 $agreement->saveQuietly();
 
-                Actionlog::create([
-                    'item_type'    => UserAgreement::class,
-                    'item_id'      => $agreement->id,
-                    'created_by'   => null,
-                    'action_type'  => 'user-agreement-reminder',
-                    'note'         => 'Reminder #'.$next.' sent to '.$agreement->user->email,
-                    'target_id'    => $agreement->user_id,
-                    'target_type'  => \App\Models\User::class,
-                ]);
+                $log = new Actionlog;
+                $log->item_type   = UserAgreement::class;
+                $log->item_id     = $agreement->id;
+                $log->target_id   = $agreement->user_id;
+                $log->target_type = \App\Models\User::class;
+                $log->note        = 'Reminder #'.$next.' sent to '.$agreement->user->email;
+                $log->logaction(ActionType::UserAgreementReminder->value);
 
                 $this->info("sent reminder #{$next} for {$tag}");
                 $sent++;
