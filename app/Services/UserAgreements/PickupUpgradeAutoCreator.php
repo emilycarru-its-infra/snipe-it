@@ -31,6 +31,10 @@ use Illuminate\Support\Facades\Log;
  */
 class PickupUpgradeAutoCreator
 {
+    public function __construct(private readonly CostResolver $costs)
+    {
+    }
+
     /** @return array{pickup: ?UserAgreement, upgrade: ?UserAgreement} */
     public function ensureForCheckout(Asset $newAsset): array
     {
@@ -58,9 +62,9 @@ class PickupUpgradeAutoCreator
             return $none;
         }
 
-        $base   = (float) config('forms.pickup_auto_create.base_program_price', 0);
-        $device = $newAsset->purchase_cost ? (float) $newAsset->purchase_cost : 0.0;
-        $topUp  = max(0.0, $device - $base);
+        $base   = $this->costs->baseProgramPrice() ?? 0.0;
+        $device = $this->costs->deviceCost($newAsset) ?? 0.0;
+        $topUp  = $this->costs->topUpAmount($newAsset, $device, $base) ?? 0.0;
 
         $pickup  = $this->ensurePickup($user, $newAsset, $base, $device);
         $upgrade = $topUp > 0
