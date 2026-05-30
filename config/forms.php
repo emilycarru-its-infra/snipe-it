@@ -53,6 +53,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Legacy lease-custom-field → contract_asset bridge migration
+    |--------------------------------------------------------------------------
+    |
+    | Earlier asset records carry lease info in Snipe-IT custom fields
+    | (Lease Contract Name / Lease Contract ID / Lease End Date /
+    | Buyout Cost) because real Contract entities didn't exist yet.
+    | The `snipeit:link-assets-to-contracts` command and its API
+    | counterpart walk those custom-field values and build the proper
+    | contract_asset bridge so the Reconciler + every downstream report
+    | reads from one source.
+    |
+    | Contracts the migration creates use source='manual' so the
+    | tdx-to-snipe-contracts sync leaves them alone.
+    |
+    */
+
+    'asset_lease_migration' => [
+        'contract_name_field_name'    => env('USER_AGREEMENT_LEASE_CONTRACT_NAME_FIELD', 'Lease Contract Name'),
+        'contract_id_field_name'      => env('USER_AGREEMENT_LEASE_CONTRACT_ID_FIELD',   'Lease Contract ID'),
+        'lease_end_date_field_name'   => env('USER_AGREEMENT_LEASE_END_DATE_FIELD',      'Lease End Date'),
+        'contract_name_pattern'       => env('USER_AGREEMENT_LEASE_CONTRACT_NAME_PATTERN', 'Devices Leases FY%'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pickup + upgrade auto-create on faculty checkout
     |--------------------------------------------------------------------------
     |
@@ -70,6 +95,18 @@ return [
         'base_program_price'      => (float) env('USER_AGREEMENT_BASE_PROGRAM_PRICE', 2383.11),
         'lease_end_within_months' => (int) env('USER_AGREEMENT_LEASE_END_WITHIN_MONTHS', 6),
         'eligibility_form_slug'   => env('USER_AGREEMENT_PICKUP_FORM_SLUG', 'faculty-program'),
+
+        // Cutoff date — the Reconciler will only emit pickup and
+        // upgrade rows for assets whose `last_checkout` is on or
+        // after this date. Skips pre-system devices that already
+        // had paperwork signed outside Snipe-IT. Format: YYYY-MM-DD.
+        // null = no filter (legacy behaviour, reconcile everything).
+        'reconcile_from'          => env('USER_AGREEMENT_PICKUP_RECONCILE_FROM'),
+
+        // Custom field that carries the asset's purpose-built buyout
+        // cost (separate from purchase_cost so it can be filled in by
+        // the lease admin without overwriting historical PO data).
+        'buyout_cost_field_name'  => env('USER_AGREEMENT_BUYOUT_COST_FIELD', 'Buyout Cost'),
     ],
 
     /*

@@ -7,7 +7,6 @@ use App\Models\Contract;
 use App\Models\Statuslabel;
 use App\Models\User;
 use App\Models\UserAgreement;
-use App\Services\FormAccess;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -75,6 +74,10 @@ class Reconciler
 
     private function reconcilePickup(User $user, Asset $asset, ReconciliationReport $report, bool $dryRun): void
     {
+        if (! $this->isAfterReconcileCutoff($asset)) {
+            return;
+        }
+
         if ($this->hasOpenAgreement($user, $asset, 'pickup')) {
             return;
         }
@@ -102,6 +105,10 @@ class Reconciler
 
     private function reconcileUpgrade(User $user, Asset $asset, ReconciliationReport $report, bool $dryRun): void
     {
+        if (! $this->isAfterReconcileCutoff($asset)) {
+            return;
+        }
+
         $topUp = $this->costs->topUpAmount($asset);
 
         // No top-up means the device is at or below the base — no
@@ -217,20 +224,72 @@ class Reconciler
     }
 
     /**
-     * True when this asset has at least one linked contract whose
-     * end_date is on or before today. Assets without any contract
-     * link return false — without a date we can't claim the lease
-     * has ended.
+     * True when the asset is past its lease end. Two signals; either
+     * is enough:
+     *
+     *   1. A `contract_asset` bridge row with a past contract.end_date.
+     *      The authoritative source once the migration backfill has
+     *      tied legacy custom-field assets to real Contract entities.
+     *   2. The asset's current Statuslabel name appears in the
+     *      configured lease-end labels list — someone (an admin or a
+     *      sync) has already declared the lease ended, even if no
+     *      Contract record carries the date yet.
      */
     private function leaseHasEnded(Asset $asset): bool
     {
         $today = Carbon::now()->toDateString();
 
-        return Contract::query()
+        $bridgeHit = Contract::query()
             ->whereNotNull('end_date')
             ->where('end_date', '<=', $today)
             ->whereHas('assets', fn ($q) => $q->where('assets.id', $asset->id))
             ->exists();
+        if ($bridgeHit) {
+            return true;
+        }
+
+        $labels = (array) config('forms.purchase_auto_create.lease_end_status_labels', []);
+        if (! empty($labels) && $asset->status_id) {
+            $statusName = optional(Statuslabel::find($asset->status_id))->name;
+            if ($statusName && in_array($statusName, $labels, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Apply the configurable "reconcile from" cutoff to pickup and
+     * upgrade rows only. Assets whose last_checkout predates the
+     * cutoff are treated as pre-system (signed out of band on paper)
+     * — the Reconciler skips them. Purchase rows ignore this filter,
+     * since lease-end paperwork still needs catching up regardless of
+     * how long ago the asset was first checked out.
+     */
+    private function isAfterReconcileCutoff(Asset $asset): bool
+    {
+        $cutoff = config('forms.pickup_auto_create.reconcile_from');
+        if (! $cutoff) {
+            return true;
+        }
+
+        try {
+            $cutoffDate = Carbon::parse($cutoff);
+        } catch (\Throwable) {
+            return true;
+        }
+
+        if (! $asset->last_checkout) {
+            // No checkout date on file — be safe and skip.
+            return false;
+        }
+
+        try {
+            return Carbon::parse($asset->last_checkout)->gte($cutoffDate);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
