@@ -61,6 +61,14 @@
                         <i class="fas fa-file-pdf"></i> {{ trans('admin/user-agreements/general.preview_pdf') }}
                     @endif
                 </a>
+                @if (! $agreement->signed_pdf_path && $agreement->asset_id && $agreement->user_id)
+                    <form method="POST" action="{{ route('user-agreements.pregen-pdf', $agreement) }}" style="display:inline-block;">
+                        {{ csrf_field() }}
+                        <button type="submit" class="btn btn-default" title="{{ trans('admin/user-agreements/general.regenerate_pdf_help') }}">
+                            <i class="fas fa-sync-alt"></i> {{ trans('admin/user-agreements/general.regenerate_pdf') }}
+                        </button>
+                    </form>
+                @endif
                 @if (! $agreement->checkout_acceptance_id && $agreement->asset_id && $agreement->user_id)
                     <form method="POST" action="{{ route('user-agreements.send-for-signature', $agreement) }}" class="pull-right" style="display:inline-block;">
                         {{ csrf_field() }}

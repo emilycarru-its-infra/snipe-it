@@ -173,6 +173,40 @@ class UserAgreementsController extends Controller
     }
 
     /**
+     * Re-render the unsigned PDF for a single agreement and overwrite
+     * the cached copy on disk. Used after the agreement's underlying
+     * data changes (cost field edited, asset re-tagged, EULA template
+     * tweaked) and the previously generated PDF is stale.
+     *
+     * Mirrors snipeit:user-pregen-pdfs --force for one row.
+     */
+    public function pregen(UserAgreement $userAgreement): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        if (! $userAgreement->asset_id || ! $userAgreement->user_id) {
+            return redirect()->route('user-agreements.show', $userAgreement)
+                ->with('error', trans('admin/user-agreements/message.missing_asset_or_user'));
+        }
+
+        try {
+            $path = $userAgreement->storeUnsignedPdf();
+        } catch (\Throwable $e) {
+            \Log::error('user-agreement single-pregen failed for FA#'.$userAgreement->id, ['exception' => $e]);
+            return redirect()->route('user-agreements.show', $userAgreement)
+                ->with('error', $e->getMessage());
+        }
+
+        if (! $path) {
+            return redirect()->route('user-agreements.show', $userAgreement)
+                ->with('error', trans('admin/user-agreements/message.missing_asset_or_user'));
+        }
+
+        return redirect()->route('user-agreements.show', $userAgreement)
+            ->with('success', trans('admin/user-agreements/message.pdf_rendered'));
+    }
+
+    /**
      * Download a PDF for this agreement. If the assigned user has
      * signed, return the stored signed PDF. Otherwise render an
      * unsigned preview through Snipe's existing TCPDF generator so the
