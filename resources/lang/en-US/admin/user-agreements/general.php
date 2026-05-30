@@ -40,9 +40,9 @@ return [
     'serial'       => 'Serial',
     'base_price'   => 'Program base price',
     'upgrade_amount' => 'Upgrade amount',
-    'type_pickup'  => 'new laptop pickup',
-    'type_upgrade' => 'paid upgrade',
-    'type_purchase' => 'purchase',
+    'type_pickup'  => 'New Laptop Pickup',
+    'type_upgrade' => 'Paid Upgrade',
+    'type_purchase' => 'Purchase',
 
     'pregen_panel_title'   => 'Pre-generate unsigned PDFs',
     'pregen_panel_help'    => 'Caches an unsigned PDF for every eligible/quoted agreement so signing requests open instantly. Runs nightly at 05:00; trigger now to skip the wait.',

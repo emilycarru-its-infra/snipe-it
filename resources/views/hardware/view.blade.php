@@ -501,10 +501,18 @@
                             </div>
                         @endif
 
-                        <x-table.files object_type="assets" :object="$asset"/>
+                        @if ($assetUploadCount > 0)
+                            <x-table.files object_type="assets" :object="$asset"/>
+                        @endif
 
-                        @if ($asset->model)
+                        @if ($asset->model && $modelUploadCount > 0)
                             <x-table.files :table_header="trans('general.additional_files')" object_type="models" :object="$asset->model"/>
+                        @endif
+
+                        @if ($filesTotalCount === 0)
+                            <div class="alert alert-info" style="margin-top:0;">
+                                {{ trans('general.no_files_uploaded') }}
+                            </div>
                         @endif
                     </x-tabs.pane>
 
