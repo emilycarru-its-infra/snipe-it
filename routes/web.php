@@ -145,6 +145,8 @@ Route::group(['middleware' => 'auth'], function () {
     Route::resource('user-agreements', UserAgreementsController::class);
     Route::post('user-agreements/{userAgreement}/send-for-signature', [UserAgreementsController::class, 'sendForSignature'])
         ->name('user-agreements.send-for-signature');
+    Route::post('user-agreements/{userAgreement}/pregen-pdf', [UserAgreementsController::class, 'pregen'])
+        ->name('user-agreements.pregen-pdf');
     Route::get('user-agreements/{userAgreement}/pdf', [UserAgreementsController::class, 'downloadPdf'])
         ->name('user-agreements.pdf');
 
