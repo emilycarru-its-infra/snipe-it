@@ -90,8 +90,17 @@
                         tooltip="{{ trans('general.audits') }}"
                     />
                     <x-tabs.note-tab :item="$asset" count="{{ $asset->journal->count() }}"/>
-                    <x-tabs.files-tab :item="$asset" count="{{ $asset->uploads()->count() }}"/>
-                    <x-tabs.model-files-tab count="{{ $asset->model?->uploads()->count() }}"/>
+                    @php
+                        $userAgreementsForAsset = \App\Models\UserAgreement::with('user')
+                            ->where('asset_id', $asset->id)
+                            ->orderByDesc('created_at')
+                            ->get();
+                        $assetUploadCount   = $asset->uploads()->count();
+                        $modelUploadCount   = $asset->model?->uploads()->count() ?? 0;
+                        $agreementPdfCount  = $userAgreementsForAsset->count();
+                        $filesTotalCount    = $assetUploadCount + $modelUploadCount + $agreementPdfCount;
+                    @endphp
+                    <x-tabs.files-tab :item="$asset" count="{{ $filesTotalCount }}"/>
                     <x-tabs.history-tab count="{{ $asset->history()->count() }}" :model="$asset"/>
                     <x-tabs.upload-tab :item="$asset"/>
                 </x-slot:tabnav>
@@ -426,11 +435,77 @@
 
 
                     <x-tabs.pane name="files">
-                        <x-table.files object_type="assets" :object="$asset"/>
-                    </x-tabs.pane>
+                        @if ($agreementPdfCount > 0)
+                            <div class="box box-default">
+                                <div class="box-header with-border">
+                                    <h3 class="box-title">{{ trans('admin/user-agreements/general.agreement_documents') }}</h3>
+                                </div>
+                                <div class="box-body table-responsive">
+                                    <table class="table table-striped" style="margin-bottom:0;">
+                                        <thead>
+                                            <tr>
+                                                <th>{{ trans('admin/user-agreements/general.type') }}</th>
+                                                <th>{{ trans('admin/user-agreements/general.user') }}</th>
+                                                <th>{{ trans('admin/user-agreements/general.stage') }}</th>
+                                                <th>{{ trans('admin/user-agreements/general.generated') }}</th>
+                                                <th class="text-right">{{ trans('table.actions') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        @foreach ($userAgreementsForAsset as $agreement)
+                                            <tr>
+                                                <td>
+                                                    <a href="{{ route('user-agreements.show', $agreement) }}">
+                                                        {{ trans('admin/user-agreements/general.type_'.($agreement->agreement_type === 'purchase' ? 'purchase' : $agreement->agreement_type)) }}
+                                                    </a>
+                                                </td>
+                                                <td>
+                                                    @if ($agreement->user)
+                                                        <a href="{{ route('users.show', $agreement->user) }}">{{ $agreement->user->present()->fullName() }}</a>
+                                                    @else — @endif
+                                                </td>
+                                                <td>{{ trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage) }}</td>
+                                                <td>
+                                                    @if ($agreement->pdf_generated_at)
+                                                        {{ \App\Helpers\Helper::getFormattedDateObject($agreement->pdf_generated_at, 'datetime', false) }}
+                                                    @else
+                                                        <span class="text-muted">—</span>
+                                                    @endif
+                                                </td>
+                                                <td class="text-right">
+                                                    <a class="btn btn-default btn-sm" href="{{ route('user-agreements.pdf', $agreement) }}" target="_blank" title="{{ $agreement->signed_pdf_path ? trans('admin/user-agreements/general.download_signed_pdf') : trans('admin/user-agreements/general.preview_pdf') }}">
+                                                        <i class="fas {{ $agreement->signed_pdf_path ? 'fa-download' : 'fa-file-pdf' }}"></i>
+                                                    </a>
+                                                    @if (! $agreement->signed_pdf_path && $agreement->user_id)
+                                                        <form method="POST" action="{{ route('user-agreements.pregen-pdf', $agreement) }}" style="display:inline-block; margin:0;">
+                                                            {{ csrf_field() }}
+                                                            <button type="submit" class="btn btn-default btn-sm" title="{{ trans('admin/user-agreements/general.regenerate_pdf_help') }}">
+                                                                <i class="fas fa-sync-alt"></i>
+                                                            </button>
+                                                        </form>
+                                                    @endif
+                                                    @if (! $agreement->checkout_acceptance_id && $agreement->user_id)
+                                                        <form method="POST" action="{{ route('user-agreements.send-for-signature', $agreement) }}" style="display:inline-block; margin:0;">
+                                                            {{ csrf_field() }}
+                                                            <button type="submit" class="btn btn-primary btn-sm" title="{{ trans('admin/user-agreements/general.send_for_signature') }}">
+                                                                <i class="fas fa-paper-plane"></i>
+                                                            </button>
+                                                        </form>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
 
-                    <x-tabs.pane name="model-files">
-                        <x-table.files :table_header="trans('general.additional_files')" object_type="models" :object="$asset->model"/>
+                        <x-table.files object_type="assets" :object="$asset"/>
+
+                        @if ($asset->model)
+                            <x-table.files :table_header="trans('general.additional_files')" object_type="models" :object="$asset->model"/>
+                        @endif
                     </x-tabs.pane>
 
                     @can('view', \App\Models\Order::class)
