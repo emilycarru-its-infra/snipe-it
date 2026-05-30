@@ -20,10 +20,12 @@ use Illuminate\Support\Facades\Log;
  * Reconciler does the right thing without learning about custom
  * fields. Idempotent — re-runs are safe.
  *
- * Contracts the migration creates are stamped `source='manual'` so
- * the tdx-to-snipe-contracts Azure Function leaves them alone (the
- * function is expected to filter to source='tdx' on its writes; if
- * not yet, that's a follow-up in the Inventory/functions repo).
+ * Contracts the migration creates are stamped `source='snipe'` —
+ * that's the identifier for "this contract is owned by the Snipe-IT
+ * app itself, not by TDX/CSI". The contracts upsert endpoint (#130)
+ * refuses to overwrite any contract whose source is not 'tdx', so
+ * these stay safe regardless of what the Azure Functions push at
+ * /api/v1/contracts/upsert.
  *
  * Used by:
  *   - `snipeit:link-assets-to-contracts` artisan command
@@ -107,7 +109,7 @@ class AssetContractLinker
         $contract = Contract::create([
             'name'            => $name,
             'contract_number' => $name,
-            'source'          => 'manual',
+            'source'          => 'snipe',
             'is_active'       => true,
             'end_date'        => $endDate,
         ]);

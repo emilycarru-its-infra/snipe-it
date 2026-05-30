@@ -66,7 +66,7 @@ class AssetContractLinkerTest extends TestCase
 
         $contract = Contract::where('name', 'Devices Leases FY25-26 #1')->first();
         $this->assertNotNull($contract);
-        $this->assertSame('manual', $contract->source);
+        $this->assertSame('snipe', $contract->source);
         $this->assertSame('2025-08-01', $contract->end_date?->toDateString());
 
         $this->assertSame(1, DB::table('contract_asset')
