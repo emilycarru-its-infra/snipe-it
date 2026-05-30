@@ -16,6 +16,7 @@ return [
 
     'upsert' => [
         'success' => 'Contract upserted from TDX successfully.',
+        'skipped_non_tdx_source' => 'Skipped — contract is owned by source=:source, refusing to overwrite from TDX.',
     ],
 
     'delete' => [
