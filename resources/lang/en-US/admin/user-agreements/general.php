@@ -27,6 +27,8 @@ return [
     'send_for_signature_help' => 'Generate the agreement PDF and route it through Snipe-IT\'s native acceptance UI so the faculty member can sign in their own account.',
     'preview_pdf' => 'Preview Unsigned PDF',
     'download_signed_pdf' => 'Download Signed PDF',
+    'regenerate_pdf' => 'Regenerate PDF',
+    'regenerate_pdf_help' => 'Re-render the unsigned PDF from current data and overwrite the cached copy. Useful after editing costs or other fields.',
     'awaiting_signature' => 'Awaiting signature',
     'signed' => 'Signed',
     'native_signing_intro' => 'Faculty Laptop Program agreements use Snipe-IT\'s built-in acceptance workflow. Hitting Send for Signature creates an acceptance against the faculty member\'s account; they sign in their own Snipe-IT session, and the signed PDF lands on this record automatically.',
