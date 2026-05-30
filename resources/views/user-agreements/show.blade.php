@@ -13,20 +13,19 @@
         </div>
 
         <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">
-                    {{ trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type) }} —
+            <div class="box-header with-border" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                <h3 class="box-title" style="margin:0;">
+                    {{ trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type) }}
+                    &mdash;
                     {{ $agreement->user?->full_name ?? trans('general.unknown') }}
                 </h3>
-                <div class="box-tools pull-right">
-                    @if ($agreement->signed_at)
-                        <span class="label label-success">{{ trans('admin/user-agreements/general.signed') }} {{ $agreement->signed_at->format('Y-m-d') }}</span>
-                    @elseif ($agreement->lifecycle_stage === 'agreement_sent')
-                        <span class="label label-warning">{{ trans('admin/user-agreements/general.awaiting_signature') }}</span>
-                    @else
-                        <span class="label label-default">{{ trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage) }}</span>
-                    @endif
-                </div>
+                @if ($agreement->signed_at)
+                    <span class="label label-success">{{ trans('admin/user-agreements/general.signed') }} {{ $agreement->signed_at->format('Y-m-d') }}</span>
+                @elseif ($agreement->lifecycle_stage === 'agreement_sent')
+                    <span class="label label-warning">{{ trans('admin/user-agreements/general.awaiting_signature') }}</span>
+                @else
+                    <span class="label label-default">{{ trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage) }}</span>
+                @endif
             </div>
             <div class="box-body">
                 <dl class="dl-horizontal">
