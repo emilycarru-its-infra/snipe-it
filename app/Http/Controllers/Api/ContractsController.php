@@ -156,6 +156,23 @@ class ContractsController extends Controller
 
         $contract = Contract::withTrashed()->where('tdx_id', $request->input('tdx_id'))->first();
 
+        // Defensive: refuse to overwrite a contract that's owned by a
+        // non-TDX source (e.g. the manual `Devices Leases FY*`
+        // records produced by snipeit:link-assets-to-contracts). The
+        // tdx_id keying above already makes a collision unlikely, but
+        // if anything ever stamps a manual contract with a tdx_id
+        // later, this short-circuit keeps the TDX sync from silently
+        // overwriting hand-curated data. We return success with a
+        // "skipped" message so the Azure Function does not flag the
+        // record as an error.
+        if ($contract && $contract->source && $contract->source !== 'tdx') {
+            return response()->json(Helper::formatStandardApiResponse(
+                'success',
+                (new ContractsTransformer)->transformContract($contract->fresh(['supplier', 'parent'])),
+                trans('admin/contracts/message.upsert.skipped_non_tdx_source', ['source' => $contract->source])
+            ));
+        }
+
         if ($contract && $contract->trashed()) {
             $contract->restore();
         }
