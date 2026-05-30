@@ -1978,6 +1978,11 @@
                                                 {{ trans('admin/lease-decisions/general.lease_decisions') }}
                                             </a>
                                         </li>
+                                        <li {{!! (request()->is('user-agreements*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('user-agreements.index') }}">
+                                                {{ trans('admin/user-agreements/general.user_agreements') }}
+                                            </a>
+                                        </li>
                                     @endcan
                                     @can('view', \App\Models\Depreciation::class)
                                         <li {{!! (request()->is('depreciations*') ? ' class="active"' : '') !!}}>

@@ -1470,6 +1470,7 @@ class Helper
             'purchase-orders*',
             'suppliers*',
             'lease-decisions*',
+            'user-agreements*',
             'depreciations*',
             'reports/procurement*',
         ];
