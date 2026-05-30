@@ -461,7 +461,7 @@
                                                 </td>
                                                 <td>
                                                     @if ($agreement->user)
-                                                        <a href="{{ route('users.show', $agreement->user) }}">{{ $agreement->user->present()->fullName() }}</a>
+                                                        <a href="{{ route('users.show', $agreement->user) }}">{{ $agreement->user->full_name }}</a>
                                                     @else — @endif
                                                 </td>
                                                 <td>{{ trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage) }}</td>
