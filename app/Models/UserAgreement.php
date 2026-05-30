@@ -361,41 +361,14 @@ class UserAgreement extends SnipeModel
     }
 
     /**
-     * Render the unsigned EULA as PDF bytes (in-memory). Shared by the
-     * controller's preview/download endpoint and by the bulk pre-gen
-     * artisan command. Mirrors UserAgreementsController::renderUnsignedPdf
-     * so a single code path produces the output regardless of caller.
+     * Render the unsigned agreement as PDF bytes (in-memory). Branded
+     * per-type layouts live in {@see \App\Services\UserAgreements\PdfRenderer};
+     * this method is the single entry point for the controller's
+     * preview/download endpoint and the bulk pre-gen artisan command.
      */
     public function renderUnsignedPdfBytes(): string
     {
-        $settings  = Setting::getSettings();
-        $variables = $this->mergeVariables();
-
-        $data = [
-            'item_tag'      => $variables['asset_tag']  ?? '',
-            'item_name'     => $variables['model']      ?? '',
-            'item_model'    => $variables['model']      ?? '',
-            'item_serial'   => $variables['serial']     ?? '',
-            'item_status'   => null,
-            'eula'          => $this->eulaBody(),
-            'note'          => null,
-            'check_out_date' => Helper::getFormattedDateObject(now(), 'datetime', false),
-            'accepted_date' => '',
-            'declined_date' => '',
-            'assigned_to'   => $variables['faculty_name'] ?? '',
-            'email'         => (string) ($this->user?->email ?? ''),
-            'employee_num'  => (string) ($this->user?->employee_num ?? ''),
-            'site_name'     => $settings->site_name,
-            'company_name'  => $settings->site_name,
-            'signature'     => null,
-            'logo'          => null,
-            'date_settings' => $settings->date_display_format,
-            'qty'           => 1,
-        ];
-
-        $acceptance = $this->checkoutAcceptance ?: new CheckoutAcceptance;
-
-        return $acceptance->generateAcceptancePdf($data, 'preview.pdf');
+        return app(\App\Services\UserAgreements\PdfRenderer::class)->render($this);
     }
 
     /**
