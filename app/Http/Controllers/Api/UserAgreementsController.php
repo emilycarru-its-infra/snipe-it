@@ -9,6 +9,7 @@ use App\Http\Transformers\UserAgreementsTransformer;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\UserAgreements\AssetContractLinker;
 use App\Services\UserAgreements\ReconciliationReport;
 use App\Services\UserAgreements\Reconciler;
 use Illuminate\Http\JsonResponse;
@@ -361,5 +362,34 @@ class UserAgreementsController extends Controller
             'status_flipped' => $r->statusFlipped,
             'created_row_ids' => $r->createdRowIds,
         ];
+    }
+
+    /**
+     * One-shot migration: walk assets that carry lease info in the
+     * legacy Snipe-IT custom fields (Lease Contract Name / ID / End
+     * Date) and tie them to real Contract entities via the
+     * contract_asset bridge. Idempotent — safe to re-run.
+     *
+     * Body / query params:
+     *   asset_id  optional, scope to one asset
+     *   dry_run   "true" for a preview without writes
+     */
+    public function linkAssetsToContracts(Request $request, AssetContractLinker $linker): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $dryRun  = filter_var($request->input('dry_run', false), FILTER_VALIDATE_BOOLEAN);
+        $assetId = $request->input('asset_id');
+        $assetId = $assetId === null ? null : (int) $assetId;
+
+        $report = $linker->run($dryRun, $assetId);
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            array_merge(['dry_run' => $dryRun], $report->toArray()),
+            $dryRun
+                ? 'Asset → contract link dry-run complete.'
+                : 'Asset → contract link migration complete.'
+        ));
     }
 }

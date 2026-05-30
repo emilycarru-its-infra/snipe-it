@@ -1180,6 +1180,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             [Api\UserAgreementsController::class, 'reconcile']
         )->name('api.user-agreements.reconcile');
 
+        Route::post('link-assets-to-contracts',
+            [Api\UserAgreementsController::class, 'linkAssetsToContracts']
+        )->name('api.user-agreements.link-assets-to-contracts');
+
         Route::post('{userAgreement}/send-for-signature',
             [Api\UserAgreementsController::class, 'sendForSignature']
         )->name('api.user-agreements.send-for-signature');
