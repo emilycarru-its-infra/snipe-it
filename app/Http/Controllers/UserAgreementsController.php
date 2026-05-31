@@ -93,6 +93,65 @@ class UserAgreementsController extends Controller
     }
 
     /**
+     * Cancel an agreement — flips lifecycle to `cancelled` with audit
+     * trail (who, when, why). Distinct from destroy() / soft-delete:
+     * the row stays visible in the ledger so the reason is searchable.
+     * Auto-generation won't re-create a cancelled row for the same
+     * (user, asset, type) slot.
+     */
+    public function cancel(Request $request, UserAgreement $userAgreement): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $reason = trim((string) $request->input('cancellation_reason', ''));
+        $userAgreement->cancel(auth()->id(), $reason !== '' ? $reason : null);
+
+        return redirect()->route('reports.procurement.user-agreement-ledger')
+            ->with('success', trans('admin/user-agreements/message.cancelled'));
+    }
+
+    /**
+     * Record that the signed agreement was forwarded to Payroll for
+     * processing. Stamp-only — no email is sent from here, payroll
+     * receives the PDF through its own channel.
+     */
+    public function sendToPayroll(UserAgreement $userAgreement): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        if (! $userAgreement->signed_at && ! $userAgreement->signed_pdf_path) {
+            return redirect()->route('reports.procurement.user-agreement-ledger')
+                ->with('error', trans('admin/user-agreements/message.payroll_requires_signed'));
+        }
+
+        $userAgreement->markSentToPayroll(auth()->id());
+
+        return redirect()->route('reports.procurement.user-agreement-ledger')
+            ->with('success', trans('admin/user-agreements/message.sent_to_payroll'));
+    }
+
+    /**
+     * Single-agreement regenerate: re-renders the unsigned PDF and
+     * overwrites the cached copy. Used by the ledger per-row button.
+     */
+    public function regenerate(UserAgreement $userAgreement): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        try {
+            $userAgreement->storeUnsignedPdf();
+        } catch (\Throwable $e) {
+            \Log::error('user-agreement single regen failed for #'.$userAgreement->id, ['exception' => $e]);
+
+            return redirect()->route('reports.procurement.user-agreement-ledger')
+                ->with('error', trans('admin/user-agreements/message.regen_failed'));
+        }
+
+        return redirect()->route('reports.procurement.user-agreement-ledger')
+            ->with('success', trans('admin/user-agreements/message.regenerated'));
+    }
+
+    /**
      * Explicit "Send for Signature" — kicks the lifecycle to
      * agreement_sent and creates the linked CheckoutAcceptance. The
      * model's saved() hook also handles this path when someone edits
