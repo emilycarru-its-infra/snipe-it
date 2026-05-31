@@ -50,4 +50,35 @@ return [
     'pregen_include_sent'  => 'Include sent-but-unsigned',
     'pregen_force'         => 'Re-render existing',
     'pregen_confirm'       => 'Render PDFs for all matching agreements now? This may take a moment.',
+
+    'actions'              => 'Actions',
+    'filter_type'          => 'Filter by type',
+    'filter_stage'         => 'Filter by stage',
+    'filter_all_types'     => 'All types',
+    'filter_all_stages'    => 'All stages',
+    'apply_filters'        => 'Apply',
+    'reset_filters'        => 'Reset',
+    'originating_contract' => 'Lease Contract',
+
+    'cancel'               => 'Cancel',
+    'cancel_help'          => 'Cancel this agreement so the system stops surfacing it. The row stays visible in the ledger with the cancellation reason; auto-generation will not re-create a cancelled slot.',
+    'cancel_confirm_title' => 'Cancel this agreement?',
+    'cancel_confirm_body'  => 'This marks the agreement as cancelled and removes it from the active queue. You can optionally record a reason.',
+    'cancellation_reason'  => 'Reason (optional)',
+    'confirm_cancel'       => 'Yes, cancel agreement',
+    'keep_agreement'       => 'Keep agreement',
+    'cancelled_at'         => 'Cancelled On',
+    'cancelled_by'         => 'Cancelled By',
+
+    'send_to_payroll'      => 'Send to Payroll',
+    'send_to_payroll_help' => 'Record that the signed agreement was forwarded to Payroll. Use only after the user has signed.',
+    'send_to_payroll_confirm_title' => 'Mark as sent to Payroll?',
+    'send_to_payroll_confirm_body'  => 'Confirm you have forwarded the signed PDF to Payroll. This stamps the timestamp on the record — no email is sent from here.',
+    'confirm_send_to_payroll' => 'Yes, sent to Payroll',
+    'sent_to_payroll'      => 'Sent to Payroll',
+
+    'row_action_regen'     => 'Regenerate PDF',
+    'row_action_send'      => 'Send for Signature',
+
+    'no_agreements_match'  => 'No agreements match the current filters.',
 ];
