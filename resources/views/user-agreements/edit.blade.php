@@ -11,9 +11,6 @@
             {{ csrf_field() }}
             @method('PATCH')
             <div class="box box-default">
-                <div class="box-header with-border">
-                    <h3 class="box-title">{{ trans('admin/user-agreements/general.update') }}</h3>
-                </div>
                 <div class="box-body">
                     @include('user-agreements/_form', ['agreement' => $agreement])
                 </div>
