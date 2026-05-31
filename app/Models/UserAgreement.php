@@ -48,6 +48,20 @@ class UserAgreement extends SnipeModel
         'paid_off',
         'closed_buyout',
         'closed',
+        'cancelled',
+    ];
+
+    public const STAGE_LABEL_CLASS = [
+        'eligible'         => 'default',
+        'quoted'           => 'info',
+        'agreement_sent'   => 'warning',
+        'agreement_signed' => 'primary',
+        'deployed'         => 'success',
+        'in_repayment'     => 'primary',
+        'paid_off'         => 'success',
+        'closed_buyout'    => 'success',
+        'closed'           => 'default',
+        'cancelled'        => 'danger',
     ];
 
     /**
@@ -75,7 +89,7 @@ class UserAgreement extends SnipeModel
         'agreement_type' => 'required|string|in:pickup,upgrade,purchase',
         'user_id' => 'nullable|exists:users,id',
         'asset_id' => 'nullable|exists:assets,id',
-        'lifecycle_stage' => 'required|string|in:eligible,quoted,agreement_sent,agreement_signed,deployed,in_repayment,paid_off,closed_buyout,closed',
+        'lifecycle_stage' => 'required|string|in:eligible,quoted,agreement_sent,agreement_signed,deployed,in_repayment,paid_off,closed_buyout,closed,cancelled',
         'base_program_price' => 'nullable|numeric',
         'device_cost' => 'nullable|numeric',
         'top_up_amount' => 'nullable|numeric',
@@ -122,6 +136,10 @@ class UserAgreement extends SnipeModel
         'notes',
         'reminders_sent',
         'last_reminder_sent_at',
+        'cancelled_at',
+        'cancelled_by_id',
+        'cancellation_reason',
+        'sent_to_payroll_by_id',
     ];
 
     protected $casts = [
@@ -133,6 +151,7 @@ class UserAgreement extends SnipeModel
         'closed_at' => 'datetime',
         'last_reminder_sent_at' => 'datetime',
         'reminders_sent' => 'integer',
+        'cancelled_at' => 'datetime',
     ];
 
     protected $searchableAttributes = ['agreement_type', 'lifecycle_stage', 'old_asset_tag', 'old_serial', 'lease_contract', 'notes'];
@@ -155,6 +174,50 @@ class UserAgreement extends SnipeModel
     public function adminuser()
     {
         return $this->belongsTo(User::class, 'created_by')->withTrashed();
+    }
+
+    public function cancelledBy()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by_id')->withTrashed();
+    }
+
+    public function sentToPayrollBy()
+    {
+        return $this->belongsTo(User::class, 'sent_to_payroll_by_id')->withTrashed();
+    }
+
+    /**
+     * Resolve the `lease_contract` string (a contract_number or name)
+     * against the Contract table so the ledger can hyperlink to it.
+     * Returns null when the string doesn't match anything.
+     */
+    public function originatingContract(): ?Contract
+    {
+        if (empty($this->lease_contract)) {
+            return null;
+        }
+
+        return Contract::where('contract_number', $this->lease_contract)
+            ->orWhere('name', $this->lease_contract)
+            ->first();
+    }
+
+    public function cancel(?int $cancelledById, ?string $reason = null): bool
+    {
+        $this->lifecycle_stage     = 'cancelled';
+        $this->cancelled_at        = now();
+        $this->cancelled_by_id     = $cancelledById;
+        $this->cancellation_reason = $reason;
+
+        return $this->save();
+    }
+
+    public function markSentToPayroll(?int $byUserId): bool
+    {
+        $this->sent_to_payroll_at    = now();
+        $this->sent_to_payroll_by_id = $byUserId;
+
+        return $this->save();
     }
 
     public function checkoutAcceptance()

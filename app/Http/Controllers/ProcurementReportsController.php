@@ -386,16 +386,37 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        $controls = view('reports.procurement._user-pregen-trigger')->render();
+        $typeFilter  = $request->query('agreement_type');
+        $stageFilter = $request->query('stage');
+        $report      = $this->userAgreementLedgerReport($typeFilter, $stageFilter);
 
-        return $this->render(
-            $request,
-            'user-agreement-ledger',
-            trans('admin/purchase-orders/general.report_user_agreement_ledger'),
-            'reports.procurement.user-agreement-ledger',
-            $this->userAgreementLedgerReport($request->query('agreement_type'), $request->query('stage')),
-            $controls,
-        );
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv('user-agreement-ledger', $report);
+        }
+
+        $agreements = \App\Models\UserAgreement::with('user', 'asset')
+            ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
+                'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
+                'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed', 'cancelled',
+            ]))
+            ->orderBy('updated_at', 'desc')
+            ->when($typeFilter && in_array($typeFilter, \App\Models\UserAgreement::AGREEMENT_TYPES, true),
+                fn ($q) => $q->where('agreement_type', $typeFilter))
+            ->when($stageFilter && in_array($stageFilter, \App\Models\UserAgreement::LIFECYCLE_STAGES, true),
+                fn ($q) => $q->where('lifecycle_stage', $stageFilter))
+            ->get();
+
+        return view('reports.procurement.user-agreement-ledger', [
+            'reportTitle'  => trans('admin/purchase-orders/general.report_user_agreement_ledger'),
+            'agreements'   => $agreements,
+            'typeFilter'   => $typeFilter,
+            'stageFilter'  => $stageFilter,
+            'downloadUrl'  => route('reports.procurement.user-agreement-ledger', [
+                'format'         => 'csv',
+                'agreement_type' => $typeFilter,
+                'stage'          => $stageFilter,
+            ]),
+        ]);
     }
 
     public function scheduleSigningQueue(Request $request)
@@ -1716,11 +1737,9 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.user_agreement_member'),
             trans('admin/purchase-orders/general.detail_asset_tag'),
             trans('admin/purchase-orders/general.detail_serial'),
-            trans('admin/purchase-orders/general.user_agreement_stage'),
+            trans('admin/user-agreements/general.originating_contract'),
             trans('admin/purchase-orders/general.user_agreement_contract_value'),
-            trans('admin/purchase-orders/general.user_agreement_payment_method'),
-            trans('admin/purchase-orders/general.user_agreement_balance_paid'),
-            trans('admin/purchase-orders/general.user_agreement_balance_remaining'),
+            trans('admin/purchase-orders/general.user_agreement_stage'),
             trans('admin/purchase-orders/general.user_agreement_signed_at'),
             trans('admin/purchase-orders/general.user_agreement_payroll_at'),
         ];
@@ -1728,7 +1747,7 @@ class ProcurementReportsController extends Controller
         $query = UserAgreement::with('user', 'asset')
             ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
                 'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
-                'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed',
+                'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed', 'cancelled',
             ]))
             ->orderBy('updated_at', 'desc');
 
@@ -1742,43 +1761,22 @@ class ProcurementReportsController extends Controller
         $agreements = $query->get();
 
         $records = [];
-        $totalValue = $totalPaid = $totalRemaining = 0.0;
+        $totalValue = 0.0;
 
         foreach ($agreements as $agreement) {
             $value = $agreement->contractValue();
-            $paid = (float) $agreement->balance_paid;
-            $remaining = $agreement->balance_remaining !== null
-                ? (float) $agreement->balance_remaining
-                : max($value - $paid, 0.0);
-
             $totalValue += $value;
-            $totalPaid += $paid;
-            $totalRemaining += $remaining;
-
-            // Stage colour cues so Sohee can spot stuck agreements at a
-            // glance: signed-but-not-deployed and quoted-but-not-signed
-            // are the rows that need chasing.
-            $class = match ($agreement->lifecycle_stage) {
-                'quoted', 'agreement_sent' => 'warning',
-                'agreement_signed' => 'info',
-                'paid_off', 'closed_buyout', 'closed' => 'text-muted',
-                default => '',
-            };
 
             $records[] = [
-                'class' => $class,
+                'class' => '',
                 'cells' => [
                     trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type),
                     (string) ($agreement->user?->full_name ?? '—'),
                     (string) ($agreement->asset?->asset_tag ?? ''),
                     (string) ($agreement->asset?->serial ?? ''),
-                    trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage),
+                    (string) ($agreement->lease_contract ?? ''),
                     $this->money($value),
-                    $agreement->payment_method
-                        ? trans('admin/purchase-orders/general.user_agreement_payment_value_'.$agreement->payment_method)
-                        : '',
-                    $this->money($paid),
-                    $this->money($remaining),
+                    trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage),
                     $this->dateString($agreement->signed_at),
                     $this->dateString($agreement->sent_to_payroll_at),
                 ],
@@ -1788,10 +1786,7 @@ class ProcurementReportsController extends Controller
         $footer = [
             trans('admin/orders/general.total'), '', '', '', '',
             $this->money($totalValue),
-            '',
-            $this->money($totalPaid),
-            $this->money($totalRemaining),
-            '', '',
+            '', '', '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
