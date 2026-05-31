@@ -8,13 +8,12 @@
 <div class="row">
     <div class="col-md-7">
         <div class="alert alert-info">
-            <strong>{{ trans('admin/user-agreements/general.user_agreements') }}.</strong>
             {{ trans('admin/user-agreements/general.native_signing_intro') }}
         </div>
 
         <div class="box box-default">
             <div class="box-header with-border" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-                <h3 class="box-title" style="margin:0;">
+                <h3 class="box-title" style="margin:0; text-align:left; margin-right:auto;">
                     {{ trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type) }}
                     &mdash;
                     {{ $agreement->user?->full_name ?? trans('general.unknown') }}
@@ -82,7 +81,7 @@
     <div class="col-md-5">
         <div class="box box-default">
             <div class="box-header with-border">
-                <h3 class="box-title">
+                <h3 class="box-title" style="text-align:left;">
                     @if ($agreement->agreement_type === 'pickup')
                         {{ trans('admin/user-agreements/eula.pickup_title') }}
                     @elseif ($agreement->agreement_type === 'upgrade')

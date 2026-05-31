@@ -134,7 +134,23 @@ Route::group(['middleware' => 'auth'], function () {
     /*
     * Lease Decisions
     */
-    Route::resource('lease-decisions', LeaseDecisionsController::class)->except(['show']);
+    $ldCrumb = fn (Trail $trail) => $trail->parent('home')
+        ->push(trans('admin/lease-decisions/general.lease_decisions'), route('lease-decisions.index'));
+
+    Route::get('lease-decisions', [LeaseDecisionsController::class, 'index'])
+        ->name('lease-decisions.index')
+        ->breadcrumbs($ldCrumb);
+    Route::get('lease-decisions/create', [LeaseDecisionsController::class, 'create'])
+        ->name('lease-decisions.create')
+        ->breadcrumbs(fn (Trail $trail) => ($ldCrumb)($trail)
+            ->push(trans('admin/lease-decisions/general.create'), route('lease-decisions.create')));
+    Route::get('lease-decisions/{lease_decision}/edit', [LeaseDecisionsController::class, 'edit'])
+        ->name('lease-decisions.edit')
+        ->breadcrumbs(fn (Trail $trail, $lease_decision) => ($ldCrumb)($trail)
+            ->push(trans('admin/lease-decisions/general.update'), route('lease-decisions.edit', $lease_decision)));
+
+    Route::resource('lease-decisions', LeaseDecisionsController::class)
+        ->except(['show', 'index', 'create', 'edit']);
     Route::post('lease-decisions/bulk/delete', [LeaseDecisionsController::class, 'bulkDelete'])->name('lease-decisions.bulk.delete');
 
     /*
@@ -142,7 +158,28 @@ Route::group(['middleware' => 'auth'], function () {
     */
     Route::post('user-agreements/pregen-pdfs', [UserAgreementsController::class, 'pregenAll'])
         ->name('user-agreements.pregen-pdfs');
-    Route::resource('user-agreements', UserAgreementsController::class);
+
+    // GET routes need breadcrumbs (the rest are POST/PATCH/DELETE that
+    // redirect). Chain each one off the ledger so the trail is
+    // Home > Reports > Procurement Reports > Agreements > <this page>.
+    $uaCrumb = fn (Trail $trail) => $trail->parent('reports.procurement.user-agreement-ledger');
+
+    Route::get('user-agreements/create', [UserAgreementsController::class, 'create'])
+        ->name('user-agreements.create')
+        ->breadcrumbs(fn (Trail $trail) => ($uaCrumb)($trail)
+            ->push(trans('admin/user-agreements/general.create'), route('user-agreements.create')));
+    Route::get('user-agreements/{userAgreement}/edit', [UserAgreementsController::class, 'edit'])
+        ->name('user-agreements.edit')
+        ->breadcrumbs(fn (Trail $trail, $userAgreement) => ($uaCrumb)($trail)
+            ->push(trans('admin/user-agreements/general.agreement').' #'.$userAgreement->id, route('user-agreements.show', $userAgreement))
+            ->push(trans('admin/user-agreements/general.update'), route('user-agreements.edit', $userAgreement)));
+    Route::get('user-agreements/{userAgreement}', [UserAgreementsController::class, 'show'])
+        ->name('user-agreements.show')
+        ->breadcrumbs(fn (Trail $trail, $userAgreement) => ($uaCrumb)($trail)
+            ->push(trans('admin/user-agreements/general.agreement').' #'.$userAgreement->id, route('user-agreements.show', $userAgreement)));
+
+    Route::resource('user-agreements', UserAgreementsController::class)
+        ->except(['create', 'edit', 'show']);
     Route::post('user-agreements/{userAgreement}/send-for-signature', [UserAgreementsController::class, 'sendForSignature'])
         ->name('user-agreements.send-for-signature');
     Route::post('user-agreements/{userAgreement}/pregen-pdf', [UserAgreementsController::class, 'pregen'])
@@ -163,7 +200,10 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('lease-schedules/{leaseSchedule}/mark-signed', [LeaseSchedulesController::class, 'markSigned'])
         ->name('lease-schedules.mark-signed');
     Route::get('lease-schedules/{leaseSchedule}/annexure-diff', [LeaseSchedulesController::class, 'annexureDiff'])
-        ->name('lease-schedules.annexure-diff');
+        ->name('lease-schedules.annexure-diff')
+        ->breadcrumbs(fn (Trail $trail, $leaseSchedule) => $trail->parent('home')
+            ->push(trans('admin/lease-schedules/general.lease_schedule'), route('lease-schedules.show', $leaseSchedule))
+            ->push(trans('admin/lease-schedules/general.annexure_diff'), route('lease-schedules.annexure-diff', $leaseSchedule)));
 
     /*
     * Depreciations
