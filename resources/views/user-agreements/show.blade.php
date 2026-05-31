@@ -7,10 +7,6 @@
 @section('content')
 <div class="row">
     <div class="col-md-7">
-        <div class="alert alert-info">
-            {{ trans('admin/user-agreements/general.native_signing_intro') }}
-        </div>
-
         <div class="box box-default">
             <div class="box-header with-border" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
                 <h3 class="box-title" style="margin:0; text-align:left; margin-right:auto;">
@@ -79,6 +75,10 @@
         </div>
     </div>
     <div class="col-md-5">
+        <div class="alert alert-info">
+            {{ trans('admin/user-agreements/general.native_signing_intro') }}
+        </div>
+
         <div class="box box-default">
             <div class="box-header with-border">
                 <h3 class="box-title" style="text-align:left;">
