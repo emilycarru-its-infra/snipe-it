@@ -10,9 +10,6 @@
         <form class="form-horizontal" method="POST" action="{{ route('user-agreements.store') }}">
             {{ csrf_field() }}
             <div class="box box-default">
-                <div class="box-header with-border">
-                    <h3 class="box-title">{{ trans('admin/user-agreements/general.create') }}</h3>
-                </div>
                 <div class="box-body">
                     @include('user-agreements/_form', ['agreement' => null])
                 </div>
