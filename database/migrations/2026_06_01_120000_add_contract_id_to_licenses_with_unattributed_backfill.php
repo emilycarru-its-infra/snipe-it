@@ -68,8 +68,10 @@ return new class extends Migration
             return $existing;
         }
 
-        $owner = User::where('id', 1)->first()
-            ?? User::whereHas('permissions')->orderBy('id')->first();
+        // Pick any seeded admin to attribute the row to; fall back to
+        // null on fresh-DB installs (e.g. CI test runs) where no users
+        // exist yet — `created_by` is nullable so this is safe.
+        $owner = User::orderBy('id')->first();
 
         $contract = new Contract;
         $contract->name             = 'Unattributed';
