@@ -240,15 +240,21 @@ class ContractsController extends Controller
             }
 
             if ($request->has('license_ids')) {
-                $sync = [];
+                // Post-PR-B: licenses↔contracts is 1:N via licenses.contract_id,
+                // not M:N via the dropped contract_license pivot. "Sync" now
+                // means: every license in the payload gets pointed at this
+                // contract (overwriting whatever contract it was on before).
+                $ids = [];
                 foreach ((array) $request->input('license_ids', []) as $row) {
                     if (is_numeric($row)) {
-                        $sync[(int) $row] = [];
+                        $ids[] = (int) $row;
                     } elseif (is_array($row) && isset($row['id'])) {
-                        $sync[(int) $row['id']] = array_intersect_key($row, array_flip(['seats_covered', 'valid_from', 'valid_to', 'notes']));
+                        $ids[] = (int) $row['id'];
                     }
                 }
-                $contract->licenses()->sync($sync);
+                if (! empty($ids)) {
+                    \App\Models\License::whereIn('id', $ids)->update(['contract_id' => $contract->id]);
+                }
             }
 
             if ($request->has('asset_ids')) {
