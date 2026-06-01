@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\BudgetAllocation;
 use App\Models\ConsumableTransaction;
@@ -45,9 +46,22 @@ class ProcurementReportsController extends Controller
             ->merge(Order::planned()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
             ->unique()->sort()->values();
 
-        $selectedFy = $request->query('fiscal_year');
-        if (! $allFiscalYears->contains($selectedFy)) {
+        // Default to current FY when no ?fiscal_year is passed at all so
+        // the dashboard opens on this year's data instead of an all-time
+        // mash-up. `?fiscal_year=all` is the explicit opt-out for export
+        // / cross-year comparisons. Unknown values silently fall back to
+        // current FY.
+        $rawFy = $request->query('fiscal_year');
+        if ($rawFy === 'all') {
             $selectedFy = null;
+        } elseif ($rawFy === null) {
+            $current = Helper::currentFiscalYear();
+            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
+        } elseif ($allFiscalYears->contains($rawFy)) {
+            $selectedFy = $rawFy;
+        } else {
+            $current = Helper::currentFiscalYear();
+            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
         }
 
         $purchaseOrders = PurchaseOrder::when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))

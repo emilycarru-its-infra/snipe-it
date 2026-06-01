@@ -17,7 +17,7 @@
             </h1>
             <form method="get" style="display:inline-block; margin-left:15px; vertical-align:middle;">
                 <select name="fiscal_year" class="form-control input-sm" style="display:inline-block; width:auto;" onchange="this.form.submit()">
-                    <option value="">{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
+                    <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
                     @foreach ($allFiscalYears as $fy)
                         <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
                     @endforeach

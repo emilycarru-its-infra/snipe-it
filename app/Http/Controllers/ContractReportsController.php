@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Helper;
 use App\Models\Contract;
 use App\Models\ContractSerial;
 use Illuminate\Http\Request;
@@ -23,9 +24,20 @@ class ContractReportsController extends Controller
         $allFiscalYears = Contract::whereNotNull('fiscal_year')
             ->distinct()->orderBy('fiscal_year')->pluck('fiscal_year');
 
-        $selectedFy = $request->query('fiscal_year');
-        if (! $allFiscalYears->contains($selectedFy)) {
+        // Default to current FY when no ?fiscal_year is passed so the
+        // contracts dashboard opens on this year. `?fiscal_year=all` is
+        // the explicit opt-out for all-time views.
+        $rawFy = $request->query('fiscal_year');
+        if ($rawFy === 'all') {
             $selectedFy = null;
+        } elseif ($rawFy === null) {
+            $current = Helper::currentFiscalYear();
+            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
+        } elseif ($allFiscalYears->contains($rawFy)) {
+            $selectedFy = $rawFy;
+        } else {
+            $current = Helper::currentFiscalYear();
+            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
         }
 
         $base = Contract::query()
