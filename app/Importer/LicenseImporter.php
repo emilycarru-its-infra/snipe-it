@@ -3,6 +3,7 @@
 namespace App\Importer;
 
 use App\Models\Asset;
+use App\Models\Contract;
 use App\Models\License;
 
 class LicenseImporter extends ItemImporter
@@ -10,6 +11,40 @@ class LicenseImporter extends ItemImporter
     public function __construct($filename)
     {
         parent::__construct($filename);
+    }
+
+    /**
+     * Resolve the "Unattributed" system contract id, creating it if
+     * absent. Imports that don't carry a per-row contract_id default
+     * here so the schema's required FK doesn't block bulk loads.
+     */
+    private function unattributedContractId(): int
+    {
+        static $id = null;
+        if ($id !== null) {
+            return $id;
+        }
+
+        $existing = Contract::query()
+            ->whereNull('tdx_id')
+            ->where('name', 'Unattributed')
+            ->first();
+
+        if ($existing) {
+            return $id = (int) $existing->id;
+        }
+
+        $contract = new Contract;
+        $contract->name             = 'Unattributed';
+        $contract->contract_number  = 'UNATTRIBUTED';
+        $contract->is_synthesized   = true;
+        $contract->is_active        = true;
+        $contract->workflow_status  = 'active';
+        $contract->source           = 'manual';
+        $contract->description      = 'System contract holding licenses with no originating procurement contract on record.';
+        $contract->save();
+
+        return $id = (int) $contract->id;
     }
 
     protected function handle($row)
@@ -77,6 +112,13 @@ class LicenseImporter extends ItemImporter
         $this->item['termination_date'] = null;
         if ($this->findCsvMatch($row, 'termination_date') != '') {
             $this->item['termination_date'] = date('Y-m-d 00:00:01', strtotime($this->findCsvMatch($row, 'termination_date')));
+        }
+
+        // Bulk imports rarely map a contract per row; default to the
+        // system "Unattributed" contract so the licenses.contract_id
+        // NOT NULL FK doesn't block the import. Admins reassign later.
+        if (empty($this->item['contract_id']) && empty($license->contract_id)) {
+            $this->item['contract_id'] = $this->unattributedContractId();
         }
 
         if ($editingLicense) {

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Licenses\Ui;
 
 use App\Models\Category;
+use App\Models\Contract;
 use App\Models\License;
 use App\Models\User;
 use Tests\TestCase;
@@ -20,12 +21,14 @@ class UpdateLicenseTest extends TestCase
     {
         $admin = User::factory()->superuser()->create();
         $license_category = Category::factory()->forLicenses()->create()->id;
+        $contract_id = Contract::factory()->create()->id;
         $response = $this->actingAs($admin)
             ->from(route('licenses.create'))
             ->post(route('licenses.store'), [
                 'name' => 'Test Update License',
                 'seats' => '9999',
                 'category_id' => $license_category,
+                'contract_id' => $contract_id,
             ]);
         $response->assertStatus(302);
         $license = License::where('name', 'Test Update License')->sole();
@@ -36,6 +39,7 @@ class UpdateLicenseTest extends TestCase
                 'name' => 'Test Update License',
                 'seats' => '19999',
                 'category_id' => $license_category,
+                'contract_id' => $contract_id,
             ])
             ->assertStatus(302);
 
@@ -48,12 +52,14 @@ class UpdateLicenseTest extends TestCase
     {
         $admin = User::factory()->superuser()->create();
         $license_category = Category::factory()->forLicenses()->create()->id;
+        $contract_id = Contract::factory()->create()->id;
         $response = $this->actingAs($admin)
             ->from(route('licenses.create'))
             ->post(route('licenses.store'), [
                 'name' => 'Test Update License',
                 'seats' => '9999',
                 'category_id' => $license_category,
+                'contract_id' => $contract_id,
             ]);
         $response->assertStatus(302);
         $license = License::where('name', 'Test Update License')->sole();
@@ -64,6 +70,7 @@ class UpdateLicenseTest extends TestCase
                 'name' => 'Test Update License',
                 'seats' => '29999',
                 'category_id' => $license_category,
+                'contract_id' => $contract_id,
             ])
             ->assertStatus(302);
 
@@ -76,12 +83,14 @@ class UpdateLicenseTest extends TestCase
     {
         $admin = User::factory()->superuser()->create();
         $license_category = Category::factory()->forLicenses()->create()->id;
+        $contract_id = Contract::factory()->create()->id;
         $response = $this->actingAs($admin)
             ->from(route('licenses.create'))
             ->post(route('licenses.store'), [
                 'name' => 'Test Remove License Seats',
                 'seats' => '9999',
                 'category_id' => $license_category,
+                'contract_id' => $contract_id,
             ]);
         $response->assertStatus(302);
         $license = License::where('name', 'Test Remove License Seats')->sole();
@@ -92,6 +101,7 @@ class UpdateLicenseTest extends TestCase
                 'name' => 'Test Remove License Seats',
                 'seats' => '5000',
                 'category_id' => $license_category,
+                'contract_id' => $contract_id,
             ])
             ->assertStatus(302);
 

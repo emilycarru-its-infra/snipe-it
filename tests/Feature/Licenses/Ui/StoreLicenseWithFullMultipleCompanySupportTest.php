@@ -3,6 +3,7 @@
 namespace Tests\Feature\Licenses\Ui;
 
 use App\Models\Category;
+use App\Models\Contract;
 use App\Models\License;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\ProvidesDataForFullMultipleCompanySupportTesting;
@@ -25,6 +26,7 @@ class StoreLicenseWithFullMultipleCompanySupportTest extends TestCase
                 'seats' => '1',
                 'category_id' => Category::factory()->forLicenses()->create()->id,
                 'company_id' => $company->id,
+                'contract_id' => Contract::factory()->create()->id,
             ]);
 
         $license = License::where('name', 'My Cool License')->sole();
