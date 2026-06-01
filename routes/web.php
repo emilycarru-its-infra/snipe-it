@@ -35,6 +35,7 @@ use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ContractReportsController;
 use App\Http\Controllers\BudgetAllocationsController;
 use App\Http\Controllers\ProcurementReportsController;
+use App\Http\Controllers\FleetHealthReportsController;
 use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
@@ -970,6 +971,13 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/reports/printing.dashboard_title'), route('reports.printing')));
+
+    Route::get('fleet-health', [FleetHealthReportsController::class, 'index'])
+        ->name('reports.fleet-health')
+        ->middleware('can:reports.fleet-health.view')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/reports/general.fleet_health'), route('reports.fleet-health')));
 
 });
 
