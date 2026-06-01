@@ -108,6 +108,7 @@
 </div>
 
 
+@include ('partials.forms.edit.contract-select', ['translated_name' => trans('admin/contracts/general.contract'), 'fieldname' => 'contract_id'])
 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
 @include ('partials.forms.edit.order_number')
 @include ('partials.forms.edit.purchase_cost')

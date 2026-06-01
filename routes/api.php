@@ -737,6 +737,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 'upsert',
             ]
         )->name('api.contracts.upsert');
+
+        // Select2 picker source for the license create/edit form.
+        Route::get('selectlist',
+            [
+                Api\ContractsController::class,
+                'selectlist',
+            ]
+        )->name('api.contracts.selectlist');
     });
 
     Route::resource('contracts',

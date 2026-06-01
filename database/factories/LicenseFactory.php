@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Category;
+use App\Models\Contract;
 use App\Models\License;
 use App\Models\Manufacturer;
 use App\Models\Supplier;
@@ -38,6 +39,7 @@ class LicenseFactory extends Factory
             'seats' => $this->faker->numberBetween(1, 10),
             'serial' => $this->faker->uuid(),
             'supplier_id' => Supplier::factory(),
+            'contract_id' => Contract::factory(),
             'termination_date' => null,
         ];
     }
