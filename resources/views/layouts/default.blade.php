@@ -1502,7 +1502,6 @@
                             'reports.procurement.view',
                             'reports.contracts.view',
                             'reports.transactions.view',
-                            'reports.fleet-health.view',
                         ])
                             <li class="treeview{{ (request()->is('reports*') ? ' active' : '') }}">
 
@@ -1538,13 +1537,6 @@
                                         <li {{!! (request()->is('reports/printing*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.printing') }}">
                                                 {{ trans('admin/reports/printing.dashboard_title') }}
-                                            </a>
-                                        </li>
-                                    @endcan
-                                    @can('reports.fleet-health.view')
-                                        <li {{!! (request()->is('reports/fleet-health*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('reports.fleet-health') }}">
-                                                {{ trans('admin/reports/general.fleet_health') }}
                                             </a>
                                         </li>
                                     @endcan
