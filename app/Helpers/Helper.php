@@ -1897,6 +1897,18 @@ class Helper
     }
 
     /**
+     * Current ECU fiscal year in the `FY2026-27` shape. April → March,
+     * matching ConsumableTransaction::fiscalYearFor() and BackfillOrders.
+     */
+    public static function currentFiscalYear(?\Carbon\Carbon $date = null): string
+    {
+        $date = $date ?? \Carbon\Carbon::now();
+        $startYear = $date->month >= 4 ? $date->year : $date->year - 1;
+
+        return 'FY'.$startYear.'-'.substr((string) ($startYear + 1), -2);
+    }
+
+    /**
      * Build a carrier tracking URL from a carrier name and tracking number.
      *
      * Carrier matching is a loose contains-check so feed values like

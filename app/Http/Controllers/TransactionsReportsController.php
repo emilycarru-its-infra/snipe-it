@@ -42,7 +42,10 @@ class TransactionsReportsController extends Controller
             ->limit(12)
             ->get();
 
-        $current = $latest->first();
+        // Period selection: explicit ?period=YYYY-MM wins; otherwise pick
+        // the newest period that actually has data so an unprocessed
+        // current month doesn't render the dashboard as a wall of $0.00.
+        $current = $this->pickCurrentReconciliation($latest, $request->query('period'));
 
         // PaperCut balance change needs two month-boundary user_list
         // snapshots to be meaningful (start-of-month + end-of-month). When
@@ -81,6 +84,37 @@ class TransactionsReportsController extends Controller
             'deptMix' => $deptMix,
             'widgets' => $widgets,
         ]);
+    }
+
+    /**
+     * Pick which reconciliation drives the dashboard. Priority:
+     *   1. Explicit `?period=YYYY-MM` if it matches a known reconciliation.
+     *   2. Newest period with non-zero data (so the "wall of $0.00" caused
+     *      by an unprocessed current month falls back to the last fully
+     *      processed one).
+     *   3. Plain newest, if nothing has data yet.
+     *   4. null if there are no reconciliations at all.
+     */
+    private function pickCurrentReconciliation($latest, ?string $periodParam): ?Reconciliation
+    {
+        if ($latest->isEmpty()) {
+            return null;
+        }
+
+        if ($periodParam) {
+            $explicit = $latest->first(fn ($r) => $r->period_label === $periodParam);
+            if ($explicit) {
+                return $explicit;
+            }
+        }
+
+        $firstWithData = $latest->first(function ($r) {
+            return EffectiveLineItem::forPeriod($r->period_year, $r->period_month)
+                ->where('amount', '<>', 0)
+                ->exists();
+        });
+
+        return $firstWithData ?? $latest->first();
     }
 
     private function buildWidgets(int $year, int $month): array
