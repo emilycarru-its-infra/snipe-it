@@ -3,6 +3,7 @@
 namespace Tests\Feature\Licenses\Ui;
 
 use App\Models\Category;
+use App\Models\Contract;
 use App\Models\Depreciation;
 use App\Models\License;
 use App\Models\User;
@@ -52,6 +53,7 @@ class CreateLicenseTest extends TestCase
                 'name' => 'Test Valid License',
                 'seats' => '10',
                 'category_id' => Category::factory()->forLicenses()->create()->id,
+                'contract_id' => Contract::factory()->create()->id,
             ]);
         $response->assertStatus(302);
         $license = License::where('name', 'Test Valid License')->sole();
@@ -72,6 +74,7 @@ class CreateLicenseTest extends TestCase
                 'name' => 'Test Valid License',
                 'seats' => '100000',
                 'category_id' => Category::factory()->forLicenses()->create()->id,
+                'contract_id' => Contract::factory()->create()->id,
             ]);
         $response->assertStatus(302);
         $license = License::where('name', 'Test Valid License')->first();
@@ -81,5 +84,35 @@ class CreateLicenseTest extends TestCase
         //        $this->assertDatabaseMissing('action_logs', ['action_type' => 'add seats', 'item_id' => $license->id, 'item_type' => License::class]);
         // test log entries? Sure.
 
+    }
+
+    public function test_license_without_contract_fails_validation()
+    {
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->from(route('licenses.create'))
+            ->post(route('licenses.store'), [
+                'name' => 'Missing Contract License',
+                'seats' => '5',
+                'category_id' => Category::factory()->forLicenses()->create()->id,
+            ]);
+        $response->assertStatus(302);
+        $response->assertRedirect(route('licenses.create'));
+        $response->assertInvalid(['contract_id']);
+        $this->assertFalse(License::where('name', 'Missing Contract License')->exists());
+    }
+
+    public function test_license_with_unknown_contract_fails_validation()
+    {
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->from(route('licenses.create'))
+            ->post(route('licenses.store'), [
+                'name' => 'Bad Contract License',
+                'seats' => '5',
+                'category_id' => Category::factory()->forLicenses()->create()->id,
+                'contract_id' => 99999999,
+            ]);
+        $response->assertStatus(302);
+        $response->assertInvalid(['contract_id']);
+        $this->assertFalse(License::where('name', 'Bad Contract License')->exists());
     }
 }

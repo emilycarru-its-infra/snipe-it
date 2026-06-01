@@ -134,6 +134,7 @@ class LicensesController extends Controller
         $license->seats = $request->input('seats');
         $license->serial = $request->input('serial');
         $license->supplier_id = $request->input('supplier_id');
+        $license->contract_id = $request->input('contract_id');
         $license->category_id = $request->input('category_id');
         $license->license_model_id = $request->input('license_model_id') ?: null;
         $license->termination_date = $request->input('termination_date');
@@ -222,6 +223,7 @@ class LicensesController extends Controller
         $license->seats = e($request->input('seats'));
         $license->manufacturer_id = $request->input('manufacturer_id');
         $license->supplier_id = $request->input('supplier_id');
+        $license->contract_id = $request->input('contract_id');
         $license->category_id = $request->input('category_id');
         $license->license_model_id = $request->input('license_model_id') ?: null;
         $license->min_amt = $request->input('min_amt');
