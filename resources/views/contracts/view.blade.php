@@ -150,8 +150,8 @@
                         @foreach ($contract->licenses as $license)
                             <li>
                                 <a href="{{ route('licenses.show', $license) }}">{{ $license->name }}</a>
-                                @if ($license->pivot->seats_covered)
-                                    <span class="text-muted">— {{ $license->pivot->seats_covered }} {{ trans('admin/contracts/general.seats') }}</span>
+                                @if ($license->seats)
+                                    <span class="text-muted">— {{ $license->seats }} {{ trans('admin/contracts/general.seats') }}</span>
                                 @endif
                             </li>
                         @endforeach

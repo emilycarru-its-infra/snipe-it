@@ -39,7 +39,14 @@ class LicenseFactory extends Factory
             'seats' => $this->faker->numberBetween(1, 10),
             'serial' => $this->faker->uuid(),
             'supplier_id' => Supplier::factory(),
-            'contract_id' => Contract::factory(),
+            // Lazy-resolve the contract: reuse any existing one so
+            // tests that create many licenses don't pay the
+            // Contract::factory() cost N times (or cascade-fail when
+            // Contract's ValidatingTrait rejects a duplicate
+            // contract_number). Falls through to a fresh factory only
+            // when the table is empty.
+            'contract_id' => fn () => Contract::query()->inRandomOrder()->first()?->id
+                ?? Contract::factory()->create()->id,
             'termination_date' => null,
         ];
     }

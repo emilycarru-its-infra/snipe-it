@@ -1244,11 +1244,11 @@
                                     </a>
                                 </li>
                             @endcan
-                            @can('view', \App\Models\License::class)
-                                <li aria-hidden="true"{!! (request()->is('licenses*') ? ' class="active"' : '') !!}>
-                                    <a href="{{ route('licenses.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=2" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.licenses') }}">
-                                        <x-icon type="licenses" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.licenses') }}</span>
+                            @can('view', \App\Models\Contract::class)
+                                <li aria-hidden="true"{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' class="active"' : '') !!}>
+                                    <a href="{{ route('contracts.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=2" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/contracts/general.contracts') }}">
+                                        <x-icon type="contracts" class="fa-fw" />
+                                        <span class="topbar-nav-label">{{ trans('admin/contracts/general.contracts') }}</span>
                                     </a>
                                 </li>
                             @endcan
@@ -1487,7 +1487,7 @@
                 <!-- sidebar: style can be found in sidebar.less -->
                 <section class="sidebar">
                     <!-- sidebar menu: : style can be found in sidebar.less -->
-                    <ul class="sidebar-menu" data-widget="tree" {{ \App\Helpers\Helper::determineLanguageDirection() == 'rtl' ? 'style="margin-right:12px' : '' }}>
+                    <ul class="sidebar-menu" data-widget="tree" data-follow-link="true" {{ \App\Helpers\Helper::determineLanguageDirection() == 'rtl' ? 'style="margin-right:12px' : '' }}>
                         @can('admin')
                             <li {!! (\request()->route()->getName()=='home' ? ' class="active"' : '') !!} class="firstnav">
                                 <a href="{{ route('home') }}">
