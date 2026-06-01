@@ -47,9 +47,10 @@ class ProcurementReportsTest extends TestCase
         PurchaseOrder::factory()->create(['po_number' => 'PO-FY26', 'fiscal_year' => 'FY2026-27', 'budget' => 20000]);
         $superuser = $this->superuser();
 
-        // Unfiltered, both purchase orders are charted.
+        // ?fiscal_year=all opts out of the current-FY default (PR #141)
+        // and charts every year.
         $this->actingAs($superuser)
-            ->get(route('reports.procurement'))
+            ->get(route('reports.procurement', ['fiscal_year' => 'all']))
             ->assertOk()
             ->assertSee('PO-FY25')
             ->assertSee('PO-FY26');
@@ -412,13 +413,15 @@ class ProcurementReportsTest extends TestCase
             'balance_remaining' => 1000,
         ]);
 
+        // PR #138's ledger overhaul drops the Paid / Remaining money
+        // columns — only Contract Value (the type-appropriate cost) is
+        // shown now. For upgrades that's top_up_amount.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.user-agreement-ledger'))
             ->assertOk()
             ->assertSee('Carlo Ghioni')
             ->assertSee(trans('admin/purchase-orders/general.user_agreement_stage_value_in_repayment'))
-            ->assertSee('$1,200.00')
-            ->assertSee('$1,000.00');
+            ->assertSee('$1,200.00');
     }
 
     public function test_user_agreement_ledger_filters_by_agreement_type()
