@@ -148,11 +148,14 @@ class Contract extends Model
         return $this->hasMany(Contract::class, 'parent_contract_id');
     }
 
+    /**
+     * Licenses originating from this contract. PR-B (sha-e2d16df)
+     * replaced the M:N `contract_license` pivot with a 1:N FK
+     * (`licenses.contract_id`); this relation now reads through that FK.
+     */
     public function licenses()
     {
-        return $this->belongsToMany(License::class, 'contract_license')
-            ->withPivot(['seats_covered', 'valid_from', 'valid_to', 'notes'])
-            ->withTimestamps();
+        return $this->hasMany(License::class, 'contract_id');
     }
 
     public function assets()
