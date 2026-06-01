@@ -288,6 +288,9 @@ class IconHelper
                 return 'fa-solid fa-sitemap';
             case 'procurement':
                 return 'fa-solid fa-cart-shopping';
+            case 'contracts':
+            case 'contract':
+                return 'fa-solid fa-file-signature';
             case 'toners':
                 return 'fa-solid fa-print';
 

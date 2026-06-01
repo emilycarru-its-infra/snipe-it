@@ -1505,7 +1505,7 @@
                         ])
                             <li class="treeview{{ (request()->is('reports*') ? ' active' : '') }}">
 
-                                <a href="#" class="dropdown-toggle">
+                                <a href="{{ route('reports.index') }}">
                                     <x-icon type="reports" class="fa-fw" />
                                     <span>{{ trans('general.reports') }}</span>
                                     <x-icon type="angle-left" class="pull-right"/>
@@ -1546,7 +1546,7 @@
 
                         @can('index', \App\Models\Asset::class)
                             <li class="treeview{{ ((request()->is('statuslabels/*') || request()->is(['hardware*', 'maintenances*'])) ? ' active' : '') }}">
-                                <a href="#">
+                                <a href="{{ route('hardware.index') }}">
                                     <x-icon type="assets" class="fa-fw" />
                                     <span>{{ trans('general.assets') }}</span>
                                     <x-icon type="angle-left" class="pull-right fa-fw"/>
@@ -1699,25 +1699,25 @@
                                 </ul>
                             </li>
                         @endcan
-                        @if (Gate::allows('view', \App\Models\License::class) || Gate::allows('view', \App\Models\Contract::class))
-                            <li id="licenses-sidenav-option" class="treeview {{ (request()->is('licenses*') || request()->is('contracts*') || request()->is('admin/license-models*')) ? 'active' : '' }}">
-                                <a href="#">
-                                    <x-icon type="licenses" class="fa-fw"/>
-                                    <span>{{ trans('general.licenses') }}</span>
+                        @if (Gate::allows('view', \App\Models\Contract::class) || Gate::allows('view', \App\Models\License::class))
+                            <li id="contracts-sidenav-option" class="treeview {{ (request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? 'active' : '' }}">
+                                <a href="{{ route('contracts.index') }}">
+                                    <x-icon type="contracts" class="fa-fw"/>
+                                    <span>{{ trans('admin/contracts/general.contracts') }}</span>
                                     <x-icon type="angle-left" class="pull-right fa-fw"/>
                                 </a>
                                 <ul class="treeview-menu">
-                                    @can('view', \App\Models\License::class)
-                                        <li {!! (request()->is('licenses*') ? ' class="active"' : '') !!}>
-                                            <a href="{{ route('licenses.index') }}">
-                                                {{ trans('general.licenses') }}
-                                            </a>
-                                        </li>
-                                    @endcan
                                     @can('view', \App\Models\Contract::class)
                                         <li {!! (request()->is('contracts*') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('contracts.index') }}">
                                                 {{ trans('admin/contracts/general.contracts') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\License::class)
+                                        <li {!! (request()->is('licenses*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('licenses.index') }}">
+                                                {{ trans('general.licenses') }}
                                             </a>
                                         </li>
                                     @endcan
