@@ -78,4 +78,35 @@ class CostResolverTest extends TestCase
         $asset = $this->asset(null);
         $this->assertNull(app(CostResolver::class)->buyoutCost($asset));
     }
+
+    public function test_device_cost_prefers_order_items_sum_over_purchase_cost(): void
+    {
+        $asset = $this->asset(2700.00);
+        \App\Models\OrderItem::create([
+            'item_type'     => \App\Models\Asset::class,
+            'item_id'       => $asset->id,
+            'description'   => 'MacBook Pro',
+            'quantity'      => 1,
+            'unit_cost'     => 2700.00,
+            'warranty_cost' => 0,
+        ]);
+        \App\Models\OrderItem::create([
+            'item_type'     => \App\Models\Asset::class,
+            'item_id'       => $asset->id,
+            'description'   => 'AppleCare+',
+            'quantity'      => 1,
+            'unit_cost'     => 379.00,
+            'warranty_cost' => 0,
+        ]);
+
+        $this->assertSame(3079.00, app(CostResolver::class)->deviceCost($asset));
+        // Buyout follows the same path.
+        $this->assertSame(3079.00, app(CostResolver::class)->buyoutCost($asset));
+    }
+
+    public function test_device_cost_falls_back_to_purchase_cost_when_no_order_items(): void
+    {
+        $asset = $this->asset(1402.19);
+        $this->assertSame(1402.19, app(CostResolver::class)->deviceCost($asset));
+    }
 }
