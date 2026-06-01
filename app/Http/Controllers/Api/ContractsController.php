@@ -6,6 +6,7 @@ use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FilterRequest;
 use App\Http\Transformers\ContractsTransformer;
+use App\Http\Transformers\SelectlistTransformer;
 use App\Models\Contract;
 use App\Models\ContractAttribute;
 use App\Models\ContractSerial;
@@ -262,5 +263,44 @@ class ContractsController extends Controller
                 $contract->assets()->sync($sync);
             }
         });
+    }
+
+    /**
+     * Select2-style picker source for the license create/edit form. Mirrors
+     * SuppliersController::selectlist(). Returns active, non-synthesized
+     * contracts by default; the "Unattributed" system contract is included
+     * so admins can leave a license assigned there until they have the real
+     * contract on hand.
+     */
+    public function selectlist(Request $request): array
+    {
+        $this->authorize('view.selectlists');
+
+        $contracts = Contract::query()
+            ->select(['id', 'name', 'contract_number', 'fiscal_year', 'is_active']);
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $contracts->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', '%'.$search.'%')
+                  ->orWhere('contract_number', 'LIKE', '%'.$search.'%');
+            });
+        }
+
+        $contracts = $contracts->orderBy('name')->paginate(50);
+
+        foreach ($contracts as $contract) {
+            $label = $contract->name;
+            if ($contract->contract_number && $contract->contract_number !== $contract->name) {
+                $label .= ' ('.$contract->contract_number.')';
+            }
+            if ($contract->fiscal_year) {
+                $label .= ' — '.$contract->fiscal_year;
+            }
+            $contract->use_text = $label;
+            $contract->use_image = null;
+        }
+
+        return (new SelectlistTransformer)->transformSelectlist($contracts);
     }
 }

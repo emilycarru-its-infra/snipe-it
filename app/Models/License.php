@@ -60,6 +60,7 @@ class License extends Depreciable
         'notes' => 'string|nullable',
         'category_id' => 'required|exists:categories,id',
         'company_id' => 'integer|nullable',
+        'contract_id' => 'required|integer|exists:contracts,id',
         'purchase_cost' => 'numeric|nullable|gte:0|max:99999999999999999.99',
         'purchase_date' => 'date_format:Y-m-d|nullable|max:10|required_with:depreciation_id',
         'expiration_date' => 'date_format:Y-m-d|nullable|max:10',
@@ -74,6 +75,7 @@ class License extends Depreciable
      */
     protected $fillable = [
         'company_id',
+        'contract_id',
         'depreciation_id',
         'expiration_date',
         'license_email',
@@ -819,6 +821,17 @@ class License extends Depreciable
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    /**
+     * Originating procurement contract. Every license must belong to
+     * one (NOT NULL FK, ON DELETE RESTRICT). Licenses with no real
+     * contract on record are temporarily assigned to the system
+     * "Unattributed" contract until an admin reassigns them.
+     */
+    public function contract()
+    {
+        return $this->belongsTo(Contract::class, 'contract_id');
     }
 
     /**

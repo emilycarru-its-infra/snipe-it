@@ -54,6 +54,12 @@ class LicensesTransformer
                 'name' => e($license->supplier->name),
                 'tag_color' => ($license->supplier->tag_color) ? e($license->supplier->tag_color) : null,
             ] : null,
+            'contract' => ($license->contract) ? [
+                'id' => (int) $license->contract->id,
+                'name' => e($license->contract->name),
+                'contract_number' => $license->contract->contract_number ? e($license->contract->contract_number) : null,
+                'fiscal_year' => $license->contract->fiscal_year ? e($license->contract->fiscal_year) : null,
+            ] : null,
             'category' => ($license->category) ? [
                 'id' => (int) $license->category->id,
                 'name' => e($license->category->name),

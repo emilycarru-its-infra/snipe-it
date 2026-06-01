@@ -101,4 +101,5 @@ return [
 
     'admin_user'       => 'Admin user (renewal contact)',
     'admin_user_unset' => 'Not set — alerts go to the global alert email',
+    'select_contract'  => 'Select a contract',
 ];
