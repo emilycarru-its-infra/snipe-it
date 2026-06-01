@@ -10,8 +10,14 @@
 @if ($current)
     <div class="row">
         <div class="col-md-12" style="margin-bottom:15px; color:#888;">
-            {{ trans('admin/reports/transactions.col_period') }}:
-            <strong>{{ $current->period_label }}</strong>
+            <form method="get" action="{{ route('reports.transactions.index') }}" style="display:inline-block; margin-right:10px;">
+                <label for="period-picker" style="font-weight:normal; margin-right:5px;">{{ trans('admin/reports/transactions.col_period') }}:</label>
+                <select id="period-picker" name="period" class="form-control input-sm" style="display:inline-block; width:auto;" onchange="this.form.submit()">
+                    @foreach ($latest as $r)
+                        <option value="{{ $r->period_label }}" {{ $current->period_label === $r->period_label ? 'selected' : '' }}>{{ $r->period_label }}</option>
+                    @endforeach
+                </select>
+            </form>
             &middot;
             {{ trans('admin/reports/transactions.col_generated') }}:
             {{ $current->generated_at?->diffForHumans() ?? '—' }}
