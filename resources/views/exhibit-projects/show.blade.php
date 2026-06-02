@@ -9,9 +9,9 @@
     <div class="col-md-8">
         <div class="box box-default">
             <div class="box-header with-border">
-                <h3 class="box-title">{{ $project->displayName }} — {{ $project->show }} {{ $project->year }}</h3>
+                <h3 class="box-title">{{ $project->displayName }} — {{ $project->exhibit?->name }} {{ $project->year }}</h3>
                 <div class="box-tools pull-right">
-                    <span class="label label-{{ $project->statusColor() }}">{{ trans('admin/exhibit-projects/general.status_value_'.$project->status) }}</span>
+                    <span class="label" style="background-color: {{ $project->statusColor() }}; color:#fff;">{{ $project->statusLabel() }}</span>
                 </div>
             </div>
             <div class="box-body">
@@ -32,7 +32,7 @@
                         @else — @endif
                     </dd>
                     <dt>{{ trans('admin/exhibit-projects/general.project_type') }}</dt>
-                    <dd>{{ $project->project_type ? trans('admin/exhibit-projects/general.type_value_'.$project->project_type) : '—' }}</dd>
+                    <dd>{{ $project->typeLabel() ?: '—' }}</dd>
                     <dt>{{ trans('admin/exhibit-projects/general.project_details') }}</dt>
                     <dd>{{ $project->project_details ?: '—' }}</dd>
                     <dt>{{ trans('admin/exhibit-projects/general.requested_device') }}</dt>
@@ -52,8 +52,7 @@
             <div class="box-footer">
                 <a class="btn btn-warning" href="{{ route('exhibit-projects.edit', $project) }}"><i class="fas fa-pencil-alt"></i> {{ trans('general.update') }}</a>
                 <form method="POST" action="{{ route('exhibit-projects.destroy', $project) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/exhibit-projects/general.delete_confirm') }}');">
-                    {{ csrf_field() }}
-                    @method('DELETE')
+                    {{ csrf_field() }}@method('DELETE')
                     <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> {{ trans('general.delete') }}</button>
                 </form>
             </div>
@@ -61,9 +60,7 @@
     </div>
     <div class="col-md-4">
         <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/exhibit-projects/general.send_email') }}</h3>
-            </div>
+            <div class="box-header with-border"><h3 class="box-title">{{ trans('admin/exhibit-projects/general.send_email') }}</h3></div>
             <div class="box-body">
                 @if (! $project->recipientEmail())
                     <p class="text-muted">{{ trans('admin/exhibit-projects/general.email_no_recipient') }}</p>

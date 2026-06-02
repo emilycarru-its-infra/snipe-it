@@ -5,15 +5,11 @@
 @stop
 
 @section('header_right')
-    <a href="{{ route('exhibit-email-templates.index') }}" class="btn btn-sm btn-default">
-        <i class="fas fa-envelope"></i> {{ trans('admin/exhibit-projects/general.email_templates') }}
-    </a>
-    <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default">
-        <i class="fas fa-download"></i> {{ trans('general.download') }}
-    </a>
-    <a href="{{ route('exhibit-projects.create') }}" class="btn btn-sm btn-primary">
-        <i class="fas fa-plus"></i> {{ trans('admin/exhibit-projects/general.add_project') }}
-    </a>
+    <a href="{{ route('exhibit-config.index', 'exhibits') }}" class="btn btn-sm btn-default"><i class="fas fa-cog"></i> {{ trans('admin/exhibit-projects/general.configure') }}</a>
+    <a href="{{ route('exhibit-email-templates.index') }}" class="btn btn-sm btn-default"><i class="fas fa-envelope"></i> {{ trans('admin/exhibit-projects/general.email_templates') }}</a>
+    <a href="{{ route('exhibit-projects.import-form') }}" class="btn btn-sm btn-default"><i class="fas fa-upload"></i> {{ trans('admin/exhibit-projects/general.import_title') }}</a>
+    <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('general.download') }}</a>
+    <a href="{{ route('exhibit-projects.create') }}" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> {{ trans('admin/exhibit-projects/general.add_project') }}</a>
 @stop
 
 @section('content')
@@ -24,9 +20,9 @@
         <form method="GET" action="{{ route('reports.exhibit') }}" class="form-inline" style="margin-bottom:15px;">
             <div class="form-group">
                 <label>{{ trans('admin/exhibit-projects/general.filter_show') }}</label>
-                <select name="show" class="form-control" onchange="this.form.submit()">
-                    @foreach ($shows as $s)
-                        <option value="{{ $s }}" {{ $show === $s ? 'selected' : '' }}>{{ $s }}</option>
+                <select name="exhibit" class="form-control" onchange="this.form.submit()">
+                    @foreach ($exhibits as $ex)
+                        <option value="{{ $ex->id }}" {{ (int) $exhibitId === (int) $ex->id ? 'selected' : '' }}>{{ $ex->name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -42,8 +38,8 @@
                 <label>{{ trans('admin/exhibit-projects/general.filter_status') }}</label>
                 <select name="status" class="form-control" onchange="this.form.submit()">
                     <option value="">{{ trans('admin/exhibit-projects/general.all_statuses') }}</option>
-                    @foreach (\App\Models\ExhibitProject::STATUSES as $st)
-                        <option value="{{ $st }}" {{ $statusFilter === $st ? 'selected' : '' }}>{{ trans('admin/exhibit-projects/general.status_value_'.$st) }}</option>
+                    @foreach ($statuses as $st)
+                        <option value="{{ $st->id }}" {{ (string) $statusFilter === (string) $st->id ? 'selected' : '' }}>{{ $st->name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -51,32 +47,28 @@
     </div>
 </div>
 
-{{-- Count widgets --}}
+{{-- Donut + count widgets --}}
 <div class="row">
     @php($cards = [
-        ['title' => trans('admin/exhibit-projects/general.widget_project_type'), 'rows' => $widgets['type'], 'status' => false],
-        ['title' => trans('admin/exhibit-projects/general.widget_status'), 'rows' => $widgets['status'], 'status' => true],
-        ['title' => trans('admin/exhibit-projects/general.widget_device'), 'rows' => $widgets['device'], 'status' => false],
+        ['key' => 'type', 'title' => trans('admin/exhibit-projects/general.widget_project_type'), 'canvas' => 'exhibitTypeChart'],
+        ['key' => 'status', 'title' => trans('admin/exhibit-projects/general.widget_status'), 'canvas' => 'exhibitStatusChart'],
+        ['key' => 'device', 'title' => trans('admin/exhibit-projects/general.widget_device'), 'canvas' => 'exhibitDeviceChart'],
     ])
     @foreach ($cards as $card)
         <div class="col-md-4">
             <div class="box box-default">
                 <div class="box-header with-border"><h3 class="box-title">{{ $card['title'] }}</h3></div>
-                <div class="box-body no-padding">
-                    <table class="table table-striped">
-                        <thead><tr><th></th><th class="text-right">{{ trans('admin/exhibit-projects/general.count') }}</th><th class="text-right">%</th></tr></thead>
+                <div class="box-body">
+                    <div style="position:relative; height:200px; margin-bottom:10px;">
+                        <canvas id="{{ $card['canvas'] }}"></canvas>
+                    </div>
+                    <table class="table table-striped" style="margin-bottom:0;">
                         <tbody>
-                        @forelse ($card['rows'] as $row)
+                        @forelse ($widgets[$card['key']]['rows'] as $r)
                             <tr>
-                                <td>
-                                    @if ($card['status'])
-                                        <span class="label label-{{ $row['color'] }}">{{ $row['label'] }}</span>
-                                    @else
-                                        {{ $row['label'] }}
-                                    @endif
-                                </td>
-                                <td class="text-right"><strong>{{ $row['count'] }}</strong></td>
-                                <td class="text-right text-muted">{{ $row['pct'] }}%</td>
+                                <td><span class="label" style="background-color: {{ $r['color'] }}; color:#fff;">{{ $r['label'] }}</span></td>
+                                <td class="text-right"><strong>{{ $r['count'] }}</strong></td>
+                                <td class="text-right text-muted">{{ $r['pct'] }}%</td>
                             </tr>
                         @empty
                             <tr><td colspan="3" class="text-center text-muted">—</td></tr>
@@ -96,7 +88,7 @@
     <div class="col-md-12" style="margin-bottom:10px;">
         <form method="POST" action="{{ route('exhibit-projects.send-bulk') }}" class="form-inline" onsubmit="return confirm('{{ trans('admin/exhibit-projects/general.send_to_approved') }}?');">
             {{ csrf_field() }}
-            <input type="hidden" name="show" value="{{ $show }}">
+            <input type="hidden" name="exhibit" value="{{ $exhibitId }}">
             <input type="hidden" name="year" value="{{ $year }}">
             <div class="form-group">
                 <select name="template_id" class="form-control">
@@ -133,7 +125,7 @@
             <tbody>
             @forelse ($projects as $project)
                 <tr>
-                    <td><span class="label label-{{ $project->statusColor() }}">{{ trans('admin/exhibit-projects/general.status_value_'.$project->status) }}</span></td>
+                    <td><span class="label" style="background-color: {{ $project->statusColor() }}; color:#fff;">{{ $project->statusLabel() }}</span></td>
                     <td>@if ($project->submitted_file)<i class="fas fa-check text-success"></i>@endif</td>
                     <td>
                         @if ($project->user)
@@ -142,7 +134,7 @@
                             {{ $project->student_name ?: '—' }}
                         @endif
                     </td>
-                    <td>{{ $project->project_type ? trans('admin/exhibit-projects/general.type_value_'.$project->project_type) : '' }}</td>
+                    <td>{{ $project->typeLabel() }}</td>
                     <td>{{ $project->project_details }}</td>
                     <td>{{ $project->requested_device }}</td>
                     <td>
@@ -165,4 +157,25 @@
         </table>
     </div>
 </div>
+
+<script src="{{ url(mix('js/dist/Chart.min.js')) }}"></script>
+<script nonce="{{ csrf_token() }}">
+(function () {
+    var donut = function (id, payload) {
+        var el = document.getElementById(id);
+        if (!el || !payload.labels.length) { return; }
+        new Chart(el, {
+            type: 'doughnut',
+            data: {
+                labels: payload.labels,
+                datasets: [{ data: payload.data, backgroundColor: payload.colors }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, legend: { position: 'right' } }
+        });
+    };
+    donut('exhibitTypeChart', @json($widgets['type']['chart']));
+    donut('exhibitStatusChart', @json($widgets['status']['chart']));
+    donut('exhibitDeviceChart', @json($widgets['device']['chart']));
+})();
+</script>
 @stop
