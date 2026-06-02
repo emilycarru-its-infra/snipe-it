@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Mail\ContractRenewalAlertMail;
 use App\Models\Contract;
+use App\Models\EmailTemplate;
 use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -44,11 +45,9 @@ class SendContractRenewalAlerts extends Command
         $today    = Carbon::today();
         $dryRun   = (bool) $this->option('dry-run');
         $force    = (bool) $this->option('force');
-        $fallback = collect(explode(',', (string) $settings->alert_email))
-            ->map(fn ($s) => trim($s))
-            ->filter()
-            ->values()
-            ->all();
+        // Per-contract admin_user wins; otherwise fall back to the per-email
+        // recipient override (Settings → Emails) ?? the global alert_email list.
+        $fallback = EmailTemplate::recipientsFor('report.contract_renewal', $settings->alert_email);
 
         $sent = ['30d' => 0, '14d' => 0, 'expired' => 0];
 

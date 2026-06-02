@@ -141,12 +141,16 @@ class EmailRegistry
             ],
 
             // ---- Reports & alerts ----
+            // These go to admins (the global Setting::alert_email list by default).
+            // configurable_recipients exposes a per-email Recipients field so each
+            // report can be routed to its own audience.
             [
                 'key' => 'report.expiring_assets',
                 'category' => 'reports',
                 'label' => 'Expiring assets report',
                 'description' => 'Scheduled digest of assets with warranties/leases expiring soon.',
                 'merge_vars' => ['assets' => 'Expiring assets', 'threshold' => 'Day threshold'],
+                'configurable_recipients' => true,
                 'factory' => fn (EmailSampleData $s) => new ExpiringAssetsMail($s->assets(), 60),
             ],
             [
@@ -155,6 +159,7 @@ class EmailRegistry
                 'label' => 'Expiring licenses report',
                 'description' => 'Scheduled digest of licenses expiring soon.',
                 'merge_vars' => ['licenses' => 'Expiring licenses', 'threshold' => 'Day threshold'],
+                'configurable_recipients' => true,
                 'factory' => fn (EmailSampleData $s) => new ExpiringLicenseMail($s->licenses(), 60),
             ],
             [
@@ -163,15 +168,36 @@ class EmailRegistry
                 'label' => 'Upcoming audits report',
                 'description' => 'Scheduled digest of assets due for audit.',
                 'merge_vars' => ['assets' => 'Assets due', 'threshold' => 'Day threshold', 'total' => 'Total count'],
+                'configurable_recipients' => true,
                 'factory' => fn (EmailSampleData $s) => new SendUpcomingAuditMail($s->assets(), 30, 3),
             ],
             [
                 'key' => 'report.contract_renewal',
                 'category' => 'reports',
                 'label' => 'Contract renewal alert',
-                'description' => 'Alerts when contracts are 30/14 days out or expired.',
+                'description' => 'Alerts when contracts are 30/14 days out or expired. Per-contract admin_user wins; this list is the fallback.',
                 'merge_vars' => ['contracts' => 'Contracts', 'window' => 'Alert window'],
+                'configurable_recipients' => true,
                 'factory' => fn (EmailSampleData $s) => new ContractRenewalAlertMail($s->contracts(), '30d'),
+            ],
+            // Notification-channel reports — recipient-configurable now; subject/body
+            // editing + preview fold in with the other notifications in Phase E
+            // (no factory yet, so they're listed for recipients only).
+            [
+                'key' => 'report.expected_checkin',
+                'category' => 'reports',
+                'label' => 'Expected checkin report',
+                'description' => 'Daily admin digest of assets due for check-in soon.',
+                'merge_vars' => [],
+                'configurable_recipients' => true,
+            ],
+            [
+                'key' => 'report.low_inventory',
+                'category' => 'reports',
+                'label' => 'Low inventory report',
+                'description' => 'Alert when consumables/accessories fall below their minimum quantity.',
+                'merge_vars' => [],
+                'configurable_recipients' => true,
             ],
 
             // ---- User Agreements ----
@@ -214,7 +240,7 @@ class EmailRegistry
     public static function makeMailable(string $key): ?Mailable
     {
         $entry = self::find($key);
-        if (! $entry) {
+        if (! $entry || ! isset($entry['factory'])) {
             return null;
         }
 

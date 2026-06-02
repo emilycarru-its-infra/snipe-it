@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Helpers\Helper;
 use App\Models\Asset;
+use App\Models\EmailTemplate;
 use App\Models\Recipients\AlertRecipient;
 use App\Models\Setting;
 use App\Notifications\ExpectedCheckinAdminNotification;
@@ -89,9 +90,9 @@ class SendExpectedCheckinAlerts extends Command
 
         if (($assets) && ($assets->count() > 0) && ($settings->alert_email != '')) {
             // Send a rollup to the admin, if settings dictate
-            $recipients = collect(explode(',', $settings->alert_email))->map(function ($item) {
-                return new AlertRecipient($item);
-            });
+            // Per-email recipient override (Settings → Emails) ?? global alert_email.
+            $recipients = collect(EmailTemplate::recipientsFor('report.expected_checkin', $settings->alert_email))
+                ->map(fn ($email) => new AlertRecipient($email));
             Notification::send($recipients, new ExpectedCheckinAdminNotification($assets));
 
         }

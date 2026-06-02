@@ -32,12 +32,22 @@ class EmailsController extends Controller
         // editor can show them as placeholders.
         BaseMailable::$ignoreOverrides = true;
         $emails = collect(EmailRegistry::all())->map(function ($email) use ($overrides) {
-            $email['subject_override'] = $overrides->get($email['key'])?->subject;
-            $email['body_override'] = $overrides->get($email['key'])?->body;
-            try {
-                $email['subject_default'] = (string) EmailRegistry::makeMailable($email['key'])?->envelope()->subject;
-            } catch (\Throwable $e) {
-                $email['subject_default'] = '';
+            $override = $overrides->get($email['key']);
+            // Subject/body are only editable for emails we can render (have a
+            // factory); recipients are editable where the registry opts in.
+            $email['previewable'] = isset($email['factory']);
+            $email['configurable_recipients'] = $email['configurable_recipients'] ?? false;
+            $email['subject_override'] = $override?->subject;
+            $email['body_override'] = $override?->body;
+            $email['recipients_override'] = $override?->recipients;
+            $email['subject_default'] = '';
+
+            if ($email['previewable']) {
+                try {
+                    $email['subject_default'] = (string) EmailRegistry::makeMailable($email['key'])?->envelope()->subject;
+                } catch (\Throwable $e) {
+                    $email['subject_default'] = '';
+                }
             }
 
             return $email;
@@ -62,6 +72,7 @@ class EmailsController extends Controller
         $request->validate([
             'subject' => 'nullable|string|max:255',
             'body' => 'nullable|string|max:65535',
+            'recipients' => 'nullable|string|max:2000',
         ]);
 
         $subject = trim((string) $request->input('subject'));
@@ -78,11 +89,26 @@ class EmailsController extends Controller
                 ->withErrors(['body' => trans('admin/settings/general.emails_body_invalid')]);
         }
 
+        // Recipients: a comma-separated list; every entry must be a valid email.
+        $recipients = collect(explode(',', (string) $request->input('recipients')))
+            ->map(fn ($email) => trim($email))
+            ->filter()
+            ->values();
+
+        foreach ($recipients as $email) {
+            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return redirect()->route('settings.emails.index', ['selected' => $key])
+                    ->withInput()
+                    ->withErrors(['recipients' => trans('admin/settings/general.emails_recipients_invalid', ['email' => $email])]);
+            }
+        }
+
         EmailTemplate::updateOrCreate(
             ['key' => $key],
             [
                 'subject' => $subject !== '' ? $subject : null,
                 'body' => $body,
+                'recipients' => $recipients->isNotEmpty() ? $recipients->implode(',') : null,
                 'updated_by' => auth()->id(),
             ],
         );
