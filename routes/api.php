@@ -667,6 +667,11 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ]
     ); // end imports API routes
 
+    // Exhibit project CSV backfill — token-authed, drives the multi-year
+    // historical import without an SSO session.
+    Route::post('exhibit/import', [Api\ExhibitImportController::class, 'import'])
+        ->name('api.exhibit.import');
+
     /**
      * Labels API routes
      */
