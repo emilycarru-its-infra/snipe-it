@@ -12,9 +12,12 @@ use Watson\Validating\ValidatingTrait;
  * One allocation event against a fiscal year's procurement budget.
  *
  * Sources:
- *   - 'forecast'     — seeded from upcoming lease renewals / EOL forecast
- *   - 'supplemental' — admin-side top-up announced during the year
- *   - 'adjustment'   — manual correction (often negative) explaining a fix
+ *   - 'forecast'      — seeded from upcoming lease renewals / EOL forecast
+ *   - 'supplemental'  — admin-side top-up announced during the year
+ *   - 'adjustment'    — manual correction (often negative) explaining a fix
+ *   - 'carry_forward' — a prior fiscal year's unspent budget (approved −
+ *                       committed) rolled into this one, so the pot reflects
+ *                       what wasn't spent last year
  *
  * The dashboard's Approved Budget tile sums these rows by fiscal_year.
  * Per-area slices on the dashboard sum rows by (fiscal_year, area).
@@ -25,7 +28,7 @@ class BudgetAllocation extends Model
 {
     use HasFactory, SoftDeletes, ValidatingTrait, Searchable;
 
-    public const SOURCES = ['forecast', 'supplemental', 'adjustment'];
+    public const SOURCES = ['forecast', 'supplemental', 'adjustment', 'carry_forward'];
 
     protected $table = 'budget_allocations';
 
@@ -48,7 +51,7 @@ class BudgetAllocation extends Model
         'fiscal_year'    => 'required|string|max:16',
         'area'           => 'nullable|string|max:191',
         'amount'         => 'required|numeric',
-        'source'         => 'required|in:forecast,supplemental,adjustment',
+        'source'         => 'required|in:forecast,supplemental,adjustment,carry_forward',
         'description'    => 'nullable|string|max:2000',
         'effective_date' => 'nullable|date',
     ];

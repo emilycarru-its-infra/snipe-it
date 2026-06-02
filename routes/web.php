@@ -857,6 +857,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
 
         Route::post('budget-allocations', [BudgetAllocationsController::class, 'store'])
             ->name('budget_allocations.store');
+        Route::post('budget-allocations/carry-forward', [BudgetAllocationsController::class, 'carryForward'])
+            ->name('budget_allocations.carry_forward');
         Route::delete('budget-allocations/{budget_allocation}', [BudgetAllocationsController::class, 'destroy'])
             ->name('budget_allocations.destroy');
 
