@@ -25,8 +25,10 @@ class EmailRegistry
             'checkout' => 'Checkout',
             'checkin' => 'Checkin',
             'acceptance' => 'Acceptance & reminders',
+            'requests' => 'Requests',
             'reports' => 'Reports & alerts',
             'agreements' => 'User Agreements',
+            'account' => 'Account & user',
         ];
     }
 
@@ -180,9 +182,8 @@ class EmailRegistry
                 'configurable_recipients' => true,
                 'factory' => fn (EmailSampleData $s) => new ContractRenewalAlertMail($s->contracts(), '30d'),
             ],
-            // Notification-channel reports — recipient-configurable now; subject/body
-            // editing + preview fold in with the other notifications in Phase E
-            // (no factory yet, so they're listed for recipients only).
+            // Notification-channel reports — recipient-configurable + previewable.
+            // They render through the notification path (no subject/body editing).
             [
                 'key' => 'report.expected_checkin',
                 'category' => 'reports',
@@ -190,6 +191,7 @@ class EmailRegistry
                 'description' => 'Daily admin digest of assets due for check-in soon.',
                 'merge_vars' => [],
                 'configurable_recipients' => true,
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\ExpectedCheckinAdminNotification($s->assets()), $s->notifiable()],
             ],
             [
                 'key' => 'report.low_inventory',
@@ -198,6 +200,7 @@ class EmailRegistry
                 'description' => 'Alert when consumables/accessories fall below their minimum quantity.',
                 'merge_vars' => [],
                 'configurable_recipients' => true,
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\InventoryAlert($s->lowInventoryItems(), 5), $s->notifiable()],
             ],
 
             // ---- User Agreements ----
@@ -216,6 +219,84 @@ class EmailRegistry
                 'description' => 'Follow-up reminder to sign an outstanding agreement.',
                 'merge_vars' => ['agreement' => 'The agreement', 'faculty_name' => 'Recipient name'],
                 'factory' => fn (EmailSampleData $s) => new UserAgreementSignatureReminderMail($s->userAgreement('pickup'), 1),
+            ],
+
+            // ---- Acceptance responses (notification-channel; preview-only) ----
+            [
+                'key' => 'acceptance.accepted_admin',
+                'category' => 'acceptance',
+                'label' => 'Item accepted (to admin)',
+                'description' => 'Sent to the admin when a user accepts an item.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemAcceptedNotification($s->acceptanceParams()), $s->notifiable()],
+            ],
+            [
+                'key' => 'acceptance.accepted_user',
+                'category' => 'acceptance',
+                'label' => 'Item accepted (to user)',
+                'description' => 'Confirmation sent to the user who accepted an item.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemAcceptedToUserNotification($s->acceptanceParams()), $s->recipient()],
+            ],
+            [
+                'key' => 'acceptance.declined',
+                'category' => 'acceptance',
+                'label' => 'Item declined',
+                'description' => 'Sent to the admin when a user declines an item.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemDeclinedNotification($s->acceptanceParams()), $s->notifiable()],
+            ],
+
+            // ---- Requests (notification-channel; preview-only) ----
+            [
+                'key' => 'request.asset',
+                'category' => 'requests',
+                'label' => 'Asset requested',
+                'description' => 'Sent when a user requests an asset.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\RequestAssetNotification($s->requestParams()), $s->notifiable()],
+            ],
+            [
+                'key' => 'request.cancel',
+                'category' => 'requests',
+                'label' => 'Asset request canceled',
+                'description' => 'Sent when a user cancels an asset request.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\RequestAssetCancelation($s->requestParams()), $s->notifiable()],
+            ],
+
+            // ---- Account & user (notification-channel; preview-only) ----
+            [
+                'key' => 'account.welcome',
+                'category' => 'account',
+                'label' => 'Welcome (new user)',
+                'description' => 'Sent to a new user when their account is created.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\WelcomeNotification($s->recipient()), $s->recipient()],
+            ],
+            [
+                'key' => 'account.first_admin',
+                'category' => 'account',
+                'label' => 'First admin setup',
+                'description' => 'Sent to the first administrator during initial setup.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\FirstAdminNotification($s->firstAdminData()), $s->recipient()],
+            ],
+            [
+                'key' => 'account.expected_checkin_user',
+                'category' => 'account',
+                'label' => 'Expected checkin reminder (user)',
+                'description' => 'Reminds a user that an item assigned to them is due for check-in.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\ExpectedCheckinNotification($s->asset()), $s->recipient()],
+            ],
+            [
+                'key' => 'account.inventory',
+                'category' => 'account',
+                'label' => 'Inventory report (to user)',
+                'description' => 'A user’s personal inventory summary, sent on request.',
+                'merge_vars' => [],
+                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\CurrentInventory($s->userWithInventory()), $s->userWithInventory()],
             ],
         ];
     }
@@ -245,5 +326,44 @@ class EmailRegistry
         }
 
         return ($entry['factory'])(new EmailSampleData);
+    }
+
+    /**
+     * Render an email to preview HTML from sample data. Mailables render via
+     * ->render(); notification-channel emails render their toMail() MailMessage
+     * markdown through the same mail pipeline. Returns null if the key can't be
+     * previewed.
+     */
+    public static function renderPreview(string $key): ?string
+    {
+        $entry = self::find($key);
+        if (! $entry) {
+            return null;
+        }
+
+        if (isset($entry['factory'])) {
+            return ($entry['factory'])(new EmailSampleData)->render();
+        }
+
+        if (isset($entry['notification'])) {
+            [$notification, $notifiable] = ($entry['notification'])(new EmailSampleData);
+            $message = $notification->toMail($notifiable);
+
+            return app(\Illuminate\Mail\Markdown::class)->render($message->markdown, $message->data());
+        }
+
+        return null;
+    }
+
+    /** Can this email be previewed (mailable or notification)? */
+    public static function isPreviewable(array $entry): bool
+    {
+        return isset($entry['factory']) || isset($entry['notification']);
+    }
+
+    /** Subject/body overrides only apply to mailables (they run through BaseMailable). */
+    public static function isEditable(array $entry): bool
+    {
+        return isset($entry['factory']);
     }
 }
