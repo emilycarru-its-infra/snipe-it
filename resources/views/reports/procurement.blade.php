@@ -216,7 +216,41 @@
             <div class="box-body">
                 <p class="text-muted">{{ trans('admin/purchase-orders/general.reports_intro') }}</p>
 
-                @php $hiddenReports = (array) (auth()->user()?->hidden_procurement_reports ?? []); @endphp
+                @php
+                    $hiddenReports = (array) (auth()->user()?->hidden_procurement_reports ?? []);
+
+                    // Reports that honour the dashboard's fiscal-year scope.
+                    // Each report's route name is added here as it gains FY
+                    // filtering, so the dashboard carries the current
+                    // selection into it (and only into it — reports that
+                    // read fiscal_year with other semantics are left alone).
+                    $fyReports = [
+                        'reports.procurement.po-budget',
+                        'reports.procurement.invoices',
+                        'reports.procurement.capital',
+                        'reports.procurement.forecast',
+                        'reports.procurement.leases-operational',
+                        'reports.procurement.leases-financial',
+                        'reports.procurement.csi-schedule',
+                        'reports.procurement.invoice-approval',
+                        'reports.procurement.lease-decisions',
+                        'reports.procurement.po-disposition',
+                        'reports.procurement.extension-watch',
+                        'reports.procurement.aro-register',
+                        'reports.procurement.asset-lease-detail',
+                        'reports.procurement.po-drilldown',
+                        'reports.procurement.disposition-grid',
+                        'reports.procurement.credit-ledger',
+                        'reports.procurement.lessor-breakdown',
+                        'reports.procurement.pst-applicability',
+                        'reports.procurement.user-agreement-ledger',
+                        'reports.procurement.schedule-signing',
+                    ];
+                    $fyParam = $selectedFy ?? 'all';
+                    $linkParams = fn ($route) => in_array($route, $fyReports, true)
+                        ? ['fiscal_year' => $fyParam]
+                        : [];
+                @endphp
 
                 @if (! empty($hiddenReports))
                     <p>
@@ -255,7 +289,7 @@
                         <tr>
                             <td>
                                 @if ($report['live'])
-                                    <strong><a href="{{ route($report['route']) }}">{{ trans('admin/purchase-orders/general.'.$report['name']) }}</a></strong>
+                                    <strong><a href="{{ route($report['route'], $linkParams($report['route'])) }}">{{ trans('admin/purchase-orders/general.'.$report['name']) }}</a></strong>
                                 @else
                                     <strong>{{ trans('admin/purchase-orders/general.'.$report['name']) }}</strong>
                                 @endif
@@ -264,11 +298,11 @@
                             </td>
                             <td class="text-right" style="vertical-align:middle; white-space:nowrap">
                                 @if ($report['live'])
-                                    <a href="{{ route($report['route']) }}" class="btn btn-sm btn-primary">
+                                    <a href="{{ route($report['route'], $linkParams($report['route'])) }}" class="btn btn-sm btn-primary">
                                         <x-icon type="reports" /> {{ trans('general.view') }}
                                     </a>
                                 @endif
-                                <a href="{{ route($report['route'], ['format' => 'csv']) }}" class="btn btn-sm btn-default">
+                                <a href="{{ route($report['route'], array_merge(['format' => 'csv'], $linkParams($report['route']))) }}" class="btn btn-sm btn-default">
                                     <x-icon type="download" /> {{ trans('general.download') }}
                                 </a>
                                 <a href="#" class="btn btn-sm btn-default text-muted hide-procurement-report"

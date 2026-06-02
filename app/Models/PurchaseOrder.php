@@ -144,6 +144,40 @@ class PurchaseOrder extends SnipeModel
     }
 
     /**
+     * Committed spend booked in a single fiscal year, attributed by the FY
+     * of the order each line item sits on (not the PO). A blanket PO spans
+     * fiscal years, so this is what lets a report show only the slice that
+     * belongs to the selected year. A null FY falls back to the all-years
+     * total.
+     */
+    public function committedTotalForFy(?string $fy): float
+    {
+        if ($fy === null) {
+            return $this->committedTotal();
+        }
+
+        return (float) $this->lineItems()
+            ->whereHas('order', fn ($query) => $query->where('fiscal_year', $fy))
+            ->get()->sum->lineTotal();
+    }
+
+    /**
+     * Invoiced subtotal booked in a single fiscal year, attributed by the
+     * FY of the order each invoice sits on. A null FY is the all-years
+     * total.
+     */
+    public function invoicedTotalForFy(?string $fy): float
+    {
+        if ($fy === null) {
+            return $this->invoicedTotal();
+        }
+
+        return (float) $this->invoices()
+            ->whereHas('order', fn ($query) => $query->where('fiscal_year', $fy))
+            ->sum('subtotal');
+    }
+
+    /**
      * Budget left after committed spend, or null when no budget is set.
      */
     public function remaining(): ?float
