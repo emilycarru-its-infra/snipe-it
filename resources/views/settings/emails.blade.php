@@ -46,6 +46,9 @@
                                            data-subject-default="{{ $email['subject_default'] ?? '' }}"
                                            data-subject-override="{{ $email['subject_override'] ?? '' }}"
                                            data-body-override="{{ $email['body_override'] ?? '' }}"
+                                           data-recipients-override="{{ $email['recipients_override'] ?? '' }}"
+                                           data-previewable="{{ ($email['previewable'] ?? false) ? '1' : '0' }}"
+                                           data-configurable-recipients="{{ ($email['configurable_recipients'] ?? false) ? '1' : '0' }}"
                                            data-merge-vars="{{ implode(',', array_keys($email['merge_vars'] ?? [])) }}"
                                            data-preview-url="{{ route('settings.emails.preview', $email['key']) }}">
                                             <strong>{{ $email['label'] }}</strong>
@@ -78,22 +81,31 @@
                         {{ csrf_field() }}
                         <input type="hidden" name="key" id="email-cms-key" value="">
 
-                        <div class="form-group {{ $errors->has('subject') ? 'has-error' : '' }}" style="margin-bottom:8px;">
-                            <label for="email-cms-subject">{{ trans('admin/settings/general.emails_subject') }}</label>
-                            <input type="text" name="subject" id="email-cms-subject" class="form-control" value="" maxlength="255">
-                            {!! $errors->first('subject', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
-                            <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_subject_help') }}</p>
+                        <div id="email-cms-recipients-group" class="form-group {{ $errors->has('recipients') ? 'has-error' : '' }}" style="margin-bottom:8px;">
+                            <label for="email-cms-recipients">{{ trans('admin/settings/general.emails_recipients') }}</label>
+                            <input type="text" name="recipients" id="email-cms-recipients" class="form-control" value="" maxlength="2000" placeholder="{{ trans('admin/settings/general.emails_recipients_placeholder') }}">
+                            {!! $errors->first('recipients', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                            <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_recipients_help') }}</p>
                         </div>
 
-                        <div class="form-group {{ $errors->has('body') ? 'has-error' : '' }}" style="margin-bottom:8px;">
-                            <label for="email-cms-body">{{ trans('admin/settings/general.emails_body') }}</label>
-                            <textarea name="body" id="email-cms-body" class="form-control" rows="10" style="font-family: var(--bs-font-monospace, monospace); font-size:12px;"></textarea>
-                            {!! $errors->first('body', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
-                            <p class="help-block" style="margin-bottom:4px;">{!! trans('admin/settings/general.emails_body_help') !!}</p>
-                            <p class="help-block" style="margin-bottom:0;">
-                                {{ trans('admin/settings/general.emails_merge_vars_hint') }}
-                                <span id="email-cms-merge-vars"></span>
-                            </p>
+                        <div id="email-cms-editable-fields">
+                            <div class="form-group {{ $errors->has('subject') ? 'has-error' : '' }}" style="margin-bottom:8px;">
+                                <label for="email-cms-subject">{{ trans('admin/settings/general.emails_subject') }}</label>
+                                <input type="text" name="subject" id="email-cms-subject" class="form-control" value="" maxlength="255">
+                                {!! $errors->first('subject', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                                <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_subject_help') }}</p>
+                            </div>
+
+                            <div class="form-group {{ $errors->has('body') ? 'has-error' : '' }}" style="margin-bottom:8px;">
+                                <label for="email-cms-body">{{ trans('admin/settings/general.emails_body') }}</label>
+                                <textarea name="body" id="email-cms-body" class="form-control" rows="10" style="font-family: var(--bs-font-monospace, monospace); font-size:12px;"></textarea>
+                                {!! $errors->first('body', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                                <p class="help-block" style="margin-bottom:4px;">{!! trans('admin/settings/general.emails_body_help') !!}</p>
+                                <p class="help-block" style="margin-bottom:0;">
+                                    {{ trans('admin/settings/general.emails_merge_vars_hint') }}
+                                    <span id="email-cms-merge-vars"></span>
+                                </p>
+                            </div>
                         </div>
 
                         <div class="text-right">
@@ -105,6 +117,9 @@
                             title="{{ trans('admin/settings/general.emails_preview') }}"
                             style="width:100%;height:70vh;border:1px solid #ddd;border-radius:3px;background:#fff;">
                     </iframe>
+                    <div id="email-cms-no-preview" class="alert alert-warning" style="display:none;">
+                        {{ trans('admin/settings/general.emails_no_preview') }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -124,6 +139,10 @@
         var subjectField = document.getElementById('email-cms-subject');
         var bodyField = document.getElementById('email-cms-body');
         var mergeVars = document.getElementById('email-cms-merge-vars');
+        var recipientsField = document.getElementById('email-cms-recipients');
+        var recipientsGroup = document.getElementById('email-cms-recipients-group');
+        var editableFields = document.getElementById('email-cms-editable-fields');
+        var noPreview = document.getElementById('email-cms-no-preview');
         var selectedKey = @json($selected ?? '');
         var oldInput = @json(old());
 
@@ -151,22 +170,38 @@
             el.parentElement.classList.add('active');
             var url = el.getAttribute('data-preview-url');
             var key = el.getAttribute('data-key');
-            frame.src = url;
-            openTab.href = url;
+            var previewable = el.getAttribute('data-previewable') === '1';
+            var configurableRecipients = el.getAttribute('data-configurable-recipients') === '1';
+            // After a validation error we re-show the rejected input for this email.
+            var isOld = oldInput && oldInput.key === key;
+
             title.textContent = el.getAttribute('data-label');
             desc.textContent = el.getAttribute('data-description');
             keyField.value = key;
+
+            // Subject + body are only editable for emails we can render.
+            editableFields.style.display = previewable ? '' : 'none';
             subjectField.placeholder = el.getAttribute('data-subject-default') || '';
-            // After a validation error we re-show the rejected input for this email;
-            // otherwise show the saved override.
-            if (oldInput && oldInput.key === key) {
-                subjectField.value = oldInput.subject || '';
-                bodyField.value = oldInput.body || '';
-            } else {
-                subjectField.value = el.getAttribute('data-subject-override') || '';
-                bodyField.value = el.getAttribute('data-body-override') || '';
-            }
+            subjectField.value = isOld ? (oldInput.subject || '') : (el.getAttribute('data-subject-override') || '');
+            bodyField.value = isOld ? (oldInput.body || '') : (el.getAttribute('data-body-override') || '');
             renderMergeVars(el.getAttribute('data-merge-vars'));
+
+            // Recipients only where the email opts in.
+            recipientsGroup.style.display = configurableRecipients ? '' : 'none';
+            recipientsField.value = isOld ? (oldInput.recipients || '') : (el.getAttribute('data-recipients-override') || '');
+
+            // Preview iframe, or a note for emails without a preview yet.
+            if (previewable) {
+                frame.style.display = '';
+                noPreview.style.display = 'none';
+                frame.src = url;
+                openTab.href = url;
+                openTab.style.display = '';
+            } else {
+                frame.style.display = 'none';
+                noPreview.style.display = '';
+                openTab.style.display = 'none';
+            }
         }
 
         items.forEach(function (el) {
