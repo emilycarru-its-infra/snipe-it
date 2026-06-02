@@ -403,6 +403,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
     Route::post('emails', [EmailsController::class, 'save'])
         ->name('settings.emails.save');
 
+    Route::post('emails/test', [EmailsController::class, 'test'])
+        ->name('settings.emails.test');
+
     Route::get('slack', [SettingsController::class, 'getSlack'])
         ->name('settings.slack.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
