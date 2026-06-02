@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Consumables\Ui;
 
+use App\Models\Actionlog;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Consumable;
@@ -106,5 +107,87 @@ class UpdateConsumableTest extends TestCase
             ->assertRedirect(route('consumables.index'));
 
         $this->assertDatabaseHas('consumables', $data);
+    }
+
+    public function test_adjust_quantity_requires_update_permission()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 0]);
+
+        $this->actingAs(User::factory()->create())
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1])
+            ->assertForbidden();
+    }
+
+    public function test_adjust_quantity_increments_by_delta()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 2]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1])
+            ->assertOk()
+            ->assertJson(['status' => 'success', 'qty' => 3, 'remaining' => 3]);
+
+        $this->assertEquals(3, $consumable->fresh()->qty);
+    }
+
+    public function test_adjust_quantity_decrements_by_delta()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 2]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => -1])
+            ->assertOk()
+            ->assertJson(['qty' => 1]);
+
+        $this->assertEquals(1, $consumable->fresh()->qty);
+    }
+
+    public function test_adjust_quantity_sets_absolute_value()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 0]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->post(route('consumables.adjust-qty', $consumable), ['qty' => 12])
+            ->assertOk()
+            ->assertJson(['qty' => 12]);
+
+        $this->assertEquals(12, $consumable->fresh()->qty);
+    }
+
+    public function test_adjust_quantity_never_drops_below_checked_out()
+    {
+        $user = User::factory()->editConsumables()->create();
+        $consumable = Consumable::factory()->create(['qty' => 2]);
+        $consumable->users()->attach($consumable->id, ['consumable_id' => $consumable->id, 'assigned_to' => $user->id]);
+        $consumable->users()->attach($consumable->id, ['consumable_id' => $consumable->id, 'assigned_to' => $user->id]);
+        $this->assertEquals(2, $consumable->numCheckedOut());
+
+        $this->actingAs($user)
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => -5])
+            ->assertOk()
+            ->assertJson(['qty' => 2]);
+
+        $this->assertEquals(2, $consumable->fresh()->qty);
+    }
+
+    public function test_adjust_quantity_is_recorded_in_the_activity_log()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 0]);
+        $user = User::factory()->editConsumables()->create();
+
+        $this->actingAs($user)
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1])
+            ->assertOk();
+
+        // ConsumableObserver logs an 'update' action with the changed qty,
+        // attributed to the acting user — the traceability Snipe already has.
+        $log = Actionlog::where('item_type', Consumable::class)
+            ->where('item_id', $consumable->id)
+            ->where('action_type', 'update')
+            ->latest('id')->first();
+
+        $this->assertNotNull($log, 'A qty nudge should write an update action log entry');
+        $this->assertEquals($user->id, $log->created_by);
+        $this->assertStringContainsString('qty', (string) $log->log_meta);
     }
 }

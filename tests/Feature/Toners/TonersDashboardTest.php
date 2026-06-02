@@ -73,7 +73,8 @@ class TonersDashboardTest extends TestCase
             ->get(route('toners.index'))
             ->assertOk();
 
-        $response->assertSee('bg-yellow', false);
-        $response->assertSee('bg-red', false);
+        // The colour band now lives on the inline quantity stepper.
+        $response->assertSee('qty-stepper--yellow', false);
+        $response->assertSee('qty-stepper--red', false);
     }
 }

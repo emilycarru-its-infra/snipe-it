@@ -21,6 +21,14 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
         [Consumables\ConsumablesController::class, 'clone']
     )->name('consumables.clone.create');
 
+    // Inline quantity nudge from the toner dashboard / info-panel stepper.
+    // Adjusts qty by a delta (or sets an absolute value) and returns JSON,
+    // routing through the same Eloquent save the edit form uses so the
+    // change lands in the consumable's activity log (who + when + old→new).
+    Route::post('{consumable}/adjust-qty',
+        [Consumables\ConsumablesController::class, 'adjustQuantity']
+    )->name('consumables.adjust-qty');
+
     // Add the consumable to an existing planned order, or create a new one.
     Route::get(
         '{consumable}/order',
