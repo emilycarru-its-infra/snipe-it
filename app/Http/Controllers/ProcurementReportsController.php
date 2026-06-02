@@ -41,28 +41,13 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        // Fiscal years available across purchase orders and planned orders.
-        $allFiscalYears = PurchaseOrder::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')
-            ->merge(Order::planned()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
-            ->unique()->sort()->values();
-
-        // Default to current FY when no ?fiscal_year is passed at all so
-        // the dashboard opens on this year's data instead of an all-time
-        // mash-up. `?fiscal_year=all` is the explicit opt-out for export
-        // / cross-year comparisons. Unknown values silently fall back to
-        // current FY.
-        $rawFy = $request->query('fiscal_year');
-        if ($rawFy === 'all') {
-            $selectedFy = null;
-        } elseif ($rawFy === null) {
-            $current = Helper::currentFiscalYear();
-            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
-        } elseif ($allFiscalYears->contains($rawFy)) {
-            $selectedFy = $rawFy;
-        } else {
-            $current = Helper::currentFiscalYear();
-            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
-        }
+        // Fiscal years available across purchase orders and planned orders,
+        // plus the resolved selection. `?fiscal_year=all` opts out; no value
+        // defaults to the current FY when it has data. Both are shared with
+        // every sub-report (see resolveFiscalYear) so the dashboard's FY
+        // scope follows the reader through to the reports they open.
+        $allFiscalYears = $this->availableFiscalYears();
+        $selectedFy = $this->resolveFiscalYear($request);
 
         $purchaseOrders = PurchaseOrder::when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
             ->orderBy('po_number')
@@ -222,7 +207,10 @@ class ProcurementReportsController extends Controller
             'po-budget-report',
             trans('admin/purchase-orders/general.report_po_budget'),
             'reports.procurement.po-budget',
-            $this->poBudgetReport()
+            $this->poBudgetReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -235,7 +223,10 @@ class ProcurementReportsController extends Controller
             'invoice-reconciliation-report',
             trans('admin/purchase-orders/general.report_invoices'),
             'reports.procurement.invoices',
-            $this->invoicesReport()
+            $this->invoicesReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -244,15 +235,17 @@ class ProcurementReportsController extends Controller
         $this->authorize('reports.procurement.view');
 
         $forecast = $request->query('mode') === 'forecast';
+        $fy = $this->resolveFiscalYear($request);
 
         return $this->render(
             $request,
             'capital-spend-report',
             trans('admin/purchase-orders/general.report_capital'),
             'reports.procurement.capital',
-            $this->capitalReport($forecast),
-            $this->capitalModeToggle($forecast),
-            ['mode' => $forecast ? 'forecast' : 'actual']
+            $this->capitalReport($forecast, $fy),
+            $this->capitalModeToggle($forecast, $request->query('fiscal_year', $fy)),
+            ['mode' => $forecast ? 'forecast' : 'actual'],
+            true
         );
     }
 
@@ -260,7 +253,8 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        $report = $this->refreshForecastReport();
+        $fy = $this->resolveFiscalYear($request);
+        $report = $this->refreshForecastReport($fy);
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('refresh-forecast-report', $report);
@@ -271,8 +265,15 @@ class ProcurementReportsController extends Controller
             'columns' => $report['columns'],
             'rows' => $report['records'],
             'footer' => $report['footer'] ?? null,
-            'downloadUrl' => route('reports.procurement.forecast', ['format' => 'csv']),
+            'downloadUrl' => route('reports.procurement.forecast', array_filter(
+                ['format' => 'csv', 'fiscal_year' => $request->query('fiscal_year', $fy)],
+                fn ($v) => $v !== null && $v !== ''
+            )),
             'canCreate' => Gate::allows('create', Order::class),
+            'fyFilterable' => true,
+            'selectedFy' => $fy,
+            'allFiscalYears' => $this->availableFiscalYears(),
+            'reportParams' => [],
         ]);
     }
 
@@ -337,11 +338,11 @@ class ProcurementReportsController extends Controller
             ->with('success', trans('admin/purchase-orders/general.forecast_planned_created', ['count' => $assets->count()]));
     }
 
-    public function receiving(): StreamedResponse
+    public function receiving(Request $request): StreamedResponse
     {
         $this->authorize('reports.procurement.view');
 
-        return $this->streamReportCsv('receiving-status-report', $this->receivingReport());
+        return $this->streamReportCsv('receiving-status-report', $this->receivingReport($this->resolveFiscalYear($request)));
     }
 
     public function leasesOperational(Request $request)
@@ -353,7 +354,10 @@ class ProcurementReportsController extends Controller
             'leases-operational-report',
             trans('admin/purchase-orders/general.report_leases_operational'),
             'reports.procurement.leases-operational',
-            $this->leasesOperationalReport()
+            $this->leasesOperationalReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -366,7 +370,10 @@ class ProcurementReportsController extends Controller
             'leases-financial-report',
             trans('admin/purchase-orders/general.report_leases_financial'),
             'reports.procurement.leases-financial',
-            $this->leasesFinancialReport()
+            $this->leasesFinancialReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -379,7 +386,10 @@ class ProcurementReportsController extends Controller
             'csi-schedule-reconciliation-report',
             trans('admin/purchase-orders/general.report_csi_schedule'),
             'reports.procurement.csi-schedule',
-            $this->csiScheduleReport()
+            $this->csiScheduleReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -387,12 +397,18 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
+        $status = $request->query('status');
+        $attestation = $request->query('attestation_type');
+
         return $this->render(
             $request,
             'invoice-approval-queue',
             trans('admin/purchase-orders/general.report_invoice_approval'),
             'reports.procurement.invoice-approval',
-            $this->invoiceApprovalReport($request->query('status'), $request->query('attestation_type'))
+            $this->invoiceApprovalReport($status, $attestation, $this->resolveFiscalYear($request)),
+            '',
+            array_filter(['status' => $status, 'attestation_type' => $attestation]),
+            true
         );
     }
 
@@ -402,34 +418,43 @@ class ProcurementReportsController extends Controller
 
         $typeFilter  = $request->query('agreement_type');
         $stageFilter = $request->query('stage');
-        $report      = $this->userAgreementLedgerReport($typeFilter, $stageFilter);
+        $fy          = $this->resolveFiscalYear($request);
+        $report      = $this->userAgreementLedgerReport($typeFilter, $stageFilter, $fy);
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('user-agreement-ledger', $report);
         }
 
-        $agreements = \App\Models\UserAgreement::with('user', 'asset')
-            ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
-                'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
-                'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed', 'cancelled',
-            ]))
-            ->orderBy('updated_at', 'desc')
-            ->when($typeFilter && in_array($typeFilter, \App\Models\UserAgreement::AGREEMENT_TYPES, true),
-                fn ($q) => $q->where('agreement_type', $typeFilter))
-            ->when($stageFilter && in_array($stageFilter, \App\Models\UserAgreement::LIFECYCLE_STAGES, true),
-                fn ($q) => $q->where('lifecycle_stage', $stageFilter))
-            ->get();
+        // FY scopes by the agreement's origination (created_at) — when the
+        // top-up / buyout entered the program.
+        $agreements = $this->scopeDateToFiscalYear(
+            \App\Models\UserAgreement::with('user', 'asset')
+                ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
+                    'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
+                    'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed', 'cancelled',
+                ]))
+                ->orderBy('updated_at', 'desc')
+                ->when($typeFilter && in_array($typeFilter, \App\Models\UserAgreement::AGREEMENT_TYPES, true),
+                    fn ($q) => $q->where('agreement_type', $typeFilter))
+                ->when($stageFilter && in_array($stageFilter, \App\Models\UserAgreement::LIFECYCLE_STAGES, true),
+                    fn ($q) => $q->where('lifecycle_stage', $stageFilter)),
+            $fy,
+            'created_at'
+        )->get();
 
         return view('reports.procurement.user-agreement-ledger', [
-            'reportTitle'  => trans('admin/purchase-orders/general.report_user_agreement_ledger'),
-            'agreements'   => $agreements,
-            'typeFilter'   => $typeFilter,
-            'stageFilter'  => $stageFilter,
-            'downloadUrl'  => route('reports.procurement.user-agreement-ledger', [
+            'reportTitle'    => trans('admin/purchase-orders/general.report_user_agreement_ledger'),
+            'agreements'     => $agreements,
+            'typeFilter'     => $typeFilter,
+            'stageFilter'    => $stageFilter,
+            'selectedFy'     => $fy,
+            'allFiscalYears' => $this->availableFiscalYears(),
+            'downloadUrl'    => route('reports.procurement.user-agreement-ledger', array_filter([
                 'format'         => 'csv',
                 'agreement_type' => $typeFilter,
                 'stage'          => $stageFilter,
-            ]),
+                'fiscal_year'    => $request->query('fiscal_year', $fy),
+            ], fn ($v) => $v !== null && $v !== '')),
         ]);
     }
 
@@ -442,7 +467,10 @@ class ProcurementReportsController extends Controller
             'schedule-signing-queue',
             trans('admin/purchase-orders/general.report_schedule_signing'),
             'reports.procurement.schedule-signing',
-            $this->scheduleSigningQueueReport($request->query('stage'))
+            $this->scheduleSigningQueueReport($request->query('stage'), $this->resolveFiscalYear($request)),
+            '',
+            array_filter(['stage' => $request->query('stage')]),
+            true
         );
     }
 
@@ -497,7 +525,10 @@ class ProcurementReportsController extends Controller
             'lease-decisions-report',
             trans('admin/purchase-orders/general.report_lease_decisions'),
             'reports.procurement.lease-decisions',
-            $this->leaseDecisionsReport($request->query('status'))
+            $this->leaseDecisionsReport($request->query('status'), $this->resolveFiscalYear($request)),
+            '',
+            array_filter(['status' => $request->query('status')]),
+            true
         );
     }
 
@@ -586,7 +617,10 @@ class ProcurementReportsController extends Controller
             'po-disposition-report',
             trans('admin/purchase-orders/general.report_po_disposition'),
             'reports.procurement.po-disposition',
-            $this->poDispositionReport()
+            $this->poDispositionReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -599,7 +633,10 @@ class ProcurementReportsController extends Controller
             'extension-watch-report',
             trans('admin/purchase-orders/general.report_extension_watch'),
             'reports.procurement.extension-watch',
-            $this->extensionWatchReport()
+            $this->extensionWatchReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -612,7 +649,10 @@ class ProcurementReportsController extends Controller
             'aro-register-report',
             trans('admin/purchase-orders/general.report_aro_register'),
             'reports.procurement.aro-register',
-            $this->aroRegisterReport()
+            $this->aroRegisterReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -625,7 +665,10 @@ class ProcurementReportsController extends Controller
             'asset-lease-detail-report',
             trans('admin/purchase-orders/general.report_asset_lease_detail'),
             'reports.procurement.asset-lease-detail',
-            $this->assetLeaseDetailReport()
+            $this->assetLeaseDetailReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -638,7 +681,10 @@ class ProcurementReportsController extends Controller
             'po-drilldown-report',
             trans('admin/purchase-orders/general.report_po_drilldown'),
             'reports.procurement.po-drilldown',
-            $this->poDrilldownReport()
+            $this->poDrilldownReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -651,7 +697,10 @@ class ProcurementReportsController extends Controller
             'disposition-grid-report',
             trans('admin/purchase-orders/general.report_disposition_grid'),
             'reports.procurement.disposition-grid',
-            $this->dispositionGridReport()
+            $this->dispositionGridReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -664,7 +713,10 @@ class ProcurementReportsController extends Controller
             'credit-termination-ledger',
             trans('admin/purchase-orders/general.report_credit_ledger'),
             'reports.procurement.credit-ledger',
-            $this->creditTerminationReport()
+            $this->creditTerminationReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -677,7 +729,10 @@ class ProcurementReportsController extends Controller
             'lessor-breakdown-report',
             trans('admin/purchase-orders/general.report_lessor_breakdown'),
             'reports.procurement.lessor-breakdown',
-            $this->lessorBreakdownReport()
+            $this->lessorBreakdownReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
@@ -690,21 +745,24 @@ class ProcurementReportsController extends Controller
             'pst-applicability-report',
             trans('admin/purchase-orders/general.report_pst_applicability'),
             'reports.procurement.pst-applicability',
-            $this->pstApplicabilityReport()
+            $this->pstApplicabilityReport($this->resolveFiscalYear($request)),
+            '',
+            [],
+            true
         );
     }
 
-    public function tax(): StreamedResponse
+    public function tax(Request $request): StreamedResponse
     {
         $this->authorize('reports.procurement.view');
 
-        return $this->streamReportCsv('tax-summary-report', $this->taxReport());
+        return $this->streamReportCsv('tax-summary-report', $this->taxReport($this->resolveFiscalYear($request)));
     }
 
     /**
      * Per-purchase-order budget vs. spend.
      */
-    private function poBudgetReport(): array
+    private function poBudgetReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
@@ -722,6 +780,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $purchaseOrders = PurchaseOrder::with('supplier', 'orders.invoices', 'orders.items')
+            ->when($fy, fn ($query) => $query->where('fiscal_year', $fy))
             ->orderBy('po_number')
             ->get();
 
@@ -729,18 +788,24 @@ class ProcurementReportsController extends Controller
         $totalBudget = $totalInvoiced = $totalCommitted = $totalRemaining = $totalOrders = 0.0;
 
         foreach ($purchaseOrders as $po) {
-            $invoiced = $po->invoicedTotal();
-            $committed = $po->committedTotal();
-            $remaining = $po->remaining();
+            // Spend is FY-scoped by order; budget stays the PO's annual
+            // figure. For a blanket PO viewed outside its home FY the
+            // remaining column reads against that annual budget — the
+            // per-FY budget split lands with the carry-over work.
+            $invoiced = $po->invoicedTotalForFy($fy);
+            $committed = $po->committedTotalForFy($fy);
+            $remaining = $po->budget === null ? null : (float) $po->budget - $committed;
+            $overBudget = $po->budget !== null && $committed > (float) $po->budget;
+            $orderCount = $fy ? $po->orders->where('fiscal_year', $fy)->count() : $po->orders->count();
 
             $totalBudget += (float) $po->budget;
             $totalInvoiced += $invoiced;
             $totalCommitted += $committed;
             $totalRemaining += ($remaining ?? 0);
-            $totalOrders += $po->orders->count();
+            $totalOrders += $orderCount;
 
             $records[] = [
-                'class' => $po->isOverBudget() ? 'danger' : '',
+                'class' => $overBudget ? 'danger' : '',
                 'cells' => [
                     $po->po_number,
                     (string) $po->title,
@@ -752,8 +817,8 @@ class ProcurementReportsController extends Controller
                     $this->money($invoiced),
                     $this->money($committed),
                     $remaining === null ? '' : $this->money($remaining),
-                    $po->isOverBudget() ? trans('general.yes') : trans('general.no'),
-                    $po->orders->count(),
+                    $overBudget ? trans('general.yes') : trans('general.no'),
+                    $orderCount,
                 ],
             ];
         }
@@ -774,7 +839,7 @@ class ProcurementReportsController extends Controller
     /**
      * Every vendor invoice with its purchase order and order linkage.
      */
-    private function invoicesReport(): array
+    private function invoicesReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
@@ -789,7 +854,10 @@ class ProcurementReportsController extends Controller
             trans('admin/orders/general.line_items'),
         ];
 
-        $invoices = OrderInvoice::with('order.purchaseOrder', 'items')
+        $invoices = $this->scopeToFiscalYear(
+            OrderInvoice::with('order.purchaseOrder', 'items'),
+            $fy
+        )
             ->orderBy('invoice_number')
             ->get();
 
@@ -836,7 +904,7 @@ class ProcurementReportsController extends Controller
     /**
      * Per-order receiving progress.
      */
-    private function receivingReport(): array
+    private function receivingReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
@@ -850,6 +918,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $orders = Order::actual()
+            ->when($fy, fn ($query) => $query->where('fiscal_year', $fy))
             ->with('purchaseOrder', 'supplier', 'items')
             ->orderBy('order_number')
             ->get();
@@ -879,7 +948,7 @@ class ProcurementReportsController extends Controller
     /**
      * GST / PST totals per purchase order.
      */
-    private function taxReport(): array
+    private function taxReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
@@ -891,11 +960,15 @@ class ProcurementReportsController extends Controller
             trans('admin/orders/general.total'),
         ];
 
-        $purchaseOrders = PurchaseOrder::with('orders.invoices')->orderBy('po_number')->get();
+        $purchaseOrders = PurchaseOrder::with('orders.invoices')
+            ->when($fy, fn ($query) => $query->where('fiscal_year', $fy))
+            ->orderBy('po_number')
+            ->get();
 
         $records = [];
         foreach ($purchaseOrders as $po) {
-            $invoices = $po->orders->flatMap->invoices;
+            $orders = $fy ? $po->orders->where('fiscal_year', $fy) : $po->orders;
+            $invoices = $orders->flatMap->invoices;
             $records[] = [
                 'class' => '',
                 'cells' => [
@@ -910,9 +983,10 @@ class ProcurementReportsController extends Controller
             ];
         }
 
-        $orphanInvoices = OrderInvoice::whereHas('order', function ($query) {
-            $query->whereNull('purchase_order_id');
-        })->get();
+        $orphanInvoices = $this->scopeToFiscalYear(
+            OrderInvoice::whereHas('order', fn ($query) => $query->whereNull('purchase_order_id')),
+            $fy
+        )->get();
 
         if ($orphanInvoices->isNotEmpty()) {
             $records[] = [
@@ -936,7 +1010,7 @@ class ProcurementReportsController extends Controller
      * Capital spend grouped by fiscal year and cost centre. In forecast
      * mode, planned (forecast) orders are appended grouped by fiscal year.
      */
-    private function capitalReport(bool $forecast = false): array
+    private function capitalReport(bool $forecast = false, ?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.fiscal_year'),
@@ -947,7 +1021,9 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.remaining'),
         ];
 
-        $purchaseOrders = PurchaseOrder::with('orders.invoices', 'orders.items')->get();
+        $purchaseOrders = PurchaseOrder::with('orders.invoices', 'orders.items')
+            ->when($fy, fn ($query) => $query->where('fiscal_year', $fy))
+            ->get();
 
         $groups = $purchaseOrders->groupBy(function ($po) {
             return ($po->fiscal_year ?: '—').'||'.($po->cost_center ?: '—');
@@ -959,7 +1035,7 @@ class ProcurementReportsController extends Controller
         foreach ($groups as $key => $group) {
             [$fiscalYear, $costCenter] = explode('||', $key);
             $budget = $group->sum(fn ($po) => (float) $po->budget);
-            $committed = $group->sum(fn ($po) => $po->committedTotal());
+            $committed = $group->sum(fn ($po) => $po->committedTotalForFy($fy));
             $totalBudget += $budget;
             $totalCommitted += $committed;
 
@@ -977,7 +1053,9 @@ class ProcurementReportsController extends Controller
         }
 
         if ($forecast) {
-            $plannedGroups = Order::planned()->with('items')->get()
+            $plannedGroups = Order::planned()
+                ->when($fy, fn ($query) => $query->where('fiscal_year', $fy))
+                ->with('items')->get()
                 ->groupBy(fn ($order) => $order->fiscal_year ?: '—');
 
             foreach ($plannedGroups as $fiscalYear => $group) {
@@ -1015,12 +1093,14 @@ class ProcurementReportsController extends Controller
     /**
      * The Actual / Forecast mode toggle for the Capital Spend report.
      */
-    private function capitalModeToggle(bool $forecast): string
+    private function capitalModeToggle(bool $forecast, ?string $fy = null): string
     {
+        $fyParam = ($fy === null || $fy === '') ? [] : ['fiscal_year' => $fy];
+
         return '<div class="btn-group" role="group">'
-            .'<a href="'.route('reports.procurement.capital').'" class="btn btn-sm '.($forecast ? 'btn-default' : 'btn-primary').'">'
+            .'<a href="'.route('reports.procurement.capital', $fyParam).'" class="btn btn-sm '.($forecast ? 'btn-default' : 'btn-primary').'">'
             .e(trans('admin/purchase-orders/general.mode_actual')).'</a>'
-            .'<a href="'.route('reports.procurement.capital', ['mode' => 'forecast']).'" class="btn btn-sm '.($forecast ? 'btn-primary' : 'btn-default').'">'
+            .'<a href="'.route('reports.procurement.capital', array_merge(['mode' => 'forecast'], $fyParam)).'" class="btn btn-sm '.($forecast ? 'btn-primary' : 'btn-default').'">'
             .e(trans('admin/purchase-orders/general.mode_forecast')).'</a>'
             .'</div> ';
     }
@@ -1029,7 +1109,7 @@ class ProcurementReportsController extends Controller
      * Assets reaching end-of-life within the next year — the refresh
      * pipeline. purchase_cost stands in as the replacement-cost estimate.
      */
-    private function refreshForecastReport(): array
+    private function refreshForecastReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.forecast_asset_tag'),
@@ -1043,9 +1123,13 @@ class ProcurementReportsController extends Controller
             trans('general.supplier'),
         ];
 
+        // A chosen FY scopes to that year's end-of-life dates; with no FY
+        // ("all") fall back to the rolling next-12-months refresh window.
+        $range = $this->fiscalYearRange($fy);
         $assets = Asset::with('model', 'supplier', 'status')
             ->whereNotNull('asset_eol_date')
-            ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
+            ->when($range, fn ($query) => $query->whereBetween('asset_eol_date', $range))
+            ->when(! $range, fn ($query) => $query->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()]))
             ->orderBy('asset_eol_date')
             ->get();
 
@@ -1147,9 +1231,14 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Convert a Lease End Date string to the ECU fiscal-year label (Jul-Jun).
-     * A July-December end date belongs to FY{Y}-{Y+1}; a January-June end
-     * date belongs to FY{Y-1}-{Y}.
+     * Convert a Lease End Date string to the ECU fiscal-year label in the
+     * canonical four-digit-start `FY2025-26` shape, so lease-end data shares
+     * an axis with order-driven committed/planned data (see normalizeFy).
+     *
+     * Uses ECU's April-March fiscal boundary — the same one
+     * Helper::currentFiscalYear applies to orders — so a lease ending in,
+     * say, May 2026 lands in FY2026-27. An April-March end date belongs to
+     * FY{Y-1}-{Y}; April onward to FY{Y}-{Y+1}.
      */
     private function fiscalYearFromEndDate(?string $endDateStr): ?string
     {
@@ -1172,10 +1261,10 @@ class ProcurementReportsController extends Controller
         $month = (int) $endDate->format('m');
         $year = (int) $endDate->format('Y');
 
-        $start = $month >= 7 ? $year : $year - 1;
+        $start = $month >= 4 ? $year : $year - 1;
         $end = $start + 1;
 
-        return sprintf('FY%02d-%02d', $start % 100, $end % 100);
+        return sprintf('FY%d-%02d', $start, $end % 100);
     }
 
     /**
@@ -1243,7 +1332,7 @@ class ProcurementReportsController extends Controller
      *   - "Active (Legacy)" — moved off the lease but still in service
      *   - any status with status_meta = "archived"
      */
-    private function groupedLeaseAssets(): array
+    private function groupedLeaseAssets(?string $fy = null): array
     {
         $columns = $this->leaseFieldColumns();
         $contractIdColumn = $columns['contract_id'];
@@ -1252,10 +1341,17 @@ class ProcurementReportsController extends Controller
             return [];
         }
 
-        $assets = Asset::with('model', 'status')
-            ->whereNotNull($contractIdColumn)
-            ->where($contractIdColumn, '!=', '')
-            ->get();
+        // Acquisition-FY scope: a lease schedule belongs to the fiscal year
+        // its assets were bought in (003-006 → FY2025-26, 007/008 → FY2026-27,
+        // and so on, two schedules per quarter). purchase_date stands in for
+        // the schedule's open quarter until the lessor finalises it.
+        $assets = $this->scopeDateToFiscalYear(
+            Asset::with('model', 'status')
+                ->whereNotNull($contractIdColumn)
+                ->where($contractIdColumn, '!=', ''),
+            $fy,
+            'purchase_date'
+        )->get();
 
         $groups = [];
         foreach ($assets as $asset) {
@@ -1352,7 +1448,7 @@ class ProcurementReportsController extends Controller
      * to TDX: provider, end date, fiscal year, active/buyout/archived
      * counts, dominant model and ownership type.
      */
-    private function leasesOperationalReport(): array
+    private function leasesOperationalReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
@@ -1371,7 +1467,7 @@ class ProcurementReportsController extends Controller
         $records = [];
         $totalAssets = $totalActive = $totalBuyout = $totalArchived = 0;
 
-        foreach ($this->groupedLeaseAssets() as $group) {
+        foreach ($this->groupedLeaseAssets($fy) as $group) {
             $totalAssets += count($group['assets']);
             $totalActive += $group['active'];
             $totalBuyout += $group['buyout'];
@@ -1411,7 +1507,7 @@ class ProcurementReportsController extends Controller
      * warranty_cost for the same assets), total, and the distinct PO and
      * CDW order numbers that funded it.
      */
-    private function leasesFinancialReport(): array
+    private function leasesFinancialReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
@@ -1426,7 +1522,7 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.lease_cdw_orders'),
         ];
 
-        $groups = $this->groupedLeaseAssets();
+        $groups = $this->groupedLeaseAssets($fy);
 
         // Fetch every order item that lines up to a lease asset in one query,
         // keyed by asset id, so the per-contract loop stays O(assets).
@@ -1504,7 +1600,7 @@ class ProcurementReportsController extends Controller
      * billed against. Mirrors the per-schedule reconciliation tables in
      * docs/FY2026-27/CSI_Schedule_Reconciliation.md.
      */
-    private function csiScheduleReport(): array
+    private function csiScheduleReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
@@ -1521,7 +1617,7 @@ class ProcurementReportsController extends Controller
         // Restrict to CSI schedules — ECI* contracts have their own
         // Macquarie reconciliation and don't fit the schedule layout.
         $groups = array_filter(
-            $this->groupedLeaseAssets(),
+            $this->groupedLeaseAssets($fy),
             fn ($g) => str_starts_with($g['contract_id'], '301452-')
         );
 
@@ -1658,7 +1754,7 @@ class ProcurementReportsController extends Controller
         return ["case {$column}{$cases} else ".count($values).' end', $bindings];
     }
 
-    private function invoiceApprovalReport(?string $statusFilter = null, ?string $attestationFilter = null): array
+    private function invoiceApprovalReport(?string $statusFilter = null, ?string $attestationFilter = null, ?string $fy = null): array
     {
         $statusFilter = $statusFilter ?: 'pending';
 
@@ -1680,6 +1776,8 @@ class ProcurementReportsController extends Controller
         $query = OrderInvoice::with('order.purchaseOrder', 'items', 'approver')
             ->orderByRaw(...$this->fieldOrder('approval_status', ['pending', 'disputed', 'approved']))
             ->orderBy('invoice_date');
+
+        $this->scopeToFiscalYear($query, $fy);
 
         if ($statusFilter !== 'all') {
             $query->where('approval_status', $statusFilter);
@@ -1744,7 +1842,7 @@ class ProcurementReportsController extends Controller
      * agreement status. Replaces the multi-sheet SharePoint workbook
      * Sohee maintains by hand.
      */
-    private function userAgreementLedgerReport(?string $typeFilter = null, ?string $stageFilter = null): array
+    private function userAgreementLedgerReport(?string $typeFilter = null, ?string $stageFilter = null, ?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.user_agreement_type'),
@@ -1764,6 +1862,8 @@ class ProcurementReportsController extends Controller
                 'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed', 'cancelled',
             ]))
             ->orderBy('updated_at', 'desc');
+
+        $this->scopeDateToFiscalYear($query, $fy, 'created_at');
 
         if ($typeFilter && in_array($typeFilter, UserAgreement::AGREEMENT_TYPES, true)) {
             $query->where('agreement_type', $typeFilter);
@@ -1812,7 +1912,7 @@ class ProcurementReportsController extends Controller
      * the procurement reports area so finance doesn't have to find the
      * Settings link.
      */
-    private function leaseDecisionsReport(?string $statusFilter = null): array
+    private function leaseDecisionsReport(?string $statusFilter = null, ?string $fy = null): array
     {
         $columns = [
             trans('admin/lease-decisions/general.contract_reference'),
@@ -1826,6 +1926,8 @@ class ProcurementReportsController extends Controller
         $query = LeaseDecision::query()
             ->orderByRaw(...$this->fieldOrder('status', ['pending', 'approved', 'completed', 'cancelled']))
             ->orderBy('decision_date');
+
+        $this->scopeDateToFiscalYear($query, $fy, 'decision_date');
 
         if ($statusFilter && in_array($statusFilter, LeaseDecision::STATUSES, true)) {
             $query->where('status', $statusFilter);
@@ -1963,7 +2065,7 @@ class ProcurementReportsController extends Controller
      * reallocate the surplus to operating. Replaces the year-end
      * walk-through Rod writes Mark by hand in Excel.
      */
-    private function poDispositionReport(): array
+    private function poDispositionReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
@@ -1978,6 +2080,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $purchaseOrders = PurchaseOrder::with('orders.items', 'orders.invoices')
+            ->when($fy, fn ($query) => $query->where('fiscal_year', $fy))
             ->orderBy('fiscal_year')
             ->orderBy('po_number')
             ->get();
@@ -1987,10 +2090,11 @@ class ProcurementReportsController extends Controller
 
         foreach ($purchaseOrders as $po) {
             $budget = (float) $po->budget;
-            $invoiced = $po->invoicedTotal();
-            $committed = $po->committedTotal();
+            $invoiced = $po->invoicedTotalForFy($fy);
+            $committed = $po->committedTotalForFy($fy);
             $remaining = $budget - $committed;
-            $openOrders = $po->orders->filter(fn ($o) => ! in_array($o->status, ['received', 'cancelled'], true))->count();
+            $orders = $fy ? $po->orders->where('fiscal_year', $fy) : $po->orders;
+            $openOrders = $orders->filter(fn ($o) => ! in_array($o->status, ['received', 'cancelled'], true))->count();
 
             $totalBudget += $budget;
             $totalInvoiced += $invoiced;
@@ -2056,7 +2160,7 @@ class ProcurementReportsController extends Controller
      * Lease End Date is more than 4 years (rental) or 5 years (lease to
      * own) past the earliest asset purchase date is treated as extended.
      */
-    private function extensionWatchReport(): array
+    private function extensionWatchReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
@@ -2071,7 +2175,7 @@ class ProcurementReportsController extends Controller
 
         $records = [];
 
-        foreach ($this->groupedLeaseAssets() as $group) {
+        foreach ($this->groupedLeaseAssets($fy) as $group) {
             // Use the earliest asset purchase_date in the group as the
             // proxy for the lease start. ECI contracts are 4-year rentals
             // (term = 48 months); 301452 schedules split between 4-year
@@ -2144,7 +2248,7 @@ class ProcurementReportsController extends Controller
      * This view aggregates the LeaseDecision log into one finance-ready
      * table, one row per contract+decision-type.
      */
-    private function aroRegisterReport(): array
+    private function aroRegisterReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/lease-decisions/general.contract_reference'),
@@ -2162,7 +2266,7 @@ class ProcurementReportsController extends Controller
         // the contractual obligation regardless of whether the buyout has
         // been booked as a LeaseDecision yet. Only shown when the field
         // contains real numbers.
-        foreach ($this->groupedLeaseAssets() as $group) {
+        foreach ($this->groupedLeaseAssets($fy) as $group) {
             if ($group['buyout_cost_total'] <= 0) {
                 continue;
             }
@@ -2182,9 +2286,13 @@ class ProcurementReportsController extends Controller
 
         // Logged decisions — buyout or return amounts a human has signed
         // off on (or proposed). Cancelled is excluded.
-        $decisions = LeaseDecision::query()
-            ->whereIn('decision_type', ['buyout', 'return'])
-            ->whereNotIn('status', ['cancelled'])
+        $decisions = $this->scopeDateToFiscalYear(
+            LeaseDecision::query()
+                ->whereIn('decision_type', ['buyout', 'return'])
+                ->whereNotIn('status', ['cancelled']),
+            $fy,
+            'decision_date'
+        )
             ->orderBy('contract_reference')
             ->get();
 
@@ -2218,7 +2326,7 @@ class ProcurementReportsController extends Controller
      * SharePoint workbook. One row per leased asset, with finance,
      * lifecycle and usage columns.
      */
-    private function assetLeaseDetailReport(): array
+    private function assetLeaseDetailReport(?string $fy = null): array
     {
         $cols = $this->leaseFieldColumns();
 
@@ -2244,9 +2352,13 @@ class ProcurementReportsController extends Controller
             return ['columns' => $columns, 'records' => [], 'footer' => null];
         }
 
-        $assets = Asset::with('model', 'status', 'assignedTo')
-            ->whereNotNull($contractIdColumn)
-            ->where($contractIdColumn, '!=', '')
+        $assets = $this->scopeDateToFiscalYear(
+            Asset::with('model', 'status', 'assignedTo')
+                ->whereNotNull($contractIdColumn)
+                ->where($contractIdColumn, '!=', ''),
+            $fy,
+            'purchase_date'
+        )
             ->orderBy($contractIdColumn)
             ->orderBy('asset_tag')
             ->get();
@@ -2311,7 +2423,7 @@ class ProcurementReportsController extends Controller
      * boundary so a finance reader can scan top-to-bottom and see exactly
      * what each PO funded.
      */
-    private function poDrilldownReport(): array
+    private function poDrilldownReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
@@ -2333,10 +2445,17 @@ class ProcurementReportsController extends Controller
         $grandVendor = $grandExpected = $grandVariance = 0.0;
 
         foreach ($purchaseOrders as $po) {
+            // Attribute by order FY so a blanket PO contributes only the
+            // orders booked in the selected year; a null FY is all years.
+            $orders = $fy ? $po->orders->where('fiscal_year', $fy) : $po->orders;
+            if ($orders->isEmpty()) {
+                continue;
+            }
+
             $poVendor = $poExpected = $poVariance = 0.0;
             $poRows = [];
 
-            foreach ($po->orders as $order) {
+            foreach ($orders as $order) {
                 if ($order->invoices->isEmpty()) {
                     $expectedFromItems = (float) $order->items->sum->lineTotal();
                     $poExpected += $expectedFromItems;
@@ -2422,7 +2541,7 @@ class ProcurementReportsController extends Controller
      * buyout/return/extend decisions per serial without an email back-
      * and-forth.
      */
-    private function dispositionGridReport(): array
+    private function dispositionGridReport(?string $fy = null): array
     {
         $cols = $this->leaseFieldColumns();
 
@@ -2454,9 +2573,13 @@ class ProcurementReportsController extends Controller
             ->groupBy('contract_reference')
             ->map(fn ($group) => $group->first());
 
-        $assets = Asset::with('model', 'status')
-            ->whereNotNull($contractIdColumn)
-            ->where($contractIdColumn, '!=', '')
+        $assets = $this->scopeDateToFiscalYear(
+            Asset::with('model', 'status')
+                ->whereNotNull($contractIdColumn)
+                ->where($contractIdColumn, '!=', ''),
+            $fy,
+            'purchase_date'
+        )
             ->orderBy($contractIdColumn)
             ->orderBy('asset_tag')
             ->get();
@@ -2498,7 +2621,7 @@ class ProcurementReportsController extends Controller
      * see how much credit is outstanding and confirm the closing
      * termination matches the schedule.
      */
-    private function creditTerminationReport(): array
+    private function creditTerminationReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
@@ -2512,8 +2635,12 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.invoice_approval_status'),
         ];
 
-        $invoices = OrderInvoice::with('order.purchaseOrder')
-            ->whereIn('invoice_type', ['credit', 'termination', 'buyout'])
+        $invoices = $this->scopeDateToFiscalYear(
+            OrderInvoice::with('order.purchaseOrder')
+                ->whereIn('invoice_type', ['credit', 'termination', 'buyout']),
+            $fy,
+            'invoice_date'
+        )
             ->orderBy('contract_reference')
             ->orderBy('invoice_date')
             ->get();
@@ -2556,7 +2683,7 @@ class ProcurementReportsController extends Controller
      * (ECI*). The CCA naming reflects Macquarie's mid-2025 portfolio sale
      * to CCA Financial — same ECI contract IDs, new lessor.
      */
-    private function lessorBreakdownReport(): array
+    private function lessorBreakdownReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.lease_provider'),
@@ -2570,7 +2697,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $byLessor = [];
-        foreach ($this->groupedLeaseAssets() as $group) {
+        foreach ($this->groupedLeaseAssets($fy) as $group) {
             $key = $group['provider'];
             if (! isset($byLessor[$key])) {
                 $byLessor[$key] = [
@@ -2640,7 +2767,7 @@ class ProcurementReportsController extends Controller
      * contract: split the dollar value between exempt and taxable and
      * compute the estimated PST exposure (7% of the taxable share).
      */
-    private function pstApplicabilityReport(): array
+    private function pstApplicabilityReport(?string $fy = null): array
     {
         $cols = $this->leaseFieldColumns();
         $pstRate = 0.07;
@@ -2658,7 +2785,7 @@ class ProcurementReportsController extends Controller
         $records = [];
         $totalExempt = $totalTaxable = $totalPst = 0.0;
 
-        foreach ($this->groupedLeaseAssets() as $group) {
+        foreach ($this->groupedLeaseAssets($fy) as $group) {
             $exemptCost = $taxableCost = 0.0;
             $curriculumCount = $adminCount = 0;
 
@@ -2755,7 +2882,7 @@ class ProcurementReportsController extends Controller
      * pending (so old schedules float to the top) and the vendor-on-hold
      * flag (Apple account on hold pattern).
      */
-    private function scheduleSigningQueueReport(?string $stageFilter = null): array
+    private function scheduleSigningQueueReport(?string $stageFilter = null, ?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.schedule_ref'),
@@ -2776,6 +2903,8 @@ class ProcurementReportsController extends Controller
                 'draft', 'awaiting_signature', 'signed', 'active', 'cancelled',
             ]))
             ->orderBy('received_at');
+
+        $this->scopeDateToFiscalYear($query, $fy, 'received_at');
 
         if ($stageFilter === null || $stageFilter === 'open') {
             $query->whereIn('lifecycle_stage', LeaseSchedule::OPEN_STAGES);
@@ -2877,10 +3006,19 @@ class ProcurementReportsController extends Controller
      * Render a report as a live page, or stream it as CSV when
      * ?format=csv is requested.
      */
-    private function render(Request $request, string $filename, string $title, string $routeName, array $report, string $controls = '', array $extraParams = [])
+    private function render(Request $request, string $filename, string $title, string $routeName, array $report, string $controls = '', array $extraParams = [], bool $fyFilterable = false)
     {
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv($filename, $report);
+        }
+
+        // When the report honours the fiscal-year scope, keep it on the
+        // download link and feed the inline FY selector so the dashboard's
+        // selection stays put as the reader pivots and exports.
+        $selectedFy = $fyFilterable ? $this->resolveFiscalYear($request) : null;
+        $downloadParams = array_merge(['format' => 'csv'], $extraParams);
+        if ($fyFilterable) {
+            $downloadParams['fiscal_year'] = $request->query('fiscal_year', $selectedFy);
         }
 
         return view('reports/procurement/show', [
@@ -2889,7 +3027,11 @@ class ProcurementReportsController extends Controller
             'rows' => $report['records'],
             'footer' => $report['footer'] ?? null,
             'controls' => $controls,
-            'downloadUrl' => route($routeName, array_merge(['format' => 'csv'], $extraParams)),
+            'downloadUrl' => route($routeName, array_filter($downloadParams, fn ($v) => $v !== null && $v !== '')),
+            'reportParams' => $extraParams,
+            'fyFilterable' => $fyFilterable,
+            'selectedFy' => $selectedFy,
+            'allFiscalYears' => $fyFilterable ? $this->availableFiscalYears() : collect(),
         ]);
     }
 
@@ -2949,6 +3091,157 @@ class ProcurementReportsController extends Controller
         }
 
         return $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : (string) $value;
+    }
+
+    /**
+     * The fiscal years that carry procurement data, canonicalised and
+     * sorted. Drawn from real purchase orders and planned (forecast)
+     * orders — the same pool the dashboard FY selector offers.
+     */
+    private function availableFiscalYears(): \Illuminate\Support\Collection
+    {
+        return PurchaseOrder::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')
+            ->merge(Order::planned()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
+            ->map(fn ($fy) => $this->normalizeFy($fy))
+            ->filter()
+            ->unique()->sort()->values();
+    }
+
+    /**
+     * Resolve the fiscal year a report should scope to from the request.
+     * Mirrors the dashboard exactly so the selection carries through: no
+     * `?fiscal_year` defaults to the current FY when it holds data;
+     * `?fiscal_year=all` is the cross-year opt-out; an unknown value falls
+     * back to current FY. Returns a canonical FY string, or null for "all".
+     */
+    private function resolveFiscalYear(Request $request): ?string
+    {
+        $available = $this->availableFiscalYears();
+        $raw = $request->query('fiscal_year');
+
+        if ($raw === 'all') {
+            return null;
+        }
+
+        if ($raw === null) {
+            $current = Helper::currentFiscalYear();
+
+            return $available->contains($current) ? $current : null;
+        }
+
+        $normalized = $this->normalizeFy($raw);
+        if ($normalized && $available->contains($normalized)) {
+            return $normalized;
+        }
+
+        $current = Helper::currentFiscalYear();
+
+        return $available->contains($current) ? $current : null;
+    }
+
+    /**
+     * Canonicalise a fiscal-year label to the four-digit-start `FY2025-26`
+     * shape used by orders and purchase orders. Accepts the two-digit
+     * `FY25-26` form the lease end-date helper historically emitted, plus
+     * loose `2025-26` / `2025` inputs. Returns null for empty or
+     * unrecognised values.
+     *
+     * This is the seam that lets order-driven data (committed/invoiced,
+     * keyed `FY2025-26`) and lease-end data (historically keyed `FY25-26`)
+     * line up on the same axis instead of silently missing each other.
+     */
+    private function normalizeFy(?string $fy): ?string
+    {
+        if ($fy === null) {
+            return null;
+        }
+
+        $fy = trim($fy);
+        if ($fy === '' || strtolower($fy) === 'all') {
+            return null;
+        }
+
+        // Four-digit start: `FY2025-26` / `2025-26`.
+        if (preg_match('/(\d{4})\s*-\s*(\d{2})$/', $fy, $m)) {
+            return 'FY'.$m[1].'-'.$m[2];
+        }
+
+        // Two-digit start: `FY25-26` -> `FY2025-26`.
+        if (preg_match('/(\d{2})\s*-\s*(\d{2})$/', $fy, $m)) {
+            return 'FY20'.$m[1].'-'.$m[2];
+        }
+
+        // Bare start year: `2025` -> `FY2025-26`.
+        if (preg_match('/(\d{4})$/', $fy, $m)) {
+            $start = (int) $m[1];
+
+            return 'FY'.$start.'-'.substr((string) ($start + 1), -2);
+        }
+
+        return null;
+    }
+
+    /**
+     * The start calendar year of a canonical `FY2025-26` label (2025), or
+     * null if it can't be parsed. ECU fiscal years run April-March, so
+     * FY2025-26 spans 2025-04-01 to 2026-03-31.
+     */
+    private function fiscalYearStartYear(?string $fy): ?int
+    {
+        $fy = $this->normalizeFy($fy);
+        if ($fy === null) {
+            return null;
+        }
+
+        return (int) substr($fy, 2, 4);
+    }
+
+    /**
+     * The [start, end] Carbon bounds of a fiscal year (April 1 -> March 31),
+     * or null for an unparseable / "all" FY. Used to constrain reports that
+     * attribute by a date column (asset purchase / EOL, decision date,
+     * schedule received) rather than by an order relation.
+     */
+    private function fiscalYearRange(?string $fy): ?array
+    {
+        $startYear = $this->fiscalYearStartYear($fy);
+        if ($startYear === null) {
+            return null;
+        }
+
+        return [
+            \Carbon\Carbon::create($startYear, 4, 1)->startOfDay(),
+            \Carbon\Carbon::create($startYear + 1, 3, 31)->endOfDay(),
+        ];
+    }
+
+    /**
+     * Constrain a query to a fiscal year by one of its own date columns
+     * (purchase_date, asset_eol_date, decision_date, received_at, …). A null
+     * FY is a no-op. Rows with a null date are dropped when an FY is set,
+     * since they can't be attributed to a year.
+     */
+    private function scopeDateToFiscalYear($query, ?string $fy, string $column)
+    {
+        $range = $this->fiscalYearRange($fy);
+
+        return $query->when($range, fn ($q) => $q->whereBetween($column, $range));
+    }
+
+    /**
+     * Constrain an order-driven query (line items or invoices) to a fiscal
+     * year by the FY of the *order* that booked it — the actual
+     * transaction date, not the parent PO. A blanket purchase order spans
+     * fiscal years (e.g. P0025420 carries schedules 003-006 in FY2025-26
+     * and 007-008 in FY2026-27), so attribution has to follow the order.
+     * A null FY is a no-op, leaving the query all-years.
+     */
+    private function scopeToFiscalYear($query, ?string $fy, string $orderRelation = 'order')
+    {
+        return $query->when(
+            $fy,
+            fn ($q) => $q->whereHas($orderRelation, fn ($o) => $o->where('fiscal_year', $fy))
+        );
     }
 
     /**
