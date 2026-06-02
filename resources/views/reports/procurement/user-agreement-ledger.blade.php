@@ -58,6 +58,15 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label for="filter-fy" style="display:block;">{{ trans('admin/purchase-orders/general.fiscal_year') }}</label>
+                        <select id="filter-fy" name="fiscal_year" class="form-control">
+                            <option value="all" {{ ($selectedFy ?? null) === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
+                            @foreach (($allFiscalYears ?? collect()) as $fyOption)
+                                <option value="{{ $fyOption }}" {{ ($selectedFy ?? null) === $fyOption ? 'selected' : '' }}>{{ $fyOption }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <button type="submit" class="btn btn-primary">{{ trans('admin/user-agreements/general.apply_filters') }}</button>
                         <a href="{{ route('reports.procurement.user-agreement-ledger') }}" class="btn btn-default">{{ trans('admin/user-agreements/general.reset_filters') }}</a>
                     </div>
