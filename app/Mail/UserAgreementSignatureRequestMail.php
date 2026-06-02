@@ -49,13 +49,10 @@ class UserAgreementSignatureRequestMail extends BaseMailable
 
     public function content(): Content
     {
-        return new Content(
-            markdown: 'notifications.markdown.user-agreement-signature-request',
-            with: [
+        return $this->bodyContent('agreement.signature_request', 'notifications.markdown.user-agreement-signature-request', [
                 'agreement' => $this->agreement,
                 'variables' => $this->agreement->mergeVariables(),
-            ],
-        );
+            ]);
     }
 
     /**

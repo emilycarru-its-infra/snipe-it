@@ -115,4 +115,47 @@ class EmailsSettingTest extends TestCase
             (string) EmailRegistry::makeMailable('checkin.asset')->envelope()->subject,
         );
     }
+
+    public function test_body_override_is_saved_and_rendered(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'checkout.asset',
+                'body' => "# Custom heading for {{item.asset_tag}}\n\nHello {{target}}.",
+            ])
+            ->assertRedirect(route('settings.emails.index', ['selected' => 'checkout.asset']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('email_templates', ['key' => 'checkout.asset']);
+
+        $html = EmailRegistry::makeMailable('checkout.asset')->render();
+        $this->assertStringContainsString('Custom heading for', $html);
+        // Merge variable resolved against the sample data.
+        $this->assertStringContainsString('ECU-100123', $html);
+    }
+
+    public function test_blank_body_clears_the_override_and_falls_back_to_default(): void
+    {
+        EmailTemplate::create(['key' => 'checkin.asset', 'body' => '# A custom body {{item.asset_tag}}']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => 'checkin.asset', 'body' => '']);
+
+        $this->assertDatabaseHas('email_templates', ['key' => 'checkin.asset', 'body' => null]);
+
+        $html = EmailRegistry::makeMailable('checkin.asset')->render();
+        $this->assertStringNotContainsString('A custom body', $html);
+        // The built-in template still renders.
+        $this->assertStringContainsString('ECU-100123', $html);
+    }
+
+    public function test_invalid_body_template_is_rejected(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->from(route('settings.emails.index'))
+            ->post(route('settings.emails.save'), ['key' => 'checkout.asset', 'body' => '{{#each items}} never closed'])
+            ->assertSessionHasErrors('body');
+
+        $this->assertDatabaseMissing('email_templates', ['key' => 'checkout.asset']);
+    }
 }

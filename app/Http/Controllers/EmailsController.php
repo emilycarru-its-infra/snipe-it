@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
+use App\Mail\EmailTemplateRenderer;
 use App\Models\EmailTemplate;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -32,6 +33,7 @@ class EmailsController extends Controller
         BaseMailable::$ignoreOverrides = true;
         $emails = collect(EmailRegistry::all())->map(function ($email) use ($overrides) {
             $email['subject_override'] = $overrides->get($email['key'])?->subject;
+            $email['body_override'] = $overrides->get($email['key'])?->body;
             try {
                 $email['subject_default'] = (string) EmailRegistry::makeMailable($email['key'])?->envelope()->subject;
             } catch (\Throwable $e) {
@@ -57,12 +59,32 @@ class EmailsController extends Controller
                 ->with('error', trans('admin/settings/general.emails_preview_missing'));
         }
 
-        $request->validate(['subject' => 'nullable|string|max:255']);
+        $request->validate([
+            'subject' => 'nullable|string|max:255',
+            'body' => 'nullable|string|max:65535',
+        ]);
+
         $subject = trim((string) $request->input('subject'));
+        // Don't trim the body itself (preserve intentional formatting), but treat
+        // an all-whitespace body as "no override".
+        $body = (string) $request->input('body');
+        $body = trim($body) !== '' ? $body : null;
+
+        // Reject a body that isn't a valid Handlebars template, rather than
+        // silently storing one that will fall back to the default on every send.
+        if ($body !== null && ! EmailTemplateRenderer::isValid($body)) {
+            return redirect()->route('settings.emails.index', ['selected' => $key])
+                ->withInput()
+                ->withErrors(['body' => trans('admin/settings/general.emails_body_invalid')]);
+        }
 
         EmailTemplate::updateOrCreate(
             ['key' => $key],
-            ['subject' => $subject !== '' ? $subject : null, 'updated_by' => auth()->id()],
+            [
+                'subject' => $subject !== '' ? $subject : null,
+                'body' => $body,
+                'updated_by' => auth()->id(),
+            ],
         );
 
         return redirect()->route('settings.emails.index', ['selected' => $key])

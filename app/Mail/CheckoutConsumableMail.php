@@ -58,9 +58,7 @@ class CheckoutConsumableMail extends BaseMailable
 
         $accept_url = is_null($this->acceptance) ? null : route('account.accept.item', $this->acceptance);
 
-        return new Content(
-            markdown: 'mail.markdown.checkout-consumable',
-            with: [
+        return $this->bodyContent('checkout.consumable', 'mail.markdown.checkout-consumable', [
                 'item' => $this->item,
                 'admin' => $this->admin,
                 'note' => $this->note,
@@ -70,8 +68,7 @@ class CheckoutConsumableMail extends BaseMailable
                 'accept_url' => $accept_url,
                 'qty' => $this->qty,
                 'introduction_line' => $this->introductionLine(),
-            ]
-        );
+            ]);
     }
 
     /**
