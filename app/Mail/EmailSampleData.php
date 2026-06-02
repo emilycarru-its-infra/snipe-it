@@ -99,12 +99,23 @@ class EmailSampleData
         $asset->eol_explicit = true;
         $asset->last_audit_date = '2025-07-15';
         $asset->next_audit_date = '2026-07-15';
+        $asset->expected_checkin = '2026-07-01';
         $asset->notes = 'Issued under the faculty laptop program.';
         $asset->setRelation('model', $this->assetModel());
         $asset->setRelation('manufacturer', $this->manufacturer());
-        $asset->setRelation('status', null);
+        // A real (deployable) status so present()->statusMeta / getStatuslabelType()
+        // resolve in the request/checkin digests.
+        $asset->setRelation('assetstatus', new \App\Models\Statuslabel([
+            'name' => 'Deployed', 'deployable' => 1, 'pending' => 0, 'archived' => 0,
+        ]));
+        $asset->setRelation('status', new \App\Models\Statuslabel([
+            'name' => 'Deployed', 'deployable' => 1, 'pending' => 0, 'archived' => 0,
+        ]));
         $asset->setRelation('supplier', null);
         // Some blades read ->assignedTo, others ->assignedto — set both keys.
+        // assigned_type lets Asset::targetShowRoute() resolve to 'users.show'
+        // in the digest blades instead of an empty route name.
+        $asset->assigned_type = User::class;
         $asset->setRelation('assignedTo', $this->recipient());
         $asset->setRelation('assignedto', $this->recipient());
 
@@ -231,5 +242,82 @@ class EmailSampleData
         $agreement->setRelation('asset', $this->asset());
 
         return $agreement;
+    }
+
+    // ---- Notification-channel sample data (Phase E3) ----
+
+    /** A stand-in notifiable for report notifications (toMail ignores it). */
+    public function notifiable(): User
+    {
+        return $this->admin();
+    }
+
+    /** A recipient user carrying sample assigned inventory (CurrentInventory). */
+    public function userWithInventory(): User
+    {
+        $user = $this->recipient();
+        $user->setRelation('assets', $this->assets());
+        $user->setRelation('accessories', collect());
+        $user->setRelation('consumables', collect());
+        $user->setRelation('licenses', collect());
+
+        return $user;
+    }
+
+    /** Constructor payload for FirstAdminNotification. */
+    public function firstAdminData(): array
+    {
+        return [
+            'email' => 'newadmin@ecuad.ca',
+            'first_name' => 'New',
+            'last_name' => 'Admin',
+            'username' => 'nadmin',
+            'password' => 'S3cretSetupPass!',
+        ];
+    }
+
+    /** Constructor payload for the AcceptanceItem* notifications. */
+    public function acceptanceParams(): array
+    {
+        $asset = $this->asset();
+
+        return [
+            'item_tag' => $asset->asset_tag,
+            'item_name' => 'MacBook Pro 14"',
+            'item_model' => 'MacBook Pro 14"',
+            'item_serial' => $asset->serial,
+            'item_status' => 'Deployed',
+            'accepted_date' => 'Jun 02, 2026',
+            'declined_date' => 'Jun 02, 2026',
+            'assigned_to' => 'Jane Doe',
+            'company_name' => 'Emily Carr University',
+            'qty' => 1,
+            'note' => 'Signed at pickup.',
+            'custom_fields' => [],
+            'item' => $asset,
+            'user' => $this->recipient(),
+        ];
+    }
+
+    /** Constructor payload for the asset request notifications. */
+    public function requestParams(): array
+    {
+        return [
+            'target' => $this->recipient(),
+            'item' => $this->asset(),
+            'item_type' => 'asset',
+            'item_quantity' => 1,
+            'requested_date' => '2026-06-02 09:00:00',
+            'note' => 'Needed for onboarding.',
+        ];
+    }
+
+    /** Low-inventory rows for InventoryAlert (blade reads array keys). */
+    public function lowInventoryItems(): Collection
+    {
+        return collect([
+            ['id' => 1, 'name' => 'Toner Cartridge (Black)', 'type' => 'consumables', 'remaining' => 2, 'min_amt' => 10],
+            ['id' => 2, 'name' => 'USB-C Dock', 'type' => 'accessories', 'remaining' => 1, 'min_amt' => 5],
+        ]);
     }
 }

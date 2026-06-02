@@ -48,6 +48,7 @@
                                            data-body-override="{{ $email['body_override'] ?? '' }}"
                                            data-recipients-override="{{ $email['recipients_override'] ?? '' }}"
                                            data-previewable="{{ ($email['previewable'] ?? false) ? '1' : '0' }}"
+                                           data-editable="{{ ($email['editable'] ?? false) ? '1' : '0' }}"
                                            data-configurable-recipients="{{ ($email['configurable_recipients'] ?? false) ? '1' : '0' }}"
                                            data-merge-vars="{{ implode(',', array_keys($email['merge_vars'] ?? [])) }}"
                                            data-last-edited="{{ $email['last_edited'] ?? '' }}"
@@ -191,6 +192,7 @@
             var url = el.getAttribute('data-preview-url');
             var key = el.getAttribute('data-key');
             var previewable = el.getAttribute('data-previewable') === '1';
+            var editable = el.getAttribute('data-editable') === '1';
             var configurableRecipients = el.getAttribute('data-configurable-recipients') === '1';
             // After a validation error we re-show the rejected input for this email.
             var isOld = oldInput && oldInput.key === key;
@@ -199,8 +201,8 @@
             desc.textContent = el.getAttribute('data-description');
             keyField.value = key;
 
-            // Subject + body are only editable for emails we can render.
-            editableFields.style.display = previewable ? '' : 'none';
+            // Subject + body editing only for mailable-backed emails.
+            editableFields.style.display = editable ? '' : 'none';
             subjectField.placeholder = el.getAttribute('data-subject-default') || '';
             subjectField.value = isOld ? (oldInput.subject || '') : (el.getAttribute('data-subject-override') || '');
             bodyField.value = isOld ? (oldInput.body || '') : (el.getAttribute('data-body-override') || '');
@@ -212,8 +214,8 @@
             recipientsGroup.style.display = configurableRecipients ? '' : 'none';
             recipientsField.value = isOld ? (oldInput.recipients || '') : (el.getAttribute('data-recipients-override') || '');
 
-            // Test-send only makes sense for emails we can build/render.
-            testBtn.style.display = previewable ? '' : 'none';
+            // Test-send only makes sense for mailable-backed emails.
+            testBtn.style.display = editable ? '' : 'none';
 
             // Preview iframe, or a note for emails without a preview yet.
             if (previewable) {

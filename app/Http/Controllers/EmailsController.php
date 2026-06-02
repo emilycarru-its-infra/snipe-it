@@ -34,9 +34,11 @@ class EmailsController extends Controller
         BaseMailable::$ignoreOverrides = true;
         $emails = collect(EmailRegistry::all())->map(function ($email) use ($overrides) {
             $override = $overrides->get($email['key']);
-            // Subject/body are only editable for emails we can render (have a
-            // factory); recipients are editable where the registry opts in.
-            $email['previewable'] = isset($email['factory']);
+            // Previewable = mailable or notification; editable (subject/body) =
+            // mailable only (those run through BaseMailable). Recipients are
+            // editable where the registry opts in.
+            $email['previewable'] = EmailRegistry::isPreviewable($email);
+            $email['editable'] = EmailRegistry::isEditable($email);
             $email['configurable_recipients'] = $email['configurable_recipients'] ?? false;
             $email['subject_override'] = $override?->subject;
             $email['body_override'] = $override?->body;
@@ -52,7 +54,7 @@ class EmailsController extends Controller
                 ]);
             }
 
-            if ($email['previewable']) {
+            if ($email['editable']) {
                 try {
                     $email['subject_default'] = (string) EmailRegistry::makeMailable($email['key'])?->envelope()->subject;
                 } catch (\Throwable $e) {
@@ -157,14 +159,14 @@ class EmailsController extends Controller
      */
     public function preview(string $key): Response
     {
-        $mailable = EmailRegistry::makeMailable($key);
+        $entry = EmailRegistry::find($key);
 
-        if (! $mailable) {
+        if (! $entry || ! EmailRegistry::isPreviewable($entry)) {
             return response(trans('admin/settings/general.emails_preview_missing'), 404);
         }
 
         try {
-            return response($mailable->render());
+            return response(EmailRegistry::renderPreview($key) ?? '');
         } catch (\Throwable $e) {
             Log::warning("Email preview failed for [{$key}]: ".$e->getMessage());
 

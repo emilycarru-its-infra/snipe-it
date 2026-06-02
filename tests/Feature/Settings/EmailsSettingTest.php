@@ -54,8 +54,8 @@ class EmailsSettingTest extends TestCase
         $failed = [];
 
         foreach (EmailRegistry::all() as $email) {
-            // Notification-channel reports have no factory/preview yet (Phase E).
-            if (! isset($email['factory'])) {
+            // Covers both mailable and notification-channel emails.
+            if (! EmailRegistry::isPreviewable($email)) {
                 continue;
             }
 
