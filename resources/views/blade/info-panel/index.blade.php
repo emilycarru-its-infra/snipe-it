@@ -182,8 +182,13 @@
 
         @if (method_exists($infoPanelObj, 'numRemaining'))
             <x-info-element icon_type="available" class="{{ ($infoPanelObj->numRemaining()) <= $infoPanelObj->min_amt ? 'text-danger' : 'text-success' }}" title="{{ trans('general.remaining') }}">
-                 {{ $infoPanelObj->numRemaining() }}
-                {{ trans('general.remaining') }}
+                @if ($infoPanelObj instanceof \App\Models\Consumable)
+                    {{ trans('general.remaining') }}
+                    <span class="pull-right"><x-qty-stepper :consumable="$infoPanelObj" /></span>
+                @else
+                     {{ $infoPanelObj->numRemaining() }}
+                    {{ trans('general.remaining') }}
+                @endif
             </x-info-element>
         @endif
 
