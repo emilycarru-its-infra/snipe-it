@@ -37,6 +37,8 @@ use App\Http\Controllers\BudgetAllocationsController;
 use App\Http\Controllers\ProcurementReportsController;
 use App\Http\Controllers\FleetHealthReportsController;
 use App\Http\Controllers\PrintingReportsController;
+use App\Http\Controllers\ExhibitProjectsController;
+use App\Http\Controllers\ExhibitEmailTemplatesController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
@@ -193,6 +195,45 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('user-agreements.send-to-payroll');
     Route::get('user-agreements/{userAgreement}/pdf', [UserAgreementsController::class, 'downloadPdf'])
         ->name('user-agreements.pdf');
+
+    /*
+    * Exhibit projects — Grad Show / exhibit equipment tracking board.
+    * GET routes carry breadcrumbs chained off the /reports/exhibit board.
+    */
+    $exhibitCrumb = fn (Trail $trail) => $trail->parent('reports.exhibit');
+
+    Route::get('exhibit-projects/create', [ExhibitProjectsController::class, 'create'])
+        ->name('exhibit-projects.create')
+        ->breadcrumbs(fn (Trail $trail) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.create'), route('exhibit-projects.create')));
+    Route::get('exhibit-projects/{exhibitProject}/edit', [ExhibitProjectsController::class, 'edit'])
+        ->name('exhibit-projects.edit')
+        ->breadcrumbs(fn (Trail $trail, $exhibitProject) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.update'), route('exhibit-projects.edit', $exhibitProject)));
+    Route::get('exhibit-projects/{exhibitProject}', [ExhibitProjectsController::class, 'show'])
+        ->name('exhibit-projects.show')
+        ->breadcrumbs(fn (Trail $trail, $exhibitProject) => ($exhibitCrumb)($trail)
+            ->push('#'.$exhibitProject->id, route('exhibit-projects.show', $exhibitProject)));
+
+    Route::resource('exhibit-projects', ExhibitProjectsController::class)
+        ->except(['index', 'create', 'edit', 'show']);
+    Route::post('exhibit-projects/send-bulk', [ExhibitProjectsController::class, 'sendBulk'])
+        ->name('exhibit-projects.send-bulk');
+    Route::post('exhibit-projects/{exhibitProject}/email', [ExhibitProjectsController::class, 'sendEmail'])
+        ->name('exhibit-projects.email');
+
+    // Editable, DB-backed copy for the student emails.
+    Route::get('exhibit-email-templates', [ExhibitEmailTemplatesController::class, 'index'])
+        ->name('exhibit-email-templates.index')
+        ->breadcrumbs(fn (Trail $trail) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.email_templates'), route('exhibit-email-templates.index')));
+    Route::get('exhibit-email-templates/{exhibitEmailTemplate}/edit', [ExhibitEmailTemplatesController::class, 'edit'])
+        ->name('exhibit-email-templates.edit')
+        ->breadcrumbs(fn (Trail $trail, $exhibitEmailTemplate) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.email_templates'), route('exhibit-email-templates.index'))
+            ->push($exhibitEmailTemplate->name, route('exhibit-email-templates.edit', $exhibitEmailTemplate)));
+    Route::put('exhibit-email-templates/{exhibitEmailTemplate}', [ExhibitEmailTemplatesController::class, 'update'])
+        ->name('exhibit-email-templates.update');
 
     /*
     * Lease Schedules
@@ -971,6 +1012,13 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/reports/printing.dashboard_title'), route('reports.printing')));
+
+    Route::get('exhibit', [ExhibitProjectsController::class, 'report'])
+        ->name('reports.exhibit')
+        ->middleware('can:view,App\Models\Order')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('reports.exhibit')));
 
     Route::get('fleet-health', [FleetHealthReportsController::class, 'index'])
         ->name('reports.fleet-health')
