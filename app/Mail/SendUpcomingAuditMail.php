@@ -32,7 +32,7 @@ class SendUpcomingAuditMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans_choice('mail.upcoming-audits', $this->total, ['count' => $this->total, 'threshold' => $this->threshold]),
+            subject: $this->overriddenSubject('report.upcoming_audits', trans_choice('mail.upcoming-audits', $this->total, ['count' => $this->total, 'threshold' => $this->threshold])),
         );
     }
 

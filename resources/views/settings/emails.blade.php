@@ -43,6 +43,8 @@
                                            data-key="{{ $email['key'] }}"
                                            data-label="{{ $email['label'] }}"
                                            data-description="{{ $email['description'] }}"
+                                           data-subject-default="{{ $email['subject_default'] ?? '' }}"
+                                           data-subject-override="{{ $email['subject_override'] ?? '' }}"
                                            data-preview-url="{{ route('settings.emails.preview', $email['key']) }}">
                                             <strong>{{ $email['label'] }}</strong>
                                             <br><small class="text-muted">{{ $email['description'] }}</small>
@@ -69,6 +71,23 @@
                 </div>
                 <div class="box-body">
                     <p class="help-block" id="email-cms-preview-desc">{{ trans('admin/settings/general.emails_select_hint') }}</p>
+
+                    <form method="POST" action="{{ route('settings.emails.save') }}" class="form-horizontal" style="margin-bottom:15px;">
+                        {{ csrf_field() }}
+                        <input type="hidden" name="key" id="email-cms-key" value="">
+                        <div class="form-group {{ $errors->has('subject') ? 'has-error' : '' }}" style="margin-bottom:8px;">
+                            <label for="email-cms-subject" class="col-sm-2 control-label">{{ trans('admin/settings/general.emails_subject') }}</label>
+                            <div class="col-sm-8">
+                                <input type="text" name="subject" id="email-cms-subject" class="form-control" value="" maxlength="255">
+                                {!! $errors->first('subject', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                                <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_subject_help') }}</p>
+                            </div>
+                            <div class="col-sm-2">
+                                <button type="submit" class="btn btn-primary btn-block"><x-icon type="checkmark"/> {{ trans('general.save') }}</button>
+                            </div>
+                        </div>
+                    </form>
+
                     <iframe id="email-cms-preview-frame"
                             title="{{ trans('admin/settings/general.emails_preview') }}"
                             style="width:100%;height:70vh;border:1px solid #ddd;border-radius:3px;background:#fff;">
@@ -88,6 +107,9 @@
         var title = document.getElementById('email-cms-preview-title');
         var desc = document.getElementById('email-cms-preview-desc');
         var openTab = document.getElementById('email-cms-open-tab');
+        var keyField = document.getElementById('email-cms-key');
+        var subjectField = document.getElementById('email-cms-subject');
+        var selectedKey = @json($selected ?? '');
 
         function select(el) {
             items.forEach(function (i) { i.parentElement.classList.remove('active'); });
@@ -97,6 +119,9 @@
             openTab.href = url;
             title.textContent = el.getAttribute('data-label');
             desc.textContent = el.getAttribute('data-description');
+            keyField.value = el.getAttribute('data-key');
+            subjectField.value = el.getAttribute('data-subject-override') || '';
+            subjectField.placeholder = el.getAttribute('data-subject-default') || '';
         }
 
         items.forEach(function (el) {
@@ -106,10 +131,16 @@
             });
         });
 
-        // Auto-select the first email so the pane is never empty.
-        if (items.length) {
-            select(items[0]);
+        // Select the email just saved (?selected=) if present, else the first,
+        // so the pane is never empty.
+        var initial = null;
+        if (selectedKey) {
+            items.forEach(function (el) {
+                if (el.getAttribute('data-key') === selectedKey) { initial = el; }
+            });
         }
+        if (!initial && items.length) { initial = items[0]; }
+        if (initial) { select(initial); }
     })();
 </script>
 @stop

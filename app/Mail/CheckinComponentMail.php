@@ -37,7 +37,7 @@ class CheckinComponentMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Confirm_component_checkin'),
+            subject: $this->overriddenSubject('checkin.component', trans('mail.Confirm_component_checkin')),
         );
     }
 

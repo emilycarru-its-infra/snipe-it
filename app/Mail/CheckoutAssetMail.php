@@ -60,7 +60,7 @@ class CheckoutAssetMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: $this->getSubject(),
+            subject: $this->overriddenSubject('checkout.asset', $this->getSubject()),
         );
     }
 

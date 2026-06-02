@@ -37,7 +37,7 @@ class CheckinLicenseMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.License_Checkin_Notification'),
+            subject: $this->overriddenSubject('checkin.license', trans('mail.License_Checkin_Notification')),
         );
     }
 

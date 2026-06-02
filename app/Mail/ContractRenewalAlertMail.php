@@ -43,7 +43,7 @@ class ContractRenewalAlertMail extends BaseMailable
 
         return new Envelope(
             from: new Address(config('mail.from.address'), config('mail.from.name')),
-            subject: trans($subjectKey, ['count' => $this->contracts->count()]),
+            subject: $this->overriddenSubject('report.contract_renewal', trans($subjectKey, ['count' => $this->contracts->count()])),
         );
     }
 
