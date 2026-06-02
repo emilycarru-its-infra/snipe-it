@@ -205,6 +205,21 @@ class EmailsSettingTest extends TestCase
         $this->assertDatabaseMissing('email_templates', ['key' => 'report.expiring_assets']);
     }
 
+    public function test_report_body_override_renders_an_each_loop(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'report.expiring_assets',
+                'body' => "# {{threshold}}-day warranty digest\n\n{{#each assets}}- {{this.asset_tag}}\n{{/each}}",
+            ])
+            ->assertSessionHasNoErrors();
+
+        $html = EmailRegistry::makeMailable('report.expiring_assets')->render();
+        $this->assertStringContainsString('60-day warranty digest', $html);
+        // The sample digest has 3 assets — the loop should emit a row for each.
+        $this->assertGreaterThanOrEqual(3, substr_count($html, 'ECU-1001'));
+    }
+
     public function test_notification_report_emails_are_listed_for_recipients(): void
     {
         $response = $this->actingAs(User::factory()->superuser()->create())
