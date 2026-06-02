@@ -10,7 +10,9 @@ use App\Models\Company;
 use App\Models\Consumable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -256,6 +258,62 @@ class ConsumablesController extends Controller
         $this->authorize($consumable);
 
         return view('consumables/view', compact('consumable'));
+    }
+
+    /**
+     * Nudge a consumable's quantity inline (from the toner dashboard or the
+     * info-panel stepper) without round-tripping the full edit form.
+     *
+     * Accepts either a relative `delta` (e.g. +1 / -1) or an absolute `qty`.
+     * The new value is clamped to never drop below what's already checked
+     * out and never below zero. The change saves through the normal model
+     * path, so ConsumableObserver records it in the activity log (who, when,
+     * and the old→new quantity) exactly like a full edit — no separate table
+     * needed; it shows on the consumable's History tab.
+     *
+     * @author [R. Christiansen]
+     */
+    public function adjustQuantity(Request $request, Consumable $consumable): JsonResponse
+    {
+        $this->authorize('update', $consumable);
+
+        $request->validate([
+            'delta' => 'sometimes|integer',
+            'qty' => 'sometimes|integer|min:0|max:99999',
+        ]);
+
+        $checkedOut = (int) $consumable->numCheckedOut();
+
+        if ($request->filled('qty')) {
+            $newQty = (int) $request->input('qty');
+        } else {
+            $newQty = (int) $consumable->qty + (int) $request->input('delta', 0);
+        }
+
+        // Floor at what's checked out (and never negative); ceiling at the
+        // column's max. Mirrors the edit form's `min:$checkedOut` guard.
+        $newQty = max($checkedOut, 0, $newQty);
+        $newQty = min($newQty, 99999);
+
+        $consumable->qty = $newQty;
+
+        if (! $consumable->save()) {
+            return response()->json([
+                'status' => 'error',
+                'messages' => $consumable->getErrors()->all(),
+            ], 422);
+        }
+
+        $remaining = (int) $consumable->numRemaining();
+        $min = (int) ($consumable->min_amt ?? 0);
+
+        return response()->json([
+            'status' => 'success',
+            'qty' => (int) $consumable->qty,
+            'remaining' => $remaining,
+            'min' => $min,
+            'state' => $remaining <= 0 ? 'red' : (($min > 0 && $remaining <= $min) ? 'yellow' : 'green'),
+        ]);
     }
 
     public function clone(Consumable $consumable): View

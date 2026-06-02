@@ -16,13 +16,44 @@
 @section('content')
 
     <x-container columns="2">
+        {{-- Info-panel moved to the LEFT; the tables/tabs sit on the right. --}}
+        <x-page-column class="col-md-3">
+            <x-box class="side-box expanded">
+                <x-info-panel :infoPanelObj="$consumable" img_path="{{ app('consumables_upload_url') }}">
+
+                    <x-slot:buttons>
+                        <x-button.edit :item="$consumable" :route="route('consumables.edit', $consumable->id)"/>
+                        <x-button.clone :item="$consumable" :route="route('consumables.clone.create', $consumable->id)"/>
+                        <x-button.delete :item="$consumable"/>
+                        <x-button.checkout :item="$consumable" :route="route('consumables.checkout.show', $consumable->id)" />
+                        @can('checkout', $consumable)
+                            <a href="{{ route('consumables.order.create', $consumable->id) }}" class="btn btn-sm btn-warning">
+                                <i class="fa-solid fa-cart-plus" aria-hidden="true"></i>
+                                {{ trans('admin/consumables/general.order') }}
+                            </a>
+                        @endcan
+                    </x-slot:buttons>
+
+                </x-info-panel>
+            </x-box>
+        </x-page-column>
+
         <x-page-column class="col-md-9 main-panel">
             <x-tabs>
                 <x-slot:tabnav>
 
+                    {{-- Transactions is the default tab now — it's what the
+                         reconciliation workflow opens to most often. --}}
+                    <x-tabs.nav-item
+                            name="gl-transactions"
+                            class="active"
+                            icon="fa-solid fa-money-bill-transfer"
+                            label="{{ trans('admin/consumables/general.gl_transactions') }}"
+                            count="{{ $consumable->transactions()->count() }}"
+                    />
+
                     <x-tabs.nav-item
                             name="assigned"
-                            class="active"
                             icon_type="checkedout"
                             label="{{ trans('general.assigned') }}"
                             count="{{ $consumable->numCheckedOut() }}"
@@ -30,13 +61,6 @@
 
                     <x-tabs.files-tab :item="$consumable" count="{{ $consumable->uploads()->count() }}"/>
                     <x-tabs.history-tab count="{{ $consumable->history()->count() }}" :model="$consumable"/>
-
-                    <x-tabs.nav-item
-                            name="gl-transactions"
-                            icon="fa-solid fa-money-bill-transfer"
-                            label="{{ trans('admin/consumables/general.gl_transactions') }}"
-                            count="{{ $consumable->transactions()->count() }}"
-                    />
 
                     <x-tabs.upload-tab :item="$consumable"/>
 
@@ -63,8 +87,8 @@
                     </x-tabs.pane>
                     <!-- end history tab pane -->
 
-                    <!-- start transactions tab pane -->
-                    <x-tabs.pane name="gl-transactions">
+                    <!-- start transactions tab pane (default) -->
+                    <x-tabs.pane name="gl-transactions" class="active in">
                         @php $glTransactions = $consumable->transactions()->with('asset')->get(); @endphp
 
                         <div style="margin-bottom: 12px;">
@@ -155,27 +179,6 @@
                 </x-slot:tabpanes>
 
             </x-tabs>
-        </x-page-column>
-
-        <x-page-column class="col-md-3">
-            <x-box class="side-box expanded">
-                <x-info-panel :infoPanelObj="$consumable" img_path="{{ app('consumables_upload_url') }}">
-
-                    <x-slot:buttons>
-                        <x-button.edit :item="$consumable" :route="route('consumables.edit', $consumable->id)"/>
-                        <x-button.clone :item="$consumable" :route="route('consumables.clone.create', $consumable->id)"/>
-                        <x-button.delete :item="$consumable"/>
-                        <x-button.checkout :item="$consumable" :route="route('consumables.checkout.show', $consumable->id)" />
-                        @can('checkout', $consumable)
-                            <a href="{{ route('consumables.order.create', $consumable->id) }}" class="btn btn-sm btn-warning">
-                                <i class="fa-solid fa-cart-plus" aria-hidden="true"></i>
-                                {{ trans('admin/consumables/general.order') }}
-                            </a>
-                        @endcan
-                    </x-slot:buttons>
-
-                </x-info-panel>
-            </x-box>
         </x-page-column>
     </x-container>
 
