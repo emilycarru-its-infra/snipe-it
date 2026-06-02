@@ -79,22 +79,13 @@
                     <table class="table table-striped" style="margin-bottom:0;">
                         <tbody>
                         @foreach ($model->compatibleConsumables as $consumable)
-                            @php
-                                $remaining = (int) $consumable->numRemaining();
-                                $min = (int) ($consumable->min_amt ?? 0);
-                                if ($remaining <= 0) {
-                                    $cellClass = 'bg-red';
-                                } elseif ($min > 0 && $remaining <= $min) {
-                                    $cellClass = 'bg-yellow';
-                                } else {
-                                    $cellClass = 'bg-green';
-                                }
-                            @endphp
                             <tr>
-                                <td>
+                                <td class="toner-name-cell">
                                     <a href="{{ route('consumables.show', $consumable->id) }}">{{ $consumable->name }}</a>
                                 </td>
-                                <td class="{{ $cellClass }}" style="width:60px; text-align:center; font-weight:bold;">{{ $remaining }}</td>
+                                <td class="toner-qty-cell">
+                                    <x-qty-stepper :consumable="$consumable" />
+                                </td>
                             </tr>
                         @endforeach
                         </tbody>
@@ -268,6 +259,12 @@
     }
     .toner-auto-order-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; }
     .toner-printer-card-body { padding: 0 0 6px; }
-    .toner-printer-card-body table td { padding: 8px 12px; }
+    .toner-printer-card-body table td { padding: 8px 12px; vertical-align: middle; }
+    .toner-printer-card-body table td.toner-name-cell { width: 100%; }
+    .toner-printer-card-body table td.toner-qty-cell {
+        text-align: right;
+        white-space: nowrap;
+        padding: 4px 12px;
+    }
 </style>
 @endpush

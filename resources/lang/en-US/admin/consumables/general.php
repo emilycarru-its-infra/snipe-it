@@ -63,4 +63,7 @@ return [
     'void_transaction_confirm' => 'Void this transaction? It is removed from the ledger and the GL Journal Transfer report.',
     'gl_code_edit_help' => 'Correct the GL code if the printer was wrongly coded when this checkout happened.',
     'unit_cost_edit_help' => 'The line total recalculates from quantity × unit cost on save.',
+    'qty_increase' => 'Add one',
+    'qty_decrease' => 'Remove one',
+    'qty_at_checkout_floor' => 'Already at the number checked out — can\'t go lower',
 ];
