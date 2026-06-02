@@ -66,6 +66,12 @@ class Setting extends Model
         'google_client_secret',
         'manager_view_enabled',
         'forms_admin_group_prefix',
+        'agreement_pickup_title',
+        'agreement_pickup_body',
+        'agreement_upgrade_title',
+        'agreement_upgrade_body',
+        'agreement_purchase_title',
+        'agreement_purchase_body',
     ];
 
     protected $casts = [
