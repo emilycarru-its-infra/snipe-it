@@ -31,7 +31,7 @@ class ExpiringLicenseMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Expiring_Licenses_Report'),
+            subject: $this->overriddenSubject('report.expiring_licenses', trans('mail.Expiring_Licenses_Report')),
         );
     }
 

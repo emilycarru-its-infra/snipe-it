@@ -37,7 +37,7 @@ class CheckinAccessoryMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Accessory_Checkin_Notification'),
+            subject: $this->overriddenSubject('checkin.accessory', trans('mail.Accessory_Checkin_Notification')),
         );
     }
 

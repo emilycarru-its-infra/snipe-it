@@ -31,7 +31,7 @@ class ExpiringAssetsMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Expiring_Assets_Report'),
+            subject: $this->overriddenSubject('report.expiring_assets', trans('mail.Expiring_Assets_Report')),
         );
     }
 

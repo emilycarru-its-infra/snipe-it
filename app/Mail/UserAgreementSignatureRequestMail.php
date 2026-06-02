@@ -40,10 +40,10 @@ class UserAgreementSignatureRequestMail extends BaseMailable
 
         return new Envelope(
             from: new Address(config('mail.from.address'), config('mail.from.name')),
-            subject: trans($subjectKey, [
+            subject: $this->overriddenSubject('agreement.signature_request', trans($subjectKey, [
                 'name'      => $this->agreement->user->first_name ?? '',
                 'asset_tag' => $this->agreement->asset->asset_tag ?? '',
-            ]),
+            ])),
         );
     }
 

@@ -48,7 +48,7 @@ class CheckoutLicenseMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: $this->getSubject(),
+            subject: $this->overriddenSubject('checkout.license', $this->getSubject()),
         );
     }
 

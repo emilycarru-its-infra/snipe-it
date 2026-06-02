@@ -45,7 +45,7 @@ class CheckoutAccessoryMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: $this->getSubject(),
+            subject: $this->overriddenSubject('checkout.accessory', $this->getSubject()),
         );
     }
 

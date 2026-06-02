@@ -37,11 +37,11 @@ class UserAgreementSignatureReminderMail extends BaseMailable
     {
         return new Envelope(
             from: new Address(config('mail.from.address'), config('mail.from.name')),
-            subject: trans('mail.user_agreement_signature_reminder_subject', [
+            subject: $this->overriddenSubject('agreement.signature_reminder', trans('mail.user_agreement_signature_reminder_subject', [
                 'name'      => $this->agreement->user->first_name ?? '',
                 'asset_tag' => $this->agreement->asset->asset_tag ?? '',
                 'number'    => $this->reminderNumber,
-            ]),
+            ])),
         );
     }
 
