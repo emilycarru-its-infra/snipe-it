@@ -229,4 +229,27 @@ class EmailsSettingTest extends TestCase
         $response->assertSee('Expected checkin report');
         $response->assertSee('Low inventory report');
     }
+
+    public function test_blank_recipients_clears_the_override(): void
+    {
+        EmailTemplate::create(['key' => 'report.expiring_assets', 'recipients' => 'x@ecuad.ca']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => 'report.expiring_assets', 'recipients' => '']);
+
+        $this->assertDatabaseHas('email_templates', ['key' => 'report.expiring_assets', 'recipients' => null]);
+    }
+
+    public function test_hub_shows_who_last_edited_an_override(): void
+    {
+        $admin = User::factory()->superuser()->create(['first_name' => 'Edna', 'last_name' => 'Editor']);
+
+        $this->actingAs($admin)
+            ->post(route('settings.emails.save'), ['key' => 'checkout.asset', 'subject' => 'Hi there']);
+
+        $this->actingAs($admin)
+            ->get(route('settings.emails.index'))
+            ->assertOk()
+            ->assertSee('Edna Editor');
+    }
 }

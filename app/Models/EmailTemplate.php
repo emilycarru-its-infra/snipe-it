@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 
 /**
@@ -22,6 +23,12 @@ class EmailTemplate extends Model
         'recipients',
         'updated_by',
     ];
+
+    /** The admin who last edited this override (updated_by). */
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
 
     /**
      * All overrides keyed by their registry key, for cheap lookup when

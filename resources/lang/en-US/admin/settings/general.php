@@ -94,6 +94,8 @@ return [
     'emails_body_help' => 'Markdown with Handlebars merge variables. Leave blank to use the built-in template. Use <code>{{var}}</code> for values and <code>{{#each list}}…{{/each}}</code> for lists.',
     'emails_body_invalid' => 'That body template could not be parsed — check the {{ }} tags and try again.',
     'emails_merge_vars_hint' => 'Available variables:',
+    'emails_reset' => 'Use default',
+    'emails_last_edited' => 'Last edited by :user · :when',
     'emails_recipients' => 'Recipients',
     'emails_recipients_placeholder' => 'name@ecuad.ca, team@ecuad.ca',
     'emails_recipients_help' => 'Comma-separated addresses for this report. Leave blank to use the global alert email list (Settings → Alerts).',
