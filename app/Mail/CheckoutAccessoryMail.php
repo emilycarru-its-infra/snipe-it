@@ -68,9 +68,7 @@ class CheckoutAccessoryMail extends BaseMailable
             $name = $this->target->manager->name;
         }
 
-        return new Content(
-            markdown: 'mail.markdown.checkout-accessory',
-            with: [
+        return $this->bodyContent('checkout.accessory', 'mail.markdown.checkout-accessory', [
                 'item' => $this->item,
                 'admin' => $this->admin,
                 'note' => $this->note,
@@ -80,8 +78,7 @@ class CheckoutAccessoryMail extends BaseMailable
                 'accept_url' => $accept_url,
                 'checkout_qty' => $this->checkout_qty,
                 'introduction_line' => $this->introductionLine(),
-            ],
-        );
+            ]);
     }
 
     private function introductionLine(): string

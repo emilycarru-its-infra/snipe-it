@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\EmailTemplate;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Headers;
 
 class BaseMailable extends Mailable
@@ -57,5 +58,32 @@ class BaseMailable extends Mailable
     public static function flushSubjectCache(): void
     {
         self::$subjectOverrides = [];
+    }
+
+    /**
+     * Build the email body Content: render the admin's stored Handlebars body
+     * (email_templates.body) against $context if one is set, otherwise fall
+     * back to the built-in Blade view + $data. Any failure (no override, bad
+     * template, missing table) falls through to the default, so a body
+     * override can never block a send.
+     */
+    protected function bodyContent(string $key, string $defaultView, array $data): Content
+    {
+        if (! self::$ignoreOverrides) {
+            try {
+                $override = EmailTemplate::forKey($key);
+                if ($override && filled($override->body)) {
+                    // The blade $data doubles as the Handlebars context — templates
+                    // reference {{item.asset_tag}}, {{admin.display_name}}, etc.
+                    $rendered = EmailTemplateRenderer::render($override->body, $data);
+
+                    return new Content(markdown: 'mail.markdown.dynamic', with: ['body' => $rendered]);
+                }
+            } catch (\Throwable $e) {
+                // fall through to the built-in default
+            }
+        }
+
+        return new Content(markdown: $defaultView, with: $data);
     }
 }

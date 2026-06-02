@@ -108,24 +108,23 @@ class CheckoutAssetMail extends BaseMailable
 
         $accept_url = is_null($this->acceptance) ? null : route('account.accept.item', $this->acceptance);
 
-        return new Content(
-            markdown: 'mail.markdown.checkout-asset',
-            with: [
-                'item' => $this->item,
-                'admin' => $this->admin,
-                'status' => $this->item->status?->name,
-                'note' => $this->note,
-                'target' => $name,
-                'fields' => $fields,
-                'custom_fields' => $customFields,
-                'eula' => $eula,
-                'req_accept' => $req_accept,
-                'accept_url' => $accept_url,
-                'last_checkout' => $this->last_checkout,
-                'expected_checkin' => $this->expected_checkin,
-                'introduction_line' => $this->introductionLine(),
-            ],
-        );
+        $data = [
+            'item' => $this->item,
+            'admin' => $this->admin,
+            'status' => $this->item->status?->name,
+            'note' => $this->note,
+            'target' => $name,
+            'fields' => $fields,
+            'custom_fields' => $customFields,
+            'eula' => $eula,
+            'req_accept' => $req_accept,
+            'accept_url' => $accept_url,
+            'last_checkout' => $this->last_checkout,
+            'expected_checkin' => $this->expected_checkin,
+            'introduction_line' => $this->introductionLine(),
+        ];
+
+        return $this->bodyContent('checkout.asset', 'mail.markdown.checkout-asset', $data);
     }
 
     /**

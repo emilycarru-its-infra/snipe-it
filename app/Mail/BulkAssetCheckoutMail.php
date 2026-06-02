@@ -46,16 +46,13 @@ class BulkAssetCheckoutMail extends BaseMailable
 
     public function content(): Content
     {
-        return new Content(
-            markdown: 'mail.markdown.bulk-asset-checkout-mail',
-            with: [
+        return $this->bodyContent('checkout.bulk_asset', 'mail.markdown.bulk-asset-checkout-mail', [
                 'introduction' => $this->getIntroduction(),
                 'requires_acceptance' => $this->requires_acceptance,
                 'requires_acceptance_info' => $this->getRequiresAcceptanceInfo(),
                 'requires_acceptance_prompt' => $this->getRequiresAcceptancePrompt(),
                 'singular_eula' => $this->getSingularEula(),
-            ],
-        );
+            ]);
     }
 
     public function attachments(): array
