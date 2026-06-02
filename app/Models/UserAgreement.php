@@ -333,24 +333,47 @@ class UserAgreement extends SnipeModel
     }
 
     /**
-     * Render the agreement-type-specific body with merge variables filled
-     * in. Pulled from resources/lang/.../admin/user-agreements/eula.php
-     * so non-engineers can update the legal text without code changes.
+     * Resolve the editable title or body for an agreement type, preferring
+     * the admin-set value under Settings → Agreements
+     * (settings.agreement_<type>_<part>) and falling back to the
+     * admin/user-agreements/eula.php lang strings when that column is blank.
+     * A non-type returns an empty string. $part is 'title' or 'body'.
      */
-    public function eulaBody(): string
+    public static function resolveEulaText(string $type, string $part): string
     {
-        $key = match ($this->agreement_type) {
-            'pickup' => 'admin/user-agreements/eula.pickup_body',
-            'upgrade' => 'admin/user-agreements/eula.upgrade_body',
-            'purchase' => 'admin/user-agreements/eula.purchase_body',
-            default => null,
-        };
-
-        if (! $key) {
+        if (! in_array($type, self::AGREEMENT_TYPES, true)) {
             return '';
         }
 
-        $template = (string) trans($key);
+        $override = trim((string) (Setting::getSettings()->{'agreement_'.$type.'_'.$part} ?? ''));
+
+        return $override !== ''
+            ? $override
+            : (string) trans('admin/user-agreements/eula.'.$type.'_'.$part);
+    }
+
+    /**
+     * The PDF / signing-page heading for an agreement type, admin-editable
+     * with a lang-file fallback. Static so the show view can render it
+     * without an instance.
+     */
+    public static function eulaTitle(string $type): string
+    {
+        return self::resolveEulaText($type, 'title');
+    }
+
+    /**
+     * Render the agreement-type-specific body with merge variables filled
+     * in. The raw copy comes from Settings → Agreements (admin-editable) or
+     * the eula.php lang fallback via resolveEulaText().
+     */
+    public function eulaBody(): string
+    {
+        $template = self::resolveEulaText($this->agreement_type, 'body');
+
+        if ($template === '') {
+            return '';
+        }
 
         foreach ($this->mergeVariables() as $var => $value) {
             $template = str_replace('{{'.$var.'}}', $value, $template);

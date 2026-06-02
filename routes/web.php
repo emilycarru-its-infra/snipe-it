@@ -383,6 +383,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
     Route::post('notifications', [SettingsController::class, 'postAlerts'])
         ->name('settings.alerts.save');
 
+    Route::get('agreements', [SettingsController::class, 'getAgreements'])
+        ->name('settings.agreements.index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
+            ->push(trans('admin/settings/general.agreements_title'), route('settings.agreements.index')));
+
+    Route::post('agreements', [SettingsController::class, 'postAgreements'])
+        ->name('settings.agreements.save');
+
     Route::get('slack', [SettingsController::class, 'getSlack'])
         ->name('settings.slack.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
