@@ -31,7 +31,7 @@
                                     <td>{{ $row->fiscal_year }}</td>
                                     <td>{{ $row->area ?: '—' }}</td>
                                     <td>
-                                        <span class="label label-{{ $row->source === 'forecast' ? 'info' : ($row->source === 'adjustment' ? 'warning' : 'primary') }}">
+                                        <span class="label label-{{ $row->source === 'forecast' ? 'info' : ($row->source === 'adjustment' ? 'warning' : ($row->source === 'carry_forward' ? 'success' : 'primary')) }}">
                                             {{ trans('admin/budget-allocations/general.source_'.$row->source) }}
                                         </span>
                                         @if ($row->description)
@@ -66,6 +66,31 @@
                 @endif
 
                 <hr/>
+
+                {{-- Carry-forward: roll the prior FY's unspent budget into the
+                     selected one. Only shown when a single FY is in view (the
+                     "all years" view has no single target). --}}
+                @php
+                    $carryPrevFy = preg_match('/^FY(\d{4})-(\d{2})$/', (string) $selectedFy, $cfm)
+                        ? 'FY'.((int) $cfm[1] - 1).'-'.substr((string) $cfm[1], -2)
+                        : null;
+                @endphp
+                @if ($selectedFy && $carryPrevFy)
+                    <div class="well well-sm" style="margin-bottom:15px;">
+                        <strong>{{ trans('admin/budget-allocations/general.carry_forward_title') }}</strong>
+                        <p class="help-block" style="margin:5px 0 10px;">
+                            {{ trans('admin/budget-allocations/general.carry_forward_help', ['target' => $selectedFy]) }}
+                        </p>
+                        <form method="POST" action="{{ route('budget_allocations.carry_forward') }}" style="margin:0;">
+                            @csrf
+                            <input type="hidden" name="target_fiscal_year" value="{{ $selectedFy }}">
+                            <button type="submit" class="btn btn-default btn-sm">
+                                <i class="fas fa-angles-right" aria-hidden="true"></i>
+                                {{ trans('admin/budget-allocations/general.carry_forward_action', ['source' => $carryPrevFy, 'target' => $selectedFy]) }}
+                            </button>
+                        </form>
+                    </div>
+                @endif
 
                 {{-- Add-to-Budget form --}}
                 <h4 style="margin-top:0;">{{ trans('admin/budget-allocations/general.add_title') }}</h4>
