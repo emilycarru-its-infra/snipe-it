@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'eula_text' => 'EULA',
+    'eula_text' => 'Acceptance text',
     'id' => 'ID',
     'parent' => 'Parent',
     'require_acceptance' => 'Acceptance',
