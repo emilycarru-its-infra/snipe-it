@@ -9,12 +9,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Watson\Validating\ValidatingTrait;
 
 /**
- * One student-project in an exhibit (Grad Show, MFA Thesis, Foundation,
- * Type). Replaces the hand-maintained Grad Show Numbers sheet: it stores
- * the spreadsheet-native fields (status, project type, requested device,
- * submitted-file / approved flags, peripherals, TDX id) and *links* to a
- * Snipe user (student) and asset (the device reserved/assigned at setup)
- * so their details are derived, never duplicated.
+ * One student-project in an exhibit. Replaces the hand-kept Grad Show
+ * Numbers sheet. Belongs to an editable Exhibit / ExhibitStatus /
+ * ExhibitProjectType (catalogs), links to a Snipe user (student) + asset
+ * (device assigned at setup), and stores the remaining spreadsheet
+ * fields. requested_device stays a free string so combos ("iMac, iPad")
+ * survive and match the sheet's device buckets.
  */
 class ExhibitProject extends SnipeModel
 {
@@ -25,56 +25,6 @@ class ExhibitProject extends SnipeModel
 
     protected $table = 'exhibit_projects';
 
-    /** Status values, in the order the Numbers sheet dropdown lists them. */
-    public const STATUSES = [
-        'none',
-        'pending',
-        'need_to_contact',
-        'reserved',
-        'waitlisted',
-        'scheduled',
-        'in_progress',
-        'done',
-        'cancelled',
-        'self_setup',
-        'master_student',
-        'early_setup',
-        'ready',
-        'late',
-        'undetermined',
-        'media_resources',
-    ];
-
-    /** Status → Bootstrap 3 label class for the colored cells/cards. */
-    public const STATUS_COLORS = [
-        'none' => 'default',
-        'pending' => 'default',
-        'need_to_contact' => 'danger',
-        'reserved' => 'info',
-        'waitlisted' => 'warning',
-        'scheduled' => 'primary',
-        'in_progress' => 'primary',
-        'done' => 'success',
-        'cancelled' => 'default',
-        'self_setup' => 'info',
-        'master_student' => 'info',
-        'early_setup' => 'info',
-        'ready' => 'warning',
-        'late' => 'danger',
-        'undetermined' => 'default',
-        'media_resources' => 'default',
-    ];
-
-    public const PROJECT_TYPES = [
-        'looping_video',
-        'website',
-        'specialized_app',
-        'figma',
-        'audio',
-        'looping_pdf',
-        'other',
-    ];
-
     /** Suggested values for the requested-device datalist (free string allows combos). */
     public const REQUESTED_DEVICES = [
         'iMac',
@@ -84,21 +34,14 @@ class ExhibitProject extends SnipeModel
         'Display',
     ];
 
-    public const SHOWS = [
-        'Grad Show',
-        'MFA Thesis',
-        'Foundation Show',
-        'Type Show',
-    ];
-
     protected $rules = [
-        'show' => 'required|string|max:191',
+        'exhibit_id' => 'required|exists:exhibits,id',
         'year' => 'required|integer|min:2000|max:2100',
         'user_id' => 'nullable|exists:users,id',
         'student_name' => 'nullable|string|max:191',
         'asset_id' => 'nullable|exists:assets,id',
-        'status' => 'required|string|in:none,pending,need_to_contact,reserved,waitlisted,scheduled,in_progress,done,cancelled,self_setup,master_student,early_setup,ready,late,undetermined,media_resources',
-        'project_type' => 'nullable|string|in:looping_video,website,specialized_app,figma,audio,looping_pdf,other',
+        'status_id' => 'required|exists:exhibit_statuses,id',
+        'project_type_id' => 'nullable|exists:exhibit_project_types,id',
         'project_details' => 'nullable|string|max:65535',
         'requested_device' => 'nullable|string|max:191',
         'peripherals' => 'nullable|string|max:191',
@@ -109,13 +52,13 @@ class ExhibitProject extends SnipeModel
     ];
 
     protected $fillable = [
-        'show',
+        'exhibit_id',
         'year',
         'user_id',
         'student_name',
         'asset_id',
-        'status',
-        'project_type',
+        'status_id',
+        'project_type_id',
         'project_details',
         'requested_device',
         'peripherals',
@@ -131,12 +74,30 @@ class ExhibitProject extends SnipeModel
         'year' => 'integer',
     ];
 
-    protected $searchableAttributes = ['show', 'student_name', 'status', 'project_type', 'requested_device', 'tdx_id', 'notes'];
+    protected $searchableAttributes = ['student_name', 'requested_device', 'tdx_id', 'notes', 'project_details'];
 
     protected $searchableRelations = [
         'user' => ['first_name', 'last_name', 'username', 'email'],
         'asset' => ['asset_tag', 'serial', 'name'],
+        'exhibit' => ['name'],
+        'status' => ['name'],
+        'projectType' => ['name'],
     ];
+
+    public function exhibit()
+    {
+        return $this->belongsTo(Exhibit::class, 'exhibit_id');
+    }
+
+    public function status()
+    {
+        return $this->belongsTo(ExhibitStatus::class, 'status_id');
+    }
+
+    public function projectType()
+    {
+        return $this->belongsTo(ExhibitProjectType::class, 'project_type_id');
+    }
 
     public function user()
     {
@@ -160,19 +121,29 @@ class ExhibitProject extends SnipeModel
     protected function displayName(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->user?->full_name ?: ($this->student_name ?: trans('general.unknown'))
+            get: fn () => $this->user?->full_name ?: ($this->student_name ?: '—')
         );
     }
 
-    /** Bootstrap label class for this row's status. */
+    /** Hex color for this row's status (from the catalog). */
     public function statusColor(): string
     {
-        return self::STATUS_COLORS[$this->status] ?? 'default';
+        return $this->status?->color ?: '#bdc3c7';
+    }
+
+    public function statusLabel(): string
+    {
+        return $this->status?->name ?: '—';
+    }
+
+    public function typeLabel(): string
+    {
+        return $this->projectType?->name ?: '';
     }
 
     /**
      * Human label for the assigned device — the Munki Exhibition name
-     * (asset name) if set, else the asset tag, else an em dash.
+     * (asset name) if set, else the asset tag.
      */
     public function assignedDeviceLabel(): string
     {
@@ -183,10 +154,7 @@ class ExhibitProject extends SnipeModel
         return $this->asset->name ?: $this->asset->asset_tag ?: ('#'.$this->asset->id);
     }
 
-    /**
-     * The student's email — the linked Snipe user's address. Null when no
-     * user is linked (then the row can't be emailed).
-     */
+    /** The student's email — the linked Snipe user's address (null if unlinked). */
     public function recipientEmail(): ?string
     {
         return $this->user?->email;
@@ -194,19 +162,16 @@ class ExhibitProject extends SnipeModel
 
     /**
      * Merge variables substituted into an editable email template. The
-     * year-specific pickup dates/links live in the template body itself;
-     * these keys carry the per-student facts. Missing data renders empty
-     * rather than leaving the {{placeholder}} behind.
+     * year-specific pickup dates/links live in the template body; these
+     * carry the per-student facts. Missing data renders empty.
      */
     public function mergeVariables(): array
     {
         return [
             'student_name' => (string) ($this->displayName ?? ''),
-            'show' => (string) ($this->show ?? ''),
+            'show' => (string) ($this->exhibit?->name ?? ''),
             'year' => (string) ($this->year ?? ''),
-            'project_type' => $this->project_type
-                ? (string) trans('admin/exhibit-projects/general.type_value_'.$this->project_type)
-                : '',
+            'project_type' => (string) ($this->projectType?->name ?? ''),
             'requested_device' => (string) ($this->requested_device ?? ''),
             'peripherals' => (string) ($this->peripherals ?? ''),
             'assigned_asset' => $this->asset_id ? $this->assignedDeviceLabel() : '',

@@ -1,6 +1,28 @@
 <?php
 
 return [
+    // Editable catalogs (configure)
+    'configure' => 'Configure',
+    'catalog_exhibits' => 'Exhibits',
+    'catalog_project_types' => 'Project Types',
+    'catalog_statuses' => 'Statuses',
+    'catalog_name' => 'Name',
+    'catalog_color' => 'Color',
+    'catalog_sort' => 'Sort',
+    'catalog_active' => 'Active',
+    'catalog_saved' => 'Saved.',
+    'catalog_deleted' => 'Deleted.',
+    'catalog_in_use_deactivated' => 'In use by existing projects — deactivated instead of deleted.',
+    'catalog_delete_confirm' => 'Delete this entry?',
+
+    // CSV backfill importer
+    'import_title' => 'Import CSV',
+    'import_help' => 'Upload a year\'s Grad Show export (CSV). Columns are matched by header name, so older layouts import too. Historical rows are name-only — no asset or user linking.',
+    'import_file' => 'CSV file',
+    'import_run' => 'Import',
+    'import_done' => 'Imported :imported project(s); skipped :skipped non-data row(s).',
+    'import_failed' => 'Import failed: :error',
+
     // Entity / board
     'dashboard_title' => 'Exhibit Tracking',
     'exhibit_projects' => 'Exhibit Projects',

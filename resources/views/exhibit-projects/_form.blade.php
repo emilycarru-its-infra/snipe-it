@@ -1,14 +1,14 @@
-@php($shows = \App\Models\ExhibitProject::SHOWS)
-@php($statuses = \App\Models\ExhibitProject::STATUSES)
-@php($types = \App\Models\ExhibitProject::PROJECT_TYPES)
+@php($exhibits = \App\Models\Exhibit::where('active', true)->orderBy('sort_order')->orderBy('name')->get())
+@php($statuses = \App\Models\ExhibitStatus::where('active', true)->orderBy('sort_order')->orderBy('name')->get())
+@php($types = \App\Models\ExhibitProjectType::where('active', true)->orderBy('sort_order')->orderBy('name')->get())
 @php($devices = \App\Models\ExhibitProject::REQUESTED_DEVICES)
 
-<div class="form-group {{ $errors->has('show') ? 'has-error' : '' }}">
-    <label for="show" class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.show') }}</label>
+<div class="form-group {{ $errors->has('exhibit_id') ? 'has-error' : '' }}">
+    <label for="exhibit_id" class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.show') }}</label>
     <div class="col-md-7">
-        <select id="show" name="show" class="form-control select2">
-            @foreach ($shows as $s)
-                <option value="{{ $s }}" {{ old('show', $project->show ?? 'Grad Show') === $s ? 'selected' : '' }}>{{ $s }}</option>
+        <select id="exhibit_id" name="exhibit_id" class="form-control select2">
+            @foreach ($exhibits as $ex)
+                <option value="{{ $ex->id }}" {{ (int) old('exhibit_id', $project->exhibit_id ?? 0) === (int) $ex->id ? 'selected' : '' }}>{{ $ex->name }}</option>
             @endforeach
         </select>
     </div>
@@ -36,28 +36,24 @@
     'item' => $project ?? null,
 ])
 
-<div class="form-group {{ $errors->has('status') ? 'has-error' : '' }}">
-    <label for="status" class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.status') }}</label>
+<div class="form-group {{ $errors->has('status_id') ? 'has-error' : '' }}">
+    <label for="status_id" class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.status') }}</label>
     <div class="col-md-7">
-        <select id="status" name="status" class="form-control select2">
-            @foreach ($statuses as $status)
-                <option value="{{ $status }}" {{ old('status', $project->status ?? 'pending') === $status ? 'selected' : '' }}>
-                    {{ trans('admin/exhibit-projects/general.status_value_'.$status) }}
-                </option>
+        <select id="status_id" name="status_id" class="form-control select2">
+            @foreach ($statuses as $st)
+                <option value="{{ $st->id }}" {{ (int) old('status_id', $project->status_id ?? 0) === (int) $st->id ? 'selected' : '' }}>{{ $st->name }}</option>
             @endforeach
         </select>
     </div>
 </div>
 
 <div class="form-group">
-    <label for="project_type" class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.project_type') }}</label>
+    <label for="project_type_id" class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.project_type') }}</label>
     <div class="col-md-7">
-        <select id="project_type" name="project_type" class="form-control select2">
+        <select id="project_type_id" name="project_type_id" class="form-control select2">
             <option value="">—</option>
-            @foreach ($types as $type)
-                <option value="{{ $type }}" {{ old('project_type', $project->project_type ?? '') === $type ? 'selected' : '' }}>
-                    {{ trans('admin/exhibit-projects/general.type_value_'.$type) }}
-                </option>
+            @foreach ($types as $t)
+                <option value="{{ $t->id }}" {{ (int) old('project_type_id', $project->project_type_id ?? 0) === (int) $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
             @endforeach
         </select>
     </div>
@@ -87,20 +83,12 @@
 
 <div class="form-group">
     <label class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.submitted_file') }}</label>
-    <div class="col-md-7">
-        <label class="checkbox-inline">
-            <input type="checkbox" name="submitted_file" value="1" {{ old('submitted_file', $project->submitted_file ?? false) ? 'checked' : '' }}>
-        </label>
-    </div>
+    <div class="col-md-7"><label class="checkbox-inline"><input type="checkbox" name="submitted_file" value="1" {{ old('submitted_file', $project->submitted_file ?? false) ? 'checked' : '' }}></label></div>
 </div>
 
 <div class="form-group">
     <label class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.approved') }}</label>
-    <div class="col-md-7">
-        <label class="checkbox-inline">
-            <input type="checkbox" name="approved" value="1" {{ old('approved', $project->approved ?? false) ? 'checked' : '' }}>
-        </label>
-    </div>
+    <div class="col-md-7"><label class="checkbox-inline"><input type="checkbox" name="approved" value="1" {{ old('approved', $project->approved ?? false) ? 'checked' : '' }}></label></div>
 </div>
 
 <div class="form-group">
