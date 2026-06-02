@@ -42,15 +42,11 @@ class SendUpcomingAuditMail extends BaseMailable
     public function content(): Content
     {
 
-        return new Content(
-
-            markdown: 'notifications.markdown.upcoming-audits',
-            with: [
+        return $this->bodyContent('report.upcoming_audits', 'notifications.markdown.upcoming-audits', [
                 'assets' => $this->assets,
                 'threshold' => $this->threshold,
                 'total' => $this->total,
-            ],
-        );
+            ]);
     }
 
     /**

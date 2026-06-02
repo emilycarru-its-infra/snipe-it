@@ -40,13 +40,10 @@ class ExpiringAssetsMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'notifications.markdown.report-expiring-assets',
-            with: [
+        return $this->bodyContent('report.expiring_assets', 'notifications.markdown.report-expiring-assets', [
                 'assets' => $this->assets,
                 'threshold' => $this->threshold,
-            ]
-        );
+            ]);
     }
 
     /**
