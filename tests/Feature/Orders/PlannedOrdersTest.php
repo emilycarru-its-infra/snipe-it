@@ -71,17 +71,21 @@ class PlannedOrdersTest extends TestCase
 
         $superuser = $this->superuser();
 
+        // Assert on the planned line's value rather than its fiscal-year
+        // label: the FY now appears in the report's fiscal-year selector
+        // regardless of mode, so the planned $2,000 is what distinguishes
+        // the two modes.
         // Actual mode leaves planned orders out.
         $this->actingAs($superuser)
             ->get(route('reports.procurement.capital'))
             ->assertOk()
-            ->assertDontSee('FY2026-27');
+            ->assertDontSee('$2,000.00');
 
         // Forecast mode brings them in.
         $this->actingAs($superuser)
             ->get(route('reports.procurement.capital', ['mode' => 'forecast']))
             ->assertOk()
-            ->assertSee('FY2026-27');
+            ->assertSee('$2,000.00');
     }
 
     public function test_order_create_form_exposes_the_planned_fields()
