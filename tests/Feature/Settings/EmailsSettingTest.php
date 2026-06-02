@@ -4,8 +4,10 @@ namespace Tests\Feature\Settings;
 
 use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
+use App\Mail\CheckoutAssetMail;
 use App\Models\EmailTemplate;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class EmailsSettingTest extends TestCase
@@ -251,5 +253,29 @@ class EmailsSettingTest extends TestCase
             ->get(route('settings.emails.index'))
             ->assertOk()
             ->assertSee('Edna Editor');
+    }
+
+    public function test_test_send_emails_the_current_admin(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->superuser()->create(['email' => 'me@ecuad.ca']);
+
+        $this->actingAs($admin)
+            ->post(route('settings.emails.test'), ['key' => 'checkout.asset'])
+            ->assertRedirect(route('settings.emails.index', ['selected' => 'checkout.asset']))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(CheckoutAssetMail::class);
+    }
+
+    public function test_test_send_is_unavailable_for_non_previewable_emails(): void
+    {
+        Mail::fake();
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.test'), ['key' => 'report.low_inventory'])
+            ->assertSessionHas('error');
+
+        Mail::assertNothingSent();
     }
 }

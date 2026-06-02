@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Settings → Emails: a single place to see every email Snipe-IT sends,
@@ -124,6 +125,29 @@ class EmailsController extends Controller
 
         return redirect()->route('settings.emails.index', ['selected' => $key])
             ->with('success', trans('admin/settings/message.update.success'));
+    }
+
+    /** Send the selected email (with its current saved overrides + sample data) to the logged-in admin. */
+    public function test(Request $request): RedirectResponse
+    {
+        $key = (string) $request->input('key');
+        $mailable = EmailRegistry::makeMailable($key);
+
+        if (! $mailable) {
+            return redirect()->route('settings.emails.index', ['selected' => $key])
+                ->with('error', trans('admin/settings/general.emails_test_unavailable'));
+        }
+
+        $email = auth()->user()?->email;
+        if (! $email) {
+            return redirect()->route('settings.emails.index', ['selected' => $key])
+                ->with('error', trans('admin/settings/general.emails_test_no_email'));
+        }
+
+        Mail::to($email)->send($mailable);
+
+        return redirect()->route('settings.emails.index', ['selected' => $key])
+            ->with('success', trans('admin/settings/general.emails_test_sent', ['email' => $email]));
     }
 
     /**
