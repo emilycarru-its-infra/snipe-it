@@ -76,7 +76,7 @@ class ExhibitCsvImporter
                     'status_id' => $statusId,
                     'project_type_id' => $typeId,
                     'project_details' => $details ?: null,
-                    'requested_device' => $this->cell($cells, $map, 'device') ?: null,
+                    'requested_device' => $this->cleanDevice($this->cell($cells, $map, 'device')),
                     'peripherals' => $this->cell($cells, $map, 'peripherals') ?: null,
                     'submitted_file' => $this->bool($this->cell($cells, $map, 'submitted')),
                     'approved' => $this->bool($this->cell($cells, $map, 'approved')),
@@ -146,6 +146,25 @@ class ExhibitCsvImporter
         return in_array(strtolower(trim($value)), ['true', 'yes', '1', 'x', 'y'], true);
     }
 
+    /** Placeholder/blank device values (e.g. Media Resources rows) become null. */
+    private function cleanDevice(string $value): ?string
+    {
+        $v = trim($value);
+        if ($v === '' || in_array(strtolower($v), ['-', '–', '—', 'n/a', 'na', 'none'], true)) {
+            return null;
+        }
+
+        return $v;
+    }
+
+    /**
+     * Known free-text variants that should resolve to a seeded type
+     * instead of minting a near-duplicate catalog entry (lower-cased).
+     */
+    private const TYPE_ALIASES = [
+        'looping audio' => 'audio',
+    ];
+
     private function resolveStatus(string $raw): int
     {
         $name = trim($raw);
@@ -180,8 +199,11 @@ class ExhibitCsvImporter
             return $this->typeCache[$key];
         }
 
+        // Map a known free-text variant onto its seeded slug first.
+        $lookupSlug = self::TYPE_ALIASES[$key] ?? Str::slug($name, '_');
+
         $type = ExhibitProjectType::whereRaw('LOWER(name) = ?', [$key])->first()
-            ?? ExhibitProjectType::where('slug', Str::slug($name, '_'))->first()
+            ?? ExhibitProjectType::where('slug', $lookupSlug)->first()
             ?? ExhibitProjectType::create([
                 'name' => $name,
                 'color' => '#95a5a6',
