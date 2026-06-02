@@ -23,6 +23,7 @@ use App\Http\Controllers\NotesController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ReportTemplatesController;
+use App\Http\Controllers\EmailsController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StatuslabelsController;
@@ -390,6 +391,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
 
     Route::post('agreements', [SettingsController::class, 'postAgreements'])
         ->name('settings.agreements.save');
+
+    Route::get('emails', [EmailsController::class, 'index'])
+        ->name('settings.emails.index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
+            ->push(trans('admin/settings/general.emails'), route('settings.emails.index')));
+
+    Route::get('emails/{key}/preview', [EmailsController::class, 'preview'])
+        ->name('settings.emails.preview');
 
     Route::get('slack', [SettingsController::class, 'getSlack'])
         ->name('settings.slack.index')
