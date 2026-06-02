@@ -41,13 +41,13 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        // Fiscal years available across purchase orders and planned orders,
-        // plus the resolved selection. `?fiscal_year=all` opts out; no value
-        // defaults to the current FY when it has data. Both are shared with
-        // every sub-report (see resolveFiscalYear) so the dashboard's FY
-        // scope follows the reader through to the reports they open.
+        // Fiscal years available across purchase orders and orders, plus the
+        // resolved selection. `?fiscal_year=all` opts out; no value defaults
+        // to the current FY when it has data. The dashboard appends this FY
+        // to its report links so the scope follows the reader through (the
+        // reports themselves default to all-years on a direct visit).
         $allFiscalYears = $this->availableFiscalYears();
-        $selectedFy = $this->resolveFiscalYear($request);
+        $selectedFy = $this->resolveFiscalYear($request, true);
 
         $purchaseOrders = PurchaseOrder::when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
             ->orderBy('po_number')
@@ -3100,8 +3100,12 @@ class ProcurementReportsController extends Controller
      */
     private function availableFiscalYears(): \Illuminate\Support\Collection
     {
+        // Orders (not just POs / planned forecasts) carry their own FY, and a
+        // blanket PO's orders can sit in a later year than the PO itself —
+        // e.g. schedules 007/008 in FY2026-27 on a FY2025-26 PO. Those years
+        // have to be offered, or you couldn't filter to the split-out slice.
         return PurchaseOrder::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')
-            ->merge(Order::planned()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
+            ->merge(Order::query()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
             ->map(fn ($fy) => $this->normalizeFy($fy))
             ->filter()
             ->unique()->sort()->values();
@@ -3114,7 +3118,7 @@ class ProcurementReportsController extends Controller
      * `?fiscal_year=all` is the cross-year opt-out; an unknown value falls
      * back to current FY. Returns a canonical FY string, or null for "all".
      */
-    private function resolveFiscalYear(Request $request): ?string
+    private function resolveFiscalYear(Request $request, bool $defaultToCurrent = false): ?string
     {
         $available = $this->availableFiscalYears();
         $raw = $request->query('fiscal_year');
@@ -3123,20 +3127,24 @@ class ProcurementReportsController extends Controller
             return null;
         }
 
-        if ($raw === null) {
+        if ($raw !== null) {
+            $normalized = $this->normalizeFy($raw);
+            if ($normalized && $available->contains($normalized)) {
+                return $normalized;
+            }
+        }
+
+        // No (or unrecognised) selection. The dashboard opens on the current
+        // FY when it holds data ($defaultToCurrent); sub-reports stay
+        // all-years so a direct visit shows everything — the dashboard's pick
+        // still reaches them through the fiscal_year it appends to its links.
+        if ($defaultToCurrent) {
             $current = Helper::currentFiscalYear();
 
             return $available->contains($current) ? $current : null;
         }
 
-        $normalized = $this->normalizeFy($raw);
-        if ($normalized && $available->contains($normalized)) {
-            return $normalized;
-        }
-
-        $current = Helper::currentFiscalYear();
-
-        return $available->contains($current) ? $current : null;
+        return null;
     }
 
     /**
