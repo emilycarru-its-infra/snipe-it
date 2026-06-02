@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Mail\ExhibitNotificationMail;
+use App\Models\Exhibit;
 use App\Models\ExhibitEmailTemplate;
 use App\Models\ExhibitProject;
+use App\Models\ExhibitProjectType;
+use App\Models\ExhibitStatus;
 use App\Models\Order;
+use App\Services\Exhibits\ExhibitCsvImporter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,118 +18,121 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Exhibit equipment tracking board — the Grad Show Numbers-sheet
- * replacement. `report()` renders the widgets + table at
- * /reports/exhibit; the rest is light CRUD plus the in-app student
- * emails. Authorization reuses the Order policy (same as user
- * agreements) so no new permission slug is introduced.
+ * replacement. `report()` renders the donut+count widgets + the table at
+ * /reports/exhibit; the rest is light CRUD, the in-app student emails,
+ * and the historical CSV backfill. Exhibits / statuses / project types
+ * are editable catalogs; this controller groups by their FKs.
+ * Authorization reuses the Order policy.
  */
 class ExhibitProjectsController extends Controller
 {
+    /** Hex palette for device buckets (which are free-string, no catalog). */
+    private const DEVICE_PALETTE = ['#f39c12', '#2ecc71', '#f1c40f', '#1abc9c', '#9b59b6', '#e74c3c', '#3498db', '#34495e', '#16a085', '#e67e22'];
+
     /**
-     * The /reports/exhibit board: three count widgets + the filterable
-     * project table. Supports ?show=, ?year=, ?status= and ?format=csv.
+     * The /reports/exhibit board: three donut+count widgets + the
+     * filterable table. Supports ?exhibit=, ?year=, ?status= and
+     * ?format=csv.
      */
     public function report(Request $request)
     {
         $this->authorize('view', Order::class);
 
-        $shows = ExhibitProject::query()->select('show')->distinct()->orderBy('show')->pluck('show')->all();
+        $exhibits = Exhibit::where('active', true)->orderBy('sort_order')->orderBy('name')->get();
+        $statuses = ExhibitStatus::where('active', true)->orderBy('sort_order')->orderBy('name')->get();
+        $types = ExhibitProjectType::where('active', true)->orderBy('sort_order')->orderBy('name')->get();
         $years = ExhibitProject::query()->select('year')->distinct()->orderByDesc('year')->pluck('year')->all();
 
-        $show = $request->query('show', $shows[0] ?? 'Grad Show');
-        $year = (int) $request->query('year', $years[0] ?? now()->year);
+        $exhibitId = (int) ($request->query('exhibit') ?: ($exhibits->first()->id ?? 0));
+        $year = (int) ($request->query('year') ?: ($years[0] ?? now()->year));
         $statusFilter = $request->query('status');
 
-        $query = ExhibitProject::with('user', 'asset')
-            ->where('show', $show)
+        $query = ExhibitProject::with('user', 'asset', 'status', 'projectType')
+            ->where('exhibit_id', $exhibitId)
             ->where('year', $year);
 
-        if ($statusFilter && in_array($statusFilter, ExhibitProject::STATUSES, true)) {
-            $query->where('status', $statusFilter);
+        if ($statusFilter) {
+            $query->where('status_id', (int) $statusFilter);
         }
 
         $projects = $query->orderBy('student_name')->orderBy('id')->get();
 
         if ($request->query('format') === 'csv') {
-            return $this->streamCsv($projects, $show, $year);
+            return $this->streamCsv($projects, $exhibits->firstWhere('id', $exhibitId)?->name ?? 'exhibit', $year);
         }
 
         return view('reports.exhibit.index', [
             'projects' => $projects,
-            'shows' => $shows ?: ['Grad Show'],
+            'exhibits' => $exhibits,
+            'statuses' => $statuses,
             'years' => $years ?: [now()->year],
-            'show' => $show,
+            'exhibitId' => $exhibitId,
             'year' => $year,
             'statusFilter' => $statusFilter,
-            'widgets' => $this->buildWidgets($projects),
+            'widgets' => $this->buildWidgets($projects, $types, $statuses),
             'templates' => ExhibitEmailTemplate::where('enabled', true)->orderBy('name')->get(),
-            'downloadUrl' => route('reports.exhibit', ['show' => $show, 'year' => $year, 'status' => $statusFilter, 'format' => 'csv']),
+            'downloadUrl' => route('reports.exhibit', ['exhibit' => $exhibitId, 'year' => $year, 'status' => $statusFilter, 'format' => 'csv']),
         ]);
     }
 
     /**
-     * Build the three count widgets (project type, status, requested
-     * device) from the already-filtered project collection — each a list
-     * of [label, count, pct, color] rows so the view stays dumb.
+     * Build the three widgets (project type, status, requested device).
+     * Each returns count rows [label,count,pct,color] (catalog colors,
+     * zero rows kept so the card mirrors the sheet) plus a `chart` array
+     * (non-zero only) for the doughnut.
      */
-    private function buildWidgets($projects): array
+    private function buildWidgets($projects, $types, $statuses): array
     {
         $total = max($projects->count(), 1);
-        $palette = ['orange', 'green', 'yellow', 'aqua', 'purple', 'red', 'blue', 'navy', 'teal', 'olive', 'maroon', 'gray'];
+        $row = fn ($label, $count, $color) => [
+            'label' => $label,
+            'count' => $count,
+            'pct' => round($count / $total * 100),
+            'color' => $color ?: '#bdc3c7',
+        ];
 
         $typeRows = [];
-        foreach (ExhibitProject::PROJECT_TYPES as $i => $type) {
-            $count = $projects->where('project_type', $type)->count();
-            $typeRows[] = [
-                'label' => trans('admin/exhibit-projects/general.type_value_'.$type),
-                'count' => $count,
-                'pct' => round($count / $total * 100),
-                'color' => $palette[$i % count($palette)],
-            ];
+        foreach ($types as $t) {
+            $typeRows[] = $row($t->name, $projects->where('project_type_id', $t->id)->count(), $t->color);
         }
 
         $statusRows = [];
-        foreach (ExhibitProject::STATUSES as $status) {
-            $count = $projects->where('status', $status)->count();
-            if ($count === 0) {
-                continue;
-            }
-            $statusRows[] = [
-                'label' => trans('admin/exhibit-projects/general.status_value_'.$status),
-                'count' => $count,
-                'pct' => round($count / $total * 100),
-                'color' => ExhibitProject::STATUS_COLORS[$status] ?? 'default',
-            ];
+        foreach ($statuses as $s) {
+            $statusRows[] = $row($s->name, $projects->where('status_id', $s->id)->count(), $s->color);
         }
 
-        // Requested device buckets are whatever exact strings appear
-        // (combos like "iMac, iPad" stay their own bucket, matching the
-        // Numbers sheet).
+        // Requested-device buckets are whatever exact strings appear
+        // (combos like "iMac, iPad" stay their own bucket).
         $deviceRows = [];
         foreach ($projects->whereNotNull('requested_device')->groupBy('requested_device') as $device => $group) {
             if ($device === '') {
                 continue;
             }
-            $deviceRows[] = [
-                'label' => $device,
-                'count' => $group->count(),
-                'pct' => round($group->count() / $total * 100),
-                'color' => $palette[count($deviceRows) % count($palette)],
-            ];
+            $deviceRows[] = $row($device, $group->count(), self::DEVICE_PALETTE[count($deviceRows) % count(self::DEVICE_PALETTE)]);
         }
         usort($deviceRows, fn ($a, $b) => $b['count'] <=> $a['count']);
 
+        $chart = function (array $rows) {
+            $nonzero = array_values(array_filter($rows, fn ($r) => $r['count'] > 0));
+
+            return [
+                'labels' => array_column($nonzero, 'label'),
+                'data' => array_column($nonzero, 'count'),
+                'colors' => array_column($nonzero, 'color'),
+            ];
+        };
+
         return [
-            'type' => $typeRows,
-            'status' => $statusRows,
-            'device' => $deviceRows,
+            'type' => ['rows' => $typeRows, 'chart' => $chart($typeRows)],
+            'status' => ['rows' => $statusRows, 'chart' => $chart($statusRows)],
+            'device' => ['rows' => $deviceRows, 'chart' => $chart($deviceRows)],
             'total' => $projects->count(),
         ];
     }
 
-    private function streamCsv($projects, string $show, int $year): StreamedResponse
+    private function streamCsv($projects, string $exhibitName, int $year): StreamedResponse
     {
-        $filename = 'exhibit-'.strtolower(str_replace(' ', '-', $show)).'-'.$year.'.csv';
+        $filename = 'exhibit-'.strtolower(str_replace(' ', '-', $exhibitName)).'-'.$year.'.csv';
         $headers = [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',
@@ -136,10 +143,10 @@ class ExhibitProjectsController extends Controller
             fputcsv($out, ['Status', 'Submitted File', 'Name', 'Project Type', 'Project Details', 'Requested Device', 'Assigned Asset', 'Approved', 'Peripherals', 'Notes', 'TDX ID']);
             foreach ($projects as $p) {
                 fputcsv($out, [
-                    trans('admin/exhibit-projects/general.status_value_'.$p->status),
+                    $p->statusLabel(),
                     $p->submitted_file ? 'Yes' : 'No',
                     $p->displayName,
-                    $p->project_type ? trans('admin/exhibit-projects/general.type_value_'.$p->project_type) : '',
+                    $p->typeLabel(),
                     $p->project_details,
                     $p->requested_device,
                     $p->asset_id ? $p->assignedDeviceLabel() : '',
@@ -158,7 +165,11 @@ class ExhibitProjectsController extends Controller
         $this->authorize('create', Order::class);
 
         return view('exhibit-projects.create', [
-            'project' => new ExhibitProject(['year' => now()->year, 'show' => 'Grad Show', 'status' => 'pending']),
+            'project' => new ExhibitProject([
+                'year' => now()->year,
+                'exhibit_id' => Exhibit::where('active', true)->orderBy('sort_order')->value('id'),
+                'status_id' => ExhibitStatus::where('slug', 'pending')->value('id'),
+            ]),
         ]);
     }
 
@@ -176,7 +187,7 @@ class ExhibitProjectsController extends Controller
             return redirect()->back()->withInput()->withErrors($project->getErrors());
         }
 
-        return redirect()->route('reports.exhibit', ['show' => $project->show, 'year' => $project->year])
+        return redirect()->route('reports.exhibit', ['exhibit' => $project->exhibit_id, 'year' => $project->year])
             ->with('success', trans('admin/exhibit-projects/general.created'));
     }
 
@@ -185,7 +196,7 @@ class ExhibitProjectsController extends Controller
         $this->authorize('view', Order::class);
 
         return view('exhibit-projects.show', [
-            'project' => $exhibitProject->load('user', 'asset'),
+            'project' => $exhibitProject->load('user', 'asset', 'exhibit', 'status', 'projectType'),
             'templates' => ExhibitEmailTemplate::where('enabled', true)->orderBy('name')->get(),
         ]);
     }
@@ -209,7 +220,7 @@ class ExhibitProjectsController extends Controller
             return redirect()->back()->withInput()->withErrors($exhibitProject->getErrors());
         }
 
-        return redirect()->route('reports.exhibit', ['show' => $exhibitProject->show, 'year' => $exhibitProject->year])
+        return redirect()->route('reports.exhibit', ['exhibit' => $exhibitProject->exhibit_id, 'year' => $exhibitProject->year])
             ->with('success', trans('admin/exhibit-projects/general.updated'));
     }
 
@@ -217,24 +228,21 @@ class ExhibitProjectsController extends Controller
     {
         $this->authorize('delete', Order::class);
 
-        $show = $exhibitProject->show;
+        $exhibitId = $exhibitProject->exhibit_id;
         $year = $exhibitProject->year;
         $exhibitProject->delete();
 
-        return redirect()->route('reports.exhibit', ['show' => $show, 'year' => $year])
+        return redirect()->route('reports.exhibit', ['exhibit' => $exhibitId, 'year' => $year])
             ->with('success', trans('admin/exhibit-projects/general.deleted'));
     }
 
-    /**
-     * Send one editable template to a single project's student.
-     */
+    /** Send one editable template to a single project's student. */
     public function sendEmail(Request $request, ExhibitProject $exhibitProject): RedirectResponse
     {
         $this->authorize('update', Order::class);
 
         $template = ExhibitEmailTemplate::findOrFail($request->input('template_id'));
-
-        $back = redirect()->route('reports.exhibit', ['show' => $exhibitProject->show, 'year' => $exhibitProject->year]);
+        $back = redirect()->route('reports.exhibit', ['exhibit' => $exhibitProject->exhibit_id, 'year' => $exhibitProject->year]);
 
         if (! $exhibitProject->recipientEmail()) {
             return $back->with('error', trans('admin/exhibit-projects/general.email_no_recipient'));
@@ -252,19 +260,19 @@ class ExhibitProjectsController extends Controller
     }
 
     /**
-     * Send a template to every approved project in a show + year — the
-     * in-Snipe equivalent of the TDX "comment all approved tickets" step.
+     * Send a template to every approved project in an exhibit + year —
+     * the in-Snipe equivalent of the TDX "comment all approved" step.
      */
     public function sendBulk(Request $request): RedirectResponse
     {
         $this->authorize('update', Order::class);
 
         $template = ExhibitEmailTemplate::findOrFail($request->input('template_id'));
-        $show = $request->input('show');
+        $exhibitId = (int) $request->input('exhibit');
         $year = (int) $request->input('year');
 
         $projects = ExhibitProject::with('user')
-            ->where('show', $show)
+            ->where('exhibit_id', $exhibitId)
             ->where('year', $year)
             ->where('approved', true)
             ->get();
@@ -285,7 +293,50 @@ class ExhibitProjectsController extends Controller
             }
         }
 
-        return redirect()->route('reports.exhibit', ['show' => $show, 'year' => $year])
+        return redirect()->route('reports.exhibit', ['exhibit' => $exhibitId, 'year' => $year])
             ->with('success', trans('admin/exhibit-projects/general.email_bulk_done', ['sent' => $sent, 'skipped' => $skipped]));
+    }
+
+    /** CSV backfill upload form. */
+    public function importForm()
+    {
+        $this->authorize('create', Order::class);
+
+        return view('exhibit-projects.import', [
+            'exhibits' => Exhibit::where('active', true)->orderBy('sort_order')->get(),
+        ]);
+    }
+
+    /**
+     * Parse + import a year's CSV (header-driven, handles the 4 historical
+     * layouts). PII is parsed in-memory; nothing is persisted to disk.
+     */
+    public function import(Request $request, ExhibitCsvImporter $importer): RedirectResponse
+    {
+        $this->authorize('create', Order::class);
+
+        $request->validate([
+            'exhibit_id' => 'required|exists:exhibits,id',
+            'year' => 'required|integer|min:2000|max:2100',
+            'file' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $exhibit = Exhibit::findOrFail($request->input('exhibit_id'));
+        $year = (int) $request->input('year');
+
+        try {
+            $summary = $importer->import($request->file('file')->getRealPath(), $exhibit, $year);
+        } catch (\Throwable $e) {
+            Log::error('exhibit CSV import failed', ['exception' => $e]);
+
+            return redirect()->route('exhibit-projects.import-form')
+                ->with('error', trans('admin/exhibit-projects/general.import_failed', ['error' => $e->getMessage()]));
+        }
+
+        return redirect()->route('reports.exhibit', ['exhibit' => $exhibit->id, 'year' => $year])
+            ->with('success', trans('admin/exhibit-projects/general.import_done', [
+                'imported' => $summary['imported'],
+                'skipped' => $summary['skipped'],
+            ]));
     }
 }

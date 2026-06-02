@@ -39,6 +39,7 @@ use App\Http\Controllers\FleetHealthReportsController;
 use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\ExhibitProjectsController;
 use App\Http\Controllers\ExhibitEmailTemplatesController;
+use App\Http\Controllers\ExhibitCatalogController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
@@ -234,6 +235,35 @@ Route::group(['middleware' => 'auth'], function () {
             ->push($exhibitEmailTemplate->name, route('exhibit-email-templates.edit', $exhibitEmailTemplate)));
     Route::put('exhibit-email-templates/{exhibitEmailTemplate}', [ExhibitEmailTemplatesController::class, 'update'])
         ->name('exhibit-email-templates.update');
+
+    // CSV backfill upload (historical years). Files parsed in-memory; PII
+    // never persisted to the repo.
+    Route::get('exhibit-projects/import/form', [ExhibitProjectsController::class, 'importForm'])
+        ->name('exhibit-projects.import-form')
+        ->breadcrumbs(fn (Trail $trail) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.import_title'), route('exhibit-projects.import-form')));
+    Route::post('exhibit-projects/import', [ExhibitProjectsController::class, 'import'])
+        ->name('exhibit-projects.import');
+
+    // Editable taxonomy catalogs (exhibits / project-types / statuses).
+    Route::get('exhibit-config/{catalog}', [ExhibitCatalogController::class, 'index'])
+        ->name('exhibit-config.index')
+        ->breadcrumbs(fn (Trail $trail, $catalog) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.configure'), route('exhibit-config.index', $catalog)));
+    Route::get('exhibit-config/{catalog}/create', [ExhibitCatalogController::class, 'create'])
+        ->name('exhibit-config.create')
+        ->breadcrumbs(fn (Trail $trail, $catalog) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.configure'), route('exhibit-config.index', $catalog)));
+    Route::post('exhibit-config/{catalog}', [ExhibitCatalogController::class, 'store'])
+        ->name('exhibit-config.store');
+    Route::get('exhibit-config/{catalog}/{id}/edit', [ExhibitCatalogController::class, 'edit'])
+        ->name('exhibit-config.edit')
+        ->breadcrumbs(fn (Trail $trail, $catalog, $id) => ($exhibitCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.configure'), route('exhibit-config.index', $catalog)));
+    Route::put('exhibit-config/{catalog}/{id}', [ExhibitCatalogController::class, 'update'])
+        ->name('exhibit-config.update');
+    Route::delete('exhibit-config/{catalog}/{id}', [ExhibitCatalogController::class, 'destroy'])
+        ->name('exhibit-config.destroy');
 
     /*
     * Lease Schedules
