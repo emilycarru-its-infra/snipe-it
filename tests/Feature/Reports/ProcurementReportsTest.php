@@ -629,6 +629,57 @@ class ProcurementReportsTest extends TestCase
         $this->assertEquals(ConsumableTransaction::STATUS_DRAFT, $draft->fresh()->status);
     }
 
+    public function test_sub_report_filters_by_order_fiscal_year()
+    {
+        // One blanket PO carrying orders booked in two fiscal years — the
+        // 007/008-on-P0025420 pattern. The FY filter has to attribute each
+        // invoice by its booking order's FY, not the parent PO's.
+        $po = PurchaseOrder::factory()->create(['po_number' => 'PO-BLANKET', 'fiscal_year' => 'FY2025-26']);
+
+        $order25 = Order::factory()->create([
+            'order_number' => 'ORD-FY25',
+            'purchase_order_id' => $po->id,
+            'fiscal_year' => 'FY2025-26',
+        ]);
+        $order26 = Order::factory()->create([
+            'order_number' => 'ORD-FY26',
+            'purchase_order_id' => $po->id,
+            'fiscal_year' => 'FY2026-27',
+        ]);
+
+        OrderInvoice::factory()->create([
+            'order_id' => $order25->id,
+            'purchase_order_id' => $po->id,
+            'invoice_number' => 'INV-FY25',
+        ]);
+        OrderInvoice::factory()->create([
+            'order_id' => $order26->id,
+            'purchase_order_id' => $po->id,
+            'invoice_number' => 'INV-FY26',
+        ]);
+
+        $superuser = $this->superuser();
+
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.invoices', ['fiscal_year' => 'FY2025-26']))
+            ->assertOk()
+            ->assertSee('INV-FY25')
+            ->assertDontSee('INV-FY26');
+
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.invoices', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee('INV-FY26')
+            ->assertDontSee('INV-FY25');
+
+        // ?fiscal_year=all opts out and shows both years.
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.invoices', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('INV-FY25')
+            ->assertSee('INV-FY26');
+    }
+
     public function test_updating_visibility_persists_the_users_hidden_reports()
     {
         $user = $this->superuser();
