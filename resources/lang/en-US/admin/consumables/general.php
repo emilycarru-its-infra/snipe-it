@@ -64,6 +64,7 @@ return [
     'gl_code_edit_help' => 'Correct the GL code if the printer was wrongly coded when this checkout happened.',
     'unit_cost_edit_help' => 'The line total recalculates from quantity × unit cost on save.',
     'qty_increase' => 'Add one to stock (received)',
+    'stock_received' => 'Units received',
     'qty_decrease' => 'Remove one',
     'qty_at_checkout_floor' => 'Already at the number checked out — can\'t go lower',
     'qty_consume' => 'Record one used by a printer',

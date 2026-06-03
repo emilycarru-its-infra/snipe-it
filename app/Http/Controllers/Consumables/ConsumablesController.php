@@ -286,11 +286,12 @@ class ConsumablesController extends Controller
         ]);
 
         $checkedOut = (int) $consumable->numCheckedOut();
+        $oldQty = (int) $consumable->qty;
 
         if ($request->filled('qty')) {
             $newQty = (int) $request->input('qty');
         } else {
-            $newQty = (int) $consumable->qty + (int) $request->input('delta', 0);
+            $newQty = $oldQty + (int) $request->input('delta', 0);
         }
 
         // Floor at what's checked out (and never negative); ceiling at the
@@ -298,13 +299,33 @@ class ConsumablesController extends Controller
         $newQty = max($checkedOut, 0, $newQty);
         $newQty = min($newQty, 99999);
 
+        $delta = $newQty - $oldQty;
+
         $consumable->qty = $newQty;
+
+        // When stock goes up (units arrived) we record a first-class "checkin"
+        // action below — so suppress the observer's generic "update" row to
+        // keep the history reading like an asset checkin rather than a field edit.
+        $consumable->skipChangeLog = $delta > 0;
 
         if (! $consumable->save()) {
             return response()->json([
                 'status' => 'error',
                 'messages' => $consumable->getErrors()->all(),
             ], 422);
+        }
+
+        // Up arrow = "more units arrived" → a checkin, mirroring an asset
+        // checkin (no target, quantity = how many came in). The down arrow is
+        // handled by consume(), which logs a checkout against the printer.
+        if ($delta > 0) {
+            $logAction = new \App\Models\Actionlog;
+            $logAction->item_type = Consumable::class;
+            $logAction->item_id = $consumable->id;
+            $logAction->created_by = auth()->id();
+            $logAction->quantity = $delta;
+            $logAction->note = $request->input('note') ?: trans('admin/consumables/general.stock_received');
+            $logAction->logaction('checkin from');
         }
 
         $remaining = (int) $consumable->numRemaining();
