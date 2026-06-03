@@ -173,7 +173,7 @@ class UpdateConsumableTest extends TestCase
         $this->assertEquals(2, $consumable->fresh()->qty);
     }
 
-    public function test_adjust_quantity_is_recorded_in_the_activity_log()
+    public function test_adjust_quantity_up_is_recorded_as_a_checkin()
     {
         $consumable = Consumable::factory()->create(['qty' => 0]);
         $user = User::factory()->editConsumables()->create();
@@ -182,16 +182,23 @@ class UpdateConsumableTest extends TestCase
             ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1])
             ->assertOk();
 
-        // ConsumableObserver logs an 'update' action with the changed qty,
-        // attributed to the acting user — the traceability Snipe already has.
+        // Units arriving = a first-class 'checkin' (qty received), attributed
+        // to the acting user — reads like an asset checkin, not a field edit.
         $log = Actionlog::where('item_type', Consumable::class)
             ->where('item_id', $consumable->id)
-            ->where('action_type', 'update')
+            ->where('action_type', 'checkin from')
             ->latest('id')->first();
 
-        $this->assertNotNull($log, 'A qty nudge should write an update action log entry');
+        $this->assertNotNull($log, 'A stock increase should write a checkin action log entry');
         $this->assertEquals($user->id, $log->created_by);
-        $this->assertStringContainsString('qty', (string) $log->log_meta);
+        $this->assertEquals(1, (int) $log->quantity);
+
+        // ...and NOT a generic 'update' row (the observer is suppressed).
+        $this->assertDatabaseMissing('action_logs', [
+            'item_type' => Consumable::class,
+            'item_id' => $consumable->id,
+            'action_type' => 'update',
+        ]);
     }
 
     public function test_compatible_printers_lists_assets_of_compatible_models()
@@ -222,6 +229,17 @@ class UpdateConsumableTest extends TestCase
         $this->assertEquals(1, $consumable->fresh()->numCheckedOut());
         $this->assertSame(1, ConsumableTransaction::where('consumable_id', $consumable->id)
             ->where('asset_id', $printer->id)->where('gl_code', 'GL-1234')->count());
+
+        // History reads like an asset checkout: action 'checkout', target the
+        // printer, quantity 1 — not a bare qty field edit.
+        $log = Actionlog::where('item_type', Consumable::class)
+            ->where('item_id', $consumable->id)
+            ->where('action_type', 'checkout')
+            ->latest('id')->first();
+        $this->assertNotNull($log, 'Consuming a cartridge should write a checkout action log entry');
+        $this->assertEquals($printer->id, $log->target_id);
+        $this->assertEquals(Asset::class, $log->target_type);
+        $this->assertEquals(1, (int) $log->quantity);
     }
 
     public function test_consume_requires_checkout_permission()

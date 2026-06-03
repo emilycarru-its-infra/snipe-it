@@ -32,6 +32,14 @@ class Consumable extends SnipeModel
     protected $table = 'consumables';
 
     /**
+     * Set on the instance before save() to tell ConsumableObserver to skip
+     * its generic "update" activity-log row — used when the stepper logs a
+     * first-class checkin/checkout itself, so the history reads like an asset
+     * checkin/checkout rather than a bare qty field edit.
+     */
+    public bool $skipChangeLog = false;
+
+    /**
      * Lifecycle statuses a consumable moves through, from being ordered
      * to being retired. Ordered roughly chronologically.
      */

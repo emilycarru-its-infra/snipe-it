@@ -16,6 +16,12 @@ class ConsumableObserver
      */
     public function updated(Consumable $consumable)
     {
+        // The stepper's checkin/checkout paths log their own first-class
+        // action rows; skip the generic "update" row so the history doesn't
+        // read as a bare qty field edit.
+        if ($consumable->skipChangeLog) {
+            return;
+        }
 
         $changed = [];
 
