@@ -115,6 +115,9 @@
                         <div class="clearfix">
                             <span id="email-cms-last-edited" class="text-muted pull-left" style="font-size:12px;line-height:34px;"></span>
                             <button type="submit" class="btn btn-primary pull-right"><x-icon type="checkmark"/> {{ trans('general.save') }}</button>
+                            <button type="submit" id="email-cms-test-btn" formaction="{{ route('settings.emails.test') }}" class="btn btn-default pull-right" style="margin-right:8px;" title="{{ trans('admin/settings/general.emails_test_help') }}">
+                                <x-icon type="email"/> {{ trans('admin/settings/general.emails_test_send') }}
+                            </button>
                         </div>
                     </form>
 
@@ -149,6 +152,7 @@
         var editableFields = document.getElementById('email-cms-editable-fields');
         var noPreview = document.getElementById('email-cms-no-preview');
         var lastEditedEl = document.getElementById('email-cms-last-edited');
+        var testBtn = document.getElementById('email-cms-test-btn');
         var selectedKey = @json($selected ?? '');
         var oldInput = @json(old());
 
@@ -207,6 +211,9 @@
             // Recipients only where the email opts in.
             recipientsGroup.style.display = configurableRecipients ? '' : 'none';
             recipientsField.value = isOld ? (oldInput.recipients || '') : (el.getAttribute('data-recipients-override') || '');
+
+            // Test-send only makes sense for emails we can build/render.
+            testBtn.style.display = previewable ? '' : 'none';
 
             // Preview iframe, or a note for emails without a preview yet.
             if (previewable) {
