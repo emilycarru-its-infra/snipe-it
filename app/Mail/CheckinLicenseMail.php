@@ -46,16 +46,13 @@ class CheckinLicenseMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'mail.markdown.checkin-license',
-            with: [
+        return $this->bodyContent('checkin.license', 'mail.markdown.checkin-license', [
                 'license_seat' => $this->item,
                 'license' => $this->item->license,
                 'admin' => $this->admin,
                 'note' => $this->note,
                 'target' => $this->target,
-            ]
-        );
+            ]);
     }
 
     /**

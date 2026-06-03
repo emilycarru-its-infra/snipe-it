@@ -46,15 +46,12 @@ class CheckinAccessoryMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'mail.markdown.checkin-accessory',
-            with: [
+        return $this->bodyContent('checkin.accessory', 'mail.markdown.checkin-accessory', [
                 'item' => $this->item,
                 'admin' => $this->admin,
                 'note' => $this->note,
                 'target' => $this->target,
-            ]
-        );
+            ]);
     }
 
     /**

@@ -46,15 +46,12 @@ class CheckinComponentMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'mail.markdown.checkin-component',
-            with: [
+        return $this->bodyContent('checkin.component', 'mail.markdown.checkin-component', [
                 'item' => $this->item,
                 'admin' => $this->admin,
                 'note' => $this->note,
                 'target' => $this->target,
-            ]
-        );
+            ]);
     }
 
     /**
