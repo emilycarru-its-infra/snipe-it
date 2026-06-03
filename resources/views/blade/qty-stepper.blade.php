@@ -78,6 +78,13 @@
     .qty-stepper--yellow .qty-stepper__value { background: #f39c12; }
     .qty-stepper--red    .qty-stepper__value { background: #dd4b39; }
 
+    /* The arrow column carries the same state colour as the counter, just
+       a shade darker, so the white chevrons stay legible on light mode —
+       a near-white strip washed them out. */
+    .qty-stepper--green  .qty-stepper__nudge { background: #008d4c; }
+    .qty-stepper--yellow .qty-stepper__nudge { background: #d9890c; }
+    .qty-stepper--red    .qty-stepper__nudge { background: #d33724; }
+
     /* Tall stepper, split 50/50 down the right edge of the counter. */
     .qty-stepper__nudge {
         display: flex;
@@ -91,18 +98,18 @@
         padding: 0;
         border: 0;
         border-left: 1px solid rgba(255, 255, 255, 0.45);
-        background: rgba(0, 0, 0, 0.08);
+        background: transparent;
         color: #fff;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 13px;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: background 0.12s ease;
     }
     .qty-stepper__btn--up   { border-bottom: 1px solid rgba(255, 255, 255, 0.45); }
-    .qty-stepper__btn:hover { background: rgba(0, 0, 0, 0.22); }
-    .qty-stepper__btn:active { background: rgba(0, 0, 0, 0.34); }
+    .qty-stepper__btn:hover { background: rgba(0, 0, 0, 0.18); }
+    .qty-stepper__btn:active { background: rgba(0, 0, 0, 0.30); }
     .qty-stepper__btn:disabled { opacity: 0.5; cursor: default; }
     .qty-stepper.is-busy { opacity: 0.6; }
     .qty-stepper.is-busy .qty-stepper__btn { cursor: progress; }

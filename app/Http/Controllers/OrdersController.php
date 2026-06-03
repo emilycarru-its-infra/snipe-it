@@ -173,9 +173,8 @@ class OrdersController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        if ((int) $item->order_id === (int) $order->id && is_null($item->received_at)) {
-            $item->received_at = now();
-            $item->save();
+        if ((int) $item->order_id === (int) $order->id) {
+            $item->markReceived();
         }
 
         return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.receive_success'));
@@ -189,8 +188,7 @@ class OrdersController extends Controller
         $this->authorize('update', Order::class);
 
         if ((int) $item->order_id === (int) $order->id) {
-            $item->received_at = null;
-            $item->save();
+            $item->markUnreceived();
         }
 
         return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.unreceive_success'));
