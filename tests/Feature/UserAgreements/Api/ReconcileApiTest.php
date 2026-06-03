@@ -30,9 +30,12 @@ class ReconcileApiTest extends TestCase
     private function facultyUser(): User
     {
         $user  = User::factory()->create();
-        $group = Group::factory()->create(['name' => 'Regular Faculty']);
+        // Reuse the eligibility group across faculty users — a full sweep
+        // creates several, and 'Regular Faculty' is unique on permission_groups.
+        $group = Group::where('name', 'Regular Faculty')->first()
+            ?? Group::factory()->create(['name' => 'Regular Faculty']);
         $user->groups()->attach($group->id);
-        FormEligibility::create(['form_slug' => 'faculty-program', 'group_id' => $group->id]);
+        FormEligibility::firstOrCreate(['form_slug' => 'faculty-program', 'group_id' => $group->id]);
         FormAccess::flush();
         return $user;
     }
@@ -54,6 +57,10 @@ class ReconcileApiTest extends TestCase
 
     public function test_reconcile_requires_auth(): void
     {
+        // A fresh instance with no users redirects everything to /setup;
+        // seed one so the request reaches the API auth guard (401), not setup.
+        User::factory()->create();
+
         $this->postJson(route('api.user-agreements.reconcile'))->assertStatus(401);
     }
 
