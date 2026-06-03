@@ -50,6 +50,7 @@
                                            data-previewable="{{ ($email['previewable'] ?? false) ? '1' : '0' }}"
                                            data-configurable-recipients="{{ ($email['configurable_recipients'] ?? false) ? '1' : '0' }}"
                                            data-merge-vars="{{ implode(',', array_keys($email['merge_vars'] ?? [])) }}"
+                                           data-last-edited="{{ $email['last_edited'] ?? '' }}"
                                            data-preview-url="{{ route('settings.emails.preview', $email['key']) }}">
                                             <strong>{{ $email['label'] }}</strong>
                                             <br><small class="text-muted">{{ $email['description'] }}</small>
@@ -83,6 +84,7 @@
 
                         <div id="email-cms-recipients-group" class="form-group {{ $errors->has('recipients') ? 'has-error' : '' }}" style="margin-bottom:8px;">
                             <label for="email-cms-recipients">{{ trans('admin/settings/general.emails_recipients') }}</label>
+                            <a href="#" class="email-cms-reset pull-right small" data-target="email-cms-recipients">{{ trans('admin/settings/general.emails_reset') }}</a>
                             <input type="text" name="recipients" id="email-cms-recipients" class="form-control" value="" maxlength="2000" placeholder="{{ trans('admin/settings/general.emails_recipients_placeholder') }}">
                             {!! $errors->first('recipients', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                             <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_recipients_help') }}</p>
@@ -91,6 +93,7 @@
                         <div id="email-cms-editable-fields">
                             <div class="form-group {{ $errors->has('subject') ? 'has-error' : '' }}" style="margin-bottom:8px;">
                                 <label for="email-cms-subject">{{ trans('admin/settings/general.emails_subject') }}</label>
+                                <a href="#" class="email-cms-reset pull-right small" data-target="email-cms-subject">{{ trans('admin/settings/general.emails_reset') }}</a>
                                 <input type="text" name="subject" id="email-cms-subject" class="form-control" value="" maxlength="255">
                                 {!! $errors->first('subject', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                                 <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_subject_help') }}</p>
@@ -98,6 +101,7 @@
 
                             <div class="form-group {{ $errors->has('body') ? 'has-error' : '' }}" style="margin-bottom:8px;">
                                 <label for="email-cms-body">{{ trans('admin/settings/general.emails_body') }}</label>
+                                <a href="#" class="email-cms-reset pull-right small" data-target="email-cms-body">{{ trans('admin/settings/general.emails_reset') }}</a>
                                 <textarea name="body" id="email-cms-body" class="form-control" rows="10" style="font-family: var(--bs-font-monospace, monospace); font-size:12px;"></textarea>
                                 {!! $errors->first('body', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                                 <p class="help-block" style="margin-bottom:4px;">{!! trans('admin/settings/general.emails_body_help') !!}</p>
@@ -108,8 +112,9 @@
                             </div>
                         </div>
 
-                        <div class="text-right">
-                            <button type="submit" class="btn btn-primary"><x-icon type="checkmark"/> {{ trans('general.save') }}</button>
+                        <div class="clearfix">
+                            <span id="email-cms-last-edited" class="text-muted pull-left" style="font-size:12px;line-height:34px;"></span>
+                            <button type="submit" class="btn btn-primary pull-right"><x-icon type="checkmark"/> {{ trans('general.save') }}</button>
                         </div>
                     </form>
 
@@ -143,8 +148,19 @@
         var recipientsGroup = document.getElementById('email-cms-recipients-group');
         var editableFields = document.getElementById('email-cms-editable-fields');
         var noPreview = document.getElementById('email-cms-no-preview');
+        var lastEditedEl = document.getElementById('email-cms-last-edited');
         var selectedKey = @json($selected ?? '');
         var oldInput = @json(old());
+
+        // "Use default" links clear their target field; saving a blank field
+        // persists null, which falls back to the built-in template.
+        document.querySelectorAll('.email-cms-reset').forEach(function (link) {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                var target = document.getElementById(link.getAttribute('data-target'));
+                if (target) { target.value = ''; target.focus(); }
+            });
+        });
 
         function renderMergeVars(csv) {
             mergeVars.innerHTML = '';
@@ -185,6 +201,8 @@
             subjectField.value = isOld ? (oldInput.subject || '') : (el.getAttribute('data-subject-override') || '');
             bodyField.value = isOld ? (oldInput.body || '') : (el.getAttribute('data-body-override') || '');
             renderMergeVars(el.getAttribute('data-merge-vars'));
+
+            lastEditedEl.textContent = el.getAttribute('data-last-edited') || '';
 
             // Recipients only where the email opts in.
             recipientsGroup.style.display = configurableRecipients ? '' : 'none';
