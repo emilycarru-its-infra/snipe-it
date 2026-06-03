@@ -82,13 +82,7 @@
         <div class="box box-default">
             <div class="box-header with-border">
                 <h3 class="box-title" style="text-align:left;">
-                    @if ($agreement->agreement_type === 'pickup')
-                        {{ trans('admin/user-agreements/eula.pickup_title') }}
-                    @elseif ($agreement->agreement_type === 'upgrade')
-                        {{ trans('admin/user-agreements/eula.upgrade_title') }}
-                    @elseif ($agreement->agreement_type === 'purchase')
-                        {{ trans('admin/user-agreements/eula.purchase_title') }}
-                    @endif
+                    {{ \App\Models\UserAgreement::eulaTitle($agreement->agreement_type) }}
                 </h3>
             </div>
             <div class="box-body" style="white-space: pre-wrap; font-family: var(--bs-font-monospace, monospace); font-size: 12px;">{{ $eulaPreview }}</div>
