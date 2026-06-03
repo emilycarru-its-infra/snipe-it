@@ -53,9 +53,10 @@ class OrderShipment extends Model
             $this->save();
         }
 
+        // markReceived() is idempotent and bumps linked consumable stock,
+        // logging a 'checkin from' against the order.
         foreach ($this->items()->whereNull('received_at')->get() as $item) {
-            $item->received_at = now();
-            $item->save();
+            $item->markReceived();
         }
     }
 }
