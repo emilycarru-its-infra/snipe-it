@@ -34,6 +34,10 @@ class StoreAgreementSettings extends FormRequest
             'agreement_upgrade_body' => 'nullable|string|max:65535',
             'agreement_purchase_title' => 'nullable|string|max:191',
             'agreement_purchase_body' => 'nullable|string|max:65535',
+            // Generic default acceptance text (fallback for ordinary checkouts).
+            // require_accept_signature (checkbox) is handled explicitly in the
+            // controller so the blank-to-null loop doesn't wipe it.
+            'default_eula_text' => 'nullable|string|max:65535',
         ];
     }
 }
