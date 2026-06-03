@@ -8,13 +8,12 @@ use App\Models\Location;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 
-class BulkAssetCheckoutMail extends Mailable
+class BulkAssetCheckoutMail extends BaseMailable
 {
     use Queueable, SerializesModels;
 
@@ -41,7 +40,7 @@ class BulkAssetCheckoutMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: $this->getSubject(),
+            subject: $this->overriddenSubject('checkout.bulk_asset', $this->getSubject()),
         );
     }
 

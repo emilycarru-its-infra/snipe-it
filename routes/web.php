@@ -400,6 +400,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
     Route::get('emails/{key}/preview', [EmailsController::class, 'preview'])
         ->name('settings.emails.preview');
 
+    Route::post('emails', [EmailsController::class, 'save'])
+        ->name('settings.emails.save');
+
     Route::get('slack', [SettingsController::class, 'getSlack'])
         ->name('settings.slack.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
