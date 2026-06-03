@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Mail\ExpiringAssetsMail;
 use App\Mail\ExpiringLicenseMail;
 use App\Models\Asset;
+use App\Models\EmailTemplate;
 use App\Models\License;
 use App\Models\Setting;
 use Illuminate\Console\Command;
@@ -46,11 +47,8 @@ class SendExpirationAlerts extends Command
 
         if (($settings->alert_email != '') && ($settings->alerts_enabled == 1)) {
 
-            // Send a rollup to the admin, if settings dictate
-            $recipients = collect(explode(',', $settings->alert_email))
-                ->map(fn ($item) => trim($item)) // Trim each email
-                ->filter(fn ($item) => ! empty($item))
-                ->all();
+            // Per-email recipient overrides (Settings → Emails) fall back to the
+            // global alert_email list.
             // Expiring Assets
             $assets = Asset::getExpiringWarrantyOrEol($alert_interval);
 
@@ -58,7 +56,8 @@ class SendExpirationAlerts extends Command
 
             if ($assets->count() > 0) {
 
-                Mail::to($recipients)->send(new ExpiringAssetsMail($assets, $alert_interval));
+                Mail::to(EmailTemplate::recipientsFor('report.expiring_assets', $settings->alert_email))
+                    ->send(new ExpiringAssetsMail($assets, $alert_interval));
 
                 $this->table(
                     [
@@ -91,7 +90,8 @@ class SendExpirationAlerts extends Command
                 ->orderBy('termination_date', 'ASC')
                 ->get();
             if ($licenses->count() > 0) {
-                Mail::to($recipients)->send(new ExpiringLicenseMail($licenses, $alert_interval));
+                Mail::to(EmailTemplate::recipientsFor('report.expiring_licenses', $settings->alert_email))
+                    ->send(new ExpiringLicenseMail($licenses, $alert_interval));
 
                 $this->table(
                     [

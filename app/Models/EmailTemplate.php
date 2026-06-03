@@ -19,6 +19,7 @@ class EmailTemplate extends Model
         'key',
         'subject',
         'body',
+        'recipients',
         'updated_by',
     ];
 
@@ -46,6 +47,34 @@ class EmailTemplate extends Model
      */
     public function hasOverride(): bool
     {
-        return filled($this->subject) || filled($this->body);
+        return filled($this->subject) || filled($this->body) || filled($this->recipients);
+    }
+
+    /**
+     * Resolve the recipient list for an email key: the per-email override if an
+     * admin set one, otherwise the given fallback (the global alert_email list).
+     * Returns a clean array of trimmed, non-empty addresses. Defensive — any
+     * lookup failure falls back, so a template lookup can never drop a report.
+     *
+     * @return array<int, string>
+     */
+    public static function recipientsFor(string $key, ?string $fallbackCsv = null): array
+    {
+        $csv = $fallbackCsv;
+
+        try {
+            $override = static::forKey($key);
+            if ($override && filled($override->recipients)) {
+                $csv = $override->recipients;
+            }
+        } catch (\Throwable $e) {
+            // fall back to the provided global list
+        }
+
+        return collect(explode(',', (string) $csv))
+            ->map(fn ($email) => trim($email))
+            ->filter()
+            ->values()
+            ->all();
     }
 }
