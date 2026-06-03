@@ -15,29 +15,39 @@
     info-panel "Remaining" row.
 --}}
 @php
-    $canEdit = $canEdit ?? (auth()->user()?->can('update', $consumable) ?? false);
+    // Up arrow = restock (raise stock on hand); needs 'update'.
+    // Down arrow = record a cartridge used by a printer (checkout + GL); needs 'checkout'.
+    $canRestock = auth()->user()?->can('update', $consumable) ?? false;
+    $canConsume = auth()->user()?->can('checkout', $consumable) ?? false;
     $remaining = (int) $consumable->numRemaining();
     $min = (int) ($consumable->min_amt ?? 0);
     $state = $remaining <= 0 ? 'red' : (($min > 0 && $remaining <= $min) ? 'yellow' : 'green');
 @endphp
 
-<span class="qty-stepper qty-stepper--{{ $state }} {{ $canEdit ? 'is-editable' : '' }}"
+<span class="qty-stepper qty-stepper--{{ $state }} {{ ($canRestock || $canConsume) ? 'is-editable' : '' }}"
       data-qty-stepper
-      data-url="{{ route('consumables.adjust-qty', $consumable->id) }}"
+      data-restock-url="{{ route('consumables.adjust-qty', $consumable->id) }}"
+      data-consume-url="{{ route('consumables.consume', $consumable->id) }}"
+      data-printers-url="{{ route('consumables.compatible-printers', $consumable->id) }}"
+      data-name="{{ $consumable->name }}"
       data-min="{{ $min }}">
     <span class="qty-stepper__value" data-qty-value aria-live="polite">{{ $remaining }}</span>
-    @if ($canEdit)
+    @if ($canRestock || $canConsume)
         <span class="qty-stepper__nudge" role="group" aria-label="{{ $consumable->name }}">
-            <button type="button" class="qty-stepper__btn qty-stepper__btn--up" data-qty-delta="1"
-                    title="{{ trans('admin/consumables/general.qty_increase') }}"
-                    aria-label="{{ trans('admin/consumables/general.qty_increase') }}">
-                <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="qty-stepper__btn qty-stepper__btn--down" data-qty-delta="-1"
-                    title="{{ trans('admin/consumables/general.qty_decrease') }}"
-                    aria-label="{{ trans('admin/consumables/general.qty_decrease') }}">
-                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-            </button>
+            @if ($canRestock)
+                <button type="button" class="qty-stepper__btn qty-stepper__btn--up" data-qty-action="restock"
+                        title="{{ trans('admin/consumables/general.qty_increase') }}"
+                        aria-label="{{ trans('admin/consumables/general.qty_increase') }}">
+                    <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
+                </button>
+            @endif
+            @if ($canConsume)
+                <button type="button" class="qty-stepper__btn qty-stepper__btn--down" data-qty-action="consume"
+                        title="{{ trans('admin/consumables/general.qty_consume') }}"
+                        aria-label="{{ trans('admin/consumables/general.qty_consume') }}">
+                    <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                </button>
+            @endif
         </span>
     @endif
 </span>
@@ -99,26 +109,54 @@
 </style>
 @endpush
 
+<!-- Shared "record toner used" modal: down arrow picks the printer + GL. -->
+<div class="modal fade" id="qty-consume-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">{{ trans('admin/consumables/general.consume_title') }}</h4>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" data-consume-subtitle style="margin-bottom:14px;"></p>
+                <div class="form-group">
+                    <label for="qty-consume-printer">{{ trans('admin/consumables/general.consume_printer') }}</label>
+                    <select id="qty-consume-printer" class="form-control"></select>
+                    <p class="help-block text-danger" data-consume-empty style="display:none;">{{ trans('admin/consumables/general.consume_no_printers') }}</p>
+                </div>
+                <div class="form-group">
+                    <label for="qty-consume-gl">{{ trans('admin/consumables/general.consume_gl') }}</label>
+                    <input type="text" id="qty-consume-gl" class="form-control" placeholder="{{ trans('admin/consumables/general.consume_gl_placeholder') }}">
+                    <p class="help-block">{{ trans('admin/consumables/general.consume_gl_help') }}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ trans('button.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="qty-consume-confirm">{{ trans('admin/consumables/general.consume_confirm') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     if (window.__qtyStepperBound) return;
     window.__qtyStepperBound = true;
     var CSRF = "{{ csrf_token() }}";
+    var $ = window.jQuery;
+    var activeStepper = null;
 
-    document.addEventListener('click', function (e) {
-        var btn = e.target.closest ? e.target.closest('[data-qty-delta]') : null;
-        if (!btn) return;
-        var stepper = btn.closest('[data-qty-stepper]');
-        if (!stepper || stepper.classList.contains('is-busy')) return;
+    function applyResult(stepper, data) {
+        var valueEl = stepper.querySelector('[data-qty-value]');
+        if (valueEl) valueEl.textContent = data.remaining;
+        stepper.classList.remove('qty-stepper--green', 'qty-stepper--yellow', 'qty-stepper--red');
+        stepper.classList.add('qty-stepper--' + (data.state || 'green'));
+    }
 
-        e.preventDefault();
-        stepper.classList.add('is-busy');
-
-        var body = new URLSearchParams();
-        body.set('delta', btn.getAttribute('data-qty-delta'));
+    function post(url, params) {
+        var body = new URLSearchParams(params);
         body.set('_token', CSRF);
-
-        fetch(stepper.getAttribute('data-url'), {
+        return fetch(url, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': CSRF,
@@ -128,21 +166,89 @@
             },
             credentials: 'same-origin',
             body: body.toString()
-        })
-        .then(function (r) { return r.ok ? r.json() : r.json().then(function (j) { throw j; }); })
-        .then(function (data) {
-            var valueEl = stepper.querySelector('[data-qty-value]');
-            if (valueEl) valueEl.textContent = data.remaining;
-            stepper.classList.remove('qty-stepper--green', 'qty-stepper--yellow', 'qty-stepper--red');
-            stepper.classList.add('qty-stepper--' + (data.state || 'green'));
-        })
-        .catch(function () {
-            // Leave the displayed value untouched on failure.
-        })
-        .then(function () {
-            stepper.classList.remove('is-busy');
+        }).then(function (r) { return r.ok ? r.json() : r.json().then(function (j) { throw j; }); });
+    }
+
+    // Up = restock (inline), down = consume (printer-picker modal).
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('[data-qty-action]') : null;
+        if (!btn) return;
+        var stepper = btn.closest('[data-qty-stepper]');
+        if (!stepper) return;
+        e.preventDefault();
+
+        if (btn.getAttribute('data-qty-action') === 'restock') {
+            if (stepper.classList.contains('is-busy')) return;
+            stepper.classList.add('is-busy');
+            post(stepper.getAttribute('data-restock-url'), { delta: '1' })
+                .then(function (data) { applyResult(stepper, data); })
+                .catch(function () {})
+                .then(function () { stepper.classList.remove('is-busy'); });
+            return;
+        }
+
+        // consume
+        activeStepper = stepper;
+        var sel = document.getElementById('qty-consume-printer');
+        var glInput = document.getElementById('qty-consume-gl');
+        var emptyMsg = document.querySelector('[data-consume-empty]');
+        var subtitle = document.querySelector('[data-consume-subtitle]');
+        var confirmBtn = document.getElementById('qty-consume-confirm');
+        sel.innerHTML = '';
+        glInput.value = '';
+        if (emptyMsg) emptyMsg.style.display = 'none';
+        if (confirmBtn) confirmBtn.disabled = true;
+        if (subtitle) subtitle.textContent = stepper.getAttribute('data-name') || '';
+        if ($) $('#qty-consume-modal').modal('show');
+
+        fetch(stepper.getAttribute('data-printers-url'), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            var printers = data.printers || [];
+            if (!printers.length) {
+                if (emptyMsg) emptyMsg.style.display = '';
+                return;
+            }
+            printers.forEach(function (p) {
+                var o = document.createElement('option');
+                o.value = p.id;
+                o.textContent = p.label;
+                o.setAttribute('data-gl', p.gl_code || '');
+                sel.appendChild(o);
+            });
+            glInput.value = printers[0].gl_code || '';
+            if (confirmBtn) confirmBtn.disabled = false;
+        }).catch(function () {
+            if (emptyMsg) emptyMsg.style.display = '';
         });
     });
+
+    var selEl = document.getElementById('qty-consume-printer');
+    if (selEl) {
+        selEl.addEventListener('change', function () {
+            var opt = selEl.options[selEl.selectedIndex];
+            document.getElementById('qty-consume-gl').value = opt ? (opt.getAttribute('data-gl') || '') : '';
+        });
+    }
+
+    var confirmBtn = document.getElementById('qty-consume-confirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+            var sel = document.getElementById('qty-consume-printer');
+            if (!activeStepper || !sel.value) return;
+            confirmBtn.disabled = true;
+            post(activeStepper.getAttribute('data-consume-url'), {
+                asset_id: sel.value,
+                gl_code: document.getElementById('qty-consume-gl').value
+            }).then(function (data) {
+                applyResult(activeStepper, data);
+                if ($) $('#qty-consume-modal').modal('hide');
+            }).catch(function () {}).then(function () {
+                confirmBtn.disabled = false;
+            });
+        });
+    }
 })();
 </script>
 @endonce
