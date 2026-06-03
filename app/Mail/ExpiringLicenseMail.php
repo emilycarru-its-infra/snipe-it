@@ -40,13 +40,10 @@ class ExpiringLicenseMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'notifications.markdown.report-expiring-licenses',
-            with: [
+        return $this->bodyContent('report.expiring_licenses', 'notifications.markdown.report-expiring-licenses', [
                 'licenses' => $this->licenses,
                 'threshold' => $this->threshold,
-            ]
-        );
+            ]);
     }
 
     /**

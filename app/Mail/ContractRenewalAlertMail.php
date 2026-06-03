@@ -49,13 +49,10 @@ class ContractRenewalAlertMail extends BaseMailable
 
     public function content(): Content
     {
-        return new Content(
-            markdown: 'notifications.markdown.contract-renewal-alert',
-            with: [
+        return $this->bodyContent('report.contract_renewal', 'notifications.markdown.contract-renewal-alert', [
                 'contracts' => $this->contracts,
                 'window'    => $this->window,
-            ]
-        );
+            ]);
     }
 
     public function attachments(): array
