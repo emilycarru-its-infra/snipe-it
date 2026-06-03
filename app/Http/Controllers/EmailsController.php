@@ -26,7 +26,7 @@ class EmailsController extends Controller
     public function index(): View
     {
         $categories = EmailRegistry::categories();
-        $overrides = EmailTemplate::allKeyed();
+        $overrides = EmailTemplate::with('editor')->get()->keyBy('key');
 
         // Read pristine built-in subjects (ignoring any stored override) so the
         // editor can show them as placeholders.
@@ -41,6 +41,15 @@ class EmailsController extends Controller
             $email['body_override'] = $override?->body;
             $email['recipients_override'] = $override?->recipients;
             $email['subject_default'] = '';
+
+            // "Last edited by … · …" shown when an override exists with an editor.
+            $email['last_edited'] = '';
+            if ($override && $override->editor && $override->updated_at) {
+                $email['last_edited'] = trans('admin/settings/general.emails_last_edited', [
+                    'user' => $override->editor->display_name,
+                    'when' => $override->updated_at->diffForHumans(),
+                ]);
+            }
 
             if ($email['previewable']) {
                 try {
