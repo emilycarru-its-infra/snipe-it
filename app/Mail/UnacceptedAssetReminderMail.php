@@ -33,7 +33,7 @@ class UnacceptedAssetReminderMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.unaccepted_asset_reminder'),
+            subject: $this->overriddenSubject('acceptance.unaccepted_reminder', trans('mail.unaccepted_asset_reminder')),
         );
     }
 

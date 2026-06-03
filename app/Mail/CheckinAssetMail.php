@@ -45,7 +45,7 @@ class CheckinAssetMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Asset_Checkin_Notification', ['tag' => $this->item->asset_tag]),
+            subject: $this->overriddenSubject('checkin.asset', trans('mail.Asset_Checkin_Notification', ['tag' => $this->item->asset_tag])),
         );
     }
 

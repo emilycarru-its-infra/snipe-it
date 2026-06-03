@@ -2,12 +2,31 @@
 
 namespace Tests\Feature\Settings;
 
+use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
+use App\Models\EmailTemplate;
 use App\Models\User;
 use Tests\TestCase;
 
 class EmailsSettingTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The subject-override cache is static and would leak across tests.
+        BaseMailable::flushSubjectCache();
+        BaseMailable::$ignoreOverrides = false;
+    }
+
+    private function defaultSubject(string $key): string
+    {
+        BaseMailable::$ignoreOverrides = true;
+        $subject = (string) EmailRegistry::makeMailable($key)->envelope()->subject;
+        BaseMailable::$ignoreOverrides = false;
+
+        return $subject;
+    }
+
     public function test_hub_is_gated_to_superusers(): void
     {
         $this->actingAs(User::factory()->create())
@@ -53,5 +72,47 @@ class EmailsSettingTest extends TestCase
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('settings.emails.preview', 'does.not.exist'))
             ->assertNotFound();
+    }
+
+    public function test_saving_a_subject_is_gated_to_superusers(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->post(route('settings.emails.save'), ['key' => 'checkout.asset', 'subject' => 'Nope'])
+            ->assertForbidden();
+    }
+
+    public function test_subject_override_is_saved_and_used(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => 'checkout.asset', 'subject' => 'Your ECU device is ready'])
+            ->assertRedirect(route('settings.emails.index', ['selected' => 'checkout.asset']));
+
+        $this->assertDatabaseHas('email_templates', [
+            'key' => 'checkout.asset',
+            'subject' => 'Your ECU device is ready',
+        ]);
+
+        BaseMailable::flushSubjectCache();
+        $this->assertSame(
+            'Your ECU device is ready',
+            (string) EmailRegistry::makeMailable('checkout.asset')->envelope()->subject,
+        );
+    }
+
+    public function test_blank_subject_clears_the_override_and_falls_back_to_default(): void
+    {
+        $default = $this->defaultSubject('checkin.asset');
+        EmailTemplate::create(['key' => 'checkin.asset', 'subject' => 'Custom checkin subject']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => 'checkin.asset', 'subject' => '']);
+
+        $this->assertDatabaseHas('email_templates', ['key' => 'checkin.asset', 'subject' => null]);
+
+        BaseMailable::flushSubjectCache();
+        $this->assertSame(
+            $default,
+            (string) EmailRegistry::makeMailable('checkin.asset')->envelope()->subject,
+        );
     }
 }

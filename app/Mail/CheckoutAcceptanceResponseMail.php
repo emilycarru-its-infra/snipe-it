@@ -40,7 +40,7 @@ class CheckoutAcceptanceResponseMail extends BaseMailable
             : trans('mail.initiated_declined');
 
         return new Envelope(
-            subject: $subject,
+            subject: $this->overriddenSubject('acceptance.response', $subject),
         );
     }
 

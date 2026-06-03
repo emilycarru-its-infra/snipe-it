@@ -40,7 +40,7 @@ class CheckoutComponentMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Confirm_component_delivery'),
+            subject: $this->overriddenSubject('checkout.component', trans('mail.Confirm_component_delivery')),
         );
     }
 

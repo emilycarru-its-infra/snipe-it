@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
+use App\Models\EmailTemplate;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
@@ -21,9 +25,48 @@ class EmailsController extends Controller
     public function index(): View
     {
         $categories = EmailRegistry::categories();
-        $emails = collect(EmailRegistry::all())->groupBy('category');
+        $overrides = EmailTemplate::allKeyed();
 
-        return view('settings.emails', compact('categories', 'emails'));
+        // Read pristine built-in subjects (ignoring any stored override) so the
+        // editor can show them as placeholders.
+        BaseMailable::$ignoreOverrides = true;
+        $emails = collect(EmailRegistry::all())->map(function ($email) use ($overrides) {
+            $email['subject_override'] = $overrides->get($email['key'])?->subject;
+            try {
+                $email['subject_default'] = (string) EmailRegistry::makeMailable($email['key'])?->envelope()->subject;
+            } catch (\Throwable $e) {
+                $email['subject_default'] = '';
+            }
+
+            return $email;
+        })->groupBy('category');
+        BaseMailable::$ignoreOverrides = false;
+
+        $selected = (string) request('selected', '');
+
+        return view('settings.emails', compact('categories', 'emails', 'selected'));
+    }
+
+    /** Save (or clear) an admin subject override for one email. */
+    public function save(Request $request): RedirectResponse
+    {
+        $key = (string) $request->input('key');
+
+        if (! EmailRegistry::find($key)) {
+            return redirect()->route('settings.emails.index')
+                ->with('error', trans('admin/settings/general.emails_preview_missing'));
+        }
+
+        $request->validate(['subject' => 'nullable|string|max:255']);
+        $subject = trim((string) $request->input('subject'));
+
+        EmailTemplate::updateOrCreate(
+            ['key' => $key],
+            ['subject' => $subject !== '' ? $subject : null, 'updated_by' => auth()->id()],
+        );
+
+        return redirect()->route('settings.emails.index', ['selected' => $key])
+            ->with('success', trans('admin/settings/message.update.success'));
     }
 
     /**
