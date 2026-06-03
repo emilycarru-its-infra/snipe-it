@@ -29,6 +29,16 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
         [Consumables\ConsumablesController::class, 'adjustQuantity']
     )->name('consumables.adjust-qty');
 
+    // Stepper down arrow: record a cartridge as used by a printer. The
+    // picker lists compatible printers; consume checks out 1 + a GL line.
+    Route::get('{consumable}/compatible-printers',
+        [Consumables\ConsumablesController::class, 'compatiblePrinters']
+    )->name('consumables.compatible-printers');
+
+    Route::post('{consumable}/consume',
+        [Consumables\ConsumablesController::class, 'consume']
+    )->name('consumables.consume');
+
     // Add the consumable to an existing planned order, or create a new one.
     Route::get(
         '{consumable}/order',

@@ -3,9 +3,12 @@
 namespace Tests\Feature\Consumables\Ui;
 
 use App\Models\Actionlog;
+use App\Models\Asset;
+use App\Models\AssetModel;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Consumable;
+use App\Models\ConsumableTransaction;
 use App\Models\Location;
 use App\Models\Manufacturer;
 use App\Models\Supplier;
@@ -189,5 +192,57 @@ class UpdateConsumableTest extends TestCase
         $this->assertNotNull($log, 'A qty nudge should write an update action log entry');
         $this->assertEquals($user->id, $log->created_by);
         $this->assertStringContainsString('qty', (string) $log->log_meta);
+    }
+
+    public function test_compatible_printers_lists_assets_of_compatible_models()
+    {
+        $model = AssetModel::factory()->create();
+        $printer = Asset::factory()->create(['model_id' => $model->id, 'name' => 'Front Desk Printer']);
+        $consumable = Consumable::factory()->create();
+        $consumable->compatibleModels()->sync([$model->id]);
+
+        $this->actingAs(User::factory()->checkoutConsumables()->create())
+            ->getJson(route('consumables.compatible-printers', $consumable))
+            ->assertOk()
+            ->assertJsonPath('printers.0.id', $printer->id);
+    }
+
+    public function test_consume_checks_out_one_to_printer_and_records_gl()
+    {
+        $model = AssetModel::factory()->create();
+        $printer = Asset::factory()->create(['model_id' => $model->id, 'gl_code' => 'GL-1234']);
+        $consumable = Consumable::factory()->create(['qty' => 3, 'purchase_cost' => 80]);
+        $consumable->compatibleModels()->sync([$model->id]);
+
+        $this->actingAs(User::factory()->checkoutConsumables()->create())
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertOk()
+            ->assertJsonPath('remaining', 2);
+
+        $this->assertEquals(1, $consumable->fresh()->numCheckedOut());
+        $this->assertSame(1, ConsumableTransaction::where('consumable_id', $consumable->id)
+            ->where('asset_id', $printer->id)->where('gl_code', 'GL-1234')->count());
+    }
+
+    public function test_consume_requires_checkout_permission()
+    {
+        $printer = Asset::factory()->create();
+        $consumable = Consumable::factory()->create(['qty' => 2]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertForbidden();
+    }
+
+    public function test_consume_blocked_when_none_remaining()
+    {
+        $printer = Asset::factory()->create();
+        $consumable = Consumable::factory()->create(['qty' => 0]);
+
+        $this->actingAs(User::factory()->checkoutConsumables()->create())
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertStatus(422);
+
+        $this->assertSame(0, ConsumableTransaction::where('consumable_id', $consumable->id)->count());
     }
 }

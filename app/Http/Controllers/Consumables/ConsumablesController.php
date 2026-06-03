@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Consumables;
 
+use App\Events\CheckoutableCheckedOut;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\StoreConsumableRequest;
+use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Consumable;
+use App\Models\ConsumableTransaction;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -310,6 +313,87 @@ class ConsumablesController extends Controller
         return response()->json([
             'status' => 'success',
             'qty' => (int) $consumable->qty,
+            'remaining' => $remaining,
+            'min' => $min,
+            'state' => $remaining <= 0 ? 'red' : (($min > 0 && $remaining <= $min) ? 'yellow' : 'green'),
+        ]);
+    }
+
+    /**
+     * JSON list of the printers this consumable can be checked out to — the
+     * physical assets of its compatible models. Powers the "which printer?"
+     * picker on the stepper's down arrow (record a cartridge as used).
+     */
+    public function compatiblePrinters(Consumable $consumable): JsonResponse
+    {
+        $this->authorize('checkout', $consumable);
+
+        $modelIds = $consumable->compatibleModels()->pluck('models.id');
+
+        $printers = Asset::whereIn('model_id', $modelIds)
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->orderBy('asset_tag')
+            ->get(['id', 'name', 'asset_tag', 'gl_code'])
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'label' => trim(($a->asset_tag ? $a->asset_tag.' — ' : '').($a->name ?: '')) ?: ('#'.$a->id),
+                'gl_code' => $a->gl_code,
+            ]);
+
+        return response()->json(['status' => 'success', 'printers' => $printers]);
+    }
+
+    /**
+     * Record one cartridge of this consumable as used by a printer: a
+     * checkout of qty 1 to the chosen asset, plus a GL transaction (the
+     * cost charged to the printer's GL, or a supplied override). This is
+     * the stepper's down arrow — "a toner went into this printer" — the
+     * tracked counterpart to the up arrow's plain restock.
+     */
+    public function consume(Request $request, Consumable $consumable): JsonResponse
+    {
+        $this->authorize('checkout', $consumable);
+
+        $request->validate([
+            'asset_id' => 'required|integer|exists:assets,id',
+            'gl_code' => 'nullable|string|max:255',
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        if ($consumable->numRemaining() < 1) {
+            return response()->json([
+                'status' => 'error',
+                'messages' => trans('admin/consumables/message.checkout.unavailable', ['requested' => 1, 'remaining' => $consumable->numRemaining()]),
+            ], 422);
+        }
+
+        $asset = Asset::findOrFail($request->input('asset_id'));
+        $adminId = auth()->id();
+        $note = $request->input('note');
+
+        $consumable->assets()->attach($asset->id, [
+            'consumable_id' => $consumable->id,
+            'created_by' => $adminId,
+            'assigned_to' => $asset->id,
+            'assigned_type' => Asset::class,
+            'note' => $note,
+        ]);
+
+        // GL transaction — charged to the printer's GL, or a supplied override.
+        // Returns null (records nothing) if neither is set; the checkout still stands.
+        ConsumableTransaction::recordCheckout($consumable, $asset, 1, $note, $adminId, $request->input('gl_code'));
+
+        // Fire the standard checkout event so the consumption lands in the
+        // activity log / history exactly like a form-driven checkout.
+        $consumable->checkout_qty = 1;
+        event(new CheckoutableCheckedOut($consumable, $asset, auth()->user(), $note, [], 1, false));
+
+        $remaining = (int) $consumable->numRemaining();
+        $min = (int) ($consumable->min_amt ?? 0);
+
+        return response()->json([
+            'status' => 'success',
             'remaining' => $remaining,
             'min' => $min,
             'state' => $remaining <= 0 ? 'red' : (($min > 0 && $remaining <= $min) ? 'yellow' : 'green'),
