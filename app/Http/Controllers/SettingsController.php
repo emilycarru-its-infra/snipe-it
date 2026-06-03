@@ -7,6 +7,7 @@ use App\Helpers\Helper;
 use App\Helpers\StorageHelper;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\SettingsSamlRequest;
+use App\Http\Requests\StoreAgreementSettings;
 use App\Http\Requests\StoreLabelSettings;
 use App\Http\Requests\StoreLdapSettings;
 use App\Http\Requests\StoreLocalizationSettings;
@@ -439,6 +440,40 @@ class SettingsController extends Controller
 
         if ($setting->save()) {
             return redirect()->route('settings.index')
+                ->with('success', trans('admin/settings/message.update.success'));
+        }
+
+        return redirect()->back()->withInput()->withErrors($setting->getErrors());
+    }
+
+    /**
+     * Edit the User Agreement (Agreements module) EULA copy — the pickup,
+     * upgrade, and purchase title + body shown on the signing page and
+     * baked into each agreement's PDF. Blank fields fall back to the
+     * eula.php lang defaults via UserAgreement::resolveEulaText().
+     */
+    public function getAgreements(): View
+    {
+        $setting = Setting::getSettings();
+
+        return view('settings.agreements', compact('setting'));
+    }
+
+    public function postAgreements(StoreAgreementSettings $request): RedirectResponse
+    {
+        if (is_null($setting = Setting::getSettings())) {
+            return redirect()->to('admin')->with('error', trans('admin/settings/message.update.error'));
+        }
+
+        // Normalize blanks to null so resolveEulaText() falls back to the
+        // lang default rather than rendering an empty override.
+        foreach (array_keys($request->rules()) as $field) {
+            $value = trim((string) $request->input($field));
+            $setting->{$field} = $value !== '' ? $value : null;
+        }
+
+        if ($setting->save()) {
+            return redirect()->route('settings.agreements.index')
                 ->with('success', trans('admin/settings/message.update.success'));
         }
 

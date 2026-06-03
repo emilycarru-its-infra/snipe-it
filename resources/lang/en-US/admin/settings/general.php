@@ -69,6 +69,17 @@ return [
     'enabled' => 'Enabled',
     'eula_settings' => 'EULA Settings',
     'eula_markdown' => 'This EULA allows <a href="https://help.github.com/articles/github-flavored-markdown/">Github flavored markdown</a>.',
+    'agreements' => 'Agreements',
+    'agreements_title' => 'Agreement EULA Settings',
+    'agreements_help' => 'User Agreement EULA titles &amp; body copy',
+    'agreements_intro' => 'These titles and bodies are baked into each User Agreement PDF and shown on the signing page. Leave any field blank to fall back to the built-in default. Use the merge variables below — they are filled in per agreement when the document is generated.',
+    'agreements_pickup_heading' => 'Pickup — laptop receipt acknowledgment',
+    'agreements_upgrade_heading' => 'Upgrade — paid top-up above the program base',
+    'agreements_purchase_heading' => 'Purchase — lease-end buyout',
+    'agreements_field_title' => 'Title',
+    'agreements_field_body' => 'Body',
+    'agreements_blank_help' => 'Leave blank to use the built-in default.',
+    'agreements_merge_vars' => 'Available merge variables: <code>{{faculty_name}}</code> <code>{{asset_tag}}</code> <code>{{serial}}</code> <code>{{model}}</code> <code>{{date}}</code> <code>{{pickup_date}}</code> <code>{{base_price}}</code> <code>{{full_price}}</code> <code>{{upgrade_amount}}</code> <code>{{buyout_cost}}</code> <code>{{payment_phrase}}</code> <code>{{monthly_12}}</code> <code>{{monthly_24}}</code>',
     'empty_row_count' => 'Field Start Offset (Empty Rows)',
     'empty_row_count_help' => 'Fields will begin populating after this many empty rows are skipped at the top of the label.',
     'favicon' => 'Favicon',
@@ -534,6 +545,7 @@ return [
 
     /* Keywords for settings overview help */
     'keywords' => [
+        'agreements' => 'agreements, eula, user agreement, faculty, laptop, pickup, upgrade, purchase, buyout, signature, terms, legal',
         'brand' => 'footer, logo, print, theme, skin, header, colors, color, css',
         'general_settings' => 'company support, signature, acceptance, email format, username format, images, per page, thumbnail, eula, gravatar, tos, dashboard, privacy',
         'groups' => 'permissions, permission groups, authorization',
