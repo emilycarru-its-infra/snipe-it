@@ -45,6 +45,8 @@
                                            data-description="{{ $email['description'] }}"
                                            data-subject-default="{{ $email['subject_default'] ?? '' }}"
                                            data-subject-override="{{ $email['subject_override'] ?? '' }}"
+                                           data-body-override="{{ $email['body_override'] ?? '' }}"
+                                           data-merge-vars="{{ implode(',', array_keys($email['merge_vars'] ?? [])) }}"
                                            data-preview-url="{{ route('settings.emails.preview', $email['key']) }}">
                                             <strong>{{ $email['label'] }}</strong>
                                             <br><small class="text-muted">{{ $email['description'] }}</small>
@@ -72,19 +74,30 @@
                 <div class="box-body">
                     <p class="help-block" id="email-cms-preview-desc">{{ trans('admin/settings/general.emails_select_hint') }}</p>
 
-                    <form method="POST" action="{{ route('settings.emails.save') }}" class="form-horizontal" style="margin-bottom:15px;">
+                    <form method="POST" action="{{ route('settings.emails.save') }}" autocomplete="off" style="margin-bottom:15px;">
                         {{ csrf_field() }}
                         <input type="hidden" name="key" id="email-cms-key" value="">
+
                         <div class="form-group {{ $errors->has('subject') ? 'has-error' : '' }}" style="margin-bottom:8px;">
-                            <label for="email-cms-subject" class="col-sm-2 control-label">{{ trans('admin/settings/general.emails_subject') }}</label>
-                            <div class="col-sm-8">
-                                <input type="text" name="subject" id="email-cms-subject" class="form-control" value="" maxlength="255">
-                                {!! $errors->first('subject', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
-                                <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_subject_help') }}</p>
-                            </div>
-                            <div class="col-sm-2">
-                                <button type="submit" class="btn btn-primary btn-block"><x-icon type="checkmark"/> {{ trans('general.save') }}</button>
-                            </div>
+                            <label for="email-cms-subject">{{ trans('admin/settings/general.emails_subject') }}</label>
+                            <input type="text" name="subject" id="email-cms-subject" class="form-control" value="" maxlength="255">
+                            {!! $errors->first('subject', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                            <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_subject_help') }}</p>
+                        </div>
+
+                        <div class="form-group {{ $errors->has('body') ? 'has-error' : '' }}" style="margin-bottom:8px;">
+                            <label for="email-cms-body">{{ trans('admin/settings/general.emails_body') }}</label>
+                            <textarea name="body" id="email-cms-body" class="form-control" rows="10" style="font-family: var(--bs-font-monospace, monospace); font-size:12px;"></textarea>
+                            {!! $errors->first('body', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                            <p class="help-block" style="margin-bottom:4px;">{!! trans('admin/settings/general.emails_body_help') !!}</p>
+                            <p class="help-block" style="margin-bottom:0;">
+                                {{ trans('admin/settings/general.emails_merge_vars_hint') }}
+                                <span id="email-cms-merge-vars"></span>
+                            </p>
+                        </div>
+
+                        <div class="text-right">
+                            <button type="submit" class="btn btn-primary"><x-icon type="checkmark"/> {{ trans('general.save') }}</button>
                         </div>
                     </form>
 
@@ -109,19 +122,51 @@
         var openTab = document.getElementById('email-cms-open-tab');
         var keyField = document.getElementById('email-cms-key');
         var subjectField = document.getElementById('email-cms-subject');
+        var bodyField = document.getElementById('email-cms-body');
+        var mergeVars = document.getElementById('email-cms-merge-vars');
         var selectedKey = @json($selected ?? '');
+        var oldInput = @json(old());
+
+        function renderMergeVars(csv) {
+            mergeVars.innerHTML = '';
+            (csv ? csv.split(',') : []).forEach(function (name) {
+                if (!name) { return; }
+                // Build the merge token without ever forming a double-brace in the Blade source.
+                var token = '{' + '{' + name + '}' + '}';
+                var code = document.createElement('code');
+                code.textContent = token;
+                code.style.cursor = 'pointer';
+                code.title = 'Insert';
+                code.addEventListener('click', function () {
+                    bodyField.value += token;
+                    bodyField.focus();
+                });
+                mergeVars.appendChild(code);
+                mergeVars.appendChild(document.createTextNode(' '));
+            });
+        }
 
         function select(el) {
             items.forEach(function (i) { i.parentElement.classList.remove('active'); });
             el.parentElement.classList.add('active');
             var url = el.getAttribute('data-preview-url');
+            var key = el.getAttribute('data-key');
             frame.src = url;
             openTab.href = url;
             title.textContent = el.getAttribute('data-label');
             desc.textContent = el.getAttribute('data-description');
-            keyField.value = el.getAttribute('data-key');
-            subjectField.value = el.getAttribute('data-subject-override') || '';
+            keyField.value = key;
             subjectField.placeholder = el.getAttribute('data-subject-default') || '';
+            // After a validation error we re-show the rejected input for this email;
+            // otherwise show the saved override.
+            if (oldInput && oldInput.key === key) {
+                subjectField.value = oldInput.subject || '';
+                bodyField.value = oldInput.body || '';
+            } else {
+                subjectField.value = el.getAttribute('data-subject-override') || '';
+                bodyField.value = el.getAttribute('data-body-override') || '';
+            }
+            renderMergeVars(el.getAttribute('data-merge-vars'));
         }
 
         items.forEach(function (el) {

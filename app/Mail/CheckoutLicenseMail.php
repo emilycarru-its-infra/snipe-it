@@ -62,9 +62,7 @@ class CheckoutLicenseMail extends BaseMailable
 
         $accept_url = is_null($this->acceptance) ? null : route('account.accept.item', $this->acceptance);
 
-        return new Content(
-            markdown: 'mail.markdown.checkout-license',
-            with: [
+        return $this->bodyContent('checkout.license', 'mail.markdown.checkout-license', [
                 'license_seat' => $this->item,
                 'license' => $this->item->license,
                 'admin' => $this->admin,
@@ -74,8 +72,7 @@ class CheckoutLicenseMail extends BaseMailable
                 'req_accept' => $req_accept,
                 'accept_url' => $accept_url,
                 'introduction_line' => $this->introductionLine(),
-            ]
-        );
+            ]);
     }
 
     /**

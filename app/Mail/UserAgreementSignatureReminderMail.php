@@ -47,14 +47,11 @@ class UserAgreementSignatureReminderMail extends BaseMailable
 
     public function content(): Content
     {
-        return new Content(
-            markdown: 'notifications.markdown.user-agreement-signature-reminder',
-            with: [
+        return $this->bodyContent('agreement.signature_reminder', 'notifications.markdown.user-agreement-signature-reminder', [
                 'agreement'      => $this->agreement,
                 'variables'      => $this->agreement->mergeVariables(),
                 'reminderNumber' => $this->reminderNumber,
-            ],
-        );
+            ]);
     }
 
     /**
