@@ -26,9 +26,12 @@ class ReconcilerTest extends TestCase
     private function facultyUser(): User
     {
         $user  = User::factory()->create();
-        $group = Group::factory()->create(['name' => 'Regular Faculty']);
+        // Reuse the eligibility group across faculty users — a full sweep
+        // creates several, and 'Regular Faculty' is unique on permission_groups.
+        $group = Group::where('name', 'Regular Faculty')->first()
+            ?? Group::factory()->create(['name' => 'Regular Faculty']);
         $user->groups()->attach($group->id);
-        FormEligibility::create(['form_slug' => 'faculty-program', 'group_id' => $group->id]);
+        FormEligibility::firstOrCreate(['form_slug' => 'faculty-program', 'group_id' => $group->id]);
         FormAccess::flush();
         return $user;
     }
@@ -197,8 +200,10 @@ class ReconcilerTest extends TestCase
 
         $reports = app(Reconciler::class)->reconcileAll();
 
-        foreach ($reports as $r) {
-            $this->assertNotSame($randomUser->id, $r->userId);
-        }
+        // The sweep skips non-faculty users entirely, so the random user
+        // never shows up in the reports and gets no agreement rows.
+        $reportedUserIds = array_map(fn ($r) => $r->userId, $reports);
+        $this->assertNotContains($randomUser->id, $reportedUserIds);
+        $this->assertSame(0, UserAgreement::where('user_id', $randomUser->id)->count());
     }
 }
