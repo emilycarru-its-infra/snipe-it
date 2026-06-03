@@ -65,7 +65,7 @@ class Contract extends Model
         'total_cost'         => 'nullable|numeric|gte:0|max:99999999999.9999',
         'currency'           => 'nullable|string|size:3',
         'ticket_url'         => 'nullable|url|max:512',
-        'source'             => 'nullable|in:tdx,manual,synthesized',
+        'source'             => 'nullable|in:tdx,manual,synthesized,snipe',
         'admin_user_id'      => 'nullable|integer|exists:users,id',
     ];
 
