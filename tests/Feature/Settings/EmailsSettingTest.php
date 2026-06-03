@@ -52,6 +52,11 @@ class EmailsSettingTest extends TestCase
         $failed = [];
 
         foreach (EmailRegistry::all() as $email) {
+            // Notification-channel reports have no factory/preview yet (Phase E).
+            if (! isset($email['factory'])) {
+                continue;
+            }
+
             $content = $this->actingAs($admin)
                 ->get(route('settings.emails.preview', $email['key']))
                 ->assertOk()
@@ -157,5 +162,56 @@ class EmailsSettingTest extends TestCase
             ->assertSessionHasErrors('body');
 
         $this->assertDatabaseMissing('email_templates', ['key' => 'checkout.asset']);
+    }
+
+    public function test_recipients_override_is_saved_and_resolved(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'report.expiring_assets',
+                'recipients' => 'a@example.edu, b@example.edu',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('email_templates', [
+            'key' => 'report.expiring_assets',
+            'recipients' => 'a@example.edu,b@example.edu',
+        ]);
+
+        $this->assertSame(
+            ['a@example.edu', 'b@example.edu'],
+            EmailTemplate::recipientsFor('report.expiring_assets', 'fallback@example.edu'),
+        );
+    }
+
+    public function test_recipients_resolver_falls_back_to_global_list_when_unset(): void
+    {
+        $this->assertSame(
+            ['ops@example.edu', 'team@example.edu'],
+            EmailTemplate::recipientsFor('report.upcoming_audits', 'ops@example.edu, team@example.edu'),
+        );
+    }
+
+    public function test_invalid_recipient_email_is_rejected(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->from(route('settings.emails.index'))
+            ->post(route('settings.emails.save'), [
+                'key' => 'report.expiring_assets',
+                'recipients' => 'a@example.edu, not-an-email',
+            ])
+            ->assertSessionHasErrors('recipients');
+
+        $this->assertDatabaseMissing('email_templates', ['key' => 'report.expiring_assets']);
+    }
+
+    public function test_notification_report_emails_are_listed_for_recipients(): void
+    {
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('settings.emails.index'))
+            ->assertOk();
+
+        $response->assertSee('Expected checkin report');
+        $response->assertSee('Low inventory report');
     }
 }
