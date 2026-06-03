@@ -82,6 +82,14 @@ return [
     'agreements_merge_vars' => 'Available merge variables: <code>{{faculty_name}}</code> <code>{{asset_tag}}</code> <code>{{serial}}</code> <code>{{model}}</code> <code>{{date}}</code> <code>{{pickup_date}}</code> <code>{{base_price}}</code> <code>{{full_price}}</code> <code>{{upgrade_amount}}</code> <code>{{buyout_cost}}</code> <code>{{payment_phrase}}</code> <code>{{monthly_12}}</code> <code>{{monthly_24}}</code>',
     'agreements_default_heading' => 'Default acceptance text (fallback)',
     'agreements_default_intro' => 'Used only for ordinary asset checkouts that require a signature — outside the User Agreement program above. Leave the text blank to fall back to the built-in default.',
+    'emails' => 'Emails',
+    'emails_help' => 'Preview every email Snipe-IT sends',
+    'emails_intro' => 'Every email Snipe-IT can send, rendered with representative sample data so you can see exactly what recipients receive. Editing subjects and body copy from here is coming soon.',
+    'emails_preview' => 'Preview',
+    'emails_open_tab' => 'Open in new tab',
+    'emails_select_hint' => 'Select an email on the left to preview it.',
+    'emails_preview_missing' => 'Unknown email.',
+    'emails_preview_error' => 'This email could not be previewed with the sample data.',
     'empty_row_count' => 'Field Start Offset (Empty Rows)',
     'empty_row_count_help' => 'Fields will begin populating after this many empty rows are skipped at the top of the label.',
     'favicon' => 'Favicon',
@@ -548,6 +556,7 @@ return [
     /* Keywords for settings overview help */
     'keywords' => [
         'agreements' => 'agreements, eula, user agreement, faculty, laptop, pickup, upgrade, purchase, buyout, signature, terms, legal',
+        'emails' => 'email, emails, mail, notifications, templates, preview, checkout, checkin, reminder, alert, subject, body',
         'brand' => 'footer, logo, print, theme, skin, header, colors, color, css',
         'general_settings' => 'company support, signature, acceptance, email format, username format, images, per page, thumbnail, eula, gravatar, tos, dashboard, privacy',
         'groups' => 'permissions, permission groups, authorization',
