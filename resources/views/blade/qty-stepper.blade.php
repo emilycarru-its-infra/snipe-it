@@ -106,6 +106,14 @@
     .qty-stepper__btn:disabled { opacity: 0.5; cursor: default; }
     .qty-stepper.is-busy { opacity: 0.6; }
     .qty-stepper.is-busy .qty-stepper__btn { cursor: progress; }
+
+    /* In the detail info-panel the stepper lives in a .list-group-item whose
+       text line box is shorter than the 38px control. Float alone lets it
+       overflow into the next row, which paints over the down arrow (clipping
+       it and stealing its clicks). Make just that row a flex container so it
+       grows to contain the stepper and centers it on the right. */
+    .list-group-item#remaining { display: flex; align-items: center; }
+    .list-group-item#remaining .pull-right { float: none !important; margin-left: auto; }
 </style>
 @endpush
 
@@ -143,7 +151,13 @@
     if (window.__qtyStepperBound) return;
     window.__qtyStepperBound = true;
     var CSRF = "{{ csrf_token() }}";
-    var $ = window.jQuery;
+    // jQuery loads at the bottom of the page, after this inline script runs,
+    // so look it up lazily at click time rather than caching it here (else the
+    // modal's .modal('show') would silently no-op and the down arrow appears dead).
+    function bsModal(id, action) {
+        var jq = window.jQuery;
+        if (jq && jq.fn && jq.fn.modal) { jq('#' + id).modal(action); }
+    }
     var activeStepper = null;
 
     function applyResult(stepper, data) {
@@ -199,7 +213,7 @@
         if (emptyMsg) emptyMsg.style.display = 'none';
         if (confirmBtn) confirmBtn.disabled = true;
         if (subtitle) subtitle.textContent = stepper.getAttribute('data-name') || '';
-        if ($) $('#qty-consume-modal').modal('show');
+        bsModal('qty-consume-modal', 'show');
 
         fetch(stepper.getAttribute('data-printers-url'), {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -243,7 +257,7 @@
                 gl_code: document.getElementById('qty-consume-gl').value
             }).then(function (data) {
                 applyResult(activeStepper, data);
-                if ($) $('#qty-consume-modal').modal('hide');
+                bsModal('qty-consume-modal', 'hide');
             }).catch(function () {}).then(function () {
                 confirmBtn.disabled = false;
             });
