@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Orders;
 
+use App\Models\Actionlog;
 use App\Models\Asset;
+use App\Models\Consumable;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
@@ -140,6 +142,100 @@ class OrderReceivingTest extends TestCase
 
         $this->assertNotNull($item->fresh()->received_at);
         $this->assertEquals('received', $order->fresh()->status);
+    }
+
+    public function test_receiving_a_consumable_line_bumps_its_stock_and_logs_a_checkin()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 1]);
+        $order = Order::factory()->create(['status' => 'ordered', 'order_number' => 'PO-RX-1']);
+        $item = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => Consumable::class,
+            'item_id' => $consumable->id,
+            'quantity' => 3,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('orders.items.receive', ['order' => $order->id, 'item' => $item->id]))
+            ->assertRedirect(route('orders.show', $order->id));
+
+        // Stock arrives: 1 + 3 = 4, and the receipt is a 'checkin from' tied
+        // to the order (not a bare qty field edit).
+        $this->assertEquals(4, $consumable->fresh()->qty);
+
+        $log = Actionlog::where('item_type', Consumable::class)
+            ->where('item_id', $consumable->id)
+            ->where('action_type', 'checkin from')
+            ->latest('id')->first();
+        $this->assertNotNull($log, 'Receiving a consumable line should log a checkin');
+        $this->assertEquals(3, (int) $log->quantity);
+        $this->assertStringContainsString('PO-RX-1', (string) $log->note);
+
+        // ...and not the observer's generic update row.
+        $this->assertDatabaseMissing('action_logs', [
+            'item_type' => Consumable::class,
+            'item_id' => $consumable->id,
+            'action_type' => 'update',
+        ]);
+    }
+
+    public function test_receiving_a_consumable_line_is_idempotent()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 0]);
+        $order = Order::factory()->create(['status' => 'ordered']);
+        $item = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => Consumable::class,
+            'item_id' => $consumable->id,
+            'quantity' => 2,
+        ]);
+        $superuser = $this->superuser();
+
+        // Receive twice — the second is a no-op, so stock isn't double-counted.
+        $this->actingAs($superuser)->post(route('orders.items.receive', ['order' => $order->id, 'item' => $item->id]));
+        $this->actingAs($superuser)->post(route('orders.items.receive', ['order' => $order->id, 'item' => $item->id]));
+
+        $this->assertEquals(2, $consumable->fresh()->qty);
+    }
+
+    public function test_unreceiving_a_consumable_line_reverses_the_stock()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 5]);
+        $order = Order::factory()->create(['status' => 'ordered']);
+        $item = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => Consumable::class,
+            'item_id' => $consumable->id,
+            'quantity' => 3,
+            'received_at' => now(),
+        ]);
+        $superuser = $this->superuser();
+
+        $this->actingAs($superuser)
+            ->post(route('orders.items.unreceive', ['order' => $order->id, 'item' => $item->id]))
+            ->assertRedirect(route('orders.show', $order->id));
+
+        $this->assertEquals(2, $consumable->fresh()->qty);
+    }
+
+    public function test_receiving_a_shipment_bumps_linked_consumable_stock()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 0]);
+        $order = Order::factory()->create(['status' => 'ordered']);
+        $shipment = OrderShipment::factory()->create(['order_id' => $order->id]);
+        OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'shipment_id' => $shipment->id,
+            'item_type' => Consumable::class,
+            'item_id' => $consumable->id,
+            'quantity' => 4,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('orders.shipments.receive', ['order' => $order->id, 'shipment' => $shipment->id]))
+            ->assertRedirect(route('orders.show', $order->id));
+
+        $this->assertEquals(4, $consumable->fresh()->qty);
     }
 
     public function test_an_order_can_be_cancelled_and_reopened()
