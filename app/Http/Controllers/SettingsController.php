@@ -119,13 +119,13 @@ class SettingsController extends Controller
         $setting->email_domain = $request->input('email_domain');
         $setting->email_format = $request->input('email_format');
         $setting->username_format = $request->input('username_format');
-        $setting->require_accept_signature = $request->input('require_accept_signature', '0');
         $setting->show_assigned_assets = $request->input('show_assigned_assets', '0');
         if (! config('app.lock_passwords')) {
             $setting->login_note = $request->input('login_note');
         }
 
-        $setting->default_eula_text = $request->input('default_eula_text');
+        // NOTE: require_accept_signature and default_eula_text are persisted by
+        // postAgreements() now — the acceptance/EULA copy lives in Settings → Agreements.
         $setting->thumbnail_max_h = $request->input('thumbnail_max_h');
         $setting->privacy_policy_link = $request->input('privacy_policy_link');
         $setting->depreciation_method = $request->input('depreciation_method');
@@ -447,10 +447,11 @@ class SettingsController extends Controller
     }
 
     /**
-     * Edit the User Agreement (Agreements module) EULA copy — the pickup,
-     * upgrade, and purchase title + body shown on the signing page and
-     * baked into each agreement's PDF. Blank fields fall back to the
-     * eula.php lang defaults via UserAgreement::resolveEulaText().
+     * Edit all agreement/acceptance copy in one home: the pickup, upgrade and
+     * purchase title + body baked into each User Agreement PDF and shown on the
+     * signing page, plus the generic default acceptance text + require-signature
+     * fallback used by ordinary asset checkouts. Blank agreement fields fall back
+     * to the eula.php lang defaults via UserAgreement::resolveEulaText().
      */
     public function getAgreements(): View
     {
@@ -465,12 +466,15 @@ class SettingsController extends Controller
             return redirect()->to('admin')->with('error', trans('admin/settings/message.update.error'));
         }
 
-        // Normalize blanks to null so resolveEulaText() falls back to the
-        // lang default rather than rendering an empty override.
+        // Normalize blanks to null so resolveEulaText() / getDefaultEula() fall
+        // back to the built-in default rather than rendering an empty override.
         foreach (array_keys($request->rules()) as $field) {
             $value = trim((string) $request->input($field));
             $setting->{$field} = $value !== '' ? $value : null;
         }
+
+        // Checkbox — store '0'/'1', not nullable (kept out of the rules() loop).
+        $setting->require_accept_signature = $request->input('require_accept_signature', '0');
 
         if ($setting->save()) {
             return redirect()->route('settings.agreements.index')

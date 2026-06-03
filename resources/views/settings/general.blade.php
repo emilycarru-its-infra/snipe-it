@@ -135,41 +135,9 @@
                            </div>
                        </fieldset>
 
-                       <fieldset>
-                           <x-form.legend>
-                               {{ trans('admin/settings/general.legends.eula') }}
-                           </x-form.legend>
-
-                           <!-- Require signature for acceptance -->
-                           <div class="form-group {{ $errors->has('require_accept_signature') ? 'error' : '' }}">
-                               <div class="col-md-8 col-md-offset-3">
-                                   <label class="form-control">
-                                       <input type="checkbox" name="require_accept_signature" value="1" @checked(old('require_accept_signature', $setting->require_accept_signature)) />
-                                       {{ trans('admin/settings/general.require_accept_signature') }}
-                                   </label>
-                                   {!! $errors->first('require_accept_signature', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
-                                   <p class="help-block">{{ trans('admin/settings/general.require_accept_signature_help_text') }}</p>
-                               </div>
-                           </div>
-                           <!-- /.form-group -->
-
-                           <!-- Default EULA -->
-                           <div class="form-group {{ $errors->has('default_eula_text') ? 'error' : '' }}">
-                               <label for="default_eula_text" class="col-md-3 control-label">{{ trans('admin/settings/general.default_eula_text') }}</label>
-
-                               <div class="col-md-8">
-                                   <x-input.textarea
-                                           name="default_eula_text"
-                                           :value="old('default_eula_text', $setting->default_eula_text)"
-                                           placeholder="{{ trans('admin/settings/general.default_eula_text_placeholder') }}"
-                                   />
-                                   {!! $errors->first('default_eula_text', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
-                                   <p class="help-block">{{ trans('admin/settings/general.default_eula_help_text') }}</p>
-                                   <p class="help-block">{!! trans('admin/settings/general.eula_markdown') !!}</p>
-                               </div>
-                           </div>
-
-                       </fieldset>
+                       {{-- "Acceptance & Signatures" (default acceptance text + require-signature)
+                            moved to Settings → Agreements so all acceptance/agreement copy lives in
+                            one home. The signing engine is unchanged. --}}
 
                        <fieldset>
                            <x-form.legend>
