@@ -812,12 +812,7 @@ class Helper
      */
     public static function checkLowInventory()
     {
-        // Eager-load the printer models each consumable is compatible with (plus
-        // a count of the physical printers of that model) so the low-inventory
-        // email can group toners by printer the way the /consumables dashboard does.
-        $consumables = Consumable::withCount('consumableAssignments as consumables_users_count')
-            ->with(['compatibleModels' => fn ($q) => $q->withCount('assets')->with('manufacturer')])
-            ->whereNotNull('min_amt')->get();
+        $consumables = Consumable::withCount('consumableAssignments as consumables_users_count')->whereNotNull('min_amt')->get();
         $accessories = Accessory::withCount('checkouts as checkouts_count')->whereNotNull('min_amt')->get();
         $components = Component::withCount('assets as sum_unconstrained_assets')->whereNotNull('min_amt')->get();
         $asset_models = AssetModel::where('min_amt', '>', 0)->withCount(['availableAssets', 'assets'])->get();
@@ -841,11 +836,6 @@ class Helper
                 $items_array[$all_count]['percent'] = $percent;
                 $items_array[$all_count]['remaining'] = $avail;
                 $items_array[$all_count]['min_amt'] = $consumable->min_amt;
-                $items_array[$all_count]['models'] = $consumable->compatibleModels->map(fn ($model) => [
-                    'name' => $model->name,
-                    'manufacturer' => optional($model->manufacturer)->name,
-                    'printers_count' => $model->assets_count,
-                ])->all();
                 $all_count++;
             }
         }
