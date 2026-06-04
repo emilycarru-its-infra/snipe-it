@@ -112,6 +112,50 @@ class UpdateConsumableTest extends TestCase
         $this->assertDatabaseHas('consumables', $data);
     }
 
+    public function test_toner_quantity_cannot_be_changed_via_the_edit_form()
+    {
+        $model = AssetModel::factory()->create();
+        $consumable = Consumable::factory()->create(['qty' => 5]);
+        $consumable->compatibleModels()->sync([$model->id]);
+
+        $this->actingAs(User::factory()->createConsumables()->editConsumables()->create())
+            ->put(route('consumables.update', $consumable), [
+                'company_id' => Company::factory()->create()->id,
+                'name' => 'Locked Toner',
+                'category_id' => Category::factory()->consumableInkCategory()->create()->id,
+                'qty' => 99,
+                'min_amt' => 1,
+                'redirect_option' => 'index',
+                'category_type' => 'consumable',
+            ])
+            ->assertRedirect(route('consumables.index'));
+
+        // qty is locked for toners (compatible-model consumables) — the
+        // submitted 99 is ignored; stock moves only via checkin/checkout.
+        $this->assertEquals(5, $consumable->fresh()->qty);
+        // ...but other fields still update normally.
+        $this->assertEquals('Locked Toner', $consumable->fresh()->name);
+    }
+
+    public function test_non_toner_quantity_can_still_be_changed_via_the_edit_form()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 5]);
+
+        $this->actingAs(User::factory()->createConsumables()->editConsumables()->create())
+            ->put(route('consumables.update', $consumable), [
+                'company_id' => Company::factory()->create()->id,
+                'name' => 'Regular Consumable',
+                'category_id' => Category::factory()->consumableInkCategory()->create()->id,
+                'qty' => 12,
+                'min_amt' => 1,
+                'redirect_option' => 'index',
+                'category_type' => 'consumable',
+            ])
+            ->assertRedirect(route('consumables.index'));
+
+        $this->assertEquals(12, $consumable->fresh()->qty);
+    }
+
     public function test_adjust_quantity_requires_update_permission()
     {
         $consumable = Consumable::factory()->create(['qty' => 0]);
