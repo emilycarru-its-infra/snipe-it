@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use AllowDynamicProperties;
+use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -11,7 +12,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class InventoryAlert extends Notification
 {
-    use Queueable;
+    use Queueable, OverridableMailNotification;
 
     private $params;
 
@@ -42,20 +43,19 @@ class InventoryAlert extends Notification
      */
     public function toMail()
     {
-        $message = (new MailMessage)->markdown(
-            'notifications.markdown.report-low-inventory',
-            [
-                'items' => $this->items,
-                'threshold' => $this->threshold,
-            ]
-        )
-            ->subject('⚠️ '.trans('mail.Low_Inventory_Report'))
+        $data = [
+            'items' => $this->items,
+            'threshold' => $this->threshold,
+        ];
+
+        $message = (new MailMessage)
+            ->subject($this->overriddenSubject('report.low_inventory', '⚠️ '.trans('mail.Low_Inventory_Report')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
 
-        return $message;
+        return $this->applyBody($message, 'report.low_inventory', 'notifications.markdown.report-low-inventory', $data);
     }
 }

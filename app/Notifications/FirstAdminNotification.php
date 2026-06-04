@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -10,7 +11,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class FirstAdminNotification extends Notification
 {
-    use Queueable;
+    use Queueable, OverridableMailNotification;
 
     private $_data = [];
 
@@ -46,13 +47,14 @@ class FirstAdminNotification extends Notification
      */
     public function toMail()
     {
-        return (new MailMessage)
-            ->subject('👋 '.trans('mail.welcome', ['name' => $this->_data['first_name'].' '.$this->_data['last_name']]))
-            ->markdown('notifications.FirstAdmin', $this->_data)
+        $message = (new MailMessage)
+            ->subject($this->overriddenSubject('account.first_admin', '👋 '.trans('mail.welcome', ['name' => $this->_data['first_name'].' '.$this->_data['last_name']])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
+
+        return $this->applyBody($message, 'account.first_admin', 'notifications.FirstAdmin', $this->_data);
     }
 }

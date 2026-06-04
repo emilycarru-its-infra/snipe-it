@@ -7,7 +7,9 @@ use App\Mail\EmailRegistry;
 use App\Mail\CheckoutAssetMail;
 use App\Models\EmailTemplate;
 use App\Models\User;
+use App\Notifications\InventoryAlert;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class EmailsSettingTest extends TestCase
@@ -320,15 +322,98 @@ class EmailsSettingTest extends TestCase
         Mail::assertSent(CheckoutAssetMail::class);
     }
 
-    public function test_test_send_is_unavailable_for_non_previewable_emails(): void
+    public function test_test_send_is_unavailable_for_an_unknown_key(): void
     {
         Mail::fake();
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->post(route('settings.emails.test'), ['key' => 'report.low_inventory'])
+            ->post(route('settings.emails.test'), ['key' => 'does.not.exist'])
             ->assertSessionHas('error');
 
         Mail::assertNothingSent();
+    }
+
+    // ---- Notification-channel emails are editable (Phase F) ----
+
+    public function test_notification_email_is_editable_with_a_default_subject(): void
+    {
+        $entry = EmailRegistry::find('report.low_inventory');
+        $this->assertTrue(EmailRegistry::isEditable($entry), 'A notification email should be editable.');
+
+        BaseMailable::$ignoreOverrides = true;
+        $this->assertNotSame('', EmailRegistry::defaultSubject('report.low_inventory'));
+        BaseMailable::$ignoreOverrides = false;
+    }
+
+    public function test_notification_subject_override_is_saved_and_used(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => 'report.low_inventory', 'subject' => 'Stock is running low'])
+            ->assertRedirect(route('settings.emails.index', ['selected' => 'report.low_inventory']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('email_templates', ['key' => 'report.low_inventory', 'subject' => 'Stock is running low']);
+
+        [$notification, $notifiable] = EmailRegistry::makeNotification('report.low_inventory');
+        $this->assertSame('Stock is running low', (string) $notification->toMail($notifiable)->subject);
+    }
+
+    public function test_notification_subject_falls_back_to_default_when_blank(): void
+    {
+        BaseMailable::$ignoreOverrides = true;
+        $default = EmailRegistry::defaultSubject('report.low_inventory');
+        BaseMailable::$ignoreOverrides = false;
+
+        EmailTemplate::create(['key' => 'report.low_inventory', 'subject' => 'Custom']);
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => 'report.low_inventory', 'subject' => '']);
+
+        [$notification, $notifiable] = EmailRegistry::makeNotification('report.low_inventory');
+        $this->assertSame($default, (string) $notification->toMail($notifiable)->subject);
+    }
+
+    public function test_notification_body_override_is_saved_and_rendered(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'report.low_inventory',
+                'body' => "# Stock alert heading\n\n{{#each items}}- {{name}}: {{remaining}}/{{min_amt}}\n{{/each}}",
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('email_templates', ['key' => 'report.low_inventory']);
+
+        // renderPreview applies the saved override against the sample items.
+        $html = EmailRegistry::renderPreview('report.low_inventory');
+        $this->assertStringContainsString('Stock alert heading', $html);
+        $this->assertStringContainsString('Toner Cartridge (Black)', $html);
+    }
+
+    public function test_notification_blank_body_falls_back_to_built_in_view(): void
+    {
+        EmailTemplate::create(['key' => 'report.low_inventory', 'body' => '# A custom body']);
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => 'report.low_inventory', 'body' => '']);
+
+        $this->assertDatabaseHas('email_templates', ['key' => 'report.low_inventory', 'body' => null]);
+
+        $html = EmailRegistry::renderPreview('report.low_inventory');
+        $this->assertStringNotContainsString('A custom body', $html);
+        // The built-in low-inventory table still renders the sample rows.
+        $this->assertStringContainsString('Toner Cartridge (Black)', $html);
+    }
+
+    public function test_test_send_dispatches_a_notification(): void
+    {
+        Notification::fake();
+        $admin = User::factory()->superuser()->create(['email' => 'me@ecuad.ca']);
+
+        $this->actingAs($admin)
+            ->post(route('settings.emails.test'), ['key' => 'report.low_inventory'])
+            ->assertRedirect(route('settings.emails.index', ['selected' => 'report.low_inventory']))
+            ->assertSessionHas('success');
+
+        Notification::assertSentTo($admin, InventoryAlert::class);
     }
 
     public function test_test_send_relay_failure_flashes_error_not_500(): void
