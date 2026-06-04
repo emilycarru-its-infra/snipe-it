@@ -812,8 +812,12 @@ class Helper
      */
     public static function checkLowInventory()
     {
-        $alert_threshold = Setting::getSettings()->alert_threshold;
-        $consumables = Consumable::withCount('consumableAssignments as consumables_users_count')->whereNotNull('min_amt')->get();
+        // Eager-load the printer models each consumable is compatible with (plus
+        // a count of the physical printers of that model) so the low-inventory
+        // email can group toners by printer the way the /consumables dashboard does.
+        $consumables = Consumable::withCount('consumableAssignments as consumables_users_count')
+            ->with(['compatibleModels' => fn ($q) => $q->withCount('assets')->with('manufacturer')])
+            ->whereNotNull('min_amt')->get();
         $accessories = Accessory::withCount('checkouts as checkouts_count')->whereNotNull('min_amt')->get();
         $components = Component::withCount('assets as sum_unconstrained_assets')->whereNotNull('min_amt')->get();
         $asset_models = AssetModel::where('min_amt', '>', 0)->withCount(['availableAssets', 'assets'])->get();
@@ -824,7 +828,7 @@ class Helper
 
         foreach ($consumables as $consumable) {
             $avail = $consumable->numRemaining();
-            if ($avail <= ($consumable->min_amt) + $alert_threshold) {
+            if ($avail < $consumable->min_amt) {
                 if ($consumable->qty > 0) {
                     $percent = number_format((($avail / $consumable->qty) * 100), 0);
                 } else {
@@ -837,13 +841,18 @@ class Helper
                 $items_array[$all_count]['percent'] = $percent;
                 $items_array[$all_count]['remaining'] = $avail;
                 $items_array[$all_count]['min_amt'] = $consumable->min_amt;
+                $items_array[$all_count]['models'] = $consumable->compatibleModels->map(fn ($model) => [
+                    'name' => $model->name,
+                    'manufacturer' => optional($model->manufacturer)->name,
+                    'printers_count' => $model->assets_count,
+                ])->all();
                 $all_count++;
             }
         }
 
         foreach ($accessories as $accessory) {
             $avail = $accessory->qty - $accessory->checkouts_count;
-            if ($avail <= ($accessory->min_amt) + $alert_threshold) {
+            if ($avail < $accessory->min_amt) {
                 if ($accessory->qty > 0) {
                     $percent = number_format((($avail / $accessory->qty) * 100), 0);
                 } else {
@@ -862,7 +871,7 @@ class Helper
 
         foreach ($components as $component) {
             $avail = $component->numRemaining();
-            if ($avail <= ($component->min_amt) + $alert_threshold) {
+            if ($avail < $component->min_amt) {
                 if ($component->qty > 0) {
                     $percent = number_format((($avail / $component->qty) * 100), 0);
                 } else {
@@ -885,7 +894,7 @@ class Helper
             $total_owned = $asset_model->assets_count; // requires the withCount() clause in the initial query!
             $avail = $asset_model->available_assets_count; // requires the withCount() clause in the initial query!
 
-            if ($avail <= ($asset_model->min_amt) + $alert_threshold) {
+            if ($avail < $asset_model->min_amt) {
                 if ($avail > 0) {
                     $percent = number_format((($avail / $total_owned) * 100), 0);
                 } else {
@@ -903,7 +912,7 @@ class Helper
 
         foreach ($licenses as $license) {
             $avail = $license->remaincount();
-            if ($avail <= ($license->min_amt) + $alert_threshold) {
+            if ($avail < $license->min_amt) {
                 if ($avail > 0) {
                     $percent = number_format((($avail / $license->min_amt) * 100), 0);
                 } else {
