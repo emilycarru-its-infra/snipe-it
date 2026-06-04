@@ -53,7 +53,7 @@
             .'</td></tr></table>';
     }
     $intro = '<div style="text-align:center;margin:0 0 2px;">'
-        .'<div style="font-size:20px;font-weight:700;color:#111827;margin:0 0 6px;">'.e(trans('mail.Low_Inventory_Report')).'</div>'
+        .'<div style="font-size:22px;font-weight:700;color:#111827;margin:0 0 8px;">'.e(trans('mail.Low_Inventory_Report')).'</div>'
         .'<div style="font-size:14px;color:#4b5563;">'.e(trans_choice('mail.low_inventory_alert', $count)).'</div>'
         .'</div>';
 @endphp
