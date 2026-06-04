@@ -197,7 +197,13 @@ class ConsumablesController extends Controller
         $consumable->item_no = $request->input('item_no');
         $consumable->purchase_date = $request->input('purchase_date');
         $consumable->purchase_cost = $request->input('purchase_cost');
-        $consumable->qty = Helper::ParseFloat($request->input('qty'));
+        // Toner/ink stock (consumables tied to specific printer models) moves
+        // only through checkin/checkout — the stepper or receiving on an order —
+        // so the audit trail stays consistent. Ignore any qty edit from the form
+        // for those; the field is read-only in the UI but guard the write too.
+        if (! $consumable->compatibleModels()->exists()) {
+            $consumable->qty = Helper::ParseFloat($request->input('qty'));
+        }
         $consumable->notes = $request->input('notes');
         $consumable->on_maintenance_contract = $request->filled('on_maintenance_contract');
         $consumable->status = $request->input('status', $consumable->status ?? 'active');

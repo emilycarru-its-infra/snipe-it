@@ -17,7 +17,28 @@
 @include ('partials.forms.edit.company-select', ['translated_name' => trans('general.company'), 'fieldname' => 'company_id'])
 @include ('partials.forms.edit.name', ['translated_name' => trans('general.name')])
 @include ('partials.forms.edit.category-select', ['translated_name' => trans('general.category'), 'fieldname' => 'category_id', 'required' => 'true', 'category_type' => 'consumable'])
-@include ('partials.forms.edit.quantity')
+@php
+    // A toner/ink consumable is one tied to specific printer models. For those,
+    // stock changes only through checkin (stepper up / receive on an order) and
+    // checkout (stepper down → printer), so the Quantity field is read-only here
+    // — editing it directly would log a bare 'update' instead of a checkin.
+    $isToner = isset($item->id) && $item->compatibleModels->isNotEmpty();
+@endphp
+@if ($isToner)
+    <div class="form-group">
+        <label for="qty" class="col-md-3 control-label">{{ trans('general.quantity') }}</label>
+        <div class="col-md-9">
+            <div class="col-md-3" style="padding-left:0">
+                <input class="form-control" type="number" name="qty" id="qty" value="{{ old('qty', $item->qty) }}" readonly aria-label="qty">
+            </div>
+            <div class="col-md-9" style="padding-left:0">
+                <p class="help-block">{{ trans('admin/consumables/general.qty_readonly_toner') }}</p>
+            </div>
+        </div>
+    </div>
+@else
+    @include ('partials.forms.edit.quantity')
+@endif
 @include ('partials.forms.edit.minimum_quantity')
 @include ('partials.forms.edit.consumable_status')
 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
