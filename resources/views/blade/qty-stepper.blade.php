@@ -114,6 +114,10 @@
     .qty-stepper.is-busy { opacity: 0.6; }
     .qty-stepper.is-busy .qty-stepper__btn { cursor: progress; }
 
+    /* The modal is emitted inline at the first stepper (a right-aligned card
+       cell), so left-align it explicitly — the JS also relocates it to <body>. */
+    #qty-consume-modal { text-align: left; }
+
     /* In the detail info-panel the stepper lives in a .list-group-item whose
        text line box is shorter than the 38px control. Float alone lets it
        overflow into the next row, which paints over the down arrow (clipping
@@ -166,6 +170,15 @@
         if (jq && jq.fn && jq.fn.modal) { jq('#' + id).modal(action); }
     }
     var activeStepper = null;
+
+    // The modal markup renders inline at the first stepper — inside a
+    // right-aligned card cell that may also be a transformed (drag-to-reorder)
+    // ancestor, which skews its alignment and positioning. Relocate it to
+    // <body> so it renders as a clean, viewport-centered dialog.
+    var modalEl = document.getElementById('qty-consume-modal');
+    if (modalEl && modalEl.parentNode !== document.body) {
+        document.body.appendChild(modalEl);
+    }
 
     function applyResult(stepper, data) {
         var valueEl = stepper.querySelector('[data-qty-value]');
