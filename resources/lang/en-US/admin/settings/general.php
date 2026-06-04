@@ -101,6 +101,7 @@ return [
     'emails_test_sent' => 'Test email sent to :email.',
     'emails_test_unavailable' => 'This email can’t be test-sent yet.',
     'emails_test_no_email' => 'Your account has no email address to send a test to.',
+    'emails_test_failed' => 'The test email could not be sent: :error',
     'emails_recipients' => 'Recipients',
     'emails_recipients_placeholder' => 'name@ecuad.ca, team@ecuad.ca',
     'emails_recipients_help' => 'Comma-separated addresses for this report. Leave blank to use the global alert email list (Settings → Alerts).',

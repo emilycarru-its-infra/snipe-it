@@ -278,4 +278,19 @@ class EmailsSettingTest extends TestCase
 
         Mail::assertNothingSent();
     }
+
+    public function test_test_send_relay_failure_flashes_error_not_500(): void
+    {
+        $admin = User::factory()->superuser()->create(['email' => 'me@ecuad.ca']);
+
+        // Simulate the SMTP relay rejecting the message (e.g. an external
+        // recipient the relay won't deliver to). The hub must stay usable.
+        Mail::shouldReceive('to')->andReturnSelf();
+        Mail::shouldReceive('send')->andThrow(new \RuntimeException('Relay access denied'));
+
+        $this->actingAs($admin)
+            ->post(route('settings.emails.test'), ['key' => 'checkout.asset'])
+            ->assertRedirect(route('settings.emails.index', ['selected' => 'checkout.asset']))
+            ->assertSessionHas('error');
+    }
 }
