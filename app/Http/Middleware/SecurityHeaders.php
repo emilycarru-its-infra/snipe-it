@@ -66,7 +66,13 @@ class SecurityHeaders
         // an override that exists.
 
         if (config('app.allow_iframing') == false) {
-            $response->headers->set('X-Frame-Options', 'DENY');
+            // The Settings → Emails hub embeds each email preview in a
+            // same-origin iframe so its styles stay isolated from the admin
+            // chrome. DENY would block that frame (the browser shows a blank
+            // "content blocked" box), so allow this one route to be framed by
+            // us via SAMEORIGIN while keeping DENY everywhere else.
+            $frame_option = $request->routeIs('settings.emails.preview') ? 'SAMEORIGIN' : 'DENY';
+            $response->headers->set('X-Frame-Options', $frame_option);
         }
 
         // This defaults to false to maintain backwards compatibility for
