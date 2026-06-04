@@ -41,8 +41,8 @@
                 .'</tr>';
         }
 
-        $cards .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" '
-            .'style="max-width:520px;margin:18px 0 0;border:1px solid #e5e7eb;border-radius:8px;border-collapse:separate;">'
+        $cards .= '<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" width="100%" '
+            .'style="max-width:520px;margin:18px auto 0;border:1px solid #e5e7eb;border-radius:8px;border-collapse:separate;">'
             .'<tr><td style="padding:12px 16px 11px;border-bottom:1px solid #eef0f2;">'
             .'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>'
             .'<td style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">'.e($group['model_name']).$meta.'</td>'
@@ -52,11 +52,13 @@
             .'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">'.$rows.'</table>'
             .'</td></tr></table>';
     }
+    $intro = '<div style="text-align:center;margin:0 0 2px;">'
+        .'<div style="font-size:20px;font-weight:700;color:#111827;margin:0 0 6px;">'.e(trans('mail.Low_Inventory_Report')).'</div>'
+        .'<div style="font-size:14px;color:#4b5563;">'.e(trans_choice('mail.low_inventory_alert', $count)).'</div>'
+        .'</div>';
 @endphp
 @component('mail::message')
-# ⚠️ {{ trans('mail.Low_Inventory_Report') }}
-
-{{ trans_choice('mail.low_inventory_alert', $count) }}
+{!! $intro !!}
 
 {!! $cards !!}
 @endcomponent

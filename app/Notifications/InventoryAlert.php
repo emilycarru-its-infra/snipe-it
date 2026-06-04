@@ -54,7 +54,7 @@ class InventoryAlert extends Notification
         ];
 
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject('report.low_inventory', '⚠️ '.trans('mail.Low_Inventory_Report')))
+            ->subject($this->overriddenSubject('report.low_inventory', trans('mail.Low_Inventory_Report')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
