@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Setting;
+use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -11,7 +12,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class AcceptanceItemDeclinedNotification extends Notification
 {
-    use Queueable;
+    use Queueable, OverridableMailNotification;
 
     /**
      * Create a new notification instance.
@@ -61,29 +62,30 @@ class AcceptanceItemDeclinedNotification extends Notification
      */
     public function toMail($notifiable)
     {
-        $message = (new MailMessage)->markdown('notifications.markdown.asset-acceptance',
-            [
-                'item_tag' => $this->item_tag,
-                'item_name' => $this->item_name,
-                'item_model' => $this->item_model,
-                'item_serial' => $this->item_serial,
-                'item_status' => $this->item_status,
-                'note' => $this->note,
-                'declined_date' => $this->declined_date,
-                'assigned_to' => $this->assigned_to,
-                'company_name' => $this->company_name,
-                'qty' => $this->qty,
-                'admin' => $this->admin,
-                'user' => $this->assigned_to,
-                'intro_text' => trans('mail.acceptance_declined_greeting', ['user' => $this->assigned_to]),
-            ])
-            ->subject('⚠️ '.trans('mail.acceptance_declined', ['user' => $this->assigned_to, 'item' => $this->item_name]))
+        $data = [
+            'item_tag' => $this->item_tag,
+            'item_name' => $this->item_name,
+            'item_model' => $this->item_model,
+            'item_serial' => $this->item_serial,
+            'item_status' => $this->item_status,
+            'note' => $this->note,
+            'declined_date' => $this->declined_date,
+            'assigned_to' => $this->assigned_to,
+            'company_name' => $this->company_name,
+            'qty' => $this->qty,
+            'admin' => $this->admin,
+            'user' => $this->assigned_to,
+            'intro_text' => trans('mail.acceptance_declined_greeting', ['user' => $this->assigned_to]),
+        ];
+
+        $message = (new MailMessage)
+            ->subject($this->overriddenSubject('acceptance.declined', '⚠️ '.trans('mail.acceptance_declined', ['user' => $this->assigned_to, 'item' => $this->item_name])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
 
-        return $message;
+        return $this->applyBody($message, 'acceptance.declined', 'notifications.markdown.asset-acceptance', $data);
     }
 }

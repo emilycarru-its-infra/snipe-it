@@ -189,7 +189,7 @@ class EmailRegistry
                 'category' => 'reports',
                 'label' => 'Expected checkin report',
                 'description' => 'Daily admin digest of assets due for check-in soon.',
-                'merge_vars' => [],
+                'merge_vars' => ['rows' => 'Rows (asset_tag, name, assigned_to, expected_checkin)', 'assets' => 'Asset objects'],
                 'configurable_recipients' => true,
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\ExpectedCheckinAdminNotification($s->assets()), $s->notifiable()],
             ],
@@ -198,7 +198,7 @@ class EmailRegistry
                 'category' => 'reports',
                 'label' => 'Low inventory report',
                 'description' => 'Alert when consumables/accessories fall below their minimum quantity.',
-                'merge_vars' => [],
+                'merge_vars' => ['items' => 'Low-stock rows (name, type, remaining, min_amt)', 'threshold' => 'Alert threshold'],
                 'configurable_recipients' => true,
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\InventoryAlert($s->lowInventoryItems(), 5), $s->notifiable()],
             ],
@@ -227,7 +227,7 @@ class EmailRegistry
                 'category' => 'acceptance',
                 'label' => 'Item accepted (to admin)',
                 'description' => 'Sent to the admin when a user accepts an item.',
-                'merge_vars' => [],
+                'merge_vars' => ['assigned_to' => 'User', 'item_name' => 'Item name', 'item_tag' => 'Asset tag', 'item_model' => 'Model', 'item_serial' => 'Serial', 'item_status' => 'Status', 'company_name' => 'Company', 'qty' => 'Quantity', 'note' => 'Note', 'accepted_date' => 'Accepted date', 'intro_text' => 'Intro line'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemAcceptedNotification($s->acceptanceParams()), $s->notifiable()],
             ],
             [
@@ -235,7 +235,7 @@ class EmailRegistry
                 'category' => 'acceptance',
                 'label' => 'Item accepted (to user)',
                 'description' => 'Confirmation sent to the user who accepted an item.',
-                'merge_vars' => [],
+                'merge_vars' => ['assigned_to' => 'User', 'item_name' => 'Item name', 'item_tag' => 'Asset tag', 'item_model' => 'Model', 'item_serial' => 'Serial', 'item_status' => 'Status', 'company_name' => 'Company', 'qty' => 'Quantity', 'note' => 'Note', 'accepted_date' => 'Accepted date', 'intro_text' => 'Intro line'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemAcceptedToUserNotification($s->acceptanceParams()), $s->recipient()],
             ],
             [
@@ -243,7 +243,7 @@ class EmailRegistry
                 'category' => 'acceptance',
                 'label' => 'Item declined',
                 'description' => 'Sent to the admin when a user declines an item.',
-                'merge_vars' => [],
+                'merge_vars' => ['assigned_to' => 'User', 'item_name' => 'Item name', 'item_tag' => 'Asset tag', 'item_model' => 'Model', 'item_serial' => 'Serial', 'item_status' => 'Status', 'company_name' => 'Company', 'qty' => 'Quantity', 'note' => 'Note', 'declined_date' => 'Declined date', 'intro_text' => 'Intro line'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemDeclinedNotification($s->acceptanceParams()), $s->notifiable()],
             ],
 
@@ -253,7 +253,7 @@ class EmailRegistry
                 'category' => 'requests',
                 'label' => 'Asset requested',
                 'description' => 'Sent when a user requests an asset.',
-                'merge_vars' => [],
+                'merge_vars' => ['item' => 'Item (item.display_name, item.asset_tag)', 'requested_by' => 'Requester (requested_by.display_name)', 'requested_date' => 'Requested date', 'qty' => 'Quantity', 'note' => 'Note', 'last_checkout' => 'Last checkout', 'expected_checkin' => 'Expected checkin'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\RequestAssetNotification($s->requestParams()), $s->notifiable()],
             ],
             [
@@ -261,7 +261,7 @@ class EmailRegistry
                 'category' => 'requests',
                 'label' => 'Asset request canceled',
                 'description' => 'Sent when a user cancels an asset request.',
-                'merge_vars' => [],
+                'merge_vars' => ['item' => 'Item (item.display_name, item.asset_tag)', 'requested_by' => 'Requester (requested_by.display_name)', 'requested_date' => 'Requested date', 'qty' => 'Quantity', 'note' => 'Note', 'last_checkout' => 'Last checkout', 'expected_checkin' => 'Expected checkin'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\RequestAssetCancelation($s->requestParams()), $s->notifiable()],
             ],
 
@@ -271,7 +271,7 @@ class EmailRegistry
                 'category' => 'account',
                 'label' => 'Welcome (new user)',
                 'description' => 'Sent to a new user when their account is created.',
-                'merge_vars' => [],
+                'merge_vars' => ['first_name' => 'First name', 'last_name' => 'Last name', 'username' => 'Username', 'email' => 'Email', 'token' => 'Invite token', 'expire_date' => 'Invite expiry'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\WelcomeNotification($s->recipient()), $s->recipient()],
             ],
             [
@@ -279,7 +279,7 @@ class EmailRegistry
                 'category' => 'account',
                 'label' => 'First admin setup',
                 'description' => 'Sent to the first administrator during initial setup.',
-                'merge_vars' => [],
+                'merge_vars' => ['first_name' => 'First name', 'last_name' => 'Last name', 'username' => 'Username', 'email' => 'Email', 'password' => 'Password', 'url' => 'Site URL'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\FirstAdminNotification($s->firstAdminData()), $s->recipient()],
             ],
             [
@@ -287,7 +287,7 @@ class EmailRegistry
                 'category' => 'account',
                 'label' => 'Expected checkin reminder (user)',
                 'description' => 'Reminds a user that an item assigned to them is due for check-in.',
-                'merge_vars' => [],
+                'merge_vars' => ['asset' => 'Asset name', 'asset_tag' => 'Asset tag', 'serial' => 'Serial', 'date' => 'Expected checkin (formatted)', 'expected_checkin_date' => 'Expected checkin (raw)'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\ExpectedCheckinNotification($s->asset()), $s->recipient()],
             ],
             [
@@ -295,7 +295,7 @@ class EmailRegistry
                 'category' => 'account',
                 'label' => 'Inventory report (to user)',
                 'description' => 'A user’s personal inventory summary, sent on request.',
-                'merge_vars' => [],
+                'merge_vars' => ['assets' => 'Assigned assets', 'accessories' => 'Assigned accessories', 'licenses' => 'Assigned licenses', 'consumables' => 'Assigned consumables'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\CurrentInventory($s->userWithInventory()), $s->userWithInventory()],
             ],
         ];
@@ -326,6 +326,51 @@ class EmailRegistry
         }
 
         return ($entry['factory'])(new EmailSampleData);
+    }
+
+    /**
+     * Build the notification + notifiable pair for a key from sample data.
+     * Returns [Notification, Notifiable] or null when the key isn't a
+     * notification-channel email.
+     *
+     * @return array{0: \Illuminate\Notifications\Notification, 1: mixed}|null
+     */
+    public static function makeNotification(string $key): ?array
+    {
+        $entry = self::find($key);
+        if (! $entry || ! isset($entry['notification'])) {
+            return null;
+        }
+
+        return ($entry['notification'])(new EmailSampleData);
+    }
+
+    /**
+     * The pristine built-in subject for an email — mailable or notification —
+     * used by the hub to show a placeholder. Caller is responsible for setting
+     * BaseMailable::$ignoreOverrides so this reads the default, not an override.
+     */
+    public static function defaultSubject(string $key): string
+    {
+        $entry = self::find($key);
+        if (! $entry) {
+            return '';
+        }
+
+        try {
+            if (isset($entry['factory'])) {
+                return (string) ($entry['factory'])(new EmailSampleData)->envelope()->subject;
+            }
+            if (isset($entry['notification'])) {
+                [$notification, $notifiable] = ($entry['notification'])(new EmailSampleData);
+
+                return (string) $notification->toMail($notifiable)->subject;
+            }
+        } catch (\Throwable $e) {
+            return '';
+        }
+
+        return '';
     }
 
     /**
@@ -361,9 +406,12 @@ class EmailRegistry
         return isset($entry['factory']) || isset($entry['notification']);
     }
 
-    /** Subject/body overrides only apply to mailables (they run through BaseMailable). */
+    /**
+     * Subject/body overrides apply to mailables (via BaseMailable) and to
+     * notification-channel emails (via the OverridableMailNotification trait).
+     */
     public static function isEditable(array $entry): bool
     {
-        return isset($entry['factory']);
+        return isset($entry['factory']) || isset($entry['notification']);
     }
 }

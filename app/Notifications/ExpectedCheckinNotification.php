@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Helpers\Helper;
+use App\Notifications\Concerns\OverridableMailNotification;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -12,7 +13,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class ExpectedCheckinNotification extends Notification
 {
-    use Queueable;
+    use Queueable, OverridableMailNotification;
 
     private $params;
 
@@ -53,21 +54,22 @@ class ExpectedCheckinNotification extends Notification
             ? trans('mail.Expected_Checkin_Notification_Pastdue', ['name' => $this->params->display_name])
             : trans('mail.Expected_Checkin_Notification', ['name' => $this->params->display_name]);
 
-        $message = (new MailMessage)->markdown('notifications.markdown.expected-checkin',
-            [
-                'expected_checkin_date' => $this->params->expected_checkin,
-                'date' => Helper::getFormattedDateObject($this->params->expected_checkin, 'date', false),
-                'asset' => $this->params->display_name,
-                'serial' => $this->params->serial,
-                'asset_tag' => $this->params->asset_tag,
-            ])
-            ->subject('⏰'.$subjectText)
+        $data = [
+            'expected_checkin_date' => $this->params->expected_checkin,
+            'date' => Helper::getFormattedDateObject($this->params->expected_checkin, 'date', false),
+            'asset' => $this->params->display_name,
+            'serial' => $this->params->serial,
+            'asset_tag' => $this->params->asset_tag,
+        ];
+
+        $message = (new MailMessage)
+            ->subject($this->overriddenSubject('account.expected_checkin_user', '⏰'.$subjectText))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
 
-        return $message;
+        return $this->applyBody($message, 'account.expected_checkin_user', 'notifications.markdown.expected-checkin', $data);
     }
 }

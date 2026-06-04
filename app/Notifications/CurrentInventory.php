@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -10,7 +11,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class CurrentInventory extends Notification
 {
-    use Queueable;
+    use Queueable, OverridableMailNotification;
 
     /**
      * Create a new notification instance.
@@ -40,20 +41,21 @@ class CurrentInventory extends Notification
      */
     public function toMail()
     {
-        $message = (new MailMessage)->markdown('notifications.markdown.user-inventory',
-            [
-                'assets' => $this->user->assets,
-                'accessories' => $this->user->accessories,
-                'licenses' => $this->user->licenses,
-                'consumables' => $this->user->consumables,
-            ])
-            ->subject(trans('mail.inventory_report'))
+        $data = [
+            'assets' => $this->user->assets,
+            'accessories' => $this->user->accessories,
+            'licenses' => $this->user->licenses,
+            'consumables' => $this->user->consumables,
+        ];
+
+        $message = (new MailMessage)
+            ->subject($this->overriddenSubject('account.inventory', trans('mail.inventory_report')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
 
-        return $message;
+        return $this->applyBody($message, 'account.inventory', 'notifications.markdown.user-inventory', $data);
     }
 }
