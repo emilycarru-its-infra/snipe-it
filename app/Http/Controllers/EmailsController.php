@@ -6,7 +6,9 @@ use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
 use App\Mail\EmailTemplateRenderer;
 use App\Models\EmailTemplate;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -29,10 +31,26 @@ class EmailsController extends Controller
         $categories = EmailRegistry::categories();
         $overrides = EmailTemplate::with('editor')->get()->keyBy('key');
 
+        // Resolve every saved recipient address to a friendly label (the Snipe
+        // user's name when the address belongs to one, otherwise the bare
+        // address) so the picker can re-show who an override targets — "crystal
+        // clear who gets it" — without an extra lookup per row.
+        $overrideEmails = $overrides
+            ->flatMap(fn ($o) => collect(explode(',', (string) $o->recipients))->map(fn ($e) => trim($e))->filter())
+            ->unique()
+            ->values();
+        // first_name/last_name are needed too: User::display_name falls back to
+        // the full-name accessor when the column itself is null.
+        $userLabels = $overrideEmails->isEmpty()
+            ? collect()
+            : User::whereIn('email', $overrideEmails->all())
+                ->get(['first_name', 'last_name', 'display_name', 'email'])
+                ->mapWithKeys(fn ($u) => [$u->email => $u->display_name]);
+
         // Read pristine built-in subjects (ignoring any stored override) so the
         // editor can show them as placeholders.
         BaseMailable::$ignoreOverrides = true;
-        $emails = collect(EmailRegistry::all())->map(function ($email) use ($overrides) {
+        $emails = collect(EmailRegistry::all())->map(function ($email) use ($overrides, $userLabels) {
             $override = $overrides->get($email['key']);
             // Previewable = mailable or notification; editable (subject/body) =
             // mailable only (those run through BaseMailable). Recipients are
@@ -44,6 +62,18 @@ class EmailsController extends Controller
             $email['body_override'] = $override?->body;
             $email['recipients_override'] = $override?->recipients;
             $email['subject_default'] = '';
+
+            // The saved recipients as select2-ready options ({id: address, text:
+            // "Name (address)"}), so the picker can re-hydrate the chips.
+            $email['recipients_json'] = collect(explode(',', (string) ($override?->recipients ?? '')))
+                ->map(fn ($e) => trim($e))
+                ->filter()
+                ->map(fn ($e) => [
+                    'id' => $e,
+                    'text' => isset($userLabels[$e]) ? $userLabels[$e].' ('.$e.')' : $e,
+                ])
+                ->values()
+                ->all();
 
             // "Last edited by … · …" shown when an override exists with an editor.
             $email['last_edited'] = '';
@@ -71,6 +101,49 @@ class EmailsController extends Controller
         return view('settings.emails', compact('categories', 'emails', 'selected'));
     }
 
+    /**
+     * select2 source for the recipients picker: Snipe users that have an email
+     * address, searchable by name/username/email, shaped as {id: address, text:
+     * "Name (address)"}. The picker stores the address (not the user id), so a
+     * saved override stays valid even if the user list changes, and so free-typed
+     * distribution-list addresses (which aren't Snipe users) work the same way.
+     */
+    public function recipientOptions(Request $request): JsonResponse
+    {
+        $search = trim((string) $request->input('search', ''));
+        $page = max(1, (int) $request->input('page', 1));
+
+        $query = User::query()
+            ->where('show_in_list', '=', '1')
+            ->whereNotNull('email')
+            ->where('email', '!=', '');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%")
+                    ->orWhere('display_name', 'LIKE', "%{$search}%")
+                    ->orWhere('username', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $users = $query->orderBy('display_name')
+            ->paginate(50, ['id', 'first_name', 'last_name', 'display_name', 'username', 'email'], 'page', $page);
+
+        $results = $users->getCollection()
+            ->map(fn ($u) => [
+                'id' => $u->email,
+                'text' => trim(($u->display_name ?: trim($u->first_name.' '.$u->last_name)).' ('.$u->email.')'),
+            ])
+            ->values();
+
+        return response()->json([
+            'results' => $results,
+            'pagination' => ['more' => $users->hasMorePages()],
+        ]);
+    }
+
     /** Save (or clear) an admin subject override for one email. */
     public function save(Request $request): RedirectResponse
     {
@@ -84,7 +157,6 @@ class EmailsController extends Controller
         $request->validate([
             'subject' => 'nullable|string|max:255',
             'body' => 'nullable|string|max:65535',
-            'recipients' => 'nullable|string|max:2000',
         ]);
 
         $subject = trim((string) $request->input('subject'));
@@ -101,10 +173,17 @@ class EmailsController extends Controller
                 ->withErrors(['body' => trans('admin/settings/general.emails_body_invalid')]);
         }
 
-        // Recipients: a comma-separated list; every entry must be a valid email.
-        $recipients = collect(explode(',', (string) $request->input('recipients')))
-            ->map(fn ($email) => trim($email))
+        // Recipients arrive as an array from the multi-select picker, or a CSV
+        // string from the legacy text field / API. Normalise both to a clean,
+        // de-duplicated list where every entry is a valid email.
+        $recipientsInput = $request->input('recipients', []);
+        if (is_string($recipientsInput)) {
+            $recipientsInput = explode(',', $recipientsInput);
+        }
+        $recipients = collect($recipientsInput)
+            ->map(fn ($email) => trim((string) $email))
             ->filter()
+            ->unique()
             ->values();
 
         foreach ($recipients as $email) {
