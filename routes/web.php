@@ -397,6 +397,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
             ->push(trans('admin/settings/general.emails'), route('settings.emails.index')));
 
+    Route::get('emails/recipient-options', [EmailsController::class, 'recipientOptions'])
+        ->name('settings.emails.recipient-options');
+
     Route::get('emails/{key}/preview', [EmailsController::class, 'preview'])
         ->name('settings.emails.preview');
 

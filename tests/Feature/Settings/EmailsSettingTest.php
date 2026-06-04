@@ -207,6 +207,58 @@ class EmailsSettingTest extends TestCase
         $this->assertDatabaseMissing('email_templates', ['key' => 'report.expiring_assets']);
     }
 
+    public function test_recipients_can_be_saved_as_an_array_from_the_picker(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'report.expiring_assets',
+                // The multi-select posts an array; duplicates collapse.
+                'recipients' => ['a@example.edu', 'b@example.edu', 'a@example.edu'],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            ['a@example.edu', 'b@example.edu'],
+            EmailTemplate::recipientsFor('report.expiring_assets', 'fallback@example.edu'),
+        );
+    }
+
+    public function test_recipient_options_endpoint_searches_users(): void
+    {
+        $admin = User::factory()->superuser()->create();
+        User::factory()->create(['first_name' => 'Zelda', 'last_name' => 'Fitzpatrick', 'email' => 'zelda@example.edu']);
+
+        $this->actingAs($admin)
+            ->getJson(route('settings.emails.recipient-options', ['search' => 'Zelda']))
+            ->assertOk()
+            ->assertJsonFragment(['id' => 'zelda@example.edu'])
+            ->assertJsonPath('pagination.more', false);
+    }
+
+    public function test_recipient_options_endpoint_is_gated_to_superusers(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('settings.emails.recipient-options'))
+            ->assertForbidden();
+    }
+
+    public function test_saved_recipients_are_exposed_as_labelled_picker_options(): void
+    {
+        $user = User::factory()->create(['first_name' => 'Pat', 'last_name' => 'Quon', 'email' => 'pat@example.edu']);
+        EmailTemplate::create(['key' => 'report.expiring_assets', 'recipients' => 'pat@example.edu,list@example.edu']);
+
+        $content = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('settings.emails.index'))
+            ->assertOk()
+            ->getContent();
+
+        // The user address is labelled with their name; a non-user address shows
+        // as itself. Both are emitted as picker options (data-recipients-json).
+        $this->assertStringContainsString('pat@example.edu', $content);
+        $this->assertStringContainsString('list@example.edu', $content);
+        $this->assertStringContainsString($user->display_name, $content);
+    }
+
     public function test_report_body_override_renders_an_each_loop(): void
     {
         $this->actingAs(User::factory()->superuser()->create())
