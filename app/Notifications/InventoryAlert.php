@@ -44,6 +44,7 @@ class InventoryAlert extends Notification
     public function toMail()
     {
         $items = is_array($this->items) ? $this->items : collect($this->items)->toArray();
+        $items = $this->attachPrinterModels($items);
 
         $data = [
             'items' => $items,
@@ -61,6 +62,50 @@ class InventoryAlert extends Notification
             });
 
         return $this->applyBody($message, 'report.low_inventory', 'notifications.markdown.report-low-inventory', $data);
+    }
+
+    /**
+     * Attach the compatible printer model(s) — name, manufacturer, and a count
+     * of the physical printers of that model — to each consumable row that
+     * doesn't already carry them. Scoped to the (small) low-stock set and only
+     * runs when the email is built, so the per-request alert-menu dropdown that
+     * also calls Helper::checkLowInventory() keeps its lean query. Rows that
+     * already declare `models` (e.g. the Settings → Emails preview sample) skip
+     * the lookup entirely, keeping the preview free of DB dependencies.
+     */
+    protected function attachPrinterModels(array $items): array
+    {
+        $needIds = [];
+        foreach ($items as $item) {
+            if (($item['type'] ?? null) === 'consumables' && ! array_key_exists('models', $item)) {
+                $needIds[] = $item['id'];
+            }
+        }
+
+        if (empty($needIds)) {
+            return $items;
+        }
+
+        $modelsByConsumable = \App\Models\Consumable::query()
+            ->with(['compatibleModels' => fn ($q) => $q->withCount('assets')->with('manufacturer')])
+            ->whereIn('id', $needIds)
+            ->get()
+            ->mapWithKeys(fn ($consumable) => [
+                $consumable->id => $consumable->compatibleModels->map(fn ($model) => [
+                    'name' => $model->name,
+                    'manufacturer' => optional($model->manufacturer)->name,
+                    'printers_count' => $model->assets_count,
+                ])->all(),
+            ])
+            ->all();
+
+        foreach ($items as $i => $item) {
+            if (($item['type'] ?? null) === 'consumables' && ! array_key_exists('models', $item)) {
+                $items[$i]['models'] = $modelsByConsumable[$item['id']] ?? [];
+            }
+        }
+
+        return $items;
     }
 
     /**
