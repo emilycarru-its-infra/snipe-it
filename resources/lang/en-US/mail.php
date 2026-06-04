@@ -30,7 +30,7 @@ return [
     'License_Checkin_Notification' => 'License checked in',
     'License_Checkout_Notification' => 'License checked out',
     'license_for' => 'License for',
-    'Low_Inventory_Report' => 'Low Inventory Report',
+    'Low_Inventory_Report' => 'Consumables Inventory Alert',
     'a_user_canceled' => 'A user has canceled an item request on the website',
     'a_user_requested' => 'A user has requested an item on the website',
     'acceptance_asset_accepted_to_user' => 'You have accepted an item assigned to you by :site_name|You have accepted :qty items assigned to you by :site_name',
