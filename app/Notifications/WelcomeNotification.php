@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\User;
+use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -12,7 +13,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class WelcomeNotification extends Notification
 {
-    use Queueable;
+    use Queueable, OverridableMailNotification;
 
     public $expire_date;
 
@@ -45,13 +46,14 @@ class WelcomeNotification extends Notification
     public function toMail()
     {
 
-        return (new MailMessage)
-            ->subject('👋 '.trans('mail.welcome', ['name' => $this->user->first_name.' '.$this->user->last_name]))
-            ->markdown('notifications.Welcome', $this->user->toArray())
+        $message = (new MailMessage)
+            ->subject($this->overriddenSubject('account.welcome', '👋 '.trans('mail.welcome', ['name' => $this->user->first_name.' '.$this->user->last_name])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
+
+        return $this->applyBody($message, 'account.welcome', 'notifications.Welcome', $this->user->toArray());
     }
 }

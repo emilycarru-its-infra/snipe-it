@@ -5,6 +5,7 @@ namespace App\Notifications;
 use AllowDynamicProperties;
 use App\Helpers\Helper;
 use App\Models\Setting;
+use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -13,7 +14,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class AcceptanceItemAcceptedToUserNotification extends Notification
 {
-    use Queueable;
+    use Queueable, OverridableMailNotification;
 
     /**
      * Create a new notification instance.
@@ -61,28 +62,35 @@ class AcceptanceItemAcceptedToUserNotification extends Notification
     public function toMail()
     {
         $pdf_path = storage_path('private_uploads/eula-pdfs/'.$this->file);
-        $message = (new MailMessage)->markdown('notifications.markdown.asset-acceptance',
-            [
-                'item_tag' => $this->item_tag,
-                'item_name' => $this->item_name,
-                'item_model' => $this->item_model,
-                'item_serial' => $this->item_serial,
-                'item_status' => $this->item_status,
-                'note' => $this->note,
-                'accepted_date' => $this->accepted_date,
-                'assigned_to' => $this->assigned_to,
-                'company_name' => $this->company_name,
-                'qty' => $this->qty,
-                'custom_fields' => $this->custom_fields,
-                'intro_text' => trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name]),
-            ])
-            ->attach($pdf_path)
-            ->subject('✅ '.trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name]))
+        $data = [
+            'item_tag' => $this->item_tag,
+            'item_name' => $this->item_name,
+            'item_model' => $this->item_model,
+            'item_serial' => $this->item_serial,
+            'item_status' => $this->item_status,
+            'note' => $this->note,
+            'accepted_date' => $this->accepted_date,
+            'assigned_to' => $this->assigned_to,
+            'company_name' => $this->company_name,
+            'qty' => $this->qty,
+            'custom_fields' => $this->custom_fields,
+            'intro_text' => trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name]),
+        ];
+
+        $message = (new MailMessage)
+            ->subject($this->overriddenSubject('acceptance.accepted_user', '✅ '.trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
+
+        $message = $this->applyBody($message, 'acceptance.accepted_user', 'notifications.markdown.asset-acceptance', $data);
+
+        // Attach the signed-agreement PDF when present (absent in hub previews/test-sends).
+        if ($this->file && is_file($pdf_path)) {
+            $message->attach($pdf_path);
+        }
 
         return $message;
     }

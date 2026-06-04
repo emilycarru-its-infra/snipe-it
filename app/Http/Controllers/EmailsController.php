@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Settings → Emails: a single place to see every email Snipe-IT sends,
@@ -52,9 +53,9 @@ class EmailsController extends Controller
         BaseMailable::$ignoreOverrides = true;
         $emails = collect(EmailRegistry::all())->map(function ($email) use ($overrides, $userLabels) {
             $override = $overrides->get($email['key']);
-            // Previewable = mailable or notification; editable (subject/body) =
-            // mailable only (those run through BaseMailable). Recipients are
-            // editable where the registry opts in.
+            // Previewable + editable (subject/body) both cover mailables and
+            // notification-channel emails now. Recipients are editable where
+            // the registry opts in.
             $email['previewable'] = EmailRegistry::isPreviewable($email);
             $email['editable'] = EmailRegistry::isEditable($email);
             $email['configurable_recipients'] = $email['configurable_recipients'] ?? false;
@@ -85,11 +86,9 @@ class EmailsController extends Controller
             }
 
             if ($email['editable']) {
-                try {
-                    $email['subject_default'] = (string) EmailRegistry::makeMailable($email['key'])?->envelope()->subject;
-                } catch (\Throwable $e) {
-                    $email['subject_default'] = '';
-                }
+                // Pristine built-in subject (mailable or notification) for the
+                // placeholder — read under $ignoreOverrides so it's the default.
+                $email['subject_default'] = EmailRegistry::defaultSubject($email['key']);
             }
 
             return $email;
@@ -213,24 +212,33 @@ class EmailsController extends Controller
     {
         $key = (string) $request->input('key');
         $mailable = EmailRegistry::makeMailable($key);
+        $notificationPair = $mailable ? null : EmailRegistry::makeNotification($key);
 
-        if (! $mailable) {
+        if (! $mailable && ! $notificationPair) {
             return redirect()->route('settings.emails.index', ['selected' => $key])
                 ->with('error', trans('admin/settings/general.emails_test_unavailable'));
         }
 
-        $email = auth()->user()?->email;
+        $user = auth()->user();
+        $email = $user?->email;
         if (! $email) {
             return redirect()->route('settings.emails.index', ['selected' => $key])
                 ->with('error', trans('admin/settings/general.emails_test_no_email'));
         }
 
         // A real send goes through the SMTP relay, which can reject (e.g. the
-        // logged-in admin is on a domain the relay won't deliver to, or the
-        // relay is briefly unreachable). Surface that as a flash error rather
-        // than a 500 — the hub itself stays usable.
+        // relay is briefly unreachable, or — on dev — the shared outbound IP is
+        // blocklisted). Surface that as a flash error rather than a 500 so the
+        // hub stays usable. Both paths apply the saved overrides.
         try {
-            Mail::to($email)->send($mailable);
+            if ($mailable) {
+                Mail::to($email)->send($mailable);
+            } else {
+                // sendNow (not notify) so it's synchronous and any transport
+                // failure throws here to be caught, instead of being queued.
+                [$notification] = $notificationPair;
+                Notification::sendNow($user, $notification);
+            }
         } catch (\Throwable $e) {
             Log::warning("Email test-send failed for [{$key}] to {$email}: ".$e->getMessage());
 
