@@ -316,8 +316,15 @@ class EmailSampleData
     public function lowInventoryItems(): Collection
     {
         return collect([
-            ['id' => 1, 'name' => 'Toner Cartridge (Black)', 'type' => 'consumables', 'remaining' => 2, 'min_amt' => 10],
-            ['id' => 2, 'name' => 'USB-C Dock', 'type' => 'accessories', 'remaining' => 1, 'min_amt' => 5],
+            [
+                'id' => 1, 'name' => 'Toner Cartridge (Black)', 'type' => 'consumables', 'remaining' => 0, 'min_amt' => 2,
+                'models' => [['name' => 'Ricoh IM C3500', 'manufacturer' => 'Ricoh', 'printers_count' => 6]],
+            ],
+            [
+                'id' => 2, 'name' => 'Toner Cartridge (Cyan)', 'type' => 'consumables', 'remaining' => 1, 'min_amt' => 2,
+                'models' => [['name' => 'Ricoh IM C3500', 'manufacturer' => 'Ricoh', 'printers_count' => 6]],
+            ],
+            ['id' => 3, 'name' => 'USB-C Dock', 'type' => 'accessories', 'remaining' => 1, 'min_amt' => 5],
         ]);
     }
 }
