@@ -47,6 +47,7 @@
                                            data-subject-override="{{ $email['subject_override'] ?? '' }}"
                                            data-body-override="{{ $email['body_override'] ?? '' }}"
                                            data-recipients-override="{{ $email['recipients_override'] ?? '' }}"
+                                           data-recipients-json="{{ json_encode($email['recipients_json'] ?? []) }}"
                                            data-previewable="{{ ($email['previewable'] ?? false) ? '1' : '0' }}"
                                            data-editable="{{ ($email['editable'] ?? false) ? '1' : '0' }}"
                                            data-configurable-recipients="{{ ($email['configurable_recipients'] ?? false) ? '1' : '0' }}"
@@ -86,9 +87,16 @@
                         <div id="email-cms-recipients-group" class="form-group {{ $errors->has('recipients') ? 'has-error' : '' }}" style="margin-bottom:8px;">
                             <label for="email-cms-recipients">{{ trans('admin/settings/general.emails_recipients') }}</label>
                             <a href="#" class="email-cms-reset pull-right small" data-target="email-cms-recipients">{{ trans('admin/settings/general.emails_reset') }}</a>
-                            <input type="text" name="recipients" id="email-cms-recipients" class="form-control" value="" maxlength="2000" placeholder="{{ trans('admin/settings/general.emails_recipients_placeholder') }}">
+                            <select name="recipients[]" id="email-cms-recipients" class="form-control" multiple style="width:100%;"></select>
                             {!! $errors->first('recipients', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                             <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_recipients_help') }}</p>
+                            <p class="help-block text-muted" style="margin-bottom:0;">
+                                @if (trim((string) ($snipeSettings->alert_email ?? '')) !== '')
+                                    {{ trans('admin/settings/general.emails_recipients_default', ['list' => $snipeSettings->alert_email]) }}
+                                @else
+                                    {{ trans('admin/settings/general.emails_recipients_default_none') }}
+                                @endif
+                            </p>
                         </div>
 
                         <div id="email-cms-editable-fields">
@@ -148,7 +156,6 @@
         var subjectField = document.getElementById('email-cms-subject');
         var bodyField = document.getElementById('email-cms-body');
         var mergeVars = document.getElementById('email-cms-merge-vars');
-        var recipientsField = document.getElementById('email-cms-recipients');
         var recipientsGroup = document.getElementById('email-cms-recipients-group');
         var editableFields = document.getElementById('email-cms-editable-fields');
         var noPreview = document.getElementById('email-cms-no-preview');
@@ -156,13 +163,58 @@
         var testBtn = document.getElementById('email-cms-test-btn');
         var selectedKey = @json($selected ?? '');
         var oldInput = @json(old());
+        var recipientOptionsUrl = @json(route('settings.emails.recipient-options'));
+        var csrfToken = @json(csrf_token());
+        var recipientsPlaceholder = @json(trans('admin/settings/general.emails_recipients_placeholder'));
+        var $ = window.jQuery;
+        var hasSelect2 = !!($ && $.fn && $.fn.select2);
+
+        // The recipients picker: a searchable select2 over Snipe users (the
+        // option value is the user's address) that also accepts free-typed
+        // addresses via tags — so a distribution list works the same as a user.
+        // Submitted/stored as recipients[].
+        if (hasSelect2) {
+            $('#email-cms-recipients').select2({
+                width: '100%',
+                multiple: true,
+                tags: true,
+                tokenSeparators: [',', ' '],
+                placeholder: recipientsPlaceholder,
+                ajax: {
+                    url: recipientOptionsUrl,
+                    dataType: 'json',
+                    delay: 250,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken },
+                    data: function (params) { return { search: params.term, page: params.page || 1 }; },
+                    processResults: function (data) { return data; },
+                    cache: true
+                },
+                createTag: function (params) {
+                    var term = (params.term || '').trim();
+                    return term === '' ? null : { id: term, text: term };
+                }
+            });
+        }
+
+        // Replace the picker's chips with the given [{id,text}] options.
+        function setRecipients(options) {
+            if (!hasSelect2) { return; }
+            var $r = $('#email-cms-recipients');
+            $r.empty();
+            (options || []).forEach(function (o) {
+                if (o && o.id) { $r.append(new Option(o.text || o.id, o.id, true, true)); }
+            });
+            $r.trigger('change');
+        }
 
         // "Use default" links clear their target field; saving a blank field
         // persists null, which falls back to the built-in template.
         document.querySelectorAll('.email-cms-reset').forEach(function (link) {
             link.addEventListener('click', function (e) {
                 e.preventDefault();
-                var target = document.getElementById(link.getAttribute('data-target'));
+                var id = link.getAttribute('data-target');
+                if (id === 'email-cms-recipients') { setRecipients([]); return; }
+                var target = document.getElementById(id);
                 if (target) { target.value = ''; target.focus(); }
             });
         });
@@ -210,9 +262,26 @@
 
             lastEditedEl.textContent = el.getAttribute('data-last-edited') || '';
 
-            // Recipients only where the email opts in.
+            // Recipients only where the email opts in. Re-hydrate the picker
+            // from this email's saved options (or the rejected input after a
+            // validation error); clear it when hidden so a stale list can never
+            // be saved onto a different email.
             recipientsGroup.style.display = configurableRecipients ? '' : 'none';
-            recipientsField.value = isOld ? (oldInput.recipients || '') : (el.getAttribute('data-recipients-override') || '');
+            if (configurableRecipients) {
+                var picks;
+                if (isOld && oldInput.recipients) {
+                    var raw = oldInput.recipients;
+                    var arr = Array.isArray(raw) ? raw : String(raw).split(',');
+                    picks = arr.map(function (e2) { e2 = (e2 || '').trim(); return { id: e2, text: e2 }; })
+                               .filter(function (o) { return o.id; });
+                } else {
+                    try { picks = JSON.parse(el.getAttribute('data-recipients-json') || '[]'); }
+                    catch (err) { picks = []; }
+                }
+                setRecipients(picks);
+            } else {
+                setRecipients([]);
+            }
 
             // Test-send only makes sense for mailable-backed emails.
             testBtn.style.display = editable ? '' : 'none';
