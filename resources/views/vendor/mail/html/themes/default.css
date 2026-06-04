@@ -32,7 +32,7 @@ blockquote {
 }
 
 a {
-    color: #3869d4;
+    color: #2563eb;
 }
 
 a img {
@@ -42,35 +42,43 @@ a img {
 /* Typography */
 
 h1 {
-    color: #3d4852;
-    font-size: 19px;
-    font-weight: bold;
+    color: #111827;
+    font-size: 22px;
+    font-weight: 700;
     margin-top: 0;
-    text-align: left;
+    margin-bottom: 8px;
+    text-align: center;
 }
 
 h2 {
-    color: #3d4852;
-    font-size: 16px;
-    font-weight: bold;
+    color: #111827;
+    font-size: 17px;
+    font-weight: 700;
     margin-top: 0;
-    text-align: left;
+    text-align: center;
 }
 
 h3 {
-    color: #3d4852;
+    color: #111827;
     font-size: 14px;
-    font-weight: bold;
+    font-weight: 700;
     margin-top: 0;
     text-align: left;
 }
 
 p {
-    color: #3d4852;
+    color: #374151;
     font-size: 16px;
-    line-height: 1.5em;
+    line-height: 1.55em;
     margin-top: 0;
     text-align: left;
+}
+
+/* The first paragraph after a heading reads as a centred intro line. */
+h1 + p,
+h2 + p {
+    text-align: center;
+    color: #4b5563;
 }
 
 p.sub {
@@ -214,21 +222,22 @@ img {
 }
 
 .button {
-    border-radius: 3px;
+    border-radius: 8px;
     box-shadow: 0 2px 3px rgba(0, 0, 0, 0.16);
     color: #fff;
     display: inline-block;
+    font-weight: 600;
     text-decoration: none;
     -webkit-text-size-adjust: none;
 }
 
 .button-blue,
 .button-primary {
-    background-color: #3490dc;
-    border-top: 10px solid #3490dc;
-    border-right: 18px solid #3490dc;
-    border-bottom: 10px solid #3490dc;
-    border-left: 18px solid #3490dc;
+    background-color: #2563eb;
+    border-top: 10px solid #2563eb;
+    border-right: 18px solid #2563eb;
+    border-bottom: 10px solid #2563eb;
+    border-left: 18px solid #2563eb;
 }
 
 .button-green,
