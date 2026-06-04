@@ -146,7 +146,18 @@ class EmailsController extends Controller
                 ->with('error', trans('admin/settings/general.emails_test_no_email'));
         }
 
-        Mail::to($email)->send($mailable);
+        // A real send goes through the SMTP relay, which can reject (e.g. the
+        // logged-in admin is on a domain the relay won't deliver to, or the
+        // relay is briefly unreachable). Surface that as a flash error rather
+        // than a 500 — the hub itself stays usable.
+        try {
+            Mail::to($email)->send($mailable);
+        } catch (\Throwable $e) {
+            Log::warning("Email test-send failed for [{$key}] to {$email}: ".$e->getMessage());
+
+            return redirect()->route('settings.emails.index', ['selected' => $key])
+                ->with('error', trans('admin/settings/general.emails_test_failed', ['error' => $e->getMessage()]));
+        }
 
         return redirect()->route('settings.emails.index', ['selected' => $key])
             ->with('success', trans('admin/settings/general.emails_test_sent', ['email' => $email]));
