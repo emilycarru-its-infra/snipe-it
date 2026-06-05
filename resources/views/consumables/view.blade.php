@@ -50,7 +50,7 @@
                             class="active"
                             icon="fa-solid fa-clock-rotate-left"
                             label="{{ trans('admin/consumables/general.activity') }}"
-                            count="{{ $consumable->transactions()->count() + $consumable->history()->count() }}"
+                            count="{{ $consumable->transactions()->count() + (auth()->user()?->can('history', $consumable) ? $consumable->history()->count() : 0) }}"
                     />
 
                     <x-tabs.nav-item

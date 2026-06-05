@@ -10,6 +10,7 @@
 @php
     $activity = $consumable->activityFeed();
     $hasTransactions = $activity->contains(fn ($row) => $row->kind === 'transaction');
+    $hasHistory = $activity->contains(fn ($row) => $row->kind === 'history');
 @endphp
 
 <div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -35,7 +36,9 @@
     <div class="btn-group btn-group-sm" role="group" style="margin-left: auto;" data-activity-filter>
         <button type="button" class="btn btn-default active" data-filter="all">{{ trans('admin/consumables/general.activity_filter_all') }}</button>
         <button type="button" class="btn btn-default" data-filter="transaction">{{ trans('admin/consumables/general.activity_filter_transactions') }}</button>
-        <button type="button" class="btn btn-default" data-filter="history">{{ trans('admin/consumables/general.activity_filter_history') }}</button>
+        @if ($hasHistory)
+            <button type="button" class="btn btn-default" data-filter="history">{{ trans('admin/consumables/general.activity_filter_history') }}</button>
+        @endif
     </div>
 </div>
 
@@ -105,7 +108,10 @@
             @else
                 @php
                     $log = $row->log;
-                    $targetPresenter = $log->target ? $log->target->present() : null;
+                    // Reuse the Actionlog presenter's target() so special action
+                    // types (uploaded / accepted / declined / requested) resolve to
+                    // the same target the standalone history table showed.
+                    $targetHtml = $log->present()->target();
                 @endphp
                 <tr>
                     <td data-value="{{ optional($log->created_at)->format('Y-m-d H:i') }}">{{ $log->created_at?->format('Y-m-d H:i') }}</td>
@@ -114,9 +120,8 @@
                     <td>
                         <i class="{{ $log->present()->icon() }} text-muted" aria-hidden="true"></i>
                         {{ ucfirst($log->present()->actionType()) }}
-                        @if ($targetPresenter)
-                            &middot;
-                            {!! method_exists($targetPresenter, 'nameUrl') ? $targetPresenter->nameUrl() : e($log->target->name) !!}
+                        @if ($targetHtml)
+                            &middot; {!! $targetHtml !!}
                         @endif
                         @if ($log->note)
                             <span class="text-muted">— {{ $log->note }}</span>
