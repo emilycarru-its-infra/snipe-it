@@ -88,5 +88,5 @@
 
 {{ trans('mail.best_regards') }}<br>
 
-{{ $snipeSettings->site_name }}
+ECU ITS Assets Management
 </x-mail::message>

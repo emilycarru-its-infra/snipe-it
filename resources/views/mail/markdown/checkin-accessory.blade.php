@@ -27,6 +27,6 @@
 
 {{ trans('mail.best_regards') }}
 
-{{ $snipeSettings->site_name }}
+ECU ITS Assets Management
 
 @endcomponent
