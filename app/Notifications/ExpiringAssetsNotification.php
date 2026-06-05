@@ -49,7 +49,7 @@ class ExpiringAssetsNotification extends Notification
                 'assets' => $this->assets,
                 'threshold' => $this->threshold,
             ])
-            ->subject('⏰'.trans('mail.Expiring_Assets_Report'))
+            ->subject(trans('mail.Expiring_Assets_Report'))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'

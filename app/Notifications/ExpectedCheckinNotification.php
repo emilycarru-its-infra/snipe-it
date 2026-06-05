@@ -63,7 +63,7 @@ class ExpectedCheckinNotification extends Notification
         ];
 
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject('account.expected_checkin_user', '⏰'.$subjectText))
+            ->subject($this->overriddenSubject('account.expected_checkin_user', $subjectText))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'

@@ -126,7 +126,7 @@ class BulkAssetCheckoutMail extends BaseMailable
 
         return
             sprintf(
-                '**[✔ %s](%s)**',
+                '**[%s](%s)**',
                 trans_choice('mail.click_here_to_review_terms_and_accept_item', $this->assets->count()),
                 $acceptanceUrl,
             );

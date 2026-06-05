@@ -48,7 +48,7 @@ class FirstAdminNotification extends Notification
     public function toMail()
     {
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject('account.first_admin', '👋 '.trans('mail.welcome', ['name' => $this->_data['first_name'].' '.$this->_data['last_name']])))
+            ->subject($this->overriddenSubject('account.first_admin', trans('mail.welcome', ['name' => $this->_data['first_name'].' '.$this->_data['last_name']])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'

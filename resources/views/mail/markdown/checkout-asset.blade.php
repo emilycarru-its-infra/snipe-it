@@ -71,7 +71,7 @@
 
 
 @if ($req_accept == 1 && $accept_url)
-**[✔ {{ trans('mail.i_have_read') }}]({{ $accept_url }})**
+**[{{ trans('mail.i_have_read') }}]({{ $accept_url }})**
 @endif
 
 {{ trans('mail.best_regards') }}
