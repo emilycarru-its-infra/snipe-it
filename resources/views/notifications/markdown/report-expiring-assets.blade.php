@@ -1,10 +1,10 @@
 @component('mail::message')
 {{ trans_choice('mail.assets_warrantee_alert', $assets->count(), ['count'=>$assets->count(), 'threshold' => $threshold]) }}
 
-<x-mail::table>
-|        |        |          |
-| ------------- | ------------- | ------------- |
 @foreach ($assets as $asset)
+<x-mail::table>
+|        |        |
+| ------------- | ------------- |
 | {{ ($asset->eol_diff_in_days <= ($threshold / 2)) ? '🚨' : (($asset->eol_diff_in_days <= $threshold) ? '⚠️' : 'ℹ️ ') }} **{{ trans('mail.name') }}** | <a href="{{ route('hardware.show', $asset->id) }}">{{ $asset->display_name }}</a> |
 @if ($asset->serial)
 | **{{ trans('general.serial_number') }}** | {{ $asset->serial }} |
@@ -24,9 +24,8 @@
 @if ($asset->assigned)
 | **{{ trans('mail.assigned_to') }}** | {{ e($asset->assigned->present()->display_name) }} |
 @endif
-| <hr> | <hr> |
-@endforeach
 </x-mail::table>
+@endforeach
 
 @endcomponent
 

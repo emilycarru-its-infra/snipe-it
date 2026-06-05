@@ -7,16 +7,17 @@
 {{ trans('mail.Expected_Checkin_Date_Past', ['date' => $date]) }}
 @endif
 
+<x-mail::table>
+|        |        |
+| ------------- | ------------- |
 @if ((isset($asset)) && ($asset!=''))
-<strong>{{ trans('mail.asset_name') }}:</strong> {{ $asset }}
-
+| **{{ trans('mail.asset_name') }}** | {{ $asset }} |
 @endif
-<strong>{{ trans('mail.asset_tag') }}:</strong> {{ $asset_tag }}
-
+| **{{ trans('mail.asset_tag') }}** | {{ $asset_tag }} |
 @if (isset($serial))
-<strong>{{ trans('mail.serial') }}:</strong> {{ $serial }}
-
+| **{{ trans('mail.serial') }}** | {{ $serial }} |
 @endif
+</x-mail::table>
 
 **[{{ trans('mail.your_assets') }}]({{ route('view-assets') }})**
 
