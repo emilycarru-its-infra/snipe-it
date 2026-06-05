@@ -11,7 +11,7 @@
 <x-mail::table>
 |        |        |
 | ------------- | ------------- |
-| {{ ($asset->next_audit_diff_in_days <= 7) ? '🚨' : (($asset->next_audit_diff_in_days <= 14) ? '⚠️' : '⚠️') }} **{{ trans('mail.name') }}** | <a href="{{ route('hardware.show', $asset->id) }}">{{ $asset->display_name }}</a>  (<a href="{{ route('asset.audit.create', $asset->id) }}">{{ trans('general.audit') }}</a>)|
+| **{{ trans('mail.name') }}** | <a href="{{ route('hardware.show', $asset->id) }}">{{ $asset->display_name }}</a>  (<a href="{{ route('asset.audit.create', $asset->id) }}">{{ trans('general.audit') }}</a>)|
 @if ($asset->serial)
 | **{{ trans('general.serial_number') }}** | {{ $asset->serial }} |
 @endif
