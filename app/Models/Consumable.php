@@ -349,6 +349,40 @@ class Consumable extends SnipeModel
     }
 
     /**
+     * A single chronological activity feed that interleaves the GL transactions
+     * and the action-log history into one date-ordered list, so the consumable
+     * view can show both in a single merged timeline.
+     *
+     * Each row is a lightweight object tagged with `kind` ('transaction' or
+     * 'history') plus the underlying record, so the Blade can render the
+     * type-specific cells. Newest first.
+     */
+    public function activityFeed(): \Illuminate\Support\Collection
+    {
+        $transactions = $this->transactions()
+            ->with(['asset', 'adminuser'])
+            ->get()
+            ->map(fn ($txn) => (object) [
+                'kind' => 'transaction',
+                'when' => $txn->transaction_date,
+                'txn'  => $txn,
+            ]);
+
+        $history = $this->history()
+            ->with(['adminuser', 'target'])
+            ->get()
+            ->map(fn ($log) => (object) [
+                'kind' => 'history',
+                'when' => $log->created_at,
+                'log'  => $log,
+            ]);
+
+        return $transactions->concat($history)
+            ->sortByDesc(fn ($row) => optional($row->when)->getTimestamp() ?? 0)
+            ->values();
+    }
+
+    /**
      * Establishes the item -> supplier relationship
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]
