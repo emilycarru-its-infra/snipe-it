@@ -19,6 +19,6 @@ $assignedToRoute = $asset->assignedTo ? route($asset->targetShowRoute().'.show',
 
 {{ trans('mail.best_regards') }}
 
-{{ $snipeSettings->site_name }}
+ECU ITS Assets Management
 
 @endcomponent
