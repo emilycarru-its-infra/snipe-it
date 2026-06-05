@@ -119,7 +119,7 @@ class RequestAssetNotification extends Notification
         ];
 
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject('request.asset', '👀 '.trans('mail.Item_Requested')))
+            ->subject($this->overriddenSubject('request.asset', trans('mail.Item_Requested')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'

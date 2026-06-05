@@ -59,7 +59,7 @@ class ExpectedCheckinAdminNotification extends Notification
         ];
 
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject('report.expected_checkin', '⏰'.trans('mail.Expected_Checkin_Report')))
+            ->subject($this->overriddenSubject('report.expected_checkin', trans('mail.Expected_Checkin_Report')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'

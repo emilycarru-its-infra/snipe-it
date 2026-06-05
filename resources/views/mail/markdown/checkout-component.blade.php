@@ -39,7 +39,7 @@
 @endif
 
 @if ($req_accept == 1)
-**[✔ {{ trans('mail.i_have_read') }}]({{ $accept_url }})**
+**[{{ trans('mail.i_have_read') }}]({{ $accept_url }})**
 @endif
 
 
