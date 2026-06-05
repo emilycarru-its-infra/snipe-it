@@ -82,7 +82,7 @@ class AcceptanceItemAcceptedNotification extends Notification
         ];
 
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject('acceptance.accepted_admin', '✅ '.trans('mail.acceptance_accepted', ['user' => $this->assigned_to, 'item' => $this->item_name])))
+            ->subject($this->overriddenSubject('acceptance.accepted_admin', trans('mail.acceptance_accepted', ['user' => $this->assigned_to, 'item' => $this->item_name])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
