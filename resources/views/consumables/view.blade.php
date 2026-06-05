@@ -42,14 +42,15 @@
             <x-tabs>
                 <x-slot:tabnav>
 
-                    {{-- Transactions is the default tab now — it's what the
+                    {{-- Activity is the default tab now — one merged timeline of
+                         GL transactions + action-log history, which is what the
                          reconciliation workflow opens to most often. --}}
                     <x-tabs.nav-item
-                            name="gl-transactions"
+                            name="activity"
                             class="active"
-                            icon="fa-solid fa-money-bill-transfer"
-                            label="{{ trans('admin/consumables/general.gl_transactions') }}"
-                            count="{{ $consumable->transactions()->count() }}"
+                            icon="fa-solid fa-clock-rotate-left"
+                            label="{{ trans('admin/consumables/general.activity') }}"
+                            count="{{ $consumable->transactions()->count() + (auth()->user()?->can('history', $consumable) ? $consumable->history()->count() : 0) }}"
                     />
 
                     <x-tabs.nav-item
@@ -60,13 +61,18 @@
                     />
 
                     <x-tabs.files-tab :item="$consumable" count="{{ $consumable->uploads()->count() }}"/>
-                    <x-tabs.history-tab count="{{ $consumable->history()->count() }}" :model="$consumable"/>
 
                     <x-tabs.upload-tab :item="$consumable"/>
 
                 </x-slot:tabnav>
 
                 <x-slot:tabpanes>
+
+                    {{-- start merged activity tab pane (default) --}}
+                    <x-tabs.pane name="activity" class="active in">
+                        @include('consumables._activity')
+                    </x-tabs.pane>
+                    {{-- end merged activity tab pane --}}
 
                     <x-tabs.pane name="assigned">
 
@@ -80,101 +86,6 @@
                     <x-tabs.pane name="files">
                         <x-table.files object_type="consumables" :object="$consumable"/>
                     </x-tabs.pane>
-
-                    <!-- start history tab pane -->
-                    <x-tabs.pane name="history">
-                        <x-table.history :model="$consumable" :route="route('api.consumables.history', $consumable)"/>
-                    </x-tabs.pane>
-                    <!-- end history tab pane -->
-
-                    <!-- start transactions tab pane (default) -->
-                    <x-tabs.pane name="gl-transactions" class="active in">
-                        @php $glTransactions = $consumable->transactions()->with('asset')->get(); @endphp
-
-                        <div style="margin-bottom: 12px;">
-                            @can('update', $consumable)
-                                <a href="{{ route('consumables.transactions.create', $consumable->id) }}"
-                                   class="btn btn-sm btn-primary">
-                                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                    {{ trans('admin/consumables/general.new_transaction') }}
-                                </a>
-                            @endcan
-                            @if ($glTransactions->isNotEmpty())
-                                <a href="{{ route('consumables.transactions.export', ['consumable' => $consumable->id, 'format' => 'csv']) }}"
-                                   class="btn btn-sm btn-default">
-                                    <i class="fa-solid fa-file-csv" aria-hidden="true"></i>
-                                    {{ trans('admin/consumables/general.transactions_export_csv') }}
-                                </a>
-                                <a href="{{ route('consumables.transactions.export', $consumable->id) }}" target="_blank"
-                                   class="btn btn-sm btn-default">
-                                    <i class="fa-solid fa-print" aria-hidden="true"></i>
-                                    {{ trans('admin/consumables/general.transactions_print_report') }}
-                                </a>
-                            @endif
-                        </div>
-
-                        @if ($glTransactions->isEmpty())
-                            <p class="text-muted" style="padding: 10px 0;">
-                                {{ trans('admin/consumables/general.gl_transactions_empty') }}
-                            </p>
-                        @else
-                            <table class="table table-striped snipe-table">
-                                <thead>
-                                    <tr>
-                                        <th>{{ trans('admin/consumables/general.gl_txn_date') }}</th>
-                                        <th>{{ trans('admin/consumables/general.gl_txn_printer') }}</th>
-                                        <th>{{ trans('admin/consumables/general.gl_txn_code') }}</th>
-                                        <th class="text-right">{{ trans('admin/consumables/general.gl_txn_qty') }}</th>
-                                        <th class="text-right">{{ trans('admin/consumables/general.gl_txn_unit_cost') }}</th>
-                                        <th class="text-right">{{ trans('admin/consumables/general.gl_txn_total') }}</th>
-                                        <th>{{ trans('admin/consumables/general.gl_txn_fiscal_year') }}</th>
-                                        <th>{{ trans('admin/consumables/general.gl_txn_status') }}</th>
-                                        @can('update', $consumable)
-                                            <th class="text-right">{{ trans('table.actions') }}</th>
-                                        @endcan
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                @foreach ($glTransactions as $txn)
-                                    <tr>
-                                        <td>{{ $txn->transaction_date?->format('Y-m-d') }}</td>
-                                        <td>
-                                            @if ($txn->asset)
-                                                <a href="{{ route('hardware.show', $txn->asset->id) }}">{{ $txn->asset->present()->name() }}</a>
-                                            @endif
-                                        </td>
-                                        <td>{{ $txn->gl_code }}</td>
-                                        <td class="text-right">{{ $txn->quantity }}</td>
-                                        <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($txn->unit_cost) }}</td>
-                                        <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($txn->total_cost) }}</td>
-                                        <td>{{ $txn->fiscal_year }}</td>
-                                        <td>{{ ucfirst($txn->status) }}</td>
-                                        @can('update', $consumable)
-                                            <td class="text-right" style="white-space:nowrap;">
-                                                <a href="{{ route('consumables.transactions.edit', [$consumable->id, $txn->id]) }}"
-                                                   class="btn btn-sm btn-default" data-tooltip="true"
-                                                   title="{{ trans('admin/consumables/general.edit_transaction') }}">
-                                                    <i class="fa-solid fa-pencil" aria-hidden="true"></i>
-                                                </a>
-                                                <form method="post" style="display:inline;"
-                                                      action="{{ route('consumables.transactions.void', [$consumable->id, $txn->id]) }}"
-                                                      onsubmit="return confirm('{{ trans('admin/consumables/general.void_transaction_confirm') }}');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-danger" data-tooltip="true"
-                                                            title="{{ trans('admin/consumables/general.void_transaction') }}">
-                                                        <i class="fa-solid fa-ban" aria-hidden="true"></i>
-                                                    </button>
-                                                </form>
-                                            </td>
-                                        @endcan
-                                    </tr>
-                                @endforeach
-                                </tbody>
-                            </table>
-                        @endif
-                    </x-tabs.pane>
-                    <!-- end transactions tab pane -->
 
                 </x-slot:tabpanes>
 
@@ -190,5 +101,42 @@
     @endcan
 
     @include ('partials.bootstrap-table', ['exportFile' => 'consumable-' . $consumable->name . '-export', 'search' => false])
+
+    {{-- Drive the merged Activity table client-side: ingest the server-rendered
+         DOM rows so we keep search / sort / pagination / column toggle / CSV
+         export, and route the Type filter through bootstrap-table's filterBy so
+         it composes with the rest. Deliberately NOT a .snipe-table, so snipe's
+         own ajax-table init leaves it alone. --}}
+    <script nonce="{{ csrf_token() }}">
+        $(function () {
+            var $table = $('#consumable-activity-table');
+            if (!$table.length || !$.fn.bootstrapTable) { return; }
+
+            $table.bootstrapTable({
+                search: true,
+                pagination: true,
+                pageSize: 20,
+                pageList: [10, 20, 50, 100, 'All'],
+                sortName: 'when',
+                sortOrder: 'desc',
+                showColumns: true,
+                showExport: true,
+                exportDataType: 'all',
+                exportTypes: ['csv'],
+                exportOptions: { fileName: 'consumable-{{ \Illuminate\Support\Str::slug($consumable->name) }}-activity-' + new Date().toISOString().slice(0, 10) },
+                escape: false,
+                onPostBody: function () {
+                    $table.closest('.tab-pane').find('[data-tooltip="true"]').tooltip();
+                }
+            });
+
+            $('[data-activity-filter]').on('click', 'button[data-filter]', function () {
+                var filter = this.getAttribute('data-filter');
+                $('[data-activity-filter] button').removeClass('active');
+                $(this).addClass('active');
+                $table.bootstrapTable('filterBy', filter === 'all' ? {} : { activity_type: filter });
+            });
+        });
+    </script>
 @endsection
 
