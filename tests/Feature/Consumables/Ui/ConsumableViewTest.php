@@ -57,10 +57,13 @@ class ConsumableViewTest extends TestCase
             ->assertOk();
 
         // The merged Activity timeline renders both a transaction row (its GL
-        // code) and a history row, plus the Type filter that toggles between them.
+        // code + primary badge) and a history row (default badge), inside the
+        // client-side datatable, with the Type filter and its backing column.
         $response->assertSee('6100-XYZ');
-        $response->assertSee('data-activity-type="transaction"', false);
-        $response->assertSee('data-activity-type="history"', false);
+        $response->assertSee('data-activity-table', false);
         $response->assertSee('data-activity-filter', false);
+        $response->assertSee('data-field="activity_type"', false);
+        $response->assertSee('label label-primary', false);
+        $response->assertSee('label label-default', false);
     }
 }
