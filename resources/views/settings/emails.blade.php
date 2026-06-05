@@ -32,7 +32,7 @@
                 <div class="box-body no-padding">
                     @foreach ($categories as $catKey => $catLabel)
                         @if (isset($emails[$catKey]))
-                            <div class="email-cms-group-header" style="padding:8px 12px;font-weight:700;background:#f7f7f7;border-bottom:1px solid #eee;">
+                            <div class="email-cms-group-header">
                                 {{ $catLabel }}
                             </div>
                             <ul class="nav nav-pills nav-stacked">
@@ -143,6 +143,32 @@
     </div>
 
 @stop
+
+@push('css')
+<style>
+    /* Theme-aware (light + dark) styling for the email list. The app flips
+       --color-fg / --text-help / --box-* via [data-theme] light-dark() vars,
+       so the titles stay readable in dark mode. */
+    .email-cms-group-header {
+        padding: 8px 12px;
+        font-weight: 700;
+        background: var(--box-header-bottom-border-color);
+        border-bottom: 1px solid var(--box-header-top-border-color);
+        color: var(--color-fg);
+    }
+    .email-cms-item { color: var(--color-fg) !important; }
+    .email-cms-item small.text-muted { color: var(--text-help) !important; }
+    .nav-pills > li.active > .email-cms-item {
+        background-color: var(--main-theme-color, #2563eb) !important;
+    }
+    .nav-pills > li.active > .email-cms-item,
+    .nav-pills > li.active > .email-cms-item small.text-muted {
+        color: #fff !important;
+    }
+    /* Keep the preview iframe readable whichever theme the email adopts. */
+    #email-cms-preview-frame { background: var(--box-bg); }
+</style>
+@endpush
 
 @section('moar_scripts')
 <script nonce="{{ csrf_token() }}">
