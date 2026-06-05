@@ -368,14 +368,22 @@ class Consumable extends SnipeModel
                 'txn'  => $txn,
             ]);
 
-        $history = $this->history()
-            ->with(['adminuser', 'target'])
-            ->get()
-            ->map(fn ($log) => (object) [
-                'kind' => 'history',
-                'when' => $log->created_at,
-                'log'  => $log,
-            ]);
+        // History stays gated behind the same `history` ability the standalone
+        // History tab enforced — merging the tabs must not bypass that policy.
+        // forApiHistory() eager-loads the relations the Actionlog presenter needs
+        // (adminuser, location, item/target with asset model), matching parity
+        // with the API-backed history table and avoiding N+1 lookups.
+        $history = collect();
+        if (auth()->check() && auth()->user()->can('history', $this)) {
+            $history = $this->history()
+                ->forApiHistory()
+                ->get()
+                ->map(fn ($log) => (object) [
+                    'kind' => 'history',
+                    'when' => $log->created_at,
+                    'log'  => $log,
+                ]);
+        }
 
         return $transactions->concat($history)
             ->sortByDesc(fn ($row) => optional($row->when)->getTimestamp() ?? 0)
