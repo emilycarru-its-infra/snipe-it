@@ -7,10 +7,10 @@
     {{ trans_choice('general.audit_due_days_view_all', $threshold, ['days' => $threshold]) }}
 </x-mail::button>
 
-<x-mail::table>
-|        |        |          |
-| ------------- | ------------- | ------------- |
 @foreach ($assets as $asset)
+<x-mail::table>
+|        |        |
+| ------------- | ------------- |
 | {{ ($asset->next_audit_diff_in_days <= 7) ? '🚨' : (($asset->next_audit_diff_in_days <= 14) ? '⚠️' : '⚠️') }} **{{ trans('mail.name') }}** | <a href="{{ route('hardware.show', $asset->id) }}">{{ $asset->display_name }}</a>  (<a href="{{ route('asset.audit.create', $asset->id) }}">{{ trans('general.audit') }}</a>)|
 @if ($asset->serial)
 | **{{ trans('general.serial_number') }}** | {{ $asset->serial }} |
@@ -33,9 +33,8 @@
 @if ($asset->notes)
 | **{{ trans('general.notes') }}** | {!! nl2br(e($asset->notes)) !!}  |
 @endif
-| <hr> | <hr> |
-@endforeach
 </x-mail::table>
+@endforeach
 
 <x-mail::button :url="route('assets.audit.due')">
     {{ trans_choice('general.audit_due_days_view_all', $threshold, ['days' => $threshold]) }}

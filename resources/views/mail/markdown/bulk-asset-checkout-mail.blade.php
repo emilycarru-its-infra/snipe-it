@@ -60,9 +60,6 @@
 @endif
 @endforeach
 @endif
-@if(!$loop->last)
-| <hr> | <hr> |
-@endif
 @endforeach
 </x-mail::table>
 

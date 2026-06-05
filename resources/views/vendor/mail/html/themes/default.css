@@ -224,6 +224,14 @@ img {
     border-top: 0;
 }
 
+.table td:empty {
+    border-top: 0;
+}
+
+.table td hr {
+    display: none;
+}
+
 .table td strong {
     color: #6b7280;
     font-weight: 600;
