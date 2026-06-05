@@ -1,6 +1,12 @@
 {{-- Merged Activity timeline: the GL transactions and the action-log history
-     interleaved into one date-ordered table, with a client-side Type filter.
-     Replaces the separate Transactions and History tabs. --}}
+     interleaved into one date-ordered table, driven client-side by
+     bootstrap-table (search / sort / pagination / column toggle / CSV export)
+     with a Type filter. Replaces the separate Transactions and History tabs.
+
+     The table is server-rendered with its rich cells already in the DOM; the
+     init in view.blade.php's moar_scripts ingests it in client-side mode, so we
+     keep the full datatable toolbar without an ajax endpoint or new JS
+     formatters. Newest first. --}}
 @php
     $activity = $consumable->activityFeed();
     $hasTransactions = $activity->contains(fn ($row) => $row->kind === 'transaction');
@@ -38,29 +44,30 @@
         {{ trans('admin/consumables/general.activity_empty') }}
     </p>
 @else
-    <table class="table table-striped snipe-table" id="consumable-activity-table">
+    <table class="table table-striped" id="consumable-activity-table" data-activity-table>
         <thead>
             <tr>
-                <th>{{ trans('admin/consumables/general.activity_col_when') }}</th>
-                <th>{{ trans('admin/consumables/general.activity_col_type') }}</th>
-                <th>{{ trans('admin/consumables/general.activity_col_by') }}</th>
-                <th>{{ trans('admin/consumables/general.activity_col_detail') }}</th>
-                <th class="text-right">{{ trans('admin/consumables/general.gl_txn_qty') }}</th>
-                <th class="text-right">{{ trans('admin/consumables/general.gl_txn_total') }}</th>
-                <th>{{ trans('admin/consumables/general.gl_txn_code') }}</th>
-                <th>{{ trans('admin/consumables/general.gl_txn_fiscal_year') }}</th>
-                <th>{{ trans('admin/consumables/general.gl_txn_status') }}</th>
+                <th data-field="when" data-sortable="true">{{ trans('admin/consumables/general.activity_col_when') }}</th>
+                <th data-field="type" data-sortable="true">{{ trans('admin/consumables/general.activity_col_type') }}</th>
+                <th data-field="by" data-sortable="true">{{ trans('admin/consumables/general.activity_col_by') }}</th>
+                <th data-field="detail" data-sortable="false">{{ trans('admin/consumables/general.activity_col_detail') }}</th>
+                <th data-field="quantity" data-sortable="true" data-align="right" data-halign="right">{{ trans('admin/consumables/general.gl_txn_qty') }}</th>
+                <th data-field="total" data-sortable="true" data-align="right" data-halign="right">{{ trans('admin/consumables/general.gl_txn_total') }}</th>
+                <th data-field="gl_code" data-sortable="true">{{ trans('admin/consumables/general.gl_txn_code') }}</th>
+                <th data-field="fiscal_year" data-sortable="true">{{ trans('admin/consumables/general.gl_txn_fiscal_year') }}</th>
+                <th data-field="status" data-sortable="true">{{ trans('admin/consumables/general.gl_txn_status') }}</th>
                 @can('update', $consumable)
-                    <th class="text-right">{{ trans('table.actions') }}</th>
+                    <th data-field="actions" data-sortable="false" data-searchable="false" data-align="right" data-halign="right">{{ trans('table.actions') }}</th>
                 @endcan
+                <th data-field="activity_type" data-visible="false" data-searchable="false">{{ trans('admin/consumables/general.activity_col_type') }}</th>
             </tr>
         </thead>
         <tbody>
         @foreach ($activity as $row)
             @if ($row->kind === 'transaction')
                 @php $txn = $row->txn; @endphp
-                <tr data-activity-type="transaction">
-                    <td data-sort="{{ optional($txn->transaction_date)->timestamp }}">{{ $txn->transaction_date?->format('Y-m-d') }}</td>
+                <tr>
+                    <td data-value="{{ optional($txn->transaction_date)->format('Y-m-d') }}">{{ $txn->transaction_date?->format('Y-m-d') }}</td>
                     <td><span class="label label-primary">{{ trans('admin/consumables/general.activity_type_transaction') }}</span></td>
                     <td>@if ($txn->adminuser){!! $txn->adminuser->present()->nameUrl() !!}@endif</td>
                     <td>
@@ -70,7 +77,7 @@
                         @endif
                     </td>
                     <td class="text-right">{{ $txn->quantity }}</td>
-                    <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($txn->total_cost) }}</td>
+                    <td class="text-right" data-value="{{ $txn->total_cost }}">{{ \App\Helpers\Helper::formatCurrencyOutput($txn->total_cost) }}</td>
                     <td>{{ $txn->gl_code }}</td>
                     <td>{{ $txn->fiscal_year }}</td>
                     <td>{{ ucfirst($txn->status) }}</td>
@@ -93,14 +100,15 @@
                             </form>
                         </td>
                     @endcan
+                    <td>transaction</td>
                 </tr>
             @else
                 @php
                     $log = $row->log;
                     $targetPresenter = $log->target ? $log->target->present() : null;
                 @endphp
-                <tr data-activity-type="history">
-                    <td data-sort="{{ optional($log->created_at)->timestamp }}">{{ $log->created_at?->format('Y-m-d H:i') }}</td>
+                <tr>
+                    <td data-value="{{ optional($log->created_at)->format('Y-m-d H:i') }}">{{ $log->created_at?->format('Y-m-d H:i') }}</td>
                     <td><span class="label label-default">{{ trans('admin/consumables/general.activity_type_history') }}</span></td>
                     <td>@if ($log->adminuser){!! $log->adminuser->present()->nameUrl() !!}@endif</td>
                     <td>
@@ -115,34 +123,17 @@
                         @endif
                     </td>
                     <td class="text-right">{{ $log->quantity ?: '' }}</td>
-                    <td class="text-right"></td>
+                    <td class="text-right" data-value=""></td>
                     <td></td>
                     <td></td>
                     <td></td>
                     @can('update', $consumable)
                         <td class="text-right"></td>
                     @endcan
+                    <td>history</td>
                 </tr>
             @endif
         @endforeach
         </tbody>
     </table>
 @endif
-
-<script nonce="{{ csrf_token() }}">
-(function () {
-    var group = document.querySelector('[data-activity-filter]');
-    var table = document.getElementById('consumable-activity-table');
-    if (!group || !table) { return; }
-    group.addEventListener('click', function (e) {
-        var btn = e.target.closest('button[data-filter]');
-        if (!btn) { return; }
-        var filter = btn.getAttribute('data-filter');
-        group.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b === btn); });
-        table.querySelectorAll('tbody tr').forEach(function (tr) {
-            var type = tr.getAttribute('data-activity-type');
-            tr.style.display = (filter === 'all' || filter === type) ? '' : 'none';
-        });
-    });
-})();
-</script>

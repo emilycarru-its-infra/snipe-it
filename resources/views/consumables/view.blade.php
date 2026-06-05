@@ -101,5 +101,42 @@
     @endcan
 
     @include ('partials.bootstrap-table', ['exportFile' => 'consumable-' . $consumable->name . '-export', 'search' => false])
+
+    {{-- Drive the merged Activity table client-side: ingest the server-rendered
+         DOM rows so we keep search / sort / pagination / column toggle / CSV
+         export, and route the Type filter through bootstrap-table's filterBy so
+         it composes with the rest. Deliberately NOT a .snipe-table, so snipe's
+         own ajax-table init leaves it alone. --}}
+    <script nonce="{{ csrf_token() }}">
+        $(function () {
+            var $table = $('#consumable-activity-table');
+            if (!$table.length || !$.fn.bootstrapTable) { return; }
+
+            $table.bootstrapTable({
+                search: true,
+                pagination: true,
+                pageSize: 20,
+                pageList: [10, 20, 50, 100, 'All'],
+                sortName: 'when',
+                sortOrder: 'desc',
+                showColumns: true,
+                showExport: true,
+                exportDataType: 'all',
+                exportTypes: ['csv'],
+                exportOptions: { fileName: 'consumable-{{ \Illuminate\Support\Str::slug($consumable->name) }}-activity-' + new Date().toISOString().slice(0, 10) },
+                escape: false,
+                onPostBody: function () {
+                    $table.closest('.tab-pane').find('[data-tooltip="true"]').tooltip();
+                }
+            });
+
+            $('[data-activity-filter]').on('click', 'button[data-filter]', function () {
+                var filter = this.getAttribute('data-filter');
+                $('[data-activity-filter] button').removeClass('active');
+                $(this).addClass('active');
+                $table.bootstrapTable('filterBy', filter === 'all' ? {} : { activity_type: filter });
+            });
+        });
+    </script>
 @endsection
 
