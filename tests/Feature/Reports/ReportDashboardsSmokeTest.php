@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reports;
 
+use App\Models\Asset;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -48,6 +49,11 @@ class ReportDashboardsSmokeTest extends TestCase
 
     public function test_fleet_health_dashboard_renders()
     {
+        // Seed an asset with a purchase_date so the age-histogram path runs —
+        // it computes asset age via Carbon and would 500 on a removed method
+        // (floatDiffInYears) that the empty-data render never reaches.
+        Asset::factory()->create(['purchase_date' => now()->subYears(3)->toDateString()]);
+
         $this->actingAs($this->superuser())
             ->get(route('reports.fleet-health'))
             ->assertOk();
