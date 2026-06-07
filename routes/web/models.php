@@ -29,12 +29,12 @@ Route::group(['prefix' => 'models', 'middleware' => ['auth']], function () {
         ]
     )->name('models.clone.store')->withTrashed();
 
+    // Legacy detail URL — the old getView action was modernised to the
+    // resourceful show(). Redirect so old links/bookmarks keep working
+    // instead of 500-ing on a missing controller method.
     Route::get(
         '{modelId}/view',
-        [
-            AssetModelsController::class, 
-            'getView'
-        ]
+        fn ($modelId) => redirect()->route('models.show', $modelId)
     )->name('view/model');
 
     Route::post(
