@@ -4,8 +4,17 @@
 {{-- Page content --}}
 @section('content')
 
+    {{-- Whether to render the local username/password form. The controller only
+         sets this true when SAML isn't the required path, or for the ?nosaml
+         super-admin bypass. Default defensively for any other render path. --}}
+    @php $showLocalLogin = $showLocalLogin ?? ! config('app.require_saml'); @endphp
+
     <form role="form" action="{{ url('/login') }}" method="POST" autocomplete="{{ (config('auth.login_autocomplete') === true) ? 'on' : 'off'  }}">
         <input type="hidden" name="_token" value="{{ csrf_token() }}" />
+        @if (request()->has('nosaml'))
+            {{-- Preserve the super-admin bypass through the POST so local login is allowed. --}}
+            <input type="hidden" name="nosaml" value="1">
+        @endif
 
 
         <!-- this is a hack to prevent Chrome from trying to autocomplete fields -->
@@ -49,7 +58,7 @@
                                 <!-- Notifications -->
                                 @include('notifications')
 
-                                @if (!config('app.require_saml'))
+                                @if ($showLocalLogin)
                                 <div class="col-md-12">
                                     <!-- CSRF Token -->
 
@@ -93,7 +102,7 @@
                                 @endif
                             </div> <!-- end row -->
 
-                            @if (!config('app.require_saml') && $snipeSettings->saml_enabled)
+                            @if ($showLocalLogin && $snipeSettings->saml_enabled)
                             <div class="row">
                                 <div class="text-right col-md-12">
                                     <a href="{{ route('saml.login')  }}">{{ trans('auth/general.saml_login')  }}</a>
@@ -102,7 +111,7 @@
                             @endif
                         </div>
                         <div class="box-footer">
-                            @if (config('app.require_saml'))
+                            @if (!$showLocalLogin)
                                 <a class="btn btn-primary btn-block" href="{{ route('saml.login')  }}">{{ trans('auth/general.saml_login')  }}</a>
                             @else
                                 <button class="btn btn-primary btn-block" type="submit" id="submit">
@@ -114,7 +123,7 @@
                                 <div class="col-md-12 text-right" style="padding-top: 15px;">
                                     <a href="{{ $snipeSettings->custom_forgot_pass_url  }}" rel="noopener">{{ trans('auth/general.forgot_password')  }}</a>
                                 </div>
-                            @elseif (!config('app.require_saml'))
+                            @elseif ($showLocalLogin)
                                 <div class="col-md-12 text-right" style="padding-top: 15px;">
                                     <a href="{{ route('password.request')  }}">{{ trans('auth/general.forgot_password')  }}</a>
                                 </div>
