@@ -232,7 +232,12 @@ class Handler extends ExceptionHandler
     {
 
         $this->reportable(function (Throwable $e) {
-            //
+            // Ship unhandled exceptions to Sentry when a DSN is configured.
+            // No DSN (the default) => inert, exactly like the bundled Rollbar
+            // integration is token-gated. Set SENTRY_LARAVEL_DSN to activate.
+            if (config('sentry.dsn') && app()->bound('sentry')) {
+                app('sentry')->captureException($e);
+            }
         });
     }
 }
