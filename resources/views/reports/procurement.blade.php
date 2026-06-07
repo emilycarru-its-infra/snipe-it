@@ -37,9 +37,13 @@
                     <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalBudget) }}</h3>
                     <p>
                         {{ trans('admin/purchase-orders/general.card_budget') }}
-                        @can('budget_allocations.manage')
-                            &middot; {{ $allocations->count() }} {{ trans('admin/budget-allocations/general.allocations') }}
-                        @endcan
+                        @if (! $budgetFromAllocations)
+                            &middot; {{ trans('admin/purchase-orders/general.card_budget_from_pos') }}
+                        @else
+                            @can('budget_allocations.manage')
+                                &middot; {{ $allocations->count() }} {{ trans('admin/budget-allocations/general.allocations') }}
+                            @endcan
+                        @endif
                     </p>
                 </div>
                 <div class="icon"><i class="fas fa-wallet" aria-hidden="true"></i></div>
@@ -209,114 +213,85 @@
 
 <div class="row">
     <div class="col-md-12">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.reports') }}</h3>
-            </div>
-            <div class="box-body">
-                <p class="text-muted">{{ trans('admin/purchase-orders/general.reports_intro') }}</p>
-
-                @php
-                    $hiddenReports = (array) (auth()->user()?->hidden_procurement_reports ?? []);
-
-                    // Reports that honour the dashboard's fiscal-year scope.
-                    // Each report's route name is added here as it gains FY
-                    // filtering, so the dashboard carries the current
-                    // selection into it (and only into it — reports that
-                    // read fiscal_year with other semantics are left alone).
-                    $fyReports = [
-                        'reports.procurement.po-budget',
-                        'reports.procurement.invoices',
-                        'reports.procurement.capital',
-                        'reports.procurement.forecast',
-                        'reports.procurement.leases-operational',
-                        'reports.procurement.leases-financial',
-                        'reports.procurement.csi-schedule',
-                        'reports.procurement.invoice-approval',
-                        'reports.procurement.lease-decisions',
-                        'reports.procurement.po-disposition',
-                        'reports.procurement.extension-watch',
-                        'reports.procurement.aro-register',
-                        'reports.procurement.asset-lease-detail',
-                        'reports.procurement.po-drilldown',
-                        'reports.procurement.disposition-grid',
-                        'reports.procurement.credit-ledger',
-                        'reports.procurement.lessor-breakdown',
-                        'reports.procurement.pst-applicability',
-                        'reports.procurement.user-agreement-ledger',
-                        'reports.procurement.schedule-signing',
-                    ];
-                    $fyParam = $selectedFy ?? 'all';
-                    $linkParams = fn ($route) => in_array($route, $fyReports, true)
-                        ? ['fiscal_year' => $fyParam]
-                        : [];
-                @endphp
-
-                @if (! empty($hiddenReports))
-                    <p>
-                        <a href="#" id="show-all-procurement-reports">
-                            <i class="fa-solid fa-eye" aria-hidden="true"></i>
-                            {{ trans('admin/purchase-orders/general.reports_hidden_count', ['count' => count($hiddenReports)]) }}
-                        </a>
-                    </p>
-                @endif
-
-                <table class="table table-striped">
-                    <tbody>
-                    @foreach (collect([
-                        ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'live' => true],
-                        ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'live' => true],
-                        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'live' => true],
-                        ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'live' => true],
-                        ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc', 'live' => true],
-                        ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc', 'live' => true],
-                        ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc', 'live' => true],
-                        ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc', 'live' => true],
-                        ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc', 'live' => true],
-                        ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'live' => true],
-                        ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc', 'live' => true],
-                        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'live' => true],
-                        ['route' => 'reports.procurement.asset-lease-detail', 'name' => 'report_asset_lease_detail', 'desc' => 'report_asset_lease_detail_desc', 'live' => true],
-                        ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc', 'live' => true],
-                        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'live' => true],
-                        ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'live' => true],
-                        ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc', 'live' => true],
-                        ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'live' => true],
-                        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc', 'live' => true],
-                        ['route' => 'reports.procurement.gl-transfer', 'name' => 'report_gl_transfer', 'desc' => 'report_gl_transfer_desc', 'live' => true],
-                        ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc', 'live' => true],
-                    ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true)) as $report)
-                        <tr>
-                            <td>
-                                @if ($report['live'])
-                                    <strong><a href="{{ route($report['route'], $linkParams($report['route'])) }}">{{ trans('admin/purchase-orders/general.'.$report['name']) }}</a></strong>
-                                @else
-                                    <strong>{{ trans('admin/purchase-orders/general.'.$report['name']) }}</strong>
-                                @endif
-                                <br>
-                                <span class="text-muted">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</span>
-                            </td>
-                            <td class="text-right" style="vertical-align:middle; white-space:nowrap">
-                                @if ($report['live'])
-                                    <a href="{{ route($report['route'], $linkParams($report['route'])) }}" class="btn btn-sm btn-primary">
-                                        <x-icon type="reports" /> {{ trans('general.view') }}
-                                    </a>
-                                @endif
-                                <a href="{{ route($report['route'], array_merge(['format' => 'csv'], $linkParams($report['route']))) }}" class="btn btn-sm btn-default">
-                                    <x-icon type="download" /> {{ trans('general.download') }}
-                                </a>
-                                <a href="#" class="btn btn-sm btn-default text-muted hide-procurement-report"
-                                   data-report="{{ $report['name'] }}"
-                                   data-tooltip="true" title="{{ trans('admin/purchase-orders/general.report_hide') }}">
-                                    <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
-                                </a>
-                            </td>
-                        </tr>
-                    @endforeach
-                    </tbody>
-                </table>
-            </div>
+        <div class="box-header with-border" style="padding-left:0;">
+            <h3 class="box-title">{{ trans('admin/purchase-orders/general.reports') }}</h3>
         </div>
+        <p class="text-muted">{{ trans('admin/purchase-orders/general.reports_intro') }}</p>
+
+        @php
+            $hiddenReports = (array) (auth()->user()?->hidden_procurement_reports ?? []);
+
+            // Fiscal-year scope is global and sticky (session-backed), so it's
+            // safe to carry the current selection onto every report link;
+            // reports that read fiscal_year with other semantics ignore it.
+            $fyParam = $selectedFy ?? 'all';
+            $reportLink = fn ($route, $extra = []) => route($route, array_merge(['fiscal_year' => $fyParam], $extra));
+        @endphp
+
+        @if (! empty($hiddenReports))
+            <p>
+                <a href="#" id="show-all-procurement-reports">
+                    <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                    {{ trans('admin/purchase-orders/general.reports_hidden_count', ['count' => count($hiddenReports)]) }}
+                </a>
+            </p>
+        @endif
+
+        @foreach (collect([
+            ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc'],
+            ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc'],
+            ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc'],
+            ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc'],
+            ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc'],
+            ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc'],
+            ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc'],
+            ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc'],
+            ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc'],
+            ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc'],
+            ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc'],
+            ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc'],
+            ['route' => 'reports.procurement.asset-lease-detail', 'name' => 'report_asset_lease_detail', 'desc' => 'report_asset_lease_detail_desc'],
+            ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc'],
+            ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc'],
+            ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc'],
+            ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc'],
+            ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc'],
+            ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc'],
+            ['route' => 'reports.procurement.gl-transfer', 'name' => 'report_gl_transfer', 'desc' => 'report_gl_transfer_desc'],
+            ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc'],
+        ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true)) as $report)
+            <div class="box box-default">
+                <div class="box-header with-border">
+                    <h3 class="box-title">
+                        <a href="{{ $reportLink($report['route']) }}">{{ trans('admin/purchase-orders/general.'.$report['name']) }}</a>
+                    </h3>
+                    <div class="box-tools pull-right">
+                        <a href="{{ $reportLink($report['route']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.view') }}">
+                            <x-icon type="reports" />
+                        </a>
+                        <a href="{{ $reportLink($report['route'], ['format' => 'csv']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.download') }}">
+                            <x-icon type="download" />
+                        </a>
+                        <a href="#" class="btn btn-box-tool hide-procurement-report"
+                           data-report="{{ $report['name'] }}"
+                           data-tooltip="true" title="{{ trans('admin/purchase-orders/general.report_hide') }}">
+                            <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+                        </a>
+                        <button type="button" class="btn btn-box-tool" data-widget="collapse" data-tooltip="true" title="{{ trans('general.collapse') }}">
+                            <i class="fa fa-minus" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <p class="text-muted">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</p>
+                    <div class="proc-report-body" data-embed-url="{{ $reportLink($report['route'], ['embed' => 1]) }}">
+                        <div class="text-center text-muted" style="padding:18px;">
+                            <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endforeach
     </div>
 </div>
 
@@ -446,6 +421,33 @@
                 save([]);
             });
         }
+    })();
+
+    // Lazy-load each report's table inline. Loaded one at a time (rather than
+    // ~20 parallel queries) so heavy reports don't stampede the server; each
+    // section fills in as it arrives.
+    (function () {
+        var pending = Array.prototype.slice.call(
+            document.querySelectorAll('.proc-report-body[data-embed-url]')
+        );
+
+        function loadNext() {
+            var el = pending.shift();
+            if (! el) { return; }
+
+            fetch(el.dataset.embedUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                .then(function (resp) {
+                    if (! resp.ok) { throw new Error('HTTP ' + resp.status); }
+                    return resp.text();
+                })
+                .then(function (html) { el.innerHTML = html; })
+                .catch(function () {
+                    el.innerHTML = '<p class="text-danger">' + @json(trans('general.something_went_wrong')) + '</p>';
+                })
+                .then(loadNext);
+        }
+
+        loadNext();
     })();
 </script>
 @stop

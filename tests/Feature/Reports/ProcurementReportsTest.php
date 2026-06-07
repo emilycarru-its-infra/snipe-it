@@ -536,6 +536,9 @@ class ProcurementReportsTest extends TestCase
             'asset_tag' => 'LEASE-FIN-1',
             'status_id' => $active->id,
             'purchase_cost' => 1000.00,
+            // The CDW order lives on the asset itself (source of truth); the
+            // report reads it from here, falling back to the linked order.
+            'order_number' => 'PMCN-FIN-1',
         ]);
         Asset::query()->whereKey($asset->id)->update([$contractColumn => '301452-003']);
 

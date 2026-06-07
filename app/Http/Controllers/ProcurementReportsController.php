@@ -47,7 +47,21 @@ class ProcurementReportsController extends Controller
         // to its report links so the scope follows the reader through (the
         // reports themselves default to all-years on a direct visit).
         $allFiscalYears = $this->availableFiscalYears();
-        $selectedFy = $this->resolveFiscalYear($request, true);
+        $selectedFy = $this->resolveFiscalYear($request);
+
+        // First visit with no chosen scope: open the dashboard on the most
+        // recent fiscal year that actually holds committed spend (not the
+        // calendar-current year, which is empty early in a fiscal year), and
+        // persist it so every inline report and sub-report follows the same
+        // global scope. An explicit `?fiscal_year=all` opts out.
+        if ($selectedFy === null
+            && $request->query('fiscal_year') === null
+            && ! $request->session()->has('procurement.fiscal_year')) {
+            $selectedFy = $this->defaultFiscalYear($allFiscalYears);
+            if ($selectedFy !== null) {
+                $request->session()->put('procurement.fiscal_year', $selectedFy);
+            }
+        }
 
         $purchaseOrders = PurchaseOrder::when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
             ->orderBy('po_number')
@@ -85,6 +99,15 @@ class ProcurementReportsController extends Controller
             ->orderBy('created_at');
         $allocations = $allocationsQuery->get();
         $totalBudget = (float) $allocations->sum('amount');
+
+        // Fall back to the sum of per-PO budgets when nothing has been booked
+        // into the allocation ledger yet, so Approved Budget, Remaining and the
+        // utilisation donut render against a real figure instead of $0 (which
+        // otherwise drives Remaining to a misleading large negative).
+        $budgetFromAllocations = $totalBudget > 0.0;
+        if (! $budgetFromAllocations) {
+            $totalBudget = (float) $purchaseOrders->sum(fn ($po) => (float) $po->budget);
+        }
 
         // Planned (forecast) spend, grouped by the planned order's fiscal year.
         $plannedByFy = [];
@@ -170,6 +193,7 @@ class ProcurementReportsController extends Controller
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
             'totalBudget' => $totalBudget,
+            'budgetFromAllocations' => $budgetFromAllocations,
             'totalCommitted' => $totalCommitted,
             'totalInvoiced' => $totalInvoiced,
             'totalRemaining' => $totalBudget - $totalCommitted,
@@ -258,6 +282,10 @@ class ProcurementReportsController extends Controller
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('refresh-forecast-report', $report);
+        }
+
+        if ($request->boolean('embed')) {
+            return $this->embedTable($report);
         }
 
         return view('reports/procurement/forecast', [
@@ -423,6 +451,10 @@ class ProcurementReportsController extends Controller
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('user-agreement-ledger', $report);
+        }
+
+        if ($request->boolean('embed')) {
+            return $this->embedTable($report);
         }
 
         // FY scopes by the agreement's origination (created_at) — when the
@@ -1193,6 +1225,7 @@ class ProcurementReportsController extends Controller
             'area' => 'Area',
             'decommission_date' => 'Decommission Date',
             'book_value' => 'Book Value',
+            'po_number' => 'PO Number',
         ];
 
         $columns = [];
@@ -1228,6 +1261,23 @@ class ProcurementReportsController extends Controller
     private function contractProvider(string $contractId): string
     {
         return str_starts_with($contractId, '301452-') ? 'CSI Leasing' : 'Macquarie';
+    }
+
+    /**
+     * Extract a CSI schedule reference (`301452-008`) from the asset's
+     * "PO Number" field. The 007/008 acquisitions were filed with the
+     * schedule in that field and an empty Lease Contract ID, so this is the
+     * fallback that keeps them in the lease rollups. Values like
+     * `301452-008-041426` collapse to `301452-008`; anything else (a
+     * university PO such as `P0025420`, or blank) yields null.
+     */
+    private function scheduleFromPoField(?string $value): ?string
+    {
+        if ($value && preg_match('/^(301452-\d{3})/', trim($value), $m)) {
+            return $m[1];
+        }
+
+        return null;
     }
 
     /**
@@ -1336,6 +1386,7 @@ class ProcurementReportsController extends Controller
     {
         $columns = $this->leaseFieldColumns();
         $contractIdColumn = $columns['contract_id'];
+        $poNumberColumn = $columns['po_number'];
 
         if (! $contractIdColumn) {
             return [];
@@ -1345,10 +1396,18 @@ class ProcurementReportsController extends Controller
         // its assets were bought in (003-006 → FY2025-26, 007/008 → FY2026-27,
         // and so on, two schedules per quarter). purchase_date stands in for
         // the schedule's open quarter until the lessor finalises it.
+        //
+        // Pull assets that carry a Lease Contract ID *or* a CSI schedule
+        // parked in the PO Number field (the 007/008 acquisitions), so the
+        // latter aren't silently dropped from the lease rollups.
         $assets = $this->scopeDateToFiscalYear(
             Asset::with('model', 'status')
-                ->whereNotNull($contractIdColumn)
-                ->where($contractIdColumn, '!=', ''),
+                ->where(function ($q) use ($contractIdColumn, $poNumberColumn) {
+                    $q->where(fn ($w) => $w->whereNotNull($contractIdColumn)->where($contractIdColumn, '!=', ''));
+                    if ($poNumberColumn) {
+                        $q->orWhere($poNumberColumn, 'like', '301452-%');
+                    }
+                }),
             $fy,
             'purchase_date'
         )->get();
@@ -1356,6 +1415,12 @@ class ProcurementReportsController extends Controller
         $groups = [];
         foreach ($assets as $asset) {
             $contractId = $asset->{$contractIdColumn};
+
+            // Fall back to a CSI schedule sitting in the PO Number field when
+            // the Lease Contract ID is blank/invalid (007/008 data drift).
+            if (! $this->isValidContractId($contractId) && $poNumberColumn) {
+                $contractId = $this->scheduleFromPoField($asset->{$poNumberColumn});
+            }
             if (! $this->isValidContractId($contractId)) {
                 continue;
             }
@@ -1523,9 +1588,12 @@ class ProcurementReportsController extends Controller
         ];
 
         $groups = $this->groupedLeaseAssets($fy);
+        $poNumberColumn = $this->leaseFieldColumns()['po_number'];
 
-        // Fetch every order item that lines up to a lease asset in one query,
-        // keyed by asset id, so the per-contract loop stays O(assets).
+        // Order items are the transition fallback for assets whose own PO /
+        // CDW fields aren't populated yet, and the current home for
+        // warranty/soft cost (which moves onto the asset source in a later
+        // pass). Keyed by asset id so the per-contract loop stays O(assets).
         $assetIds = collect($groups)
             ->flatMap(fn ($g) => collect($g['assets'])->pluck('id'))
             ->all();
@@ -1547,13 +1615,31 @@ class ProcurementReportsController extends Controller
             $cdwOrders = [];
 
             foreach ($group['assets'] as $asset) {
-                foreach ($orderItemsByAsset->get($asset->id, collect()) as $item) {
-                    $warrantyCost += (float) $item->warranty_cost;
-                    if ($poNum = $item->order?->purchaseOrder?->po_number) {
-                        $poNumbers[$poNum] = true;
+                $items = $orderItemsByAsset->get($asset->id, collect());
+                $warrantyCost += (float) $items->sum('warranty_cost');
+
+                // PO: prefer the university PO on the asset's own "PO Number"
+                // field; fall back to the order item's purchase order.
+                $assetPo = $poNumberColumn ? trim((string) $asset->{$poNumberColumn}) : '';
+                if (str_starts_with($assetPo, 'P00')) {
+                    $poNumbers[$assetPo] = true;
+                } else {
+                    foreach ($items as $item) {
+                        if ($poNum = $item->order?->purchaseOrder?->po_number) {
+                            $poNumbers[$poNum] = true;
+                        }
                     }
-                    if ($orderNum = $item->order?->order_number) {
-                        $cdwOrders[$orderNum] = true;
+                }
+
+                // CDW order: prefer the asset's native order_number; fall back
+                // to the linked order's number.
+                if ($cdw = trim((string) $asset->order_number)) {
+                    $cdwOrders[$cdw] = true;
+                } else {
+                    foreach ($items as $item) {
+                        if ($orderNum = $item->order?->order_number) {
+                            $cdwOrders[$orderNum] = true;
+                        }
                     }
                 }
             }
@@ -3012,6 +3098,12 @@ class ProcurementReportsController extends Controller
             return $this->streamReportCsv($filename, $report);
         }
 
+        // Embed mode returns just the table (no page chrome) so the
+        // procurement dashboard can lazy-load every report inline.
+        if ($request->boolean('embed')) {
+            return $this->embedTable($report);
+        }
+
         // When the report honours the fiscal-year scope, keep it on the
         // download link and feed the inline FY selector so the dashboard's
         // selection stays put as the reader pivots and exports.
@@ -3032,6 +3124,20 @@ class ProcurementReportsController extends Controller
             'fyFilterable' => $fyFilterable,
             'selectedFy' => $selectedFy,
             'allFiscalYears' => $fyFilterable ? $this->availableFiscalYears() : collect(),
+        ]);
+    }
+
+    /**
+     * Render just a report's table (no page layout) for inline embedding on
+     * the procurement dashboard. Takes the uniform builder shape and feeds
+     * the shared `_report-table` partial.
+     */
+    private function embedTable(array $report)
+    {
+        return view('reports/procurement/_report-table', [
+            'columns' => $report['columns'],
+            'rows'    => $report['records'],
+            'footer'  => $report['footer'] ?? null,
         ]);
     }
 
@@ -3112,39 +3218,71 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Resolve the fiscal year a report should scope to from the request.
-     * Mirrors the dashboard exactly so the selection carries through: no
-     * `?fiscal_year` defaults to the current FY when it holds data;
-     * `?fiscal_year=all` is the cross-year opt-out; an unknown value falls
-     * back to current FY. Returns a canonical FY string, or null for "all".
+     * Resolve the fiscal-year scope for any procurement report. The scope is
+     * GLOBAL and sticky: an explicit `?fiscal_year` both scopes this request
+     * and persists in the session, so the selection follows the reader across
+     * the dashboard and every sub-report (deep links included) with no
+     * per-link plumbing. Precedence:
+     *   1. `?fiscal_year=<fy>`  — scope + persist
+     *   2. `?fiscal_year=all`   — cross-year opt-out + persist
+     *   3. session              — the last sticky selection
+     *   4. none                 — all years (the dashboard seeds an opening
+     *                             default into the session; see index())
+     * Returns a canonical FY string, or null for "all years".
      */
-    private function resolveFiscalYear(Request $request, bool $defaultToCurrent = false): ?string
+    private function resolveFiscalYear(Request $request): ?string
     {
         $available = $this->availableFiscalYears();
         $raw = $request->query('fiscal_year');
 
-        if ($raw === 'all') {
-            return null;
-        }
-
         if ($raw !== null) {
+            if ($raw === 'all') {
+                $request->session()->put('procurement.fiscal_year', 'all');
+
+                return null;
+            }
+
             $normalized = $this->normalizeFy($raw);
             if ($normalized && $available->contains($normalized)) {
+                $request->session()->put('procurement.fiscal_year', $normalized);
+
                 return $normalized;
             }
         }
 
-        // No (or unrecognised) selection. The dashboard opens on the current
-        // FY when it holds data ($defaultToCurrent); sub-reports stay
-        // all-years so a direct visit shows everything — the dashboard's pick
-        // still reaches them through the fiscal_year it appends to its links.
-        if ($defaultToCurrent) {
-            $current = Helper::currentFiscalYear();
-
-            return $available->contains($current) ? $current : null;
+        // No selection this request — reuse the sticky session scope. With no
+        // session either, fall through to all-years; the dashboard establishes
+        // the opening default (latest FY with spend) and persists it so the
+        // scope still flows to every report from there.
+        $stored = $request->session()->get('procurement.fiscal_year');
+        if ($stored === 'all') {
+            return null;
+        }
+        if ($stored !== null && $available->contains($stored)) {
+            return $stored;
         }
 
         return null;
+    }
+
+    /**
+     * The most recent fiscal year carrying committed spend — the opening
+     * scope before the reader picks one. Falls back to the latest available
+     * FY, then null (all-years) when there's no procurement data at all.
+     */
+    private function defaultFiscalYear(\Illuminate\Support\Collection $available): ?string
+    {
+        foreach ($available->sortDesc()->values() as $fy) {
+            $hasCommitted = PurchaseOrder::where('fiscal_year', $fy)
+                ->get()
+                ->contains(fn ($po) => $po->committedTotalForFy($fy) > 0);
+
+            if ($hasCommitted) {
+                return $fy;
+            }
+        }
+
+        return $available->last();
     }
 
     /**

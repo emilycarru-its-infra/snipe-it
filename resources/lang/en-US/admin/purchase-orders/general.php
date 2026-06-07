@@ -61,6 +61,7 @@ return [
     'forecast_none_selected' => 'Select at least one device without an existing planned replacement.',
     'dashboard_title' => 'Procurement Dashboard',
     'card_budget' => 'Approved Budget',
+    'card_budget_from_pos' => 'from PO budgets (no allocation set)',
     'card_committed' => 'Committed',
     'card_remaining' => 'Remaining',
     'card_invoiced' => 'Invoiced',
