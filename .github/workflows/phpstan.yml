@@ -1,0 +1,54 @@
+name: Static analysis (PHPStan)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  phpstan:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version:
+          - "8.4"
+
+    name: PHPStan (PHP ${{ matrix.php-version }})
+
+    steps:
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "${{ matrix.php-version }}"
+          coverage: none
+
+      - uses: actions/checkout@v6
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-${{ matrix.php-version }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Cache vendor directory
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: ${{ runner.os }}-${{ matrix.php-version }}-vendor-${{ hashFiles('**/composer.lock') }}
+
+      - name: Install Dependencies
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+
+      - name: Copy .env
+        run: cp -v .env.testing.example .env
+
+      - name: Run PHPStan
+        run: composer analyse -- --no-progress --error-format=github
