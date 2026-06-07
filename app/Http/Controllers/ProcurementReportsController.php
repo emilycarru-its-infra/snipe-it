@@ -72,9 +72,13 @@ class ProcurementReportsController extends Controller
         $totalInvoiced = 0.0;
         $committedByFy = [];
 
+        // Committed is sourced from the asset records (equipment + warranty),
+        // not the order-item import — see assetCommittedByPo().
+        $assetCommitted = $this->assetCommittedByPo($selectedFy);
+
         foreach ($purchaseOrders as $po) {
             $budget = (float) $po->budget;
-            $committed = $po->committedTotal();
+            $committed = $assetCommitted[$po->po_number] ?? 0.0;
 
             $totalCommitted += $committed;
             $totalInvoiced += $po->invoicedTotal();
@@ -819,13 +823,17 @@ class ProcurementReportsController extends Controller
         $records = [];
         $totalBudget = $totalInvoiced = $totalCommitted = $totalRemaining = $totalOrders = 0.0;
 
+        // Committed is sourced from the asset records (equipment + warranty),
+        // FY-scoped by acquisition date — see assetCommittedByPo().
+        $assetCommitted = $this->assetCommittedByPo($fy);
+
         foreach ($purchaseOrders as $po) {
-            // Spend is FY-scoped by order; budget stays the PO's annual
-            // figure. For a blanket PO viewed outside its home FY the
+            // Spend is FY-scoped by acquisition date; budget stays the PO's
+            // annual figure. For a blanket PO viewed outside its home FY the
             // remaining column reads against that annual budget — the
             // per-FY budget split lands with the carry-over work.
             $invoiced = $po->invoicedTotalForFy($fy);
-            $committed = $po->committedTotalForFy($fy);
+            $committed = $assetCommitted[$po->po_number] ?? 0.0;
             $remaining = $po->budget === null ? null : (float) $po->budget - $committed;
             $overBudget = $po->budget !== null && $committed > (float) $po->budget;
             $orderCount = $fy ? $po->orders->where('fiscal_year', $fy)->count() : $po->orders->count();
@@ -1064,10 +1072,13 @@ class ProcurementReportsController extends Controller
         $records = [];
         $totalBudget = $totalCommitted = $totalPlanned = 0.0;
 
+        // Committed is sourced from the asset records — see assetCommittedByPo().
+        $assetCommitted = $this->assetCommittedByPo($fy);
+
         foreach ($groups as $key => $group) {
             [$fiscalYear, $costCenter] = explode('||', $key);
             $budget = $group->sum(fn ($po) => (float) $po->budget);
-            $committed = $group->sum(fn ($po) => $po->committedTotalForFy($fy));
+            $committed = $group->sum(fn ($po) => $assetCommitted[$po->po_number] ?? 0.0);
             $totalBudget += $budget;
             $totalCommitted += $committed;
 
@@ -1226,6 +1237,7 @@ class ProcurementReportsController extends Controller
             'decommission_date' => 'Decommission Date',
             'book_value' => 'Book Value',
             'po_number' => 'PO Number',
+            'warranty_cost' => 'Warranty/Soft Cost',
         ];
 
         $columns = [];
@@ -1278,6 +1290,46 @@ class ProcurementReportsController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Committed spend per university purchase order, computed from the ASSET
+     * source of truth: each device's purchase_cost (equipment) plus its
+     * Warranty/Soft Cost field, grouped by the university PO carried on the
+     * asset's "PO Number" field, scoped to a fiscal year by purchase_date.
+     *
+     * This is what makes committed reconcile to the real, received fleet
+     * instead of the drifted order-item import. Outstanding (not-yet-shipped)
+     * orders have no asset, so they fall to the Orders model rather than
+     * inflating committed. Returns [po_number => committed_total].
+     */
+    private function assetCommittedByPo(?string $fy = null): array
+    {
+        $columns = $this->leaseFieldColumns();
+        $poColumn = $columns['po_number'];
+        $warrantyColumn = $columns['warranty_cost'] ?? null;
+
+        if (! $poColumn) {
+            return [];
+        }
+
+        // Only assets that carry a university PO (P00…) on their PO Number
+        // field count toward committed; CSI-schedule values (301452-…) and
+        // blanks don't map to a purchase order.
+        $query = Asset::query()->where($poColumn, 'like', 'P00%');
+        $assets = $this->scopeDateToFiscalYear($query, $fy, 'purchase_date')->get();
+
+        $map = [];
+        foreach ($assets as $asset) {
+            $po = trim((string) $asset->{$poColumn});
+            if ($po === '') {
+                continue;
+            }
+            $warranty = $warrantyColumn ? $this->parseMoney($asset->{$warrantyColumn}) : 0.0;
+            $map[$po] = ($map[$po] ?? 0.0) + (float) $asset->purchase_cost + $warranty;
+        }
+
+        return $map;
     }
 
     /**
@@ -1588,12 +1640,13 @@ class ProcurementReportsController extends Controller
         ];
 
         $groups = $this->groupedLeaseAssets($fy);
-        $poNumberColumn = $this->leaseFieldColumns()['po_number'];
+        $columns = $this->leaseFieldColumns();
+        $poNumberColumn = $columns['po_number'];
+        $warrantyColumn = $columns['warranty_cost'] ?? null;
 
         // Order items are the transition fallback for assets whose own PO /
-        // CDW fields aren't populated yet, and the current home for
-        // warranty/soft cost (which moves onto the asset source in a later
-        // pass). Keyed by asset id so the per-contract loop stays O(assets).
+        // CDW / warranty fields aren't populated yet. Keyed by asset id so the
+        // per-contract loop stays O(assets).
         $assetIds = collect($groups)
             ->flatMap(fn ($g) => collect($g['assets'])->pluck('id'))
             ->all();
@@ -1616,7 +1669,11 @@ class ProcurementReportsController extends Controller
 
             foreach ($group['assets'] as $asset) {
                 $items = $orderItemsByAsset->get($asset->id, collect());
-                $warrantyCost += (float) $items->sum('warranty_cost');
+
+                // Warranty: prefer the asset's own Warranty/Soft Cost field;
+                // fall back to the order item until the field is populated.
+                $assetWarranty = $warrantyColumn ? $this->parseMoney($asset->{$warrantyColumn}) : 0.0;
+                $warrantyCost += $assetWarranty > 0 ? $assetWarranty : (float) $items->sum('warranty_cost');
 
                 // PO: prefer the university PO on the asset's own "PO Number"
                 // field; fall back to the order item's purchase order.
@@ -2174,10 +2231,13 @@ class ProcurementReportsController extends Controller
         $records = [];
         $totalBudget = $totalInvoiced = $totalCommitted = 0.0;
 
+        // Committed is sourced from the asset records — see assetCommittedByPo().
+        $assetCommitted = $this->assetCommittedByPo($fy);
+
         foreach ($purchaseOrders as $po) {
             $budget = (float) $po->budget;
             $invoiced = $po->invoicedTotalForFy($fy);
-            $committed = $po->committedTotalForFy($fy);
+            $committed = $assetCommitted[$po->po_number] ?? 0.0;
             $remaining = $budget - $committed;
             $orders = $fy ? $po->orders->where('fiscal_year', $fy) : $po->orders;
             $openOrders = $orders->filter(fn ($o) => ! in_array($o->status, ['received', 'cancelled'], true))->count();
@@ -3273,11 +3333,9 @@ class ProcurementReportsController extends Controller
     private function defaultFiscalYear(\Illuminate\Support\Collection $available): ?string
     {
         foreach ($available->sortDesc()->values() as $fy) {
-            $hasCommitted = PurchaseOrder::where('fiscal_year', $fy)
-                ->get()
-                ->contains(fn ($po) => $po->committedTotalForFy($fy) > 0);
-
-            if ($hasCommitted) {
+            // Asset-sourced committed (equipment + warranty) is the same figure
+            // the dashboard headlines, so the opening year matches what's shown.
+            if (array_sum($this->assetCommittedByPo($fy)) > 0) {
                 return $fy;
             }
         }
