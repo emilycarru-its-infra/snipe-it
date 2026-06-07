@@ -153,7 +153,11 @@ class RouteSmokeTest extends TestCase
         $seed(['consumable', 'consumablesID', 'consumable_id'], fn () => \App\Models\Consumable::factory()->create()->id);
         $seed(['accessory', 'accessoryID', 'accessory_id'], fn () => \App\Models\Accessory::factory()->create()->id);
         $seed(['component', 'componentID'], fn () => \App\Models\Component::factory()->create()->id);
-        $seed(['license', 'licenseId', 'license_id', 'licenseModel'], fn () => \App\Models\License::factory()->create()->id);
+        $seed(['license', 'licenseId', 'license_id'], fn () => \App\Models\License::factory()->create()->id);
+        // licenseModel is a LicenseModel (a license SKU), NOT a License — map it
+        // to a real one so the crawl exercises /license-models/{id} instead of
+        // binding a License id onto an unrelated LicenseModel.
+        $seed(['licenseModel'], fn () => \App\Models\LicenseModel::create(['name' => 'Smoke License Model', 'type_code' => 'SMOKE-LM'])->id);
         $seed(['model', 'modelId', 'model_id'], fn () => \App\Models\AssetModel::factory()->create()->id);
         $seed(['user', 'userId'], fn () => \App\Models\User::factory()->create()->id);
         $seed(['category'], fn () => \App\Models\Category::factory()->create()->id);
