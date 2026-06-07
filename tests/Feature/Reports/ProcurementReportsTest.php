@@ -561,6 +561,37 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('$1,155.70');
     }
 
+    public function test_po_budget_committed_is_sourced_from_assets()
+    {
+        $poField = CustomField::factory()->create(['name' => 'PO Number']);
+        $warrantyField = CustomField::factory()->create(['name' => 'Warranty/Soft Cost']);
+
+        $po = PurchaseOrder::factory()->create([
+            'po_number' => 'P0099001', 'budget' => 10000, 'fiscal_year' => 'FY2025-26',
+        ]);
+
+        // Two devices charged to the PO via the asset "PO Number" field, bought
+        // inside FY2025-26: committed = (1000 + 150 warranty) + (2000 + 0).
+        foreach ([[1000.00, '150.00'], [2000.00, '0.00']] as [$cost, $warranty]) {
+            $asset = Asset::factory()->create(['purchase_cost' => $cost, 'purchase_date' => '2025-06-01']);
+            Asset::query()->whereKey($asset->id)->update([
+                $poField->db_column => 'P0099001',
+                $warrantyField->db_column => $warranty,
+            ]);
+        }
+
+        // A device on the same PO but bought in a different FY must not count.
+        $other = Asset::factory()->create(['purchase_cost' => 5000.00, 'purchase_date' => '2026-06-01']);
+        Asset::query()->whereKey($other->id)->update([$poField->db_column => 'P0099001']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.po-budget', ['fiscal_year' => 'FY2025-26']))
+            ->assertOk()
+            ->assertSee('P0099001')
+            ->assertSee('$3,150.00')   // committed from assets (equipment + warranty)
+            ->assertDontSee('$8,150.00'); // the FY2026-27 device is excluded
+    }
+
     /**
      * Creates a GL transaction row directly (no factory — the model is a
      * plain ledger row populated at checkout time).
