@@ -19,6 +19,7 @@ return [
     'signin' => [
         'error' => 'There was a problem while trying to log you in, please try again.',
         'success' => 'You have successfully logged in.',
+        'account_not_provisioned' => "Your account isn't set up in Assets Inventory yet. Please contact IT to request access.",
     ],
 
     'logout' => [

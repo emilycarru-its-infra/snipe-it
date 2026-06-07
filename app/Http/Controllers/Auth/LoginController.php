@@ -78,7 +78,10 @@ class LoginController extends Controller
         $samlRequired = $this->samlRequired();
 
         if (! $request->session()->has('loggedout') && $samlRequired && ! $samlBypass) {
-            if (! $request->session()->has('error')) {
+            // A flashed error/warning means we just came back from a SAML attempt
+            // (e.g. an un-provisioned user). Render the message instead of
+            // redirecting, so they don't bounce in a loop with the IdP.
+            if (! $request->session()->has('error') && ! $request->session()->has('warning')) {
                 return redirect()->route('saml.login');
             }
         }
@@ -141,7 +144,10 @@ class LoginController extends Controller
                 } else {
                     $username = $saml->getUsername();
                     Log::debug("SAML user '$username' could not be found in database.");
-                    $request->session()->flash('error', trans('auth/message.signin.error'));
+                    // Authenticated with the IdP but not provisioned here — this
+                    // isn't a failure on their part, so flash a calm warning that
+                    // tells them what to do rather than a generic red error.
+                    $request->session()->flash('warning', trans('auth/message.signin.account_not_provisioned'));
                     $saml->clearData();
                 }
 

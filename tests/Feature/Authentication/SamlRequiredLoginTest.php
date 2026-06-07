@@ -66,6 +66,20 @@ class SamlRequiredLoginTest extends TestCase
             ->assertSee(route('saml.login'), false);
     }
 
+    public function test_unprovisioned_user_sees_friendly_message_not_the_form()
+    {
+        config(['app.require_saml' => true]);
+
+        // The unprovisioned-user path flashes a calm 'warning' (not 'error').
+        // It must show the friendly message and the SSO button, never the form.
+        $this->withSession(['warning' => trans('auth/message.signin.account_not_provisioned')])
+            ->get('/login')
+            ->assertOk()
+            ->assertDontSee('id="username"', false)
+            ->assertSee(trans('auth/message.signin.account_not_provisioned'))
+            ->assertSee(route('saml.login'), false);
+    }
+
     public function test_local_login_post_is_denied_without_the_bypass()
     {
         config(['app.require_saml' => true]);
