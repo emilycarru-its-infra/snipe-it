@@ -11,3 +11,9 @@ parameters:
         - resources/views
 
     level: 4
+
+    # With a large baseline, fixing a baselined finding (e.g. the Fleet Health
+    # AssetMaintenance bug fixed on its own branch) leaves its baseline entry
+    # unmatched. Don't fail CI on that — improving code shouldn't require
+    # regenerating the baseline in lockstep. New errors are still caught.
+    reportUnmatchedIgnoredErrors: false
