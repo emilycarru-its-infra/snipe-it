@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Asset;
-use App\Models\AssetMaintenance;
+use App\Models\Maintenance;
 use App\Models\AssetModel;
 use App\Models\Statuslabel;
 use Carbon\Carbon;
@@ -53,7 +53,7 @@ class FleetHealthReportsController extends Controller
             ->whereNotNull('assigned_to')
             ->count();
         $modelsActive    = AssetModel::has('assets')->count();
-        $repairsThisYear = AssetMaintenance::whereYear('created_at', now()->year)->count();
+        $repairsThisYear = Maintenance::whereYear('created_at', now()->year)->count();
 
         return [
             ['label' => trans('admin/reports/general.fleet_card_assets_total'), 'value' => $assetsTotal, 'tone' => 'aqua', 'icon' => 'fa-barcode'],
@@ -159,10 +159,10 @@ class FleetHealthReportsController extends Controller
      */
     private function topRepairModels(int $limit): array
     {
-        $rows = DB::table('asset_maintenances')
-            ->join('assets', 'asset_maintenances.asset_id', '=', 'assets.id')
+        $rows = DB::table('maintenances')
+            ->join('assets', 'maintenances.asset_id', '=', 'assets.id')
             ->join('models', 'assets.model_id', '=', 'models.id')
-            ->whereNull('asset_maintenances.deleted_at')
+            ->whereNull('maintenances.deleted_at')
             ->whereNull('assets.deleted_at')
             ->whereNull('models.deleted_at')
             ->select('models.name', DB::raw('COUNT(*) as repairs'))
