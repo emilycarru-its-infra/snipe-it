@@ -26,6 +26,19 @@ class ReportDashboardsSmokeTest extends TestCase
             ->assertOk();
     }
 
+    public function test_landing_promotes_exhibit_tile_and_demotes_fleet_health()
+    {
+        $this->actingAs($this->superuser())
+            ->get(route('reports.index'))
+            ->assertOk()
+            // Exhibit is a top-row dashboard tile; Fleet Health sits below it
+            // in the standard-reports row.
+            ->assertSeeInOrder([
+                route('reports.exhibit', [], false),
+                route('reports.fleet-health', [], false),
+            ], false);
+    }
+
     public function test_contracts_report_renders()
     {
         $this->actingAs($this->superuser())

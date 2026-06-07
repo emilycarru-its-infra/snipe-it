@@ -36,6 +36,8 @@ return [
     'hub_tile_transactions_help' => 'OneCard / PaperCut / Global Payments monthly reconciliation.',
     'hub_tile_printing'          => 'Printing',
     'hub_tile_printing_help'     => 'Fleet usage and per-printer reporting (coming soon).',
+    'hub_tile_exhibit'           => 'Exhibits',
+    'hub_tile_exhibit_help'      => 'Grad Show & exhibit equipment tracking — requests, loans, sign-off.',
     'hub_section_dashboards'     => 'Dashboards',
     'hub_section_reports'        => 'Standard reports',
     'hub_chart_fleet_refresh'    => 'Fleet refresh — assets reaching end-of-life',
