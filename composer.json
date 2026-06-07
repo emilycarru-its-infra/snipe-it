@@ -63,6 +63,7 @@
     "phpspec/prophecy": "^1.26",
     "pragmarx/google2fa-laravel": "^1.3",
     "rollbar/rollbar-laravel": "^8.0",
+    "sentry/sentry-laravel": "^4.25",
     "smalot/pdfparser": "^2.12",
     "spatie/laravel-backup": "^9.0",
     "spatie/laravel-ignition": "^2.0",
