@@ -17,7 +17,7 @@
     </div>
 </div>
 
-{{-- Top: 4 feature dashboards --}}
+{{-- Top: feature dashboards --}}
 <h2 class="box-title" style="margin:0 0 10px 0; font-size:18px; padding-left:5px;">
     {{ trans('admin/reports/general.hub_section_dashboards') }}
 </h2>
@@ -79,15 +79,15 @@
     </div>
     @endcan
 
-    @can('reports.fleet-health.view')
+    @can('view', \App\Models\Order::class)
     <div class="col-md-3 col-sm-6">
-        <a href="{{ route('reports.fleet-health') }}" class="small-box-link" style="text-decoration:none;">
+        <a href="{{ route('reports.exhibit') }}" class="small-box-link" style="text-decoration:none;">
             <div class="small-box bg-purple">
                 <div class="inner">
-                    <h3 style="font-size:22px;">{{ trans('admin/reports/general.hub_tile_fleet_health') }}</h3>
-                    <p>{{ trans('admin/reports/general.hub_tile_fleet_health_help') }}</p>
+                    <h3 style="font-size:22px;">{{ trans('admin/reports/general.hub_tile_exhibit') }}</h3>
+                    <p>{{ trans('admin/reports/general.hub_tile_exhibit_help') }}</p>
                 </div>
-                <div class="icon"><i class="fas fa-heartbeat" aria-hidden="true"></i></div>
+                <div class="icon"><i class="fas fa-palette" aria-hidden="true"></i></div>
             </div>
         </a>
     </div>
@@ -195,6 +195,14 @@
             <x-icon type="accessories"/> {{ trans('general.accessory_report') }}
         </a>
     </div>
+
+    @can('reports.fleet-health.view')
+    <div class="col-md-3 col-sm-6">
+        <a href="{{ route('reports.fleet-health') }}" class="btn btn-theme btn-block" style="margin-bottom: 10px; white-space: normal;">
+            <i class="fas fa-heartbeat fa-fw" aria-hidden="true"></i> {{ trans('admin/reports/general.hub_tile_fleet_health') }}
+        </a>
+    </div>
+    @endcan
 
 </div>
 

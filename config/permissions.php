@@ -83,6 +83,10 @@ return [
             'display' => true,
         ],
         [
+            'permission' => 'reports.fleet-health.view',
+            'display' => true,
+        ],
+        [
             'permission' => 'reports.transactions.view',
             'display' => true,
         ],

@@ -1540,6 +1540,13 @@
                                             </a>
                                         </li>
                                     @endcan
+                                    @can('view', App\Models\Order::class)
+                                        <li {{!! (request()->is('reports/exhibit*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.exhibit') }}">
+                                                {{ trans('admin/exhibit-projects/general.dashboard_title') }}
+                                            </a>
+                                        </li>
+                                    @endcan
                                 </ul>
                             </li>
                         @endcanany
