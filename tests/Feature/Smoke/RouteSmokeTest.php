@@ -20,15 +20,27 @@ use Tests\TestCase;
  */
 class RouteSmokeTest extends TestCase
 {
-    /** URI substrings we never crawl: downloads, binaries, side-effects, non-HTML. */
-    private array $denyUri = [
+    /**
+     * URI substrings we never crawl: downloads, binaries, side-effects, non-HTML.
+     * These are matched anywhere in the path, so keep them specific — a loose
+     * needle like "health" would also swallow "reports/fleet-health".
+     */
+    private array $denyContains = [
         'export', 'download', 'backup', 'barcode', 'qr_code', '/label', 'labels/',
-        'logout', 'telescope', 'debugbar', 'livewire', 'saml', 'oauth', 'health',
+        'logout', 'telescope', 'debugbar', 'livewire', 'saml', 'oauth',
         '.json', 'restore', '/file/', '/files/', 'purge', 'stream',
+    ];
+
+    /**
+     * Exact URIs to skip — operational endpoints and known test-env artifacts.
+     * Matched against the full route URI so they can't over-match (e.g. the
+     * health-check endpoint without catching the fleet-health dashboard).
+     */
+    private array $denyExact = [
+        'health',
         // phpinfo() under CLI/PHPUnit doesn't emit the <body> HTML the blade's
         // regex expects, so the page 500s here but renders fine under prod FPM.
-        // Test-env artifact, not a real bug — skip it.
-        'phpinfo',
+        'admin/phpinfo',
     ];
 
     public function test_no_ui_get_route_returns_a_server_error(): void
@@ -102,7 +114,11 @@ class RouteSmokeTest extends TestCase
 
     private function denied(string $uri): bool
     {
-        foreach ($this->denyUri as $needle) {
+        if (in_array($uri, $this->denyExact, true)) {
+            return true;
+        }
+
+        foreach ($this->denyContains as $needle) {
             if (str_contains($uri, $needle)) {
                 return true;
             }
