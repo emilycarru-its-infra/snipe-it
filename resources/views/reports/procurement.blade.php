@@ -246,7 +246,7 @@
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
 
-<div class="row">
+<div class="row proc-reports-row">
     {{-- Sticky jump-nav so every report stays one click away in the long scroll. --}}
     <div class="col-md-3 hidden-sm hidden-xs">
         <div class="proc-report-nav">
@@ -318,10 +318,15 @@
 
 <style>
     html { scroll-behavior: smooth; }
+    /* Flex row so the nav column stretches to the full height of the tables
+       column — that's what gives position:sticky room to stay pinned through
+       the whole scroll instead of stopping at the short nav box. */
+    .proc-reports-row { display: flex; flex-wrap: wrap; }
     .proc-report-nav { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
     .proc-report-navlist > li > a { padding: 6px 12px; font-size: 13px; border-radius: 0; }
     .proc-report-navlist > li.active > a,
     .proc-report-navlist > li.active > a:hover { background-color: #3c8dbc; color: #fff; }
+    @media (max-width: 991px) { .proc-reports-row { display: block; } }
 </style>
 
 @can('budget_allocations.manage')
