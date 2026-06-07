@@ -35,36 +35,31 @@ Use one project with two environments (`production`, `dev`) so issues are
 tagged by origin but share a backlog. The `environment` is taken from `APP_ENV`
 automatically.
 
-### 2. Set the DSN on each App Service
+### 2. Supply the DSN
 
-The DSN is not a hard secret, but treat it like the other app settings and set
-it through Terraform so a deploy doesn't wipe it.
+The Terraform plumbing is already in place (parent Inventory repo): a
+`sentry_dsn` variable feeds `SENTRY_LARAVEL_DSN` on both App Services, and the
+post-checkout hook reads a `SentryLaravelDsn` Key Vault secret into local
+tfvars. Both default to empty, so Sentry stays off until you supply the value.
 
-In `infrastructure/main.tf`, add a variable:
+For dev and prod, add a `SentryDsn` variable to the `inventory-assets-keys`
+pipeline variable group with the DSN. Then pass it to Terraform by adding one
+line to each `terraform` step's `commandOptions` in
+`pipelines/inventory-infra-deployment.yml`:
 
-```hcl
-variable "sentry_dsn" {
-  type    = string
-  default = ""
-}
+```
+-var "sentry_dsn=$(SentryDsn)"
 ```
 
-Add this line to the `app_settings` map of **both** the production App Service
-(around line 549) and the dev App Service (around line 664):
+That line is intentionally not committed yet. An undefined `$(SentryDsn)` macro
+would reach Terraform as a literal string and become an invalid DSN that breaks
+Sentry initialisation — add the line only once the variable-group value exists.
 
-```hcl
-"SENTRY_LARAVEL_DSN" = var.sentry_dsn
-```
-
-Supply the value in your tfvars (or the pipeline variable group):
-
-```hcl
-sentry_dsn = "https://<key>@o<org>.ingest.sentry.io/<project>"
-```
+For local development, add a `SentryLaravelDsn` secret to the
+`assets-inventory-creds` Key Vault; the post-checkout hook writes it into
+`terraform.tfvars` on your next checkout.
 
 Apply through the normal "Inventory - Infrastructure + Functions" pipeline.
-Leaving `sentry_dsn` empty keeps Sentry disabled, so this change is safe to
-land ahead of having a real DSN.
 
 ### 3. Verify
 
