@@ -68,14 +68,17 @@ class LoginController extends Controller
             return redirect()->intended('/');
         }
 
-        if (! $request->session()->has('loggedout')) {
-            // If the environment is set to ALWAYS require SAML, go straight to the SAML route.
-            // We don't need to check other settings, as this should override those.
-            if (config('app.require_saml')) {
-                return redirect()->route('saml.login');
-            }
+        // The local username/password form is reserved for the super-admin
+        // bypass (?nosaml). When SAML is the required path, every ordinary
+        // request is sent to the IdP — never the local form, not even after a
+        // SAML error. On error we render the (form-less) login view rather than
+        // redirecting, so a user who authenticated with the IdP but isn't
+        // provisioned here sees the message instead of looping with the IdP.
+        $samlBypass = $request->has('nosaml');
+        $samlRequired = $this->samlRequired();
 
-            if ($this->saml->isEnabled() && Setting::getSettings()->saml_forcelogin == '1' && ! ($request->has('nosaml') || $request->session()->has('error'))) {
+        if (! $request->session()->has('loggedout') && $samlRequired && ! $samlBypass) {
+            if (! $request->session()->has('error')) {
                 return redirect()->route('saml.login');
             }
         }
@@ -84,7 +87,19 @@ class LoginController extends Controller
             return view('errors.403');
         }
 
-        return view('auth.login');
+        return view('auth.login', ['showLocalLogin' => ! $samlRequired || $samlBypass]);
+    }
+
+    /**
+     * SAML is the required login path when the environment forces it
+     * (REQUIRE_SAML) or the SAML "force login" setting is on. In that mode the
+     * local username/password form is only reachable via the ?nosaml
+     * super-admin bypass — never shown to ordinary users, even on a SAML error.
+     */
+    private function samlRequired(): bool
+    {
+        return config('app.require_saml')
+            || ($this->saml->isEnabled() && Setting::getSettings()->saml_forcelogin == '1');
     }
 
     /**
@@ -261,9 +276,10 @@ class LoginController extends Controller
     public function login(Request $request)
     {
 
-        // If the environment is set to ALWAYS require SAML, return access denied
-        if (config('app.require_saml')) {
-            Log::debug('require SAML is enabled in the .env - return a 403');
+        // Local credential login is reserved for the super-admin ?nosaml
+        // bypass whenever SAML is the required path; everyone else must use SAML.
+        if ($this->samlRequired() && ! $request->has('nosaml')) {
+            Log::debug('SAML is the required login path and no ?nosaml bypass present - return a 403');
 
             return view('errors.403');
         }
