@@ -130,7 +130,8 @@
       "php artisan key:generate"
     ],
     "coverage:herd:clover": "herd coverage vendor/bin/phpunit --coverage-clover tests/coverage/clover.xml",
-    "coverage:herd:html": "herd coverage vendor/bin/phpunit --coverage-html tests/coverage/html"
+    "coverage:herd:html": "herd coverage vendor/bin/phpunit --coverage-html tests/coverage/html",
+    "analyse": "phpstan analyse --memory-limit=4G"
   },
   "config": {
     "preferred-install": "dist",
