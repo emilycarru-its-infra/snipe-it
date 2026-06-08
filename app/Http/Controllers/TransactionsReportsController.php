@@ -10,7 +10,6 @@ use App\Models\Transactions\Override;
 use App\Models\Transactions\RawRow;
 use App\Models\Transactions\Reconciliation;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Dashboard for the TouchNet/PaperCut reconciliation pipeline.
@@ -47,21 +46,10 @@ class TransactionsReportsController extends Controller
         // current month doesn't render the dashboard as a wall of $0.00.
         $current = $this->pickCurrentReconciliation($latest, $request->query('period'));
 
-        // PaperCut balance change needs two month-boundary user_list
-        // snapshots to be meaningful (start-of-month + end-of-month). When
-        // only one has landed, the cell renders an "awaiting snapshot" note
-        // instead of a misleading $0.00.
-        $userListSnapshots = $current
-            ? RawRow::forPeriod($current->period_year, $current->period_month)
-                ->ofKind('papercut.user_list')
-                ->distinct()
-                ->count(DB::raw('DATE(ingested_at)'))
-            : 0;
-
         // Headline cards — pulled from the *effective* line items (override
         // wins). Per Carlos's PaperCut_10-2082 Reconcile tab.
         $cards = $current
-            ? $this->buildHeadlineCards($current->period_year, $current->period_month, $userListSnapshots)
+            ? $this->buildHeadlineCards($current->period_year, $current->period_month)
             : [];
 
         // Charts: trailing-12 revenue + per-department mix.
@@ -160,7 +148,7 @@ class TransactionsReportsController extends Controller
      * Order matches the procurement dashboard's pattern: revenue, refunds,
      * balance change, override count, status, reconciling difference.
      */
-    private function buildHeadlineCards(int $year, int $month, int $userListSnapshots = 2): array
+    private function buildHeadlineCards(int $year, int $month): array
     {
         $lines = EffectiveLineItem::forPeriod($year, $month)->get()
             ->keyBy('line_key');
@@ -176,17 +164,29 @@ class TransactionsReportsController extends Controller
 
         $balanceDelta = $endBal - $startBal;
 
-        // Month Reconciling Difference (C20 on Carlos's PC tab):
-        //   total_transactions - balance_delta
+        // The two cutover-tab reconciling differences — the answer-first
+        // numbers Carlos checks the moment a reconciliation runs.
+        // PaperCut (10-2082 tab, cell C20): total_transactions - balance_delta.
         $totalTxn = $refunds + $autoXfer + $get('pc_events_funds_added')
                     + $get('pc_manual_misc_to_papercut')
                     + $get('pc_manual_migration_dw_to_pc')
                     - $revenue
                     - $get('pc_manual_migration_pc_to_dw')
                     - $get('pc_manual_misc_from_papercut');
-        $reconciling = $totalTxn - $balanceDelta;
+        $pcReconciling = $totalTxn - $balanceDelta;
 
-        $overrideCount = Override::forPeriod($year, $month)->count();
+        // Digital Wallet (10-2081 tab, cell B29). Its rollup (computed ending
+        // balance vs the month-end reading) lives in the pipeline's emitter,
+        // so we read the value it persists rather than re-deriving here and
+        // risking drift from the workbook.
+        $dwReconciling = $get('dw_reconciling_difference');
+
+        // Tone: under $1 is penny-parity (matches Carlos's own accepted
+        // ~$0.56 residual) → green; a small single/double-digit gap is an
+        // explained classification difference → amber; larger → red.
+        $reconTone = fn (float $v) => abs($v) < 1.0
+            ? 'green'
+            : (abs($v) < 25.0 ? 'yellow' : 'red');
 
         return [
             ['label' => 'Self-Serve Print Revenue', 'value' => $revenue,
@@ -197,15 +197,22 @@ class TransactionsReportsController extends Controller
              'fmt' => 'money', 'tone' => 'yellow', 'icon' => 'fa-undo'],
             ['label' => 'PaperCut Balance Change',  'value' => $balanceDelta,
              'fmt' => 'money', 'tone' => 'blue', 'icon' => 'fa-balance-scale',
-             'placeholder' => $userListSnapshots < 2
-                ? 'Awaiting next month-boundary snapshot'
+             // The opening balance is the prior month's closing user-list
+             // snapshot, seeded by the pipeline from the previous period — so
+             // it never lives in the current period's own folder. Gate the
+             // placeholder on whether that opening balance is actually present
+             // (the genuine "first month, no prior data" case), not on an
+             // in-period snapshot count, which is structurally always 1 for
+             // the current month and wrongly hid a valid balance change.
+             'placeholder' => abs($startBal) < 0.01
+                ? 'Awaiting prior-month opening balance'
                 : null],
-            ['label' => 'Month Reconciling Difference', 'value' => $reconciling,
-             'fmt' => 'money', 'tone' => abs($reconciling) < 0.01 ? 'green' : 'red',
+            ['label' => 'PaperCut Reconciling (10-2082)', 'value' => $pcReconciling,
+             'fmt' => 'money', 'tone' => $reconTone($pcReconciling),
              'icon' => 'fa-check-circle'],
-            ['label' => 'Manual Overrides Applied', 'value' => $overrideCount,
-             'fmt' => 'count', 'tone' => $overrideCount > 0 ? 'purple' : 'navy',
-             'icon' => 'fa-pen-to-square'],
+            ['label' => 'Digital Wallet Reconciling (10-2081)', 'value' => $dwReconciling,
+             'fmt' => 'money', 'tone' => $reconTone($dwReconciling),
+             'icon' => 'fa-balance-scale'],
         ];
     }
 
