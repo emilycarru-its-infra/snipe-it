@@ -108,6 +108,11 @@ chown -R www-data:www-data \
 
 # Migrate/create database
 php artisan migrate --force
+
+# Surface "recorded-but-missing" schema drift: a migration listed as run whose
+# column never actually landed in the DB. `migrate --force` cannot heal that,
+# so flag it loudly in the boot log. Non-fatal -- never block startup over it.
+php artisan schema:check || echo "[schema-drift] WARNING: live schema is missing migrated columns (see above) -- add a guarded re-add migration"
 # Clear cache files
 php artisan config:clear
 php artisan config:cache

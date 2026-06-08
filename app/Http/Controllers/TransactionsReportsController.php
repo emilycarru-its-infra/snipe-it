@@ -47,7 +47,7 @@ class TransactionsReportsController extends Controller
         $current = $this->pickCurrentReconciliation($latest, $request->query('period'));
 
         // Headline cards — pulled from the *effective* line items (override
-        // wins). Per Carlos's PaperCut_10-2082 Reconcile tab.
+        // wins). Per the PaperCut 10-2082 Reconcile tab.
         $cards = $current
             ? $this->buildHeadlineCards($current->period_year, $current->period_month)
             : [];
@@ -165,7 +165,7 @@ class TransactionsReportsController extends Controller
         $balanceDelta = $endBal - $startBal;
 
         // The two cutover-tab reconciling differences — the answer-first
-        // numbers Carlos checks the moment a reconciliation runs. Both are
+        // numbers to check the moment a reconciliation runs. Both are
         // computed by the pipeline emitter and persisted as line items
         // (PaperCut 10-2082 cell C20, Digital Wallet 10-2081 cell B29), so we
         // read those exact workbook values rather than re-derive here — a
@@ -183,8 +183,8 @@ class TransactionsReportsController extends Controller
             : $derivedPc;
         $dwReconciling = $get('dw_reconciling_difference');
 
-        // Tone: under $1 is penny-parity (matches Carlos's own accepted
-        // ~$0.56 residual) → green; a small single/double-digit gap is an
+        // Tone: under $1 is penny-parity (matches the hand-built workbook's
+        // accepted ~$0.56 residual) → green; a small single/double-digit gap is an
         // explained classification difference → amber; larger → red.
         $reconTone = fn (float $v) => abs($v) < 1.0
             ? 'green'
