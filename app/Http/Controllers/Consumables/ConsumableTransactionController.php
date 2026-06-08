@@ -16,8 +16,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * After-the-fact maintenance of GL transactions (journal-transfer lines).
  *
  * Transactions are recorded automatically at checkout, but the GL code is
- * only as good as the printer record at that moment — Carlos's "potential
- * mess-ups by people on the order side". This controller lets an admin
+ * only as good as the printer record at that moment, and order-side data
+ * entry is error-prone. This controller lets an admin
  * correct a transaction's GL (or quantity / cost / date), move it through
  * its lifecycle, or void it outright.
  */
