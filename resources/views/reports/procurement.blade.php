@@ -278,8 +278,6 @@
     </div>
 
     <div class="col-md-9 col-sm-12">
-        <p class="text-muted">{{ trans('admin/purchase-orders/general.reports_intro') }}</p>
-
         @foreach ($procReports as $report)
             <div class="box box-default proc-report-box" id="proc-{{ $report['name'] }}" style="scroll-margin-top:64px;">
                 <div class="box-header with-border">
@@ -318,6 +316,11 @@
 
 <style>
     html { scroll-behavior: smooth; }
+    /* AdminLTE wraps the page in `.wrapper { overflow: hidden }` (and
+       `.content-wrapper`), and an overflow ancestor traps position:sticky —
+       the sticky nav can't pin to the viewport, so it just scrolls away.
+       Lift the clip on this page so sticky resolves against the body scroll. */
+    .wrapper, .content-wrapper { overflow: visible !important; }
     /* Flex row so the nav column stretches to the full height of the tables
        column — that's what gives position:sticky room to stay pinned through
        the whole scroll instead of stopping at the short nav box. */
