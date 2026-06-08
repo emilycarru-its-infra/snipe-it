@@ -22,14 +22,19 @@
     $remaining = (int) $consumable->numRemaining();
     $min = (int) ($consumable->min_amt ?? 0);
     $state = $remaining <= 0 ? 'red' : (($min > 0 && $remaining <= $min) ? 'yellow' : 'green');
+    // Toner whose whole printer fleet is out of circulation (all in storage):
+    // the stepper greys out and both arrows only surface a "no printers in
+    // circulation" message instead of changing stock.
+    $frozen = $consumable->printerFleetOutOfCirculation();
 @endphp
 
-<span class="qty-stepper qty-stepper--{{ $state }} {{ ($canRestock || $canConsume) ? 'is-editable' : '' }}"
+<span class="qty-stepper qty-stepper--{{ $state }} {{ $frozen ? 'qty-stepper--frozen' : '' }} {{ ($canRestock || $canConsume) ? 'is-editable' : '' }}"
       data-qty-stepper
       data-restock-url="{{ route('consumables.adjust-qty', $consumable->id) }}"
       data-consume-url="{{ route('consumables.consume', $consumable->id) }}"
       data-printers-url="{{ route('consumables.compatible-printers', $consumable->id) }}"
       data-name="{{ $consumable->name }}"
+      data-frozen="{{ $frozen ? '1' : '' }}"
       data-min="{{ $min }}">
     <span class="qty-stepper__value" data-qty-value aria-live="polite">{{ $remaining }}</span>
     @if ($canRestock || $canConsume)
@@ -51,6 +56,9 @@
         </span>
     @endif
 </span>
+@if ($frozen)
+    <span class="label label-default qty-stepper-badge" title="{{ trans('admin/consumables/general.stepper_frozen') }}">{{ trans('admin/consumables/general.decommissioned_model') }}</span>
+@endif
 
 @once
 @push('css')
@@ -114,6 +122,14 @@
     .qty-stepper.is-busy { opacity: 0.6; }
     .qty-stepper.is-busy .qty-stepper__btn { cursor: progress; }
 
+    /* Frozen: the toner's compatible printers are all out of circulation (in
+       storage). Grey the whole control; the arrows stay visible but inert —
+       clicking only surfaces the "no printers in circulation" message. */
+    .qty-stepper--frozen .qty-stepper__value { background: #95a5a6; }
+    .qty-stepper--frozen .qty-stepper__nudge { background: #7f8c8d; }
+    .qty-stepper--frozen .qty-stepper__btn { cursor: not-allowed; }
+    .qty-stepper-badge { margin-left: 8px; vertical-align: middle; }
+
     /* The modal is emitted inline at the first stepper (a right-aligned card
        cell), so left-align it explicitly — the JS also relocates it to <body>. */
     #qty-consume-modal { text-align: left; }
@@ -157,6 +173,52 @@
     </div>
 </div>
 
+<!-- Up arrow: record stock received against a required PO / Req #. -->
+<div class="modal fade" id="qty-restock-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">{{ trans('admin/consumables/general.restock_title') }}</h4>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" data-restock-subtitle style="margin-bottom:14px;"></p>
+                <div class="form-group">
+                    <label for="qty-restock-po">{{ trans('admin/consumables/general.restock_po') }}</label>
+                    <input type="text" id="qty-restock-po" class="form-control" placeholder="{{ trans('admin/consumables/general.restock_po_placeholder') }}">
+                    <p class="help-block">{{ trans('admin/consumables/general.restock_po_help') }}</p>
+                </div>
+                <div class="form-group">
+                    <label for="qty-restock-qty">{{ trans('admin/consumables/general.restock_qty') }}</label>
+                    <input type="number" id="qty-restock-qty" class="form-control" value="1" min="1" max="9999">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ trans('button.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="qty-restock-confirm" disabled>{{ trans('admin/consumables/general.restock_confirm') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shown when a frozen stepper's arrows are pressed: nothing in circulation. -->
+<div class="modal fade" id="qty-frozen-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">{{ trans('admin/consumables/general.decommissioned_model') }}</h4>
+            </div>
+            <div class="modal-body">
+                <p style="margin:0;">{{ trans('admin/consumables/general.stepper_frozen') }}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ trans('admin/consumables/general.stepper_frozen_ok') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     if (window.__qtyStepperBound) return;
@@ -175,10 +237,12 @@
     // right-aligned card cell that may also be a transformed (drag-to-reorder)
     // ancestor, which skews its alignment and positioning. Relocate it to
     // <body> so it renders as a clean, viewport-centered dialog.
-    var modalEl = document.getElementById('qty-consume-modal');
-    if (modalEl && modalEl.parentNode !== document.body) {
-        document.body.appendChild(modalEl);
-    }
+    ['qty-consume-modal', 'qty-restock-modal', 'qty-frozen-modal'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.parentNode !== document.body) {
+            document.body.appendChild(el);
+        }
+    });
 
     function applyResult(stepper, data) {
         var valueEl = stepper.querySelector('[data-qty-value]');
@@ -211,13 +275,27 @@
         if (!stepper) return;
         e.preventDefault();
 
+        // Frozen: the whole printer fleet for this toner is out of circulation.
+        // Either arrow just explains why instead of changing stock.
+        if (stepper.getAttribute('data-frozen') === '1') {
+            bsModal('qty-frozen-modal', 'show');
+            return;
+        }
+
         if (btn.getAttribute('data-qty-action') === 'restock') {
-            if (stepper.classList.contains('is-busy')) return;
-            stepper.classList.add('is-busy');
-            post(stepper.getAttribute('data-restock-url'), { delta: '1' })
-                .then(function (data) { applyResult(stepper, data); })
-                .catch(function () {})
-                .then(function () { stepper.classList.remove('is-busy'); });
+            // Up arrow no longer nudges +1 inline — it opens a modal that
+            // requires a PO / Req # before any stock is added, so an accidental
+            // tap can't silently bump inventory.
+            activeStepper = stepper;
+            var poInput = document.getElementById('qty-restock-po');
+            var restockQty = document.getElementById('qty-restock-qty');
+            var restockSubtitle = document.querySelector('[data-restock-subtitle]');
+            var restockConfirmBtn = document.getElementById('qty-restock-confirm');
+            if (poInput) poInput.value = '';
+            if (restockQty) restockQty.value = '1';
+            if (restockConfirmBtn) restockConfirmBtn.disabled = true;
+            if (restockSubtitle) restockSubtitle.textContent = stepper.getAttribute('data-name') || '';
+            bsModal('qty-restock-modal', 'show');
             return;
         }
 
@@ -280,6 +358,33 @@
                 bsModal('qty-consume-modal', 'hide');
             }).catch(function () {}).then(function () {
                 confirmBtn.disabled = false;
+            });
+        });
+    }
+
+    // Restock: confirm stays disabled until a PO / Req # is typed.
+    var restockPoEl = document.getElementById('qty-restock-po');
+    var restockConfirm = document.getElementById('qty-restock-confirm');
+    if (restockPoEl && restockConfirm) {
+        restockPoEl.addEventListener('input', function () {
+            restockConfirm.disabled = restockPoEl.value.trim() === '';
+        });
+    }
+    if (restockConfirm) {
+        restockConfirm.addEventListener('click', function () {
+            var po = document.getElementById('qty-restock-po');
+            var qtyEl = document.getElementById('qty-restock-qty');
+            if (!activeStepper || !po || po.value.trim() === '') return;
+            var qty = Math.max(1, parseInt(qtyEl && qtyEl.value, 10) || 1);
+            restockConfirm.disabled = true;
+            post(activeStepper.getAttribute('data-restock-url'), {
+                delta: String(qty),
+                req_number: po.value.trim()
+            }).then(function (data) {
+                applyResult(activeStepper, data);
+                bsModal('qty-restock-modal', 'hide');
+            }).catch(function () {}).then(function () {
+                restockConfirm.disabled = false;
             });
         });
     }
