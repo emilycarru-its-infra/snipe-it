@@ -6,8 +6,12 @@
 
     {{-- Whether to render the local username/password form. The controller only
          sets this true when SAML isn't the required path, or for the ?nosaml
-         super-admin bypass. Default defensively for any other render path. --}}
-    @php $showLocalLogin = $showLocalLogin ?? ! config('app.require_saml'); @endphp
+         super-admin bypass. Default fail-secure for any other render path:
+         hide the form whenever REQUIRE_SAML or saml_forcelogin is in effect. --}}
+    @php
+        $showLocalLogin = $showLocalLogin
+            ?? (! config('app.require_saml') && ! ($snipeSettings->saml_enabled && $snipeSettings->saml_forcelogin));
+    @endphp
 
     <style nonce="{{ csrf_token() }}">
         body.login-page {
