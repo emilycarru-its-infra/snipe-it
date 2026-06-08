@@ -74,6 +74,18 @@ jobs:
           php artisan passport:install --no-interaction
           chmod -R 777 storage bootstrap/cache
 
+      - name: Verify schema snapshot is current (guards against recorded-but-missing drift)
+        env:
+          DB_CONNECTION: mysql
+          DB_DATABASE: snipeit
+          DB_PORT: ${{ job.services.mysql.ports[3306] }}
+          DB_USERNAME: root
+        run: |
+          php artisan schema:check --dump
+          git diff --exit-code database/schema/expected-columns.json \
+            || { echo "::error::database/schema/expected-columns.json is stale — a migration changed the schema. Run 'php artisan schema:check --dump' and commit the result."; exit 1; }
+          php artisan schema:check
+
       - name: Execute tests (Unit and Feature tests) via PHPUnit
         env:
           DB_CONNECTION: mysql
