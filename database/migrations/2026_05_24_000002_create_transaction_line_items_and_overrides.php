@@ -23,7 +23,7 @@ return new class extends Migration {
                            'transaction_line_items_unique');
         });
 
-        // Carlos's manual corrections — these win over derived values when
+        // Admin manual corrections — these win over derived values when
         // the emitter runs. Idempotent on (period, line_key).
         Schema::create('transaction_overrides', function (Blueprint $table) {
             $table->bigIncrements('id');
@@ -62,7 +62,7 @@ return new class extends Migration {
                AND d.line_key     = o.line_key
             UNION
             -- An override may exist for a line_key that has no derived row yet
-            -- (Carlos sets a value before the pipeline has caught up).
+            -- (an admin sets a value before the pipeline has caught up).
             SELECT
                 o.period_year, o.period_month, o.line_key, o.amount,
                 'override', o.set_by, o.set_at, o.note
