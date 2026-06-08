@@ -68,14 +68,21 @@ class LoginController extends Controller
             return redirect()->intended('/');
         }
 
-        if (! $request->session()->has('loggedout')) {
-            // If the environment is set to ALWAYS require SAML, go straight to the SAML route.
-            // We don't need to check other settings, as this should override those.
+        // A flashed error/warning means we just returned from a SAML attempt
+        // (e.g. an un-provisioned user). Render the message instead of
+        // redirecting, so they don't bounce in a loop with the IdP.
+        $returningFromSaml = $request->session()->has('error') || $request->session()->has('warning');
+
+        if (! $request->session()->has('loggedout') && ! $returningFromSaml) {
+            // REQUIRE_SAML is a hard lock: all logins go through the IdP and the
+            // local form plus the ?nosaml workaround are disabled (config/app.php).
             if (config('app.require_saml')) {
                 return redirect()->route('saml.login');
             }
 
-            if ($this->saml->isEnabled() && Setting::getSettings()->saml_forcelogin == '1' && ! ($request->has('nosaml') || $request->session()->has('error'))) {
+            // saml_forcelogin routes everyone to the IdP too, but the ?nosaml
+            // super-admin bypass can still reach the local form.
+            if ($this->samlForceLogin() && ! $request->has('nosaml')) {
                 return redirect()->route('saml.login');
             }
         }
@@ -84,7 +91,33 @@ class LoginController extends Controller
             return view('errors.403');
         }
 
-        return view('auth.login');
+        return view('auth.login', ['showLocalLogin' => $this->showLocalLogin($request)]);
+    }
+
+    /**
+     * The SAML "force login" setting is on AND SAML is actually enabled/working.
+     */
+    private function samlForceLogin(): bool
+    {
+        return $this->saml->isEnabled() && Setting::getSettings()->saml_forcelogin == '1';
+    }
+
+    /**
+     * Whether the local username/password form may be shown. Never under the
+     * hard REQUIRE_SAML lock; under saml_forcelogin only via the ?nosaml
+     * super-admin bypass; otherwise (no SAML enforcement) the normal form shows.
+     */
+    private function showLocalLogin(Request $request): bool
+    {
+        if (config('app.require_saml')) {
+            return false;
+        }
+
+        if ($this->samlForceLogin()) {
+            return $request->has('nosaml');
+        }
+
+        return true;
     }
 
     /**
@@ -126,7 +159,10 @@ class LoginController extends Controller
                 } else {
                     $username = $saml->getUsername();
                     Log::debug("SAML user '$username' could not be found in database.");
-                    $request->session()->flash('error', trans('auth/message.signin.error'));
+                    // Authenticated with the IdP but not provisioned here — this
+                    // isn't a failure on their part, so flash a calm warning that
+                    // tells them what to do rather than a generic red error.
+                    $request->session()->flash('warning', trans('auth/message.signin.account_not_provisioned'));
                     $saml->clearData();
                 }
 
@@ -261,11 +297,20 @@ class LoginController extends Controller
     public function login(Request $request)
     {
 
-        // If the environment is set to ALWAYS require SAML, return access denied
+        // REQUIRE_SAML disables local form login entirely, including the
+        // ?nosaml workaround (config/app.php).
         if (config('app.require_saml')) {
-            Log::debug('require SAML is enabled in the .env - return a 403');
+            Log::debug('REQUIRE_SAML is enabled - local login disabled, returning 403');
 
-            return view('errors.403');
+            abort(403);
+        }
+
+        // Under saml_forcelogin, local login is reserved for the ?nosaml
+        // super-admin bypass; everyone else must authenticate via SAML.
+        if ($this->samlForceLogin() && ! $request->has('nosaml')) {
+            Log::debug('saml_forcelogin is on and no ?nosaml bypass present - returning 403');
+
+            abort(403);
         }
 
         if (Setting::getSettings()->login_common_disabled == '1') {
