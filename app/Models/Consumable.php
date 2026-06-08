@@ -339,6 +339,38 @@ class Consumable extends SnipeModel
     }
 
     /**
+     * How many of this consumable's compatible printers are in circulation —
+     * checked out to anything (a user, a location/room, or another asset). A
+     * printer sitting in storage is left unassigned, so it isn't counted.
+     */
+    public function printersInCirculation(): int
+    {
+        $modelIds = $this->compatibleModels()->pluck('models.id');
+
+        if ($modelIds->isEmpty()) {
+            return 0;
+        }
+
+        return Asset::whereIn('model_id', $modelIds)
+            ->whereNull('deleted_at')
+            ->whereNotNull('assigned_to')
+            ->count();
+    }
+
+    /**
+     * Whether this is a printer toner whose entire compatible fleet is out of
+     * circulation: it has compatible printer models, but none of those printers
+     * are currently checked out (all in storage). When true the quantity
+     * stepper freezes and a "decommissioned model" badge shows — there's nothing
+     * in service to restock for or record usage against. A consumable with no
+     * compatible models isn't a printer toner, so it's never frozen.
+     */
+    public function printerFleetOutOfCirculation(): bool
+    {
+        return $this->compatibleModels()->exists() && $this->printersInCirculation() === 0;
+    }
+
+    /**
      * GL transactions (journal-transfer lines) recorded for this consumable.
      * One row per checkout to a GL-tracked printer. See ConsumableTransaction.
      */
