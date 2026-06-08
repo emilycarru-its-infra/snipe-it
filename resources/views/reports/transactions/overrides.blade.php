@@ -22,7 +22,7 @@
     <div class="box-header with-border">
         <h3 class="box-title">Manual Overrides — {{ sprintf('%04d-%02d', $year, $month) }}</h3>
         <p class="box-subtitle" style="margin:6px 0 0; color:#aaa; font-size:12px;">
-            An override wins over the derived value when the workbook is emitted. Use these during parallel-run when the pipeline's number disagrees with Carlos's hand calculation.
+            An override wins over the derived value when the workbook is emitted. Use these during parallel-run when the pipeline's number disagrees with the hand calculation.
         </p>
     </div>
 
