@@ -165,8 +165,9 @@
     .nav-pills > li.active > .email-cms-item small.text-muted {
         color: #fff !important;
     }
-    /* Keep the preview iframe readable whichever theme the email adopts. */
-    #email-cms-preview-frame { background: var(--box-bg); }
+    /* Keep the preview iframe readable whichever theme the email adopts.
+       !important overrides the element's inline background:#fff so dark mode applies. */
+    #email-cms-preview-frame { background: var(--box-bg) !important; }
 </style>
 @endpush
 
