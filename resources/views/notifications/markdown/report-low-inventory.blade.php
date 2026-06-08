@@ -13,12 +13,12 @@
         if (! is_null($group['printers_count'])) {
             $n = (int) $group['printers_count'];
             $pillCell = '<td align="right" style="white-space:nowrap;vertical-align:middle;">'
-                .'<span style="display:inline-block;font-size:12px;font-weight:600;color:#374151;background:#f3f4f6;border-radius:11px;padding:3px 10px;">'
+                .'<span class="li-pill" style="display:inline-block;font-size:12px;font-weight:600;color:#374151;background:#f3f4f6;border-radius:11px;padding:3px 10px;">'
                 .$n.' '.e(\Illuminate\Support\Str::plural('printer', $n)).'</span></td>';
         }
 
         $meta = $group['manufacturer']
-            ? '<span style="font-weight:400;color:#6b7280;"> — '.e($group['manufacturer']).'</span>'
+            ? '<span class="li-card-meta" style="font-weight:400;color:#6b7280;"> — '.e($group['manufacturer']).'</span>'
             : '';
 
         $rows = '';
@@ -30,22 +30,22 @@
             $url = route(($item['type'] ?? 'consumables').'.show', $item['id']);
 
             $rows .= '<tr>'
-                .'<td style="padding:9px 0;border-top:1px solid #f3f4f6;font-size:14px;line-height:1.3;">'
+                .'<td class="li-name" style="padding:9px 0;border-top:1px solid #f3f4f6;font-size:14px;line-height:1.3;">'
                 .'<a href="'.e($url).'" style="color:#2563eb;text-decoration:none;">'.e($item['name']).'</a>'
                 .'</td>'
                 .'<td align="right" style="padding:9px 0;border-top:1px solid #f3f4f6;white-space:nowrap;vertical-align:middle;">'
                 .'<span style="display:inline-block;min-width:24px;text-align:center;padding:3px 9px;border-radius:6px;'
                 .'font-size:13px;font-weight:700;background:'.$chipBg.';color:'.$chipFg.';">'.$rem.'</span>'
-                .'<span style="font-size:12px;color:#9ca3af;"> / '.e($item['min_amt']).' min</span>'
+                .'<span class="li-min" style="font-size:12px;color:#9ca3af;"> / '.e($item['min_amt']).' min</span>'
                 .'</td>'
                 .'</tr>';
         }
 
-        $cards .= '<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" width="100%" '
+        $cards .= '<table role="presentation" class="li-card" align="center" cellpadding="0" cellspacing="0" border="0" width="100%" '
             .'style="max-width:520px;margin:18px auto 0;border:1px solid #e5e7eb;border-radius:8px;border-collapse:separate;">'
             .'<tr><td style="padding:12px 16px 11px;border-bottom:1px solid #eef0f2;">'
             .'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>'
-            .'<td style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">'.e($group['model_name']).$meta.'</td>'
+            .'<td class="li-card-title" style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">'.e($group['model_name']).$meta.'</td>'
             .$pillCell
             .'</tr></table></td></tr>'
             .'<tr><td style="padding:0 16px 8px;">'
@@ -53,8 +53,8 @@
             .'</td></tr></table>';
     }
     $intro = '<div style="text-align:center;margin:0 0 2px;">'
-        .'<div style="font-size:22px;font-weight:700;color:#111827;margin:0 0 8px;">'.e(trans('mail.Low_Inventory_Report')).'</div>'
-        .'<div style="font-size:14px;color:#4b5563;">'.e(trans_choice('mail.low_inventory_alert', $count)).'</div>'
+        .'<div class="li-card-title" style="font-size:22px;font-weight:700;color:#111827;margin:0 0 8px;">'.e(trans('mail.Low_Inventory_Report')).'</div>'
+        .'<div class="li-card-meta" style="font-size:14px;color:#4b5563;">'.e(trans_choice('mail.low_inventory_alert', $count)).'</div>'
         .'</div>';
 @endphp
 @component('mail::message')
