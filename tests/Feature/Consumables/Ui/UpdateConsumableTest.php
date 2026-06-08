@@ -170,7 +170,7 @@ class UpdateConsumableTest extends TestCase
         $consumable = Consumable::factory()->create(['qty' => 2]);
 
         $this->actingAs(User::factory()->editConsumables()->create())
-            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1])
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-1001'])
             ->assertOk()
             ->assertJson(['status' => 'success', 'qty' => 3, 'remaining' => 3]);
 
@@ -194,7 +194,7 @@ class UpdateConsumableTest extends TestCase
         $consumable = Consumable::factory()->create(['qty' => 0]);
 
         $this->actingAs(User::factory()->editConsumables()->create())
-            ->post(route('consumables.adjust-qty', $consumable), ['qty' => 12])
+            ->post(route('consumables.adjust-qty', $consumable), ['qty' => 12, 'req_number' => 'PO-1002'])
             ->assertOk()
             ->assertJson(['qty' => 12]);
 
@@ -223,7 +223,7 @@ class UpdateConsumableTest extends TestCase
         $user = User::factory()->editConsumables()->create();
 
         $this->actingAs($user)
-            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1])
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-7788'])
             ->assertOk();
 
         // Units arriving = a first-class 'checkin' (qty received), attributed
@@ -237,12 +237,87 @@ class UpdateConsumableTest extends TestCase
         $this->assertEquals($user->id, $log->created_by);
         $this->assertEquals(1, (int) $log->quantity);
 
+        // The cited PO / Req # is recorded in the history note for traceability.
+        $this->assertStringContainsString('PO-7788', (string) $log->note);
+
         // ...and NOT a generic 'update' row (the observer is suppressed).
         $this->assertDatabaseMissing('action_logs', [
             'item_type' => Consumable::class,
             'item_id' => $consumable->id,
             'action_type' => 'update',
         ]);
+    }
+
+    public function test_adjust_quantity_up_is_rejected_without_a_source()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 5]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1])
+            ->assertStatus(422);
+
+        // Stock is untouched when the restock cites no PO / Req #.
+        $this->assertEquals(5, $consumable->fresh()->qty);
+    }
+
+    public function test_adjust_quantity_down_does_not_require_a_source()
+    {
+        // Decreases/corrections are not restocks, so they need no source.
+        $consumable = Consumable::factory()->create(['qty' => 5]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => -1])
+            ->assertOk()
+            ->assertJson(['qty' => 4]);
+    }
+
+    public function test_stepper_is_frozen_when_all_compatible_printers_are_out_of_circulation()
+    {
+        $model = AssetModel::factory()->create();
+        // A printer sitting in storage is left unassigned — out of circulation.
+        Asset::factory()->create(['model_id' => $model->id, 'assigned_to' => null]);
+        $consumable = Consumable::factory()->create(['qty' => 3]);
+        $consumable->compatibleModels()->sync([$model->id]);
+
+        $user = User::factory()->editConsumables()->checkoutConsumables()->create();
+
+        // Restock is blocked even with a valid PO.
+        $this->actingAs($user)
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-1'])
+            ->assertStatus(422);
+        $this->assertEquals(3, $consumable->fresh()->qty);
+
+        // ...and so is recording usage.
+        $printer = Asset::factory()->create(['model_id' => $model->id, 'assigned_to' => null]);
+        $this->actingAs($user)
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertStatus(422);
+        $this->assertSame(0, $consumable->fresh()->numCheckedOut());
+    }
+
+    public function test_stepper_is_active_when_a_compatible_printer_is_in_circulation()
+    {
+        $model = AssetModel::factory()->create();
+        // Checked out to a user => in circulation => stepper stays usable.
+        Asset::factory()->assignedToUser()->create(['model_id' => $model->id]);
+        $consumable = Consumable::factory()->create(['qty' => 3]);
+        $consumable->compatibleModels()->sync([$model->id]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-9'])
+            ->assertOk()
+            ->assertJson(['qty' => 4]);
+    }
+
+    public function test_non_printer_consumable_is_never_frozen()
+    {
+        // No compatible models == not a printer toner; never frozen.
+        $consumable = Consumable::factory()->create(['qty' => 2]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-3'])
+            ->assertOk()
+            ->assertJson(['qty' => 3]);
     }
 
     public function test_compatible_printers_lists_assets_of_compatible_models()
@@ -261,7 +336,8 @@ class UpdateConsumableTest extends TestCase
     public function test_consume_checks_out_one_to_printer_and_records_gl()
     {
         $model = AssetModel::factory()->create();
-        $printer = Asset::factory()->create(['model_id' => $model->id, 'gl_code' => 'GL-1234']);
+        // In circulation (checked out) so the stepper isn't frozen.
+        $printer = Asset::factory()->assignedToUser()->create(['model_id' => $model->id, 'gl_code' => 'GL-1234']);
         $consumable = Consumable::factory()->create(['qty' => 3, 'purchase_cost' => 80]);
         $consumable->compatibleModels()->sync([$model->id]);
 
