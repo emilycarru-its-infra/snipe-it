@@ -21,7 +21,16 @@
 <h2 class="box-title" style="margin:0 0 10px 0; font-size:18px; padding-left:5px;">
     {{ trans('admin/reports/general.hub_section_dashboards') }}
 </h2>
-<div class="row">
+{{-- Feature-dashboard hub: keep all five cards on a single row at desktop
+     width (Bootstrap 3 has no 5-column class, so flex the row to 20% each);
+     below 992px they fall back to the col-sm-6 two-up layout. --}}
+<style>
+@media (min-width: 992px) {
+  .report-hub-row { display: flex; flex-wrap: wrap; }
+  .report-hub-row > div[class*="col-"] { flex: 1 1 20%; max-width: 20%; }
+}
+</style>
+<div class="row report-hub-row">
 
     @can('reports.procurement.view')
     <div class="col-md-3 col-sm-6">

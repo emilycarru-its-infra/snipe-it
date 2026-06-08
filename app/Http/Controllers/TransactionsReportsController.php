@@ -165,20 +165,22 @@ class TransactionsReportsController extends Controller
         $balanceDelta = $endBal - $startBal;
 
         // The two cutover-tab reconciling differences — the answer-first
-        // numbers Carlos checks the moment a reconciliation runs.
-        // PaperCut (10-2082 tab, cell C20): total_transactions - balance_delta.
-        $totalTxn = $refunds + $autoXfer + $get('pc_events_funds_added')
+        // numbers Carlos checks the moment a reconciliation runs. Both are
+        // computed by the pipeline emitter and persisted as line items
+        // (PaperCut 10-2082 cell C20, Digital Wallet 10-2081 cell B29), so we
+        // read those exact workbook values rather than re-derive here — a
+        // re-derivation drifts from the workbook (the legacy PaperCut formula
+        // below mis-signed the manual-migration term).
+        $derivedPc = $refunds + $autoXfer + $get('pc_events_funds_added')
                     + $get('pc_manual_misc_to_papercut')
                     + $get('pc_manual_migration_dw_to_pc')
                     - $revenue
                     - $get('pc_manual_migration_pc_to_dw')
-                    - $get('pc_manual_misc_from_papercut');
-        $pcReconciling = $totalTxn - $balanceDelta;
-
-        // Digital Wallet (10-2081 tab, cell B29). Its rollup (computed ending
-        // balance vs the month-end reading) lives in the pipeline's emitter,
-        // so we read the value it persists rather than re-deriving here and
-        // risking drift from the workbook.
+                    - $get('pc_manual_misc_from_papercut')
+                    - $balanceDelta;
+        $pcReconciling = $lines->has('pc_reconciling_difference')
+            ? $get('pc_reconciling_difference')
+            : $derivedPc;
         $dwReconciling = $get('dw_reconciling_difference');
 
         // Tone: under $1 is penny-parity (matches Carlos's own accepted
