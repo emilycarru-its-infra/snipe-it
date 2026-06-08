@@ -286,9 +286,20 @@ class ConsumablesController extends Controller
     {
         $this->authorize('update', $consumable);
 
+        // A toner whose whole printer fleet is out of circulation (all in
+        // storage) freezes the stepper — there's nothing in service to restock
+        // for. Blocked server-side too, not just greyed out in the UI.
+        if ($consumable->printerFleetOutOfCirculation()) {
+            return response()->json([
+                'status' => 'error',
+                'messages' => trans('admin/consumables/general.stepper_frozen'),
+            ], 422);
+        }
+
         $request->validate([
             'delta' => 'sometimes|integer',
             'qty' => 'sometimes|integer|min:0|max:99999',
+            'req_number' => 'sometimes|nullable|string|max:191',
         ]);
 
         $checkedOut = (int) $consumable->numCheckedOut();
@@ -306,6 +317,18 @@ class ConsumablesController extends Controller
         $newQty = min($newQty, 99999);
 
         $delta = $newQty - $oldQty;
+
+        // Every stock increase must cite a source — a PO or requisition number.
+        // This is what stops an accidental tap from silently bumping inventory
+        // with no paper trail (the reason you'd otherwise have to fake a printer
+        // checkout to walk it back). Decreases/corrections don't need one.
+        $reqNumber = trim((string) $request->input('req_number', ''));
+        if ($delta > 0 && $reqNumber === '') {
+            return response()->json([
+                'status' => 'error',
+                'messages' => ['req_number' => [trans('admin/consumables/general.restock_po_required')]],
+            ], 422);
+        }
 
         $consumable->qty = $newQty;
 
@@ -330,7 +353,7 @@ class ConsumablesController extends Controller
             $logAction->item_id = $consumable->id;
             $logAction->created_by = auth()->id();
             $logAction->quantity = $delta;
-            $logAction->note = $request->input('note') ?: trans('admin/consumables/general.stock_received');
+            $logAction->note = trans('admin/consumables/general.stock_received_po', ['po' => $reqNumber]);
             $logAction->logaction('checkin from');
         }
 
@@ -381,6 +404,15 @@ class ConsumablesController extends Controller
     public function consume(Request $request, Consumable $consumable): JsonResponse
     {
         $this->authorize('checkout', $consumable);
+
+        // Same freeze as restock: if no printer of this model is in circulation,
+        // there's nothing to record usage against.
+        if ($consumable->printerFleetOutOfCirculation()) {
+            return response()->json([
+                'status' => 'error',
+                'messages' => trans('admin/consumables/general.stepper_frozen'),
+            ], 422);
+        }
 
         $request->validate([
             'asset_id' => 'required|integer|exists:assets,id',
