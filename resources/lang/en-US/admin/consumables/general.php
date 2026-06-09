@@ -92,7 +92,7 @@ return [
     'restock_title' => 'Record stock received',
     'restock_order' => 'Order',
     'restock_order_none' => 'No orders are on file. Create one in the Orders module first, then restock against it.',
-    'restock_order_help' => 'Required. Select the order this stock arrived on so the change is traceable — this is what prevents an accidental tap from silently adding inventory.',
+    'restock_order_help' => 'Required. Select the order this stock arrived',
     'restock_qty' => 'Quantity received',
     'restock_confirm' => 'Record restock',
     'restock_order_required' => 'Select the order this restock arrived on.',
