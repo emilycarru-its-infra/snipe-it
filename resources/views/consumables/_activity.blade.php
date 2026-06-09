@@ -10,7 +10,9 @@
 @php
     $activity = $consumable->activityFeed();
     $hasTransactions = $activity->contains(fn ($row) => $row->kind === 'transaction');
-    $hasHistory = $activity->contains(fn ($row) => $row->kind === 'history');
+    // Checkout rows group under the History filter (they're checkout history,
+    // just rendered as their own actionable row with an Undo button).
+    $hasHistory = $activity->contains(fn ($row) => in_array($row->kind, ['history', 'checkout'], true));
 @endphp
 
 <div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -104,6 +106,44 @@
                         </td>
                     @endcan
                     <td>transaction</td>
+                </tr>
+            @elseif ($row->kind === 'checkout')
+                @php
+                    $a = $row->assignment;
+                    $isAsset = $a->assigned_type === \App\Models\Asset::class;
+                    // Resolve via the plain belongsTo relations (the checkedOutTo
+                    // morphTo is named 'assigned' and breaks under eager load).
+                    $target = $isAsset ? $a->asset : $a->user;
+                @endphp
+                <tr>
+                    <td data-value="{{ optional($a->created_at)->format('Y-m-d H:i') }}">{{ $a->created_at?->format('Y-m-d H:i') }}</td>
+                    <td><span class="label label-warning">{{ trans('admin/consumables/general.activity_type_checkout') }}</span></td>
+                    <td>@if ($a->adminuser){!! $a->adminuser->present()->nameUrl() !!}@endif</td>
+                    <td>
+                        <i class="fa-solid {{ $isAsset ? 'fa-print' : 'fa-user' }} text-muted" aria-hidden="true"></i>
+                        @if ($target && $target->getKey()){!! $target->present()->nameUrl() !!}@endif
+                        @if ($a->note)<span class="text-muted">— {{ $a->note }}</span>@endif
+                    </td>
+                    <td class="text-right">1</td>
+                    <td class="text-right" data-value=""></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    @can('update', $consumable)
+                        <td class="text-right" style="white-space: nowrap;">
+                            <form method="post" style="display: inline;"
+                                  action="{{ route('consumables.checkin-assignment', [$consumable->id, $a->id]) }}"
+                                  onsubmit="return confirm('{{ trans('admin/consumables/general.checkin_undo_confirm') }}');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-warning" data-tooltip="true"
+                                        title="{{ trans('admin/consumables/general.checkin_undo') }}">
+                                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </td>
+                    @endcan
+                    <td>history</td>
                 </tr>
             @else
                 @php

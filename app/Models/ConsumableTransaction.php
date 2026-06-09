@@ -32,6 +32,7 @@ class ConsumableTransaction extends Model
     protected $fillable = [
         'consumable_id',
         'asset_id',
+        'consumable_assignment_id',
         'gl_code',
         'quantity',
         'unit_cost',
@@ -102,7 +103,8 @@ class ConsumableTransaction extends Model
         int $quantity,
         ?string $note,
         ?int $userId,
-        ?string $glCodeOverride = null
+        ?string $glCodeOverride = null,
+        ?int $assignmentId = null
     ): ?self {
         $glCode = ($glCodeOverride !== null && trim($glCodeOverride) !== '')
             ? trim($glCodeOverride)
@@ -118,6 +120,7 @@ class ConsumableTransaction extends Model
         return self::create([
             'consumable_id' => $consumable->id,
             'asset_id' => $asset->id,
+            'consumable_assignment_id' => $assignmentId,
             'gl_code' => $glCode,
             'quantity' => $quantity,
             'unit_cost' => $unitCost,

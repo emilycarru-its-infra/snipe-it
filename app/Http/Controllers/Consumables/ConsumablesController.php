@@ -7,9 +7,11 @@ use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\StoreConsumableRequest;
+use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Consumable;
+use App\Models\ConsumableAssignment;
 use App\Models\ConsumableTransaction;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
@@ -461,9 +463,18 @@ class ConsumablesController extends Controller
             'note' => $note,
         ]);
 
+        // The pivot row just created is this checkout — capture its id so the GL
+        // transaction can point back at it, and a later "check back in" can
+        // reverse exactly this checkout and void only its transaction.
+        $assignmentId = \App\Models\ConsumableAssignment::where('consumable_id', $consumable->id)
+            ->where('assigned_to', $asset->id)
+            ->where('assigned_type', Asset::class)
+            ->orderByDesc('id')
+            ->value('id');
+
         // GL transaction — charged to the printer's GL, or a supplied override.
         // Returns null (records nothing) if neither is set; the checkout still stands.
-        ConsumableTransaction::recordCheckout($consumable, $asset, 1, $note, $adminId, $request->input('gl_code'));
+        ConsumableTransaction::recordCheckout($consumable, $asset, 1, $note, $adminId, $request->input('gl_code'), $assignmentId);
 
         // Fire the standard checkout event so the consumption lands in the
         // activity log / history exactly like a form-driven checkout.
@@ -479,6 +490,51 @@ class ConsumablesController extends Controller
             'min' => $min,
             'state' => $remaining <= 0 ? 'red' : (($min > 0 && $remaining <= $min) ? 'yellow' : 'green'),
         ]);
+    }
+
+    /**
+     * Check a consumable back in — reverse one checkout (a "record toner used"
+     * that was a mistake, or any standing assignment). Deletes the assignment
+     * row, which restores the available count; voids the GL transaction tied to
+     * that exact checkout; and logs a checkin so the reversal is on the record.
+     * This is the Undo on the consumable's Activity timeline.
+     */
+    public function checkinAssignment(Consumable $consumable, ConsumableAssignment $assignment): RedirectResponse
+    {
+        $this->authorize('update', $consumable);
+
+        if ((int) $assignment->consumable_id !== (int) $consumable->id) {
+            abort(404);
+        }
+
+        $targetType = $assignment->assigned_type;
+        $targetId = $assignment->assigned_to;
+
+        // Void only the GL line recorded for this exact checkout. nullOnDelete
+        // would null the FK when the row is deleted, so void before deleting.
+        ConsumableTransaction::where('consumable_assignment_id', $assignment->id)
+            ->get()
+            ->each
+            ->delete();
+
+        // Removing the assignment row is what restores numRemaining() — qty is
+        // never touched; availability is qty minus the checkout rows.
+        $assignment->delete();
+
+        $log = new Actionlog;
+        $log->forceFill([
+            'item_type' => Consumable::class,
+            'item_id' => $consumable->id,
+            'target_type' => $targetType,
+            'target_id' => $targetId,
+            'created_by' => auth()->id(),
+            'quantity' => 1,
+            'note' => trans('admin/consumables/general.checkin_undo_note'),
+        ]);
+        $log->logaction('checkin from');
+
+        return redirect()->route('consumables.show', $consumable->id)
+            ->with('success', trans('admin/consumables/general.checkin_undo_success'));
     }
 
     public function clone(Consumable $consumable): View

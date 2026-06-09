@@ -99,4 +99,9 @@ return [
     'stepper_frozen' => 'No printers of this model are in circulation — they are all in storage. Check one out to record toner use or restock.',
     'stepper_frozen_ok' => 'Got it',
     'decommissioned_model' => 'Decommissioned model',
+    'activity_type_checkout' => 'Checkout',
+    'checkin_undo' => 'Check back in (undo)',
+    'checkin_undo_confirm' => 'Check this back in? It returns the unit to available stock and voids its GL transaction.',
+    'checkin_undo_note' => 'Checked back in — reversed and restored to stock.',
+    'checkin_undo_success' => 'Checked the consumable back in: the unit is available again and its GL transaction was voided.',
 ];
