@@ -405,11 +405,25 @@ class Consumable extends SnipeModel
         // forApiHistory() eager-loads the relations the Actionlog presenter needs
         // (adminuser, location, item/target with asset model), matching parity
         // with the API-backed history table and avoiding N+1 lookups.
+        // Active checkouts (a toner recorded as used by a printer, or any
+        // standing assignment) surface as their own actionable rows so each can
+        // be checked back in (Undo). They stand in for the read-only 'checkout'
+        // history rows, which are filtered out below to avoid showing twice.
+        $checkouts = $this->consumableAssignments()
+            ->with(['asset', 'adminuser'])
+            ->get()
+            ->map(fn ($a) => (object) [
+                'kind' => 'checkout',
+                'when' => $a->getAttribute('created_at'),
+                'assignment' => $a,
+            ]);
+
         $history = collect();
         if (auth()->check() && auth()->user()->can('history', $this)) {
             $history = $this->history()
                 ->forApiHistory()
                 ->get()
+                ->reject(fn ($log) => $log->getAttribute('action_type') === 'checkout')
                 ->map(fn ($log) => (object) [
                     'kind' => 'history',
                     'when' => $log->created_at,
@@ -417,7 +431,7 @@ class Consumable extends SnipeModel
                 ]);
         }
 
-        return $transactions->concat($history)
+        return $transactions->concat($checkouts)->concat($history)
             ->sortByDesc(fn ($row) => optional($row->when)->getTimestamp() ?? 0)
             ->values();
     }
