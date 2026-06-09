@@ -240,6 +240,7 @@
     ],
     "consumable_transactions": [
         "asset_id",
+        "consumable_assignment_id",
         "consumable_id",
         "created_at",
         "created_by",
