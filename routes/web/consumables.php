@@ -29,6 +29,12 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
         [Consumables\ConsumablesController::class, 'adjustQuantity']
     )->name('consumables.adjust-qty');
 
+    // Stepper up arrow: orders to cite when restocking (every restock must be
+    // tied to a real order from the Orders module).
+    Route::get('{consumable}/restock-orders',
+        [Consumables\ConsumablesController::class, 'ordersForRestock']
+    )->name('consumables.restock-orders');
+
     // Stepper down arrow: record a cartridge as used by a printer. The
     // picker lists compatible printers; consume checks out 1 + a GL line.
     Route::get('{consumable}/compatible-printers',
