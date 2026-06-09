@@ -31,6 +31,7 @@
 <span class="qty-stepper qty-stepper--{{ $state }} {{ $frozen ? 'qty-stepper--frozen' : '' }} {{ ($canRestock || $canConsume) ? 'is-editable' : '' }}"
       data-qty-stepper
       data-restock-url="{{ route('consumables.adjust-qty', $consumable->id) }}"
+      data-orders-url="{{ route('consumables.restock-orders', $consumable->id) }}"
       data-consume-url="{{ route('consumables.consume', $consumable->id) }}"
       data-printers-url="{{ route('consumables.compatible-printers', $consumable->id) }}"
       data-name="{{ $consumable->name }}"
@@ -56,9 +57,6 @@
         </span>
     @endif
 </span>
-@if ($frozen)
-    <span class="label label-default qty-stepper-badge" title="{{ trans('admin/consumables/general.stepper_frozen') }}">{{ trans('admin/consumables/general.decommissioned_model') }}</span>
-@endif
 
 @once
 @push('css')
@@ -128,7 +126,6 @@
     .qty-stepper--frozen .qty-stepper__value { background: #95a5a6; }
     .qty-stepper--frozen .qty-stepper__nudge { background: #7f8c8d; }
     .qty-stepper--frozen .qty-stepper__btn { cursor: not-allowed; }
-    .qty-stepper-badge { margin-left: 8px; vertical-align: middle; }
 
     /* The modal is emitted inline at the first stepper (a right-aligned card
        cell), so left-align it explicitly — the JS also relocates it to <body>. */
@@ -173,7 +170,7 @@
     </div>
 </div>
 
-<!-- Up arrow: record stock received against a required PO / Req #. -->
+<!-- Up arrow: record stock received against a required order from the Orders module. -->
 <div class="modal fade" id="qty-restock-modal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -184,9 +181,10 @@
             <div class="modal-body">
                 <p class="text-muted" data-restock-subtitle style="margin-bottom:14px;"></p>
                 <div class="form-group">
-                    <label for="qty-restock-po">{{ trans('admin/consumables/general.restock_po') }}</label>
-                    <input type="text" id="qty-restock-po" class="form-control" placeholder="{{ trans('admin/consumables/general.restock_po_placeholder') }}">
-                    <p class="help-block">{{ trans('admin/consumables/general.restock_po_help') }}</p>
+                    <label for="qty-restock-order">{{ trans('admin/consumables/general.restock_order') }}</label>
+                    <select id="qty-restock-order" class="form-control"></select>
+                    <p class="help-block text-danger" data-restock-empty style="display:none;">{{ trans('admin/consumables/general.restock_order_none') }}</p>
+                    <p class="help-block">{{ trans('admin/consumables/general.restock_order_help') }}</p>
                 </div>
                 <div class="form-group">
                     <label for="qty-restock-qty">{{ trans('admin/consumables/general.restock_qty') }}</label>
@@ -284,18 +282,40 @@
 
         if (btn.getAttribute('data-qty-action') === 'restock') {
             // Up arrow no longer nudges +1 inline — it opens a modal that
-            // requires a PO / Req # before any stock is added, so an accidental
-            // tap can't silently bump inventory.
+            // requires picking the order this stock arrived on before anything
+            // is added, so an accidental tap can't silently bump inventory.
             activeStepper = stepper;
-            var poInput = document.getElementById('qty-restock-po');
+            var orderSel = document.getElementById('qty-restock-order');
             var restockQty = document.getElementById('qty-restock-qty');
+            var restockEmpty = document.querySelector('[data-restock-empty]');
             var restockSubtitle = document.querySelector('[data-restock-subtitle]');
             var restockConfirmBtn = document.getElementById('qty-restock-confirm');
-            if (poInput) poInput.value = '';
+            if (orderSel) orderSel.innerHTML = '';
             if (restockQty) restockQty.value = '1';
+            if (restockEmpty) restockEmpty.style.display = 'none';
             if (restockConfirmBtn) restockConfirmBtn.disabled = true;
             if (restockSubtitle) restockSubtitle.textContent = stepper.getAttribute('data-name') || '';
             bsModal('qty-restock-modal', 'show');
+
+            fetch(stepper.getAttribute('data-orders-url'), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                var orders = data.orders || [];
+                if (!orders.length) {
+                    if (restockEmpty) restockEmpty.style.display = '';
+                    return;
+                }
+                orders.forEach(function (o) {
+                    var opt = document.createElement('option');
+                    opt.value = o.id;
+                    opt.textContent = o.label;
+                    orderSel.appendChild(opt);
+                });
+                if (restockConfirmBtn) restockConfirmBtn.disabled = false;
+            }).catch(function () {
+                if (restockEmpty) restockEmpty.style.display = '';
+            });
             return;
         }
 
@@ -362,24 +382,24 @@
         });
     }
 
-    // Restock: confirm stays disabled until a PO / Req # is typed.
-    var restockPoEl = document.getElementById('qty-restock-po');
+    // Restock: confirm stays disabled until an order is selected.
+    var restockOrderEl = document.getElementById('qty-restock-order');
     var restockConfirm = document.getElementById('qty-restock-confirm');
-    if (restockPoEl && restockConfirm) {
-        restockPoEl.addEventListener('input', function () {
-            restockConfirm.disabled = restockPoEl.value.trim() === '';
+    if (restockOrderEl && restockConfirm) {
+        restockOrderEl.addEventListener('change', function () {
+            restockConfirm.disabled = !restockOrderEl.value;
         });
     }
     if (restockConfirm) {
         restockConfirm.addEventListener('click', function () {
-            var po = document.getElementById('qty-restock-po');
+            var order = document.getElementById('qty-restock-order');
             var qtyEl = document.getElementById('qty-restock-qty');
-            if (!activeStepper || !po || po.value.trim() === '') return;
+            if (!activeStepper || !order || !order.value) return;
             var qty = Math.max(1, parseInt(qtyEl && qtyEl.value, 10) || 1);
             restockConfirm.disabled = true;
             post(activeStepper.getAttribute('data-restock-url'), {
                 delta: String(qty),
-                req_number: po.value.trim()
+                order_id: order.value
             }).then(function (data) {
                 applyResult(activeStepper, data);
                 bsModal('qty-restock-modal', 'hide');

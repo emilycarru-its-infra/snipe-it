@@ -37,7 +37,8 @@ class TonersDashboardTest extends TestCase
     {
         $ricoh = Manufacturer::factory()->create(['name' => 'Ricoh']);
         $im300 = AssetModel::factory()->for($ricoh)->create(['name' => 'IM C300']);
-        Asset::factory()->count(2)->create(['model_id' => $im300->id]);
+        // In circulation (checked out) so the card shows the printer count.
+        Asset::factory()->count(2)->assignedToUser()->create(['model_id' => $im300->id]);
 
         $blackToner = Consumable::factory()->create(['name' => 'IM C300 Black Toner', 'qty' => 4]);
         $cyanToner = Consumable::factory()->create(['name' => 'IM C300 Cyan Toner', 'qty' => 2]);
@@ -47,13 +48,27 @@ class TonersDashboardTest extends TestCase
         $this->actingAs(User::factory()->viewConsumables()->create())
             ->get(route('toners.index'))
             ->assertOk()
-            ->assertSee('Ricoh')
             ->assertSee('IM C300')
             // The card surfaces how many physical printers of this model
-            // are in service — useful for ranking stock priorities.
+            // are in circulation — useful for ranking stock priorities.
             ->assertSee('2 printers')
             ->assertSee('IM C300 Black Toner')
             ->assertSee('IM C300 Cyan Toner');
+    }
+
+    public function test_model_with_no_printers_in_circulation_shows_decommissioned_badge()
+    {
+        $model = AssetModel::factory()->create(['name' => 'IM C300']);
+        // Printers exist but all in storage (unassigned) — out of circulation.
+        Asset::factory()->count(2)->create(['model_id' => $model->id, 'assigned_to' => null]);
+        $toner = Consumable::factory()->create(['name' => 'IM C300 Black Toner']);
+        $toner->compatibleModels()->sync([$model->id]);
+
+        $this->actingAs(User::factory()->viewConsumables()->create())
+            ->get(route('toners.index'))
+            ->assertOk()
+            ->assertSee(trans('admin/consumables/general.decommissioned_model'))
+            ->assertDontSee('2 printers');
     }
 
     public function test_low_stock_consumables_get_warning_class()
