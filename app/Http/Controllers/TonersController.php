@@ -28,7 +28,7 @@ class TonersController extends Controller
                 'compatibleConsumables' => fn ($query) => $query->orderBy('name'),
             ])
             ->whereHas('compatibleConsumables')
-            ->withCount('assets')
+            ->withCount(['assets', 'assets as printers_in_circulation_count' => fn ($q) => $q->whereNotNull('assigned_to')])
             ->orderBy('display_order')
             ->orderBy('name')
             ->get();

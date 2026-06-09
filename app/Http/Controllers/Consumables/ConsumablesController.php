@@ -299,7 +299,7 @@ class ConsumablesController extends Controller
         $request->validate([
             'delta' => 'sometimes|integer',
             'qty' => 'sometimes|integer|min:0|max:99999',
-            'req_number' => 'sometimes|nullable|string|max:191',
+            'order_id' => 'sometimes|nullable|integer',
         ]);
 
         $checkedOut = (int) $consumable->numCheckedOut();
@@ -318,15 +318,16 @@ class ConsumablesController extends Controller
 
         $delta = $newQty - $oldQty;
 
-        // Every stock increase must cite a source — a PO or requisition number.
-        // This is what stops an accidental tap from silently bumping inventory
-        // with no paper trail (the reason you'd otherwise have to fake a printer
-        // checkout to walk it back). Decreases/corrections don't need one.
-        $reqNumber = trim((string) $request->input('req_number', ''));
-        if ($delta > 0 && $reqNumber === '') {
+        // Every stock increase must cite the order it arrived on — a real
+        // record from the Orders module, not a free-typed string. This is what
+        // stops an accidental tap from silently bumping inventory with no paper
+        // trail (the reason you'd otherwise have to fake a printer checkout to
+        // walk it back). Decreases/corrections don't need one.
+        $order = $request->filled('order_id') ? \App\Models\Order::find($request->input('order_id')) : null;
+        if ($delta > 0 && ! $order) {
             return response()->json([
                 'status' => 'error',
-                'messages' => ['req_number' => [trans('admin/consumables/general.restock_po_required')]],
+                'messages' => ['order_id' => [trans('admin/consumables/general.restock_order_required')]],
             ], 422);
         }
 
@@ -353,7 +354,7 @@ class ConsumablesController extends Controller
             $logAction->item_id = $consumable->id;
             $logAction->created_by = auth()->id();
             $logAction->quantity = $delta;
-            $logAction->note = trans('admin/consumables/general.stock_received_po', ['po' => $reqNumber]);
+            $logAction->note = trans('admin/consumables/general.stock_received_order', ['order' => $order->order_number]);
             $logAction->logaction('checkin from');
         }
 
@@ -392,6 +393,27 @@ class ConsumablesController extends Controller
             ]);
 
         return response()->json(['status' => 'success', 'printers' => $printers]);
+    }
+
+    /**
+     * JSON list of orders to cite when restocking — every restock (up arrow)
+     * must be tied to a real order from the Orders module, so this feeds the
+     * picker. Cancelled orders are excluded; newest first.
+     */
+    public function ordersForRestock(Consumable $consumable): JsonResponse
+    {
+        $this->authorize('update', $consumable);
+
+        $orders = \App\Models\Order::where('status', '!=', 'cancelled')
+            ->orderByDesc('order_date')
+            ->orderByDesc('id')
+            ->get(['id', 'order_number', 'fiscal_year'])
+            ->map(fn ($o) => [
+                'id' => $o->id,
+                'label' => $o->order_number.($o->fiscal_year ? ' · '.$o->fiscal_year : ''),
+            ]);
+
+        return response()->json(['status' => 'success', 'orders' => $orders]);
     }
 
     /**
