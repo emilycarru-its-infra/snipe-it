@@ -45,6 +45,12 @@ Route::group(['prefix' => 'consumables', 'middleware' => ['auth']], function () 
         [Consumables\ConsumablesController::class, 'consume']
     )->name('consumables.consume');
 
+    // Undo a checkout from the Activity timeline: restore the unit to stock and
+    // void its GL transaction (e.g. a "record toner used" tapped by mistake).
+    Route::delete('{consumable}/assignments/{assignment}',
+        [Consumables\ConsumablesController::class, 'checkinAssignment']
+    )->name('consumables.checkin-assignment');
+
     // Add the consumable to an existing planned order, or create a new one.
     Route::get(
         '{consumable}/order',

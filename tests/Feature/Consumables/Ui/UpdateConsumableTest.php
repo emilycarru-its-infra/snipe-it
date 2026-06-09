@@ -8,6 +8,7 @@ use App\Models\AssetModel;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Consumable;
+use App\Models\ConsumableAssignment;
 use App\Models\ConsumableTransaction;
 use App\Models\Location;
 use App\Models\Manufacturer;
@@ -415,5 +416,116 @@ class UpdateConsumableTest extends TestCase
             ->assertStatus(422);
 
         $this->assertSame(0, ConsumableTransaction::where('consumable_id', $consumable->id)->count());
+    }
+
+    public function test_consume_links_the_gl_transaction_to_the_assignment()
+    {
+        $model = AssetModel::factory()->create();
+        $printer = Asset::factory()->assignedToUser()->create(['model_id' => $model->id, 'gl_code' => 'GL-1']);
+        $consumable = Consumable::factory()->create(['qty' => 3, 'purchase_cost' => 50]);
+        $consumable->compatibleModels()->sync([$model->id]);
+
+        $this->actingAs(User::factory()->checkoutConsumables()->create())
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertOk();
+
+        $assignment = ConsumableAssignment::where('consumable_id', $consumable->id)->latest('id')->first();
+        $txn = ConsumableTransaction::where('consumable_id', $consumable->id)->latest('id')->first();
+        $this->assertNotNull($assignment);
+        $this->assertNotNull($txn);
+        $this->assertEquals($assignment->id, $txn->consumable_assignment_id);
+    }
+
+    public function test_checkin_reverses_a_consume_and_voids_its_transaction()
+    {
+        $model = AssetModel::factory()->create();
+        $printer = Asset::factory()->assignedToUser()->create(['model_id' => $model->id, 'gl_code' => 'GL-1']);
+        $consumable = Consumable::factory()->create(['qty' => 3, 'purchase_cost' => 50]);
+        $consumable->compatibleModels()->sync([$model->id]);
+        $user = User::factory()->editConsumables()->checkoutConsumables()->create();
+
+        $this->actingAs($user)
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertOk();
+        $this->assertEquals(2, $consumable->fresh()->numRemaining());
+        $assignment = ConsumableAssignment::where('consumable_id', $consumable->id)->latest('id')->first();
+
+        $this->actingAs($user)
+            ->delete(route('consumables.checkin-assignment', [$consumable, $assignment]))
+            ->assertRedirect();
+
+        // The unit is back in stock, the checkout row is gone, and its GL line voided.
+        $this->assertEquals(3, $consumable->fresh()->numRemaining());
+        $this->assertDatabaseMissing('consumables_users', ['id' => $assignment->id]);
+        $this->assertSame(0, ConsumableTransaction::where('consumable_id', $consumable->id)->count());
+
+        // ...and the reversal is on the record as a checkin.
+        $log = Actionlog::where('item_type', Consumable::class)
+            ->where('item_id', $consumable->id)
+            ->where('action_type', 'checkin from')
+            ->latest('id')->first();
+        $this->assertNotNull($log, 'Checking back in should write a checkin action log entry');
+        $this->assertEquals($printer->id, $log->target_id);
+    }
+
+    public function test_checkin_requires_update_permission()
+    {
+        $model = AssetModel::factory()->create();
+        $printer = Asset::factory()->assignedToUser()->create(['model_id' => $model->id]);
+        $consumable = Consumable::factory()->create(['qty' => 3]);
+        $consumable->compatibleModels()->sync([$model->id]);
+
+        $this->actingAs(User::factory()->checkoutConsumables()->create())
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertOk();
+        $assignment = ConsumableAssignment::where('consumable_id', $consumable->id)->latest('id')->first();
+
+        // checkout permission alone can't reverse a checkout — that needs edit/update.
+        $this->actingAs(User::factory()->checkoutConsumables()->create())
+            ->delete(route('consumables.checkin-assignment', [$consumable, $assignment]))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('consumables_users', ['id' => $assignment->id]);
+    }
+
+    public function test_checkin_rejects_an_assignment_from_another_consumable()
+    {
+        $model = AssetModel::factory()->create();
+        $printer = Asset::factory()->assignedToUser()->create(['model_id' => $model->id]);
+        $consumableA = Consumable::factory()->create(['qty' => 3]);
+        $consumableB = Consumable::factory()->create(['qty' => 3]);
+        $consumableA->compatibleModels()->sync([$model->id]);
+        $user = User::factory()->editConsumables()->checkoutConsumables()->create();
+
+        $this->actingAs($user)
+            ->postJson(route('consumables.consume', $consumableA), ['asset_id' => $printer->id])
+            ->assertOk();
+        $assignment = ConsumableAssignment::where('consumable_id', $consumableA->id)->latest('id')->first();
+
+        // Reaching A's assignment through B's URL must 404, not silently reverse it.
+        $this->actingAs($user)
+            ->delete(route('consumables.checkin-assignment', [$consumableB, $assignment]))
+            ->assertNotFound();
+        $this->assertDatabaseHas('consumables_users', ['id' => $assignment->id]);
+    }
+
+    public function test_activity_tab_renders_an_active_checkout_with_an_undo_control()
+    {
+        $model = AssetModel::factory()->create();
+        $printer = Asset::factory()->assignedToUser()->create(['model_id' => $model->id, 'gl_code' => 'GL-1']);
+        $consumable = Consumable::factory()->create(['qty' => 3]);
+        $consumable->compatibleModels()->sync([$model->id]);
+        $user = User::factory()->editConsumables()->checkoutConsumables()->viewConsumables()->create();
+
+        $this->actingAs($user)
+            ->postJson(route('consumables.consume', $consumable), ['asset_id' => $printer->id])
+            ->assertOk();
+        $assignment = ConsumableAssignment::where('consumable_id', $consumable->id)->latest('id')->first();
+
+        $this->actingAs($user)
+            ->get(route('consumables.show', $consumable))
+            ->assertOk()
+            ->assertSee(trans('admin/consumables/general.activity_type_checkout'))
+            ->assertSee(route('consumables.checkin-assignment', [$consumable->id, $assignment->id]), false);
     }
 }
