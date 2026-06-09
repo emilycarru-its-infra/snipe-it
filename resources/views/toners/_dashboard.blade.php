@@ -17,7 +17,7 @@
                 'compatibleConsumables' => fn ($q) => $q->orderBy('name'),
             ])
             ->whereHas('compatibleConsumables')
-            ->withCount('assets')
+            ->withCount(['assets', 'assets as printers_in_circulation_count' => fn ($q) => $q->whereNotNull('assigned_to')])
             ->orderBy('display_order')
             ->orderBy('name')
             ->get();
@@ -59,13 +59,15 @@
                     @endif
                     <div class="toner-printer-card-titleblock">
                         <h3 class="box-title toner-printer-card-title">{{ $model->name }}</h3>
-                        @if ($model->manufacturer)
-                            <div class="toner-printer-card-manufacturer">{{ $model->manufacturer->name }}</div>
-                        @endif
                         <div class="toner-printer-card-meta">
-                            <span class="toner-printer-count">
-                                {{ $model->assets_count }} {{ \Illuminate\Support\Str::plural('printer', $model->assets_count) }}
-                            </span>
+                            @if ((int) ($model->printers_in_circulation_count ?? 0) === 0)
+                                <span class="toner-decommissioned-badge"
+                                      title="{{ trans('admin/consumables/general.stepper_frozen') }}">{{ trans('admin/consumables/general.decommissioned_model') }}</span>
+                            @else
+                                <span class="toner-printer-count">
+                                    {{ $model->assets_count }} {{ \Illuminate\Support\Str::plural('printer', $model->assets_count) }}
+                                </span>
+                            @endif
                             @if ($autoOrdering)
                                 <span class="label label-success toner-auto-order-badge"
                                       title="At least one compatible consumable is on a maintenance contract">
@@ -237,11 +239,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .toner-printer-card-manufacturer {
-        font-size: 12px;
-        opacity: 0.6;
-        margin: 0 0 6px;
-    }
     .toner-printer-card-meta {
         display: flex;
         align-items: center;
@@ -254,6 +251,15 @@
         font-weight: 600;
         padding: 2px 9px;
         background: rgba(127,127,127,0.12);
+        border-radius: 10px;
+        white-space: nowrap;
+    }
+    .toner-decommissioned-badge {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 10px;
+        background: rgba(127,140,160,0.18);
+        color: #5a6b80;
         border-radius: 10px;
         white-space: nowrap;
     }

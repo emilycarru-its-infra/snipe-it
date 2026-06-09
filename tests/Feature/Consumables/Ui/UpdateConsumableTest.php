@@ -11,6 +11,7 @@ use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\Location;
 use App\Models\Manufacturer;
+use App\Models\Order;
 use App\Models\Supplier;
 use App\Models\User;
 use Tests\TestCase;
@@ -168,9 +169,10 @@ class UpdateConsumableTest extends TestCase
     public function test_adjust_quantity_increments_by_delta()
     {
         $consumable = Consumable::factory()->create(['qty' => 2]);
+        $order = Order::factory()->create();
 
         $this->actingAs(User::factory()->editConsumables()->create())
-            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-1001'])
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'order_id' => $order->id])
             ->assertOk()
             ->assertJson(['status' => 'success', 'qty' => 3, 'remaining' => 3]);
 
@@ -192,9 +194,10 @@ class UpdateConsumableTest extends TestCase
     public function test_adjust_quantity_sets_absolute_value()
     {
         $consumable = Consumable::factory()->create(['qty' => 0]);
+        $order = Order::factory()->create();
 
         $this->actingAs(User::factory()->editConsumables()->create())
-            ->post(route('consumables.adjust-qty', $consumable), ['qty' => 12, 'req_number' => 'PO-1002'])
+            ->post(route('consumables.adjust-qty', $consumable), ['qty' => 12, 'order_id' => $order->id])
             ->assertOk()
             ->assertJson(['qty' => 12]);
 
@@ -221,9 +224,10 @@ class UpdateConsumableTest extends TestCase
     {
         $consumable = Consumable::factory()->create(['qty' => 0]);
         $user = User::factory()->editConsumables()->create();
+        $order = Order::factory()->create(['order_number' => 'ORD-7788']);
 
         $this->actingAs($user)
-            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-7788'])
+            ->post(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'order_id' => $order->id])
             ->assertOk();
 
         // Units arriving = a first-class 'checkin' (qty received), attributed
@@ -237,8 +241,8 @@ class UpdateConsumableTest extends TestCase
         $this->assertEquals($user->id, $log->created_by);
         $this->assertEquals(1, (int) $log->quantity);
 
-        // The cited PO / Req # is recorded in the history note for traceability.
-        $this->assertStringContainsString('PO-7788', (string) $log->note);
+        // The cited order number is recorded in the history note for traceability.
+        $this->assertStringContainsString('ORD-7788', (string) $log->note);
 
         // ...and NOT a generic 'update' row (the observer is suppressed).
         $this->assertDatabaseMissing('action_logs', [
@@ -256,7 +260,18 @@ class UpdateConsumableTest extends TestCase
             ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1])
             ->assertStatus(422);
 
-        // Stock is untouched when the restock cites no PO / Req #.
+        // Stock is untouched when the restock cites no order.
+        $this->assertEquals(5, $consumable->fresh()->qty);
+    }
+
+    public function test_adjust_quantity_up_is_rejected_for_a_nonexistent_order()
+    {
+        $consumable = Consumable::factory()->create(['qty' => 5]);
+
+        $this->actingAs(User::factory()->editConsumables()->create())
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'order_id' => 999999])
+            ->assertStatus(422);
+
         $this->assertEquals(5, $consumable->fresh()->qty);
     }
 
@@ -280,10 +295,11 @@ class UpdateConsumableTest extends TestCase
         $consumable->compatibleModels()->sync([$model->id]);
 
         $user = User::factory()->editConsumables()->checkoutConsumables()->create();
+        $order = Order::factory()->create();
 
-        // Restock is blocked even with a valid PO.
+        // Restock is blocked even with a valid order.
         $this->actingAs($user)
-            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-1'])
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'order_id' => $order->id])
             ->assertStatus(422);
         $this->assertEquals(3, $consumable->fresh()->qty);
 
@@ -302,9 +318,10 @@ class UpdateConsumableTest extends TestCase
         Asset::factory()->assignedToUser()->create(['model_id' => $model->id]);
         $consumable = Consumable::factory()->create(['qty' => 3]);
         $consumable->compatibleModels()->sync([$model->id]);
+        $order = Order::factory()->create();
 
         $this->actingAs(User::factory()->editConsumables()->create())
-            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-9'])
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'order_id' => $order->id])
             ->assertOk()
             ->assertJson(['qty' => 4]);
     }
@@ -313,11 +330,27 @@ class UpdateConsumableTest extends TestCase
     {
         // No compatible models == not a printer toner; never frozen.
         $consumable = Consumable::factory()->create(['qty' => 2]);
+        $order = Order::factory()->create();
 
         $this->actingAs(User::factory()->editConsumables()->create())
-            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'req_number' => 'PO-3'])
+            ->postJson(route('consumables.adjust-qty', $consumable), ['delta' => 1, 'order_id' => $order->id])
             ->assertOk()
             ->assertJson(['qty' => 3]);
+    }
+
+    public function test_restock_orders_lists_noncancelled_orders()
+    {
+        $open = Order::factory()->create(['status' => 'ordered']);
+        $cancelled = Order::factory()->create(['status' => 'cancelled']);
+        $consumable = Consumable::factory()->create();
+
+        $resp = $this->actingAs(User::factory()->editConsumables()->create())
+            ->getJson(route('consumables.restock-orders', $consumable))
+            ->assertOk();
+
+        $ids = collect($resp->json('orders'))->pluck('id');
+        $this->assertTrue($ids->contains($open->id), 'open order should be listed');
+        $this->assertFalse($ids->contains($cancelled->id), 'cancelled order should be excluded');
     }
 
     public function test_compatible_printers_lists_assets_of_compatible_models()
