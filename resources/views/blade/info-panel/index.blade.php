@@ -156,9 +156,26 @@
         {{-- Compatible printer models — the consumable↔model relationship,
              surfaced here instead of being buried in a free-text note. --}}
         @if (($infoPanelObj instanceof \App\Models\Consumable) && $infoPanelObj->compatibleModels->isNotEmpty())
+            @once
+                @push('css')
+                <style>
+                    /* Model names are long and there can be several, so a hard
+                       float-right value collides with the label and clips. Stack
+                       the list under the label, left-aligned and wrapping. */
+                    .list-group-item .info-panel-compatible-models {
+                        float: none !important;
+                        display: block;
+                        margin-top: 4px;
+                        text-align: left;
+                        white-space: normal;
+                        line-height: 1.6;
+                    }
+                </style>
+                @endpush
+            @endonce
             <x-info-element icon_type="print" title="{{ trans('admin/consumables/general.compatible_models') }}">
                 {{ trans('admin/consumables/general.compatible_models') }}
-                <span class="pull-right">
+                <span class="pull-right info-panel-compatible-models">
                     @foreach ($infoPanelObj->compatibleModels as $compatibleModel)
                         <a href="{{ route('models.show', $compatibleModel->id) }}">{{ $compatibleModel->name }}</a>{{ $loop->last ? '' : ', ' }}
                     @endforeach
