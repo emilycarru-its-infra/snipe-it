@@ -15,6 +15,7 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\User;
+use App\Services\AssetCommitted;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -149,7 +150,14 @@ class ProcurementReportsController extends Controller
         // FY drive that FY's replacement budget (CSI/Macquarie schedules
         // are already pre-approved at signing). The selected-FY card
         // surfaces this; the FY chart overlays it on committed/planned.
-        $leaseExpiryByFy = $this->leaseExpiryByFy();
+        // Schedules with a logged buyout / return / extension decision
+        // are NOT being replaced, so they drop out of the estimate; the
+        // breakdown table below the tiles still lists them with the call.
+        $allLeaseEndSchedules = $this->leaseEndSchedules();
+        $leaseExpiryByFy = $this->leaseExpiryByFy($allLeaseEndSchedules);
+        $leaseEndSchedules = $selectedFy
+            ? array_values(array_filter($allLeaseEndSchedules, fn ($s) => $s['fiscal_year'] === $selectedFy))
+            : $allLeaseEndSchedules;
         $leaseExpiryTotal = $selectedFy
             ? (float) ($leaseExpiryByFy[$selectedFy]['cost'] ?? 0.0)
             : (float) array_sum(array_column($leaseExpiryByFy, 'cost'));
@@ -214,6 +222,7 @@ class ProcurementReportsController extends Controller
             'eolEstimate' => (float) $eolAssets->sum('purchase_cost'),
             'leaseExpiryTotal' => $leaseExpiryTotal,
             'leaseExpiryCount' => $leaseExpiryCount,
+            'leaseEndSchedules' => $leaseEndSchedules,
             'poRows' => $poRows,
             'fiscalYears' => array_values($fiscalYears),
             'committedByFy' => $committedByFy,
@@ -1302,34 +1311,13 @@ class ProcurementReportsController extends Controller
      * instead of the drifted order-item import. Outstanding (not-yet-shipped)
      * orders have no asset, so they fall to the Orders model rather than
      * inflating committed. Returns [po_number => committed_total].
+     *
+     * Shared with the budget carry-forward via App\Services\AssetCommitted
+     * so both read the same number.
      */
     private function assetCommittedByPo(?string $fy = null): array
     {
-        $columns = $this->leaseFieldColumns();
-        $poColumn = $columns['po_number'];
-        $warrantyColumn = $columns['warranty_cost'] ?? null;
-
-        if (! $poColumn) {
-            return [];
-        }
-
-        // Only assets that carry a university PO (P00…) on their PO Number
-        // field count toward committed; CSI-schedule values (301452-…) and
-        // blanks don't map to a purchase order.
-        $query = Asset::query()->where($poColumn, 'like', 'P00%');
-        $assets = $this->scopeDateToFiscalYear($query, $fy, 'purchase_date')->get();
-
-        $map = [];
-        foreach ($assets as $asset) {
-            $po = trim((string) $asset->{$poColumn});
-            if ($po === '') {
-                continue;
-            }
-            $warranty = $warrantyColumn ? $this->parseMoney($asset->{$warrantyColumn}) : 0.0;
-            $map[$po] = ($map[$po] ?? 0.0) + (float) $asset->purchase_cost + $warranty;
-        }
-
-        return $map;
+        return AssetCommitted::byPo($fy);
     }
 
     /**
@@ -1376,11 +1364,42 @@ class ProcurementReportsController extends Controller
      * replacement budget for FYNN (CSI/Macquarie already pre-approved
      * the equivalent spend when the original schedule was signed).
      *
-     * Buyout and archived assets are excluded — they're no longer
-     * commitments. purchase_cost stands in as the replacement-cost
-     * estimate (same convention as the EOL refresh forecast).
+     * Derived from leaseEndSchedules(): only schedules still slated for
+     * refresh count — a logged buyout / return / extension decision
+     * means the devices are kept (or handed back), not replaced, so
+     * that schedule no longer asks for replacement budget.
      */
-    private function leaseExpiryByFy(): array
+    private function leaseExpiryByFy(array $schedules): array
+    {
+        $byFy = [];
+        foreach ($schedules as $schedule) {
+            if (! $schedule['refresh_planned']) {
+                continue;
+            }
+
+            $fy = $schedule['fiscal_year'];
+            $byFy[$fy] ??= ['count' => 0, 'cost' => 0.0];
+            $byFy[$fy]['count'] += $schedule['count'];
+            $byFy[$fy]['cost'] += $schedule['cost'];
+        }
+
+        ksort($byFy);
+        return $byFy;
+    }
+
+    /**
+     * Every lease schedule with an end date, rolled up per contract:
+     * device count, model mix, replacement-cost estimate (purchase_cost,
+     * same convention as the EOL forecast) and the logged lease decision,
+     * ordered by end date. Buyout / legacy / archived assets are excluded
+     * from the counts — they're no longer lease commitments.
+     *
+     * `refresh_planned` is the flag the pre-approval estimate keys on:
+     * true when no decision is logged yet (default = replace at term) or
+     * the decision is an explicit 'replace'; false for buyout (lease-to-
+     * own), return and extend.
+     */
+    private function leaseEndSchedules(): array
     {
         $columns = $this->leaseFieldColumns();
         $endDateColumn = $columns['lease_end_date'];
@@ -1390,16 +1409,19 @@ class ProcurementReportsController extends Controller
             return [];
         }
 
-        $assets = Asset::with('status')
+        $assets = Asset::with('model', 'status')
             ->whereNotNull($endDateColumn)
             ->where($endDateColumn, '!=', '')
             ->whereNotNull($contractIdColumn)
             ->where($contractIdColumn, '!=', '')
             ->get();
 
-        $byFy = [];
+        $decisions = $this->leaseDecisionsByContract();
+
+        $schedules = [];
         foreach ($assets as $asset) {
-            if (! $this->isValidContractId($asset->{$contractIdColumn})) {
+            $contractId = $asset->{$contractIdColumn};
+            if (! $this->isValidContractId($contractId)) {
                 continue;
             }
 
@@ -1415,13 +1437,52 @@ class ProcurementReportsController extends Controller
                 continue;
             }
 
-            $byFy[$fy] ??= ['count' => 0, 'cost' => 0.0];
-            $byFy[$fy]['count']++;
-            $byFy[$fy]['cost'] += (float) $asset->purchase_cost;
+            if (! isset($schedules[$contractId])) {
+                $decision = $decisions[$contractId] ?? null;
+                $schedules[$contractId] = [
+                    'contract_id' => $contractId,
+                    'provider' => $this->contractProvider($contractId),
+                    'lease_end_date' => $asset->{$endDateColumn},
+                    'fiscal_year' => $fy,
+                    'count' => 0,
+                    'cost' => 0.0,
+                    'model_counts' => [],
+                    'decision' => $decision,
+                    'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
+                ];
+            }
+
+            $schedules[$contractId]['count']++;
+            $schedules[$contractId]['cost'] += (float) $asset->purchase_cost;
+
+            $modelName = $asset->model?->name ?: trans('general.na');
+            $modelName = html_entity_decode($modelName, ENT_QUOTES | ENT_HTML5);
+            $schedules[$contractId]['model_counts'][$modelName] =
+                ($schedules[$contractId]['model_counts'][$modelName] ?? 0) + 1;
         }
 
-        ksort($byFy);
-        return $byFy;
+        foreach ($schedules as &$schedule) {
+            arsort($schedule['model_counts']);
+        }
+        unset($schedule);
+
+        usort($schedules, fn ($a, $b) => [$a['lease_end_date'], $a['contract_id']] <=> [$b['lease_end_date'], $b['contract_id']]);
+
+        return array_values($schedules);
+    }
+
+    /**
+     * The latest non-cancelled decision logged against each lease
+     * contract, keyed by contract reference. Ordered by decision date so
+     * keyBy keeps the most recent call when a contract has several.
+     */
+    private function leaseDecisionsByContract(): array
+    {
+        return LeaseDecision::where('status', '!=', 'cancelled')
+            ->orderBy('decision_date')
+            ->get()
+            ->keyBy('contract_reference')
+            ->all();
     }
 
     /**
@@ -3270,11 +3331,37 @@ class ProcurementReportsController extends Controller
         // blanket PO's orders can sit in a later year than the PO itself —
         // e.g. schedules 007/008 in FY2026-27 on a FY2025-26 PO. Those years
         // have to be offered, or you couldn't filter to the split-out slice.
+        //
+        // Budget-allocation and lease-end years are offered too: a year is a
+        // planning scope before its first PO lands — it already holds the
+        // carried-forward budget and the lease-end pre-approval exposure.
         return PurchaseOrder::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')
             ->merge(Order::query()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
+            ->merge(BudgetAllocation::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year'))
             ->map(fn ($fy) => $this->normalizeFy($fy))
             ->filter()
+            ->merge($this->leaseEndFiscalYears())
             ->unique()->sort()->values();
+    }
+
+    /**
+     * Fiscal years carrying lease-end exposure, from the distinct Lease
+     * End Date values on assets — so a planning year is selectable before
+     * any spend is booked into it.
+     */
+    private function leaseEndFiscalYears(): \Illuminate\Support\Collection
+    {
+        $endDateColumn = $this->leaseFieldColumns()['lease_end_date'];
+        if (! $endDateColumn) {
+            return collect();
+        }
+
+        return Asset::whereNotNull($endDateColumn)
+            ->where($endDateColumn, '!=', '')
+            ->distinct()
+            ->pluck($endDateColumn)
+            ->map(fn ($date) => $this->fiscalYearFromEndDate($date))
+            ->filter();
     }
 
     /**
