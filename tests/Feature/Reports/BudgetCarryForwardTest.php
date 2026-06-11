@@ -17,22 +17,6 @@ use Tests\TestCase;
  */
 class BudgetCarryForwardTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Creating a custom field issues an ALTER TABLE, whose implicit
-        // commit ends the surrounding RefreshDatabase transaction — so a
-        // sibling test that adds the "PO Number" field leaks its purchase
-        // orders and committed assets past rollback. The live carry reads
-        // purchase_orders and assets globally (as it must in production), so
-        // a leaked prior-FY PO with unused budget would surface a phantom
-        // carry here. Clear the slate so each test sees only its own data.
-        BudgetAllocation::query()->delete();
-        PurchaseOrder::query()->delete();
-        Asset::query()->forceDelete();
-    }
-
     private function superuser(): User
     {
         return User::factory()->superuser()->create();
@@ -160,6 +144,10 @@ class BudgetCarryForwardTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertDontSee(trans('admin/budget-allocations/general.live'));
+            // No carry: the tile carries no "carried from …" line. (Assert the
+            // carry-specific phrase, not the bare "Live" label — that word is a
+            // substring of "Livewire", whose injected scripts vary across the
+            // parallel suite and would make a bare match flaky.)
+            ->assertDontSee('carried from');
     }
 }

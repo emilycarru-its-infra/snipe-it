@@ -17,20 +17,6 @@ use Tests\TestCase;
  */
 class LeaseEndSchedulesTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Creating a custom field issues an ALTER TABLE, whose implicit
-        // commit ends the surrounding RefreshDatabase transaction — so a
-        // sibling test that adds the lease fields leaks its assets and
-        // decisions past rollback. The lease-end tile sums every schedule
-        // ending in the scoped FY, so a leaked schedule would inflate the
-        // count and cost. Clear the slate so each test sees only its own data.
-        LeaseDecision::query()->forceDelete();
-        Asset::query()->forceDelete();
-    }
-
     private function superuser(): User
     {
         return User::factory()->superuser()->create();
