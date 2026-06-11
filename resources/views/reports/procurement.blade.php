@@ -157,6 +157,102 @@
     </div>
 </div>
 
+@if (count($leaseEndSchedules))
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">
+                    {{ $selectedFy
+                        ? trans('admin/purchase-orders/general.lease_end_title', ['fy' => $selectedFy])
+                        : trans('admin/purchase-orders/general.lease_end_title_all') }}
+                </h3>
+                @can('create', \App\Models\Order::class)
+                    <a href="{{ route('lease-decisions.create') }}" class="btn btn-default btn-xs pull-right">
+                        {{ trans('admin/lease-decisions/general.create') }}
+                    </a>
+                @endcan
+            </div>
+            <div class="box-body">
+                <p class="text-muted" style="margin-bottom:10px;">{{ trans('admin/purchase-orders/general.lease_end_help') }}</p>
+                <div class="table-responsive">
+                    <table class="table table-striped" style="margin-bottom:0;">
+                        <thead>
+                            <tr>
+                                <th>{{ trans('admin/lease-decisions/general.contract_reference') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.lease_end_date') }}</th>
+                                <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_devices') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.lease_end_models') }}</th>
+                                <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_replacement') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.lease_end_plan') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($leaseEndSchedules as $schedule)
+                                <tr>
+                                    <td><strong>{{ $schedule['contract_id'] }}</strong></td>
+                                    <td>{{ $schedule['provider'] }}</td>
+                                    <td>{{ $schedule['lease_end_date'] }}</td>
+                                    <td class="text-right">{{ $schedule['count'] }}</td>
+                                    <td>
+                                        {{ collect($schedule['model_counts'])
+                                            ->map(fn ($qty, $model) => $qty.'× '.$model)
+                                            ->implode(', ') }}
+                                    </td>
+                                    <td class="text-right">${{ Helper::formatCurrencyOutput($schedule['cost']) }}</td>
+                                    <td>
+                                        @if ($schedule['decision'])
+                                            <span class="label {{ $schedule['refresh_planned'] ? 'label-primary' : 'label-warning' }}">
+                                                {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
+                                                &middot;
+                                                {{ trans('admin/lease-decisions/general.status_'.$schedule['decision']->status) }}
+                                            </span>
+                                            @unless ($schedule['refresh_planned'])
+                                                <span class="text-muted" style="display:block; font-size:12px;">
+                                                    {{ trans('admin/purchase-orders/general.lease_end_no_refresh') }}
+                                                </span>
+                                            @endunless
+                                            @if ($schedule['decision']->notes)
+                                                <span class="text-muted" style="display:block; font-size:12px;">{{ $schedule['decision']->notes }}</span>
+                                            @endif
+                                        @else
+                                            <span class="label label-success">{{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot>
+                            @php
+                                $leaseEndAsk = collect($leaseEndSchedules)->where('refresh_planned', true);
+                                $leaseEndDecided = collect($leaseEndSchedules)->where('refresh_planned', false);
+                            @endphp
+                            <tr>
+                                <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_refresh') }}</th>
+                                <th class="text-right">{{ $leaseEndAsk->sum('count') }}</th>
+                                <th></th>
+                                <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAsk->sum('cost')) }}</th>
+                                <th></th>
+                            </tr>
+                            @if ($leaseEndDecided->isNotEmpty())
+                                <tr>
+                                    <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_excluded') }}</th>
+                                    <th class="text-right">{{ $leaseEndDecided->sum('count') }}</th>
+                                    <th></th>
+                                    <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndDecided->sum('cost')) }}</th>
+                                    <th></th>
+                                </tr>
+                            @endif
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="row">
     <div class="col-md-7">
         <div class="box box-default">
