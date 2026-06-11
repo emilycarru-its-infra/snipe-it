@@ -55,14 +55,6 @@ class AssetCommitted
         return $map;
     }
 
-    /**
-     * Total committed for one fiscal year across every PO.
-     */
-    public static function totalForFy(?string $fy = null): float
-    {
-        return (float) array_sum(self::byPo($fy));
-    }
-
     private static function fieldColumn(string $name): ?string
     {
         return CustomField::where('name', $name)->first()?->db_column;
