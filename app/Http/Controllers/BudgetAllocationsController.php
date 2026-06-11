@@ -56,14 +56,16 @@ class BudgetAllocationsController extends Controller
     }
 
     /**
-     * Roll a fiscal year's unspent budget into the next one.
+     * Roll a fiscal year's unused PO budget into the next one.
      *
-     * Unspent = approved budget for the prior FY (its allocation ledger,
-     * falling back to its PO budgets when the ledger is empty) minus what
-     * was committed against it from the asset source of truth (equipment +
-     * warranty by the asset's PO Number field). Posting it as a
+     * Unused = the sum over the prior FY's purchase orders of (PO budget −
+     * committed against that PO), with committed read from the asset
+     * source of truth (equipment + warranty by the asset's PO Number
+     * field). The POs are the budget envelopes — money committed to a PO
+     * that has no budget record doesn't drain another PO's envelope, and
+     * an overspent PO nets against the others. Posting the total as a
      * carry_forward allocation in the target FY is how "PO budget that
-     * was approved but never spent" becomes available again next year.
+     * was issued but never spent" becomes available again next year.
      *
      * One carry-forward per target FY: to recompute, delete the existing
      * row and run it again — keeps the append-only ledger honest.
@@ -94,28 +96,24 @@ class BudgetAllocationsController extends Controller
             ]));
         }
 
-        // Approved for the prior FY comes from its allocation ledger; when
-        // nothing was ever booked there, fall back to the sum of that
-        // year's PO budgets — the same fallback the dashboard's Approved
-        // Budget tile applies, so the carried amount reconciles with it.
-        $approved = (float) BudgetAllocation::where('fiscal_year', $sourceFy)->sum('amount');
-        if ($approved <= 0) {
-            $approved = (float) PurchaseOrder::where('fiscal_year', $sourceFy)
-                ->get()
-                ->sum(fn ($po) => (float) $po->budget);
-        }
-        if ($approved <= 0) {
+        $purchaseOrders = PurchaseOrder::where('fiscal_year', $sourceFy)->get();
+        $poBudgets = (float) $purchaseOrders->sum(fn ($po) => (float) $po->budget);
+
+        if ($poBudgets <= 0) {
             return $redirect->with('error', trans('admin/budget-allocations/general.carry_forward_no_budget', [
                 'source' => $sourceFy,
             ]));
         }
 
-        // Committed against the prior FY from the asset source of truth
-        // (equipment + warranty grouped by the asset's PO Number field) —
-        // the same engine behind the dashboard's Committed tile, so what
-        // rolls forward is exactly what that year's page shows as unspent.
-        $committed = AssetCommitted::totalForFy($sourceFy);
-        $unspent = round($approved - $committed, 2);
+        // Committed per PO from the asset source of truth (equipment +
+        // warranty grouped by the asset's PO Number field) — the same
+        // engine behind the dashboard's Committed tile. Only spend filed
+        // against this year's POs counts against their envelopes.
+        $committedByPo = AssetCommitted::byPo($sourceFy);
+        $committed = (float) $purchaseOrders->sum(
+            fn ($po) => (float) ($committedByPo[$po->po_number] ?? 0.0)
+        );
+        $unspent = round($poBudgets - $committed, 2);
 
         if ($unspent <= 0) {
             return $redirect->with('error', trans('admin/budget-allocations/general.carry_forward_none', [
@@ -129,7 +127,7 @@ class BudgetAllocationsController extends Controller
             'source'         => 'carry_forward',
             'description'    => trans('admin/budget-allocations/general.carry_forward_desc', [
                 'source'    => $sourceFy,
-                'approved'  => '$'.Helper::formatCurrencyOutput($approved),
+                'approved'  => '$'.Helper::formatCurrencyOutput($poBudgets),
                 'committed' => '$'.Helper::formatCurrencyOutput($committed),
             ]),
             'effective_date' => now()->toDateString(),
