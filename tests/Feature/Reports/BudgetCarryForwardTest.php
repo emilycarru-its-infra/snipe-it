@@ -33,29 +33,14 @@ class BudgetCarryForwardTest extends TestCase
         Asset::query()->whereKey($asset->id)->update([$poField->db_column => $poNumber]);
     }
 
-    /**
-     * Seed an approved budget for $fy and commit $committed against it via
-     * an asset bought in that fiscal year.
-     */
-    private function seedYear(string $fy, float $approved, float $committed): void
+    public function test_carry_forward_posts_prior_year_unused_po_budget_into_target_fy()
     {
-        BudgetAllocation::create([
-            'fiscal_year' => $fy,
-            'amount'      => $approved,
-            'source'      => 'forecast',
-            'created_by'  => User::factory()->create()->id,
+        // FY2025-26: one PO with a $10,000 envelope, $3,000 committed
+        // against it → $7,000 unused.
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0077001', 'budget' => 10000, 'fiscal_year' => 'FY2025-26',
         ]);
-
-        if ($committed > 0) {
-            $po = PurchaseOrder::factory()->create(['fiscal_year' => $fy]);
-            $this->commitViaAsset($po->po_number, $committed, '2025-06-01');
-        }
-    }
-
-    public function test_carry_forward_posts_prior_year_unspent_into_target_fy()
-    {
-        // FY2025-26: $10,000 approved, $3,000 committed → $7,000 unspent.
-        $this->seedYear('FY2025-26', 10000, 3000);
+        $this->commitViaAsset('P0077001', 3000, '2025-06-01');
 
         $this->actingAs($this->superuser())
             ->post(route('budget_allocations.carry_forward'), ['target_fiscal_year' => 'FY2026-27'])
@@ -69,9 +54,61 @@ class BudgetCarryForwardTest extends TestCase
         $this->assertEquals(7000.00, (float) $carried->amount);
     }
 
+    public function test_carry_forward_sums_per_po_unused_and_nets_overspend()
+    {
+        // Two envelopes: P0077010 $4,000 budget / $4,500 committed (over
+        // by $500) and P0077011 $5,000 / $2,000 (under by $3,000) → net
+        // $2,500. Spend filed against a PO with no budget record
+        // (P0077099) doesn't drain either envelope.
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0077010', 'budget' => 4000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0077011', 'budget' => 5000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        $this->commitViaAsset('P0077010', 4500, '2025-06-01');
+        $this->commitViaAsset('P0077011', 2000, '2025-07-01');
+        $this->commitViaAsset('P0077099', 1500, '2025-08-01');
+
+        $this->actingAs($this->superuser())
+            ->post(route('budget_allocations.carry_forward'), ['target_fiscal_year' => 'FY2026-27']);
+
+        $carried = BudgetAllocation::where('fiscal_year', 'FY2026-27')
+            ->where('source', 'carry_forward')
+            ->first();
+
+        $this->assertNotNull($carried);
+        $this->assertEquals(2500.00, (float) $carried->amount);
+    }
+
+    public function test_carry_forward_ignores_committed_outside_the_source_fy()
+    {
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0077020', 'budget' => 6000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        $this->commitViaAsset('P0077020', 2000, '2025-06-01');
+
+        // Same PO, but the asset was bought in FY2026-27 — its cost
+        // belongs to that year, not the envelope being carried.
+        $this->commitViaAsset('P0077020', 3000, '2026-06-01');
+
+        $this->actingAs($this->superuser())
+            ->post(route('budget_allocations.carry_forward'), ['target_fiscal_year' => 'FY2026-27']);
+
+        $carried = BudgetAllocation::where('fiscal_year', 'FY2026-27')
+            ->where('source', 'carry_forward')
+            ->first();
+
+        $this->assertNotNull($carried);
+        $this->assertEquals(4000.00, (float) $carried->amount);
+    }
+
     public function test_carry_forward_is_idempotent_per_target_year()
     {
-        $this->seedYear('FY2025-26', 10000, 3000);
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0077030', 'budget' => 10000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        $this->commitViaAsset('P0077030', 3000, '2025-06-01');
         $superuser = $this->superuser();
 
         $this->actingAs($superuser)
@@ -85,8 +122,11 @@ class BudgetCarryForwardTest extends TestCase
 
     public function test_carry_forward_does_nothing_when_prior_year_fully_spent()
     {
-        // Committed meets approved → no unspent to carry.
-        $this->seedYear('FY2025-26', 5000, 5000);
+        // Committed meets the envelope → no unused budget to carry.
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0077040', 'budget' => 5000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        $this->commitViaAsset('P0077040', 5000, '2025-06-01');
 
         $this->actingAs($this->superuser())
             ->post(route('budget_allocations.carry_forward'), ['target_fiscal_year' => 'FY2026-27']);
@@ -95,30 +135,21 @@ class BudgetCarryForwardTest extends TestCase
             ->where('source', 'carry_forward')->count());
     }
 
-    public function test_carry_forward_falls_back_to_po_budgets_when_ledger_empty()
+    public function test_carry_forward_does_nothing_without_source_year_pos()
     {
-        // No allocation ledger for FY2025-26 — approved falls back to the
-        // year's PO budgets (the same fallback the dashboard tile uses):
-        // $9,000 budgets − $2,500 asset-committed → $6,500 carried.
-        PurchaseOrder::factory()->create([
-            'po_number' => 'P0088001', 'budget' => 4000, 'fiscal_year' => 'FY2025-26',
+        // An approved-budget allocation alone is not an envelope — only
+        // PO budgets carry.
+        BudgetAllocation::create([
+            'fiscal_year' => 'FY2025-26',
+            'amount'      => 10000,
+            'source'      => 'forecast',
+            'created_by'  => User::factory()->create()->id,
         ]);
-        PurchaseOrder::factory()->create([
-            'po_number' => 'P0088002', 'budget' => 5000, 'fiscal_year' => 'FY2025-26',
-        ]);
-        $this->commitViaAsset('P0088001', 2500, '2025-06-01');
-
-        // An asset bought outside FY2025-26 must not reduce the carry.
-        $this->commitViaAsset('P0088002', 1000, '2026-06-01');
 
         $this->actingAs($this->superuser())
             ->post(route('budget_allocations.carry_forward'), ['target_fiscal_year' => 'FY2026-27']);
 
-        $carried = BudgetAllocation::where('fiscal_year', 'FY2026-27')
-            ->where('source', 'carry_forward')
-            ->first();
-
-        $this->assertNotNull($carried);
-        $this->assertEquals(6500.00, (float) $carried->amount);
+        $this->assertEquals(0, BudgetAllocation::where('fiscal_year', 'FY2026-27')
+            ->where('source', 'carry_forward')->count());
     }
 }
