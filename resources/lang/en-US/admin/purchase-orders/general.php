@@ -62,6 +62,7 @@ return [
     'dashboard_title' => 'Procurement Dashboard',
     'card_budget' => 'Approved Budget',
     'card_budget_from_pos' => 'from PO budgets (no allocation set)',
+    'card_budget_incl_carry' => 'incl. :amount carried from :source (live)',
     'card_committed' => 'Committed',
     'card_remaining' => 'Remaining',
     'card_invoiced' => 'Invoiced',

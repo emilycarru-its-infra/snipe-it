@@ -15,14 +15,19 @@ use Watson\Validating\ValidatingTrait;
  *   - 'forecast'      — seeded from upcoming lease renewals / EOL forecast
  *   - 'supplemental'  — admin-side top-up announced during the year
  *   - 'adjustment'    — manual correction (often negative) explaining a fix
- *   - 'carry_forward' — a prior fiscal year's unspent budget (approved −
- *                       committed) rolled into this one, so the pot reflects
- *                       what wasn't spent last year
+ *   - 'carry_forward' — a manual override of the live carry-forward the
+ *                       dashboard computes from the prior FY's unused PO
+ *                       budget (posting one suppresses the live figure)
  *
  * The dashboard's Approved Budget tile sums these rows by fiscal_year.
  * Per-area slices on the dashboard sum rows by (fiscal_year, area).
  * Rows where `area` is null count toward the FY total but don't appear
  * in any area-specific bucket.
+ *
+ * `source` is declared here because larastan infers its type from the
+ * original create-table enum, which predates the carry_forward widening.
+ *
+ * @property string $source
  */
 class BudgetAllocation extends Model
 {
