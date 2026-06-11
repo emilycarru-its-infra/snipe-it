@@ -1408,7 +1408,10 @@ class ProcurementReportsController extends Controller
      * device count, model mix, replacement-cost estimate (purchase_cost,
      * same convention as the EOL forecast) and the logged lease decision,
      * ordered by end date. Buyout / legacy / archived assets are excluded
-     * from the counts — they're no longer lease commitments.
+     * from the device count — they're no longer active lease commitments —
+     * but their cost stays in the estimate: the pre-approval envelope is the
+     * schedule's full original lease value, and the dollar value is what
+     * drives the new fiscal year's budget, not the headcount.
      *
      * `refresh_planned` is the flag the pre-approval estimate keys on:
      * true when no decision is logged yet (default = replace at term) or
@@ -1441,13 +1444,6 @@ class ProcurementReportsController extends Controller
                 continue;
             }
 
-            $statusName = (string) $asset->status?->name;
-            $statusMeta = (string) $asset->status?->status_meta;
-            if ($statusMeta === 'archived'
-                || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
-                continue;
-            }
-
             $fy = $this->fiscalYearFromEndDate($asset->{$endDateColumn});
             if (! $fy) {
                 continue;
@@ -1468,8 +1464,25 @@ class ProcurementReportsController extends Controller
                 ];
             }
 
-            $schedules[$contractId]['count']++;
+            // The pre-approval envelope is the schedule's full original lease
+            // value, so every device's cost rolls forward into the new FY
+            // regardless of how the unit was ultimately disposed — the dollar
+            // value is the driver, not the headcount.
             $schedules[$contractId]['cost'] += (float) $asset->purchase_cost;
+
+            // The device count, by contrast, reflects only the units still
+            // actively coming off lease: a device already bought out, returned
+            // or moved to a legacy/archived status is no longer part of the
+            // refresh headcount (its budget stays, its body doesn't).
+            $statusName = (string) $asset->status?->name;
+            $statusType = $asset->status?->getStatuslabelType();
+            $disposed = $statusType === 'archived'
+                || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true);
+            if ($disposed) {
+                continue;
+            }
+
+            $schedules[$contractId]['count']++;
 
             $modelName = $asset->model?->name ?: trans('general.na');
             $modelName = html_entity_decode($modelName, ENT_QUOTES | ENT_HTML5);
@@ -1617,9 +1630,9 @@ class ProcurementReportsController extends Controller
             }
 
             $statusName = (string) $asset->status?->name;
-            $statusMeta = (string) $asset->status?->status_meta;
+            $statusType = $asset->status?->getStatuslabelType();
 
-            if ($statusMeta === 'archived') {
+            if ($statusType === 'archived') {
                 $group['archived']++;
             } elseif (in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
                 $group['buyout']++;
