@@ -16,6 +16,7 @@ use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Services\AssetCommitted;
+use App\Services\BudgetCarry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -114,6 +115,20 @@ class ProcurementReportsController extends Controller
             $totalBudget = (float) $purchaseOrders->sum(fn ($po) => (float) $po->budget);
         }
 
+        // The prior year's unused PO budget joins the pot LIVE — computed
+        // from last year's POs and asset-committed at render time, so it
+        // tracks the committed data as it's corrected (no posted snapshot
+        // to delete and re-post). A manually posted carry_forward
+        // allocation overrides it; the all-years view skips it (a carry is
+        // an intra-year transfer — it would double-count the PO budgets).
+        $liveCarry = null;
+        if ($selectedFy && ! $allocations->contains(fn ($a) => $a->source === 'carry_forward')) {
+            $liveCarry = BudgetCarry::intoFy($selectedFy);
+            if ($liveCarry) {
+                $totalBudget += $liveCarry['unused'];
+            }
+        }
+
         // Planned (forecast) spend, grouped by the planned order's fiscal year.
         $plannedByFy = [];
         $plannedTotal = 0.0;
@@ -206,6 +221,7 @@ class ProcurementReportsController extends Controller
             'selectedFy' => $selectedFy,
             'totalBudget' => $totalBudget,
             'budgetFromAllocations' => $budgetFromAllocations,
+            'liveCarry' => $liveCarry,
             'totalCommitted' => $totalCommitted,
             'totalInvoiced' => $totalInvoiced,
             'totalRemaining' => $totalBudget - $totalCommitted,

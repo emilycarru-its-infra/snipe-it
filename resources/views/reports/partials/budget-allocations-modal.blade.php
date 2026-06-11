@@ -13,7 +13,7 @@
                 </p>
 
                 {{-- Existing allocations --}}
-                @if ($allocations->isNotEmpty())
+                @if ($allocations->isNotEmpty() || $liveCarry)
                     <table class="table table-striped table-condensed">
                         <thead>
                             <tr>
@@ -54,9 +54,34 @@
                                     </td>
                                 </tr>
                             @endforeach
+                            {{-- Live carry-forward: last FY's unused PO budget,
+                                 computed at render time — not a ledger row, so
+                                 there's nothing to delete or re-post when the
+                                 committed data is corrected. Posting a manual
+                                 carry_forward allocation overrides it. --}}
+                            @if ($liveCarry)
+                                <tr>
+                                    <td>{{ $selectedFy }}</td>
+                                    <td>—</td>
+                                    <td>
+                                        <span class="label label-success">{{ trans('admin/budget-allocations/general.source_carry_forward') }}</span>
+                                        <span class="label label-default">{{ trans('admin/budget-allocations/general.live') }}</span>
+                                        <div class="text-muted small">
+                                            {{ trans('admin/budget-allocations/general.carry_forward_live_desc', [
+                                                'source' => $liveCarry['source_fy'],
+                                                'budgets' => '$'.\App\Helpers\Helper::formatCurrencyOutput($liveCarry['po_budgets']),
+                                                'committed' => '$'.\App\Helpers\Helper::formatCurrencyOutput($liveCarry['committed']),
+                                            ]) }}
+                                        </div>
+                                    </td>
+                                    <td class="text-right">${{ \App\Helpers\Helper::formatCurrencyOutput($liveCarry['unused']) }}</td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                            @endif
                             <tr>
                                 <th colspan="3" class="text-right">{{ trans('admin/budget-allocations/general.total') }}</th>
-                                <th class="text-right">${{ \App\Helpers\Helper::formatCurrencyOutput($allocations->sum('amount')) }}</th>
+                                <th class="text-right">${{ \App\Helpers\Helper::formatCurrencyOutput($allocations->sum('amount') + ($liveCarry['unused'] ?? 0)) }}</th>
                                 <th colspan="2"></th>
                             </tr>
                         </tbody>
@@ -66,31 +91,6 @@
                 @endif
 
                 <hr/>
-
-                {{-- Carry-forward: roll the prior FY's unspent budget into the
-                     selected one. Only shown when a single FY is in view (the
-                     "all years" view has no single target). --}}
-                @php
-                    $carryPrevFy = preg_match('/^FY(\d{4})-(\d{2})$/', (string) $selectedFy, $cfm)
-                        ? 'FY'.((int) $cfm[1] - 1).'-'.substr((string) $cfm[1], -2)
-                        : null;
-                @endphp
-                @if ($selectedFy && $carryPrevFy)
-                    <div class="well well-sm" style="margin-bottom:15px;">
-                        <strong>{{ trans('admin/budget-allocations/general.carry_forward_title') }}</strong>
-                        <p class="help-block" style="margin:5px 0 10px;">
-                            {{ trans('admin/budget-allocations/general.carry_forward_help', ['target' => $selectedFy]) }}
-                        </p>
-                        <form method="POST" action="{{ route('budget_allocations.carry_forward') }}" style="margin:0;">
-                            @csrf
-                            <input type="hidden" name="target_fiscal_year" value="{{ $selectedFy }}">
-                            <button type="submit" class="btn btn-default btn-sm">
-                                <i class="fas fa-angles-right" aria-hidden="true"></i>
-                                {{ trans('admin/budget-allocations/general.carry_forward_action', ['source' => $carryPrevFy, 'target' => $selectedFy]) }}
-                            </button>
-                        </form>
-                    </div>
-                @endif
 
                 {{-- Add-to-Budget form --}}
                 <h4 style="margin-top:0;">{{ trans('admin/budget-allocations/general.add_title') }}</h4>
