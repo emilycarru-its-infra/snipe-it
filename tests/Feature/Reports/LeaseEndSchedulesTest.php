@@ -111,6 +111,35 @@ class LeaseEndSchedulesTest extends TestCase
             ->assertSee('$500.00');
     }
 
+    public function test_disposed_devices_drop_from_the_count_but_keep_their_budget()
+    {
+        // Two devices still active on the schedule…
+        $this->seedSchedule('ECI20990101', '2026-12-31', 2, 1000.00);
+
+        // …and one already returned (archived) — its body leaves the
+        // headcount, but its cost stays in the pre-approval envelope.
+        $contractField = CustomField::where('name', 'Lease Contract ID')->first();
+        $endField = CustomField::where('name', 'Lease End Date')->first();
+        $archived = Statuslabel::factory()->archived()->create();
+        $returned = Asset::factory()->create([
+            'status_id' => $archived->id,
+            'purchase_cost' => 777.00,
+        ]);
+        Asset::query()->whereKey($returned->id)->update([
+            $contractField->db_column => 'ECI20990101',
+            $endField->db_column => '2026-12-31',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            // The full schedule value — all three devices — drives the estimate.
+            ->assertSee('$2,777.00')
+            // …but only the two active devices are counted.
+            ->assertSee('2 devices')
+            ->assertDontSee('3 devices');
+    }
+
     public function test_schedule_outside_selected_fy_is_hidden()
     {
         $this->seedSchedule('ECI20221201', '2026-12-31', 1, 100.00);

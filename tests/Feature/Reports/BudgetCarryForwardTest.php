@@ -144,6 +144,10 @@ class BudgetCarryForwardTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertDontSee(trans('admin/budget-allocations/general.live'));
+            // No carry: the tile carries no "carried from …" line. (Assert the
+            // carry-specific phrase, not the bare "Live" label — that word is a
+            // substring of "Livewire", whose injected scripts vary across the
+            // parallel suite and would make a bare match flaky.)
+            ->assertDontSee('carried from');
     }
 }
