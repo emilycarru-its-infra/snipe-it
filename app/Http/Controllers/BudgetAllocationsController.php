@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\Helper;
 use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
+use App\Services\AssetCommitted;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -57,11 +58,12 @@ class BudgetAllocationsController extends Controller
     /**
      * Roll a fiscal year's unspent budget into the next one.
      *
-     * Unspent = approved budget for the prior FY (its allocation ledger)
-     * minus what was committed against it (line items booked on orders in
-     * that FY — the same order-FY attribution the reports use). Posting it
-     * as a carry_forward allocation in the target FY is how "PO budget that
-     * was approved but never ordered" becomes available again next year.
+     * Unspent = approved budget for the prior FY (its allocation ledger,
+     * falling back to its PO budgets when the ledger is empty) minus what
+     * was committed against it from the asset source of truth (equipment +
+     * warranty by the asset's PO Number field). Posting it as a
+     * carry_forward allocation in the target FY is how "PO budget that
+     * was approved but never spent" becomes available again next year.
      *
      * One carry-forward per target FY: to recompute, delete the existing
      * row and run it again — keeps the append-only ledger honest.
@@ -92,16 +94,27 @@ class BudgetAllocationsController extends Controller
             ]));
         }
 
+        // Approved for the prior FY comes from its allocation ledger; when
+        // nothing was ever booked there, fall back to the sum of that
+        // year's PO budgets — the same fallback the dashboard's Approved
+        // Budget tile applies, so the carried amount reconciles with it.
         $approved = (float) BudgetAllocation::where('fiscal_year', $sourceFy)->sum('amount');
+        if ($approved <= 0) {
+            $approved = (float) PurchaseOrder::where('fiscal_year', $sourceFy)
+                ->get()
+                ->sum(fn ($po) => (float) $po->budget);
+        }
         if ($approved <= 0) {
             return $redirect->with('error', trans('admin/budget-allocations/general.carry_forward_no_budget', [
                 'source' => $sourceFy,
             ]));
         }
 
-        // Committed against the prior FY, attributed by the booking order's
-        // FY so a blanket PO only contributes the slice it spent that year.
-        $committed = (float) PurchaseOrder::all()->sum(fn ($po) => $po->committedTotalForFy($sourceFy));
+        // Committed against the prior FY from the asset source of truth
+        // (equipment + warranty grouped by the asset's PO Number field) —
+        // the same engine behind the dashboard's Committed tile, so what
+        // rolls forward is exactly what that year's page shows as unspent.
+        $committed = AssetCommitted::totalForFy($sourceFy);
         $unspent = round($approved - $committed, 2);
 
         if ($unspent <= 0) {

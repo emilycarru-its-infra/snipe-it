@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Reports;
 
+use App\Models\Asset;
 use App\Models\BudgetAllocation;
-use App\Models\Order;
-use App\Models\OrderItem;
+use App\Models\CustomField;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use Tests\TestCase;
@@ -17,8 +17,25 @@ class BudgetCarryForwardTest extends TestCase
     }
 
     /**
-     * Seed an approved budget for $fy and commit $committed against it via a
-     * line item on an order booked in that fiscal year.
+     * Commit $committed against $poNumber from the asset source of truth:
+     * a device bought inside the FY carrying the PO on its "PO Number"
+     * field — the same engine the dashboard's Committed tile reads.
+     */
+    private function commitViaAsset(string $poNumber, float $committed, string $purchaseDate): void
+    {
+        $poField = CustomField::where('name', 'PO Number')->first()
+            ?? CustomField::factory()->create(['name' => 'PO Number']);
+
+        $asset = Asset::factory()->create([
+            'purchase_cost' => $committed,
+            'purchase_date' => $purchaseDate,
+        ]);
+        Asset::query()->whereKey($asset->id)->update([$poField->db_column => $poNumber]);
+    }
+
+    /**
+     * Seed an approved budget for $fy and commit $committed against it via
+     * an asset bought in that fiscal year.
      */
     private function seedYear(string $fy, float $approved, float $committed): void
     {
@@ -31,19 +48,7 @@ class BudgetCarryForwardTest extends TestCase
 
         if ($committed > 0) {
             $po = PurchaseOrder::factory()->create(['fiscal_year' => $fy]);
-            $order = Order::factory()->create([
-                'fiscal_year'       => $fy,
-                'is_planned'        => false,
-                'purchase_order_id' => $po->id,
-            ]);
-            OrderItem::create([
-                'order_id'          => $order->id,
-                'purchase_order_id' => $po->id,
-                'description'       => 'committed line',
-                'quantity'          => 1,
-                'unit_cost'         => $committed,
-                'warranty_cost'     => 0,
-            ]);
+            $this->commitViaAsset($po->po_number, $committed, '2025-06-01');
         }
     }
 
@@ -88,5 +93,32 @@ class BudgetCarryForwardTest extends TestCase
 
         $this->assertEquals(0, BudgetAllocation::where('fiscal_year', 'FY2026-27')
             ->where('source', 'carry_forward')->count());
+    }
+
+    public function test_carry_forward_falls_back_to_po_budgets_when_ledger_empty()
+    {
+        // No allocation ledger for FY2025-26 — approved falls back to the
+        // year's PO budgets (the same fallback the dashboard tile uses):
+        // $9,000 budgets − $2,500 asset-committed → $6,500 carried.
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0088001', 'budget' => 4000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0088002', 'budget' => 5000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        $this->commitViaAsset('P0088001', 2500, '2025-06-01');
+
+        // An asset bought outside FY2025-26 must not reduce the carry.
+        $this->commitViaAsset('P0088002', 1000, '2026-06-01');
+
+        $this->actingAs($this->superuser())
+            ->post(route('budget_allocations.carry_forward'), ['target_fiscal_year' => 'FY2026-27']);
+
+        $carried = BudgetAllocation::where('fiscal_year', 'FY2026-27')
+            ->where('source', 'carry_forward')
+            ->first();
+
+        $this->assertNotNull($carried);
+        $this->assertEquals(6500.00, (float) $carried->amount);
     }
 }
