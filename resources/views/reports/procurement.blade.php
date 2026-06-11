@@ -37,12 +37,18 @@
                     <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalBudget) }}</h3>
                     <p>
                         {{ trans('admin/purchase-orders/general.card_budget') }}
-                        @if (! $budgetFromAllocations)
+                        @if (! $budgetFromAllocations && count($poRows))
                             &middot; {{ trans('admin/purchase-orders/general.card_budget_from_pos') }}
-                        @else
+                        @elseif ($budgetFromAllocations)
                             @can('budget_allocations.manage')
                                 &middot; {{ $allocations->count() }} {{ trans('admin/budget-allocations/general.allocations') }}
                             @endcan
+                        @endif
+                        @if ($liveCarry)
+                            &middot; {{ trans('admin/purchase-orders/general.card_budget_incl_carry', [
+                                'amount' => '$'.Helper::formatCurrencyOutput($liveCarry['unused']),
+                                'source' => $liveCarry['source_fy'],
+                            ]) }}
                         @endif
                     </p>
                 </div>
@@ -431,6 +437,7 @@
 @can('budget_allocations.manage')
 @include('reports.partials.budget-allocations-modal', [
     'allocations'        => $allocations,
+    'liveCarry'          => $liveCarry,
     'selectedFy'         => $selectedFy,
     'allFiscalYears'     => $allFiscalYears,
     'budgetSourceLabels' => $budgetSourceLabels,
