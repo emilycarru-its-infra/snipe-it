@@ -256,6 +256,15 @@
                 </div>
             </div>
             <div class="box-body">
+                <div class="btn-group btn-group-sm" role="group" id="dash-activity-type-filter" style="margin-bottom: 10px;">
+                    <button type="button" class="btn btn-default active" data-item-type="">{{ trans('general.all') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Asset">{{ trans('general.assets') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Accessory">{{ trans('general.accessories') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Consumable">{{ trans('general.consumables') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Component">{{ trans('general.components') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="License">{{ trans('general.licenses') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="User">{{ trans('general.users') }}</button>
+                </div>
                 <table
                     data-cookie-id-table="dashActivityReport"
                     data-height="380"
@@ -571,6 +580,26 @@
 
 @section('moar_scripts')
 @include ('partials.bootstrap-table', ['simple_view' => true, 'nopages' => true])
+
+<script nonce="{{ csrf_token() }}">
+    (function () {
+        var baseUrl = '{{ route('api.activity.index', ['limit' => 10]) }}';
+
+        $('#dash-activity-type-filter').on('click', 'button', function () {
+            var $button = $(this);
+            if ($button.hasClass('active')) {
+                return;
+            }
+
+            $button.addClass('active').siblings().removeClass('active');
+
+            var itemType = $button.data('item-type');
+            var url = itemType ? baseUrl + '&item_type=' + encodeURIComponent(itemType) : baseUrl;
+
+            $('#dashActivityReport').bootstrapTable('refresh', { url: url });
+        });
+    })();
+</script>
 @stop
 
 @push('css')
