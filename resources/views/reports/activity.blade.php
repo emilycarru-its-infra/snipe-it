@@ -21,6 +21,16 @@
     <x-container>
         <x-box>
 
+                <div class="btn-group" role="group" id="activity-type-filter" style="margin-bottom: 15px;">
+                    <button type="button" class="btn btn-default active" data-item-type="">{{ trans('general.all') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Asset">{{ trans('general.assets') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Accessory">{{ trans('general.accessories') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Consumable">{{ trans('general.consumables') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="Component">{{ trans('general.components') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="License">{{ trans('general.licenses') }}</button>
+                    <button type="button" class="btn btn-default" data-item-type="User">{{ trans('general.users') }}</button>
+                </div>
+
                 <table
                     data-columns="{{ \App\Presenters\HistoryPresenter::dataTableLayout() }}"
                         data-cookie-id-table="activityReport"
@@ -44,4 +54,24 @@
 
 @section('moar_scripts')
 @include ('partials.bootstrap-table', ['exportFile' => 'activity-export', 'search' => true])
+
+<script nonce="{{ csrf_token() }}">
+    (function () {
+        var baseUrl = '{{ route('api.activity.index') }}';
+
+        $('#activity-type-filter').on('click', 'button', function () {
+            var $button = $(this);
+            if ($button.hasClass('active')) {
+                return;
+            }
+
+            $button.addClass('active').siblings().removeClass('active');
+
+            var itemType = $button.data('item-type');
+            var url = itemType ? baseUrl + '?item_type=' + encodeURIComponent(itemType) : baseUrl;
+
+            $('#activityReport').bootstrapTable('refresh', { url: url, pageNumber: 1 });
+        });
+    })();
+</script>
 @stop

@@ -62,6 +62,12 @@ class ReportsController extends Controller
             });
         }
 
+        // Filter by record type alone (no specific id) — powers the Activity
+        // report's type toggles (Assets / Consumables / Accessories / …).
+        if (($request->filled('item_type')) && (! $request->filled('item_id'))) {
+            $actionlogs = $actionlogs->where('item_type', '=', Helper::normalizeFullModelName($request->input('item_type')));
+        }
+
         // This invokes the Searchable model trait scopeTextSearch and will handle input by search or by advanced search filter
         if ($request->filled('filter') || $request->filled('search')) {
             $actionlogs->TextSearch($request->input('filter') ? $request->input('filter') : $request->input('search'));
@@ -125,5 +131,4 @@ class ReportsController extends Controller
         return response()->json((new ActionlogsTransformer)->transformActionlogs($actionlogs, $total), 200, ['Content-Type' => 'application/json;charset=utf8'], JSON_UNESCAPED_UNICODE);
 
     }
-
 }
