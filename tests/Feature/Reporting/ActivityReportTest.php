@@ -5,6 +5,7 @@ namespace Tests\Feature\Reporting;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
+use App\Models\Consumable;
 use App\Models\User;
 use Illuminate\Testing\Fluent\AssertableJson;
 use Tests\TestCase;
@@ -56,6 +57,23 @@ class ActivityReportTest extends TestCase
                 'rows',
             ])
             ->assertJson(fn (AssertableJson $json) => $json->has('rows', 2)->etc());
+    }
+
+    public function test_can_filter_activity_by_item_type_without_an_item_id()
+    {
+        // Creating each model writes one creation log, so this seeds two
+        // Asset-typed logs and three Consumable-typed logs. The Activity
+        // report's type toggles send item_type with no id.
+        Asset::factory()->count(2)->create();
+        Consumable::factory()->count(3)->create();
+
+        $this->actingAsForApi(User::factory()->canViewReports()->create())
+            ->getJson(route('api.activity.index', ['item_type' => 'consumable']))
+            ->assertOk()
+            ->assertJsonStructure([
+                'rows',
+            ])
+            ->assertJson(fn (AssertableJson $json) => $json->has('rows', 3)->etc());
     }
 
     public function test_records_are_scoped_to_company_when_multiple_company_support_enabled()
