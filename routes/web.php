@@ -41,6 +41,7 @@ use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\ExhibitProjectsController;
 use App\Http\Controllers\ExhibitEmailTemplatesController;
 use App\Http\Controllers\ExhibitCatalogController;
+use App\Http\Controllers\FieldGroupsController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
@@ -265,6 +266,30 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('exhibit-config.update');
     Route::delete('exhibit-config/{catalog}/{id}', [ExhibitCatalogController::class, 'destroy'])
         ->name('exhibit-config.destroy');
+
+    /*
+    * Field Groups — editable taxonomy that organizes custom fields into
+    * grouped boxes on the asset detail view.
+    */
+    Route::get('field-groups', [FieldGroupsController::class, 'index'])
+        ->name('field-groups.index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->push(trans('admin/custom_fields/general.field_groups'), route('field-groups.index')));
+    Route::get('field-groups/create', [FieldGroupsController::class, 'create'])
+        ->name('field-groups.create')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('field-groups.index')
+            ->push(trans('button.add'), route('field-groups.create')));
+    Route::post('field-groups', [FieldGroupsController::class, 'store'])
+        ->name('field-groups.store');
+    Route::get('field-groups/{fieldGroup}/edit', [FieldGroupsController::class, 'edit'])
+        ->name('field-groups.edit')
+        ->breadcrumbs(fn (Trail $trail, $fieldGroup) => $trail->parent('field-groups.index')
+            ->push($fieldGroup->name, route('field-groups.edit', $fieldGroup)));
+    Route::put('field-groups/{fieldGroup}', [FieldGroupsController::class, 'update'])
+        ->name('field-groups.update');
+    Route::delete('field-groups/{fieldGroup}', [FieldGroupsController::class, 'destroy'])
+        ->name('field-groups.destroy');
+    Route::post('field-groups/assign/{field}', [FieldGroupsController::class, 'assign'])
+        ->name('field-groups.assign');
 
     /*
     * Lease Schedules
