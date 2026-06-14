@@ -44,6 +44,7 @@ use App\Http\Controllers\ExhibitCatalogController;
 use App\Http\Controllers\DeploymentsController;
 use App\Http\Controllers\DeploymentItemsController;
 use App\Http\Controllers\DeploymentCatalogController;
+use App\Http\Controllers\StaffBlackoutsController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
@@ -287,6 +288,28 @@ Route::group(['middleware' => 'auth'], function () {
         ->middleware('can:view,App\Models\Order')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.storage_title'), route('deployments.storage')));
+
+    // Staff availability blackouts (vacation / OOO) — manual CRUD.
+    Route::get('deployments/blackouts', [StaffBlackoutsController::class, 'index'])
+        ->name('deployments.blackouts.index')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index')));
+    Route::get('deployments/blackouts/create', [StaffBlackoutsController::class, 'create'])
+        ->name('deployments.blackouts.create')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index'))
+            ->push(trans('admin/deployments/general.blackout_create'), route('deployments.blackouts.create')));
+    Route::post('deployments/blackouts', [StaffBlackoutsController::class, 'store'])
+        ->name('deployments.blackouts.store');
+    Route::get('deployments/blackouts/{blackout}/edit', [StaffBlackoutsController::class, 'edit'])
+        ->name('deployments.blackouts.edit')
+        ->breadcrumbs(fn (Trail $trail, $blackout) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index'))
+            ->push(trans('admin/deployments/general.blackout_update'), route('deployments.blackouts.edit', $blackout)));
+    Route::put('deployments/blackouts/{blackout}', [StaffBlackoutsController::class, 'update'])
+        ->name('deployments.blackouts.update');
+    Route::delete('deployments/blackouts/{blackout}', [StaffBlackoutsController::class, 'destroy'])
+        ->name('deployments.blackouts.destroy');
 
     Route::get('deployment-waves/create', [DeploymentsController::class, 'create'])
         ->name('deployment-waves.create')

@@ -134,4 +134,29 @@ return [
     'storage_no_locations' => 'No locations have a storage capacity set. Set one on a location to track staging here.',
     'storage_waves_here' => 'Waves staging here',
     'storage_no_devices' => 'No staged devices here.',
+
+    // Staff availability blackouts (P4)
+    'blackouts_title' => 'Staff Availability',
+    'blackouts_button' => 'Staff availability',
+    'blackout_create' => 'New Time Off',
+    'blackout_update' => 'Edit Time Off',
+    'blackout_add' => 'Add time off',
+    'blackout_staff' => 'Staff member',
+    'blackout_start' => 'Start',
+    'blackout_end' => 'End',
+    'blackout_reason' => 'Reason',
+    'blackout_source' => 'Source',
+    'blackout_source_manual' => 'Manual',
+    'blackout_source_graph' => 'Calendar',
+    'blackout_saved' => 'Time off saved.',
+    'blackout_deleted' => 'Time off removed.',
+    'blackout_delete_confirm' => 'Remove this time-off entry?',
+    'blackout_none' => 'No staff time off recorded. Add a window to see it overlaid on the timeline.',
+    'blackout_user_unknown' => 'No matching user for the supplied id or email.',
+    'blackout_unknown_user' => 'Unknown staff member',
+
+    // Timeline overlay / collision (P4)
+    'timeline_blackouts_label' => 'Staff OOO',
+    'timeline_collision_tooltip' => 'Deploy window overlaps staff time off',
+    'timeline_collision_callout' => ':count wave(s) overlap staff time off',
 ];

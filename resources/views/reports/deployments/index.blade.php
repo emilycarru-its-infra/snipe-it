@@ -8,6 +8,7 @@
     <a href="{{ route('deployment-config.index', 'types') }}" class="btn btn-sm btn-default"><i class="fas fa-cog"></i> {{ trans('admin/deployments/general.configure') }}</a>
     <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.forecast') }}</a>
     <a href="{{ route('deployments.storage') }}" class="btn btn-sm btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
+    <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-sm btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
     <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('admin/deployments/general.download') }}</a>
     <a href="{{ route('deployment-waves.create') }}" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_wave') }}</a>
 @stop
@@ -107,10 +108,20 @@
                 &nbsp;&nbsp;
                 <span style="display:inline-block; width:12px; height:12px; background:#2980b9; opacity:0.45; border-radius:2px; vertical-align:middle;"></span>
                 {{ trans('admin/deployments/general.timeline_legend_deploy') }}
+                &nbsp;&nbsp;
+                <span style="display:inline-block; width:12px; height:12px; vertical-align:middle; border-radius:2px;
+                    background:repeating-linear-gradient(45deg,#95a5a6,#95a5a6 3px,#bdc3c7 3px,#bdc3c7 6px);"></span>
+                {{ trans('admin/deployments/general.timeline_blackouts_label') }}
             </span>
         </div>
     </div>
     <div class="box-body table-responsive">
+        @if (($timeline['waves_with_collision'] ?? 0) > 0)
+            <div class="callout callout-warning" style="margin:0 0 12px;">
+                <i class="fas fa-exclamation-triangle"></i>
+                {{ trans('admin/deployments/general.timeline_collision_callout', ['count' => $timeline['waves_with_collision']]) }}
+            </div>
+        @endif
         @if (count($timeline['months']) === 0)
             <p class="text-center text-muted" style="margin:20px 0;">{{ trans('admin/deployments/general.timeline_empty') }}</p>
         @else
@@ -125,18 +136,47 @@
                     </tr>
                 </thead>
                 <tbody>
+                @php($bands = $timeline['blackout_bands'] ?? [])
+                @if (count($bands) > 0)
+                    {{-- Staff OOO header strip: each blackout as a faint striped band on the month axis. --}}
+                    <tr>
+                        <td><span class="text-muted" style="font-size:11px;"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.timeline_blackouts_label') }}</span></td>
+                        <td colspan="{{ $colCount }}" style="position:relative; padding:0;">
+                            <div style="position:relative; height:20px;">
+                                @foreach ($bands as $band)
+                                    <div title="{{ $band['name'] }}: {{ $band['label'] }}"
+                                         style="position:absolute; top:3px; height:14px; border-radius:3px;
+                                                left: {{ $band['offsetPct'] }}%; width: {{ $band['widthPct'] }}%;
+                                                background:repeating-linear-gradient(45deg,#95a5a6,#95a5a6 3px,#bdc3c7 3px,#bdc3c7 6px);
+                                                overflow:hidden; white-space:nowrap;">
+                                        <span style="color:#fff; font-size:10px; padding-left:4px; line-height:14px;">{{ $band['name'] }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </td>
+                    </tr>
+                @endif
                 @foreach ($timeline['rows'] as $r)
                     <tr>
                         <td>
+                            @if (count($r['collisions'] ?? []) > 0)
+                                <i class="fas fa-exclamation-triangle text-yellow" title="{{ trans('admin/deployments/general.timeline_collision_tooltip') }}: {{ collect($r['collisions'])->map(fn ($c) => $c['name'].' ('.$c['label'].')')->implode(', ') }}"></i>
+                            @endif
                             <a href="{{ route('deployment-waves.show', $r['wave']) }}">
                                 <span class="label" style="background-color: {{ $r['wave']->displayColor() }}; color:#fff;">{{ $r['wave']->name }}</span>
                             </a>
                         </td>
                         <td colspan="{{ $colCount }}" style="position:relative; padding:0;">
+                            {{-- Faint blackout bands behind the wave bars (visually subordinate). --}}
+                            @foreach ($bands as $band)
+                                <div style="position:absolute; top:0; bottom:0; z-index:0;
+                                            left: {{ $band['offsetPct'] }}%; width: {{ $band['widthPct'] }}%;
+                                            background:repeating-linear-gradient(45deg,rgba(149,165,166,0.10),rgba(149,165,166,0.10) 4px,rgba(189,195,199,0.10) 4px,rgba(189,195,199,0.10) 8px);"></div>
+                            @endforeach
                             @if (! $r['has_dates'])
-                                <span class="text-muted" style="font-size:11px; padding-left:6px;">{{ trans('admin/deployments/general.timeline_no_dates') }}</span>
+                                <span class="text-muted" style="font-size:11px; padding-left:6px; position:relative; z-index:1;">{{ trans('admin/deployments/general.timeline_no_dates') }}</span>
                             @else
-                                <div style="position:relative; height:38px;">
+                                <div style="position:relative; height:38px; z-index:1;">
                                     @if ($r['arrival'])
                                         <div title="{{ trans('admin/deployments/general.timeline_legend_arrival') }}: {{ $r['arrival']['label'] }}"
                                              style="position:absolute; top:3px; height:14px; border-radius:3px;
