@@ -233,6 +233,18 @@ class CustomField extends Model
         return $this->belongsToMany(CustomFieldset::class);
     }
 
+    /**
+     * Establishes the customfield -> field group relationship. Drives the
+     * grouped, per-box rendering on the asset detail view. Nullable —
+     * ungrouped fields fall into an "Other" box.
+     *
+     * @return Relation
+     */
+    public function group()
+    {
+        return $this->belongsTo(FieldGroup::class, 'field_group_id');
+    }
+
     public function displayFieldInCheckinForm()
     {
         if ($this->display_checkin == '1') {

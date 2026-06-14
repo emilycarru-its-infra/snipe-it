@@ -71,6 +71,12 @@ Route::group(
             [AssetCheckinController::class, 'forceCheckin']
         )->name('asset.checkin.force');
 
+        // Inline single-field edit from the asset detail view — updates one
+        // whitelisted custom field without opening the full edit form.
+        Route::patch('{asset}/field',
+            [AssetsController::class, 'updateField']
+        )->name('hardware.field.update');
+
         Route::get('history', [AssetsController::class, 'getImportHistory'])
             ->name('asset.import-history')
             ->breadcrumbs(fn (Trail $trail) => $trail->parent('hardware.index')

@@ -225,10 +225,101 @@
 
 
                                 @if (($asset->model) && ($asset->model->fieldset))
-                                    @foreach($asset->model->fieldset->fields as $field)
-                                        <x-data-row :label="$field->name">
-                                            <x-info-element.customfield :item="$asset" :field="$field"/>
-                                        </x-data-row>
+                                    @php
+                                        // Group this fieldset's fields by their FieldGroup so the
+                                        // detail view renders one box per group instead of a single
+                                        // flat list. Ungrouped fields collect into an "Other" bucket.
+                                        $fsFields = $asset->model->fieldset->fields;
+                                        $allGroups = \App\Models\FieldGroup::ordered()->get();
+                                        $grouped = [];
+                                        foreach ($fsFields as $field) {
+                                            $key = $field->field_group_id ?: 'other';
+                                            $grouped[$key][] = $field;
+                                        }
+                                        // Build an ordered render plan: active groups in sort order
+                                        // that actually have fields here, then the Other bucket last.
+                                        $renderPlan = [];
+                                        foreach ($allGroups as $g) {
+                                            if (! empty($grouped[$g->id])) {
+                                                $renderPlan[] = ['group' => $g, 'fields' => $grouped[$g->id]];
+                                            }
+                                        }
+                                        if (! empty($grouped['other'])) {
+                                            $renderPlan[] = ['group' => null, 'fields' => $grouped['other']];
+                                        }
+                                        $canEditAsset = auth()->user()?->can('update', $asset);
+                                    @endphp
+
+                                    @foreach ($renderPlan as $planIndex => $section)
+                                        @php
+                                            $g = $section['group'];
+                                            $collapsed = $g && $g->collapsed_by_default;
+                                            $panelId = 'field-group-panel-'.($g ? $g->id : 'other').'-'.$planIndex;
+                                            $headerColor = $g && $g->color ? $g->color : '#777';
+                                            $headerIcon = $g && $g->icon ? $g->icon : 'fas fa-layer-group';
+                                            $headerName = $g ? $g->name : trans('admin/custom_fields/general.other_group_label');
+                                        @endphp
+                                        <div class="box box-default" style="border-top: 3px solid {{ $headerColor }};">
+                                            <div class="box-header with-border" @if ($collapsed) style="cursor:pointer;" data-toggle="collapse" data-target="#{{ $panelId }}" aria-expanded="false" aria-controls="{{ $panelId }}" @endif>
+                                                <h3 class="box-title" style="font-size: 15px;">
+                                                    <i class="{{ $headerIcon }}" style="color: {{ $headerColor }};" aria-hidden="true"></i>
+                                                    {{ $headerName }}
+                                                </h3>
+                                                @if ($collapsed)
+                                                    <div class="box-tools pull-right">
+                                                        <button type="button" class="btn btn-box-tool" data-toggle="collapse" data-target="#{{ $panelId }}">
+                                                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <div id="{{ $panelId }}" class="box-body @if ($collapsed) collapse @endif" style="padding-top: 5px; padding-bottom: 5px;">
+                                                <dl class="table-display" style="margin-bottom: 0;">
+                                                    @foreach ($section['fields'] as $field)
+                                                        <dt>{{ $field->name }}</dt>
+                                                        <dd style="text-align: left !important;">
+                                                            @php
+                                                                $isEncrypted = $field->field_encrypted == '1';
+                                                                $inlineEditable = $canEditAsset
+                                                                    && in_array($field->element, ['text', 'textarea'])
+                                                                    && ! ($isEncrypted && Gate::denies('assets.view.encrypted_custom_fields'));
+                                                                $rawVal = $asset->{$field->db_column_name()};
+                                                                if ($isEncrypted && $inlineEditable && $field->isFieldDecryptable($rawVal)) {
+                                                                    $rawVal = \App\Helpers\Helper::gracefulDecrypt($field, $rawVal);
+                                                                }
+                                                                $editId = 'inline-edit-'.$asset->id.'-'.$field->id;
+                                                            @endphp
+                                                            <span class="js-inline-display" id="{{ $editId }}-display">
+                                                                @if (!empty($asset->{$field->db_column_name()}) || $asset->{$field->db_column_name()} === '0')
+                                                                    <x-info-element.customfield :item="$asset" :field="$field"/>
+                                                                @else
+                                                                    <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
+                                                                @endif
+                                                                @if ($inlineEditable)
+                                                                    <a href="#" class="js-inline-edit-toggle hidden-print text-muted" data-target="{{ $editId }}" style="margin-left: 6px;" data-tooltip="true" title="{{ trans('admin/custom_fields/general.edit_field') }}">
+                                                                        <i class="fas fa-pencil-alt" aria-hidden="true"></i>
+                                                                    </a>
+                                                                @endif
+                                                            </span>
+                                                            @if ($inlineEditable)
+                                                                <form class="js-inline-edit-form form-inline hidden-print" id="{{ $editId }}-form" method="POST" action="{{ route('hardware.field.update', $asset->id) }}" style="display:none;">
+                                                                    {{ csrf_field() }}
+                                                                    @method('PATCH')
+                                                                    <input type="hidden" name="field" value="{{ $field->db_column }}">
+                                                                    @if ($field->element === 'textarea')
+                                                                        <textarea name="value" class="form-control input-sm" rows="2" style="min-width: 220px;">{{ $rawVal }}</textarea>
+                                                                    @else
+                                                                        <input type="text" name="value" class="form-control input-sm" style="min-width: 220px;" value="{{ $rawVal }}">
+                                                                    @endif
+                                                                    <button type="submit" class="btn btn-xs btn-primary"><i class="fas fa-check"></i> {{ trans('admin/custom_fields/general.save_field') }}</button>
+                                                                    <a href="#" class="btn btn-xs btn-default js-inline-edit-cancel" data-target="{{ $editId }}">{{ trans('admin/custom_fields/general.cancel_field') }}</a>
+                                                                </form>
+                                                            @endif
+                                                        </dd>
+                                                    @endforeach
+                                                </dl>
+                                            </div>
+                                        </div>
                                     @endforeach
                                 @endif
 
@@ -604,6 +695,30 @@
         @include ('modals.add-note', ['type' => 'asset', 'id' => $asset->id])
     @endcan
         @include ('partials.bootstrap-table')
+
+        {{-- Inline single-field edit on the grouped detail boxes. Progressive:
+             without JS the edit forms stay hidden and the full edit form still
+             works; with JS the pencil swaps the value for an input + save. --}}
+        <script nonce="{{ csrf_token() }}">
+            $(function () {
+                function showForm(target) {
+                    $('#' + target + '-display').hide();
+                    $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"]').first().focus();
+                }
+                function hideForm(target) {
+                    $('#' + target + '-form').hide();
+                    $('#' + target + '-display').show();
+                }
+                $(document).on('click', '.js-inline-edit-toggle', function (e) {
+                    e.preventDefault();
+                    showForm($(this).data('target'));
+                });
+                $(document).on('click', '.js-inline-edit-cancel', function (e) {
+                    e.preventDefault();
+                    hideForm($(this).data('target'));
+                });
+            });
+        </script>
     @endsection
 
 @stop

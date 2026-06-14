@@ -540,6 +540,60 @@ class AssetsController extends Controller
     }
 
     /**
+     * Inline single-field update from the asset detail view. Edits one
+     * whitelisted custom field in place and saves, without opening the full
+     * edit form. The field must belong to the asset model's fieldset (that's
+     * the whitelist); encrypted fields require the encrypted-fields gate.
+     * Native fields are intentionally NOT editable here — they keep going
+     * through the full edit form.
+     *
+     * @author Track B / F1 — grouped, inline-editable asset detail
+     */
+    public function updateField(Request $request, Asset $asset): RedirectResponse
+    {
+        $this->authorize('update', $asset);
+
+        $column = $request->input('field');
+        $redirect = Helper::getRedirectOption($request, $asset->id, 'Assets');
+
+        // Whitelist: the column must be a real custom field on this asset's
+        // model fieldset. Anything else is rejected outright.
+        $field = null;
+        if (($asset->model) && ($asset->model->fieldset)) {
+            $field = $asset->model->fieldset->fields->firstWhere('db_column', $column);
+        }
+
+        if (! $field) {
+            return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+        }
+
+        $value = $request->input('value');
+
+        if (is_array($value)) {
+            $value = implode(', ', $value);
+        }
+
+        if ($field->element === 'checkbox' && ! $request->has('value')) {
+            $value = null;
+        }
+
+        if ($field->field_encrypted == '1') {
+            if (! Gate::allows('assets.view.encrypted_custom_fields')) {
+                return $redirect->with('error', trans('admin/custom_fields/general.encrypted'));
+            }
+            $value = ($value === null || $value === '') ? $value : Crypt::encrypt($value);
+        }
+
+        $asset->{$field->db_column} = $value;
+
+        if ($asset->save()) {
+            return $redirect->with('success', trans('admin/hardware/message.update.success'));
+        }
+
+        return $redirect->withErrors($asset->getErrors());
+    }
+
+    /**
      * Delete a given asset (mark as deleted).
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]
