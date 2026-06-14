@@ -2613,7 +2613,7 @@ parameters:
 		-
 			message: '#^Method App\\Http\\Controllers\\Auth\\LoginController\:\:login\(\) should return Illuminate\\Http\\RedirectResponse but returns Illuminate\\View\\View\.$#'
 			identifier: return.type
-			count: 2
+			count: 1
 			path: app/Http/Controllers/Auth/LoginController.php
 
 		-
@@ -3147,12 +3147,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Carbon\\Carbon\:\:floatDiffInYears\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/FleetHealthReportsController.php
-
-		-
-			message: '#^Call to static method whereYear\(\) on an unknown class App\\Models\\AssetMaintenance\.$#'
-			identifier: class.notFound
 			count: 1
 			path: app/Http/Controllers/FleetHealthReportsController.php
 
@@ -7775,6 +7769,54 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Models/ExhibitStatus.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Actionlog\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Models/FieldGroup.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FieldGroup\:\:\$license\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/FieldGroup.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FieldGroup\:\:\$license_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Models/FieldGroup.php
+
+		-
+			message: '#^Method App\\Models\\FieldGroup\:\:getLatestSignedAcceptance\(\) should return App\\Models\\Actionlog\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/FieldGroup.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between class\-string\<static\(App\\Models\\FieldGroup\)\> and ''App\\\\Models\\\\LicenseSeat'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/FieldGroup.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: app/Models/FieldGroup.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Psr\\Http\\Message\\ResponseInterface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Models/FieldGroup.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>company_id" in isset\(\) is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/FieldGroup.php
 
 		-
 			message: '#^Call to function is_array\(\) with string\|null will always evaluate to false\.$#'
