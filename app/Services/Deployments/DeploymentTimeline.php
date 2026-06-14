@@ -3,6 +3,7 @@
 namespace App\Services\Deployments;
 
 use App\Models\DeploymentWave;
+use App\Models\StaffBlackout;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -45,10 +46,17 @@ class DeploymentTimeline
         $months = ($min && $max) ? $this->monthGrid($min, $max) : [];
         $totalMonths = count($months);
 
+        // Blackouts overlapping the grid window, positioned on the same axis.
+        $blackouts = ($min && $max) ? $this->blackoutsInWindow($min, $max) : collect();
+        $bands = $this->blackoutBands($blackouts, $min, $totalMonths);
+
         $rows = [];
         foreach ($waves as $wave) {
             $arrival = $this->bar($wave->arrival_window_start, $wave->arrival_window_end, $min, $totalMonths);
             $deploy = $this->bar($wave->target_start_date, $wave->target_end_date, $min, $totalMonths);
+
+            // Collision: this wave's DEPLOY window overlapping any blackout.
+            $collisions = $this->deployCollisions($wave, $blackouts);
 
             $rows[] = [
                 'wave' => $wave,
@@ -61,10 +69,84 @@ class DeploymentTimeline
                     'label' => $this->rangeLabel($wave->target_start_date, $wave->target_end_date),
                     'color' => $wave->displayColor(),
                 ]) : null,
+                'collisions' => $collisions,
             ];
         }
 
-        return ['months' => $months, 'rows' => $rows];
+        $wavesWithCollision = count(array_filter($rows, fn ($r) => count($r['collisions']) > 0));
+
+        return [
+            'months' => $months,
+            'rows' => $rows,
+            'blackout_bands' => $bands,
+            'waves_with_collision' => $wavesWithCollision,
+        ];
+    }
+
+    /** All blackouts whose window intersects the grid [min, max]. */
+    private function blackoutsInWindow(Carbon $min, Carbon $max): Collection
+    {
+        return StaffBlackout::with('user')
+            ->overlapping($min->toDateString(), $max->toDateString())
+            ->orderBy('start_date')
+            ->get();
+    }
+
+    /**
+     * Position each blackout as a band on the month grid (same offset/width
+     * math as a wave bar) plus the staff member's name. Drawn as a faint
+     * striped layer behind the wave rows, so it's visually subordinate.
+     *
+     * Returns: [['offsetPct'=>float,'widthPct'=>float,'name'=>string,'label'=>string], ...]
+     */
+    private function blackoutBands(Collection $blackouts, ?Carbon $gridStart, int $totalMonths): array
+    {
+        $bands = [];
+        foreach ($blackouts as $b) {
+            $bar = $this->bar($b->start_date, $b->end_date, $gridStart, $totalMonths);
+            if ($bar === null) {
+                continue;
+            }
+
+            $bands[] = array_merge($bar, [
+                'name' => $b->user?->present()->fullName ?? trans('admin/deployments/general.blackout_unknown_user'),
+                'label' => $this->rangeLabel($b->start_date, $b->end_date),
+            ]);
+        }
+
+        return $bands;
+    }
+
+    /**
+     * Blackouts whose window overlaps a wave's DEPLOY window
+     * (target_start_date..target_end_date). Returns each as
+     * ['name'=>string,'label'=>string] for the per-row warning tooltip.
+     */
+    private function deployCollisions(DeploymentWave $wave, Collection $blackouts): array
+    {
+        $start = $wave->target_start_date ?: $wave->target_end_date;
+        $end = $wave->target_end_date ?: $wave->target_start_date;
+        if (! $start || ! $end) {
+            return [];
+        }
+
+        $start = Carbon::parse($start);
+        $end = Carbon::parse($end);
+
+        $hits = [];
+        foreach ($blackouts as $b) {
+            $bStart = Carbon::parse($b->start_date);
+            $bEnd = Carbon::parse($b->end_date);
+            // Overlap test: start <= bEnd AND end >= bStart.
+            if ($start->lessThanOrEqualTo($bEnd) && $end->greaterThanOrEqualTo($bStart)) {
+                $hits[] = [
+                    'name' => $b->user?->present()->fullName ?? trans('admin/deployments/general.blackout_unknown_user'),
+                    'label' => $this->rangeLabel($b->start_date, $b->end_date),
+                ];
+            }
+        }
+
+        return $hits;
     }
 
     /** Earliest start and latest end across all four date fields of all waves. */
