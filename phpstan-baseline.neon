@@ -3103,7 +3103,19 @@ parameters:
 			path: app/Http/Controllers/DeploymentsController.php
 
 		-
+			message: '#^Relation ''asset'' is not found in App\\Models\\DeploymentItem model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
 			message: '#^Relation ''location'' is not found in App\\Models\\DeploymentWave model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
+			message: '#^Relation ''model'' is not found in App\\Models\\DeploymentItem model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/DeploymentsController.php
@@ -3115,6 +3127,12 @@ parameters:
 			path: app/Http/Controllers/DeploymentsController.php
 
 		-
+			message: '#^Relation ''stage'' is not found in App\\Models\\DeploymentItem model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
 			message: '#^Relation ''type'' is not found in App\\Models\\DeploymentWave model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -3123,7 +3141,7 @@ parameters:
 		-
 			message: '#^Relation ''wave'' is not found in App\\Models\\DeploymentItem model\.$#'
 			identifier: larastan.relationExistence
-			count: 1
+			count: 2
 			path: app/Http/Controllers/DeploymentsController.php
 
 		-
@@ -12071,6 +12089,12 @@ parameters:
 			identifier: nullCoalesce.offset
 			count: 1
 			path: app/Services/AnnexureParser.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$items\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Deployments/DeploymentTimeline.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Asset\:\:\$asset_eol_date\.$#'
