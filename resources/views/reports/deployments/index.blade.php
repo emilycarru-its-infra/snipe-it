@@ -7,6 +7,7 @@
 @section('header_right')
     <a href="{{ route('deployment-config.index', 'types') }}" class="btn btn-sm btn-default"><i class="fas fa-cog"></i> {{ trans('admin/deployments/general.configure') }}</a>
     <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.forecast') }}</a>
+    <a href="{{ route('deployments.storage') }}" class="btn btn-sm btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('admin/deployments/general.download') }}</a>
     <a href="{{ route('deployment-waves.create') }}" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_wave') }}</a>
 @stop
@@ -93,6 +94,74 @@
             </div>
         </div>
     @endforeach
+</div>
+
+{{-- Timeline / Gantt (P2a) --}}
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.timeline_title') }}</h3>
+        <div class="box-tools pull-right">
+            <span class="text-muted" style="font-size:12px;">
+                <span style="display:inline-block; width:12px; height:12px; background:#2980b9; border-radius:2px; vertical-align:middle;"></span>
+                {{ trans('admin/deployments/general.timeline_legend_arrival') }}
+                &nbsp;&nbsp;
+                <span style="display:inline-block; width:12px; height:12px; background:#2980b9; opacity:0.45; border-radius:2px; vertical-align:middle;"></span>
+                {{ trans('admin/deployments/general.timeline_legend_deploy') }}
+            </span>
+        </div>
+    </div>
+    <div class="box-body table-responsive">
+        @if (count($timeline['months']) === 0)
+            <p class="text-center text-muted" style="margin:20px 0;">{{ trans('admin/deployments/general.timeline_empty') }}</p>
+        @else
+            @php($colCount = count($timeline['months']))
+            <table class="table table-condensed" style="margin-bottom:0; table-layout:fixed;">
+                <thead>
+                    <tr>
+                        <th style="width:200px;">{{ trans('admin/deployments/general.wave') }}</th>
+                        @foreach ($timeline['months'] as $m)
+                            <th class="text-center text-muted" style="font-weight:normal; font-size:11px;">{{ $m['label'] }}</th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach ($timeline['rows'] as $r)
+                    <tr>
+                        <td>
+                            <a href="{{ route('deployment-waves.show', $r['wave']) }}">
+                                <span class="label" style="background-color: {{ $r['wave']->displayColor() }}; color:#fff;">{{ $r['wave']->name }}</span>
+                            </a>
+                        </td>
+                        <td colspan="{{ $colCount }}" style="position:relative; padding:0;">
+                            @if (! $r['has_dates'])
+                                <span class="text-muted" style="font-size:11px; padding-left:6px;">{{ trans('admin/deployments/general.timeline_no_dates') }}</span>
+                            @else
+                                <div style="position:relative; height:38px;">
+                                    @if ($r['arrival'])
+                                        <div title="{{ trans('admin/deployments/general.timeline_legend_arrival') }}: {{ $r['arrival']['label'] }}"
+                                             style="position:absolute; top:3px; height:14px; border-radius:3px;
+                                                    left: {{ $r['arrival']['offsetPct'] }}%; width: {{ $r['arrival']['widthPct'] }}%;
+                                                    background-color: {{ $r['arrival']['color'] }}; overflow:hidden; white-space:nowrap;">
+                                            <span style="color:#fff; font-size:10px; padding-left:4px; line-height:14px;">{{ $r['arrival']['label'] }}</span>
+                                        </div>
+                                    @endif
+                                    @if ($r['deploy'])
+                                        <div title="{{ trans('admin/deployments/general.timeline_legend_deploy') }}: {{ $r['deploy']['label'] }}"
+                                             style="position:absolute; top:20px; height:14px; border-radius:3px; opacity:0.55;
+                                                    left: {{ $r['deploy']['offsetPct'] }}%; width: {{ $r['deploy']['widthPct'] }}%;
+                                                    background-color: {{ $r['deploy']['color'] }}; overflow:hidden; white-space:nowrap;">
+                                            <span style="color:#fff; font-size:10px; padding-left:4px; line-height:14px;">{{ $r['deploy']['label'] }}</span>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
 </div>
 
 {{-- Waves table --}}
