@@ -303,6 +303,28 @@ class Asset extends Depreciable
     }
 
     /**
+     * Native (non-custom) columns that may be edited in place from the asset
+     * detail view, without opening the full edit form. Deliberately limited to
+     * simple scalar text fields whose model validation rules ($rules) fully
+     * guard the saved value. The map's value is the input element the detail
+     * view should render for inline editing.
+     *
+     * Custom fields have their own inline-edit path on the model fieldset;
+     * this only covers the handful of native fields people touch most.
+     */
+    public static function inlineEditableCoreFields(): array
+    {
+        return [
+            'name'         => 'text',
+            'asset_tag'    => 'text',
+            'serial'       => 'text',
+            'order_number' => 'text',
+            'gl_code'      => 'text',
+            'notes'        => 'textarea',
+        ];
+    }
+
+    /**
      * Returns the warranty expiration date as Carbon object
      *
      * @return Carbon|null
