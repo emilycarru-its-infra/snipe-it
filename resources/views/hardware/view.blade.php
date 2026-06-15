@@ -122,13 +122,13 @@
                                         <div class="col-sm-3 col-xs-6">
                                             <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.asset_tag') }}</div>
                                             <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
-                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr"/>
+                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
                                             </div>
                                         </div>
                                         <div class="col-sm-4 col-xs-6">
                                             <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.serial_number') }}</div>
                                             <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
-                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr">
+                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false">
                                                     <code style="font-size: 18px;">{{ $asset->serial }}</code>
                                                 </x-inline-core-field>
                                             </div>
