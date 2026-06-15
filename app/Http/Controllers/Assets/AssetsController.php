@@ -572,10 +572,10 @@ class AssetsController extends Controller
     /**
      * Inline single-field update of a custom field from the asset detail view,
      * without opening the full edit form. The field must belong to the asset
-     * model's fieldset (the whitelist) and be a text/textarea element — the only
-     * types the inline editor renders. Encrypted fields require the
-     * encrypted-fields gate. Other element types and native fields keep going
-     * through the full edit form.
+     * model's fieldset (the whitelist). Text/textarea take a free-text value;
+     * listbox/radio/checkbox values are validated against the field's own
+     * option list so a crafted request can't store off-list values. Encrypted
+     * fields require the encrypted-fields gate.
      */
     public function updateField(Request $request, Asset $asset): RedirectResponse
     {
@@ -591,18 +591,28 @@ class AssetsController extends Controller
             $field = $asset->model->fieldset->fields->firstWhere('db_column', $column);
         }
 
-        if (! $field) {
-            return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
-        }
-
-        // Inline editing only supports free-text elements. Reject anything else
-        // (listbox, checkbox, radio, …) so a crafted request can't store values
-        // the field's own validation would otherwise constrain.
-        if (! in_array($field->element, ['text', 'textarea'], true)) {
+        if (! $field || ! in_array($field->element, ['text', 'textarea', 'listbox', 'radio', 'checkbox'], true)) {
             return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
         }
 
         $value = $request->input('value');
+
+        // Option-based fields: every submitted value must be one of the field's
+        // configured options (the '' placeholder is treated as "cleared").
+        if (in_array($field->element, ['listbox', 'radio', 'checkbox'], true)) {
+            $allowed = array_filter(array_keys($field->formatFieldValuesAsArray()), fn ($opt) => $opt !== '');
+            $submitted = array_filter(is_array($value) ? $value : [$value], fn ($v) => $v !== null && $v !== '');
+
+            foreach ($submitted as $v) {
+                if (! in_array($v, $allowed, true)) {
+                    return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+                }
+            }
+
+            $value = implode(', ', $submitted);
+        } elseif (is_array($value)) {
+            return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+        }
 
         if ($field->field_encrypted == '1') {
             if (! Gate::allows('assets.view.encrypted_custom_fields')) {

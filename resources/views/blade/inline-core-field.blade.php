@@ -63,6 +63,9 @@
             .inline-core-pencil:hover, .inline-core-pencil:focus { color: #777; }
             .inline-core-copy { color: #bbb; opacity: .7; cursor: pointer; margin-left: 8px; font-size: 14px; vertical-align: baseline; }
             .inline-core-copy:hover { color: #777; opacity: 1; }
+            /* the customfield info-element renders its own leading copy icon; we
+               supply a single right-aligned one instead, so hide the embedded one. */
+            .inline-core-value .js-copy-link { display: none !important; }
         </style>
     @endpush
 @endonce
