@@ -97,13 +97,31 @@ class InlineFieldEditTest extends TestCase
         $this->assertNull($asset->fresh()->{$strayField->db_column});
     }
 
-    public function test_inline_custom_field_edit_rejects_non_text_elements()
+    public function test_inline_custom_field_edit_accepts_a_valid_listbox_option()
     {
-        $field = CustomField::factory()->testCheckbox()->create();
+        $field = CustomField::factory()->create([
+            'element' => 'listbox',
+            'field_values' => "Red\nGreen\nBlue",
+        ]);
         $asset = $this->assetWithCustomField($field);
 
         $this->actingAs(User::factory()->editAssets()->create())
-            ->patch(route('hardware.field.update', $asset), ['field' => $field->db_column, 'value' => 'tampered'])
+            ->patch(route('hardware.field.update', $asset), ['field' => $field->db_column, 'value' => 'Green'])
+            ->assertStatus(302);
+
+        $this->assertEquals('Green', $asset->fresh()->{$field->db_column});
+    }
+
+    public function test_inline_custom_field_edit_rejects_an_off_list_option()
+    {
+        $field = CustomField::factory()->create([
+            'element' => 'listbox',
+            'field_values' => "Red\nGreen\nBlue",
+        ]);
+        $asset = $this->assetWithCustomField($field);
+
+        $this->actingAs(User::factory()->editAssets()->create())
+            ->patch(route('hardware.field.update', $asset), ['field' => $field->db_column, 'value' => 'Purple'])
             ->assertSessionHas('error');
 
         $this->assertNull($asset->fresh()->{$field->db_column});
