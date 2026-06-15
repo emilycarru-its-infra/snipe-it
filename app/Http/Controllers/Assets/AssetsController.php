@@ -540,6 +540,36 @@ class AssetsController extends Controller
     }
 
     /**
+     * Inline single-field update of a native asset column from the detail view.
+     * Lets people change one value (name, asset tag, serial, …) in place without
+     * opening the full edit form. The column must be in the model's
+     * inlineEditableCoreFields() whitelist; everything else is rejected, and the
+     * value is validated by the model's own $rules on save.
+     */
+    public function updateCoreField(Request $request, Asset $asset): RedirectResponse
+    {
+        $this->authorize('update', $asset);
+
+        $column = (string) $request->input('field');
+
+        if (! array_key_exists($column, Asset::inlineEditableCoreFields())) {
+            return redirect()->route('hardware.show', $asset->id)
+                ->with('error', trans('admin/hardware/message.update.error'));
+        }
+
+        $value = $request->input('value');
+        $asset->{$column} = ($value === '') ? null : $value;
+
+        if ($asset->save()) {
+            return redirect()->route('hardware.show', $asset->id)
+                ->with('success', trans('admin/hardware/message.update.success'));
+        }
+
+        return redirect()->route('hardware.show', $asset->id)
+            ->withErrors($asset->getErrors());
+    }
+
+    /**
      * Delete a given asset (mark as deleted).
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]

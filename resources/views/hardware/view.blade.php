@@ -52,7 +52,7 @@
             </div>
         @endif
 
-        <x-page-column class="col-md-9 main-panel">
+        <x-page-column class="col-md-9 col-md-push-3 main-panel">
 
             <x-tabs>
                 <x-slot:tabnav>
@@ -113,6 +113,38 @@
                         <!-- this just adds a little top space -->
                         <div class="clearfix visible-lg-block" style="padding: 6px;"></div>
 
+                        <!-- identity header: the values we read first and touch most,
+                             hoisted to the top and inline-editable (tag, serial, name) -->
+                        <x-page-column class="col-md-12">
+                            <div class="box box-solid" style="margin-bottom: 12px;">
+                                <div class="box-body">
+                                    <div class="row">
+                                        <div class="col-sm-3 col-xs-6">
+                                            <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.asset_tag') }}</div>
+                                            <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
+                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr"/>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-4 col-xs-6">
+                                            <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.serial_number') }}</div>
+                                            <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
+                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr">
+                                                    <code style="font-size: 18px;">{{ $asset->serial }}</code>
+                                                </x-inline-core-field>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-5 col-xs-12">
+                                            <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.name') }}</div>
+                                            <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
+                                                <x-inline-core-field :asset="$asset" column="name" copy_what="asset_name_hdr"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </x-page-column>
+                        <div class="clearfix"></div>
+
                         <!--  well column -->
                         <x-page-column class="col-md-4">
                             <x-well>
@@ -162,13 +194,8 @@
                             <!-- definition list content -->
                             <x-page-data>
 
-                                <x-data-row :label="trans('admin/hardware/form.tag')" copy_what="asset_tag">
-                                    {{ $asset->asset_tag }}
-                                </x-data-row>
-
-                                <x-data-row :label="trans('admin/hardware/form.name')" copy_what="asset_name">
-                                    {{ $asset->name }}
-                                </x-data-row>
+                                {{-- Asset tag, serial and name now live in the identity
+                                     header at the top of this tab (inline-editable). --}}
 
                                 <x-data-row :label="trans('admin/hardware/table.current_value')" copy_what="current_value">
                                     {{ (($asset->id) && ($asset->location) ? $asset->location->currency : $snipeSettings->default_currency) }}
@@ -567,7 +594,7 @@
 
         </x-page-column>
 
-        <x-page-column class="col-md-3">
+        <x-page-column class="col-md-3 col-md-pull-9">
             <x-box class="side-box expanded">
                 <x-info-panel :infoPanelObj="$asset" img_path="{{ app('assets_upload_url') }}">
                     <x-slot:buttons>
