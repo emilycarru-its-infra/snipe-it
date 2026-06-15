@@ -54,6 +54,9 @@
 @endif
 
 @once
+    {{-- Shared styling for the inline pencil/copy controls (also used by
+         <x-inline-custom-field>). The toggle/cancel JS lives once at the bottom
+         of hardware/view.blade.php. --}}
     @push('css')
         <style>
             .inline-core-pencil { color: #bbb; margin-right: 7px; font-size: 13px; }
@@ -61,27 +64,5 @@
             .inline-core-copy { color: #bbb; opacity: .7; cursor: pointer; margin-left: 8px; font-size: 14px; vertical-align: baseline; }
             .inline-core-copy:hover { color: #777; opacity: 1; }
         </style>
-    @endpush
-    @push('js')
-        <script nonce="{{ csrf_token() }}">
-            $(function () {
-                function showForm(target) {
-                    $('#' + target + '-display').hide();
-                    $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"]').first().focus();
-                }
-                function hideForm(target) {
-                    $('#' + target + '-form').hide();
-                    $('#' + target + '-display').show();
-                }
-                $(document).on('click', '.js-inline-edit-toggle', function (e) {
-                    e.preventDefault();
-                    showForm($(this).data('target'));
-                });
-                $(document).on('click', '.js-inline-edit-cancel', function (e) {
-                    e.preventDefault();
-                    hideForm($(this).data('target'));
-                });
-            });
-        </script>
     @endpush
 @endonce
