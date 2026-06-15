@@ -3,36 +3,39 @@
     'column',
     'element' => 'text',
     'copy_what' => null,
+    'editable' => true,
 ])
 
 {{--
-    Inline single-field editor for a native asset column. Renders the value
-    (optionally with a copy button and custom display markup via the slot) plus
-    a pencil that swaps it for an input posting to hardware.corefield.update.
-    Progressive: with no JS the form stays hidden and the full edit form still
-    works; the column must be in Asset::inlineEditableCoreFields().
+    Inline single-field editor for a native asset column. Layout: [pencil] value [copy].
+    The pencil (left) swaps the value for an input posting to hardware.corefield.update;
+    the copy button (right, muted, double-square icon) copies the value via clipboard.js.
+    Set :editable="false" for high-stakes fields (asset tag, serial) to drop the pencil
+    while keeping copy. Progressive: with no JS the form stays hidden and the full edit
+    form still works. The column must be in Asset::inlineEditableCoreFields().
 --}}
 @php
-    $canEdit = auth()->user()?->can('update', $asset);
-    $editId  = 'inline-core-'.$asset->id.'-'.$column;
-    $raw     = $asset->{$column};
+    $canEdit  = $editable && auth()->user()?->can('update', $asset);
+    $editId   = 'inline-core-'.$asset->id.'-'.$column;
+    $raw      = $asset->{$column};
     $hasValue = ($raw !== null && $raw !== '');
 @endphp
 
-<span class="js-inline-display" id="{{ $editId }}-display">
-    @if ($hasValue)
-        @if ($copy_what)
-            <x-copy-to-clipboard copy_what="{{ $copy_what }}">{{ $slot->isEmpty() ? $raw : $slot }}</x-copy-to-clipboard>
-        @else
-            {{ $slot->isEmpty() ? $raw : $slot }}
-        @endif
-    @else
-        <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
-    @endif
+<span class="js-inline-display inline-core-field" id="{{ $editId }}-display">
     @if ($canEdit)
-        <a href="#" class="js-inline-edit-toggle hidden-print text-muted" data-target="{{ $editId }}" style="margin-left: 6px; font-size: 14px;" data-tooltip="true" title="{{ trans('general.edit') }}">
+        <a href="#" class="js-inline-edit-toggle hidden-print inline-core-pencil" data-target="{{ $editId }}" data-tooltip="true" data-placement="top" title="{{ trans('general.edit') }}">
             <i class="fas fa-pencil-alt" aria-hidden="true"></i>
         </a>
+    @endif
+    <span class="inline-core-value @if ($copy_what) js-copy-{{ $copy_what }} @endif">
+        @if ($hasValue)
+            {{ $slot->isEmpty() ? $raw : $slot }}
+        @else
+            <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
+        @endif
+    </span>
+    @if ($hasValue && $copy_what)
+        <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-{{ $copy_what }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
     @endif
 </span>
 @if ($canEdit)
@@ -51,26 +54,15 @@
 @endif
 
 @once
-    @push('js')
-        <script nonce="{{ csrf_token() }}">
-            $(function () {
-                function showForm(target) {
-                    $('#' + target + '-display').hide();
-                    $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"]').first().focus();
-                }
-                function hideForm(target) {
-                    $('#' + target + '-form').hide();
-                    $('#' + target + '-display').show();
-                }
-                $(document).on('click', '.js-inline-edit-toggle', function (e) {
-                    e.preventDefault();
-                    showForm($(this).data('target'));
-                });
-                $(document).on('click', '.js-inline-edit-cancel', function (e) {
-                    e.preventDefault();
-                    hideForm($(this).data('target'));
-                });
-            });
-        </script>
+    {{-- Shared styling for the inline pencil/copy controls (also used by
+         <x-inline-custom-field>). The toggle/cancel JS lives once at the bottom
+         of hardware/view.blade.php. --}}
+    @push('css')
+        <style>
+            .inline-core-pencil { color: #bbb; margin-right: 7px; font-size: 13px; }
+            .inline-core-pencil:hover, .inline-core-pencil:focus { color: #777; }
+            .inline-core-copy { color: #bbb; opacity: .7; cursor: pointer; margin-left: 8px; font-size: 14px; vertical-align: baseline; }
+            .inline-core-copy:hover { color: #777; opacity: 1; }
+        </style>
     @endpush
 @endonce
