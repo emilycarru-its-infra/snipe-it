@@ -71,11 +71,17 @@ Route::group(
             [AssetCheckinController::class, 'forceCheckin']
         )->name('asset.checkin.force');
 
-        // Inline single-field edit of a native column from the asset detail
-        // view — updates one whitelisted core field without the full edit form.
+        // Inline single-field edit from the asset detail view, without opening
+        // the full edit form. Native columns go through corefield (whitelisted
+        // by Asset::inlineEditableCoreFields()); custom fields go through field
+        // (whitelisted by the model fieldset).
         Route::patch('{asset}/corefield',
             [AssetsController::class, 'updateCoreField']
         )->name('hardware.corefield.update');
+
+        Route::patch('{asset}/field',
+            [AssetsController::class, 'updateField']
+        )->name('hardware.field.update');
 
         Route::get('history', [AssetsController::class, 'getImportHistory'])
             ->name('asset.import-history')
