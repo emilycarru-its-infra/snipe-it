@@ -122,13 +122,13 @@
                                         <div class="col-sm-3 col-xs-6">
                                             <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.asset_tag') }}</div>
                                             <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
-                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr"/>
+                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
                                             </div>
                                         </div>
                                         <div class="col-sm-4 col-xs-6">
                                             <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.serial_number') }}</div>
                                             <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
-                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr">
+                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false">
                                                     <code style="font-size: 18px;">{{ $asset->serial }}</code>
                                                 </x-inline-core-field>
                                             </div>
@@ -252,10 +252,64 @@
 
 
                                 @if (($asset->model) && ($asset->model->fieldset))
-                                    @foreach($asset->model->fieldset->fields as $field)
-                                        <x-data-row :label="$field->name">
-                                            <x-info-element.customfield :item="$asset" :field="$field"/>
-                                        </x-data-row>
+                                    @php
+                                        // Group this fieldset's fields by their FieldGroup so the
+                                        // detail view renders one box per group instead of a single
+                                        // flat list. Ungrouped fields collect into an "Other" bucket.
+                                        $fsFields = $asset->model->fieldset->fields;
+                                        $allGroups = \App\Models\FieldGroup::ordered()->get();
+                                        $grouped = [];
+                                        foreach ($fsFields as $field) {
+                                            $key = $field->field_group_id ?: 'other';
+                                            $grouped[$key][] = $field;
+                                        }
+                                        // Build an ordered render plan: active groups in sort order
+                                        // that actually have fields here, then the Other bucket last.
+                                        $renderPlan = [];
+                                        foreach ($allGroups as $g) {
+                                            if (! empty($grouped[$g->id])) {
+                                                $renderPlan[] = ['group' => $g, 'fields' => $grouped[$g->id]];
+                                            }
+                                        }
+                                        if (! empty($grouped['other'])) {
+                                            $renderPlan[] = ['group' => null, 'fields' => $grouped['other']];
+                                        }
+                                    @endphp
+
+                                    @foreach ($renderPlan as $planIndex => $section)
+                                        @php
+                                            $g = $section['group'];
+                                            $collapsed = $g && $g->collapsed_by_default;
+                                            $panelId = 'field-group-panel-'.($g ? $g->id : 'other').'-'.$planIndex;
+                                            $headerColor = $g && $g->color ? $g->color : '#777';
+                                            $headerIcon = $g && $g->icon ? $g->icon : 'fas fa-layer-group';
+                                            $headerName = $g ? $g->name : trans('admin/custom_fields/general.other_group_label');
+                                        @endphp
+                                        <div class="box box-default" style="border-top: 3px solid {{ $headerColor }};">
+                                            <div class="box-header with-border" @if ($collapsed) style="cursor:pointer;" data-toggle="collapse" data-target="#{{ $panelId }}" aria-expanded="false" aria-controls="{{ $panelId }}" @endif>
+                                                <h3 class="box-title" style="font-size: 15px;">
+                                                    <i class="{{ $headerIcon }}" style="color: {{ $headerColor }};" aria-hidden="true"></i>
+                                                    {{ $headerName }}
+                                                </h3>
+                                                @if ($collapsed)
+                                                    <div class="box-tools pull-right">
+                                                        <button type="button" class="btn btn-box-tool" data-toggle="collapse" data-target="#{{ $panelId }}">
+                                                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <div id="{{ $panelId }}" class="box-body @if ($collapsed) collapse @endif" style="padding-top: 5px; padding-bottom: 5px;">
+                                                <dl class="table-display" style="margin-bottom: 0;">
+                                                    @foreach ($section['fields'] as $field)
+                                                        <dt>{{ $field->name }}</dt>
+                                                        <dd style="text-align: left !important;">
+                                                            <x-inline-custom-field :asset="$asset" :field="$field"/>
+                                                        </dd>
+                                                    @endforeach
+                                                </dl>
+                                            </div>
+                                        </div>
                                     @endforeach
                                 @endif
 
@@ -631,6 +685,30 @@
         @include ('modals.add-note', ['type' => 'asset', 'id' => $asset->id])
     @endcan
         @include ('partials.bootstrap-table')
+
+        {{-- Inline single-field edit on the grouped detail boxes. Progressive:
+             without JS the edit forms stay hidden and the full edit form still
+             works; with JS the pencil swaps the value for an input + save. --}}
+        <script nonce="{{ csrf_token() }}">
+            $(function () {
+                function showForm(target) {
+                    $('#' + target + '-display').hide();
+                    $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"]').first().focus();
+                }
+                function hideForm(target) {
+                    $('#' + target + '-form').hide();
+                    $('#' + target + '-display').show();
+                }
+                $(document).on('click', '.js-inline-edit-toggle', function (e) {
+                    e.preventDefault();
+                    showForm($(this).data('target'));
+                });
+                $(document).on('click', '.js-inline-edit-cancel', function (e) {
+                    e.preventDefault();
+                    hideForm($(this).data('target'));
+                });
+            });
+        </script>
     @endsection
 
 @stop
