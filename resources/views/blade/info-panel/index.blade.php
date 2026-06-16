@@ -73,9 +73,12 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->serial)
+        {{-- Assets show their serial in the detail header, so skip it here to
+             avoid duplicating it in the side panel. --}}
+        @if ($infoPanelObj->serial && ! ($infoPanelObj instanceof \App\Models\Asset))
             @if(($infoPanelObj::class != "App\Models\License") || (Gate::allows('viewKeys', $infoPanelObj)))
                 <x-info-element icon_type="number" title="{{ trans('general.serial_number') }}">
+                    {{ trans('general.serial_number') }}
                     <x-copy-to-clipboard class="pull-right" copy_what="license_key">
                         <code>{{ $infoPanelObj->serial }}</code>
                     </x-copy-to-clipboard>
@@ -114,6 +117,7 @@
 
         @if ($infoPanelObj->model)
             <x-info-element icon_type="model" title="{{ trans('general.asset_model') }}">
+                {{ trans('general.asset_model') }}
                 <x-copy-to-clipboard copy_what="asset_model" class="pull-right">
                     {!!  $infoPanelObj->model->present()->formattedNameLink !!}
                 </x-copy-to-clipboard>
@@ -244,6 +248,7 @@
 
         @if ($infoPanelObj->order_number && ! ($infoPanelObj->on_maintenance_contract ?? false))
             <x-info-element icon_type="order" title="{{ trans('general.order_number') }}">
+                {{ trans('general.order_number') }}
                 <x-copy-to-clipboard copy_what="order_number" class="pull-right">
                     @if ($infoPanelObj::class == "App\Models\Asset")
                         <a href="{{ route('hardware.index', ['order_number' => $infoPanelObj->order_number]) }}">{{ $infoPanelObj->order_number }}</a>
@@ -256,6 +261,7 @@
 
         @if ($infoPanelObj->gl_code ?? false)
             <x-info-element icon_type="order" title="{{ trans('admin/hardware/form.gl_code') }}">
+                {{ trans('admin/hardware/form.gl_code') }}
                 <x-copy-to-clipboard copy_what="gl_code" class="pull-right">
                     {{ $infoPanelObj->gl_code }}
                 </x-copy-to-clipboard>
@@ -293,6 +299,7 @@
 
         @if ($infoPanelObj->company)
             <x-info-element icon_type="company" icon_color="{{ $infoPanelObj->company->tag_color }}" title="{{ trans('general.company') }}">
+                {{ trans('general.company') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="company">
                 {!!  $infoPanelObj->company->present()->nameUrl !!}
                 </x-copy-to-clipboard>
@@ -301,6 +308,7 @@
 
         @if ($infoPanelObj->department)
             <x-info-element icon_type="department" icon_color="{{ $infoPanelObj->department->tag_color }}" title="{{ trans('general.department') }}">
+                {{ trans('general.department') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="department">
                     {!!  $infoPanelObj->department->present()->nameUrl !!}
                 </x-copy-to-clipboard>
@@ -309,6 +317,7 @@
 
         @if ($infoPanelObj->category)
             <x-info-element icon_type="category" icon_color="{{ $infoPanelObj->category->tag_color }}" title="{{ trans('general.category') }}">
+                {{ trans('general.category') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="category">{!!  $infoPanelObj->category->present()->nameUrl !!}</x-copy-to-clipboard>
             </x-info-element>
         @endif
@@ -323,6 +332,7 @@
 
         @if ($infoPanelObj->location)
             <x-info-element icon_type="location" icon_color="{{ $infoPanelObj->location->tag_color }}" title="{{ trans('general.location') }}">
+                {{ trans('general.location') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="location">{!!  $infoPanelObj->location->present()->nameUrl !!}</x-copy-to-clipboard>
             </x-info-element>
         @endif
@@ -330,6 +340,7 @@
 
         @if ($infoPanelObj->manager)
             <x-info-element icon_type="manager" title="{{ trans('admin/users/table.manager') }}">
+                {{ trans('admin/users/table.manager') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="manager">{!!  $infoPanelObj->manager->present()->nameUrl !!}</x-copy-to-clipboard>
             </x-info-element>
         @endif
