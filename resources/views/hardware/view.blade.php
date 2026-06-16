@@ -119,24 +119,28 @@
                             <div class="box box-solid" style="margin-bottom: 12px;">
                                 <div class="box-body">
                                     <div class="row">
-                                        <div class="col-sm-3 col-xs-6">
-                                            <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.asset_tag') }}</div>
-                                            <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
-                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
-                                            </div>
-                                        </div>
-                                        <div class="col-sm-4 col-xs-6">
-                                            <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.serial_number') }}</div>
-                                            <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
-                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false">
-                                                    <code style="font-size: 18px;">{{ $asset->serial }}</code>
-                                                </x-inline-core-field>
-                                            </div>
-                                        </div>
+                                        {{-- Name is the leftmost, primary identifier. --}}
                                         <div class="col-sm-5 col-xs-12">
                                             <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.name') }}</div>
                                             <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
                                                 <x-inline-core-field :asset="$asset" column="name" copy_what="asset_name_hdr"/>
+                                            </div>
+                                        </div>
+                                        {{-- Tag + serial sit together, snug, to the right of the name. --}}
+                                        <div class="col-sm-7 col-xs-12">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 8px 48px;">
+                                                <div>
+                                                    <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.asset_tag') }}</div>
+                                                    <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
+                                                        <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.serial_number') }}</div>
+                                                    <div style="font-size: 20px; font-weight: 600; line-height: 1.4; font-family: SFMono-Regular, Menlo, Consolas, monospace;">
+                                                        <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false"/>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
