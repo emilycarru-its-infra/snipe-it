@@ -71,6 +71,9 @@
                         <form method="POST" action="{{ route('deployment-items.stage', $item) }}" class="form-inline" style="margin:0;">
                             {{ csrf_field() }}
                             <select name="stage_id" class="form-control input-sm" onchange="this.form.submit()" style="border-left:5px solid {{ $item->stageColor() }};">
+                                @if ($item->stage_id && ! $stages->contains('id', $item->stage_id))
+                                    <option value="{{ $item->stage_id }}" selected>{{ $item->stage?->name ?: $item->stage_id }} ({{ trans('admin/deployments/general.inactive') }})</option>
+                                @endif
                                 @foreach ($stages as $st)
                                     <option value="{{ $st->id }}" {{ (int) $item->stage_id === (int) $st->id ? 'selected' : '' }}>{{ $st->name }}</option>
                                 @endforeach

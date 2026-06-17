@@ -74,6 +74,7 @@ return [
     'storage' => 'Storage',
     'add_item' => 'Add device',
     'update_stage' => 'Update stage',
+    'inactive' => 'inactive',
 
     // CRUD / config labels
     'create' => 'New Deployment Wave',

@@ -348,7 +348,9 @@ class DeploymentsController extends Controller
                 'deployment_type_id' => DeploymentType::where('slug', 'refresh')->value('id'),
             ]);
             $wave->created_by = auth()->id();
-            $wave->save();
+            if (! $wave->save()) {
+                return redirect()->back()->withInput()->withErrors($wave->getErrors());
+            }
         } else {
             return redirect()->back()->withInput()
                 ->with('error', trans('admin/deployments/general.forecast_no_wave'));
