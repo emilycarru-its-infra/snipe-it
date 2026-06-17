@@ -22,7 +22,7 @@ class DeploymentType extends SnipeModel
     protected $rules = [
         'name' => 'required|string|max:191',
         'slug' => 'nullable|string|max:191',
-        'color' => 'nullable|string|max:32',
+        'color' => 'nullable|regex:/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/',
         'sort_order' => 'nullable|integer',
         'active' => 'boolean',
     ];
