@@ -154,6 +154,7 @@ return [
     'blackout_none' => 'No staff time off recorded. Add a window to see it overlaid on the timeline.',
     'blackout_user_unknown' => 'No matching user for the supplied id or email.',
     'blackout_unknown_user' => 'Unknown staff member',
+    'blackout_synced_readonly' => 'Synced blackouts are managed by the calendar sync and cannot be edited here.',
 
     // Timeline overlay / collision (P4)
     'timeline_blackouts_label' => 'Staff OOO',

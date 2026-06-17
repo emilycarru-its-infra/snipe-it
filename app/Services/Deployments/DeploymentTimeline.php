@@ -132,6 +132,9 @@ class DeploymentTimeline
 
         $start = Carbon::parse($start);
         $end = Carbon::parse($end);
+        if ($start->gt($end)) {
+            [$start, $end] = [$end, $start];
+        }
 
         $hits = [];
         foreach ($blackouts as $b) {
