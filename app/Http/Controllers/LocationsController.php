@@ -89,6 +89,7 @@ class LocationsController extends Controller
         $location->fax = request('fax');
         $location->tag_color = $request->input('tag_color');
         $location->notes = $request->input('notes');
+        $location->storage_capacity = ($request->filled('storage_capacity') && (int) $request->input('storage_capacity') > 0) ? (int) $request->input('storage_capacity') : null;
         $location->company_id = Company::getIdForCurrentUser($request->input('company_id'));
 
         // Only scope the location if the setting is enabled
@@ -170,6 +171,7 @@ class LocationsController extends Controller
         $location->manager_id = $request->input('manager_id');
         $location->tag_color = $request->input('tag_color');
         $location->notes = $request->input('notes');
+        $location->storage_capacity = ($request->filled('storage_capacity') && (int) $request->input('storage_capacity') > 0) ? (int) $request->input('storage_capacity') : null;
 
         // Only scope the location if the setting is enabled
         if (Setting::getSettings()->scope_locations_fmcs) {

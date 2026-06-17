@@ -6,7 +6,9 @@ use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
+use App\Models\Location;
 use App\Models\Order;
+use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\RefreshForecast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -83,6 +85,7 @@ class DeploymentsController extends Controller
             'typeFilter' => $typeFilter,
             'stageFilter' => $stageFilter,
             'widgets' => $this->buildWidgets($items, $stages, $types),
+            'timeline' => (new DeploymentTimeline)->build($waves),
             'forecastCount' => $fy ? $forecast->forFiscalYear($fy)->count() : 0,
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'stage' => $stageFilter, 'format' => 'csv']),
         ]);
@@ -172,6 +175,99 @@ class DeploymentsController extends Controller
 
     /*
     |--------------------------------------------------------------------------
+    | Storage / staging capacity (P3)
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * The storage view: every Location with a storage_capacity, its current
+     * staged-device count (deployment_items pointing at it that aren't yet
+     * deployed), a fill bar, the device list, and any waves staging there.
+     * Plus an "Unassigned" bucket for staged devices with no storage location.
+     */
+    public function storage(Request $request)
+    {
+        $this->authorize('view', Order::class);
+
+        $locations = Location::query()
+            ->whereNotNull('storage_capacity')
+            ->orderBy('name')
+            ->get();
+
+        // All not-yet-deployed items, grouped by storage_location_id. "Staged"
+        // = deployed_at is null AND the stage isn't terminal (a missing stage
+        // row counts as not-yet-deployed too).
+        $stagedItems = DeploymentItem::query()
+            ->with(['stage', 'wave', 'asset', 'model'])
+            ->whereNull('deployed_at')
+            ->where(function ($q) {
+                $q->whereNull('stage_id')
+                    ->orWhereHas('stage', fn ($s) => $s->where('is_terminal', false));
+            })
+            ->get();
+
+        $byLocation = $stagedItems->groupBy('storage_location_id');
+
+        $rows = [];
+        foreach ($locations as $location) {
+            $items = $byLocation->get($location->id, collect());
+            $rows[] = $this->storageRow($location->name, (int) $location->storage_capacity, $items, $location);
+        }
+
+        // Waves staging at each location (for the "waves staging here" line).
+        $wavesByStorage = DeploymentWave::query()
+            ->whereNotNull('storage_location_id')
+            ->ordered()
+            ->get()
+            ->groupBy('storage_location_id');
+
+        // Unassigned: staged items with no storage location.
+        $unassignedItems = $byLocation->get(null, collect());
+        $unassigned = $this->storageRow(
+            trans('admin/deployments/general.storage_unassigned'),
+            null,
+            $unassignedItems,
+            null,
+        );
+
+        return view('reports.deployments.storage', [
+            'rows' => $rows,
+            'wavesByStorage' => $wavesByStorage,
+            'unassigned' => $unassigned,
+            'unassignedCount' => $unassignedItems->count(),
+        ]);
+    }
+
+    /** Build one storage row: capacity, staged count, fill %, bar tone, items. */
+    private function storageRow(string $name, ?int $capacity, $items, ?Location $location): array
+    {
+        $count = $items->count();
+        $pct = ($capacity && $capacity > 0) ? min(100, (int) round($count / $capacity * 100)) : 0;
+
+        if (! $capacity) {
+            $tone = 'progress-bar-aqua';
+        } elseif ($count > $capacity) {
+            $tone = 'progress-bar-danger';
+        } elseif ($pct >= 85) {
+            $tone = 'progress-bar-yellow';
+        } else {
+            $tone = 'progress-bar-green';
+        }
+
+        return [
+            'location' => $location,
+            'name' => $name,
+            'capacity' => $capacity,
+            'count' => $count,
+            'pct' => $pct,
+            'tone' => $tone,
+            'over' => $capacity ? max(0, $count - $capacity) : 0,
+            'items' => $items,
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Wave CRUD
     |--------------------------------------------------------------------------
     */
@@ -214,11 +310,16 @@ class DeploymentsController extends Controller
             'type', 'owner', 'location', 'storageLocation', 'purchaseOrder',
             'items.stage', 'items.asset', 'items.replacesAsset', 'items.model',
             'items.assignedUser', 'items.assignedTech',
+            'items.orderItem.order', 'items.orderItem.shipment',
         ]);
+
+        $timeline = new DeploymentTimeline;
 
         return view('deployment-waves.show', [
             'wave' => $deploymentWave,
             'stages' => DeploymentStage::active()->ordered()->get(),
+            'arrivals' => $timeline->arrivals($deploymentWave),
+            'timeline' => $timeline,
         ]);
     }
 

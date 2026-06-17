@@ -282,6 +282,12 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('deployments/forecast/add', [DeploymentsController::class, 'addFromForecast'])
         ->name('deployments.forecast.add');
 
+    Route::get('deployments/storage', [DeploymentsController::class, 'storage'])
+        ->name('deployments.storage')
+        ->middleware('can:view,App\Models\Order')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.storage_title'), route('deployments.storage')));
+
     Route::get('deployment-waves/create', [DeploymentsController::class, 'create'])
         ->name('deployment-waves.create')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)

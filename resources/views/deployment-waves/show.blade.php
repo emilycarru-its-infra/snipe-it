@@ -6,6 +6,7 @@
 
 @section('header_right')
     <a href="{{ route('deployments.forecast', ['fiscal_year' => $wave->fiscal_year]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.add_from_forecast') }}</a>
+    <a href="{{ route('deployments.storage') }}" class="btn btn-sm btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ route('deployment-waves.export', $wave) }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('admin/deployments/general.download') }}</a>
     <a href="{{ route('deployment-waves.edit', $wave) }}" class="btn btn-sm btn-warning"><i class="fas fa-pencil-alt"></i> {{ trans('general.update') }}</a>
 @stop
@@ -45,6 +46,44 @@
     </div>
 </div>
 
+{{-- Arrivals rollup (P2b) --}}
+@if ($arrivals['linked'] > 0)
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title"><i class="fas fa-truck"></i> {{ trans('admin/deployments/general.arrivals_title') }}</h3>
+        <div class="box-tools pull-right">
+            <span class="label label-primary">{{ trans('admin/deployments/general.arrivals_summary', ['received' => $arrivals['received'], 'linked' => $arrivals['linked'], 'in_transit' => $arrivals['in_transit']]) }}</span>
+        </div>
+    </div>
+    <div class="box-body">
+        <div class="row">
+            <div class="col-sm-3 text-center">
+                <span class="label label-success">{{ trans('admin/deployments/general.arrivals_received') }}</span>
+                <h3 style="margin:6px 0 0;">{{ $arrivals['received'] }}</h3>
+            </div>
+            <div class="col-sm-3 text-center">
+                <span class="label label-warning">{{ trans('admin/deployments/general.arrivals_in_transit') }}</span>
+                <h3 style="margin:6px 0 0;">{{ $arrivals['in_transit'] }}</h3>
+            </div>
+            <div class="col-sm-3 text-center">
+                <span class="label label-default">{{ trans('admin/deployments/general.arrivals_not_ordered') }}</span>
+                <h3 style="margin:6px 0 0;">{{ $arrivals['not_ordered'] }}</h3>
+            </div>
+            <div class="col-sm-3">
+                @if (count($arrivals['trackers']))
+                    <strong>{{ trans('admin/deployments/general.arrivals_tracking') }}</strong>
+                    <ul class="list-unstyled" style="margin-bottom:0;">
+                        @foreach ($arrivals['trackers'] as $t)
+                            <li><i class="fas fa-barcode text-muted"></i> {{ $t['tracking'] ?: '—' }}@if ($t['carrier']) <span class="text-muted">({{ $t['carrier'] }})</span>@endif</li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- Items board --}}
 <div class="box box-default">
     <div class="box-header with-border">
@@ -60,6 +99,7 @@
                     <th>{{ trans('admin/deployments/general.model') }}</th>
                     <th>{{ trans('admin/deployments/general.recipient') }}</th>
                     <th>{{ trans('admin/deployments/general.tech') }}</th>
+                    <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
                     <th>{{ trans('admin/deployments/general.target_deploy_date') }}</th>
                     <th></th>
                 </tr>
@@ -95,6 +135,16 @@
                     <td>{{ $item->model?->name ?: '—' }}</td>
                     <td>@if ($item->assignedUser)<a href="{{ route('users.show', $item->assignedUser) }}">{{ $item->assignedUser->full_name }}</a>@else — @endif</td>
                     <td>{{ $item->assignedTech?->full_name ?: '—' }}</td>
+                    <td>
+                        @php($badge = $timeline->itemBadge($item))
+                        @if ($badge === 'received')
+                            <span class="label label-success">{{ trans('admin/deployments/general.arrivals_received') }}</span>
+                        @elseif ($badge === 'in_transit')
+                            <span class="label label-warning">{{ trans('admin/deployments/general.arrivals_in_transit') }}</span>
+                        @else
+                            <span class="label label-default">{{ trans('admin/deployments/general.arrivals_not_ordered') }}</span>
+                        @endif
+                    </td>
                     <td>{{ optional($item->target_deploy_date)->toDateString() ?: '—' }}</td>
                     <td class="text-right">
                         <form method="POST" action="{{ route('deployment-items.destroy', $item) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.item_delete_confirm') }}');">
@@ -104,7 +154,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr>
+                <tr><td colspan="9" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr>
             @endforelse
             </tbody>
         </table>

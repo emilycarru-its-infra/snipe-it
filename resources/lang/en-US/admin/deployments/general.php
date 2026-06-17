@@ -107,4 +107,32 @@ return [
 
     // Download
     'download' => 'Download',
+
+    // Timeline (P2a)
+    'timeline_title' => 'Timeline',
+    'timeline_legend_arrival' => 'Arrival window',
+    'timeline_legend_deploy' => 'Deploy window',
+    'timeline_no_dates' => 'No dates set',
+    'timeline_empty' => 'No waves to plot. Add a wave with arrival or deploy dates to see the timeline.',
+
+    // Arrivals (P2b)
+    'arrivals_title' => 'Arrivals',
+    'arrivals_summary' => ':received/:linked received · :in_transit in transit',
+    'arrivals_received' => 'Received',
+    'arrivals_in_transit' => 'In transit',
+    'arrivals_not_ordered' => 'Not ordered',
+    'arrivals_none_linked' => 'No devices on this wave are linked to an order line yet.',
+    'arrivals_tracking' => 'Tracking',
+    'arrival_status' => 'Arrival',
+
+    // Storage (P3)
+    'storage_title' => 'Storage',
+    'storage_capacity' => 'Capacity',
+    'storage_staged' => 'Staged',
+    'storage_over_capacity' => ':count over capacity',
+    'storage_uncapped' => 'No capacity set',
+    'storage_unassigned' => 'Unassigned (no storage location)',
+    'storage_no_locations' => 'No locations have a storage capacity set. Set one on a location to track staging here.',
+    'storage_waves_here' => 'Waves staging here',
+    'storage_no_devices' => 'No staged devices here.',
 ];

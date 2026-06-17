@@ -61,6 +61,23 @@
 
 @include ('partials.forms.edit.image-upload', ['image_path' => app('locations_upload_path')])
 
+<!-- Storage capacity (staging slots for deployment staging) -->
+<div class="form-group {{ $errors->has('storage_capacity') ? ' has-error' : '' }}">
+    <label for="storage_capacity" class="col-md-3 control-label">
+        {{ trans('admin/locations/table.storage_capacity') }}
+    </label>
+    <div class="col-md-7">
+        <input class="form-control" style="width:120px" type="number" min="1" name="storage_capacity" aria-label="storage_capacity" id="storage_capacity" value="{{ old('storage_capacity', $item->storage_capacity) }}" />
+        <p class="help-block">{{ trans('admin/locations/table.storage_capacity_help') }}</p>
+        @error('storage_capacity')
+        <span class="alert-msg">
+            <x-icon type="x" />
+            {{ $message }}
+        </span>
+        @enderror
+    </div>
+</div>
+
 <div class="form-group{!! $errors->has('notes') ? ' has-error' : '' !!}">
     <label for="notes" class="col-md-3 control-label">{{ trans('general.notes') }}</label>
     <div class="col-md-8">
