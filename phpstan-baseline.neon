@@ -3091,6 +3091,54 @@ parameters:
 			path: app/Http/Controllers/DepartmentsController.php
 
 		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentItem\:\:\$asset\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DeploymentItemsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$items\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
+			message: '#^Relation ''location'' is not found in App\\Models\\DeploymentWave model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\DeploymentWave model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
+			message: '#^Relation ''type'' is not found in App\\Models\\DeploymentWave model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
+			message: '#^Relation ''wave'' is not found in App\\Models\\DeploymentItem model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>full_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
 			message: '#^Access to an undefined property App\\Models\\Depreciation\:\:\$created_by\.$#'
 			identifier: property.notFound
 			count: 1
@@ -12023,6 +12071,24 @@ parameters:
 			identifier: nullCoalesce.offset
 			count: 1
 			path: app/Services/AnnexureParser.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Asset\:\:\$asset_eol_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Deployments/RefreshForecast.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Asset\:\:\$refresh_reason\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Deployments/RefreshForecast.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Asset\:\:\$source_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Deployments/RefreshForecast.php
 
 		-
 			message: '#^Strict comparison using \=\=\= between non\-empty\-list\<string\|null\> and null will always evaluate to false\.$#'
