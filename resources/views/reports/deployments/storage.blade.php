@@ -32,7 +32,7 @@
                         @endif
                     </h3>
                     <div class="box-tools pull-right">
-                        @if ($row['capacity'])
+                        @if (! is_null($row['capacity']))
                             <span class="label {{ $row['over'] > 0 ? 'label-danger' : 'label-default' }}">
                                 {{ $row['count'] }} / {{ $row['capacity'] }}
                             </span>
@@ -42,7 +42,7 @@
                     </div>
                 </div>
                 <div class="box-body">
-                    @if ($row['capacity'])
+                    @if (! is_null($row['capacity']))
                         <div class="progress" style="margin-bottom:6px;">
                             <div class="progress-bar {{ $row['tone'] }}" role="progressbar"
                                  style="width: {{ $row['pct'] }}%; min-width:2em;"

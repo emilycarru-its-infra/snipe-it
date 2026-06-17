@@ -55,16 +55,30 @@ class DeploymentTimeline
                 'has_dates' => $arrival !== null || $deploy !== null,
                 'arrival' => $arrival ? array_merge($arrival, [
                     'label' => $this->rangeLabel($wave->arrival_window_start, $wave->arrival_window_end),
-                    'color' => $wave->displayColor(),
+                    'color' => $this->safeColor($wave->displayColor()),
                 ]) : null,
                 'deploy' => $deploy ? array_merge($deploy, [
                     'label' => $this->rangeLabel($wave->target_start_date, $wave->target_end_date),
-                    'color' => $wave->displayColor(),
+                    'color' => $this->safeColor($wave->displayColor()),
                 ]) : null,
             ];
         }
 
         return ['months' => $months, 'rows' => $rows];
+    }
+
+    /**
+     * Sanitize a color before it lands in an inline style attribute. Wave/type
+     * colors are user-editable and not otherwise validated, so allow only a
+     * 3- or 6-digit hex value; anything else falls back to a neutral grey.
+     */
+    private function safeColor(?string $color): string
+    {
+        if ($color !== null && preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $color)) {
+            return $color;
+        }
+
+        return '#888888';
     }
 
     /** Earliest start and latest end across all four date fields of all waves. */

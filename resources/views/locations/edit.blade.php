@@ -67,7 +67,7 @@
         {{ trans('admin/locations/table.storage_capacity') }}
     </label>
     <div class="col-md-7">
-        <input class="form-control" style="width:120px" type="number" min="0" name="storage_capacity" aria-label="storage_capacity" id="storage_capacity" value="{{ old('storage_capacity', $item->storage_capacity) }}" />
+        <input class="form-control" style="width:120px" type="number" min="1" name="storage_capacity" aria-label="storage_capacity" id="storage_capacity" value="{{ old('storage_capacity', $item->storage_capacity) }}" />
         <p class="help-block">{{ trans('admin/locations/table.storage_capacity_help') }}</p>
         @error('storage_capacity')
         <span class="alert-msg">
