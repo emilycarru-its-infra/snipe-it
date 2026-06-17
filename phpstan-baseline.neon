@@ -4075,6 +4075,12 @@ parameters:
 			path: app/Http/Controllers/SetupController.php
 
 		-
+			message: '#^Relation ''user'' is not found in App\\Models\\StaffBlackout model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/StaffBlackoutsController.php
+
+		-
 			message: '#^Access to an undefined property App\\Models\\Statuslabel\:\:\$created_by\.$#'
 			identifier: property.notFound
 			count: 1
@@ -12093,6 +12099,12 @@ parameters:
 		-
 			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$items\.$#'
 			identifier: property.notFound
+			count: 1
+			path: app/Services/Deployments/DeploymentTimeline.php
+
+		-
+			message: '#^Relation ''user'' is not found in App\\Models\\StaffBlackout model\.$#'
+			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/Deployments/DeploymentTimeline.php
 
