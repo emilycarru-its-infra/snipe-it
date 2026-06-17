@@ -55,6 +55,11 @@ class StaffBlackoutsController extends Controller
     {
         $this->authorize('update', Order::class);
 
+        if ($blackout->source !== 'manual') {
+            return redirect()->route('deployments.blackouts.index')
+                ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
+        }
+
         return view('deployment-blackouts.form', [
             'blackout' => $blackout,
         ]);
@@ -63,6 +68,11 @@ class StaffBlackoutsController extends Controller
     public function update(Request $request, StaffBlackout $blackout): RedirectResponse
     {
         $this->authorize('update', Order::class);
+
+        if ($blackout->source !== 'manual') {
+            return redirect()->route('deployments.blackouts.index')
+                ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
+        }
 
         $blackout->fill($this->input($request));
 
@@ -77,6 +87,11 @@ class StaffBlackoutsController extends Controller
     public function destroy(StaffBlackout $blackout): RedirectResponse
     {
         $this->authorize('delete', Order::class);
+
+        if ($blackout->source !== 'manual') {
+            return redirect()->route('deployments.blackouts.index')
+                ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
+        }
 
         $blackout->delete();
 

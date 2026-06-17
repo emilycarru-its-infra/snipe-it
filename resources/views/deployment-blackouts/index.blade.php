@@ -38,11 +38,15 @@
                         @endif
                     </td>
                     <td class="text-right">
-                        <a href="{{ route('deployments.blackouts.edit', $blackout->id) }}" class="btn btn-xs btn-warning"><i class="fas fa-pencil-alt"></i></a>
-                        <form method="POST" action="{{ route('deployments.blackouts.destroy', $blackout->id) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.blackout_delete_confirm') }}');">
-                            {{ csrf_field() }}@method('DELETE')
-                            <button type="submit" class="btn btn-xs btn-danger"><i class="fas fa-trash"></i></button>
-                        </form>
+                        @if ($blackout->source === 'manual')
+                            <a href="{{ route('deployments.blackouts.edit', $blackout->id) }}" class="btn btn-xs btn-warning"><i class="fas fa-pencil-alt"></i></a>
+                            <form method="POST" action="{{ route('deployments.blackouts.destroy', $blackout->id) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.blackout_delete_confirm') }}');">
+                                {{ csrf_field() }}@method('DELETE')
+                                <button type="submit" class="btn btn-xs btn-danger"><i class="fas fa-trash"></i></button>
+                            </form>
+                        @else
+                            <span class="text-muted">{{ trans('admin/deployments/general.blackout_source_graph') }}</span>
+                        @endif
                     </td>
                 </tr>
             @empty

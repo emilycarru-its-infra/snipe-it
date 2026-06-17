@@ -28,9 +28,9 @@ class DeploymentBlackoutsController extends Controller
             'user_id' => 'required_without:email|nullable|integer',
             'email' => 'required_without:user_id|nullable|email',
             'start_date' => 'required|date',
-            'end_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
             'reason' => 'nullable|string|max:191',
-            'external_id' => 'nullable|string|max:191',
+            'external_id' => 'required|string|max:191',
             'source' => 'nullable|string|max:16',
         ]);
 
