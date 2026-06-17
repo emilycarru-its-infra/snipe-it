@@ -94,6 +94,8 @@ class FieldGroupsController extends Controller
     {
         $this->authorize('update', CustomField::class);
 
+        $request->validate(['field_group_id' => 'nullable|exists:field_groups,id']);
+
         $groupId = $request->input('field_group_id');
         $field->field_group_id = $groupId !== null && $groupId !== '' ? (int) $groupId : null;
         $field->saveQuietly();
