@@ -28,6 +28,8 @@ class CustomFieldRequest extends FormRequest
 
         $rules['associate_fieldsets.*'] = 'nullable|integer|exists:custom_fieldsets,id';
 
+        $rules['field_group_id'] = 'nullable|exists:field_groups,id';
+
         switch ($this->method()) {
 
             // Brand new
