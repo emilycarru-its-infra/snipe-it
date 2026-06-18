@@ -216,7 +216,7 @@
                                             </span>
                                             @unless ($schedule['refresh_planned'])
                                                 <span class="text-muted" style="display:block; font-size:12px;">
-                                                    {{ trans('admin/purchase-orders/general.lease_end_no_refresh') }}
+                                                    {{ trans('admin/purchase-orders/general.lease_end_reassess') }}
                                                 </span>
                                             @endunless
                                             @if ($schedule['decision']->notes)
@@ -231,23 +231,23 @@
                         </tbody>
                         <tfoot>
                             @php
-                                $leaseEndAsk = collect($leaseEndSchedules)->where('refresh_planned', true);
-                                $leaseEndDecided = collect($leaseEndSchedules)->where('refresh_planned', false);
+                                $leaseEndAll = collect($leaseEndSchedules);
+                                $leaseEndDecided = $leaseEndAll->where('refresh_planned', false);
                             @endphp
                             <tr>
-                                <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_refresh') }}</th>
-                                <th class="text-right">{{ $leaseEndAsk->sum('count') }}</th>
+                                <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
+                                <th class="text-right">{{ $leaseEndAll->sum('count') }}</th>
                                 <th></th>
-                                <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAsk->sum('cost')) }}</th>
+                                <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAll->sum('cost')) }}</th>
                                 <th></th>
                             </tr>
                             @if ($leaseEndDecided->isNotEmpty())
-                                <tr>
-                                    <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_excluded') }}</th>
-                                    <th class="text-right">{{ $leaseEndDecided->sum('count') }}</th>
-                                    <th></th>
-                                    <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndDecided->sum('cost')) }}</th>
-                                    <th></th>
+                                <tr class="text-muted">
+                                    <td colspan="3" style="border-top:0;">{{ trans('admin/purchase-orders/general.lease_end_totals_decided') }}</td>
+                                    <td class="text-right" style="border-top:0;">{{ $leaseEndDecided->sum('count') }}</td>
+                                    <td style="border-top:0;"></td>
+                                    <td class="text-right" style="border-top:0;">${{ Helper::formatCurrencyOutput($leaseEndDecided->sum('cost')) }}</td>
+                                    <td style="border-top:0;"></td>
                                 </tr>
                             @endif
                         </tfoot>
