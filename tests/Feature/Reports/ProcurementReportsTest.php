@@ -592,6 +592,50 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('$8,150.00'); // the FY2026-27 device is excluded
     }
 
+    public function test_invoiced_tile_surfaces_po_less_invoice_by_invoice_date()
+    {
+        // A budgeted PO in each FY so both years are selectable on the
+        // dashboard (the invoices themselves carry no PO/FY). Budgets are
+        // chosen not to collide with the invoice totals asserted below.
+        PurchaseOrder::factory()->create(['po_number' => 'PO-SEL-27', 'fiscal_year' => 'FY2026-27', 'budget' => 100.00]);
+        PurchaseOrder::factory()->create(['po_number' => 'PO-SEL-26', 'fiscal_year' => 'FY2025-26', 'budget' => 200.00]);
+
+        // Two CDW-ingested orders with no PO link and no stamped fiscal_year
+        // (the AJ7FG1T pattern), billed by invoices dated in different FYs.
+        // Each must surface via its own invoice_date, not vanish for want of
+        // a PO, and must be scoped to the right year.
+        foreach ([
+            ['CDW-FY27', 'AJ7FG1T', '2026-06-11', 14296.50],
+            ['CDW-FY26', 'AJ6XX99', '2025-06-11', 5555.55],
+        ] as [$orderNo, $invNo, $invDate, $total]) {
+            $order = Order::factory()->create([
+                'order_number' => $orderNo,
+                'purchase_order_id' => null,
+                'fiscal_year' => null,
+            ]);
+            OrderInvoice::factory()->create([
+                'order_id' => $order->id,
+                'purchase_order_id' => null,
+                'invoice_number' => $invNo,
+                'invoice_date' => $invDate,
+                'total' => $total,
+                'approval_status' => 'pending',
+            ]);
+        }
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee('$14,296.50')    // FY26-27 invoice on the Invoiced tile
+            ->assertDontSee('$5,555.55'); // the FY25-26 invoice is scoped out
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2025-26']))
+            ->assertOk()
+            ->assertSee('$5,555.55')
+            ->assertDontSee('$14,296.50');
+    }
+
     public function test_committed_counts_orphan_pos_with_no_ledger_row()
     {
         $poField = CustomField::factory()->create(['name' => 'PO Number']);
