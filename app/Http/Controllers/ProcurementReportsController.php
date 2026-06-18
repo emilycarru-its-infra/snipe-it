@@ -71,8 +71,14 @@ class ProcurementReportsController extends Controller
 
         $poRows = [];
         $totalCommitted = 0.0;
-        $totalInvoiced = 0.0;
         $committedByFy = [];
+
+        // Invoiced is invoice-centric, not PO-centric: an invoice counts in
+        // the FY of its booking order (falling back to its invoice_date),
+        // whether or not it is linked to a budgeted purchase order. Summing
+        // per-PO invoicedTotal() would silently drop the CDW lease invoices
+        // that carry no PO.
+        $totalInvoiced = (float) $this->scopeInvoiceToFiscalYear(OrderInvoice::query(), $selectedFy)->sum('total');
 
         // Committed is sourced from the asset records (equipment + warranty),
         // not the order-item import — see assetCommittedByPo().
@@ -83,7 +89,6 @@ class ProcurementReportsController extends Controller
             $committed = $assetCommitted[$po->po_number] ?? 0.0;
 
             $totalCommitted += $committed;
-            $totalInvoiced += $po->invoicedTotal();
 
             $poRows[] = [
                 'po_number' => $po->po_number,
@@ -146,11 +151,10 @@ class ProcurementReportsController extends Controller
         }
 
         // Invoiced totals grouped by calendar month.
-        $monthly = OrderInvoice::whereNotNull('invoice_date')
-            ->when($selectedFy, fn ($query) => $query->whereHas(
-                'purchaseOrder',
-                fn ($po) => $po->where('fiscal_year', $selectedFy)
-            ))
+        $monthly = $this->scopeInvoiceToFiscalYear(
+            OrderInvoice::whereNotNull('invoice_date'),
+            $selectedFy
+        )
             ->orderBy('invoice_date')
             ->get()
             ->groupBy(fn ($invoice) => $invoice->invoice_date->format('Y-m'))
@@ -187,12 +191,10 @@ class ProcurementReportsController extends Controller
         // Pending-approval invoices answer Mark's monthly "can I pay
         // this?" question; pending lease decisions catch buyout/return
         // calls that haven't been logged yet.
-        $pendingApprovalCount = OrderInvoice::where('approval_status', 'pending')
-            ->when($selectedFy, fn ($query) => $query->whereHas(
-                'purchaseOrder',
-                fn ($po) => $po->where('fiscal_year', $selectedFy)
-            ))
-            ->count();
+        $pendingApprovalCount = $this->scopeInvoiceToFiscalYear(
+            OrderInvoice::where('approval_status', 'pending'),
+            $selectedFy
+        )->count();
 
         $pendingDecisionCount = LeaseDecision::where('status', 'pending')->count();
 
@@ -230,10 +232,7 @@ class ProcurementReportsController extends Controller
             'orderCount' => Order::actual()
                 ->when($selectedFy, fn ($query) => $query->where('fiscal_year', $selectedFy))
                 ->count(),
-            'invoiceCount' => OrderInvoice::when($selectedFy, fn ($query) => $query->whereHas(
-                'purchaseOrder',
-                fn ($po) => $po->where('fiscal_year', $selectedFy)
-            ))->count(),
+            'invoiceCount' => $this->scopeInvoiceToFiscalYear(OrderInvoice::query(), $selectedFy)->count(),
             'eolCount' => $eolAssets->count(),
             'eolEstimate' => (float) $eolAssets->sum('purchase_cost'),
             'leaseExpiryTotal' => $leaseExpiryTotal,
@@ -919,7 +918,7 @@ class ProcurementReportsController extends Controller
             trans('admin/orders/general.line_items'),
         ];
 
-        $invoices = $this->scopeToFiscalYear(
+        $invoices = $this->scopeInvoiceToFiscalYear(
             OrderInvoice::with('order.purchaseOrder', 'items'),
             $fy
         )
@@ -1048,7 +1047,7 @@ class ProcurementReportsController extends Controller
             ];
         }
 
-        $orphanInvoices = $this->scopeToFiscalYear(
+        $orphanInvoices = $this->scopeInvoiceToFiscalYear(
             OrderInvoice::whereHas('order', fn ($query) => $query->whereNull('purchase_order_id')),
             $fy
         )->get();
@@ -2010,7 +2009,7 @@ class ProcurementReportsController extends Controller
             ->orderByRaw(...$this->fieldOrder('approval_status', ['pending', 'disputed', 'approved']))
             ->orderBy('invoice_date');
 
-        $this->scopeToFiscalYear($query, $fy);
+        $this->scopeInvoiceToFiscalYear($query, $fy);
 
         if ($statusFilter !== 'all') {
             $query->where('approval_status', $statusFilter);
@@ -3562,6 +3561,35 @@ class ProcurementReportsController extends Controller
             $fy,
             fn ($q) => $q->whereHas($orderRelation, fn ($o) => $o->where('fiscal_year', $fy))
         );
+    }
+
+    /**
+     * Scope a query over OrderInvoice to a fiscal year by the FY of its
+     * booking order — same blanket-PO attribution as scopeToFiscalYear —
+     * but fall back to the invoice's own invoice_date when the order carries
+     * no fiscal_year. CDW-ingested orders don't always get a fiscal_year
+     * stamped (the webhook used to leave it null), so without the fallback
+     * those invoices — e.g. the leased CDW iPads on a CSI schedule — would
+     * vanish from the Invoiced tile and the approval queue even though they
+     * have a real invoice_date. A null FY is a no-op (all-years).
+     */
+    private function scopeInvoiceToFiscalYear($query, ?string $fy)
+    {
+        if (! $fy) {
+            return $query;
+        }
+
+        $range = $this->fiscalYearRange($fy);
+
+        return $query->where(function ($q) use ($fy, $range) {
+            $q->whereHas('order', fn ($o) => $o->where('fiscal_year', $fy));
+
+            if ($range) {
+                $q->orWhere(fn ($alt) => $alt
+                    ->whereDoesntHave('order', fn ($o) => $o->whereNotNull('fiscal_year')->where('fiscal_year', '!=', ''))
+                    ->whereBetween('invoice_date', $range));
+            }
+        });
     }
 
     /**
