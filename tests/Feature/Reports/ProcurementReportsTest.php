@@ -592,6 +592,25 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('$8,150.00'); // the FY2026-27 device is excluded
     }
 
+    public function test_committed_counts_orphan_pos_with_no_ledger_row()
+    {
+        $poField = CustomField::factory()->create(['name' => 'PO Number']);
+        CustomField::factory()->create(['name' => 'Warranty/Soft Cost']);
+
+        // A university PO the fleet was received against — but no row was ever
+        // booked in the purchase_orders ledger (the P0025747 / P0025807 case).
+        $asset = Asset::factory()->create(['purchase_cost' => 2500.00, 'purchase_date' => '2025-06-01']);
+        Asset::query()->whereKey($asset->id)->update([$poField->db_column => 'P0025747']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2025-26']))
+            ->assertOk()
+            // The orphan PO and its spend surface in Committed even with no
+            // purchase_orders ledger row.
+            ->assertSee('P0025747')
+            ->assertSee('$2,500.00');
+    }
+
     /**
      * Creates a GL transaction row directly (no factory — the model is a
      * plain ledger row populated at checkout time).
