@@ -3548,26 +3548,13 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Constrain an order-driven query (line items or invoices) to a fiscal
-     * year by the FY of the *order* that booked it — the actual
-     * transaction date, not the parent PO. A blanket purchase order spans
-     * fiscal years (e.g. P0025420 carries schedules 003-006 in FY2025-26
-     * and 007-008 in FY2026-27), so attribution has to follow the order.
-     * A null FY is a no-op, leaving the query all-years.
-     */
-    private function scopeToFiscalYear($query, ?string $fy, string $orderRelation = 'order')
-    {
-        return $query->when(
-            $fy,
-            fn ($q) => $q->whereHas($orderRelation, fn ($o) => $o->where('fiscal_year', $fy))
-        );
-    }
-
-    /**
      * Scope a query over OrderInvoice to a fiscal year by the FY of its
-     * booking order — same blanket-PO attribution as scopeToFiscalYear —
-     * but fall back to the invoice's own invoice_date when the order carries
-     * no fiscal_year. CDW-ingested orders don't always get a fiscal_year
+     * booking order — the actual transaction, not the parent PO (a blanket
+     * purchase order spans fiscal years, e.g. P0025420 carries schedules
+     * 003-006 in FY2025-26 and 007-008 in FY2026-27, so attribution has to
+     * follow the order) — but fall back to the invoice's own invoice_date
+     * when the order carries no fiscal_year. CDW-ingested orders don't always
+     * get a fiscal_year
      * stamped (the webhook used to leave it null), so without the fallback
      * those invoices — e.g. the leased CDW iPads on a CSI schedule — would
      * vanish from the Invoiced tile and the approval queue even though they
