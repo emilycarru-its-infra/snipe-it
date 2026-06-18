@@ -100,6 +100,32 @@ class ProcurementReportsController extends Controller
             $committedByFy[$fy] = ($committedByFy[$fy] ?? 0) + $committed;
         }
 
+        // Orphan POs — university (P00…) purchase orders that the fleet has
+        // been received against (assets carry the PO + cost) but which have
+        // no row in the purchase_orders ledger, so the loop above never sees
+        // them. Their spend is real and must count toward Committed /
+        // Remaining (e.g. P0025747, P0025807), otherwise the cards under-read
+        // the committed total. assetCommittedByPo() is already scoped to the
+        // selected FY by purchase_date, so any leftover key belongs to it;
+        // they carry no budget envelope (budget 0), which is also why they
+        // don't feed the per-PO carry-forward.
+        $ledgerPoNumbers = $purchaseOrders->pluck('po_number')->all();
+        foreach ($assetCommitted as $poNumber => $committed) {
+            if (in_array($poNumber, $ledgerPoNumbers, true)) {
+                continue;
+            }
+
+            $totalCommitted += $committed;
+            $poRows[] = [
+                'po_number' => $poNumber,
+                'budget' => 0.0,
+                'committed' => $committed,
+            ];
+
+            $fy = $selectedFy ?: '—';
+            $committedByFy[$fy] = ($committedByFy[$fy] ?? 0) + $committed;
+        }
+
         // Approved Budget is sourced from the budget_allocations ledger,
         // not per-PO budgets. Each allocation is one event (forecast seed,
         // supplemental top-up, or adjustment); summing them yields the
@@ -165,13 +191,15 @@ class ProcurementReportsController extends Controller
             ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
             ->get();
 
-        // Lease-end pre-approval — devices whose lease ends in each
-        // FY drive that FY's replacement budget (CSI/Macquarie schedules
-        // are already pre-approved at signing). The selected-FY card
-        // surfaces this; the FY chart overlays it on committed/planned.
-        // Schedules with a logged buyout / return / extension decision
-        // are NOT being replaced, so they drop out of the estimate; the
-        // breakdown table below the tiles still lists them with the call.
+        // Lease-end pre-approval — every schedule ending in an FY drives
+        // that FY's replacement budget: the lease's full original value was
+        // pre-approved at signing and rolls forward whatever the renewal
+        // decision is (CSI/Macquarie schedules are pre-approved). The
+        // selected-FY card surfaces this; the FY chart overlays it on
+        // committed/planned. A logged buyout / return / extension decision
+        // re-assesses what we buy (types/quantities), not whether the
+        // budget is approved — so it stays in the estimate, annotated with
+        // the call in the breakdown table below the tiles.
         $allLeaseEndSchedules = $this->leaseEndSchedules();
         $leaseExpiryByFy = $this->leaseExpiryByFy($allLeaseEndSchedules);
         $leaseEndSchedules = $selectedFy
@@ -1379,19 +1407,17 @@ class ProcurementReportsController extends Controller
      * replacement budget for FYNN (CSI/Macquarie already pre-approved
      * the equivalent spend when the original schedule was signed).
      *
-     * Derived from leaseEndSchedules(): only schedules still slated for
-     * refresh count — a logged buyout / return / extension decision
-     * means the devices are kept (or handed back), not replaced, so
-     * that schedule no longer asks for replacement budget.
+     * Derived from leaseEndSchedules(): EVERY ending schedule's value is
+     * pre-approved for the new FY — the lease's original total was approved
+     * at signing and rolls forward whatever the renewal decision is. A
+     * logged buyout / return / extension changes what we actually buy
+     * (types/quantities are re-assessed at renewal), not whether the budget
+     * is approved, so no schedule is subtracted from the estimate.
      */
     private function leaseExpiryByFy(array $schedules): array
     {
         $byFy = [];
         foreach ($schedules as $schedule) {
-            if (! $schedule['refresh_planned']) {
-                continue;
-            }
-
             $fy = $schedule['fiscal_year'];
             $byFy[$fy] ??= ['count' => 0, 'cost' => 0.0];
             $byFy[$fy]['count'] += $schedule['count'];
@@ -1412,10 +1438,12 @@ class ProcurementReportsController extends Controller
      * schedule's full original lease value, and the dollar value is what
      * drives the new fiscal year's budget, not the headcount.
      *
-     * `refresh_planned` is the flag the pre-approval estimate keys on:
-     * true when no decision is logged yet (default = replace at term) or
-     * the decision is an explicit 'replace'; false for buyout (lease-to-
-     * own), return and extend.
+     * `refresh_planned` no longer gates the pre-approval estimate — every
+     * schedule's value is pre-approved (see leaseExpiryByFy) — it now only
+     * drives the row badge: true when no decision is logged yet (default =
+     * replace at term) or the decision is an explicit 'replace'; false for
+     * buyout (lease-to-own), return and extend, where the value is still
+     * pre-approved but the device needs are re-assessed at renewal.
      */
     private function leaseEndSchedules(): array
     {
