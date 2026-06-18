@@ -146,6 +146,15 @@ class OrdersController extends Controller
             $order->supplier_id = $data['supplier_id'] ?? $order->supplier_id;
             $order->order_date = $data['order_date'] ?? $order->order_date;
             $order->notes = $data['notes'] ?? $order->notes;
+
+            // Stamp the fiscal year from the order date so order-FY
+            // attribution (procurement dashboard + invoice approval queue)
+            // works without a manual edit. Only fill when empty — never
+            // override a value finance has already set.
+            if (empty($order->fiscal_year) && ! empty($order->order_date)) {
+                $order->fiscal_year = Helper::currentFiscalYear(\Carbon\Carbon::parse($order->order_date));
+            }
+
             $order->save();
 
             $invoice = null;
