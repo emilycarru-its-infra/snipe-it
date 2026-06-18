@@ -10,6 +10,7 @@ use App\Models\Traits\Acceptable;
 use App\Models\Traits\CompanyableTrait;
 use App\Models\Traits\HasUploads;
 use App\Models\Traits\Loggable;
+use App\Models\Traits\MirrorsLeaseFields;
 use App\Models\Traits\Requestable;
 use App\Models\Traits\Searchable;
 use App\Presenters\AssetPresenter;
@@ -40,6 +41,7 @@ class Asset extends Depreciable
     use HasFactory;
     use HasUploads;
     use Loggable;
+    use MirrorsLeaseFields;
     use Presentable;
     use Requestable;
     use SoftDeletes;
@@ -106,6 +108,13 @@ class Asset extends Depreciable
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        // Native lease / purchasing cluster (mirrored from custom fields by
+        // the MirrorsLeaseFields shim — PR 1 of the native-field migration).
+        'lease_end_date' => 'date',
+        'decommission_date' => 'date',
+        'lease_rent' => 'decimal:2',
+        'buyout_cost' => 'decimal:2',
+        'warranty_soft_cost' => 'decimal:2',
     ];
 
     protected $rules = [
