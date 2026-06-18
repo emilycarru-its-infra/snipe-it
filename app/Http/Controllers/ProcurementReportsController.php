@@ -95,6 +95,32 @@ class ProcurementReportsController extends Controller
             $committedByFy[$fy] = ($committedByFy[$fy] ?? 0) + $committed;
         }
 
+        // Orphan POs — university (P00…) purchase orders that the fleet has
+        // been received against (assets carry the PO + cost) but which have
+        // no row in the purchase_orders ledger, so the loop above never sees
+        // them. Their spend is real and must count toward Committed /
+        // Remaining (e.g. P0025747, P0025807), otherwise the cards under-read
+        // the committed total. assetCommittedByPo() is already scoped to the
+        // selected FY by purchase_date, so any leftover key belongs to it;
+        // they carry no budget envelope (budget 0), which is also why they
+        // don't feed the per-PO carry-forward.
+        $ledgerPoNumbers = $purchaseOrders->pluck('po_number')->all();
+        foreach ($assetCommitted as $poNumber => $committed) {
+            if (in_array($poNumber, $ledgerPoNumbers, true)) {
+                continue;
+            }
+
+            $totalCommitted += $committed;
+            $poRows[] = [
+                'po_number' => $poNumber,
+                'budget' => 0.0,
+                'committed' => $committed,
+            ];
+
+            $fy = $selectedFy ?: '—';
+            $committedByFy[$fy] = ($committedByFy[$fy] ?? 0) + $committed;
+        }
+
         // Approved Budget is sourced from the budget_allocations ledger,
         // not per-PO budgets. Each allocation is one event (forecast seed,
         // supplemental top-up, or adjustment); summing them yields the
