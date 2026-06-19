@@ -773,6 +773,12 @@
                 grid-template-columns: max-content minmax(0, 1fr);
                 column-gap: 0;
             }
+            /* AdminLTE's .box-body has clearfix ::before/::after (content:" ";
+               display:table). On a grid container those pseudo-elements become
+               phantom grid items — the leading ::before takes the first cell and
+               shifts every label into the value column. Suppress them. */
+            .asset-card-body::before,
+            .asset-card-body::after { content: none; display: none; }
             .asset-card-row { display: contents; }
             .asset-card-lbl { font-weight: 600; padding: 8px 18px 8px 0; border-bottom: 1px solid #f1f1f1; }
             .asset-card-val { min-width: 0; padding: 8px 0; border-bottom: 1px solid #f1f1f1; word-break: break-word; }
