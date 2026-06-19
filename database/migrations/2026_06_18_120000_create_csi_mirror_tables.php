@@ -71,7 +71,7 @@ class CreateCsiMirrorTables extends Migration
         if (! Schema::hasTable('csi_inprocess_assets')) {
             Schema::create('csi_inprocess_assets', function (Blueprint $table) {
                 $table->id();
-                $table->string('serial')->index();
+                $table->string('serial')->unique();
                 $table->string('lease_number')->nullable()->index();
                 $table->string('schedule_name')->nullable();
                 $table->string('order_number')->nullable();
@@ -81,7 +81,6 @@ class CreateCsiMirrorTables extends Migration
                 $table->json('raw')->nullable();
                 $table->timestamp('last_seen_at')->nullable();
                 $table->timestamps();
-                $table->unique(['serial', 'order_number'], 'csi_inprocess_serial_order_unique');
                 $table->engine = 'InnoDB';
             });
         }
