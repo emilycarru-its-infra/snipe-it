@@ -2,7 +2,7 @@
 
 /**
  * Faculty Laptop Program agreement bodies, extracted from the Word
- * templates Sohee maintains at
+ * templates the assets team maintains at
  *   OneDrive: Devices/Procurement/Current/Faculty Program/
  * — Laptop Pickups Template.docx
  * — Upgrade Agreement Template.docx

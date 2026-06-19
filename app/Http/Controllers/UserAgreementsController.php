@@ -162,7 +162,7 @@ class UserAgreementsController extends Controller
      * command `snipeit:user-pregen-pdfs`, fired from a UI button.
      *
      * The scheduler runs this command at 05:00 daily. This handler
-     * exists so Sohee can pre-gen on her own cadence (e.g. right
+     * exists so the assets team can pre-gen on their own cadence (e.g. right
      * before opening the summer User Agreement Program) without
      * waiting for the next 05:00.
      */

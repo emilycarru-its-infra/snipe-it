@@ -13,7 +13,7 @@
     <div class="col-md-7">
         <input type="text" id="lessor" name="lessor" class="form-control"
                value="{{ old('lessor', $schedule->lessor ?? '') }}" maxlength="191"
-               placeholder="CSI Leasing / Macquarie / CCA Financial">
+               placeholder="CSI Leasing / CCA Financial">
     </div>
 </div>
 
