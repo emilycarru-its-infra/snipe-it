@@ -224,9 +224,12 @@
                                                     {{ trans('admin/purchase-orders/general.lease_end_reassess') }}
                                                 </span>
                                             @endunless
-                                            @if ($schedule['decision']->notes)
-                                                <span class="text-muted" style="display:block; font-size:12px;">{{ $schedule['decision']->notes }}</span>
-                                            @endif
+                                            <span class="rpt-note-cell" data-model="lease_decision" data-id="{{ $schedule['decision']->id }}" style="display:block; font-size:12px;">
+                                                <span class="rpt-note-text text-muted">{{ $schedule['decision']->notes }}</span>
+                                                @can('create', \App\Models\Order::class)
+                                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
+                                                @endcan
+                                            </span>
                                         @else
                                             <span class="label label-success">{{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}</span>
                                         @endif
@@ -628,4 +631,6 @@
 {{-- Delegated handlers so the lazy-loaded Per-Serial Disposition Grid stays
      editable once it is injected into its report box. --}}
 @include('reports.procurement._disposition-grid-js')
+{{-- And the inline-editable note cells in the other report tables. --}}
+@include('reports.procurement._report-note-js')
 @stop
