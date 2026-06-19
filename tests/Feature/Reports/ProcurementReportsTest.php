@@ -300,6 +300,59 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_lease_decisions'));
     }
 
+    public function test_lease_decisions_report_exposes_an_editable_note_pencil()
+    {
+        LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI20230701',
+            'decision_type' => 'return',
+            'notes' => 'Pickup booked.',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.lease-decisions'))
+            ->assertOk()
+            ->assertSee('Pickup booked.')
+            // The inline-edit pencil cell is rendered for editors.
+            ->assertSee('rpt-note-edit')
+            ->assertSee('data-model="lease_decision"', false);
+    }
+
+    public function test_report_note_endpoint_updates_a_lease_decision_note()
+    {
+        $decision = LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI20230701',
+            'decision_type' => 'return',
+            'notes' => 'old',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.note'), [
+                'model' => 'lease_decision',
+                'id' => $decision->id,
+                'notes' => 'updated inline',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'success', 'notes' => 'updated inline']);
+
+        $this->assertDatabaseHas('lease_decisions', [
+            'id' => $decision->id,
+            'notes' => 'updated inline',
+        ]);
+    }
+
+    public function test_report_note_endpoint_rejects_unknown_model()
+    {
+        // The fork wraps validation failures as 200 + {status:error}.
+        $this->actingAs($this->superuser())
+            ->postJson(route('reports.procurement.note'), [
+                'model' => 'order_invoice',
+                'id' => 1,
+                'notes' => 'nope',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'error']);
+    }
+
     public function test_po_disposition_report_renders_with_recommendation()
     {
         // Budget greater than committed and no open orders → "Reallocate
