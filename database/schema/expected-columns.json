@@ -643,6 +643,7 @@
     ],
     "lease_decisions": [
         "amount",
+        "asset_id",
         "contract_reference",
         "created_at",
         "created_by",

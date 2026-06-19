@@ -970,6 +970,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('disposition-grid', [ProcurementReportsController::class, 'dispositionGrid'])
             ->name('reports.procurement.disposition-grid')
             ->breadcrumbs($crumb('reports.procurement.disposition-grid', 'report_disposition_grid'));
+        Route::post('disposition-grid/decision', [ProcurementReportsController::class, 'updateDispositionDecision'])
+            ->name('reports.procurement.disposition-grid.decision');
         Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
             ->name('reports.procurement.credit-ledger')
             ->breadcrumbs($crumb('reports.procurement.credit-ledger', 'report_credit_ledger'));
@@ -982,13 +984,6 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('user-agreement-ledger', [ProcurementReportsController::class, 'userAgreementLedger'])
             ->name('reports.procurement.user-agreement-ledger')
             ->breadcrumbs($crumb('reports.procurement.user-agreement-ledger', 'report_user_agreement_ledger'));
-        Route::get('gl-transfer', [ProcurementReportsController::class, 'glJournalTransfer'])
-            ->name('reports.procurement.gl-transfer')
-            ->breadcrumbs($crumb('reports.procurement.gl-transfer', 'report_gl_transfer'));
-        Route::post('gl-transfer/post', [ProcurementReportsController::class, 'markGlTransactionsPosted'])
-            ->name('reports.procurement.gl-transfer.post');
-        Route::post('gl-transfer/transfer', [ProcurementReportsController::class, 'markGlTransactionsTransferred'])
-            ->name('reports.procurement.gl-transfer.transfer');
         Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
             ->name('reports.procurement.schedule-signing')
             ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));

@@ -27,7 +27,7 @@
     </div>
 </div>
 
-<div class="row">
+<div class="row proc-card-row">
     <div class="col-md-4 col-sm-6">
         @can('budget_allocations.manage')
             <a href="#" data-toggle="modal" data-target="#budgetAllocationsModal" class="small-box-link" style="text-decoration:none;">
@@ -208,7 +208,12 @@
                                     </td>
                                     <td class="text-right">${{ Helper::formatCurrencyOutput($schedule['cost']) }}</td>
                                     <td>
-                                        @if ($schedule['decision'])
+                                        @if ($schedule['is_lease_to_own'])
+                                            <span class="label label-default">{{ trans('admin/purchase-orders/general.lease_end_retained') }}</span>
+                                            <span class="text-muted" style="display:block; font-size:12px;">
+                                                {{ trans('admin/purchase-orders/general.lease_end_retained_help') }}
+                                            </span>
+                                        @elseif ($schedule['decision'])
                                             <span class="label {{ $schedule['refresh_planned'] ? 'label-primary' : 'label-warning' }}">
                                                 {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
                                                 &middot;
@@ -232,7 +237,6 @@
                         <tfoot>
                             @php
                                 $leaseEndAll = collect($leaseEndSchedules);
-                                $leaseEndDecided = $leaseEndAll->where('refresh_planned', false);
                             @endphp
                             <tr>
                                 <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
@@ -241,15 +245,6 @@
                                 <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAll->sum('cost')) }}</th>
                                 <th></th>
                             </tr>
-                            @if ($leaseEndDecided->isNotEmpty())
-                                <tr class="text-muted">
-                                    <td colspan="3" style="border-top:0;">{{ trans('admin/purchase-orders/general.lease_end_totals_decided') }}</td>
-                                    <td class="text-right" style="border-top:0;">{{ $leaseEndDecided->sum('count') }}</td>
-                                    <td style="border-top:0;"></td>
-                                    <td class="text-right" style="border-top:0;">${{ Helper::formatCurrencyOutput($leaseEndDecided->sum('cost')) }}</td>
-                                    <td style="border-top:0;"></td>
-                                </tr>
-                            @endif
                         </tfoot>
                     </table>
                 </div>
@@ -345,14 +340,13 @@
         ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc'],
         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc'],
         ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc'],
-        ['route' => 'reports.procurement.gl-transfer', 'name' => 'report_gl_transfer', 'desc' => 'report_gl_transfer_desc'],
         ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc'],
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
 
 <div class="row proc-reports-row">
     {{-- Sticky jump-nav so every report stays one click away in the long scroll. --}}
-    <div class="col-md-3 hidden-sm hidden-xs">
+    <div class="proc-nav-col hidden-sm hidden-xs">
         <div class="proc-report-nav">
             <div class="box box-default" style="margin-bottom:0;">
                 <div class="box-header with-border">
@@ -381,7 +375,7 @@
         </div>
     </div>
 
-    <div class="col-md-9 col-sm-12">
+    <div class="proc-content-col col-sm-12">
         @foreach ($procReports as $report)
             <div class="box box-default proc-report-box" id="proc-{{ $report['name'] }}" style="scroll-margin-top:64px;">
                 <div class="box-header with-border">
@@ -429,11 +423,27 @@
        column — that's what gives position:sticky room to stay pinned through
        the whole scroll instead of stopping at the short nav box. */
     .proc-reports-row { display: flex; flex-wrap: wrap; }
+    /* Narrow jump-nav (~44% slimmer than the old col-md-3) so the report
+       tables get the width back. The content column flexes to fill the rest. */
+    .proc-reports-row .proc-nav-col { flex: 0 0 14%; max-width: 14%; padding-left: 15px; padding-right: 15px; }
+    .proc-reports-row .proc-content-col { flex: 1 1 0%; max-width: 86%; padding-left: 15px; padding-right: 15px; }
     .proc-report-nav { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
-    .proc-report-navlist > li > a { padding: 6px 12px; font-size: 13px; border-radius: 0; }
+    .proc-report-navlist > li > a { padding: 6px 10px; font-size: 12.5px; border-radius: 0; }
     .proc-report-navlist > li.active > a,
     .proc-report-navlist > li.active > a:hover { background-color: #3c8dbc; color: #fff; }
-    @media (max-width: 991px) { .proc-reports-row { display: block; } }
+    @media (max-width: 991px) {
+        .proc-reports-row { display: block; }
+        .proc-reports-row .proc-content-col { max-width: 100%; }
+    }
+    /* Static dashboard tiles — every card is the same height regardless of how
+       much text sits under the number, so wrapping text never reflows the grid.
+       Flexbox equalises each wrapped line of cards; the min-height keeps single-
+       and double-line cards identical. */
+    .proc-card-row { display: flex; flex-wrap: wrap; }
+    .proc-card-row > [class*="col-"] { display: flex; margin-bottom: 15px; }
+    .proc-card-row .small-box-link { display: flex; width: 100%; }
+    .proc-card-row .small-box { width: 100%; min-height: 104px; margin-bottom: 0; display: flex; flex-direction: column; justify-content: center; }
+    .proc-card-row .small-box > .inner { width: 100%; }
 </style>
 
 @can('budget_allocations.manage')
@@ -615,4 +625,7 @@
         boxes.forEach(function (box) { observer.observe(box); });
     })();
 </script>
+{{-- Delegated handlers so the lazy-loaded Per-Serial Disposition Grid stays
+     editable once it is injected into its report box. --}}
+@include('reports.procurement._disposition-grid-js')
 @stop

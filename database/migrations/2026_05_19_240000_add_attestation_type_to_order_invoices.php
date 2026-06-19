@@ -14,7 +14,7 @@ class AddAttestationTypeToOrderInvoices extends Migration
                 // Invoice Approval Queue with regular vendor invoices but
                 // need to be distinguishable so finance and ops know
                 // whether they're attesting a CDW invoice (Mark's flow)
-                // or a lessor approval letter (Sohee's flow).
+                // or a lessor approval letter (the lessor-approval flow).
                 $table->string('attestation_type')->default('vendor_invoice')->index();
             });
         }
