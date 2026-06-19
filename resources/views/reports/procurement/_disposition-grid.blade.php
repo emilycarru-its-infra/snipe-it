@@ -1,12 +1,14 @@
 {{-- Per-Serial Disposition Grid — one tab per lease contract (mirrors the
-     sheets of the Leases.xlsx workbook). Per-serial rows with an editable
-     disposition decision and note. No inline <script> here: the dashboard
-     injects this partial via innerHTML (which strips scripts), so the save
-     behaviour is wired through the document-level delegated handler in
-     reports/procurement/_disposition-grid-js.blade.php, included on both the
-     dashboard and the standalone page. --}}
+     sheets of the Leases workbook). One row per leased serial. The disposition
+     is NOT entered here: it is read from each device's own Snipe status +
+     Decommissioned Date (an archived status with a decommission date = the
+     device has left our management). The only editable field is a free-text
+     note per device (buyout justifications / special cases). No inline <script>
+     here: the dashboard injects this partial via innerHTML (which strips
+     scripts), so note saving is wired through the document-level delegated
+     handler in _disposition-grid-js.blade.php (included on both pages). --}}
 <div class="disp-grid"
-     data-decision-url="{{ route('reports.procurement.disposition-grid.decision') }}"
+     data-note-url="{{ route('reports.procurement.disposition-grid.note') }}"
      data-csrf="{{ csrf_token() }}"
      data-can-edit="{{ ! empty($canEdit) ? '1' : '0' }}">
 @if (empty($contracts))
@@ -18,7 +20,7 @@
             <li class="{{ $i === 0 ? 'active' : '' }}">
                 <a href="#{{ $paneId }}" data-toggle="tab" role="tab">
                     {{ $c['contract_id'] }}
-                    <span class="badge">{{ count($c['assets']) }}</span>
+                    <span class="badge">{{ $c['active_count'] }}/{{ count($c['assets']) }}</span>
                 </a>
             </li>
         @endforeach
@@ -33,6 +35,7 @@
                     @if (! empty($c['lease_end_date']))
                         &middot; {{ trans('admin/purchase-orders/general.disposition_contract_ends', ['date' => $c['lease_end_date']]) }}
                     @endif
+                    &middot; {{ trans('admin/purchase-orders/general.disposition_on_lease_count', ['active' => $c['active_count'], 'total' => count($c['assets'])]) }}
                     @if (! empty($c['is_lease_to_own']))
                         &middot; <span class="label label-default">{{ trans('admin/purchase-orders/general.disposition_retained') }}</span>
                     @endif
@@ -43,63 +46,37 @@
                             <tr>
                                 <th>{{ trans('admin/purchase-orders/general.detail_serial') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_asset_tag') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.detail_status') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.disposition_returned_date') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.disposition_action') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.disposition_decommissioned_date') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.invoice_usage') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_ownership') }}</th>
                                 <th>{{ trans('general.category') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_model') }}</th>
                                 <th class="text-right">{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.disposition_action') }}</th>
                                 <th>{{ trans('general.notes') }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($c['assets'] as $a)
-                                <tr data-asset-id="{{ $a['asset_id'] }}" data-contract="{{ $c['contract_id'] }}">
+                                <tr data-asset-id="{{ $a['asset_id'] }}" data-contract="{{ $c['contract_id'] }}" @if ($a['archived']) class="text-muted disp-archived" @endif>
                                     <td>{{ $a['serial'] }}</td>
                                     <td>{{ $a['asset_tag'] }}</td>
-                                    <td>{{ $a['status'] }}</td>
-                                    <td>{{ $a['returned_date'] }}</td>
+                                    <td>
+                                        @if ($a['archived'])
+                                            <span class="label label-default">{{ $a['status'] }}</span>
+                                        @else
+                                            <span class="label label-success">{{ $a['status'] }}</span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $a['decommissioned_date'] }}</td>
                                     <td>{{ $a['usage'] }}</td>
                                     <td>{{ $a['ownership'] }}</td>
                                     <td>{{ $a['category'] }}</td>
                                     <td>{{ $a['model'] }}</td>
                                     <td class="text-right">{{ $a['buyout_cost'] }}</td>
-                                    <td class="disp-decision-cell">
-                                        @if ($a['ownership'] === 'Lease to Own')
-                                            <span class="label label-default">{{ trans('admin/purchase-orders/general.disposition_retained') }}</span>
-                                        @elseif (! empty($canEdit))
-                                            <select class="form-control input-sm disp-decision-select">
-                                                <option value="">{{ trans('admin/purchase-orders/general.disposition_none') }}</option>
-                                                @foreach ($decisionTypes as $type)
-                                                    <option value="{{ $type }}" {{ $a['decision_type'] === $type ? 'selected' : '' }}>
-                                                        {{ trans('admin/lease-decisions/general.type_'.$type) }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                            <span class="disp-decision-status text-muted">
-                                                @if ($a['decision_status'])
-                                                    {{ trans('admin/lease-decisions/general.status_'.$a['decision_status']) }}
-                                                @endif
-                                                @if ($a['decision_scope'] === 'contract')
-                                                    <em>({{ trans('admin/purchase-orders/general.disposition_inherited') }})</em>
-                                                @endif
-                                            </span>
-                                        @else
-                                            @if ($a['decision_type'])
-                                                {{ trans('admin/lease-decisions/general.type_'.$a['decision_type']) }}
-                                                @if ($a['decision_status'])
-                                                    <span class="text-muted">&middot; {{ trans('admin/lease-decisions/general.status_'.$a['decision_status']) }}</span>
-                                                @endif
-                                            @else
-                                                <span class="text-muted">{{ trans('admin/purchase-orders/general.disposition_none') }}</span>
-                                            @endif
-                                        @endif
-                                    </td>
                                     <td class="disp-note-cell">
-                                        <span class="disp-note-text">{{ $a['decision_note'] }}</span>
-                                        @if (! empty($canEdit) && $a['ownership'] !== 'Lease to Own')
+                                        <span class="disp-note-text">{{ $a['note'] }}</span>
+                                        @if (! empty($canEdit))
                                             <a href="#" class="disp-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}">
                                                 <i class="fa-solid fa-pencil" aria-hidden="true"></i>
                                             </a>

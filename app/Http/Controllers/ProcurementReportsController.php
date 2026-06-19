@@ -224,7 +224,7 @@ class ProcurementReportsController extends Controller
             $selectedFy
         )->count();
 
-        $pendingDecisionCount = LeaseDecision::where('status', 'pending')->count();
+        $pendingDecisionCount = LeaseDecision::whereNull('asset_id')->where('status', 'pending')->count();
 
         // User agreements waiting for a signature — the assets team's chase
         // list. Stuck in 'quoted' or 'agreement_sent' is the failure
@@ -813,24 +813,18 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        $fy = $this->resolveFiscalYear($request);
-
         // CSV hand-off flattens every contract's serials into one table.
         if ($request->query('format') === 'csv') {
-            return $this->streamReportCsv('disposition-grid-report', $this->dispositionGridCsv($fy));
+            return $this->streamReportCsv('disposition-grid-report', $this->dispositionGridCsv());
         }
 
-        $data = $this->dispositionGridData($fy);
+        $data = $this->dispositionGridData();
         $canEdit = auth()->user()?->can('create', \App\Models\Order::class) ?? false;
 
         $viewData = [
             'contracts' => $data['contracts'],
             'canEdit' => $canEdit,
-            'decisionTypes' => LeaseDecision::DECISION_TYPES,
-            'downloadUrl' => route('reports.procurement.disposition-grid', array_filter([
-                'format' => 'csv',
-                'fiscal_year' => $request->query('fiscal_year', $fy),
-            ], fn ($v) => $v !== null && $v !== '')),
+            'downloadUrl' => route('reports.procurement.disposition-grid', ['format' => 'csv']),
         ];
 
         // Embed mode (dashboard inline) returns just the tabbed grid;
@@ -846,60 +840,41 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Inline save of a per-serial disposition decision from the grid. Sets
-     * (or clears) the buyout / return / extend / replace call and note for
-     * one asset. Clearing falls the row back to the contract-level decision.
+     * Inline save of a per-device disposition note from the grid. The
+     * disposition itself is derived from the device's Snipe status +
+     * Decommissioned Date and is not editable; this only stores a free-text
+     * note (buyout justification, special case) per asset. An empty note
+     * clears the row.
      */
-    public function updateDispositionDecision(Request $request)
+    public function updateDispositionNote(Request $request)
     {
         $this->authorize('create', \App\Models\Order::class);
 
         $validated = $request->validate([
             'asset_id' => 'required|integer|exists:assets,id',
             'contract_reference' => 'required|string|max:191',
-            'decision_type' => 'nullable|string|in:buyout,return,extend,replace',
-            'status' => 'nullable|string|in:pending,approved,completed,cancelled',
             'notes' => 'nullable|string|max:65535',
         ]);
 
         $existing = LeaseDecision::where('asset_id', $validated['asset_id'])
-            ->orderByDesc('decision_date')
             ->orderByDesc('id')
             ->first();
 
-        // No decision type and no note means "clear" — drop any per-serial
-        // record so the row inherits the contract-level call again.
-        $hasNote = isset($validated['notes']) && $validated['notes'] !== '';
-        if (empty($validated['decision_type']) && ! $hasNote) {
+        // Empty note → drop the per-asset note row entirely.
+        if (! isset($validated['notes']) || $validated['notes'] === '') {
             $existing?->delete();
 
             return response()->json(['status' => 'success', 'cleared' => true]);
         }
 
-        $decision = $existing ?: new LeaseDecision;
-        $decision->asset_id = $validated['asset_id'];
-        $decision->contract_reference = $validated['contract_reference'];
-        // A note-only row with no chosen action defaults to a pending replace
-        // call so it stays a valid decision; the user can refine the type.
-        $decision->decision_type = ($validated['decision_type'] ?? null) ?: ($decision->decision_type ?: 'replace');
-        $decision->status = ($validated['status'] ?? null) ?: ($decision->status ?: 'pending');
-        $decision->notes = $validated['notes'] ?? $decision->notes;
-        if (! $decision->decision_date) {
-            $decision->decision_date = now();
-        }
-        $decision->created_by = $decision->created_by ?: auth()->id();
-        $decision->save();
+        $note = $existing ?: new LeaseDecision;
+        $note->asset_id = $validated['asset_id'];
+        $note->contract_reference = $validated['contract_reference'];
+        $note->notes = $validated['notes'];
+        $note->created_by = $note->created_by ?: auth()->id();
+        $note->save();
 
-        return response()->json([
-            'status' => 'success',
-            'decision' => [
-                'decision_type' => $decision->decision_type,
-                'decision_type_label' => trans('admin/lease-decisions/general.type_'.$decision->decision_type),
-                'status' => $decision->status,
-                'status_label' => trans('admin/lease-decisions/general.status_'.$decision->status),
-                'notes' => (string) $decision->notes,
-            ],
-        ]);
+        return response()->json(['status' => 'success', 'notes' => (string) $note->notes]);
     }
 
     /**
@@ -1297,12 +1272,19 @@ class ProcurementReportsController extends Controller
                 $carry = BudgetCarry::intoFy($fy);
                 if ($carry && $carry['unused'] > 0) {
                     $totalBudget += $carry['unused'];
+                    // The carry-forward is last year's unused PO budget, so name
+                    // the source POs that funded it rather than a bare "—".
+                    $carryPos = PurchaseOrder::where('fiscal_year', $carry['source_fy'])
+                        ->where('budget', '>', 0)
+                        ->orderBy('po_number')
+                        ->pluck('po_number')
+                        ->all();
                     $records[] = [
                         'class' => 'info',
                         'cells' => [
                             $fy,
                             trans('admin/purchase-orders/general.capital_carry_forward', ['source' => $carry['source_fy']]),
-                            '—',
+                            $carryPos ? implode(', ', $carryPos) : '—',
                             $this->money($carry['unused']),
                             $this->money(0),
                             $this->money($carry['unused']),
@@ -1729,7 +1711,8 @@ class ProcurementReportsController extends Controller
      */
     private function leaseDecisionsByContract(): array
     {
-        return LeaseDecision::where('status', '!=', 'cancelled')
+        return LeaseDecision::whereNull('asset_id')
+            ->where('status', '!=', 'cancelled')
             ->orderBy('decision_date')
             ->get()
             ->keyBy('contract_reference')
@@ -2379,6 +2362,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $query = LeaseDecision::query()
+            ->whereNull('asset_id')
             ->orderByRaw(...$this->fieldOrder('status', ['pending', 'approved', 'completed', 'cancelled']))
             ->orderBy('decision_date');
 
@@ -2682,6 +2666,7 @@ class ProcurementReportsController extends Controller
         // off on (or proposed). Cancelled is excluded.
         $decisions = $this->scopeDateToFiscalYear(
             LeaseDecision::query()
+                ->whereNull('asset_id')
                 ->whereIn('decision_type', ['buyout', 'return'])
                 ->whereNotIn('status', ['cancelled']),
             $fy,
@@ -2945,7 +2930,7 @@ class ProcurementReportsController extends Controller
      * tied to this asset), falling back to the contract-level decision when
      * no per-serial call has been logged.
      */
-    private function dispositionGridData(?string $fy = null): array
+    private function dispositionGridData(): array
     {
         $cols = $this->leaseFieldColumns();
         $contractIdColumn = $cols['contract_id'];
@@ -2953,30 +2938,23 @@ class ProcurementReportsController extends Controller
             return ['contracts' => []];
         }
 
-        // Latest per-serial decision, keyed by asset_id, and the latest
-        // contract-level decision, keyed by contract_reference. Ordering by
-        // date then id so the most recent call wins for each key.
-        $byAsset = LeaseDecision::query()
+        // Free-text disposition note per device, keyed by asset_id. The
+        // disposition itself is NOT entered here — it is read from the asset's
+        // own Snipe status + Decommissioned Date (an archived status with a
+        // decommission date = the device left our management). The note is just
+        // for special cases / buyout justifications.
+        $noteByAsset = LeaseDecision::query()
             ->whereNotNull('asset_id')
-            ->orderBy('decision_date')
             ->orderBy('id')
             ->get()
             ->keyBy('asset_id');
 
-        $byContract = LeaseDecision::query()
-            ->whereNull('asset_id')
-            ->orderBy('decision_date')
-            ->orderBy('id')
-            ->get()
-            ->keyBy('contract_reference');
-
-        $assets = $this->scopeDateToFiscalYear(
-            Asset::with('model.category', 'status')
-                ->whereNotNull($contractIdColumn)
-                ->where($contractIdColumn, '!=', ''),
-            $fy,
-            'purchase_date'
-        )
+        // Every leased device, all fiscal years — the grid mirrors the whole
+        // live lease book, not a single year (it replaces the per-contract
+        // sheets of the Leases workbook).
+        $assets = Asset::with('model.category', 'status')
+            ->whereNotNull($contractIdColumn)
+            ->where($contractIdColumn, '!=', '')
             ->orderBy($contractIdColumn)
             ->orderBy('asset_tag')
             ->get();
@@ -2994,6 +2972,7 @@ class ProcurementReportsController extends Controller
                     'provider' => $this->contractProvider($contractId),
                     'lease_end_date' => $cols['lease_end_date'] ? (string) $asset->{$cols['lease_end_date']} : '',
                     'is_lease_to_own' => false,
+                    'active_count' => 0,
                     'assets' => [],
                 ];
             }
@@ -3003,12 +2982,12 @@ class ProcurementReportsController extends Controller
                 $contracts[$contractId]['is_lease_to_own'] = true;
             }
 
-            // Per-serial decision wins; otherwise inherit the contract call.
-            $decision = $byAsset->get($asset->id);
-            $scope = $decision ? 'asset' : null;
-            if (! $decision) {
-                $decision = $byContract->get($contractId);
-                $scope = $decision ? 'contract' : null;
+            // Archived status (with the decommission date) = the device has
+            // been disposed (returned / donated / recycled / bought out) and is
+            // no longer managed by us. Anything else is still on lease.
+            $isArchived = $asset->status?->getStatuslabelType() === 'archived';
+            if (! $isArchived) {
+                $contracts[$contractId]['active_count']++;
             }
 
             $buyoutCost = $cols['buyout_cost'] ? $this->parseMoney($asset->{$cols['buyout_cost']}) : 0.0;
@@ -3018,21 +2997,22 @@ class ProcurementReportsController extends Controller
                 'asset_tag' => (string) $asset->asset_tag,
                 'serial' => (string) $asset->serial,
                 'status' => (string) $asset->status?->name,
-                'returned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
+                'archived' => $isArchived,
+                'decommissioned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
                 'usage' => $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
                 'ownership' => $ownership,
                 'category' => (string) $asset->model?->category?->name,
                 'model' => (string) $asset->model?->name,
                 'buyout_cost' => $buyoutCost > 0 ? $this->money($buyoutCost) : '',
-                'decision_type' => $decision?->decision_type,
-                'decision_status' => $decision?->status,
-                'decision_note' => (string) $decision?->notes,
-                'decision_scope' => $scope,
+                'note' => (string) $noteByAsset->get($asset->id)?->notes,
             ];
         }
 
-        // Lease-end soonest first so the contracts needing a call surface at
-        // the front of the tab strip.
+        // Only contracts that still have at least one on-lease (non-archived)
+        // device — fully-returned/closed leases drop off.
+        $contracts = array_filter($contracts, fn ($c) => $c['active_count'] > 0);
+
+        // Soonest lease end first so the contracts nearing term surface first.
         uasort($contracts, fn ($a, $b) => [$a['lease_end_date'], $a['contract_id']] <=> [$b['lease_end_date'], $b['contract_id']]);
 
         return ['contracts' => array_values($contracts)];
@@ -3042,41 +3022,37 @@ class ProcurementReportsController extends Controller
      * Flatten the disposition grid to a single CSV table (one row per
      * serial across every contract) for the download / hand-off path.
      */
-    private function dispositionGridCsv(?string $fy = null): array
+    private function dispositionGridCsv(): array
     {
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.detail_serial'),
             trans('admin/purchase-orders/general.detail_asset_tag'),
-            trans('admin/purchase-orders/general.detail_status'),
-            trans('admin/purchase-orders/general.disposition_returned_date'),
+            trans('admin/purchase-orders/general.disposition_action'),
+            trans('admin/purchase-orders/general.disposition_decommissioned_date'),
             trans('admin/purchase-orders/general.invoice_usage'),
             trans('admin/purchase-orders/general.detail_ownership'),
             trans('general.category'),
             trans('admin/purchase-orders/general.detail_model'),
             trans('admin/purchase-orders/general.detail_buyout_cost'),
-            trans('admin/purchase-orders/general.disposition_action'),
-            trans('admin/lease-decisions/general.status'),
             trans('general.notes'),
         ];
 
         $records = [];
-        foreach ($this->dispositionGridData($fy)['contracts'] as $contract) {
+        foreach ($this->dispositionGridData()['contracts'] as $contract) {
             foreach ($contract['assets'] as $row) {
                 $records[] = ['class' => '', 'cells' => [
                     $contract['contract_id'],
                     $row['serial'],
                     $row['asset_tag'],
                     $row['status'],
-                    $row['returned_date'],
+                    $row['decommissioned_date'],
                     $row['usage'],
                     $row['ownership'],
                     $row['category'],
                     $row['model'],
                     $row['buyout_cost'],
-                    $row['decision_type'] ? trans('admin/lease-decisions/general.type_'.$row['decision_type']) : trans('admin/purchase-orders/general.disposition_none'),
-                    $row['decision_status'] ? trans('admin/lease-decisions/general.status_'.$row['decision_status']) : '',
-                    $row['decision_note'],
+                    $row['note'],
                 ]];
             }
         }

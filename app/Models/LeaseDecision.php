@@ -41,10 +41,10 @@ class LeaseDecision extends SnipeModel
     protected $rules = [
         'contract_reference' => 'required|string|max:191',
         'asset_id' => 'nullable|integer|exists:assets,id',
-        'decision_type' => 'required|string|in:buyout,return,extend,replace',
+        'decision_type' => 'nullable|string|in:buyout,return,extend,replace',
         'decision_date' => 'nullable|date',
         'amount' => 'nullable|numeric',
-        'status' => 'required|string|in:pending,approved,completed,cancelled',
+        'status' => 'nullable|string|in:pending,approved,completed,cancelled',
         'notes' => 'nullable|string|max:65535',
     ];
 
