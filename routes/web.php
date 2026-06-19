@@ -938,6 +938,9 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('csi-schedule', [ProcurementReportsController::class, 'csiSchedule'])
             ->name('reports.procurement.csi-schedule')
             ->breadcrumbs($crumb('reports.procurement.csi-schedule', 'report_csi_schedule'));
+        Route::get('csi-reconciliation', [ProcurementReportsController::class, 'csiReconciliation'])
+            ->name('reports.procurement.csi-reconciliation')
+            ->breadcrumbs($crumb('reports.procurement.csi-reconciliation', 'report_csi_reconciliation'));
         Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
             ->name('reports.procurement.invoice-approval')
             ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
