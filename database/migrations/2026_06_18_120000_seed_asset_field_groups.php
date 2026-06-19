@@ -31,7 +31,6 @@ class SeedAssetFieldGroups extends Migration
         'Area'                      => 'inventory',
         'Catalog'                   => 'inventory',
         'Usage'                     => 'inventory',
-        'Address'                   => 'inventory',
         'Fleet'                     => 'inventory',
         // Specs — hardware
         'Architecture'              => 'specs',
@@ -48,8 +47,9 @@ class SeedAssetFieldGroups extends Migration
         // Management — endpoint / MDM
         'Platform'                  => 'management',
         'Device Management Service' => 'management',
-        // Networking — hostname + print/queue plumbing
+        // Networking — hostname + network address + print/queue plumbing
         'Hostname'                  => 'networking',
+        'Address'                   => 'networking',
         'Driver'                    => 'networking',
         'Queue(s)'                  => 'networking',
         'Virtual Queue'             => 'networking',
