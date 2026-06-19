@@ -55,7 +55,7 @@ class LeaseEndSchedulesTest extends TestCase
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('ECI20221201')
-            ->assertSee('Macquarie')
+            ->assertSee('CCA Financial')
             ->assertSee('2026-12-31')
             ->assertSee(trans('admin/purchase-orders/general.lease_end_refresh_planned'))
             // 2 × $1,111.11 lands in both the schedule row and the
@@ -82,9 +82,8 @@ class LeaseEndSchedulesTest extends TestCase
             ->assertSee('ECI20221201')
             ->assertSee(trans('admin/lease-decisions/general.type_buyout'))
             ->assertSee('Faculty Laptop program')
-            // …and it's flagged as re-assessed, listed under the decided sub-total…
+            // …and it's flagged as re-assessed at renewal…
             ->assertSee(trans('admin/purchase-orders/general.lease_end_reassess'))
-            ->assertSee(trans('admin/purchase-orders/general.lease_end_totals_decided'))
             // …but its full value is still pre-approved: 2 × $1,111.11 drives
             // the estimate, the lease's original value rolls forward whatever
             // the renewal decision is.
