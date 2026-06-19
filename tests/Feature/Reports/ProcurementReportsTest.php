@@ -11,6 +11,7 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\Statuslabel;
+use App\Models\Supplier;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -726,6 +727,21 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement.lessor-breakdown'))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'));
+    }
+
+    public function test_reports_read_provider_from_the_lessor_field()
+    {
+        $lessor = Supplier::factory()->create(['name' => 'Acme Leasing Co']);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240801',
+        ], ['serial' => 'LESSORFK1', 'lessor_id' => $lessor->id]);
+
+        // The disposition grid reads the provider from the asset's lessor FK,
+        // not the ECI->CCA prefix fallback.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid'))
+            ->assertOk()
+            ->assertSee('Acme Leasing Co');
     }
 
     public function test_lessor_breakdown_uses_cca_financial_and_ignores_fy_scope()
