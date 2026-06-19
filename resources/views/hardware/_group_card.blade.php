@@ -3,7 +3,7 @@
     pairs (no fixed-width <dt> that overlaps long values). Device Management
     Service gets a full-width one-line label. Native asset fields are injected
     into the group they belong to: Location -> Inventory (editable home
-    location); Current Value / Order Number / Purchase Date / Unit Cost ->
+    location); Order Number / Purchase Date / Purchase Cost ->
     Procurement.
 
     Expects: $section (['group' => FieldGroup|null, 'fields' => []]), plus
@@ -67,13 +67,6 @@
             <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ trans('general.order_number') }}</div>
                 <div class="asset-card-val"><x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"/></div>
-            </div>
-            <div class="asset-card-row">
-                <div class="asset-card-lbl">{{ trans('admin/hardware/table.current_value') }}</div>
-                <div class="asset-card-val">
-                    <span class="inline-core-value js-copy-cv-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->getDepreciatedValue()) }}</span>
-                    {!! $copyIcon('js-copy-cv-'.$asset->id) !!}
-                </div>
             </div>
         @endif
     </div>
