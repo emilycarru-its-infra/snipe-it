@@ -538,6 +538,55 @@ class ProcurementReportsController extends Controller
         ];
     }
 
+    /**
+     * CSI in-process devices (ordered/shipped, not yet accepted onto a
+     * schedule) and whether Snipe already knows each one — the "what's
+     * arriving" view for receiving / deployment planning.
+     */
+    public function csiArrivals(Request $request)
+    {
+        $this->authorize('reports.procurement.view');
+
+        return $this->render(
+            $request,
+            'csi-arrivals-report',
+            trans('admin/purchase-orders/general.report_csi_arrivals'),
+            'reports.procurement.csi-arrivals',
+            $this->csiArrivalsReport()
+        );
+    }
+
+    private function csiArrivalsReport(): array
+    {
+        $t = fn ($k) => trans('admin/purchase-orders/general.'.$k);
+
+        $records = [];
+        $inSnipe = 0;
+        foreach ((new CsiReconciliation)->inProcessArrivals() as $row) {
+            $inSnipe += $row['in_snipe'] ? 1 : 0;
+            $records[] = [
+                'class' => $row['in_snipe'] ? '' : 'warning',
+                'cells' => [
+                    $row['in_snipe'] ? $t('csi_recon_match') : $t('csi_recon_missing_in_snipe'),
+                    $row['serial'],
+                    $row['model'],
+                    $row['csi_schedule'],
+                    $row['snipe_tag'],
+                    $row['snipe_status'],
+                ],
+            ];
+        }
+
+        return [
+            'columns' => [
+                $t('csi_recon_status'), $t('csi_recon_serial'), $t('csi_recon_model'),
+                $t('csi_recon_csi_schedule'), $t('csi_recon_snipe_tag'), $t('csi_recon_snipe_status'),
+            ],
+            'records' => $records,
+            'footer' => [$inSnipe.' / '.count($records).' '.$t('csi_recon_in_process'), '', '', '', '', ''],
+        ];
+    }
+
     public function invoiceApproval(Request $request)
     {
         $this->authorize('reports.procurement.view');
