@@ -122,11 +122,43 @@
                         <!-- this just adds a little top space -->
                         <div class="clearfix visible-lg-block" style="padding: 6px;"></div>
 
-                        <!-- identity header: the values we read first and touch most,
-                             hoisted to the top and inline-editable (tag, serial, name) -->
+                        <!-- identity header: the central catalog facts (manufacturer,
+                             category, model, model no.) on top, then the values we read
+                             first and touch most — name / tag / serial (inline-editable). -->
                         <x-page-column class="col-md-12">
                             <div class="box box-solid" style="margin-bottom: 12px;">
                                 <div class="box-body">
+                                    {{-- Top strip: the model catalog facts — super central,
+                                         so they sit above name/tag/serial as navigable links. --}}
+                                    <div class="asset-identity-header asset-identity-top">
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.manufacturer') }}</div>
+                                            <div class="asset-identity-subvalue">
+                                                @if ($asset->model?->manufacturer){!! $asset->model->manufacturer->present()->nameUrl !!}@else<span class="text-muted">—</span>@endif
+                                            </div>
+                                        </div>
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.category') }}</div>
+                                            <div class="asset-identity-subvalue">
+                                                @if ($asset->model?->category){!! $asset->model->category->present()->nameUrl !!}@else<span class="text-muted">—</span>@endif
+                                            </div>
+                                        </div>
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.asset_model') }}</div>
+                                            <div class="asset-identity-subvalue">
+                                                @if ($asset->model){!! $asset->model->present()->nameUrl !!}@else<span class="text-muted">—</span>@endif
+                                            </div>
+                                        </div>
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.model_no') }}</div>
+                                            <div class="asset-identity-subvalue">
+                                                {{ $asset->model?->model_number ?: '—' }}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <hr class="asset-identity-divider">
+
                                     {{-- Name (primary), tag and serial sit together in one
                                          left-aligned row — snug, not pushed to the far right. --}}
                                     <div class="asset-identity-header">
@@ -162,104 +194,29 @@
                         <x-page-column class="col-md-12">
                             <div class="asset-detail-grid">
 
-                                {{-- native lifecycle details card --}}
-                                <div class="box box-default asset-card" style="border-top: 3px solid #7f8c8d;">
-                                    <div class="box-header with-border">
-                                        <h3 class="box-title asset-card-title"><i class="fas fa-circle-info" style="color:#7f8c8d;" aria-hidden="true"></i> {{ trans('general.details') }}</h3>
-                                    </div>
-                                    <div class="box-body" style="padding-top:5px; padding-bottom:5px;">
-                                        <dl class="table-display" style="margin-bottom:0;">
-
-                                {{-- Asset tag, serial and name now live in the identity
-                                     header at the top of this tab (inline-editable). --}}
-
-                                <x-data-row :label="trans('admin/hardware/table.current_value')" copy_what="current_value">
-                                    {{ (($asset->id) && ($asset->location) ? $asset->location->currency : $snipeSettings->default_currency) }}
-                                    {{ Helper::formatCurrencyOutput($asset->getDepreciatedValue() )}}
-                                </x-data-row>
-
-                                <x-data-row :label="trans('general.last_audit')" copy_what="audit_date">
-                                    @if ((isset($audit_log)) && ($audit_log->created_at))
-                                        {!! $asset->checkInvalidNextAuditDate() ? '<i class="fas fa-exclamation-triangle text-orange" aria-hidden="true"></i>' : '' !!}
-                                        {{ Helper::getFormattedDateObject($audit_log->created_at, 'datetime', false) }}
-                                        <span class="text-muted">{{ Carbon::parse($audit_log->created_at)->diffForHumans(['parts' => 2]) }}</span>
-                                        @if ($audit_log->user)
-                                            -
-                                            <a href="{{ route('users.show', $audit_log->user->id) }}">{{ $audit_log->user->display_name }}</a>
-                                        @endif
-                                    @endif
-                                </x-data-row>
-
-                                <x-data-row :label="trans('general.next_audit_date')" copy_what="next_audit_date">
-                                    {!! $asset->checkInvalidNextAuditDate() ? '<i class="fas fa-exclamation-triangle text-orange" aria-hidden="true"></i>' : '' !!}
-                                    {{ Helper::getFormattedDateObject($asset->next_audit_date, 'date', false) }}
-
-                                    @if ($asset->next_audit_date)
-                                        <span class="text-muted">{{ Carbon::parse($asset->next_audit_date)->diffForHumans(['parts' => 2]) }}</span>
-                                    @endif
-                                </x-data-row>
-
-                                <x-data-row :label="trans('admin/hardware/form.default_location')" copy_what="default_location">
-                                    {!!  $asset->defaultLoc?->present()->formattedNameLink !!}
-                                </x-data-row>
-
-                                @if ($asset->asset_eol_date)
-                                    <x-data-row :label="trans('general.device_eol')" copy_what="eol_date">
-                                        @if ($asset->asset_eol_date)
-                                            {{ Helper::getFormattedDateObject($asset->asset_eol_date, 'date', false) }}
-                                            -
-                                            <span class="text-muted">{{ Carbon::parse($asset->asset_eol_date)->locale(app()->getLocale())->diffForHumans(['parts' => 3]) }}</span>
-                                        @else
-                                            {{ trans('general.na_no_purchase_date') }}
-                                        @endif
-                                        @if ($asset->eol_explicit =='1')
-                                            <span data-tooltip="true" data-placement="top" data-title="Explicit EOL" title="Explicit EOL">
-                                                <x-icon type="warning" class="text-primary"/>
-                                            </span>
-                                        @endif
-                                    </x-data-row>
-                                @endif
-
-                                @if ($asset->gl_code)
-                                    <x-data-row :label="trans('admin/hardware/form.gl_code')" copy_what="gl_code">
-                                        {{ $asset->gl_code }}
-                                    </x-data-row>
-                                @endif
-
-                                @if($asset->journal->last())
-                                    <x-data-row :label="trans('general.last_note')" copy_what="last_note">
-                                        <i class="fa-solid fa-quote-left"></i>
-                                        {{ $asset->journal->last()->note }}
-                                        <i class="fa-solid fa-quote-right"></i>
-                                        <span class="text-muted">
-                                            - {!!  $asset->journal->last()->adminuser->present()->formattedNameLink !!}
-                                            ({{ Helper::getFormattedDateObject($asset->journal->last()->created_at, 'datetime', false) }})
-                                        </span>
-                                    </x-data-row>
-                                @endif
-                                        </dl>
-                                    </div>
-                                </div>
-                                {{-- ./ native lifecycle details card --}}
-
                                 @if (($asset->model) && ($asset->model->fieldset))
                                     @php
-                                        // Group this fieldset's fields by their FieldGroup so the
-                                        // detail view renders one box per group instead of a single
-                                        // flat list. Ungrouped fields collect into an "Other" bucket.
-                                        $fsFields = $asset->model->fieldset->fields;
+                                        // Group this fieldset's fields by FieldGroup -> one card per
+                                        // group. Skip fields pulled into the sidebar; lead Inventory
+                                        // with Device Management Service.
+                                        $sidebarFieldNames = ['Decommission Date'];
+                                        $fsFields = $asset->model->fieldset->fields
+                                            ->reject(fn ($f) => in_array($f->name, $sidebarFieldNames, true));
                                         $allGroups = \App\Models\FieldGroup::ordered()->get();
                                         $grouped = [];
                                         foreach ($fsFields as $field) {
                                             $key = $field->field_group_id ?: 'other';
                                             $grouped[$key][] = $field;
                                         }
-                                        // Build an ordered render plan: active groups in sort order
-                                        // that actually have fields here, then the Other bucket last.
                                         $renderPlan = [];
                                         foreach ($allGroups as $g) {
                                             if (! empty($grouped[$g->id])) {
-                                                $renderPlan[] = ['group' => $g, 'fields' => $grouped[$g->id]];
+                                                $fields = $grouped[$g->id];
+                                                if ($g->slug === 'inventory') {
+                                                    usort($fields, fn ($a, $b) =>
+                                                        ($b->name === 'Device Management Service') <=> ($a->name === 'Device Management Service'));
+                                                }
+                                                $renderPlan[] = ['group' => $g, 'fields' => $fields];
                                             }
                                         }
                                         if (! empty($grouped['other'])) {
@@ -298,6 +255,45 @@
                                                             <x-inline-custom-field :asset="$asset" :field="$field"/>
                                                         </dd>
                                                     @endforeach
+
+                                                    {{-- Native asset fields pulled out of the sidebar into
+                                                         the group where they belong. --}}
+                                                    @if ($g && $g->slug === 'inventory' && $asset->location)
+                                                        <dt>{{ trans('general.location') }}</dt>
+                                                        <dd style="text-align: left !important;">
+                                                            <span class="inline-core-value js-copy-loc-{{ $asset->id }}">{!! $asset->location->present()->nameUrl !!}</span>
+                                                            <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-loc-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
+                                                        </dd>
+                                                    @endif
+
+                                                    @if ($g && $g->slug === 'procurement')
+                                                        <dt>{{ trans('admin/hardware/table.current_value') }}</dt>
+                                                        <dd style="text-align: left !important;">
+                                                            <span class="inline-core-value js-copy-cv-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->getDepreciatedValue()) }}</span>
+                                                            <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-cv-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
+                                                        </dd>
+
+                                                        <dt>{{ trans('general.order_number') }}</dt>
+                                                        <dd style="text-align: left !important;">
+                                                            <x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"/>
+                                                        </dd>
+
+                                                        @if ($asset->purchase_date)
+                                                            <dt>{{ trans('general.purchase_date') }}</dt>
+                                                            <dd style="text-align: left !important;">
+                                                                <span class="inline-core-value js-copy-pd-{{ $asset->id }}">{{ Helper::getFormattedDateObject($asset->purchase_date, 'date', false) }}</span>
+                                                                <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-pd-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
+                                                            </dd>
+                                                        @endif
+
+                                                        @if ($asset->purchase_cost)
+                                                            <dt>{{ trans('general.unit_cost') }}</dt>
+                                                            <dd style="text-align: left !important;">
+                                                                <span class="inline-core-value js-copy-uc-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}</span>
+                                                                <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-uc-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
+                                                            </dd>
+                                                        @endif
+                                                    @endif
                                                 </dl>
                                             </div>
                                         </div>
@@ -640,37 +636,10 @@
 
         <x-page-column class="col-md-3 col-md-pull-9">
 
-            {{-- Assignment status + checkout dates live in the sidebar, next to
-                 the rest of the assignment context, rather than as a header strip
-                 above the detail grid. --}}
-            <x-box class="side-box">
-                <div class="box-body" style="padding-top: 12px; padding-bottom: 8px;">
-                    <p style="margin-bottom: 10px;">
-                        <x-info-element.status :infoObject="$asset"/>
-                    </p>
-                    <p style="margin-bottom: 8px;">
-                        <x-icon type="calendar" class="fa-fw"/>
-                        <strong>{{ trans('general.last_checkout') }}</strong>
-                        @if ($asset->last_checkout != '')
-                            {{ Helper::getFormattedDateObject($asset->last_checkout, 'date', false) }}
-                            <span class="text-muted">{{ Carbon::parse($asset->last_checkout)->diffForHumans(['parts' => 2]) }}</span>
-                        @else
-                            {{ trans('general.na') }}
-                        @endif
-                    </p>
-                    <p style="margin-bottom: 0;">
-                        <x-icon type="expected_checkin" class="fa-fw"/>
-                        <strong>{{ trans('general.expected_checkin') }}</strong>
-                        @if ($asset->expected_checkin != '')
-                            {{ Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) }}
-                            <span class="text-muted">{{ Carbon::parse($asset->expected_checkin)->diffForHumans(['parts' => 2]) }}</span>
-                        @else
-                            {{ trans('general.na') }}
-                        @endif
-                    </p>
-                </div>
-            </x-box>
-
+            {{-- Everything assignment/lifecycle lives INSIDE the one info-panel box
+                 (not a separate box on top): status + checkout dates in before_list,
+                 then the audit / default-location / decommission / last-note rows that
+                 moved out of the removed Details card render at the top of the list. --}}
             <x-box class="side-box expanded">
                 <x-info-panel :infoPanelObj="$asset" img_path="{{ app('assets_upload_url') }}">
                     <x-slot:buttons>
@@ -691,6 +660,79 @@
                         <x-button.delete :item="$asset"/>
                         <x-button.restore :item="$asset" :route="route('restore/hardware', ['asset' => $asset->id])"/>
                     </x-slot:buttons>
+
+                    <x-slot:before_list>
+                        <div class="asset-sidebar-status">
+                            <p style="margin-bottom: 8px;">
+                                <x-info-element.status :infoObject="$asset"/>
+                            </p>
+                            <p style="margin-bottom: 6px;">
+                                <x-icon type="calendar" class="fa-fw"/>
+                                <strong>{{ trans('general.last_checkout') }}</strong>
+                                @if ($asset->last_checkout != '')
+                                    {{ Helper::getFormattedDateObject($asset->last_checkout, 'date', false) }}
+                                    <span class="text-muted">{{ Carbon::parse($asset->last_checkout)->diffForHumans(['parts' => 2]) }}</span>
+                                @else
+                                    {{ trans('general.na') }}
+                                @endif
+                            </p>
+                            <p style="margin-bottom: 0;">
+                                <x-icon type="expected_checkin" class="fa-fw"/>
+                                <strong>{{ trans('general.expected_checkin') }}</strong>
+                                @if ($asset->expected_checkin != '')
+                                    {{ Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) }}
+                                    <span class="text-muted">{{ Carbon::parse($asset->expected_checkin)->diffForHumans(['parts' => 2]) }}</span>
+                                @else
+                                    {{ trans('general.na') }}
+                                @endif
+                            </p>
+                        </div>
+                    </x-slot:before_list>
+
+                    {{-- Audit + lifecycle rows from the removed Details card. --}}
+                    <x-info-element icon_type="audit" title="{{ trans('general.last_audit') }}">
+                        {{ trans('general.last_audit') }}
+                        <span class="pull-right">
+                            @if (isset($audit_log) && $audit_log->created_at)
+                                {{ Helper::getFormattedDateObject($audit_log->created_at, 'date', false) }}
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </span>
+                    </x-info-element>
+
+                    <x-info-element icon_type="audit" title="{{ trans('general.next_audit_date') }}">
+                        {{ trans('general.next_audit_date') }}
+                        <span class="pull-right">
+                            @if ($asset->next_audit_date)
+                                {{ Helper::getFormattedDateObject($asset->next_audit_date, 'date', false) }}
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </span>
+                    </x-info-element>
+
+                    @if ($asset->defaultLoc)
+                        <x-info-element icon_type="location" title="{{ trans('admin/hardware/form.default_location') }}">
+                            {{ trans('admin/hardware/form.default_location') }}
+                            <span class="pull-right">{!! $asset->defaultLoc->present()->nameUrl !!}</span>
+                        </x-info-element>
+                    @endif
+
+                    @php $decommField = $asset->model?->fieldset?->fields->firstWhere('name', 'Decommission Date'); @endphp
+                    @if ($decommField)
+                        <x-info-element icon_type="calendar" title="{{ $decommField->name }}">
+                            {{ $decommField->name }}
+                            <span class="pull-right"><x-inline-custom-field :asset="$asset" :field="$decommField"/></span>
+                        </x-info-element>
+                    @endif
+
+                    @if ($asset->journal->last())
+                        <x-info-element icon_type="notes" title="{{ trans('general.last_note') }}">
+                            {{ trans('general.last_note') }}
+                            <span class="pull-right">{{ \Illuminate\Support\Str::limit($asset->journal->last()->note, 60) }}</span>
+                        </x-info-element>
+                    @endif
                 </x-info-panel>
             </x-box>
 
@@ -769,6 +811,10 @@
             .asset-identity-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #999; }
             .asset-identity-value { font-size: 20px; font-weight: 600; line-height: 1.4; }
             .asset-identity-mono { font-family: SFMono-Regular, Menlo, Consolas, monospace; }
+            /* Top catalog strip — secondary to name/tag/serial: smaller values. */
+            .asset-identity-top { gap: 4px 32px; }
+            .asset-identity-top .asset-identity-subvalue { font-size: 14px; font-weight: 600; line-height: 1.4; }
+            .asset-identity-divider { margin: 10px 0; border-top: 1px solid #ececec; }
 
             /* Masonry grid of detail cards — Toner-dashboard style, no drag. The
                tiny grid-auto-rows + per-card row span (set in JS) lets short
