@@ -48,7 +48,7 @@
         @endif
 
         @foreach ($section['fields'] as $field)
-            <div class="asset-card-row{{ $field->name === 'Device Management Service' ? ' asset-card-row-wide' : '' }}">
+            <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ $field->name }}</div>
                 <div class="asset-card-val"><x-inline-custom-field :asset="$asset" :field="$field"/></div>
             </div>
