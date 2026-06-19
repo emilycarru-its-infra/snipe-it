@@ -574,6 +574,11 @@ class AssetsController extends Controller
             ]);
         }
 
+        // Date columns must be a valid date (or blank).
+        if (Asset::inlineEditableCoreFields()[$column] === 'date') {
+            $request->validate(['value' => ['nullable', 'date']]);
+        }
+
         $asset->{$column} = ($value === '') ? null : $value;
 
         if ($asset->save()) {

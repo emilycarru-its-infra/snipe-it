@@ -324,6 +324,10 @@ class Asset extends Depreciable
             // FK selects — the model and home location are editable inline too.
             'model_id'        => 'select',
             'rtd_location_id' => 'select',
+            // Date columns editable inline from the sidebar.
+            'expected_checkin' => 'date',
+            'last_audit_date'  => 'date',
+            'next_audit_date'  => 'date',
         ];
     }
 
