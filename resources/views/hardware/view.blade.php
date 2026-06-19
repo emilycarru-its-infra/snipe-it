@@ -763,18 +763,21 @@
             .asset-card-title { font-size: 15px; font-weight: 600; }
             .asset-card-title i { margin-right: 6px; }
 
-            /* Field rows: label / value flex pair — long labels wrap within their
-               own column instead of overlapping the value (fixes Architecture,
-               Warranty/Soft Cost, etc.). */
-            .asset-card-body { padding-top: 6px; padding-bottom: 6px; }
-            .asset-card-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 2px; border-bottom: 1px solid #f1f1f1; }
-            .asset-card-row:last-child { border-bottom: none; }
-            .asset-card-lbl { flex: 0 0 38%; font-weight: 600; word-break: break-word; }
-            .asset-card-val { flex: 1 1 auto; min-width: 0; word-break: break-word; }
-            /* Device Management Service — special: the long label stays on one
-               line (never wraps mid-word) with its value pushed to the right. */
-            .asset-card-row-wide .asset-card-lbl { flex: 0 0 auto; white-space: nowrap; margin-right: 12px; }
-            .asset-card-row-wide .asset-card-val { flex: 1 1 auto; text-align: right; }
+            /* Field rows share a 2-column grid per card: the label column
+               auto-sizes to the widest label in that card (so "Device Management
+               Service" stays on one line) and every value lines up at the same x.
+               Rows use display:contents so their label/value join the card grid. */
+            .asset-card-body {
+                padding-top: 6px; padding-bottom: 6px;
+                display: grid;
+                grid-template-columns: max-content minmax(0, 1fr);
+                column-gap: 0;
+            }
+            .asset-card-row { display: contents; }
+            .asset-card-lbl { font-weight: 600; padding: 8px 18px 8px 0; border-bottom: 1px solid #f1f1f1; }
+            .asset-card-val { min-width: 0; padding: 8px 0; border-bottom: 1px solid #f1f1f1; word-break: break-word; }
+            .asset-card-row:last-child .asset-card-lbl,
+            .asset-card-row:last-child .asset-card-val { border-bottom: none; }
 
             /* Sidebar rows (status / checkout / audit / metadata) — consistent
                breathing room and light dividers. */
