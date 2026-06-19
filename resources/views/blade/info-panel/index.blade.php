@@ -69,7 +69,9 @@
 
         @if ($infoPanelObj->notes)
             <x-info-element icon_type="notes" title="{{ trans('general.notes') }}">
-                <x-copy-to-clipboard class="pull-right" copy_what="notes">{!! nl2br(Helper::parseEscapedMarkedownInline($infoPanelObj->notes)) !!}</x-copy-to-clipboard>
+                {{-- Match the two-square, hover-only copy used everywhere else. --}}
+                <i class="js-copy-link far fa-copy hidden-print inline-core-copy pull-right" data-clipboard-target=".js-copy-panel-notes" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
+                <span class="js-copy-panel-notes">{!! nl2br(Helper::parseEscapedMarkedownInline($infoPanelObj->notes)) !!}</span>
             </x-info-element>
         @endif
 
