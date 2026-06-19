@@ -902,6 +902,32 @@ class ProcurementReportsController extends Controller
         ]);
     }
 
+    /**
+     * Inline save of a note on a report row. Generic so any procurement
+     * report table can expose an editable (pencil) note cell — the model is
+     * whitelisted and the only field touched is `notes`.
+     */
+    public function updateReportNote(Request $request)
+    {
+        $this->authorize('create', \App\Models\Order::class);
+
+        $validated = $request->validate([
+            'model' => 'required|string|in:lease_decision',
+            'id' => 'required|integer',
+            'notes' => 'nullable|string|max:65535',
+        ]);
+
+        $model = match ($validated['model']) {
+            'lease_decision' => LeaseDecision::findOrFail($validated['id']),
+            default => abort(422),
+        };
+
+        $model->notes = $validated['notes'] ?? '';
+        $model->save();
+
+        return response()->json(['status' => 'success', 'notes' => (string) $model->notes]);
+    }
+
     public function creditTerminationLedger(Request $request)
     {
         $this->authorize('reports.procurement.view');
@@ -2380,6 +2406,7 @@ class ProcurementReportsController extends Controller
                     trans('admin/lease-decisions/general.status_'.$decision->status),
                     (string) $decision->notes,
                 ],
+                'editable_note' => ['col' => 5, 'model' => 'lease_decision', 'id' => $decision->id],
             ];
         }
 
@@ -2612,6 +2639,7 @@ class ProcurementReportsController extends Controller
             trans('admin/lease-decisions/general.amount'),
             trans('admin/lease-decisions/general.status'),
             trans('admin/lease-decisions/general.decision_date'),
+            trans('general.notes'),
         ];
 
         $records = [];
@@ -2645,6 +2673,7 @@ class ProcurementReportsController extends Controller
                     $this->money($group['buyout_cost_total']),
                     trans('admin/purchase-orders/general.aro_status_contractual'),
                     '',
+                    '',
                 ],
             ];
         }
@@ -2677,13 +2706,15 @@ class ProcurementReportsController extends Controller
                     $this->money($decision->amount),
                     trans('admin/lease-decisions/general.status_'.$decision->status),
                     $this->dateString($decision->decision_date),
+                    (string) $decision->notes,
                 ],
+                'editable_note' => ['col' => 6, 'model' => 'lease_decision', 'id' => $decision->id],
             ];
         }
 
         $footer = [
             trans('admin/orders/general.total'), '', '',
-            $this->money($total), '', '',
+            $this->money($total), '', '', '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
@@ -3461,6 +3492,8 @@ class ProcurementReportsController extends Controller
             return $this->embedTable($report);
         }
 
+        $canEditNotes = auth()->user()?->can('create', \App\Models\Order::class) ?? false;
+
         // When the report honours the fiscal-year scope, keep it on the
         // download link and feed the inline FY selector so the dashboard's
         // selection stays put as the reader pivots and exports.
@@ -3481,6 +3514,7 @@ class ProcurementReportsController extends Controller
             'fyFilterable' => $fyFilterable,
             'selectedFy' => $selectedFy,
             'allFiscalYears' => $fyFilterable ? $this->availableFiscalYears() : collect(),
+            'canEditNotes' => $canEditNotes,
         ]);
     }
 
@@ -3495,6 +3529,7 @@ class ProcurementReportsController extends Controller
             'columns' => $report['columns'],
             'rows'    => $report['records'],
             'footer'  => $report['footer'] ?? null,
+            'canEditNotes' => auth()->user()?->can('create', \App\Models\Order::class) ?? false,
         ]);
     }
 

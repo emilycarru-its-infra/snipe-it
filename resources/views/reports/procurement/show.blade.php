@@ -45,9 +45,11 @@
                     'columns' => $columns,
                     'rows'    => $rows,
                     'footer'  => $footer ?? null,
+                    'canEditNotes' => $canEditNotes ?? false,
                 ])
             </div>
         </div>
     </div>
 </div>
+@include('reports.procurement._report-note-js')
 @stop
