@@ -72,6 +72,15 @@
                         />
                     @endif
 
+                    @if (! empty($csiLease))
+                        <x-tabs.nav-item
+                            name="csi-lease"
+                            icon_type="contract"
+                            label="{{ trans('admin/hardware/csi.tab_label') }}"
+                            tooltip="{{ trans('admin/hardware/csi.tab_label') }}"
+                        />
+                    @endif
+
                     @can('view', \App\Models\Order::class)
                         <x-tabs.nav-item
                             name="orders"
@@ -495,6 +504,12 @@
                     @if (! empty($printerUsage))
                         <x-tabs.pane name="printing">
                             @include('hardware.printing', ['usage' => $printerUsage])
+                        </x-tabs.pane>
+                    @endif
+
+                    @if (! empty($csiLease))
+                        <x-tabs.pane name="csi-lease">
+                            @include('hardware.csi-lease', ['csi' => $csiLease, 'asset' => $asset])
                         </x-tabs.pane>
                     @endif
 
