@@ -540,14 +540,9 @@
             </x-info-element>
         @endif
 
-        {{-- Low-signal flags + provenance grouped under a Metadata divider (assets). --}}
-        @if ($infoPanelObj instanceof \App\Models\Asset)
-            <li class="list-group-item asset-metadata-divider">
-                <strong class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.metadata') }}</strong>
-            </li>
-        @endif
-
-        @if (isset($infoPanelObj->byod))
+        {{-- For assets, byod / requestable / created-by / timestamps live in a
+             dedicated Metadata box in the asset sidebar, so skip them here. --}}
+        @if (isset($infoPanelObj->byod) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element title="{{ trans('general.byod') }}">
                 @if ($infoPanelObj->byod == 1)
                 <x-icon type="checkmark" class="fa-fw text-success" />
@@ -558,7 +553,7 @@
             </x-info-element>
         @endif
 
-        @if (isset($infoPanelObj->requestable))
+        @if (isset($infoPanelObj->requestable) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element title="{{ trans('general.requestable') }}">
                 @if ($infoPanelObj->requestable == 1)
                     <x-icon type="checkmark" class="fa-fw text-success"/>
@@ -614,7 +609,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->adminuser)
+        @if ($infoPanelObj->adminuser && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element title="{{ trans('general.created_by') }}">
                 <span class="text-muted">
                     <x-icon type="user" class="fa-fw" title="{{ trans('general.created_by') }}" />
@@ -626,7 +621,7 @@
         @endif
 
 
-        @if ($infoPanelObj->created_at)
+        @if ($infoPanelObj->created_at && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <span class="text-muted">
                     <x-icon type="calendar" class="fa-fw" title="{{ trans('general.created_at') }}" />
@@ -636,7 +631,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->updated_at)
+        @if ($infoPanelObj->updated_at && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <span class="text-muted">
                     <x-icon type="calendar" class="fa-fw" title="{{ trans('general.updated_at') }}" />

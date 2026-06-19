@@ -315,12 +315,15 @@ class Asset extends Depreciable
     public static function inlineEditableCoreFields(): array
     {
         return [
-            'name'         => 'text',
-            'asset_tag'    => 'text',
-            'serial'       => 'text',
-            'order_number' => 'text',
-            'gl_code'      => 'text',
-            'notes'        => 'textarea',
+            'name'            => 'text',
+            'asset_tag'       => 'text',
+            'serial'          => 'text',
+            'order_number'    => 'text',
+            'gl_code'         => 'text',
+            'notes'           => 'textarea',
+            // FK selects — the model and home location are editable inline too.
+            'model_id'        => 'select',
+            'rtd_location_id' => 'select',
         ];
     }
 

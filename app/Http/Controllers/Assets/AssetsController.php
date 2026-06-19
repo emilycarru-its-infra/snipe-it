@@ -565,6 +565,15 @@ class AssetsController extends Controller
         }
 
         $value = $request->input('value');
+
+        // FK selects must reference a real row (model_id is required).
+        $fkTables = ['model_id' => 'models', 'rtd_location_id' => 'locations'];
+        if (array_key_exists($column, $fkTables)) {
+            $request->validate([
+                'value' => [$column === 'model_id' ? 'required' : 'nullable', "exists:{$fkTables[$column]},id"],
+            ]);
+        }
+
         $asset->{$column} = ($value === '') ? null : $value;
 
         if ($asset->save()) {
