@@ -181,8 +181,20 @@
             </div>
             <div class="box-body">
                 <p class="text-muted" style="margin-bottom:10px;">{{ trans('admin/purchase-orders/general.lease_end_help') }}</p>
+                <style>
+                    /* Keep contract / provider / end-date on one line each; let the
+                       Models column be the flexible one that wraps and grows. The
+                       Plan column has a reserved min-width so opening the inline
+                       note editor doesn't reflow the whole table. */
+                    .lease-end-table th:nth-child(1), .lease-end-table td:nth-child(1),
+                    .lease-end-table th:nth-child(2), .lease-end-table td:nth-child(2),
+                    .lease-end-table th:nth-child(3), .lease-end-table td:nth-child(3) { white-space: nowrap; }
+                    .lease-end-table td:nth-child(5) { white-space: normal; min-width: 280px; }
+                    .lease-end-table th:nth-child(7), .lease-end-table td:nth-child(7) { min-width: 260px; }
+                    .lease-end-table .rpt-note-input { width: 100%; box-sizing: border-box; }
+                </style>
                 <div class="table-responsive">
-                    <table class="table table-striped" style="margin-bottom:0;">
+                    <table class="table table-striped lease-end-table" style="margin-bottom:0;">
                         <thead>
                             <tr>
                                 <th>{{ trans('admin/lease-decisions/general.contract_reference') }}</th>
@@ -326,6 +338,7 @@
         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc'],
         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc'],
         ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc'],
+        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc'],
         ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc'],
         ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc'],
         ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc'],
@@ -342,7 +355,6 @@
         ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc'],
         ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc'],
         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc'],
-        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc'],
         ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc'],
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
