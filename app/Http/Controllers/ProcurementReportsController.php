@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\BudgetAllocation;
-use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
 use App\Models\UserAgreement;
 use App\Models\LeaseDecision;
@@ -195,7 +194,7 @@ class ProcurementReportsController extends Controller
         // Lease-end pre-approval — every schedule ending in an FY drives
         // that FY's replacement budget: the lease's full original value was
         // pre-approved at signing and rolls forward whatever the renewal
-        // decision is (CSI/Macquarie schedules are pre-approved). The
+        // decision is (CSI/CCA Financial schedules are pre-approved). The
         // selected-FY card surfaces this; the FY chart overlays it on
         // committed/planned. A logged buyout / return / extension decision
         // re-assesses what we buy (types/quantities), not whether the
@@ -227,7 +226,7 @@ class ProcurementReportsController extends Controller
 
         $pendingDecisionCount = LeaseDecision::where('status', 'pending')->count();
 
-        // User agreements waiting for a signature — Sohee's chase
+        // User agreements waiting for a signature — the assets team's chase
         // list. Stuck in 'quoted' or 'agreement_sent' is the failure
         // mode that holds up the Apple account on a pending pickup.
         $userAgreementsAwaitingSignatureCount = UserAgreement::whereIn(
@@ -730,82 +729,6 @@ class ProcurementReportsController extends Controller
         );
     }
 
-    /**
-     * GL Journal Transfer — the finance-ready chargeback form. Every
-     * consumable (toner) checked out to a GL-coded printer is one line;
-     * lines are grouped by GL code with a per-GL subtotal (the amount to
-     * journal to that department) and a grand total. `?fiscal_year=` and
-     * `?status=` narrow it.
-     */
-    public function glJournalTransfer(Request $request)
-    {
-        $this->authorize('reports.procurement.view');
-
-        $fiscalYear = $request->query('fiscal_year');
-        $status = $request->query('status');
-
-        $controls = view('reports.procurement._gl-transfer-controls', [
-            'fiscalYear' => $fiscalYear,
-            'status' => $status,
-            'draftCount' => ConsumableTransaction::where('status', ConsumableTransaction::STATUS_DRAFT)
-                ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
-                ->count(),
-            'postedCount' => ConsumableTransaction::where('status', ConsumableTransaction::STATUS_POSTED)
-                ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
-                ->count(),
-        ])->render();
-
-        return $this->render(
-            $request,
-            'gl-journal-transfer',
-            trans('admin/purchase-orders/general.report_gl_transfer'),
-            'reports.procurement.gl-transfer',
-            $this->glJournalTransferReport($fiscalYear, $status),
-            $controls,
-            array_filter(['fiscal_year' => $fiscalYear, 'status' => $status]),
-        );
-    }
-
-    /**
-     * Mark draft GL transactions as posted — the "journal transfer has
-     * been generated and handed to Finance" step. Scoped to a fiscal year
-     * when one is supplied.
-     */
-    public function markGlTransactionsPosted(Request $request): RedirectResponse
-    {
-        $this->authorize('reports.procurement.view');
-
-        $fiscalYear = $request->input('fiscal_year');
-
-        $posted = ConsumableTransaction::draft()
-            ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
-            ->update(['status' => ConsumableTransaction::STATUS_POSTED]);
-
-        return redirect()
-            ->route('reports.procurement.gl-transfer', array_filter(['fiscal_year' => $fiscalYear]))
-            ->with('success', trans('admin/purchase-orders/general.gl_transfer_posted', ['count' => $posted]));
-    }
-
-    /**
-     * Mark posted GL transactions as transferred — Finance has confirmed
-     * the journal entry went through. Closes the lifecycle. Scoped to a
-     * fiscal year when one is supplied.
-     */
-    public function markGlTransactionsTransferred(Request $request): RedirectResponse
-    {
-        $this->authorize('reports.procurement.view');
-
-        $fiscalYear = $request->input('fiscal_year');
-
-        $transferred = ConsumableTransaction::where('status', ConsumableTransaction::STATUS_POSTED)
-            ->when($fiscalYear, fn ($query) => $query->where('fiscal_year', $fiscalYear))
-            ->update(['status' => ConsumableTransaction::STATUS_TRANSFERRED]);
-
-        return redirect()
-            ->route('reports.procurement.gl-transfer', array_filter(['fiscal_year' => $fiscalYear]))
-            ->with('success', trans('admin/purchase-orders/general.gl_transfer_transferred', ['count' => $transferred]));
-    }
-
     public function poDisposition(Request $request)
     {
         $this->authorize('reports.procurement.view');
@@ -831,10 +754,10 @@ class ProcurementReportsController extends Controller
             'extension-watch-report',
             trans('admin/purchase-orders/general.report_extension_watch'),
             'reports.procurement.extension-watch',
-            $this->extensionWatchReport($this->resolveFiscalYear($request)),
+            $this->extensionWatchReport(null),
             '',
             [],
-            true
+            false
         );
     }
 
@@ -890,16 +813,93 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        return $this->render(
-            $request,
-            'disposition-grid-report',
-            trans('admin/purchase-orders/general.report_disposition_grid'),
-            'reports.procurement.disposition-grid',
-            $this->dispositionGridReport($this->resolveFiscalYear($request)),
-            '',
-            [],
-            true
-        );
+        $fy = $this->resolveFiscalYear($request);
+
+        // CSV hand-off flattens every contract's serials into one table.
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv('disposition-grid-report', $this->dispositionGridCsv($fy));
+        }
+
+        $data = $this->dispositionGridData($fy);
+        $canEdit = auth()->user()?->can('create', \App\Models\Order::class) ?? false;
+
+        $viewData = [
+            'contracts' => $data['contracts'],
+            'canEdit' => $canEdit,
+            'decisionTypes' => LeaseDecision::DECISION_TYPES,
+            'downloadUrl' => route('reports.procurement.disposition-grid', array_filter([
+                'format' => 'csv',
+                'fiscal_year' => $request->query('fiscal_year', $fy),
+            ], fn ($v) => $v !== null && $v !== '')),
+        ];
+
+        // Embed mode (dashboard inline) returns just the tabbed grid;
+        // standalone returns the full page.
+        if ($request->boolean('embed')) {
+            return view('reports.procurement._disposition-grid', $viewData);
+        }
+
+        return view('reports.procurement.disposition-grid', array_merge($viewData, [
+            'reportTitle' => trans('admin/purchase-orders/general.report_disposition_grid'),
+            'reportIntro' => trans('admin/purchase-orders/general.report_disposition_grid_desc'),
+        ]));
+    }
+
+    /**
+     * Inline save of a per-serial disposition decision from the grid. Sets
+     * (or clears) the buyout / return / extend / replace call and note for
+     * one asset. Clearing falls the row back to the contract-level decision.
+     */
+    public function updateDispositionDecision(Request $request)
+    {
+        $this->authorize('create', \App\Models\Order::class);
+
+        $validated = $request->validate([
+            'asset_id' => 'required|integer|exists:assets,id',
+            'contract_reference' => 'required|string|max:191',
+            'decision_type' => 'nullable|string|in:buyout,return,extend,replace',
+            'status' => 'nullable|string|in:pending,approved,completed,cancelled',
+            'notes' => 'nullable|string|max:65535',
+        ]);
+
+        $existing = LeaseDecision::where('asset_id', $validated['asset_id'])
+            ->orderByDesc('decision_date')
+            ->orderByDesc('id')
+            ->first();
+
+        // No decision type and no note means "clear" — drop any per-serial
+        // record so the row inherits the contract-level call again.
+        $hasNote = isset($validated['notes']) && $validated['notes'] !== '';
+        if (empty($validated['decision_type']) && ! $hasNote) {
+            $existing?->delete();
+
+            return response()->json(['status' => 'success', 'cleared' => true]);
+        }
+
+        $decision = $existing ?: new LeaseDecision;
+        $decision->asset_id = $validated['asset_id'];
+        $decision->contract_reference = $validated['contract_reference'];
+        // A note-only row with no chosen action defaults to a pending replace
+        // call so it stays a valid decision; the user can refine the type.
+        $decision->decision_type = ($validated['decision_type'] ?? null) ?: ($decision->decision_type ?: 'replace');
+        $decision->status = ($validated['status'] ?? null) ?: ($decision->status ?: 'pending');
+        $decision->notes = $validated['notes'] ?? $decision->notes;
+        if (! $decision->decision_date) {
+            $decision->decision_date = now();
+        }
+        $decision->created_by = $decision->created_by ?: auth()->id();
+        $decision->save();
+
+        return response()->json([
+            'status' => 'success',
+            'decision' => [
+                'decision_type' => $decision->decision_type,
+                'decision_type_label' => trans('admin/lease-decisions/general.type_'.$decision->decision_type),
+                'status' => $decision->status,
+                'status_label' => trans('admin/lease-decisions/general.status_'.$decision->status),
+                'notes' => (string) $decision->notes,
+            ],
+        ]);
     }
 
     public function creditTerminationLedger(Request $request)
@@ -922,15 +922,16 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
+        // Lessor Breakdown is a global portfolio snapshot — never FY-scoped.
         return $this->render(
             $request,
             'lessor-breakdown-report',
             trans('admin/purchase-orders/general.report_lessor_breakdown'),
             'reports.procurement.lessor-breakdown',
-            $this->lessorBreakdownReport($this->resolveFiscalYear($request)),
+            $this->lessorBreakdownReport(null),
             '',
             [],
-            true
+            false
         );
     }
 
@@ -1257,6 +1258,54 @@ class ProcurementReportsController extends Controller
             ];
         }
 
+        // When scoped to a single fiscal year, surface the approved budget
+        // basis the dashboard shows — otherwise a year funded entirely by
+        // carry-forward (no POs cut yet) renders as a blank report. Carry-
+        // forward is independent of this year's PO budgets, so it never
+        // double-counts; the allocation basis is only added when there are no
+        // PO groups, mirroring the dashboard's "allocations OR po-budgets" rule.
+        if ($fy) {
+            $poRowsExist = $records !== [];
+
+            if (! BudgetAllocation::where('fiscal_year', $fy)->where('source', 'carry_forward')->exists()) {
+                $carry = BudgetCarry::intoFy($fy);
+                if ($carry && $carry['unused'] > 0) {
+                    $totalBudget += $carry['unused'];
+                    $records[] = [
+                        'class' => 'info',
+                        'cells' => [
+                            $fy,
+                            trans('admin/purchase-orders/general.capital_carry_forward', ['source' => $carry['source_fy']]),
+                            '—',
+                            $this->money($carry['unused']),
+                            $this->money(0),
+                            $this->money($carry['unused']),
+                        ],
+                    ];
+                }
+            }
+
+            if (! $poRowsExist) {
+                $allocBudget = (float) BudgetAllocation::where('fiscal_year', $fy)
+                    ->where('source', '!=', 'carry_forward')
+                    ->sum('amount');
+                if ($allocBudget > 0) {
+                    $totalBudget += $allocBudget;
+                    $records[] = [
+                        'class' => 'info',
+                        'cells' => [
+                            $fy,
+                            trans('admin/purchase-orders/general.capital_allocations'),
+                            '—',
+                            $this->money($allocBudget),
+                            $this->money(0),
+                            $this->money($allocBudget),
+                        ],
+                    ];
+                }
+            }
+        }
+
         if ($forecast) {
             $plannedGroups = Order::planned()
                 ->when($fy, fn ($query) => $query->where('fiscal_year', $fy))
@@ -1429,12 +1478,12 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * CSI Leasing handles the 301452-* schedules; Macquarie owns the
+     * CSI Leasing handles the 301452-* schedules; CCA Financial owns the
      * ECI* contracts. Mirrors the provider mapping in the TDX sync.
      */
     private function contractProvider(string $contractId): string
     {
-        return str_starts_with($contractId, '301452-') ? 'CSI Leasing' : 'Macquarie';
+        return str_starts_with($contractId, '301452-') ? 'CSI Leasing' : 'CCA Financial';
     }
 
     /**
@@ -1514,7 +1563,7 @@ class ProcurementReportsController extends Controller
      * Devices whose lease end falls within each FY, with $-rollup.
      * Drives the "Lease-end pre-approval" card and the third dataset
      * on the FY chart: a lease ending in FYNN is the implicit
-     * replacement budget for FYNN (CSI/Macquarie already pre-approved
+     * replacement budget for FYNN (CSI/CCA Financial already pre-approved
      * the equivalent spend when the original schedule was signed).
      *
      * Derived from leaseEndSchedules(): EVERY ending schedule's value is
@@ -1560,6 +1609,7 @@ class ProcurementReportsController extends Controller
         $columns = $this->leaseFieldColumns();
         $endDateColumn = $columns['lease_end_date'];
         $contractIdColumn = $columns['contract_id'];
+        $ownershipColumn = $columns['ownership_type'];
 
         if (! $endDateColumn || ! $contractIdColumn) {
             return [];
@@ -1598,7 +1648,16 @@ class ProcurementReportsController extends Controller
                     'model_counts' => [],
                     'decision' => $decision,
                     'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
+                    'is_lease_to_own' => false,
                 ];
+            }
+
+            // A contract counts as lease-to-own as soon as any of its assets
+            // carries that ownership type. Lease-to-own equipment is simply
+            // retained at term end — it needs no buyout/return decision — so
+            // the view renders it as "retained", never as a logged decision.
+            if ($ownershipColumn && (string) $asset->{$ownershipColumn} === 'Lease to Own') {
+                $schedules[$contractId]['is_lease_to_own'] = true;
             }
 
             // The pre-approval envelope is the schedule's full original lease
@@ -1985,7 +2044,7 @@ class ProcurementReportsController extends Controller
         ];
 
         // Restrict to CSI schedules — ECI* contracts have their own
-        // Macquarie reconciliation and don't fit the schedule layout.
+        // CCA Financial reconciliation and don't fit the schedule layout.
         $groups = array_filter(
             $this->groupedLeaseAssets($fy),
             fn ($g) => str_starts_with($g['contract_id'], '301452-')
@@ -2153,7 +2212,7 @@ class ProcurementReportsController extends Controller
             $query->where('approval_status', $statusFilter);
         }
 
-        // Filter on attestation_type so the lessor-OKP queue (Sohee's
+        // Filter on attestation_type so the lessor-OKP queue (the assets team's
         // "reply okay to pay" sign-off) can be opened in its own view
         // without losing the shared schema with vendor invoices.
         if ($attestationFilter && in_array($attestationFilter, OrderInvoice::ATTESTATION_TYPES, true)) {
@@ -2210,7 +2269,7 @@ class ProcurementReportsController extends Controller
      * — pickup, paid upgrade, or lease-end buyout — appears on one
      * timeline with its lifecycle stage, financial impact and signed-
      * agreement status. Replaces the multi-sheet SharePoint workbook
-     * Sohee maintains by hand.
+     * the assets team maintains by hand.
      */
     private function userAgreementLedgerReport(?string $typeFilter = null, ?string $stageFilter = null, ?string $fy = null): array
     {
@@ -2333,102 +2392,6 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Builds the GL Journal Transfer report: consumable transactions
-     * sorted by GL code then date, a subtotal row closing each GL group,
-     * and a grand total in the footer.
-     */
-    private function glJournalTransferReport(?string $fiscalYear = null, ?string $statusFilter = null): array
-    {
-        $columns = [
-            trans('admin/consumables/general.gl_txn_code'),
-            trans('admin/consumables/general.gl_txn_date'),
-            trans('admin/consumables/general.gl_txn_printer'),
-            trans('general.consumable'),
-            trans('admin/consumables/general.gl_txn_qty'),
-            trans('admin/consumables/general.gl_txn_unit_cost'),
-            trans('admin/consumables/general.gl_txn_total'),
-            trans('admin/consumables/general.gl_txn_fiscal_year'),
-            trans('admin/consumables/general.gl_txn_status'),
-        ];
-
-        $query = ConsumableTransaction::with('consumable', 'asset')
-            ->orderBy('gl_code')
-            ->orderBy('transaction_date');
-
-        if ($fiscalYear) {
-            $query->where('fiscal_year', $fiscalYear);
-        }
-        if (in_array($statusFilter, [
-            ConsumableTransaction::STATUS_DRAFT,
-            ConsumableTransaction::STATUS_POSTED,
-            ConsumableTransaction::STATUS_TRANSFERRED,
-        ], true)) {
-            $query->where('status', $statusFilter);
-        }
-
-        $records = [];
-        $grandTotal = 0.0;
-        $groupTotal = 0.0;
-        $currentGl = null;
-
-        foreach ($query->get() as $txn) {
-            if ($currentGl !== null && $txn->gl_code !== $currentGl) {
-                $records[] = $this->glSubtotalRow($currentGl, $groupTotal);
-                $groupTotal = 0.0;
-            }
-            $currentGl = $txn->gl_code;
-
-            $lineTotal = (float) $txn->total_cost;
-            $groupTotal += $lineTotal;
-            $grandTotal += $lineTotal;
-
-            $records[] = [
-                'class' => '',
-                'cells' => [
-                    (string) $txn->gl_code,
-                    $this->dateString($txn->transaction_date),
-                    $txn->asset?->present()->name() ?? '',
-                    $txn->consumable?->name ?? '',
-                    (string) $txn->quantity,
-                    $this->money($txn->unit_cost),
-                    $this->money($txn->total_cost),
-                    (string) $txn->fiscal_year,
-                    ucfirst((string) $txn->status),
-                ],
-            ];
-        }
-
-        if ($currentGl !== null) {
-            $records[] = $this->glSubtotalRow($currentGl, $groupTotal);
-        }
-
-        $footer = [
-            trans('admin/orders/general.total'), '', '', '', '', '',
-            $this->money($grandTotal), '', '',
-        ];
-
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
-    }
-
-    /**
-     * A per-GL subtotal row for the GL Journal Transfer report — the
-     * amount to journal to that GL code.
-     */
-    private function glSubtotalRow(string $glCode, float $total): array
-    {
-        return [
-            'class' => 'info',
-            'cells' => [
-                $glCode,
-                trans('admin/purchase-orders/general.gl_transfer_subtotal'),
-                '', '', '', '',
-                $this->money($total),
-                '', '',
-            ],
-        ];
-    }
-
-    /**
      * Year-End PO Disposition. For every purchase order, the over/under
      * vs. budget and a suggested year-end disposition: close the PO,
      * roll the remaining commitment to the next fiscal year, or
@@ -2527,14 +2490,20 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Extension Watch. Macquarie/CSI leases whose end date has slipped
-     * past the original term — these are the "expensive to keep
-     * extending" ones Mark flags. Heuristic: any contract whose latest
-     * Lease End Date is more than 4 years (rental) or 5 years (lease to
-     * own) past the earliest asset purchase date is treated as extended.
+     * Extension Watch. Leases that have run *past their original term* and
+     * are still in holdover — the "expensive to keep extending" ones. A
+     * lease only qualifies once today is past its original-term end date
+     * (48 months for a rental, 60 for lease-to-own, measured from the
+     * earliest asset purchase). Leases still inside their original term are
+     * not extensions, no matter how far in the future their end date sits —
+     * this is a live holdover watchlist, never scoped to a fiscal year.
      */
     private function extensionWatchReport(?string $fy = null): array
     {
+        // Holdover watchlist — always evaluated against the full portfolio.
+        $fy = null;
+        $now = new \DateTime('today');
+
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.lease_provider'),
@@ -2583,8 +2552,21 @@ class ProcurementReportsController extends Controller
             $termMonths = $isLeaseToOwn ? 60 : 48;
             $originalEnd = (clone $earliestPurchase)->modify("+{$termMonths} months");
 
-            $months = (($leaseEnd->format('Y') - $originalEnd->format('Y')) * 12)
-                + ((int) $leaseEnd->format('m') - (int) $originalEnd->format('m'));
+            // Only a genuine holdover counts: the original term must already
+            // have elapsed. A lease whose original term still has time left is
+            // not an extension, however far out its recorded end date is —
+            // this drops far-future schedules that merely have an end date a
+            // month or two past their computed term end.
+            if ($originalEnd >= $now) {
+                continue;
+            }
+
+            // Months extended = original-term-end → today (the lease is still
+            // running), so the figure grows as the holdover drags on rather
+            // than reflecting a not-yet-reached recorded end date.
+            $extendedTo = $leaseEnd > $now ? $now : $leaseEnd;
+            $months = (($extendedTo->format('Y') - $originalEnd->format('Y')) * 12)
+                + ((int) $extendedTo->format('m') - (int) $originalEnd->format('m'));
 
             if ($months <= 0) {
                 continue;
@@ -2635,11 +2617,21 @@ class ProcurementReportsController extends Controller
         $records = [];
         $total = 0.0;
 
+        // Lease-to-own contracts carry no retirement obligation — the
+        // equipment is simply kept at term end, no buyout/return decision is
+        // owed — so they are excluded from the register entirely (both the
+        // contractual rows below and any logged decisions further down).
+        $leaseToOwnContracts = [];
+
         // Real per-asset Buyout Cost values aggregated per contract —
         // the contractual obligation regardless of whether the buyout has
         // been booked as a LeaseDecision yet. Only shown when the field
         // contains real numbers.
         foreach ($this->groupedLeaseAssets($fy) as $group) {
+            if (! empty($group['ownership_counts']['Lease to Own'])) {
+                $leaseToOwnContracts[$group['contract_id']] = true;
+                continue;
+            }
             if ($group['buyout_cost_total'] <= 0) {
                 continue;
             }
@@ -2670,6 +2662,11 @@ class ProcurementReportsController extends Controller
             ->get();
 
         foreach ($decisions as $decision) {
+            // Skip decisions logged against a lease-to-own contract — keeping
+            // lease-to-own equipment is not a retirement obligation.
+            if (isset($leaseToOwnContracts[$decision->contract_reference])) {
+                continue;
+            }
             $total += (float) $decision->amount;
             $records[] = [
                 'class' => $decision->status === 'pending' ? 'warning' : '',
@@ -2908,46 +2905,42 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Per-Serial Disposition Grid. One row per leased asset, grouped by
-     * contract, showing the latest LeaseDecision action (if any) against
-     * that asset's contract reference. Sohee's ledger for confirming
-     * buyout/return/extend decisions per serial without an email back-
-     * and-forth.
+     * Per-Serial Disposition Grid data, grouped one tab per lease contract
+     * — the in-app replacement for the per-contract sheets of the
+     * Leases.xlsx workbook. Each contract holds one row per leased serial
+     * with the lifecycle columns the workbook carries (status, returned
+     * date, usage, ownership, category, model) plus the disposition
+     * decision. The decision resolves per serial first (a LeaseDecision
+     * tied to this asset), falling back to the contract-level decision when
+     * no per-serial call has been logged.
      */
-    private function dispositionGridReport(?string $fy = null): array
+    private function dispositionGridData(?string $fy = null): array
     {
         $cols = $this->leaseFieldColumns();
-
-        $columns = [
-            trans('admin/purchase-orders/general.lease_contract_id'),
-            trans('admin/purchase-orders/general.detail_asset_tag'),
-            trans('admin/purchase-orders/general.detail_serial'),
-            trans('admin/purchase-orders/general.detail_model'),
-            trans('admin/purchase-orders/general.detail_status'),
-            trans('admin/purchase-orders/general.invoice_usage'),
-            trans('admin/purchase-orders/general.detail_buyout_cost'),
-            trans('admin/purchase-orders/general.disposition_action'),
-            trans('admin/lease-decisions/general.status'),
-            trans('admin/purchase-orders/general.disposition_decided_on'),
-        ];
-
         $contractIdColumn = $cols['contract_id'];
         if (! $contractIdColumn) {
-            return ['columns' => $columns, 'records' => [], 'footer' => null];
+            return ['contracts' => []];
         }
 
-        // Latest decision per contract_reference — Sohee logs one entry
-        // per buyout/return/extend event but a contract can collect many
-        // over time. The latest wins.
-        $latestDecisions = LeaseDecision::query()
-            ->orderBy('contract_reference')
-            ->orderByDesc('decision_date')
+        // Latest per-serial decision, keyed by asset_id, and the latest
+        // contract-level decision, keyed by contract_reference. Ordering by
+        // date then id so the most recent call wins for each key.
+        $byAsset = LeaseDecision::query()
+            ->whereNotNull('asset_id')
+            ->orderBy('decision_date')
+            ->orderBy('id')
             ->get()
-            ->groupBy('contract_reference')
-            ->map(fn ($group) => $group->first());
+            ->keyBy('asset_id');
+
+        $byContract = LeaseDecision::query()
+            ->whereNull('asset_id')
+            ->orderBy('decision_date')
+            ->orderBy('id')
+            ->get()
+            ->keyBy('contract_reference');
 
         $assets = $this->scopeDateToFiscalYear(
-            Asset::with('model', 'status')
+            Asset::with('model.category', 'status')
                 ->whereNotNull($contractIdColumn)
                 ->where($contractIdColumn, '!=', ''),
             $fy,
@@ -2957,34 +2950,107 @@ class ProcurementReportsController extends Controller
             ->orderBy('asset_tag')
             ->get();
 
-        $records = [];
+        $contracts = [];
         foreach ($assets as $asset) {
             $contractId = $asset->{$contractIdColumn};
             if (! $this->isValidContractId($contractId)) {
                 continue;
             }
 
-            $decision = $latestDecisions->get($contractId);
+            if (! isset($contracts[$contractId])) {
+                $contracts[$contractId] = [
+                    'contract_id' => $contractId,
+                    'provider' => $this->contractProvider($contractId),
+                    'lease_end_date' => $cols['lease_end_date'] ? (string) $asset->{$cols['lease_end_date']} : '',
+                    'is_lease_to_own' => false,
+                    'assets' => [],
+                ];
+            }
+
+            $ownership = $cols['ownership_type'] ? (string) $asset->{$cols['ownership_type']} : '';
+            if ($ownership === 'Lease to Own') {
+                $contracts[$contractId]['is_lease_to_own'] = true;
+            }
+
+            // Per-serial decision wins; otherwise inherit the contract call.
+            $decision = $byAsset->get($asset->id);
+            $scope = $decision ? 'asset' : null;
+            if (! $decision) {
+                $decision = $byContract->get($contractId);
+                $scope = $decision ? 'contract' : null;
+            }
+
             $buyoutCost = $cols['buyout_cost'] ? $this->parseMoney($asset->{$cols['buyout_cost']}) : 0.0;
 
-            $records[] = [
-                'class' => $decision && $decision->status === 'pending' ? 'warning' : '',
-                'cells' => [
-                    $contractId,
-                    (string) $asset->asset_tag,
-                    (string) $asset->serial,
-                    (string) $asset->model?->name,
-                    (string) $asset->status?->name,
-                    $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
-                    $buyoutCost > 0 ? $this->money($buyoutCost) : '',
-                    $decision ? trans('admin/lease-decisions/general.type_'.$decision->decision_type) : trans('admin/purchase-orders/general.disposition_none'),
-                    $decision ? trans('admin/lease-decisions/general.status_'.$decision->status) : '',
-                    $decision ? $this->dateString($decision->decision_date) : '',
-                ],
+            $contracts[$contractId]['assets'][] = [
+                'asset_id' => $asset->id,
+                'asset_tag' => (string) $asset->asset_tag,
+                'serial' => (string) $asset->serial,
+                'status' => (string) $asset->status?->name,
+                'returned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
+                'usage' => $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
+                'ownership' => $ownership,
+                'category' => (string) $asset->model?->category?->name,
+                'model' => (string) $asset->model?->name,
+                'buyout_cost' => $buyoutCost > 0 ? $this->money($buyoutCost) : '',
+                'decision_type' => $decision?->decision_type,
+                'decision_status' => $decision?->status,
+                'decision_note' => (string) $decision?->notes,
+                'decision_scope' => $scope,
             ];
         }
 
-        return ['columns' => $columns, 'records' => $records];
+        // Lease-end soonest first so the contracts needing a call surface at
+        // the front of the tab strip.
+        uasort($contracts, fn ($a, $b) => [$a['lease_end_date'], $a['contract_id']] <=> [$b['lease_end_date'], $b['contract_id']]);
+
+        return ['contracts' => array_values($contracts)];
+    }
+
+    /**
+     * Flatten the disposition grid to a single CSV table (one row per
+     * serial across every contract) for the download / hand-off path.
+     */
+    private function dispositionGridCsv(?string $fy = null): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.detail_serial'),
+            trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.detail_status'),
+            trans('admin/purchase-orders/general.disposition_returned_date'),
+            trans('admin/purchase-orders/general.invoice_usage'),
+            trans('admin/purchase-orders/general.detail_ownership'),
+            trans('general.category'),
+            trans('admin/purchase-orders/general.detail_model'),
+            trans('admin/purchase-orders/general.detail_buyout_cost'),
+            trans('admin/purchase-orders/general.disposition_action'),
+            trans('admin/lease-decisions/general.status'),
+            trans('general.notes'),
+        ];
+
+        $records = [];
+        foreach ($this->dispositionGridData($fy)['contracts'] as $contract) {
+            foreach ($contract['assets'] as $row) {
+                $records[] = ['class' => '', 'cells' => [
+                    $contract['contract_id'],
+                    $row['serial'],
+                    $row['asset_tag'],
+                    $row['status'],
+                    $row['returned_date'],
+                    $row['usage'],
+                    $row['ownership'],
+                    $row['category'],
+                    $row['model'],
+                    $row['buyout_cost'],
+                    $row['decision_type'] ? trans('admin/lease-decisions/general.type_'.$row['decision_type']) : trans('admin/purchase-orders/general.disposition_none'),
+                    $row['decision_status'] ? trans('admin/lease-decisions/general.status_'.$row['decision_status']) : '',
+                    $row['decision_note'],
+                ]];
+            }
+        }
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => null];
     }
 
     /**
@@ -3052,12 +3118,16 @@ class ProcurementReportsController extends Controller
 
     /**
      * Lessor / Vendor breakdown. Mirrors the TDX provider mapping in the
-     * sync function: CSI Leasing (301452-*) and Macquarie / CCA Financial
-     * (ECI*). The CCA naming reflects Macquarie's mid-2025 portfolio sale
-     * to CCA Financial — same ECI contract IDs, new lessor.
+     * sync function: CSI Leasing handles the 301452-* schedules and CCA
+     * Financial the ECI* contracts (the ECI portfolio was sold to CCA
+     * Financial in mid-2025 — same contract IDs, new lessor). This is a
+     * global portfolio snapshot and is never scoped to a single fiscal
+     * year — every lessor's full book is always shown.
      */
     private function lessorBreakdownReport(?string $fy = null): array
     {
+        // Portfolio snapshot — ignore any incoming FY scope.
+        $fy = null;
         $columns = [
             trans('admin/purchase-orders/general.lease_provider'),
             trans('admin/purchase-orders/general.lessor_contracts'),
@@ -3248,7 +3318,7 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Schedule Signing Queue. The chase view Sohee uses when she needs to
+     * Schedule Signing Queue. The chase view the assets team uses when they need to
      * know which lease schedules are still draft / awaiting Viktor +
      * Mark's signature. Default filter is the open stages; `?stage=all`
      * exposes signed / active history too. Each row shows the days
@@ -3288,7 +3358,7 @@ class ProcurementReportsController extends Controller
         $schedules = $query->get();
 
         // Real-asset counts per schedule_ref via the existing Lease
-        // Contract ID custom field — gives Sohee a quick "Annexure says
+        // Contract ID custom field — gives the assets team a quick "Annexure says
         // 18, we received 14" signal. The full Annexure A diff lives in
         // a separate report.
         $contractIdColumn = $this->leaseFieldColumns()['contract_id'] ?? null;
@@ -3311,7 +3381,7 @@ class ProcurementReportsController extends Controller
             $days = $schedule->daysPending();
             $receivedAssets = $assetCounts[$schedule->schedule_ref] ?? 0;
 
-            // > 10 working days on the chase list is the threshold Sohee
+            // > 10 working days on the chase list is the threshold the assets team
             // flagged in email — over that it likely means the Apple
             // account is sitting blocked. Vendor-on-hold gets the
             // strongest cue regardless of age.

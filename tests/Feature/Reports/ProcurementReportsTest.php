@@ -3,9 +3,8 @@
 namespace Tests\Feature\Reports;
 
 use App\Models\Asset;
-use App\Models\Consumable;
-use App\Models\ConsumableTransaction;
 use App\Models\CustomField;
+use App\Models\LeaseDecision;
 use App\Models\UserAgreement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
@@ -219,7 +218,7 @@ class ProcurementReportsTest extends TestCase
         Asset::query()->whereKey($eci->id)->update([$contractColumn => 'ECI20220901']);
 
         // The CSI Schedule report is scoped to 301452-* leases only —
-        // ECI contracts belong to the Macquarie reconciliation.
+        // ECI contracts belong to the CCA Financial reconciliation.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.csi-schedule'))
             ->assertOk()
@@ -326,12 +325,67 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_extension_watch'));
     }
 
+    public function test_extension_watch_only_lists_leases_past_their_original_term()
+    {
+        // Bought in 2018 → 48-month term ended 2022, still recorded running
+        // to 2024 — a genuine holdover.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20180101',
+            'Lease End Date' => '2024-01-01',
+        ], ['asset_tag' => 'EXT-OLD', 'purchase_date' => '2018-01-01']);
+
+        // Bought in 2025 ending 2031 — the original term has not elapsed, so
+        // it is not an extension however far out its end date sits.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20250101',
+            'Lease End Date' => '2031-01-01',
+        ], ['asset_tag' => 'EXT-FUTURE', 'purchase_date' => '2025-01-01']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.extension-watch'))
+            ->assertOk()
+            ->assertSee('ECI20180101')
+            ->assertDontSee('ECI20250101');
+    }
+
     public function test_aro_register_report_renders()
     {
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.aro-register'))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.report_aro_register'));
+    }
+
+    public function test_aro_register_excludes_lease_to_own_contracts()
+    {
+        // A lease-to-own contract with a (mistakenly) logged buyout decision —
+        // lease-to-own equipment is kept, no retirement obligation, so it must
+        // not appear in the register.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20221201',
+            'Ownership Type' => 'Lease to Own',
+            'Buyout Cost' => '5000',
+        ], ['asset_tag' => 'ARO-LTO']);
+        LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI20221201',
+            'decision_type' => 'buyout',
+            'status' => 'approved',
+        ]);
+
+        // A normal returnable contract with a return decision — this one is a
+        // real obligation and should show.
+        LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI20230701',
+            'decision_type' => 'return',
+            'status' => 'approved',
+            'amount' => 250,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.aro-register'))
+            ->assertOk()
+            ->assertSee('ECI20230701')
+            ->assertDontSee('ECI20221201');
     }
 
     public function test_asset_lease_detail_report_renders()
@@ -463,12 +517,110 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.card_user_agreements_unsigned', ['count' => 1]));
     }
 
-    public function test_disposition_grid_report_renders()
+    /**
+     * Seed one asset carrying the given lease custom fields (keyed by field
+     * name). Returns the asset. Creates any missing custom field + an Active
+     * status, mirroring how the lease reports read assets by field.
+     */
+    private function seedLeaseAsset(array $fields, array $assetAttrs = []): Asset
     {
+        $active = Statuslabel::factory()->rtd()->create();
+        $asset = Asset::factory()->create(array_merge(['status_id' => $active->id], $assetAttrs));
+
+        $update = [];
+        foreach ($fields as $name => $value) {
+            $field = CustomField::where('name', $name)->first()
+                ?? CustomField::factory()->create(['name' => $name]);
+            $update[$field->db_column] = $value;
+        }
+        if ($update) {
+            Asset::query()->whereKey($asset->id)->update($update);
+        }
+
+        return $asset->fresh();
+    }
+
+    public function test_disposition_grid_is_tabbed_per_contract_and_lists_serials()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20221201',
+            'Lease End Date' => '2026-12-31',
+        ], ['asset_tag' => 'DISP-1', 'serial' => 'SERIALDISP1']);
+
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.disposition-grid'))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.report_disposition_grid'));
+            ->assertSee(trans('admin/purchase-orders/general.report_disposition_grid'))
+            ->assertSee('ECI20221201')
+            ->assertSee('SERIALDISP1')
+            // Provider label reflects the CCA rename, not the retired Macquarie.
+            ->assertSee('CCA Financial')
+            ->assertDontSee('Macquarie');
+
+        // Embed (dashboard inline) renders the tabbed grid partial.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['embed' => 1]))
+            ->assertOk()
+            ->assertSee('SERIALDISP1');
+
+        // CSV hand-off flattens every contract's serials into one table.
+        $csv = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['format' => 'csv']));
+        $csv->assertOk();
+        $this->assertStringContainsString('SERIALDISP1', $csv->streamedContent());
+    }
+
+    public function test_disposition_grid_decision_endpoint_saves_per_serial()
+    {
+        $asset = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20221201',
+            'Lease End Date' => '2026-12-31',
+        ], ['asset_tag' => 'DISP-2', 'serial' => 'SERIALDISP2']);
+
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.disposition-grid.decision'), [
+                'asset_id' => $asset->id,
+                'contract_reference' => 'ECI20221201',
+                'decision_type' => 'return',
+                'notes' => 'Returning at term end.',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'success']);
+
+        $this->assertDatabaseHas('lease_decisions', [
+            'asset_id' => $asset->id,
+            'contract_reference' => 'ECI20221201',
+            'decision_type' => 'return',
+            'notes' => 'Returning at term end.',
+        ]);
+    }
+
+    public function test_disposition_grid_decision_endpoint_clears_per_serial()
+    {
+        $asset = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20221201',
+        ], ['serial' => 'SERIALDISP3']);
+
+        LeaseDecision::factory()->create([
+            'asset_id' => $asset->id,
+            'contract_reference' => 'ECI20221201',
+            'decision_type' => 'buyout',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.disposition-grid.decision'), [
+                'asset_id' => $asset->id,
+                'contract_reference' => 'ECI20221201',
+                'decision_type' => '',
+                'notes' => '',
+            ])
+            ->assertOk()
+            ->assertJson(['cleared' => true]);
+
+        $this->assertDatabaseMissing('lease_decisions', [
+            'asset_id' => $asset->id,
+            'deleted_at' => null,
+        ]);
     }
 
     public function test_credit_ledger_excludes_regular_invoices()
@@ -499,6 +651,21 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement.lessor-breakdown'))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'));
+    }
+
+    public function test_lessor_breakdown_uses_cca_financial_and_ignores_fy_scope()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20221201',
+        ], ['asset_tag' => 'LESSOR-1', 'purchase_date' => '2022-12-01']);
+
+        // Even with a fiscal year that holds none of this asset's data, the
+        // lessor breakdown is a global snapshot and still shows the portfolio.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.lessor-breakdown', ['fiscal_year' => 'FY2099-00']))
+            ->assertOk()
+            ->assertSee('CCA Financial')
+            ->assertDontSee('Macquarie');
     }
 
     public function test_pst_applicability_report_renders()
@@ -653,77 +820,6 @@ class ProcurementReportsTest extends TestCase
             // purchase_orders ledger row.
             ->assertSee('P0025747')
             ->assertSee('$2,500.00');
-    }
-
-    /**
-     * Creates a GL transaction row directly (no factory — the model is a
-     * plain ledger row populated at checkout time).
-     */
-    private function glTransaction(array $overrides = []): ConsumableTransaction
-    {
-        return ConsumableTransaction::create(array_merge([
-            'consumable_id' => Consumable::factory()->create()->id,
-            'asset_id' => Asset::factory()->create()->id,
-            'gl_code' => '6100-100',
-            'quantity' => 1,
-            'unit_cost' => 100,
-            'total_cost' => 100,
-            'transaction_date' => '2026-05-01',
-            'fiscal_year' => 'FY2026-27',
-            'status' => ConsumableTransaction::STATUS_DRAFT,
-        ], $overrides));
-    }
-
-    public function test_gl_journal_transfer_report_groups_by_gl_with_subtotals()
-    {
-        $this->glTransaction(['gl_code' => '6100-100', 'total_cost' => 100]);
-        $this->glTransaction(['gl_code' => '6100-100', 'total_cost' => 100, 'transaction_date' => '2026-05-02']);
-        $this->glTransaction(['gl_code' => '6200-200', 'total_cost' => 50, 'transaction_date' => '2026-05-03']);
-
-        $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.gl-transfer'))
-            ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.report_gl_transfer'))
-            ->assertSee('6100-100')
-            ->assertSee('6200-200')
-            ->assertSee('$200.00')   // 6100-100 subtotal
-            ->assertSee('$250.00');  // grand total
-    }
-
-    public function test_gl_journal_transfer_exports_csv()
-    {
-        $this->glTransaction(['gl_code' => '6100-100']);
-
-        $response = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.gl-transfer', ['format' => 'csv']));
-
-        $response->assertOk();
-        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
-    }
-
-    public function test_gl_journal_transfer_mark_posted_flips_draft_transactions()
-    {
-        $txn = $this->glTransaction(['status' => ConsumableTransaction::STATUS_DRAFT]);
-
-        $this->actingAs($this->superuser())
-            ->post(route('reports.procurement.gl-transfer.post'), ['fiscal_year' => 'FY2026-27'])
-            ->assertRedirect(route('reports.procurement.gl-transfer', ['fiscal_year' => 'FY2026-27']));
-
-        $this->assertEquals(ConsumableTransaction::STATUS_POSTED, $txn->fresh()->status);
-    }
-
-    public function test_gl_journal_transfer_mark_transferred_flips_posted_transactions()
-    {
-        $posted = $this->glTransaction(['status' => ConsumableTransaction::STATUS_POSTED]);
-        $draft = $this->glTransaction(['status' => ConsumableTransaction::STATUS_DRAFT]);
-
-        $this->actingAs($this->superuser())
-            ->post(route('reports.procurement.gl-transfer.transfer'), ['fiscal_year' => 'FY2026-27'])
-            ->assertRedirect(route('reports.procurement.gl-transfer', ['fiscal_year' => 'FY2026-27']));
-
-        // posted → transferred; a draft row is untouched (only posted advances)
-        $this->assertEquals(ConsumableTransaction::STATUS_TRANSFERRED, $posted->fresh()->status);
-        $this->assertEquals(ConsumableTransaction::STATUS_DRAFT, $draft->fresh()->status);
     }
 
     public function test_sub_report_filters_by_order_fiscal_year()

@@ -12,7 +12,7 @@ class CreateLeaseSchedulesTable extends Migration
             Schema::create('lease_schedules', function (Blueprint $table) {
                 $table->id();
                 // The schedule reference the lessor uses on the draft —
-                // e.g. "301452-007" (CSI) or "ECI20240801-1" (Macquarie /
+                // e.g. "301452-007" (CSI) or "ECI20240801-1" (CCA Financial /
                 // CCA Financial). Stored as a string and matched against
                 // the Lease Contract ID custom field on assets; no FK,
                 // mirroring the existing data flow.
