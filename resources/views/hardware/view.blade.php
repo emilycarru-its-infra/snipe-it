@@ -592,37 +592,36 @@
                         <x-button.restore :item="$asset" :route="route('restore/hardware', ['asset' => $asset->id])"/>
                     </x-slot:buttons>
 
-                    <x-slot:before_list>
-                        <div class="asset-sidebar-status">
-                            <p style="margin-bottom: 8px;">
-                                <x-info-element.status :infoObject="$asset"/>
-                            </p>
-                            <p style="margin-bottom: 6px;">
-                                <x-icon type="calendar" class="fa-fw"/>
-                                <strong>{{ trans('general.last_checkout') }}</strong>
-                                @if ($asset->last_checkout != '')
-                                    {{ Helper::getFormattedDateObject($asset->last_checkout, 'date', false) }}
-                                    <span class="text-muted">{{ Carbon::parse($asset->last_checkout)->diffForHumans(['parts' => 2]) }}</span>
-                                @else
-                                    {{ trans('general.na') }}
-                                @endif
-                            </p>
-                            <p style="margin-bottom: 0;">
-                                <x-icon type="expected_checkin" class="fa-fw"/>
-                                <strong>{{ trans('general.expected_checkin') }}</strong>
-                                @if ($asset->expected_checkin != '')
-                                    {{ Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) }}
-                                    <span class="text-muted">{{ Carbon::parse($asset->expected_checkin)->diffForHumans(['parts' => 2]) }}</span>
-                                @else
-                                    {{ trans('general.na') }}
-                                @endif
-                            </p>
-                        </div>
-                    </x-slot:before_list>
+                    {{-- Assignment status, checkout dates, audit + decommission all
+                         render as uniform sidebar rows (consistent dividers/spacing),
+                         at the top of the info list. Default Location is now the
+                         editable Location in Inventory. --}}
+                    <x-info-element title="{{ trans('general.status') }}">
+                        <x-info-element.status :infoObject="$asset"/>
+                    </x-info-element>
 
-                    {{-- Audit / lifecycle / decommission rows render as normal info
-                         rows (label left, value right) like the rest of the panel.
-                         Default Location is now the editable Location in Inventory. --}}
+                    <x-info-element icon_type="calendar" title="{{ trans('general.last_checkout') }}">
+                        {{ trans('general.last_checkout') }}
+                        <span class="pull-right">
+                            @if ($asset->last_checkout != '')
+                                {{ Helper::getFormattedDateObject($asset->last_checkout, 'date', false) }}
+                            @else
+                                {{ trans('general.na') }}
+                            @endif
+                        </span>
+                    </x-info-element>
+
+                    <x-info-element icon_type="expected_checkin" title="{{ trans('general.expected_checkin') }}">
+                        {{ trans('general.expected_checkin') }}
+                        <span class="pull-right">
+                            @if ($asset->expected_checkin != '')
+                                {{ Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) }}
+                            @else
+                                {{ trans('general.na') }}
+                            @endif
+                        </span>
+                    </x-info-element>
+
                     <x-info-element icon_type="audit" title="{{ trans('general.last_audit') }}">
                         {{ trans('general.last_audit') }}
                         <span class="pull-right">
@@ -652,62 +651,53 @@
                             <span class="pull-right"><x-inline-custom-field :asset="$asset" :field="$decommField"/></span>
                         </x-info-element>
                     @endif
-
-                    @if ($asset->journal->last())
-                        <x-info-element icon_type="notes" title="{{ trans('general.last_note') }}">
-                            {{ trans('general.last_note') }}
-                            <span class="pull-right">{{ \Illuminate\Support\Str::limit($asset->journal->last()->note, 60) }}</span>
-                        </x-info-element>
-                    @endif
                 </x-info-panel>
             </x-box>
 
-            {{-- Metadata: low-signal flags + provenance, in their own box below
-                 the main info panel. --}}
-            <div class="box box-default side-box">
+            {{-- Metadata: low-signal flags + provenance, styled like the group
+                 cards (label/value rows with inset dividers). --}}
+            <div class="box box-default side-box asset-card">
                 <div class="box-header with-border">
                     <h3 class="box-title asset-card-title"><i class="fas fa-database" style="color:#7f8c8d;" aria-hidden="true"></i> {{ trans('general.metadata') }}</h3>
                 </div>
-                <ul class="list-group list-group-unbordered" style="margin-bottom:0;">
+                <div class="box-body asset-card-body">
                     @if (isset($asset->byod))
-                        <x-info-element title="{{ trans('general.byod') }}">
-                            @if ($asset->byod == 1)<x-icon type="checkmark" class="fa-fw text-success"/>@else<x-icon type="x" class="fa-fw text-danger"/>@endif
-                            {{ trans('general.byod') }}
-                        </x-info-element>
+                        <div class="asset-card-row">
+                            <div class="asset-card-lbl">{{ trans('general.byod') }}</div>
+                            <div class="asset-card-val">@if ($asset->byod == 1)<x-icon type="checkmark" class="text-success"/> {{ trans('general.yes') }}@else<x-icon type="x" class="text-danger"/> {{ trans('general.no') }}@endif</div>
+                        </div>
                     @endif
                     @if (isset($asset->requestable))
-                        <x-info-element title="{{ trans('general.requestable') }}">
-                            @if ($asset->requestable == 1)<x-icon type="checkmark" class="fa-fw text-success"/>@else<x-icon type="x" class="fa-fw text-danger"/>@endif
-                            {{ trans('admin/hardware/general.requestable') }}
-                        </x-info-element>
+                        <div class="asset-card-row">
+                            <div class="asset-card-lbl">{{ trans('admin/hardware/general.requestable') }}</div>
+                            <div class="asset-card-val">@if ($asset->requestable == 1)<x-icon type="checkmark" class="text-success"/> {{ trans('general.yes') }}@else<x-icon type="x" class="text-danger"/> {{ trans('general.no') }}@endif</div>
+                        </div>
                     @endif
                     @if ($asset->adminuser)
-                        <x-info-element icon_type="user" title="{{ trans('general.created_by') }}">
-                            {{ trans('general.created_by') }}
-                            <span class="pull-right">{!! $asset->adminuser->present()->formattedNameLink !!}</span>
-                        </x-info-element>
+                        <div class="asset-card-row">
+                            <div class="asset-card-lbl">{{ trans('general.created_by') }}</div>
+                            <div class="asset-card-val">{!! $asset->adminuser->present()->formattedNameLink !!}</div>
+                        </div>
                     @endif
                     @if ($asset->created_at)
-                        <x-info-element icon_type="calendar" title="{{ trans('general.created_at') }}">
-                            {{ trans('general.created_plain') }}
-                            <span class="pull-right">{{ Helper::getFormattedDateObject($asset->created_at, 'datetime', false) }}</span>
-                        </x-info-element>
+                        <div class="asset-card-row">
+                            <div class="asset-card-lbl">{{ trans('general.created_plain') }}</div>
+                            <div class="asset-card-val">{{ Helper::getFormattedDateObject($asset->created_at, 'datetime', false) }}</div>
+                        </div>
                     @endif
                     @if ($asset->updated_at)
-                        <x-info-element icon_type="calendar" title="{{ trans('general.updated_at') }}">
-                            {{ trans('general.updated_plain') }}
-                            <span class="pull-right">{{ Helper::getFormattedDateObject($asset->updated_at, 'datetime', false) }}</span>
-                        </x-info-element>
+                        <div class="asset-card-row">
+                            <div class="asset-card-lbl">{{ trans('general.updated_plain') }}</div>
+                            <div class="asset-card-val">{{ Helper::getFormattedDateObject($asset->updated_at, 'datetime', false) }}</div>
+                        </div>
                     @endif
-                </ul>
+                </div>
             </div>
 
-            {{-- QR code at the very bottom of the sidebar. --}}
+            {{-- QR code — just the code, no box/thumbnail frame. --}}
             @if (($snipeSettings->qr_code=='1') || $snipeSettings->label2_2d_type!='none')
-                <div class="box box-default side-box">
-                    <div class="box-body text-center asset-qr-img">
-                        <img src="{{ config('app.url') }}/hardware/{{ $asset->id }}/qr_code" class="img-thumbnail" style="height: 150px; width: 150px;" alt="QR code for {{ $asset->getDisplayNameAttribute() }}">
-                    </div>
+                <div class="text-center" style="padding: 16px 0 24px;">
+                    <img src="{{ config('app.url') }}/hardware/{{ $asset->id }}/qr_code" style="height: 150px; width: 150px;" alt="QR code for {{ $asset->getDisplayNameAttribute() }}">
                 </div>
             @endif
 
@@ -793,10 +783,14 @@
             .asset-card-row:last-child { border-bottom: none; }
             .asset-card-lbl { flex: 0 0 38%; font-weight: 600; word-break: break-word; }
             .asset-card-val { flex: 1 1 auto; min-width: 0; word-break: break-word; }
-            /* Device Management Service — special: full-width one-line title,
-               value on the next line so the long label never wraps mid-word. */
-            .asset-card-row-wide { flex-direction: column; gap: 2px; }
-            .asset-card-row-wide .asset-card-lbl { flex: none; white-space: nowrap; }
+            /* Device Management Service — special: the long label stays on one
+               line (never wraps mid-word) with its value pushed to the right. */
+            .asset-card-row-wide .asset-card-lbl { flex: 0 0 auto; white-space: nowrap; margin-right: 12px; }
+            .asset-card-row-wide .asset-card-val { flex: 1 1 auto; text-align: right; }
+
+            /* Sidebar rows (status / checkout / audit / metadata) — consistent
+               breathing room and light dividers. */
+            .side-box .list-group-item { padding: 10px 14px; border-color: #f1f1f1 !important; }
         </style>
     @endpush
 
