@@ -116,4 +116,46 @@ class CsiReconciliationTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertEquals('RT10035971', $rows[0]['invoice']);
     }
+
+    public function test_for_asset_accepted_matches_snipe()
+    {
+        $col = $this->leaseColumn();
+        $asset = $this->snipeAsset('FA1', $col, '301452-007-041426');
+        CsiAsset::create(['serial' => 'FA1', 'schedule_name' => '301452-007']);
+        CsiSchedule::create(['schedule_name' => '301452-007', 'lease_number' => '301452', 'rent' => 2979.44]);
+
+        $r = (new CsiReconciliation)->forAsset($asset->fresh());
+        $this->assertEquals('accepted', $r['state']);
+        $this->assertEquals('match', $r['recon']);
+        $this->assertEquals('301452-007', $r['schedule_name']);
+        $this->assertNotNull($r['schedule']);
+    }
+
+    public function test_for_asset_in_process()
+    {
+        $col = $this->leaseColumn();
+        $asset = $this->snipeAsset('FA2', $col, null);
+        CsiInprocessAsset::create(['serial' => 'FA2', 'schedule_name' => '301452-007']);
+
+        $r = (new CsiReconciliation)->forAsset($asset->fresh());
+        $this->assertEquals('in_process', $r['state']);
+        $this->assertEquals('missing_lease_in_snipe', $r['recon']);
+    }
+
+    public function test_for_asset_snipe_only_when_csi_does_not_list_it()
+    {
+        $col = $this->leaseColumn();
+        $asset = $this->snipeAsset('FA3', $col, '301452-009-041426');
+
+        $r = (new CsiReconciliation)->forAsset($asset->fresh());
+        $this->assertEquals('snipe_only', $r['state']);
+        $this->assertEquals('not_on_csi', $r['recon']);
+    }
+
+    public function test_for_asset_null_when_no_csi_relevance()
+    {
+        $col = $this->leaseColumn();
+        $asset = $this->snipeAsset('FA4', $col, null);
+        $this->assertNull((new CsiReconciliation)->forAsset($asset->fresh()));
+    }
 }

@@ -188,6 +188,58 @@ class CsiReconciliation
         return $rows;
     }
 
+    /**
+     * The full CSI picture for one device, for the asset-detail CSI tab.
+     * Returns null when the device has no CSI relevance (not in the mirror and
+     * no 301452 lease ref in Snipe), so the tab only shows for leased devices.
+     * This is the per-asset spine: CSI lifecycle state + schedule terms + rent
+     * invoices + how it reconciles against Snipe's own lease fields.
+     */
+    public function forAsset(Asset $asset): ?array
+    {
+        $serial = self::key($asset->serial);
+        $contractColumn = $this->leaseContractColumn();
+        $snipeRef = $this->scheduleRef($contractColumn ? $asset->{$contractColumn} : null);
+
+        $accepted = $serial !== '' ? CsiAsset::whereRaw('UPPER(TRIM(serial)) = ?', [$serial])->first() : null;
+        $inProcess = $serial !== '' ? CsiInprocessAsset::whereRaw('UPPER(TRIM(serial)) = ?', [$serial])->first() : null;
+
+        if (! $accepted && ! $inProcess && ! $snipeRef) {
+            return null;
+        }
+
+        $csiRef = $accepted ? $accepted->schedule_name : ($inProcess ? $inProcess->schedule_name : null);
+        $scheduleName = $csiRef ?? $snipeRef;
+
+        if ($accepted) {
+            $state = 'accepted';
+        } elseif ($inProcess) {
+            $state = 'in_process';
+        } else {
+            $state = 'snipe_only';
+        }
+
+        if ($csiRef && $snipeRef) {
+            $recon = $csiRef === $snipeRef ? 'match' : 'schedule_mismatch';
+        } elseif ($csiRef) {
+            $recon = 'missing_lease_in_snipe';
+        } else {
+            $recon = 'not_on_csi';
+        }
+
+        return [
+            'state' => $state,
+            'recon' => $recon,
+            'schedule_name' => $scheduleName,
+            'csi_schedule_ref' => $csiRef,
+            'snipe_schedule_ref' => $snipeRef,
+            'schedule' => $scheduleName ? CsiSchedule::where('schedule_name', $scheduleName)->first() : null,
+            'invoices' => $scheduleName
+                ? CsiInvoice::where('schedule_name', $scheduleName)->orderByDesc('invoice_date')->get()
+                : collect(),
+        ];
+    }
+
     /** Headline tallies for the dashboard. */
     public function counts(): array
     {
