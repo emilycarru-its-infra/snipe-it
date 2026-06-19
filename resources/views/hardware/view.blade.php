@@ -239,33 +239,6 @@
                                         @include('hardware._group_card', ['section' => $bySlug['other']])
                                     @endisset
 
-                                    @if(($asset->purchase_date && $asset->asset_eol_date) || $asset->depreciated_date() || $asset->warranty_expires)
-                                        <div class="box box-default asset-card">
-                                            <div class="box-header with-border">
-                                                <h3 class="box-title asset-card-title"><i class="fas fa-hourglass-half" style="color:#c0392b;" aria-hidden="true"></i> {{ trans('general.detail_card_lifecycle') }}</h3>
-                                            </div>
-                                            <div class="box-body">
-                                                @if($asset->purchase_date && $asset->asset_eol_date)
-                                                    <x-progressbar use_well="false" columns="12" text="{{ trans('general.device_eol') }}" :percent="$asset->eolProgressPercent()">
-                                                        (<strong>{{ (int) Carbon::now()->diffInMonths($asset->asset_eol_date, true) }}</strong>/{{ $asset->model?->eol }} {{ trans('general.months') }})
-                                                    </x-progressbar>
-                                                @endif
-
-                                                @if($asset->depreciated_date())
-                                                    <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.fully_depreciated')" :percent="$asset->depreciationProgressPercent()">
-                                                        {{ Helper::getFormattedDateObject($asset->depreciated_date()->format('Y-m-d'), 'date', false) }}
-                                                    </x-progressbar>
-                                                @endif
-
-                                                @if($asset->warranty_expires)
-                                                    <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.warranty_expires')" :percent="$asset->warrantyProgressPercent()">
-                                                    {{ Helper::getFormattedDateObject($asset->warranty_expires, 'date', false) }}
-                                                    </x-progressbar>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    @endif
-
                                     @if ($asset->hasOrphanedAssignment())
                                         <div class="box box-default asset-card">
                                             <div class="box-body">
@@ -605,8 +578,6 @@
                         <span class="pull-right">
                             @if ($asset->last_checkout != '')
                                 {{ Helper::getFormattedDateObject($asset->last_checkout, 'date', false) }}
-                            @else
-                                {{ trans('general.na') }}
                             @endif
                         </span>
                     </x-info-element>
@@ -614,33 +585,21 @@
                     <x-info-element icon_type="expected_checkin" title="{{ trans('general.expected_checkin') }}">
                         {{ trans('general.expected_checkin') }}
                         <span class="pull-right">
-                            @if ($asset->expected_checkin != '')
-                                {{ Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) }}
-                            @else
-                                {{ trans('general.na') }}
-                            @endif
+                            <x-inline-core-field :asset="$asset" column="expected_checkin" element="date">{{ $asset->expected_checkin ? Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) : '' }}</x-inline-core-field>
                         </span>
                     </x-info-element>
 
                     <x-info-element icon_type="audit" title="{{ trans('general.last_audit') }}">
                         {{ trans('general.last_audit') }}
                         <span class="pull-right">
-                            @if (isset($audit_log) && $audit_log->created_at)
-                                {{ Helper::getFormattedDateObject($audit_log->created_at, 'date', false) }}
-                            @else
-                                <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
-                            @endif
+                            <x-inline-core-field :asset="$asset" column="last_audit_date" element="date">{{ $asset->last_audit_date ? Helper::getFormattedDateObject($asset->last_audit_date, 'date', false) : '' }}</x-inline-core-field>
                         </span>
                     </x-info-element>
 
                     <x-info-element icon_type="audit" title="{{ trans('general.next_audit_date') }}">
                         {{ trans('general.next_audit_date') }}
                         <span class="pull-right">
-                            @if ($asset->next_audit_date)
-                                {{ Helper::getFormattedDateObject($asset->next_audit_date, 'date', false) }}
-                            @else
-                                <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
-                            @endif
+                            <x-inline-core-field :asset="$asset" column="next_audit_date" element="date">{{ $asset->next_audit_date ? Helper::getFormattedDateObject($asset->next_audit_date, 'date', false) : '' }}</x-inline-core-field>
                         </span>
                     </x-info-element>
 
@@ -653,6 +612,35 @@
                     @endif
                 </x-info-panel>
             </x-box>
+
+            {{-- Lifecycle: EOL / depreciation / warranty progress — a special box
+                 of its own, above Metadata. --}}
+            @if(($asset->purchase_date && $asset->asset_eol_date) || $asset->depreciated_date() || $asset->warranty_expires)
+                <div class="box box-default side-box">
+                    <div class="box-header with-border">
+                        <h3 class="box-title asset-card-title"><i class="fas fa-hourglass-half" style="color:#c0392b;" aria-hidden="true"></i> {{ trans('general.detail_card_lifecycle') }}</h3>
+                    </div>
+                    <div class="box-body">
+                        @if($asset->purchase_date && $asset->asset_eol_date)
+                            <x-progressbar use_well="false" columns="12" text="{{ trans('general.device_eol') }}" :percent="$asset->eolProgressPercent()">
+                                (<strong>{{ (int) Carbon::now()->diffInMonths($asset->asset_eol_date, true) }}</strong>/{{ $asset->model?->eol }} {{ trans('general.months') }})
+                            </x-progressbar>
+                        @endif
+
+                        @if($asset->depreciated_date())
+                            <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.fully_depreciated')" :percent="$asset->depreciationProgressPercent()">
+                                {{ Helper::getFormattedDateObject($asset->depreciated_date()->format('Y-m-d'), 'date', false) }}
+                            </x-progressbar>
+                        @endif
+
+                        @if($asset->warranty_expires)
+                            <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.warranty_expires')" :percent="$asset->warrantyProgressPercent()">
+                            {{ Helper::getFormattedDateObject($asset->warranty_expires, 'date', false) }}
+                            </x-progressbar>
+                        @endif
+                    </div>
+                </div>
+            @endif
 
             {{-- Metadata: low-signal flags + provenance, styled like the group
                  cards (label/value rows with inset dividers). --}}

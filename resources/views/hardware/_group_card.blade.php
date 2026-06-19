@@ -25,6 +25,28 @@
         </h3>
     </div>
     <div class="box-body asset-card-body">
+        {{-- Procurement leads with the purchase facts (date + cost). --}}
+        @if ($g && $g->slug === 'procurement')
+            @if ($asset->purchase_date)
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.purchase_date') }}</div>
+                    <div class="asset-card-val">
+                        <span class="inline-core-value js-copy-pd-{{ $asset->id }}">{{ Helper::getFormattedDateObject($asset->purchase_date, 'date', false) }}</span>
+                        {!! $copyIcon('js-copy-pd-'.$asset->id) !!}
+                    </div>
+                </div>
+            @endif
+            @if ($asset->purchase_cost)
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.purchase_cost') }}</div>
+                    <div class="asset-card-val">
+                        <span class="inline-core-value js-copy-uc-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}</span>
+                        {!! $copyIcon('js-copy-uc-'.$asset->id) !!}
+                    </div>
+                </div>
+            @endif
+        @endif
+
         @foreach ($section['fields'] as $field)
             <div class="asset-card-row{{ $field->name === 'Device Management Service' ? ' asset-card-row-wide' : '' }}">
                 <div class="asset-card-lbl">{{ $field->name }}</div>
@@ -43,34 +65,16 @@
 
         @if ($g && $g->slug === 'procurement')
             <div class="asset-card-row">
+                <div class="asset-card-lbl">{{ trans('general.order_number') }}</div>
+                <div class="asset-card-val"><x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"/></div>
+            </div>
+            <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ trans('admin/hardware/table.current_value') }}</div>
                 <div class="asset-card-val">
                     <span class="inline-core-value js-copy-cv-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->getDepreciatedValue()) }}</span>
                     {!! $copyIcon('js-copy-cv-'.$asset->id) !!}
                 </div>
             </div>
-            <div class="asset-card-row">
-                <div class="asset-card-lbl">{{ trans('general.order_number') }}</div>
-                <div class="asset-card-val"><x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"/></div>
-            </div>
-            @if ($asset->purchase_date)
-                <div class="asset-card-row">
-                    <div class="asset-card-lbl">{{ trans('general.purchase_date') }}</div>
-                    <div class="asset-card-val">
-                        <span class="inline-core-value js-copy-pd-{{ $asset->id }}">{{ Helper::getFormattedDateObject($asset->purchase_date, 'date', false) }}</span>
-                        {!! $copyIcon('js-copy-pd-'.$asset->id) !!}
-                    </div>
-                </div>
-            @endif
-            @if ($asset->purchase_cost)
-                <div class="asset-card-row">
-                    <div class="asset-card-lbl">{{ trans('general.unit_cost') }}</div>
-                    <div class="asset-card-val">
-                        <span class="inline-core-value js-copy-uc-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}</span>
-                        {!! $copyIcon('js-copy-uc-'.$asset->id) !!}
-                    </div>
-                </div>
-            @endif
         @endif
     </div>
 </div>

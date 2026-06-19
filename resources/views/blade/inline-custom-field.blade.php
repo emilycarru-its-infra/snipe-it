@@ -38,8 +38,6 @@
     <span class="inline-core-value">
         @if ($hasValue)
             <x-info-element.customfield :item="$asset" :field="$field"/>
-        @else
-            <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
         @endif
     </span>
     @if ($hasValue)
