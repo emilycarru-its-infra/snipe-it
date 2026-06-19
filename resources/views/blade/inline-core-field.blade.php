@@ -27,8 +27,6 @@
     <span class="inline-core-value @if ($copy_what) js-copy-{{ $copy_what }} @endif">
         @if ($hasValue)
             {{ $slot->isEmpty() ? $raw : $slot }}
-        @else
-            <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
         @endif
     </span>
     @if ($hasValue && $copy_what)
@@ -47,6 +45,8 @@
         <input type="hidden" name="field" value="{{ $column }}">
         @if ($element === 'textarea')
             <textarea name="value" class="form-control input-sm" rows="2" style="min-width: 220px;">{{ $raw }}</textarea>
+        @elseif ($element === 'date')
+            <input type="date" name="value" class="form-control input-sm" style="min-width: 160px;" value="{{ $raw ? \Carbon\Carbon::parse($raw)->format('Y-m-d') : '' }}">
         @elseif ($element === 'select')
             <select name="value" class="form-control input-sm" style="min-width: 220px;">
                 <option value="">—</option>
