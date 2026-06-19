@@ -4,6 +4,7 @@
     'element' => 'text',
     'copy_what' => null,
     'editable' => true,
+    'options' => [],
 ])
 
 {{--
@@ -46,6 +47,13 @@
         <input type="hidden" name="field" value="{{ $column }}">
         @if ($element === 'textarea')
             <textarea name="value" class="form-control input-sm" rows="2" style="min-width: 220px;">{{ $raw }}</textarea>
+        @elseif ($element === 'select')
+            <select name="value" class="form-control input-sm" style="min-width: 220px;">
+                <option value="">—</option>
+                @foreach ($options as $optId => $optLabel)
+                    <option value="{{ $optId }}" {{ (string) $raw === (string) $optId ? 'selected' : '' }}>{{ $optLabel }}</option>
+                @endforeach
+            </select>
         @else
             <input type="text" name="value" class="form-control input-sm" style="min-width: 220px;" value="{{ $raw }}">
         @endif
@@ -65,13 +73,32 @@
                colour, which would otherwise tint the pencil blue. */
             .inline-core-field .inline-core-pencil,
             .inline-core-field .inline-core-pencil i { color: #bbb !important; }
-            .inline-core-pencil { opacity: .7; margin-left: 8px; font-size: 13px; vertical-align: baseline; }
+            .inline-core-pencil { margin-left: 8px; font-size: 13px; vertical-align: baseline; }
             .inline-core-field .inline-core-pencil:hover,
             .inline-core-field .inline-core-pencil:focus,
             .inline-core-field .inline-core-pencil:hover i { color: #777 !important; }
-            .inline-core-pencil:hover, .inline-core-pencil:focus { opacity: 1; }
-            .inline-core-copy { color: #bbb; opacity: .7; cursor: pointer; margin-left: 8px; font-size: 14px; vertical-align: baseline; }
-            .inline-core-copy:hover { color: #777; opacity: 1; }
+            .inline-core-copy { color: #bbb; cursor: pointer; margin-left: 8px; font-size: 14px; vertical-align: baseline; }
+            .inline-core-copy:hover { color: #777; }
+
+            /* Edit/copy affordances stay hidden until the row is hovered — keeps
+               the dense field lists clean. Revealed on hover of the containing
+               card row, sidebar list item, or identity-header field. */
+            .inline-core-pencil, .inline-core-copy { opacity: 0; transition: opacity .12s ease; }
+            .asset-card-row:hover .inline-core-pencil,
+            .asset-card-row:hover .inline-core-copy,
+            .list-group-item:hover .inline-core-pencil,
+            .list-group-item:hover .inline-core-copy,
+            .asset-identity-field:hover .inline-core-pencil,
+            .asset-identity-field:hover .inline-core-copy { opacity: .6; }
+            .asset-card-row:hover .inline-core-pencil:hover,
+            .asset-card-row:hover .inline-core-copy:hover,
+            .list-group-item:hover .inline-core-pencil:hover,
+            .list-group-item:hover .inline-core-copy:hover,
+            .asset-identity-field:hover .inline-core-pencil:hover,
+            .asset-identity-field:hover .inline-core-copy:hover { opacity: 1; }
+            /* Keep them visible while actively editing (form open). */
+            .js-inline-edit-form:not([style*="display:none"]) ~ * .inline-core-pencil { opacity: 1; }
+
             /* the customfield info-element renders its own leading copy icon; we
                supply a single right-aligned one instead, so hide the embedded one. */
             .inline-core-value .js-copy-link { display: none !important; }

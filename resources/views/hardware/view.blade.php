@@ -128,8 +128,10 @@
                         <x-page-column class="col-md-12">
                             <div class="box box-solid" style="margin-bottom: 12px;">
                                 <div class="box-body">
-                                    {{-- Top strip: the model catalog facts — super central,
-                                         so they sit above name/tag/serial as navigable links. --}}
+                                    @php $modelOptions = \App\Models\AssetModel::orderBy('name')->pluck('name', 'id'); @endphp
+                                    {{-- Top strip: the model catalog facts — super central. Model
+                                         is inline-editable; manufacturer/category/model-no derive
+                                         from the chosen model and follow it. --}}
                                     <div class="asset-identity-header asset-identity-top">
                                         <div class="asset-identity-field">
                                             <div class="asset-identity-label">{{ trans('general.manufacturer') }}</div>
@@ -146,7 +148,7 @@
                                         <div class="asset-identity-field">
                                             <div class="asset-identity-label">{{ trans('general.asset_model') }}</div>
                                             <div class="asset-identity-subvalue">
-                                                @if ($asset->model){!! $asset->model->present()->nameUrl !!}@else<span class="text-muted">—</span>@endif
+                                                <x-inline-core-field :asset="$asset" column="model_id" element="select" :options="$modelOptions">{!! $asset->model?->present()->nameUrl !!}</x-inline-core-field>
                                             </div>
                                         </div>
                                         <div class="asset-identity-field">
@@ -192,233 +194,162 @@
                              columns (Toner-dashboard style, no drag-reorder). The
                              assignment status + checkout dates moved to the sidebar. --}}
                         <x-page-column class="col-md-12">
-                            <div class="asset-detail-grid">
-
-                                @if (($asset->model) && ($asset->model->fieldset))
-                                    @php
-                                        // Group this fieldset's fields by FieldGroup -> one card per
-                                        // group. Skip fields pulled into the sidebar; lead Inventory
-                                        // with Device Management Service.
-                                        $sidebarFieldNames = ['Decommission Date'];
-                                        $fsFields = $asset->model->fieldset->fields
-                                            ->reject(fn ($f) => in_array($f->name, $sidebarFieldNames, true));
-                                        $allGroups = \App\Models\FieldGroup::ordered()->get();
-                                        $grouped = [];
-                                        foreach ($fsFields as $field) {
-                                            $key = $field->field_group_id ?: 'other';
-                                            $grouped[$key][] = $field;
-                                        }
-                                        $renderPlan = [];
-                                        foreach ($allGroups as $g) {
-                                            if (! empty($grouped[$g->id])) {
-                                                $fields = $grouped[$g->id];
-                                                if ($g->slug === 'inventory') {
-                                                    usort($fields, fn ($a, $b) =>
-                                                        ($b->name === 'Device Management Service') <=> ($a->name === 'Device Management Service'));
-                                                }
-                                                $renderPlan[] = ['group' => $g, 'fields' => $fields];
+                            @php
+                                // Build per-fieldset render sections keyed by slug, then place
+                                // named groups into an explicit 40/60 two-column layout. Inventory
+                                // leads with Device Management Service; Decommission Date is shown
+                                // in the sidebar, not the grid.
+                                $bySlug = [];
+                                if (($asset->model) && ($asset->model->fieldset)) {
+                                    $sidebarFieldNames = ['Decommission Date'];
+                                    $fsFields = $asset->model->fieldset->fields
+                                        ->reject(fn ($f) => in_array($f->name, $sidebarFieldNames, true));
+                                    $grouped = [];
+                                    foreach ($fsFields as $field) {
+                                        $grouped[$field->field_group_id ?: 'other'][] = $field;
+                                    }
+                                    foreach (\App\Models\FieldGroup::ordered()->get() as $fg) {
+                                        if (! empty($grouped[$fg->id])) {
+                                            $fields = $grouped[$fg->id];
+                                            if ($fg->slug === 'inventory') {
+                                                usort($fields, fn ($a, $b) =>
+                                                    ($b->name === 'Device Management Service') <=> ($a->name === 'Device Management Service'));
                                             }
+                                            $bySlug[$fg->slug] = ['group' => $fg, 'fields' => $fields];
                                         }
-                                        if (! empty($grouped['other'])) {
-                                            $renderPlan[] = ['group' => null, 'fields' => $grouped['other']];
-                                        }
-                                    @endphp
+                                    }
+                                    if (! empty($grouped['other'])) {
+                                        $bySlug['other'] = ['group' => null, 'fields' => $grouped['other']];
+                                    }
+                                }
+                                // Editable FK option list for the inline Location select.
+                                $locationOptions = \App\Models\Location::orderBy('name')->pluck('name', 'id');
+                            @endphp
 
-                                    @foreach ($renderPlan as $planIndex => $section)
-                                        @php
-                                            $g = $section['group'];
-                                            $collapsed = $g && $g->collapsed_by_default;
-                                            $panelId = 'field-group-panel-'.($g ? $g->id : 'other').'-'.$planIndex;
-                                            $headerColor = $g && $g->color ? $g->color : '#777';
-                                            $headerIcon = $g && $g->icon ? $g->icon : 'fas fa-layer-group';
-                                            $headerName = $g ? $g->name : trans('admin/custom_fields/general.other_group_label');
-                                        @endphp
-                                        <div class="box box-default asset-card" style="border-top: 3px solid {{ $headerColor }};">
-                                            <div class="box-header with-border" @if ($collapsed) style="cursor:pointer;" data-toggle="collapse" data-target="#{{ $panelId }}" aria-expanded="false" aria-controls="{{ $panelId }}" @endif>
-                                                <h3 class="box-title asset-card-title">
-                                                    <i class="{{ $headerIcon }}" style="color: {{ $headerColor }};" aria-hidden="true"></i>
-                                                    {{ $headerName }}
-                                                </h3>
-                                                @if ($collapsed)
-                                                    <div class="box-tools pull-right">
-                                                        <button type="button" class="btn btn-box-tool" data-toggle="collapse" data-target="#{{ $panelId }}">
-                                                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                                                        </button>
-                                                    </div>
+                            <div class="asset-detail-2col">
+
+                                {{-- Left 40%: Inventory / Specs / Networking + lifecycle. --}}
+                                <div class="asset-col asset-col-left">
+                                    @foreach (['inventory', 'specs', 'networking'] as $slug)
+                                        @isset($bySlug[$slug])
+                                            @include('hardware._group_card', ['section' => $bySlug[$slug]])
+                                        @endisset
+                                    @endforeach
+                                    @isset($bySlug['other'])
+                                        @include('hardware._group_card', ['section' => $bySlug['other']])
+                                    @endisset
+
+                                    @if(($asset->purchase_date && $asset->asset_eol_date) || $asset->depreciated_date() || $asset->warranty_expires)
+                                        <div class="box box-default asset-card">
+                                            <div class="box-header with-border">
+                                                <h3 class="box-title asset-card-title"><i class="fas fa-hourglass-half" style="color:#c0392b;" aria-hidden="true"></i> {{ trans('general.detail_card_lifecycle') }}</h3>
+                                            </div>
+                                            <div class="box-body">
+                                                @if($asset->purchase_date && $asset->asset_eol_date)
+                                                    <x-progressbar use_well="false" columns="12" text="{{ trans('general.device_eol') }}" :percent="$asset->eolProgressPercent()">
+                                                        (<strong>{{ (int) Carbon::now()->diffInMonths($asset->asset_eol_date, true) }}</strong>/{{ $asset->model?->eol }} {{ trans('general.months') }})
+                                                    </x-progressbar>
+                                                @endif
+
+                                                @if($asset->depreciated_date())
+                                                    <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.fully_depreciated')" :percent="$asset->depreciationProgressPercent()">
+                                                        {{ Helper::getFormattedDateObject($asset->depreciated_date()->format('Y-m-d'), 'date', false) }}
+                                                    </x-progressbar>
+                                                @endif
+
+                                                @if($asset->warranty_expires)
+                                                    <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.warranty_expires')" :percent="$asset->warrantyProgressPercent()">
+                                                    {{ Helper::getFormattedDateObject($asset->warranty_expires, 'date', false) }}
+                                                    </x-progressbar>
                                                 @endif
                                             </div>
-                                            <div id="{{ $panelId }}" class="box-body @if ($collapsed) collapse @endif" style="padding-top: 5px; padding-bottom: 5px;">
-                                                <dl class="table-display" style="margin-bottom: 0;">
-                                                    @foreach ($section['fields'] as $field)
-                                                        <dt>{{ $field->name }}</dt>
-                                                        <dd style="text-align: left !important;">
-                                                            <x-inline-custom-field :asset="$asset" :field="$field"/>
-                                                        </dd>
-                                                    @endforeach
+                                        </div>
+                                    @endif
 
-                                                    {{-- Native asset fields pulled out of the sidebar into
-                                                         the group where they belong. --}}
-                                                    @if ($g && $g->slug === 'inventory' && $asset->location)
-                                                        <dt>{{ trans('general.location') }}</dt>
-                                                        <dd style="text-align: left !important;">
-                                                            <span class="inline-core-value js-copy-loc-{{ $asset->id }}">{!! $asset->location->present()->nameUrl !!}</span>
-                                                            <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-loc-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
-                                                        </dd>
-                                                    @endif
-
-                                                    @if ($g && $g->slug === 'procurement')
-                                                        <dt>{{ trans('admin/hardware/table.current_value') }}</dt>
-                                                        <dd style="text-align: left !important;">
-                                                            <span class="inline-core-value js-copy-cv-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->getDepreciatedValue()) }}</span>
-                                                            <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-cv-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
-                                                        </dd>
-
-                                                        <dt>{{ trans('general.order_number') }}</dt>
-                                                        <dd style="text-align: left !important;">
-                                                            <x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"/>
-                                                        </dd>
-
-                                                        @if ($asset->purchase_date)
-                                                            <dt>{{ trans('general.purchase_date') }}</dt>
-                                                            <dd style="text-align: left !important;">
-                                                                <span class="inline-core-value js-copy-pd-{{ $asset->id }}">{{ Helper::getFormattedDateObject($asset->purchase_date, 'date', false) }}</span>
-                                                                <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-pd-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
-                                                            </dd>
-                                                        @endif
-
-                                                        @if ($asset->purchase_cost)
-                                                            <dt>{{ trans('general.unit_cost') }}</dt>
-                                                            <dd style="text-align: left !important;">
-                                                                <span class="inline-core-value js-copy-uc-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}</span>
-                                                                <i class="js-copy-link far fa-copy hidden-print inline-core-copy" data-clipboard-target=".js-copy-uc-{{ $asset->id }}" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
-                                                            </dd>
-                                                        @endif
-                                                    @endif
-                                                </dl>
+                                    @if ($asset->hasOrphanedAssignment())
+                                        <div class="box box-default asset-card">
+                                            <div class="box-body">
+                                                <p class="text-danger" style="line-height: 20px;">
+                                                    <x-icon type="warning" class="text-danger"/> {{ trans('general.warning', ['warning' => trans('general.item_target_not_found_hard', ['item_type' => $asset->assignedType(), 'id' => $asset->assigned_to])]) }}
+                                                </p>
+                                                <form action="{{ route('asset.checkin.force', $asset) }}" method="POST" class="form-inline" style="display: inline;">
+                                                    {{ csrf_field() }}
+                                                    {{ method_field('POST') }}
+                                                    <button class="btn btn-sm btn-danger btn-block hidden-print" type="submit" data-tooltip="true" data-placement="top" data-title="{{ trans('general.force_checkin') }}">
+                                                        <x-icon type="checkin" class="fa-fw"/>
+                                                        {{ trans('general.force_checkin') }}
+                                                    </button>
+                                                </form>
                                             </div>
                                         </div>
-                                    @endforeach
-                                @endif
-                                {{-- ./ field-group cards --}}
+                                    @endif
+                                </div>
 
-                                @if ($asset->hasOrphanedAssignment())
-                                    <div class="box box-default asset-card" style="border-top: 3px solid #dd4b39;">
-                                        <div class="box-body">
-                                            <p class="text-danger" style="line-height: 20px;">
-                                                <x-icon type="warning" class="text-danger"/> {{ trans('general.warning', ['warning' => trans('general.item_target_not_found_hard', ['item_type' => $asset->assignedType(), 'id' => $asset->assigned_to])]) }}
-                                            </p>
-                                            <form action="{{ route('asset.checkin.force', $asset) }}" method="POST" class="form-inline" style="display: inline;">
-                                                {{ csrf_field() }}
-                                                {{ method_field('POST') }}
-                                                <button class="btn btn-sm btn-danger btn-block hidden-print" type="submit" data-tooltip="true" data-placement="top" data-title="{{ trans('general.force_checkin') }}">
-                                                    <x-icon type="checkin" class="fa-fw"/>
-                                                    {{ trans('general.force_checkin') }}
-                                                </button>
-                                            </form>
+                                {{-- Right 60%: Procurement / Identifiers, then Costs | Activity. --}}
+                                <div class="asset-col asset-col-right">
+                                    @foreach (['procurement', 'identity'] as $slug)
+                                        @isset($bySlug[$slug])
+                                            @include('hardware._group_card', ['section' => $bySlug[$slug]])
+                                        @endisset
+                                    @endforeach
+
+                                    <div class="asset-subrow">
+                                        <div class="box box-default asset-card">
+                                            <div class="box-header with-border">
+                                                <h3 class="box-title asset-card-title"><i class="fas fa-coins" style="color:#27ae60;" aria-hidden="true"></i> {{ trans('general.detail_card_costs') }}</h3>
+                                            </div>
+                                            <div class="box-body">
+                                                <div class="well-display">
+                                                    <x-data-row icon_type="money" :label="trans('general.purchase_cost')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="maintenances" :label="trans('general.maintenances')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_maintenance_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="accessories" :label="trans('general.accessories')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_accessory_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="licenses" :label="trans('general.licenses')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_license_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="components" :label="trans('general.components')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_component_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="assets" :label="trans('general.assets')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_asset_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row :label="trans('general.total_cost')" align="right" style="border-top: 1px solid var(--box-header-top-border-color) !important;">
+                                                        {{ Helper::formatCurrencyOutput($total_cost_for_asset) }}
+                                                    </x-data-row>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="box box-default asset-card">
+                                            <div class="box-header with-border">
+                                                <h3 class="box-title asset-card-title"><i class="fas fa-wave-square" style="color:#2980b9;" aria-hidden="true"></i> {{ trans('general.detail_card_activity') }}</h3>
+                                            </div>
+                                            <div class="box-body">
+                                                <div class="well-display">
+                                                    <x-data-row icon_type="maintenances" label="Active Maintenances" align="right">
+                                                        {{ $asset->maintenances->whereNull('completion_date')->count() }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="checkout" :label="trans('general.checkouts_count')" align="right">
+                                                        {{ ($asset->checkouts) ? (int) $asset->checkouts->count() : '0' }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="checkin" :label="trans('general.checkins_count')" align="right">
+                                                        {{ ($asset->checkins) ? (int) $asset->checkins->count() : '0' }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="request" :label="trans('general.user_requests_count')" align="right">
+                                                        {{ ($asset->userRequests) ? (int) $asset->userRequests->count() : '0' }}
+                                                    </x-data-row>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                @endif
-
-
-                            @if(($asset->purchase_date && $asset->asset_eol_date) || $asset->depreciated_date() || $asset->warranty_expires)
-                                <div class="box box-default asset-card" style="border-top: 3px solid #c0392b;">
-                                    <div class="box-header with-border">
-                                        <h3 class="box-title asset-card-title"><i class="fas fa-hourglass-half" style="color:#c0392b;" aria-hidden="true"></i> {{ trans('general.detail_card_lifecycle') }}</h3>
-                                    </div>
-                                    <div class="box-body">
-                                        @if($asset->purchase_date && $asset->asset_eol_date)
-                                            <x-progressbar use_well="false" columns="12" text="{{ trans('general.device_eol') }}" :percent="$asset->eolProgressPercent()">
-                                                (<strong>{{ (int) Carbon::now()->diffInMonths($asset->asset_eol_date, true) }}</strong>/{{ $asset->model?->eol }} {{ trans('general.months') }})
-                                            </x-progressbar>
-                                        @endif
-
-                                        @if($asset->depreciated_date())
-                                            <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.fully_depreciated')" :percent="$asset->depreciationProgressPercent()">
-                                                {{ Helper::getFormattedDateObject($asset->depreciated_date()->format('Y-m-d'), 'date', false) }}
-                                            </x-progressbar>
-                                        @endif
-
-                                        @if($asset->warranty_expires)
-                                            <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.warranty_expires')" :percent="$asset->warrantyProgressPercent()">
-                                            {{ Helper::getFormattedDateObject($asset->warranty_expires, 'date', false) }}
-                                            </x-progressbar>
-                                        @endif
-                                    </div>
-                                </div>
-                            @endif
-
-                            <div class="box box-default asset-card" style="border-top: 3px solid #27ae60;">
-                                <div class="box-header with-border">
-                                    <h3 class="box-title asset-card-title"><i class="fas fa-coins" style="color:#27ae60;" aria-hidden="true"></i> {{ trans('general.detail_card_costs') }}</h3>
-                                </div>
-                                <div class="box-body">
-                                    <div class="well-display">
-                                        <x-data-row icon_type="money" :label="trans('general.purchase_cost')" align="right">
-                                            {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="maintenances" :label="trans('general.maintenances')" align="right">
-                                            {{ Helper::formatCurrencyOutput($total_maintenance_cost) }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="accessories" :label="trans('general.accessories')" align="right">
-                                            {{ Helper::formatCurrencyOutput($total_accessory_cost) }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="licenses" :label="trans('general.licenses')" align="right">
-                                            {{ Helper::formatCurrencyOutput($total_license_cost) }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="components" :label="trans('general.components')" align="right">
-                                            {{ Helper::formatCurrencyOutput($total_component_cost) }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="assets" :label="trans('general.assets')" align="right">
-                                            {{ Helper::formatCurrencyOutput($total_asset_cost) }}
-                                        </x-data-row>
-
-                                        <x-data-row :label="trans('general.total_cost')" align="right" style="border-top: 1px solid var(--box-header-top-border-color) !important;">
-                                            {{ Helper::formatCurrencyOutput($total_cost_for_asset) }}
-                                        </x-data-row>
-                                    </div>
                                 </div>
                             </div>
-
-                            <div class="box box-default asset-card" style="border-top: 3px solid #2980b9;">
-                                <div class="box-header with-border">
-                                    <h3 class="box-title asset-card-title"><i class="fas fa-wave-square" style="color:#2980b9;" aria-hidden="true"></i> {{ trans('general.detail_card_activity') }}</h3>
-                                </div>
-                                <div class="box-body">
-                                    <div class="well-display">
-                                        <x-data-row icon_type="maintenances" label="Active Maintenances" align="right">
-                                            {{ $asset->maintenances->whereNull('completion_date')->count() }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="checkout" :label="trans('general.checkouts_count')" align="right">
-                                            {{ ($asset->checkouts) ? (int) $asset->checkouts->count() : '0' }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="checkin" :label="trans('general.checkins_count')" align="right">
-                                            {{ ($asset->checkins) ? (int) $asset->checkins->count() : '0' }}
-                                        </x-data-row>
-
-                                        <x-data-row icon_type="request" :label="trans('general.user_requests_count')" align="right">
-                                            {{ ($asset->userRequests) ? (int) $asset->userRequests->count() : '0' }}
-                                        </x-data-row>
-                                    </div>
-                                </div>
-                            </div>
-
-                            @if (($snipeSettings->qr_code=='1') || $snipeSettings->label2_2d_type!='none')
-                                <div class="box box-default asset-card">
-                                    <div class="box-body text-center asset-qr-img">
-                                        <img src="{{ config('app.url') }}/hardware/{{ $asset->id }}/qr_code" class="img-thumbnail" style="height: 150px; width: 150px;" alt="QR code for {{ $asset->getDisplayNameAttribute() }}">
-                                    </div>
-                                </div>
-                            @endif
-
-                            </div>
-                            {{-- ./ asset-detail-grid --}}
+                            {{-- ./ asset-detail-2col --}}
                         </x-page-column>
                         <!-- end detail grid column -->
 
@@ -689,14 +620,16 @@
                         </div>
                     </x-slot:before_list>
 
-                    {{-- Audit + lifecycle rows from the removed Details card. --}}
+                    {{-- Audit / lifecycle / decommission rows render as normal info
+                         rows (label left, value right) like the rest of the panel.
+                         Default Location is now the editable Location in Inventory. --}}
                     <x-info-element icon_type="audit" title="{{ trans('general.last_audit') }}">
                         {{ trans('general.last_audit') }}
                         <span class="pull-right">
                             @if (isset($audit_log) && $audit_log->created_at)
                                 {{ Helper::getFormattedDateObject($audit_log->created_at, 'date', false) }}
                             @else
-                                <span class="text-muted">—</span>
+                                <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
                             @endif
                         </span>
                     </x-info-element>
@@ -707,17 +640,10 @@
                             @if ($asset->next_audit_date)
                                 {{ Helper::getFormattedDateObject($asset->next_audit_date, 'date', false) }}
                             @else
-                                <span class="text-muted">—</span>
+                                <span class="text-muted"><em>{{ trans('general.no_value') }}</em></span>
                             @endif
                         </span>
                     </x-info-element>
-
-                    @if ($asset->defaultLoc)
-                        <x-info-element icon_type="location" title="{{ trans('admin/hardware/form.default_location') }}">
-                            {{ trans('admin/hardware/form.default_location') }}
-                            <span class="pull-right">{!! $asset->defaultLoc->present()->nameUrl !!}</span>
-                        </x-info-element>
-                    @endif
 
                     @php $decommField = $asset->model?->fieldset?->fields->firstWhere('name', 'Decommission Date'); @endphp
                     @if ($decommField)
@@ -736,6 +662,55 @@
                 </x-info-panel>
             </x-box>
 
+            {{-- Metadata: low-signal flags + provenance, in their own box below
+                 the main info panel. --}}
+            <div class="box box-default side-box">
+                <div class="box-header with-border">
+                    <h3 class="box-title asset-card-title"><i class="fas fa-database" style="color:#7f8c8d;" aria-hidden="true"></i> {{ trans('general.metadata') }}</h3>
+                </div>
+                <ul class="list-group list-group-unbordered" style="margin-bottom:0;">
+                    @if (isset($asset->byod))
+                        <x-info-element title="{{ trans('general.byod') }}">
+                            @if ($asset->byod == 1)<x-icon type="checkmark" class="fa-fw text-success"/>@else<x-icon type="x" class="fa-fw text-danger"/>@endif
+                            {{ trans('general.byod') }}
+                        </x-info-element>
+                    @endif
+                    @if (isset($asset->requestable))
+                        <x-info-element title="{{ trans('general.requestable') }}">
+                            @if ($asset->requestable == 1)<x-icon type="checkmark" class="fa-fw text-success"/>@else<x-icon type="x" class="fa-fw text-danger"/>@endif
+                            {{ trans('admin/hardware/general.requestable') }}
+                        </x-info-element>
+                    @endif
+                    @if ($asset->adminuser)
+                        <x-info-element icon_type="user" title="{{ trans('general.created_by') }}">
+                            {{ trans('general.created_by') }}
+                            <span class="pull-right">{!! $asset->adminuser->present()->formattedNameLink !!}</span>
+                        </x-info-element>
+                    @endif
+                    @if ($asset->created_at)
+                        <x-info-element icon_type="calendar" title="{{ trans('general.created_at') }}">
+                            {{ trans('general.created_plain') }}
+                            <span class="pull-right">{{ Helper::getFormattedDateObject($asset->created_at, 'datetime', false) }}</span>
+                        </x-info-element>
+                    @endif
+                    @if ($asset->updated_at)
+                        <x-info-element icon_type="calendar" title="{{ trans('general.updated_at') }}">
+                            {{ trans('general.updated_plain') }}
+                            <span class="pull-right">{{ Helper::getFormattedDateObject($asset->updated_at, 'datetime', false) }}</span>
+                        </x-info-element>
+                    @endif
+                </ul>
+            </div>
+
+            {{-- QR code at the very bottom of the sidebar. --}}
+            @if (($snipeSettings->qr_code=='1') || $snipeSettings->label2_2d_type!='none')
+                <div class="box box-default side-box">
+                    <div class="box-body text-center asset-qr-img">
+                        <img src="{{ config('app.url') }}/hardware/{{ $asset->id }}/qr_code" class="img-thumbnail" style="height: 150px; width: 150px;" alt="QR code for {{ $asset->getDisplayNameAttribute() }}">
+                    </div>
+                </div>
+            @endif
+
         </x-page-column>
 
     </x-container>
@@ -752,41 +727,16 @@
 
         {{-- Inline single-field edit on the grouped detail boxes. Progressive:
              without JS the edit forms stay hidden and the full edit form still
-             works; with JS the pencil swaps the value for an input + save.
-             Also drives the masonry reflow that packs the detail cards into a
-             3-column grid (Toner-dashboard style) without leaving voids under
-             short cards. --}}
+             works; with JS the pencil swaps the value for an input/select + save. --}}
         <script nonce="{{ csrf_token() }}">
             $(function () {
-                // --- masonry reflow for the asset detail grid -----------------
-                var grid = document.querySelector('.asset-detail-grid');
-                function reflow() {
-                    if (!grid) return;
-                    var styles = window.getComputedStyle(grid);
-                    var rowH   = parseInt(styles.gridAutoRows) || 8;
-                    var rowGap = parseInt(styles.rowGap || styles.gridRowGap) || 0;
-                    grid.querySelectorAll('.asset-card').forEach(function (card) {
-                        card.style.gridRowEnd = '';   // reset so we measure natural height
-                        var h = card.getBoundingClientRect().height;
-                        var span = Math.max(1, Math.ceil((h + rowGap) / (rowH + rowGap)));
-                        card.style.gridRowEnd = 'span ' + span;
-                    });
-                }
-                reflow();
-                window.addEventListener('resize', reflow);
-                // Re-pack after fonts / the QR image settle.
-                setTimeout(reflow, 250);
-
-                // --- inline single-field edit --------------------------------
                 function showForm(target) {
                     $('#' + target + '-display').hide();
-                    $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"]').first().focus();
-                    reflow();
+                    $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"], select[name="value"]').first().focus();
                 }
                 function hideForm(target) {
                     $('#' + target + '-form').hide();
                     $('#' + target + '-display').show();
-                    reflow();
                 }
                 $(document).on('click', '.js-inline-edit-toggle', function (e) {
                     e.preventDefault();
@@ -796,8 +746,6 @@
                     e.preventDefault();
                     hideForm($(this).data('target'));
                 });
-                // Collapsing a group changes its height — re-pack afterward.
-                $('.asset-detail-grid').on('shown.bs.collapse hidden.bs.collapse', reflow);
             });
         </script>
     @endsection
@@ -816,24 +764,39 @@
             .asset-identity-top .asset-identity-subvalue { font-size: 14px; font-weight: 600; line-height: 1.4; }
             .asset-identity-divider { margin: 10px 0; border-top: 1px solid #ececec; }
 
-            /* Masonry grid of detail cards — Toner-dashboard style, no drag. The
-               tiny grid-auto-rows + per-card row span (set in JS) lets short
-               cards pack tight under tall ones instead of leaving whitespace. */
-            .asset-detail-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                grid-auto-rows: 8px;
-                gap: 18px;
-                width: 100%;
+            /* Two-column detail layout: 40% left (Inventory/Specs/Networking),
+               60% right (Procurement/Identifiers, then Costs|Activity). Cards
+               stack within each column; the wider right column gives the long
+               procurement/identifier values room so labels never overlap. */
+            .asset-detail-2col { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; width: 100%; }
+            .asset-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+            .asset-col-left  { flex: 1 1 36%; }
+            .asset-col-right { flex: 1 1 58%; }
+            .asset-detail-2col .asset-card { margin: 0; }
+            /* Costs | Activity share the bottom of the right column, 50/50. */
+            .asset-subrow { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+            .asset-subrow > .asset-card { flex: 1 1 45%; min-width: 0; margin: 0; }
+            @media (max-width: 991px) {
+                .asset-col-left, .asset-col-right { flex: 1 1 100%; }
             }
-            .asset-detail-grid .asset-card {
-                margin: 0;
-                align-self: start;   /* don't stretch a card to the row height */
-            }
+
+            /* Cards: drop the coloured top border (kept the coloured header icon). */
+            .asset-card { border-top: none !important; }
             .asset-card-title { font-size: 15px; font-weight: 600; }
-            .asset-card-title i { margin-right: 4px; }
-            /* No-JS / pre-reflow fallback: cards just stack in source order. */
-            .no-js .asset-detail-grid { display: block; }
+            .asset-card-title i { margin-right: 6px; }
+
+            /* Field rows: label / value flex pair — long labels wrap within their
+               own column instead of overlapping the value (fixes Architecture,
+               Warranty/Soft Cost, etc.). */
+            .asset-card-body { padding-top: 6px; padding-bottom: 6px; }
+            .asset-card-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 2px; border-bottom: 1px solid #f1f1f1; }
+            .asset-card-row:last-child { border-bottom: none; }
+            .asset-card-lbl { flex: 0 0 38%; font-weight: 600; word-break: break-word; }
+            .asset-card-val { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+            /* Device Management Service — special: full-width one-line title,
+               value on the next line so the long label never wraps mid-word. */
+            .asset-card-row-wide { flex-direction: column; gap: 2px; }
+            .asset-card-row-wide .asset-card-lbl { flex: none; white-space: nowrap; }
         </style>
     @endpush
 
