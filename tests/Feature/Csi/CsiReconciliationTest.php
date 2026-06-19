@@ -26,6 +26,16 @@ class CsiReconciliationTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.csi_recon_missing_in_snipe'));
     }
 
+    public function test_arrivals_report_renders()
+    {
+        CsiInprocessAsset::create(['serial' => 'ARRX', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'MacBook']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.csi-arrivals'))
+            ->assertOk()
+            ->assertSee('ARRX');
+    }
+
     private function leaseColumn(): string
     {
         return CustomField::factory()->create(['name' => 'Lease Contract ID'])->db_column;
