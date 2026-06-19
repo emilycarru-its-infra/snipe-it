@@ -219,6 +219,7 @@ return [
     'manage_api_keys' => 'Manage API keys',
     'manufacturer' => 'Manufacturer',
     'manufacturers' => 'Manufacturers',
+    'metadata' => 'Metadata',
     'markdown' => 'This field allows <a href="https://help.github.com/articles/github-flavored-markdown/">Github flavored markdown</a>.',
     'min_amt' => 'Min. QTY',
     'min_amt_help' => 'Minimum number of this item that should be available for checkout before an alert gets triggered. Leave blank if you do not wish to receive alerts for low inventory.',
