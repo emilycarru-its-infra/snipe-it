@@ -23,7 +23,6 @@
                 @include('reports.procurement._disposition-grid', [
                     'contracts' => $contracts,
                     'canEdit' => $canEdit,
-                    'decisionTypes' => $decisionTypes,
                 ])
             </div>
         </div>
