@@ -127,29 +127,25 @@
                         <x-page-column class="col-md-12">
                             <div class="box box-solid" style="margin-bottom: 12px;">
                                 <div class="box-body">
-                                    <div class="row">
-                                        {{-- Name is the leftmost, primary identifier. --}}
-                                        <div class="col-sm-5 col-xs-12">
-                                            <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.name') }}</div>
-                                            <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
+                                    {{-- Name (primary), tag and serial sit together in one
+                                         left-aligned row — snug, not pushed to the far right. --}}
+                                    <div class="asset-identity-header">
+                                        <div class="asset-identity-field asset-identity-name">
+                                            <div class="asset-identity-label">{{ trans('general.name') }}</div>
+                                            <div class="asset-identity-value">
                                                 <x-inline-core-field :asset="$asset" column="name" copy_what="asset_name_hdr"/>
                                             </div>
                                         </div>
-                                        {{-- Tag + serial sit together, snug, to the right of the name. --}}
-                                        <div class="col-sm-7 col-xs-12">
-                                            <div style="display: flex; flex-wrap: wrap; gap: 8px 48px;">
-                                                <div>
-                                                    <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.asset_tag') }}</div>
-                                                    <div style="font-size: 20px; font-weight: 600; line-height: 1.4;">
-                                                        <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.serial_number') }}</div>
-                                                    <div style="font-size: 20px; font-weight: 600; line-height: 1.4; font-family: SFMono-Regular, Menlo, Consolas, monospace;">
-                                                        <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false"/>
-                                                    </div>
-                                                </div>
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.asset_tag') }}</div>
+                                            <div class="asset-identity-value">
+                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
+                                            </div>
+                                        </div>
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.serial_number') }}</div>
+                                            <div class="asset-identity-value asset-identity-mono">
+                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false"/>
                                             </div>
                                         </div>
                                     </div>
@@ -158,54 +154,21 @@
                         </x-page-column>
                         <div class="clearfix"></div>
 
-                        <!--  well column -->
-                        <x-page-column class="col-md-4">
-                            <x-well>
-                                <x-info-element.status :infoObject="$asset"/>
-                            </x-well>
-                        </x-page-column>
-                        <!-- ./ well column -->
+                        {{-- One masonry grid of detail cards: the native lifecycle
+                             rows, the per-group custom-field boxes, and the EOL /
+                             cost / activity stat boxes reflow together across 3
+                             columns (Toner-dashboard style, no drag-reorder). The
+                             assignment status + checkout dates moved to the sidebar. --}}
+                        <x-page-column class="col-md-12">
+                            <div class="asset-detail-grid">
 
-                        <!--  well column -->
-                        <x-page-column class="col-md-4">
-                            <x-well>
-                                <x-icon type="calendar" class="fa-fw"/>
-                                <strong>{{ trans('general.last_checkout') }}</strong>
-                                @if ($asset->last_checkout != '')
-                                    {{ Helper::getFormattedDateObject($asset->last_checkout, 'date', false) }}
-                                    <span class="text-muted">{{ Carbon::parse($asset->last_checkout)->diffForHumans(['parts' => 2]) }}</span>
-                                @else
-                                    {{ trans('general.na') }}
-                                @endif
-                            </x-well>
-                        </x-page-column>
-                        <!--  ./ well column -->
-
-                        <!--  well column -->
-                        <x-page-column class="col-md-4">
-                            <x-well>
-                                <x-icon type="expected_checkin" class="fa-fw"/>
-                                <strong>{{ trans('general.expected_checkin') }}</strong>
-                                @if ($asset->expected_checkin!='')
-                                    {{ Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) }}
-                                    <span class="text-muted hidden-sm hidden-md">{{ Carbon::parse($asset->expected_checkin)->diffForHumans(['parts' => 2]) }}</span>
-                                @else
-                                    {{ trans('general.na') }}
-                                @endif
-                            </x-well>
-
-                        </x-page-column>
-                        <!--  ./ well column -->
-
-                        <!-- set clearfix for responsive design -->
-                        <div class="clearfix"></div>
-
-
-                        <!--  definition list column -->
-                        <x-page-column class="col-md-8">
-
-                            <!-- definition list content -->
-                            <x-page-data>
+                                {{-- native lifecycle details card --}}
+                                <div class="box box-default asset-card" style="border-top: 3px solid #7f8c8d;">
+                                    <div class="box-header with-border">
+                                        <h3 class="box-title asset-card-title"><i class="fas fa-circle-info" style="color:#7f8c8d;" aria-hidden="true"></i> {{ trans('general.details') }}</h3>
+                                    </div>
+                                    <div class="box-body" style="padding-top:5px; padding-bottom:5px;">
+                                        <dl class="table-display" style="margin-bottom:0;">
 
                                 {{-- Asset tag, serial and name now live in the identity
                                      header at the top of this tab (inline-editable). --}}
@@ -263,6 +226,21 @@
                                     </x-data-row>
                                 @endif
 
+                                @if($asset->journal->last())
+                                    <x-data-row :label="trans('general.last_note')" copy_what="last_note">
+                                        <i class="fa-solid fa-quote-left"></i>
+                                        {{ $asset->journal->last()->note }}
+                                        <i class="fa-solid fa-quote-right"></i>
+                                        <span class="text-muted">
+                                            - {!!  $asset->journal->last()->adminuser->present()->formattedNameLink !!}
+                                            ({{ Helper::getFormattedDateObject($asset->journal->last()->created_at, 'datetime', false) }})
+                                        </span>
+                                    </x-data-row>
+                                @endif
+                                        </dl>
+                                    </div>
+                                </div>
+                                {{-- ./ native lifecycle details card --}}
 
                                 @if (($asset->model) && ($asset->model->fieldset))
                                     @php
@@ -298,9 +276,9 @@
                                             $headerIcon = $g && $g->icon ? $g->icon : 'fas fa-layer-group';
                                             $headerName = $g ? $g->name : trans('admin/custom_fields/general.other_group_label');
                                         @endphp
-                                        <div class="box box-default" style="border-top: 3px solid {{ $headerColor }};">
+                                        <div class="box box-default asset-card" style="border-top: 3px solid {{ $headerColor }};">
                                             <div class="box-header with-border" @if ($collapsed) style="cursor:pointer;" data-toggle="collapse" data-target="#{{ $panelId }}" aria-expanded="false" aria-controls="{{ $panelId }}" @endif>
-                                                <h3 class="box-title" style="font-size: 15px;">
+                                                <h3 class="box-title asset-card-title">
                                                     <i class="{{ $headerIcon }}" style="color: {{ $headerColor }};" aria-hidden="true"></i>
                                                     {{ $headerName }}
                                                 </h3>
@@ -325,135 +303,128 @@
                                         </div>
                                     @endforeach
                                 @endif
+                                {{-- ./ field-group cards --}}
 
-
-
-                                @if($asset->journal->last())
-                                    <x-data-row :label="trans('general.last_note')" copy_what="last_note">
-                                        <i class="fa-solid fa-quote-left"></i>
-                                        {{ $asset->journal->last()->note }}
-                                        <i class="fa-solid fa-quote-right"></i>
-                                        <span class="text-muted">
-                                            - {!!  $asset->journal->last()->adminuser->present()->formattedNameLink !!}
-                                            ({{ Helper::getFormattedDateObject($asset->journal->last()->created_at, 'datetime', false) }})
-                                        </span>
-                                    </x-data-row>
+                                @if ($asset->hasOrphanedAssignment())
+                                    <div class="box box-default asset-card" style="border-top: 3px solid #dd4b39;">
+                                        <div class="box-body">
+                                            <p class="text-danger" style="line-height: 20px;">
+                                                <x-icon type="warning" class="text-danger"/> {{ trans('general.warning', ['warning' => trans('general.item_target_not_found_hard', ['item_type' => $asset->assignedType(), 'id' => $asset->assigned_to])]) }}
+                                            </p>
+                                            <form action="{{ route('asset.checkin.force', $asset) }}" method="POST" class="form-inline" style="display: inline;">
+                                                {{ csrf_field() }}
+                                                {{ method_field('POST') }}
+                                                <button class="btn btn-sm btn-danger btn-block hidden-print" type="submit" data-tooltip="true" data-placement="top" data-title="{{ trans('general.force_checkin') }}">
+                                                    <x-icon type="checkin" class="fa-fw"/>
+                                                    {{ trans('general.force_checkin') }}
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 @endif
-
-                            </x-page-data>
-                            <!-- ./ definition list content -->
-
-                        </x-page-column>
-                        <!-- ./ definition list column -->
-
-                        <!-- start side stats column -->
-                        <x-page-column class="col-md-4 col-sm-12">
-
-                            @if ($asset->hasOrphanedAssignment())
-                                <x-well class="well-sm">
-                                    <p class="text-danger" style="line-height: 20px;">
-                                        <x-icon type="warning" class="text-danger"/> {{ trans('general.warning', ['warning' => trans('general.item_target_not_found_hard', ['item_type' => $asset->assignedType(), 'id' => $asset->assigned_to])]) }}
-                                    </p>
-
-                                    <form action="{{ route('asset.checkin.force', $asset) }}" method="POST" class="form-inline" style="display: inline;">
-                                        {{ csrf_field() }}
-                                        {{ method_field('POST') }}
-                                        <button class="btn btn-sm btn-danger btn-block hidden-print" type="submit" data-tooltip="true" data-placement="top" data-title="{{ trans('general.force_checkin') }}">
-                                            <x-icon type="checkin" class="fa-fw"/>
-                                            {{ trans('general.force_checkin') }}
-                                        </button>
-                                    </form>
-
-                                </x-well>
-                            @endif
 
 
                             @if(($asset->purchase_date && $asset->asset_eol_date) || $asset->depreciated_date() || $asset->warranty_expires)
-                                <x-well class="well-sm">
-                                    @if($asset->purchase_date && $asset->asset_eol_date)
-                                        <x-progressbar use_well="false" columns="12" text="{{ trans('general.device_eol') }}" :percent="$asset->eolProgressPercent()">
-                                            (<strong>{{ (int) Carbon::now()->diffInMonths($asset->asset_eol_date, true) }}</strong>/{{ $asset->model?->eol }} {{ trans('general.months') }})
-                                        </x-progressbar>
-                                    @endif
+                                <div class="box box-default asset-card" style="border-top: 3px solid #c0392b;">
+                                    <div class="box-header with-border">
+                                        <h3 class="box-title asset-card-title"><i class="fas fa-hourglass-half" style="color:#c0392b;" aria-hidden="true"></i> {{ trans('general.detail_card_lifecycle') }}</h3>
+                                    </div>
+                                    <div class="box-body">
+                                        @if($asset->purchase_date && $asset->asset_eol_date)
+                                            <x-progressbar use_well="false" columns="12" text="{{ trans('general.device_eol') }}" :percent="$asset->eolProgressPercent()">
+                                                (<strong>{{ (int) Carbon::now()->diffInMonths($asset->asset_eol_date, true) }}</strong>/{{ $asset->model?->eol }} {{ trans('general.months') }})
+                                            </x-progressbar>
+                                        @endif
 
-                                    @if($asset->depreciated_date())
-                                        <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.fully_depreciated')" :percent="$asset->depreciationProgressPercent()">
-                                            {{ Helper::getFormattedDateObject($asset->depreciated_date()->format('Y-m-d'), 'date', false) }}
-                                        </x-progressbar>
-                                    @endif
+                                        @if($asset->depreciated_date())
+                                            <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.fully_depreciated')" :percent="$asset->depreciationProgressPercent()">
+                                                {{ Helper::getFormattedDateObject($asset->depreciated_date()->format('Y-m-d'), 'date', false) }}
+                                            </x-progressbar>
+                                        @endif
 
-                                    @if($asset->warranty_expires)
-                                        <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.warranty_expires')" :percent="$asset->warrantyProgressPercent()">
-                                        {{ Helper::getFormattedDateObject($asset->warranty_expires, 'date', false) }}
-                                        </x-progressbar>
-                                    @endif
-
-                                </x-well>
+                                        @if($asset->warranty_expires)
+                                            <x-progressbar use_well="false" columns="12" :text="trans('admin/hardware/form.warranty_expires')" :percent="$asset->warrantyProgressPercent()">
+                                            {{ Helper::getFormattedDateObject($asset->warranty_expires, 'date', false) }}
+                                            </x-progressbar>
+                                        @endif
+                                    </div>
+                                </div>
                             @endif
 
-                            <x-well class="well-sm">
-                                <div class="well-display">
-                                    <x-data-row icon_type="money" :label="trans('general.purchase_cost')" align="right">
-                                        {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}
-                                    </x-data-row>
-
-                                    <x-data-row icon_type="maintenances" :label="trans('general.maintenances')" align="right">
-                                        {{ Helper::formatCurrencyOutput($total_maintenance_cost) }}
-                                    </x-data-row>
-
-                                    <x-data-row icon_type="accessories" :label="trans('general.accessories')" align="right">
-                                        {{ Helper::formatCurrencyOutput($total_accessory_cost) }}
-                                    </x-data-row>
-
-                                    <x-data-row icon_type="licenses" :label="trans('general.licenses')" align="right">
-                                        {{ Helper::formatCurrencyOutput($total_license_cost) }}
-                                    </x-data-row>
-
-                                    <x-data-row icon_type="components" :label="trans('general.components')" align="right">
-                                        {{ Helper::formatCurrencyOutput($total_component_cost) }}
-                                    </x-data-row>
-
-                                    <x-data-row icon_type="assets" :label="trans('general.assets')" align="right">
-                                        {{ Helper::formatCurrencyOutput($total_asset_cost) }}
-                                    </x-data-row>
-
-                                    <x-data-row :label="trans('general.total_cost')" align="right" style="border-top: 1px solid var(--box-header-top-border-color) !important;">
-                                        {{ Helper::formatCurrencyOutput($total_cost_for_asset) }}
-                                    </x-data-row>
-
+                            <div class="box box-default asset-card" style="border-top: 3px solid #27ae60;">
+                                <div class="box-header with-border">
+                                    <h3 class="box-title asset-card-title"><i class="fas fa-coins" style="color:#27ae60;" aria-hidden="true"></i> {{ trans('general.detail_card_costs') }}</h3>
                                 </div>
-                            </x-well>
+                                <div class="box-body">
+                                    <div class="well-display">
+                                        <x-data-row icon_type="money" :label="trans('general.purchase_cost')" align="right">
+                                            {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}
+                                        </x-data-row>
 
-                            <x-well class="well-sm">
-                                <div class="well-display">
-                                    <x-data-row icon_type="maintenances" label="Active Maintenances" align="right">
-                                        {{ $asset->maintenances->whereNull('completion_date')->count() }}
-                                    </x-data-row>
+                                        <x-data-row icon_type="maintenances" :label="trans('general.maintenances')" align="right">
+                                            {{ Helper::formatCurrencyOutput($total_maintenance_cost) }}
+                                        </x-data-row>
 
-                                    <x-data-row icon_type="checkout" :label="trans('general.checkouts_count')" align="right">
-                                        {{ ($asset->checkouts) ? (int) $asset->checkouts->count() : '0' }}
-                                    </x-data-row>
+                                        <x-data-row icon_type="accessories" :label="trans('general.accessories')" align="right">
+                                            {{ Helper::formatCurrencyOutput($total_accessory_cost) }}
+                                        </x-data-row>
 
-                                    <x-data-row icon_type="checkin" :label="trans('general.checkins_count')" align="right">
-                                        {{ ($asset->checkins) ? (int) $asset->checkins->count() : '0' }}
-                                    </x-data-row>
+                                        <x-data-row icon_type="licenses" :label="trans('general.licenses')" align="right">
+                                            {{ Helper::formatCurrencyOutput($total_license_cost) }}
+                                        </x-data-row>
 
-                                    <x-data-row icon_type="request" :label="trans('general.user_requests_count')" align="right">
-                                        {{ ($asset->userRequests) ? (int) $asset->userRequests->count() : '0' }}
-                                    </x-data-row>
+                                        <x-data-row icon_type="components" :label="trans('general.components')" align="right">
+                                            {{ Helper::formatCurrencyOutput($total_component_cost) }}
+                                        </x-data-row>
+
+                                        <x-data-row icon_type="assets" :label="trans('general.assets')" align="right">
+                                            {{ Helper::formatCurrencyOutput($total_asset_cost) }}
+                                        </x-data-row>
+
+                                        <x-data-row :label="trans('general.total_cost')" align="right" style="border-top: 1px solid var(--box-header-top-border-color) !important;">
+                                            {{ Helper::formatCurrencyOutput($total_cost_for_asset) }}
+                                        </x-data-row>
+                                    </div>
                                 </div>
-                            </x-well>
+                            </div>
 
+                            <div class="box box-default asset-card" style="border-top: 3px solid #2980b9;">
+                                <div class="box-header with-border">
+                                    <h3 class="box-title asset-card-title"><i class="fas fa-wave-square" style="color:#2980b9;" aria-hidden="true"></i> {{ trans('general.detail_card_activity') }}</h3>
+                                </div>
+                                <div class="box-body">
+                                    <div class="well-display">
+                                        <x-data-row icon_type="maintenances" label="Active Maintenances" align="right">
+                                            {{ $asset->maintenances->whereNull('completion_date')->count() }}
+                                        </x-data-row>
 
+                                        <x-data-row icon_type="checkout" :label="trans('general.checkouts_count')" align="right">
+                                            {{ ($asset->checkouts) ? (int) $asset->checkouts->count() : '0' }}
+                                        </x-data-row>
+
+                                        <x-data-row icon_type="checkin" :label="trans('general.checkins_count')" align="right">
+                                            {{ ($asset->checkins) ? (int) $asset->checkins->count() : '0' }}
+                                        </x-data-row>
+
+                                        <x-data-row icon_type="request" :label="trans('general.user_requests_count')" align="right">
+                                            {{ ($asset->userRequests) ? (int) $asset->userRequests->count() : '0' }}
+                                        </x-data-row>
+                                    </div>
+                                </div>
+                            </div>
 
                             @if (($snipeSettings->qr_code=='1') || $snipeSettings->label2_2d_type!='none')
-                                <div class="col-md-12 text-center asset-qr-img" style="padding-top: 15px;">
-                                    <img src="{{ config('app.url') }}/hardware/{{ $asset->id }}/qr_code" class="img-thumbnail" style="height: 150px; width: 150px; margin-right: 10px;" alt="QR code for {{ $asset->getDisplayNameAttribute() }}">
+                                <div class="box box-default asset-card">
+                                    <div class="box-body text-center asset-qr-img">
+                                        <img src="{{ config('app.url') }}/hardware/{{ $asset->id }}/qr_code" class="img-thumbnail" style="height: 150px; width: 150px;" alt="QR code for {{ $asset->getDisplayNameAttribute() }}">
+                                    </div>
                                 </div>
                             @endif
 
+                            </div>
+                            {{-- ./ asset-detail-grid --}}
                         </x-page-column>
-                        <!-- end side stats  column -->
+                        <!-- end detail grid column -->
 
                     </x-tabs.pane>
 
@@ -668,6 +639,38 @@
         </x-page-column>
 
         <x-page-column class="col-md-3 col-md-pull-9">
+
+            {{-- Assignment status + checkout dates live in the sidebar, next to
+                 the rest of the assignment context, rather than as a header strip
+                 above the detail grid. --}}
+            <x-box class="side-box">
+                <div class="box-body" style="padding-top: 12px; padding-bottom: 8px;">
+                    <p style="margin-bottom: 10px;">
+                        <x-info-element.status :infoObject="$asset"/>
+                    </p>
+                    <p style="margin-bottom: 8px;">
+                        <x-icon type="calendar" class="fa-fw"/>
+                        <strong>{{ trans('general.last_checkout') }}</strong>
+                        @if ($asset->last_checkout != '')
+                            {{ Helper::getFormattedDateObject($asset->last_checkout, 'date', false) }}
+                            <span class="text-muted">{{ Carbon::parse($asset->last_checkout)->diffForHumans(['parts' => 2]) }}</span>
+                        @else
+                            {{ trans('general.na') }}
+                        @endif
+                    </p>
+                    <p style="margin-bottom: 0;">
+                        <x-icon type="expected_checkin" class="fa-fw"/>
+                        <strong>{{ trans('general.expected_checkin') }}</strong>
+                        @if ($asset->expected_checkin != '')
+                            {{ Helper::getFormattedDateObject($asset->expected_checkin, 'date', false) }}
+                            <span class="text-muted">{{ Carbon::parse($asset->expected_checkin)->diffForHumans(['parts' => 2]) }}</span>
+                        @else
+                            {{ trans('general.na') }}
+                        @endif
+                    </p>
+                </div>
+            </x-box>
+
             <x-box class="side-box expanded">
                 <x-info-panel :infoPanelObj="$asset" img_path="{{ app('assets_upload_url') }}">
                     <x-slot:buttons>
@@ -707,16 +710,41 @@
 
         {{-- Inline single-field edit on the grouped detail boxes. Progressive:
              without JS the edit forms stay hidden and the full edit form still
-             works; with JS the pencil swaps the value for an input + save. --}}
+             works; with JS the pencil swaps the value for an input + save.
+             Also drives the masonry reflow that packs the detail cards into a
+             3-column grid (Toner-dashboard style) without leaving voids under
+             short cards. --}}
         <script nonce="{{ csrf_token() }}">
             $(function () {
+                // --- masonry reflow for the asset detail grid -----------------
+                var grid = document.querySelector('.asset-detail-grid');
+                function reflow() {
+                    if (!grid) return;
+                    var styles = window.getComputedStyle(grid);
+                    var rowH   = parseInt(styles.gridAutoRows) || 8;
+                    var rowGap = parseInt(styles.rowGap || styles.gridRowGap) || 0;
+                    grid.querySelectorAll('.asset-card').forEach(function (card) {
+                        card.style.gridRowEnd = '';   // reset so we measure natural height
+                        var h = card.getBoundingClientRect().height;
+                        var span = Math.max(1, Math.ceil((h + rowGap) / (rowH + rowGap)));
+                        card.style.gridRowEnd = 'span ' + span;
+                    });
+                }
+                reflow();
+                window.addEventListener('resize', reflow);
+                // Re-pack after fonts / the QR image settle.
+                setTimeout(reflow, 250);
+
+                // --- inline single-field edit --------------------------------
                 function showForm(target) {
                     $('#' + target + '-display').hide();
                     $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"]').first().focus();
+                    reflow();
                 }
                 function hideForm(target) {
                     $('#' + target + '-form').hide();
                     $('#' + target + '-display').show();
+                    reflow();
                 }
                 $(document).on('click', '.js-inline-edit-toggle', function (e) {
                     e.preventDefault();
@@ -726,8 +754,41 @@
                     e.preventDefault();
                     hideForm($(this).data('target'));
                 });
+                // Collapsing a group changes its height — re-pack afterward.
+                $('.asset-detail-grid').on('shown.bs.collapse hidden.bs.collapse', reflow);
             });
         </script>
     @endsection
+
+    @push('css')
+        <style>
+            /* Identity header: name (primary), tag and serial in one left-aligned
+               row — snug, not pushed to the far right. */
+            .asset-identity-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 40px; }
+            .asset-identity-name { margin-right: 4px; }
+            .asset-identity-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #999; }
+            .asset-identity-value { font-size: 20px; font-weight: 600; line-height: 1.4; }
+            .asset-identity-mono { font-family: SFMono-Regular, Menlo, Consolas, monospace; }
+
+            /* Masonry grid of detail cards — Toner-dashboard style, no drag. The
+               tiny grid-auto-rows + per-card row span (set in JS) lets short
+               cards pack tight under tall ones instead of leaving whitespace. */
+            .asset-detail-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                grid-auto-rows: 8px;
+                gap: 18px;
+                width: 100%;
+            }
+            .asset-detail-grid .asset-card {
+                margin: 0;
+                align-self: start;   /* don't stretch a card to the row height */
+            }
+            .asset-card-title { font-size: 15px; font-weight: 600; }
+            .asset-card-title i { margin-right: 4px; }
+            /* No-JS / pre-reflow fallback: cards just stack in source order. */
+            .no-js .asset-detail-grid { display: block; }
+        </style>
+    @endpush
 
 @stop
