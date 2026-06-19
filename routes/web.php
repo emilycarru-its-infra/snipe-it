@@ -970,8 +970,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('disposition-grid', [ProcurementReportsController::class, 'dispositionGrid'])
             ->name('reports.procurement.disposition-grid')
             ->breadcrumbs($crumb('reports.procurement.disposition-grid', 'report_disposition_grid'));
-        Route::post('disposition-grid/decision', [ProcurementReportsController::class, 'updateDispositionDecision'])
-            ->name('reports.procurement.disposition-grid.decision');
+        Route::post('disposition-grid/note', [ProcurementReportsController::class, 'updateDispositionNote'])
+            ->name('reports.procurement.disposition-grid.note');
         Route::post('note', [ProcurementReportsController::class, 'updateReportNote'])
             ->name('reports.procurement.note');
         Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])

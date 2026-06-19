@@ -11,6 +11,7 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\Statuslabel;
+use App\Models\Supplier;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -623,19 +624,20 @@ class ProcurementReportsTest extends TestCase
         $this->assertStringContainsString('SERIALDISP1', $csv->streamedContent());
     }
 
-    public function test_disposition_grid_decision_endpoint_saves_per_serial()
+    public function test_disposition_grid_note_endpoint_saves_per_serial()
     {
         $asset = $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI20221201',
             'Lease End Date' => '2026-12-31',
         ], ['asset_tag' => 'DISP-2', 'serial' => 'SERIALDISP2']);
 
+        // The disposition itself is read-only (from status); only the note is
+        // editable. The note row carries no decision_type.
         $this->actingAs($this->superuser())
-            ->post(route('reports.procurement.disposition-grid.decision'), [
+            ->post(route('reports.procurement.disposition-grid.note'), [
                 'asset_id' => $asset->id,
                 'contract_reference' => 'ECI20221201',
-                'decision_type' => 'return',
-                'notes' => 'Returning at term end.',
+                'notes' => 'Bought out — kept for the loaner pool.',
             ])
             ->assertOk()
             ->assertJson(['status' => 'success']);
@@ -643,12 +645,12 @@ class ProcurementReportsTest extends TestCase
         $this->assertDatabaseHas('lease_decisions', [
             'asset_id' => $asset->id,
             'contract_reference' => 'ECI20221201',
-            'decision_type' => 'return',
-            'notes' => 'Returning at term end.',
+            'decision_type' => null,
+            'notes' => 'Bought out — kept for the loaner pool.',
         ]);
     }
 
-    public function test_disposition_grid_decision_endpoint_clears_per_serial()
+    public function test_disposition_grid_note_endpoint_clears_per_serial()
     {
         $asset = $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI20221201',
@@ -657,14 +659,14 @@ class ProcurementReportsTest extends TestCase
         LeaseDecision::factory()->create([
             'asset_id' => $asset->id,
             'contract_reference' => 'ECI20221201',
-            'decision_type' => 'buyout',
+            'decision_type' => null,
+            'notes' => 'old note',
         ]);
 
         $this->actingAs($this->superuser())
-            ->post(route('reports.procurement.disposition-grid.decision'), [
+            ->post(route('reports.procurement.disposition-grid.note'), [
                 'asset_id' => $asset->id,
                 'contract_reference' => 'ECI20221201',
-                'decision_type' => '',
                 'notes' => '',
             ])
             ->assertOk()
@@ -674,6 +676,27 @@ class ProcurementReportsTest extends TestCase
             'asset_id' => $asset->id,
             'deleted_at' => null,
         ]);
+    }
+
+    public function test_disposition_grid_excludes_fully_returned_leases_and_keeps_active()
+    {
+        // An active lease (deployable status) shows…
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20990701',
+        ], ['serial' => 'ACTIVELEASE1']);
+
+        // …a fully-archived lease (all devices returned) drops off.
+        $archived = \App\Models\Statuslabel::factory()->archived()->create();
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20880101',
+        ], ['serial' => 'RETURNEDLEASE1', 'status_id' => $archived->id]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid'))
+            ->assertOk()
+            ->assertSee('ECI20990701')
+            ->assertSee('ACTIVELEASE1')
+            ->assertDontSee('ECI20880101');
     }
 
     public function test_credit_ledger_excludes_regular_invoices()
@@ -704,6 +727,21 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement.lessor-breakdown'))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'));
+    }
+
+    public function test_reports_read_provider_from_the_lessor_field()
+    {
+        $lessor = Supplier::factory()->create(['name' => 'Acme Leasing Co']);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240801',
+        ], ['serial' => 'LESSORFK1', 'lessor_id' => $lessor->id]);
+
+        // The disposition grid reads the provider from the asset's lessor FK,
+        // not the ECI->CCA prefix fallback.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid'))
+            ->assertOk()
+            ->assertSee('Acme Leasing Co');
     }
 
     public function test_lessor_breakdown_uses_cca_financial_and_ignores_fy_scope()

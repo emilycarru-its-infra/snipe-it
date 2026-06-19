@@ -330,6 +330,7 @@ return [
     'eula_long' => 'End-User License Agreements',
     'show_or_hide_eulas' => 'Show/Hide EULAs',
     'supplier' => 'Supplier',
+    'lessor' => 'Lessor',
     'suppliers' => 'Suppliers',
     'sure_to_delete' => 'Are you sure you wish to delete',
     'sure_to_delete_var' => 'Are you sure you wish to delete :item?',

@@ -202,8 +202,15 @@
                                 $bySlug = [];
                                 if (($asset->model) && ($asset->model->fieldset)) {
                                     $sidebarFieldNames = ['Decommission Date'];
+                                    // Lease-only fields are hidden for purchased assets — show them
+                                    // only when Ownership Type contains "Lease".
+                                    $ownershipField = $asset->model->fieldset->fields->firstWhere('name', 'Ownership Type');
+                                    $ownershipVal = $ownershipField ? (string) $asset->{$ownershipField->db_column} : '';
+                                    $isLease = stripos($ownershipVal, 'lease') !== false;
+                                    $leaseOnlyFieldNames = ['Lease Contract ID', 'Lease Contract Name', 'Lease End Date', 'Lease Rent', 'Buyout Cost', 'Book Value'];
+                                    $hideFieldNames = $isLease ? $sidebarFieldNames : array_merge($sidebarFieldNames, $leaseOnlyFieldNames);
                                     $fsFields = $asset->model->fieldset->fields
-                                        ->reject(fn ($f) => in_array($f->name, $sidebarFieldNames, true));
+                                        ->reject(fn ($f) => in_array($f->name, $hideFieldNames, true));
                                     $grouped = [];
                                     foreach ($fsFields as $field) {
                                         $grouped[$field->field_group_id ?: 'other'][] = $field;
