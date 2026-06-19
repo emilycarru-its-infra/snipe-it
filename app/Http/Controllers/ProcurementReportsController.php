@@ -17,6 +17,7 @@ use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
+use App\Services\CsiReconciliation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -475,6 +476,66 @@ class ProcurementReportsController extends Controller
             [],
             true
         );
+    }
+
+    /**
+     * Per-device reconciliation of the live CSI mirror against Snipe — every
+     * accepted CSI asset diffed by serial against Snipe's own record
+     * (match / schedule mismatch / missing / extra). Driven by the
+     * CsiReconciliation engine reading the csi_* mirror tables.
+     */
+    public function csiReconciliation(Request $request)
+    {
+        $this->authorize('reports.procurement.view');
+
+        return $this->render(
+            $request,
+            'csi-reconciliation-report',
+            trans('admin/purchase-orders/general.report_csi_reconciliation'),
+            'reports.procurement.csi-reconciliation',
+            $this->csiReconciliationReport()
+        );
+    }
+
+    private function csiReconciliationReport(): array
+    {
+        $t = fn ($k) => trans('admin/purchase-orders/general.'.$k);
+
+        $columns = [
+            $t('csi_recon_status'), $t('csi_recon_serial'), $t('csi_recon_model'),
+            $t('csi_recon_csi_schedule'), $t('csi_recon_snipe_schedule'),
+            $t('csi_recon_snipe_tag'), $t('csi_recon_snipe_status'),
+        ];
+
+        $records = [];
+        $tally = ['match' => 0, 'schedule_mismatch' => 0, 'missing_in_snipe' => 0, 'extra_in_snipe' => 0];
+
+        foreach ((new CsiReconciliation)->assetDiff() as $row) {
+            $tally[$row['status']] = ($tally[$row['status']] ?? 0) + 1;
+            $records[] = [
+                'class' => $row['status'] === 'match' ? '' : 'danger',
+                'cells' => [
+                    $t('csi_recon_'.$row['status']),
+                    $row['serial'],
+                    $row['model'],
+                    $row['csi_schedule'],
+                    $row['snipe_schedule'],
+                    $row['snipe_tag'],
+                    $row['snipe_status'],
+                ],
+            ];
+        }
+
+        $summary = $tally['match'].' '.$t('csi_recon_match').' · '
+            .$tally['schedule_mismatch'].' '.$t('csi_recon_schedule_mismatch').' · '
+            .$tally['missing_in_snipe'].' '.$t('csi_recon_missing_in_snipe').' · '
+            .$tally['extra_in_snipe'].' '.$t('csi_recon_extra_in_snipe');
+
+        return [
+            'columns' => $columns,
+            'records' => $records,
+            'footer' => [$summary, '', '', '', '', '', ''],
+        ];
     }
 
     public function invoiceApproval(Request $request)
