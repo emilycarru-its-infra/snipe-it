@@ -103,6 +103,7 @@ class Asset extends Depreciable
         'location_id' => 'integer',
         'rtd_company_id' => 'integer',
         'supplier_id' => 'integer',
+        'lessor_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -126,6 +127,7 @@ class Asset extends Depreciable
         'serial' => ['nullable', 'string', 'unique_undeleted:assets,serial'],
         'purchase_cost' => ['nullable', 'numeric', 'gte:0', 'max:99999999999999999.99'],
         'supplier_id' => ['nullable', 'exists:suppliers,id'],
+        'lessor_id' => ['nullable', 'exists:suppliers,id'],
         'asset_eol_date' => ['nullable', 'date'],
         'eol_explicit' => ['nullable', 'boolean'],
         'byod' => ['nullable', 'boolean'],
@@ -167,6 +169,7 @@ class Asset extends Depreciable
         'serial',
         'status_id',
         'supplier_id',
+        'lessor_id',
         'warranty_months',
         'requestable',
         'last_checkout',
@@ -1173,6 +1176,17 @@ class Asset extends Depreciable
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    /**
+     * The lessor that financed this device's lease (a Supplier record playing
+     * the lessor role) — distinct from the supplier that sold it.
+     *
+     * @return Relation
+     */
+    public function lessor()
+    {
+        return $this->belongsTo(Supplier::class, 'lessor_id');
     }
 
     /**

@@ -112,6 +112,7 @@
         "last_audit_date",
         "last_checkin",
         "last_checkout",
+        "lessor_id",
         "location_id",
         "model_id",
         "name",

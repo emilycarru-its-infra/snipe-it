@@ -359,6 +359,8 @@
 
 
         <x-info-panel.supplier :infoPanelObj="$infoPanelObj"/>
+
+        <x-info-panel.lessor :infoPanelObj="$infoPanelObj"/>
         {{-- Assets show manufacturer in the detail header now. --}}
         @if (! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-panel.manufacturer :asset="$infoPanelObj" :manufacturer="($infoPanelObj->manufacturer ?? $infoPanelObj->model?->manufacturer)"/>

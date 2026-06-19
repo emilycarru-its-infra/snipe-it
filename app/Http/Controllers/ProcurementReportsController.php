@@ -1623,7 +1623,7 @@ class ProcurementReportsController extends Controller
             return [];
         }
 
-        $assets = Asset::with('model', 'status')
+        $assets = Asset::with('model', 'status', 'lessor')
             ->whereNotNull($endDateColumn)
             ->where($endDateColumn, '!=', '')
             ->whereNotNull($contractIdColumn)
@@ -1648,7 +1648,7 @@ class ProcurementReportsController extends Controller
                 $decision = $decisions[$contractId] ?? null;
                 $schedules[$contractId] = [
                     'contract_id' => $contractId,
-                    'provider' => $this->contractProvider($contractId),
+                    'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
                     'lease_end_date' => $asset->{$endDateColumn},
                     'fiscal_year' => $fy,
                     'count' => 0,
@@ -1748,7 +1748,7 @@ class ProcurementReportsController extends Controller
         // parked in the PO Number field (the 007/008 acquisitions), so the
         // latter aren't silently dropped from the lease rollups.
         $assets = $this->scopeDateToFiscalYear(
-            Asset::with('model', 'status')
+            Asset::with('model', 'status', 'lessor')
                 ->where(function ($q) use ($contractIdColumn, $poNumberColumn) {
                     $q->where(fn ($w) => $w->whereNotNull($contractIdColumn)->where($contractIdColumn, '!=', ''));
                     if ($poNumberColumn) {
@@ -1777,7 +1777,7 @@ class ProcurementReportsController extends Controller
                     'contract_id' => $contractId,
                     'contract_name' => null,
                     'lease_end_date' => null,
-                    'provider' => $this->contractProvider($contractId),
+                    'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
                     'assets' => [],
                     'model_counts' => [],
                     'ownership_counts' => [],
@@ -2952,7 +2952,7 @@ class ProcurementReportsController extends Controller
         // Every leased device, all fiscal years — the grid mirrors the whole
         // live lease book, not a single year (it replaces the per-contract
         // sheets of the Leases workbook).
-        $assets = Asset::with('model.category', 'status')
+        $assets = Asset::with('model.category', 'status', 'lessor')
             ->whereNotNull($contractIdColumn)
             ->where($contractIdColumn, '!=', '')
             ->orderBy($contractIdColumn)
@@ -2969,7 +2969,7 @@ class ProcurementReportsController extends Controller
             if (! isset($contracts[$contractId])) {
                 $contracts[$contractId] = [
                     'contract_id' => $contractId,
-                    'provider' => $this->contractProvider($contractId),
+                    'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
                     'lease_end_date' => $cols['lease_end_date'] ? (string) $asset->{$cols['lease_end_date']} : '',
                     'is_lease_to_own' => false,
                     'active_count' => 0,
