@@ -115,7 +115,9 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->model)
+        {{-- Assets surface manufacturer/category/model/model-no in the detail
+             header now, so skip them here to avoid duplicating. --}}
+        @if ($infoPanelObj->model && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="model" title="{{ trans('general.asset_model') }}">
                 {{ trans('general.asset_model') }}
                 <x-copy-to-clipboard copy_what="asset_model" class="pull-right">
@@ -213,7 +215,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->purchase_cost && ! ($infoPanelObj->on_maintenance_contract ?? false))
+        @if ($infoPanelObj->purchase_cost && ! ($infoPanelObj->on_maintenance_contract ?? false) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <x-icon type="cost" class="fa-fw" title="{{ trans('general.unit_cost') }}" />
                 {{ trans('general.unit_cost') }}
@@ -246,7 +248,7 @@
 
         @endif
 
-        @if ($infoPanelObj->order_number && ! ($infoPanelObj->on_maintenance_contract ?? false))
+        @if ($infoPanelObj->order_number && ! ($infoPanelObj->on_maintenance_contract ?? false) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="order" title="{{ trans('general.order_number') }}">
                 {{ trans('general.order_number') }}
                 <x-copy-to-clipboard copy_what="order_number" class="pull-right">
@@ -315,7 +317,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->category)
+        @if ($infoPanelObj->category && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="category" icon_color="{{ $infoPanelObj->category->tag_color }}" title="{{ trans('general.category') }}">
                 {{ trans('general.category') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="category">{!!  $infoPanelObj->category->present()->nameUrl !!}</x-copy-to-clipboard>
@@ -330,7 +332,7 @@
         @endif
 
 
-        @if ($infoPanelObj->location)
+        @if ($infoPanelObj->location && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="location" icon_color="{{ $infoPanelObj->location->tag_color }}" title="{{ trans('general.location') }}">
                 {{ trans('general.location') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="location">{!!  $infoPanelObj->location->present()->nameUrl !!}</x-copy-to-clipboard>
@@ -355,7 +357,10 @@
 
 
         <x-info-panel.supplier :infoPanelObj="$infoPanelObj"/>
-        <x-info-panel.manufacturer :asset="$infoPanelObj" :manufacturer="($infoPanelObj->manufacturer ?? $infoPanelObj->model?->manufacturer)"/>
+        {{-- Assets show manufacturer in the detail header now. --}}
+        @if (! ($infoPanelObj instanceof \App\Models\Asset))
+            <x-info-panel.manufacturer :asset="$infoPanelObj" :manufacturer="($infoPanelObj->manufacturer ?? $infoPanelObj->model?->manufacturer)"/>
+        @endif
 
         @if ((isset($infoPanelObj->parent)) && ($infoPanelObj->parent))
             @php
@@ -501,7 +506,7 @@
 
 
 
-        @if ($infoPanelObj->purchase_date && ! ($infoPanelObj->on_maintenance_contract ?? false))
+        @if ($infoPanelObj->purchase_date && ! ($infoPanelObj->on_maintenance_contract ?? false) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <x-icon type="calendar" class="fa-fw" title="{{ trans('general.purchase_date') }}" />
                 {{ trans('general.purchased_plain') }}
@@ -533,6 +538,13 @@
                 {{ trans('admin/licenses/form.reassignable') }}
             @endif
             </x-info-element>
+        @endif
+
+        {{-- Low-signal flags + provenance grouped under a Metadata divider (assets). --}}
+        @if ($infoPanelObj instanceof \App\Models\Asset)
+            <li class="list-group-item asset-metadata-divider">
+                <strong class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">{{ trans('general.metadata') }}</strong>
+            </li>
         @endif
 
         @if (isset($infoPanelObj->byod))
