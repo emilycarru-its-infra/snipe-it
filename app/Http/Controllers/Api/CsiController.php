@@ -25,7 +25,7 @@ class CsiController extends Controller
         'leases' => [CsiLease::class, ['lease_number']],
         'schedules' => [CsiSchedule::class, ['schedule_name']],
         'assets' => [CsiAsset::class, ['serial', 'schedule_name']],
-        'inprocess' => [CsiInprocessAsset::class, ['serial', 'order_number']],
+        'inprocess' => [CsiInprocessAsset::class, ['serial']],
         'invoices' => [CsiInvoice::class, ['csi_invoice_number']],
     ];
 
