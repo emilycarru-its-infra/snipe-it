@@ -380,6 +380,12 @@ class AssetsController extends Controller
                 ? app(PrinterUsageService::class)->summary($asset)
                 : null;
 
+            // Per-asset CSI lease tab — the device's live CSI lifecycle
+            // (in-process / accepted / which schedule + rent) reconciled
+            // against Snipe's own lease fields. Null (tab hidden) when the
+            // device has no CSI relevance.
+            $csiLease = app(\App\Services\CsiReconciliation::class)->forAsset($asset);
+
             return view('hardware/view', compact('asset', 'qr_code', 'settings'))
                 ->with('total_maintenance_cost', $total_maintenance_cost)
                 ->with('total_asset_cost', $total_asset_cost)
@@ -389,7 +395,8 @@ class AssetsController extends Controller
                 ->with('total_cost_for_asset', $total_cost_for_asset)
                 ->with('use_currency', $use_currency)
                 ->with('audit_log', $audit_log)
-                ->with('printerUsage', $printerUsage);
+                ->with('printerUsage', $printerUsage)
+                ->with('csiLease', $csiLease);
         }
 
         return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.does_not_exist'));
