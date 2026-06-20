@@ -45,6 +45,7 @@ class AssetModelsController extends Controller
                 'image',
                 'name',
                 'model_number',
+                'model_identifier',
                 'min_amt',
                 'eol',
                 'notes',
@@ -73,6 +74,7 @@ class AssetModelsController extends Controller
             'models.image',
             'models.name',
             'models.model_number',
+            'models.model_identifier',
             'models.min_amt',
             'models.eol',
             'models.created_by',
@@ -108,6 +110,10 @@ class AssetModelsController extends Controller
 
         if ($request->filled('model_number')) {
             $assetmodels = $assetmodels->where('models.model_number', '=', $request->input('model_number'));
+        }
+
+        if ($request->filled('model_identifier')) {
+            $assetmodels = $assetmodels->where('models.model_identifier', '=', $request->input('model_identifier'));
         }
 
         if ($request->input('requestable') == 'true') {
