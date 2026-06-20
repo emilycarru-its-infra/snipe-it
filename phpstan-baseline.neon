@@ -2613,7 +2613,7 @@ parameters:
 		-
 			message: '#^Method App\\Http\\Controllers\\Auth\\LoginController\:\:login\(\) should return Illuminate\\Http\\RedirectResponse but returns Illuminate\\View\\View\.$#'
 			identifier: return.type
-			count: 2
+			count: 1
 			path: app/Http/Controllers/Auth/LoginController.php
 
 		-
@@ -3147,12 +3147,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Carbon\\Carbon\:\:floatDiffInYears\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/FleetHealthReportsController.php
-
-		-
-			message: '#^Call to static method whereYear\(\) on an unknown class App\\Models\\AssetMaintenance\.$#'
-			identifier: class.notFound
 			count: 1
 			path: app/Http/Controllers/FleetHealthReportsController.php
 
@@ -7417,6 +7411,246 @@ parameters:
 			path: app/Models/Department.php
 
 		-
+			message: '#^Access to an undefined property App\\Models\\Actionlog\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentItem\:\:\$asset\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentItem\:\:\$license\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentItem\:\:\$license_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentItem\:\:\$model\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentItem\:\:\$stage\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Method App\\Models\\DeploymentItem\:\:getLatestSignedAcceptance\(\) should return App\\Models\\Actionlog\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^PHPDoc tag @SuppressWarnings has invalid value \(\(PHPMD\.UnusedFormalParameter\)\)\: Unexpected token "\.UnusedFormalParameter\)", expected ''\)'' at offset 351 on line 10$#'
+			identifier: phpDoc.parseError
+			count: 1
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between class\-string\<static\(App\\Models\\DeploymentItem\)\> and ''App\\\\Models\\\\LicenseSeat'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Unsafe access to private property App\\Models\\DeploymentItem\:\:\$customFieldFilterMapCache through static\:\:\.$#'
+			identifier: staticClassAccess.privateProperty
+			count: 4
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Psr\\Http\\Message\\ResponseInterface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>company_id" in isset\(\) is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/DeploymentItem.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Actionlog\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentStage\:\:\$license\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentStage\:\:\$license_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Method App\\Models\\DeploymentStage\:\:getLatestSignedAcceptance\(\) should return App\\Models\\Actionlog\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between class\-string\<static\(App\\Models\\DeploymentStage\)\> and ''App\\\\Models\\\\LicenseSeat'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Psr\\Http\\Message\\ResponseInterface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>company_id" in isset\(\) is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/DeploymentStage.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Actionlog\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentType\:\:\$license\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentType\:\:\$license_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Method App\\Models\\DeploymentType\:\:getLatestSignedAcceptance\(\) should return App\\Models\\Actionlog\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between class\-string\<static\(App\\Models\\DeploymentType\)\> and ''App\\\\Models\\\\LicenseSeat'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Psr\\Http\\Message\\ResponseInterface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>company_id" in isset\(\) is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/DeploymentType.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Actionlog\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$license\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$license_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Method App\\Models\\DeploymentWave\:\:getLatestSignedAcceptance\(\) should return App\\Models\\Actionlog\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^PHPDoc tag @SuppressWarnings has invalid value \(\(PHPMD\.UnusedFormalParameter\)\)\: Unexpected token "\.UnusedFormalParameter\)", expected ''\)'' at offset 351 on line 10$#'
+			identifier: phpDoc.parseError
+			count: 1
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between class\-string\<static\(App\\Models\\DeploymentWave\)\> and ''App\\\\Models\\\\LicenseSeat'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Unsafe access to private property App\\Models\\DeploymentWave\:\:\$customFieldFilterMapCache through static\:\:\.$#'
+			identifier: staticClassAccess.privateProperty
+			count: 4
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Psr\\Http\\Message\\ResponseInterface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Models/DeploymentWave.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>company_id" in isset\(\) is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/DeploymentWave.php
+
+		-
 			message: '#^Access to an undefined property App\\Models\\Depreciable\:\:\$depreciation\.$#'
 			identifier: property.notFound
 			count: 1
@@ -9113,6 +9347,54 @@ parameters:
 			identifier: property.notFound
 			count: 2
 			path: app/Models/SnipeSCIMConfig.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Actionlog\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Models/StaffBlackout.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StaffBlackout\:\:\$license\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/StaffBlackout.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\StaffBlackout\:\:\$license_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Models/StaffBlackout.php
+
+		-
+			message: '#^Method App\\Models\\StaffBlackout\:\:getLatestSignedAcceptance\(\) should return App\\Models\\Actionlog\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/StaffBlackout.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between class\-string\<static\(App\\Models\\StaffBlackout\)\> and ''App\\\\Models\\\\LicenseSeat'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/StaffBlackout.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: app/Models/StaffBlackout.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Psr\\Http\\Message\\ResponseInterface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Models/StaffBlackout.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>company_id" in isset\(\) is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/StaffBlackout.php
 
 		-
 			message: '#^Method App\\Models\\Statuslabel\:\:getStatuslabelTypesForDB\(\) should return string but returns array\<string, int\>\.$#'
