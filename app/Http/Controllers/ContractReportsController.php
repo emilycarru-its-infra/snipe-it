@@ -24,20 +24,22 @@ class ContractReportsController extends Controller
         $allFiscalYears = Contract::whereNotNull('fiscal_year')
             ->distinct()->orderBy('fiscal_year')->pluck('fiscal_year');
 
-        // Default to current FY when no ?fiscal_year is passed so the
-        // contracts dashboard opens on this year. `?fiscal_year=all` is
-        // the explicit opt-out for all-time views.
+        // Default to the current FY when no ?fiscal_year is passed so the
+        // contracts dashboard opens on this year. When the current FY holds no
+        // contracts yet (early in a fiscal year, or contracts dated by signing
+        // year), fall back to the most recent FY that actually has contracts —
+        // $allFiscalYears is ascending and FY labels sort chronologically — so
+        // the dashboard never silently opens on the all-time view. An explicit
+        // `?fiscal_year=all` is the opt-out for all-time.
         $rawFy = $request->query('fiscal_year');
+        $current = Helper::currentFiscalYear();
+        $defaultFy = $allFiscalYears->contains($current) ? $current : $allFiscalYears->last();
         if ($rawFy === 'all') {
             $selectedFy = null;
-        } elseif ($rawFy === null) {
-            $current = Helper::currentFiscalYear();
-            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
-        } elseif ($allFiscalYears->contains($rawFy)) {
+        } elseif ($rawFy !== null && $allFiscalYears->contains($rawFy)) {
             $selectedFy = $rawFy;
         } else {
-            $current = Helper::currentFiscalYear();
-            $selectedFy = $allFiscalYears->contains($current) ? $current : null;
+            $selectedFy = $defaultFy;
         }
 
         $base = Contract::query()
