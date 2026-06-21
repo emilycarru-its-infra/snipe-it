@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\BudgetAllocation;
+use App\Models\Category;
+use App\Models\Company;
 use App\Models\CustomField;
+use App\Models\Manufacturer;
 use App\Models\UserAgreement;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
@@ -13,6 +16,8 @@ use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
+use App\Models\Statuslabel;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
@@ -334,7 +339,16 @@ class ProcurementReportsController extends Controller
         $this->authorize('reports.procurement.view');
 
         $fy = $this->resolveFiscalYear($request);
-        $report = $this->refreshForecastReport($fy);
+
+        // Early-renewal slotting: any criteria the reader adds (category,
+        // ownership type, lease contract, status, …) drives the candidate
+        // set instead of the default end-of-life window, so a subset of an
+        // active contract can be forecasted for an early refresh — e.g.
+        // "Category: Laptop AND Ownership Type: Lease to Own AND Lease
+        // Contract ID: ECI20221001". Selected rows still flow through the
+        // same planned-order path as the EOL forecast.
+        $criteria = $this->forecastCriteria($request);
+        $report = $this->refreshForecastReport($fy, $criteria);
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('refresh-forecast-report', $report);
@@ -350,15 +364,148 @@ class ProcurementReportsController extends Controller
             'rows' => $report['records'],
             'footer' => $report['footer'] ?? null,
             'downloadUrl' => route('reports.procurement.forecast', array_filter(
-                ['format' => 'csv', 'fiscal_year' => $request->query('fiscal_year', $fy)],
-                fn ($v) => $v !== null && $v !== ''
+                ['format' => 'csv', 'fiscal_year' => $request->query('fiscal_year', $fy), 'criteria' => $criteria],
+                fn ($v) => $v !== null && $v !== '' && $v !== []
             )),
             'canCreate' => Gate::allows('create', Order::class),
             'fyFilterable' => true,
             'selectedFy' => $fy,
             'allFiscalYears' => $this->availableFiscalYears(),
             'reportParams' => [],
+            'filterFields' => $this->forecastFilterFields(),
+            'filterValues' => $this->forecastFilterValues(),
+            'activeCriteria' => $criteria,
+            'earlyRenewalMode' => $criteria !== [],
         ]);
+    }
+
+    /**
+     * Normalise the `criteria[]` query input into a clean list of
+     * {field, value} predicates, dropping blank rows and any field that is
+     * not in the allow-list (the static columns + the live custom fields).
+     * All predicates are ANDed in refreshForecastReport().
+     */
+    private function forecastCriteria(Request $request): array
+    {
+        $raw = $request->query('criteria', []);
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $allowed = $this->forecastFilterFields();
+        $out = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $field = (string) ($row['field'] ?? '');
+            $value = trim((string) ($row['value'] ?? ''));
+            if ($field === '' || $value === '' || ! isset($allowed[$field])) {
+                continue;
+            }
+            $out[] = ['field' => $field, 'value' => $value];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The fields a forecast criterion can target: a curated set of asset
+     * taxonomies plus every custom field (keyed `cf:<db_column>`), so the
+     * reader can slot in an early renewal by whatever mix the situation
+     * needs without the field list being hard-coded.
+     */
+    private function forecastFilterFields(): array
+    {
+        $fields = [
+            'category' => trans('general.category'),
+            'manufacturer' => trans('general.manufacturer'),
+            'model' => trans('general.asset_model'),
+            'status' => trans('general.status'),
+            'supplier' => trans('general.supplier'),
+            'company' => trans('general.company'),
+        ];
+
+        foreach (CustomField::orderBy('name')->get() as $field) {
+            if ($field->db_column) {
+                $fields['cf:'.$field->db_column] = $field->name;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Known values per field, used to populate the criteria builder's
+     * datalists so the reader can autocomplete instead of guessing exact
+     * spellings. Custom-field values are sourced from the assets that carry
+     * them (capped, since some fields are high-cardinality); Model is left
+     * free-text for the same reason.
+     */
+    private function forecastFilterValues(): array
+    {
+        $values = [
+            'category' => Category::where('category_type', 'asset')->orderBy('name')->pluck('name')->all(),
+            'manufacturer' => Manufacturer::orderBy('name')->pluck('name')->all(),
+            'status' => Statuslabel::orderBy('name')->pluck('name')->all(),
+            'supplier' => Supplier::orderBy('name')->pluck('name')->all(),
+            'company' => Company::orderBy('name')->pluck('name')->all(),
+        ];
+
+        foreach (CustomField::orderBy('name')->get() as $field) {
+            if (! $field->db_column) {
+                continue;
+            }
+            $values['cf:'.$field->db_column] = Asset::query()
+                ->whereNotNull($field->db_column)
+                ->where($field->db_column, '!=', '')
+                ->distinct()
+                ->orderBy($field->db_column)
+                ->limit(200)
+                ->pluck($field->db_column)
+                ->all();
+        }
+
+        return $values;
+    }
+
+    /**
+     * Apply one forecast criterion to the asset query. Relation fields match
+     * by name; custom fields match the generated column exactly. The column
+     * is validated against the live custom-field allow-list before it ever
+     * reaches the query builder, so an arbitrary `cf:` value can't inject a
+     * column name.
+     */
+    private function applyForecastCriterion($query, string $field, string $value): void
+    {
+        switch ($field) {
+            case 'category':
+                $query->whereHas('model.category', fn ($q) => $q->where('name', $value));
+                break;
+            case 'manufacturer':
+                $query->whereHas('model.manufacturer', fn ($q) => $q->where('name', $value));
+                break;
+            case 'model':
+                $query->whereHas('model', fn ($q) => $q->where('name', $value));
+                break;
+            case 'status':
+                $query->whereHas('status', fn ($q) => $q->where('name', $value));
+                break;
+            case 'supplier':
+                $query->whereHas('supplier', fn ($q) => $q->where('name', $value));
+                break;
+            case 'company':
+                $query->whereHas('company', fn ($q) => $q->where('name', $value));
+                break;
+            default:
+                if (str_starts_with($field, 'cf:')) {
+                    $column = substr($field, 3);
+                    $allowed = CustomField::pluck('db_column')->filter()->all();
+                    if (in_array($column, $allowed, true)) {
+                        $query->where($column, $value);
+                    }
+                }
+        }
     }
 
     /**
@@ -1371,7 +1518,7 @@ class ProcurementReportsController extends Controller
      * Assets reaching end-of-life within the next year — the refresh
      * pipeline. purchase_cost stands in as the replacement-cost estimate.
      */
-    private function refreshForecastReport(?string $fy = null): array
+    private function refreshForecastReport(?string $fy = null, array $criteria = []): array
     {
         $columns = [
             trans('admin/purchase-orders/general.forecast_asset_tag'),
@@ -1385,14 +1532,24 @@ class ProcurementReportsController extends Controller
             trans('general.supplier'),
         ];
 
-        // A chosen FY scopes to that year's end-of-life dates; with no FY
-        // ("all") fall back to the rolling next-12-months refresh window.
+        // Default forecast: end-of-life devices in the FY (or the rolling
+        // next-12-months window for "all"). Early-renewal mode — any criteria
+        // supplied — drops the EOL window entirely and lists every device
+        // matching the ANDed predicates, so a subset of an active lease can
+        // be slotted in for an early refresh well before its EOL date.
         $range = $this->fiscalYearRange($fy);
         $assets = Asset::with('model', 'supplier', 'status')
-            ->whereNotNull('asset_eol_date')
-            ->when($range, fn ($query) => $query->whereBetween('asset_eol_date', $range))
-            ->when(! $range, fn ($query) => $query->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()]))
+            ->when($criteria === [], fn ($query) => $query
+                ->whereNotNull('asset_eol_date')
+                ->when($range, fn ($q) => $q->whereBetween('asset_eol_date', $range))
+                ->when(! $range, fn ($q) => $q->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])))
+            ->when($criteria !== [], function ($query) use ($criteria) {
+                foreach ($criteria as $criterion) {
+                    $this->applyForecastCriterion($query, $criterion['field'], $criterion['value']);
+                }
+            })
             ->orderBy('asset_eol_date')
+            ->orderBy('purchase_date')
             ->get();
 
         // Devices that already have a planned replacement line item are
@@ -1654,6 +1811,7 @@ class ProcurementReportsController extends Controller
                     'count' => 0,
                     'cost' => 0.0,
                     'model_counts' => [],
+                    'ownership_counts' => [],
                     'decision' => $decision,
                     'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
                     'is_lease_to_own' => false,
@@ -1666,6 +1824,17 @@ class ProcurementReportsController extends Controller
             // the view renders it as "retained", never as a logged decision.
             if ($ownershipColumn && (string) $asset->{$ownershipColumn} === 'Lease to Own') {
                 $schedules[$contractId]['is_lease_to_own'] = true;
+            }
+
+            // Tally the ownership-type mix across every device on the schedule
+            // (disposed units included, same basis as the cost envelope) so the
+            // table can show what kind of contract each ending lease is.
+            if ($ownershipColumn) {
+                $ownership = trim((string) $asset->{$ownershipColumn});
+                if ($ownership !== '') {
+                    $schedules[$contractId]['ownership_counts'][$ownership] =
+                        ($schedules[$contractId]['ownership_counts'][$ownership] ?? 0) + 1;
+                }
             }
 
             // The pre-approval envelope is the schedule's full original lease
