@@ -1654,6 +1654,7 @@ class ProcurementReportsController extends Controller
                     'count' => 0,
                     'cost' => 0.0,
                     'model_counts' => [],
+                    'ownership_counts' => [],
                     'decision' => $decision,
                     'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
                     'is_lease_to_own' => false,
@@ -1666,6 +1667,17 @@ class ProcurementReportsController extends Controller
             // the view renders it as "retained", never as a logged decision.
             if ($ownershipColumn && (string) $asset->{$ownershipColumn} === 'Lease to Own') {
                 $schedules[$contractId]['is_lease_to_own'] = true;
+            }
+
+            // Tally the ownership-type mix across every device on the schedule
+            // (disposed units included, same basis as the cost envelope) so the
+            // table can show what kind of contract each ending lease is.
+            if ($ownershipColumn) {
+                $ownership = trim((string) $asset->{$ownershipColumn});
+                if ($ownership !== '') {
+                    $schedules[$contractId]['ownership_counts'][$ownership] =
+                        ($schedules[$contractId]['ownership_counts'][$ownership] ?? 0) + 1;
+                }
             }
 
             // The pre-approval envelope is the schedule's full original lease

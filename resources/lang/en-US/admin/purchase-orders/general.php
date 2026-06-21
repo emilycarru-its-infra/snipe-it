@@ -75,6 +75,7 @@ return [
     'lease_end_title' => 'Lease schedules ending — :fy',
     'lease_end_title_all' => 'Lease schedules ending (all fiscal years)',
     'lease_end_help' => 'Every schedule whose lease ends in scope, with the logged buyout / return / extension call. The full original value of every schedule is pre-approved for the new fiscal year; the decision sets what we actually buy (types and quantities are re-assessed at renewal), not whether the budget is approved.',
+    'lease_end_ownership' => 'Ownership Type',
     'lease_end_devices' => 'Devices',
     'lease_end_models' => 'Models',
     'lease_end_replacement' => 'Replacement Est.',

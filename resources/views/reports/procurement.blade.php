@@ -188,9 +188,10 @@
                        note editor doesn't reflow the whole table. */
                     .lease-end-table th:nth-child(1), .lease-end-table td:nth-child(1),
                     .lease-end-table th:nth-child(2), .lease-end-table td:nth-child(2),
-                    .lease-end-table th:nth-child(3), .lease-end-table td:nth-child(3) { white-space: nowrap; }
-                    .lease-end-table td:nth-child(5) { white-space: normal; min-width: 280px; }
-                    .lease-end-table th:nth-child(7), .lease-end-table td:nth-child(7) { min-width: 260px; }
+                    .lease-end-table th:nth-child(3), .lease-end-table td:nth-child(3),
+                    .lease-end-table th:nth-child(4), .lease-end-table td:nth-child(4) { white-space: nowrap; }
+                    .lease-end-table td:nth-child(6) { white-space: normal; min-width: 280px; }
+                    .lease-end-table th:nth-child(8), .lease-end-table td:nth-child(8) { min-width: 260px; }
                     .lease-end-table .rpt-note-input { width: 100%; box-sizing: border-box; }
                 </style>
                 <div class="table-responsive">
@@ -199,6 +200,7 @@
                             <tr>
                                 <th>{{ trans('admin/lease-decisions/general.contract_reference') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.lease_end_ownership') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.lease_end_date') }}</th>
                                 <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_devices') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.lease_end_models') }}</th>
@@ -211,6 +213,16 @@
                                 <tr>
                                     <td><strong>{{ $schedule['contract_id'] }}</strong></td>
                                     <td>{{ $schedule['provider'] }}</td>
+                                    <td>
+                                        @php $ownershipMix = $schedule['ownership_counts']; @endphp
+                                        @if (empty($ownershipMix))
+                                            <span class="text-muted">—</span>
+                                        @elseif (count($ownershipMix) === 1)
+                                            {{ array_key_first($ownershipMix) }}
+                                        @else
+                                            {{ collect($ownershipMix)->map(fn ($qty, $type) => $qty.'× '.$type)->implode(', ') }}
+                                        @endif
+                                    </td>
                                     <td>{{ $schedule['lease_end_date'] }}</td>
                                     <td class="text-right">{{ $schedule['count'] }}</td>
                                     <td>
@@ -254,7 +266,7 @@
                                 $leaseEndAll = collect($leaseEndSchedules);
                             @endphp
                             <tr>
-                                <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
+                                <th colspan="4">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
                                 <th class="text-right">{{ $leaseEndAll->sum('count') }}</th>
                                 <th></th>
                                 <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAll->sum('cost')) }}</th>
