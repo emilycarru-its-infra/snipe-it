@@ -401,9 +401,14 @@
                         <a href="{{ $reportLink($report['route']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.view') }}">
                             <x-icon type="reports" />
                         </a>
-                        <a href="{{ $reportLink($report['route'], ['format' => 'csv']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.download') }}">
+                        <a href="{{ $reportLink($report['route'], ['format' => 'csv']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_csv') }}">
                             <x-icon type="download" />
                         </a>
+                        @if ($report['route'] === 'reports.procurement.disposition-grid')
+                            <a href="{{ $reportLink($report['route'], ['format' => 'xlsx']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_xlsx') }}">
+                                <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+                            </a>
+                        @endif
                         <a href="#" class="btn btn-box-tool hide-procurement-report"
                            data-report="{{ $report['name'] }}"
                            data-tooltip="true" title="{{ trans('admin/purchase-orders/general.report_hide') }}">
