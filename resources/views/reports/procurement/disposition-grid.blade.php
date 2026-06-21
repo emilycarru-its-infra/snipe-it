@@ -6,8 +6,11 @@
 @stop
 
 @section('header_right')
+    <a href="{{ $downloadXlsxUrl }}" class="btn btn-sm btn-default">
+        <x-icon type="download" /> {{ trans('admin/purchase-orders/general.disposition_download_xlsx') }}
+    </a>
     <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default">
-        <x-icon type="download" /> {{ trans('general.download') }}
+        <x-icon type="download" /> {{ trans('admin/purchase-orders/general.disposition_download_csv') }}
     </a>
     <a href="{{ route('reports.procurement') }}" class="btn btn-sm btn-default">
         {{ trans('admin/purchase-orders/general.reports') }}

@@ -14,6 +14,15 @@
 @if (empty($contracts))
     <p class="text-muted">{{ trans('admin/purchase-orders/general.disposition_none_leased') }}</p>
 @else
+    <div class="disp-search-bar">
+        <div class="input-group input-group-sm disp-search-group">
+            <span class="input-group-addon"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+            <input type="text" class="form-control disp-search" autocomplete="off" spellcheck="false"
+                   placeholder="{{ trans('admin/purchase-orders/general.disposition_search_serial') }}">
+            <span class="input-group-addon disp-search-clear" role="button" title="{{ trans('button.delete') }}" style="display:none;">&times;</span>
+        </div>
+        <span class="disp-search-status text-muted" aria-live="polite"></span>
+    </div>
     <ul class="nav nav-tabs disp-tabs" role="tablist">
         @foreach ($contracts as $i => $c)
             @php $paneId = 'disp-pane-'.$i; @endphp
@@ -48,17 +57,17 @@
                                 <th>{{ trans('admin/purchase-orders/general.detail_asset_tag') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.disposition_action') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.disposition_decommissioned_date') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.invoice_usage') }}</th>
+                                <th class="text-right">{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.disposition_use') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_ownership') }}</th>
                                 <th>{{ trans('general.category') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_model') }}</th>
-                                <th class="text-right">{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}</th>
                                 <th>{{ trans('general.notes') }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($c['assets'] as $a)
-                                <tr data-asset-id="{{ $a['asset_id'] }}" data-contract="{{ $c['contract_id'] }}" @if ($a['archived']) class="text-muted disp-archived" @endif>
+                                <tr data-asset-id="{{ $a['asset_id'] }}" data-contract="{{ $c['contract_id'] }}" data-serial="{{ $a['serial'] }}" data-tag="{{ $a['asset_tag'] }}" data-pane="disp-pane-{{ $i }}" @if ($a['archived']) class="text-muted disp-archived" @endif>
                                     <td>{{ $a['serial'] }}</td>
                                     <td>{{ $a['asset_tag'] }}</td>
                                     <td>
@@ -69,11 +78,11 @@
                                         @endif
                                     </td>
                                     <td>{{ $a['decommissioned_date'] }}</td>
-                                    <td>{{ $a['usage'] }}</td>
+                                    <td class="text-right">{{ $a['buyout_cost'] }}</td>
+                                    <td>{{ $a['use'] }}</td>
                                     <td>{{ $a['ownership'] }}</td>
                                     <td>{{ $a['category'] }}</td>
                                     <td>{{ $a['model'] }}</td>
-                                    <td class="text-right">{{ $a['buyout_cost'] }}</td>
                                     <td class="disp-note-cell">
                                         <span class="disp-note-text">{{ $a['note'] }}</span>
                                         @if (! empty($canEdit))
