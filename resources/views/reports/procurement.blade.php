@@ -239,9 +239,10 @@
                                             </span>
                                         @elseif ($schedule['decision'])
                                             <span class="label {{ $schedule['refresh_planned'] ? 'label-primary' : 'label-warning' }}">
-                                                {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
-                                                &middot;
-                                                {{ trans('admin/lease-decisions/general.status_'.$schedule['decision']->status) }}
+                                                {{ trans('admin/purchase-orders/general.lease_end_decision_tag', [
+                                                    'type' => trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type),
+                                                    'status' => trans('admin/purchase-orders/general.decision_status_'.$schedule['decision']->status),
+                                                ]) }}
                                             </span>
                                             @unless ($schedule['refresh_planned'])
                                                 <span class="text-muted" style="display:block; font-size:12px;">

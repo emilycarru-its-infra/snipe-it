@@ -89,6 +89,15 @@ return [
     'lease_end_replacement' => 'Replacement Est.',
     'lease_end_plan' => 'Plan',
     'lease_end_refresh_planned' => 'Refresh — in pre-approval estimate',
+    'lease_end_decision_tag' => ':type — :status',
+    // Plan-column wording for a logged renewal decision. Deliberately distinct
+    // from the generic lease-decision status labels: here "Approved" read as
+    // budget approval, so we say "confirmed" to mean the renewal decision is
+    // settled (the budget is pre-approved regardless, shown separately).
+    'decision_status_pending' => 'decision pending',
+    'decision_status_approved' => 'decision confirmed',
+    'decision_status_completed' => 'completed',
+    'decision_status_cancelled' => 'cancelled',
     'lease_end_reassess' => 'Value pre-approved — device needs re-assessed at renewal',
     'lease_end_totals_preapproved' => 'Pre-approval estimate (all ending schedules)',
     'lease_end_totals_decided' => 'of which a decision is logged (re-assessed at renewal)',
