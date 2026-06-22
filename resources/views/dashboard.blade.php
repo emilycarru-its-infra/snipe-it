@@ -175,10 +175,11 @@
 </div>
 @endif
 
-{{-- ───────────────────── ROW 2.5: Category quick-access ───────────────────── --}}
-@if (!empty($categoryTiles))
+{{-- ───────────────────── ROW 3: Categories + Needs Attention (50/50) ───────────────────── --}}
 <div class="row">
-    <div class="col-md-12">
+
+    @if (!empty($categoryTiles))
+    <div class="col-md-6">
         <div class="box box-default">
             <div class="box-header with-border">
                 <h2 class="box-title">Categories</h2>
@@ -199,12 +200,9 @@
             </div>
         </div>
     </div>
-</div>
-@endif
+    @endif
 
-{{-- ───────────────────── ROW 3: Needs Attention (full width) ───────────────────── --}}
-<div class="row">
-    <div class="col-md-12">
+    <div class="col-md-{{ !empty($categoryTiles) ? 6 : 12 }}">
         <div class="box box-default">
             <div class="box-header with-border">
                 <h2 class="box-title">Needs Attention</h2>
