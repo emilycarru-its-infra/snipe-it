@@ -71,24 +71,26 @@ class DashboardController extends Controller
     }
 
     /**
-     * Quick-access category tiles rendered above the KPI strip. Categories are
-     * resolved by name (case-insensitive) so the dashboard survives id changes
-     * and the wrong-id problem; any name not present is silently skipped. The
-     * count mirrors the categories index (showable assets, deleted excluded),
-     * and each tile deep-links to /categories/{id}. The icon is a Font Awesome
-     * 5 free glyph — edit the map to retheme.
+     * Quick-access category cards rendered under the Asset Lifecycle box, in the
+     * same card style as Needs Attention. Categories are resolved by name
+     * (case-insensitive) so the dashboard survives id changes and the wrong-id
+     * problem; any name not present is silently skipped. The count mirrors the
+     * categories index (showable assets, deleted excluded), and each card
+     * deep-links to /categories/{id}. Icon (Font Awesome 5 free) and accent
+     * colour are per-category — edit the map to retheme.
      */
     private function buildCategoryTiles(): array
     {
-        // Ordered display list: [category name => fa icon]. Names match the
-        // Snipe category records exactly (singular, as created).
+        // Ordered display list: name => [fa icon, left-border accent colour].
+        // Names match the Snipe category records exactly (singular, as created);
+        // colours come from the dashboard palette.
         $wanted = [
-            'Desktop' => 'fa-desktop',
-            'Laptop'  => 'fa-laptop',
-            'Tablet'  => 'fa-tablet-alt',
-            'Phone'   => 'fa-mobile-alt',
-            'Printer' => 'fa-print',
-            'Scanner' => 'fa-image',
+            'Desktop' => ['fa-desktop',    '#0073b7'],
+            'Laptop'  => ['fa-laptop',     '#00a65a'],
+            'Tablet'  => ['fa-tablet-alt', '#605ca8'],
+            'Phone'   => ['fa-mobile-alt', '#39cccc'],
+            'Printer' => ['fa-print',      '#f39c12'],
+            'Scanner' => ['fa-image',      '#dd4b39'],
         ];
 
         $categories = Category::where('category_type', 'asset')
@@ -98,7 +100,7 @@ class DashboardController extends Controller
             ->keyBy(fn ($c) => strtolower($c->name));
 
         $tiles = [];
-        foreach ($wanted as $name => $icon) {
+        foreach ($wanted as $name => [$icon, $color]) {
             $category = $categories->get(strtolower($name));
             if (! $category) {
                 continue;
@@ -107,6 +109,7 @@ class DashboardController extends Controller
                 'id'    => $category->id,
                 'name'  => $category->name,
                 'icon'  => $icon,
+                'color' => $color,
                 'count' => (int) $category->assets_count,
             ];
         }
