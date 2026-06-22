@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\Category;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
@@ -61,11 +62,56 @@ class DashboardController extends Controller
         return view('dashboard')
             ->with('asset_stats', null)
             ->with('counts', $counts)
+            ->with('categoryTiles', $this->buildCategoryTiles())
             ->with('kpis', $this->buildKpis($settings))
             ->with('lifecycle', $this->buildLifecycle())
             ->with('actionQueue', $this->buildActionQueue($settings))
             ->with('procurement', $this->buildProcurement())
             ->with('customBreakdowns', $this->buildCustomBreakdowns());
+    }
+
+    /**
+     * Quick-access category tiles rendered above the KPI strip. Categories are
+     * resolved by name (case-insensitive) so the dashboard survives id changes
+     * and the wrong-id problem; any name not present is silently skipped. The
+     * count mirrors the categories index (showable assets, deleted excluded),
+     * and each tile deep-links to /categories/{id}. The icon is a Font Awesome
+     * 5 free glyph — edit the map to retheme.
+     */
+    private function buildCategoryTiles(): array
+    {
+        // Ordered display list: [category name => fa icon]. Names match the
+        // Snipe category records exactly (singular, as created).
+        $wanted = [
+            'Desktop' => 'fa-desktop',
+            'Laptop'  => 'fa-laptop',
+            'Tablet'  => 'fa-tablet-alt',
+            'Phone'   => 'fa-mobile-alt',
+            'Printer' => 'fa-print',
+            'Scanner' => 'fa-image',
+        ];
+
+        $categories = Category::where('category_type', 'asset')
+            ->whereIn(DB::raw('LOWER(name)'), array_map('strtolower', array_keys($wanted)))
+            ->withCount('showableAssets as assets_count')
+            ->get()
+            ->keyBy(fn ($c) => strtolower($c->name));
+
+        $tiles = [];
+        foreach ($wanted as $name => $icon) {
+            $category = $categories->get(strtolower($name));
+            if (! $category) {
+                continue;
+            }
+            $tiles[] = [
+                'id'    => $category->id,
+                'name'  => $category->name,
+                'icon'  => $icon,
+                'count' => (int) $category->assets_count,
+            ];
+        }
+
+        return $tiles;
     }
 
     private function buildKpis(Setting $settings): array
