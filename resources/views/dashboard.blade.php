@@ -57,6 +57,25 @@
 
 @else
 
+{{-- ───────────────────── ROW 0: Category quick-access ───────────────────── --}}
+@if (!empty($categoryTiles))
+<div class="row dashboard-category-strip">
+    <div class="col-md-12">
+        <div class="category-grid">
+            @foreach ($categoryTiles as $tile)
+                <a class="category-tile" href="{{ route('categories.show', $tile['id']) }}" title="{{ $tile['name'] }}">
+                    <i class="category-tile-icon fas {{ $tile['icon'] }}" aria-hidden="true"></i>
+                    <div class="category-tile-text">
+                        <div class="category-tile-count">{{ number_format($tile['count']) }}</div>
+                        <div class="category-tile-label">{{ \Illuminate\Support\Str::plural($tile['name']) }}</div>
+                    </div>
+                </a>
+            @endforeach
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- ───────────────────── ROW 1: KPI strip ───────────────────── --}}
 @php
     $delta = $kpis['created_last_7'] - $kpis['created_prev_7'];
@@ -604,6 +623,40 @@
 
 @push('css')
 <style>
+    .dashboard-category-strip { margin-bottom: 15px; }
+    .category-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 8px;
+    }
+    @media (max-width: 1199px) { .category-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 767px)  { .category-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    /* Subtle neutral tiles so the category shortcuts read as navigation, not
+       as another set of KPI status cards below them. */
+    .category-tile {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 4px;
+        border: 1px solid rgba(127,127,127,0.2);
+        background: rgba(127,127,127,0.05);
+        color: inherit;
+        text-decoration: none;
+        transition: background 0.1s ease, transform 0.1s ease;
+    }
+    .category-tile:hover, .category-tile:focus {
+        background: rgba(60,141,188,0.10);
+        transform: translateY(-2px);
+        color: inherit;
+        text-decoration: none;
+    }
+    .category-tile-icon { font-size: 26px; opacity: 0.7; width: 30px; text-align: center; flex: 0 0 30px; }
+    .category-tile-text { min-width: 0; }
+    .category-tile-count { font-size: 22px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+    .category-tile-label { font-size: 12px; text-transform: uppercase; font-weight: 600; opacity: 0.7; letter-spacing: 0.4px; }
+
     .dashboard-kpi-strip { margin-bottom: 15px; }
     .kpi-grid {
         display: grid;
