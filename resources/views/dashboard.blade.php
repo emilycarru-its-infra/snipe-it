@@ -631,14 +631,17 @@
 <style>
     /* Category quick-access cards reuse the Needs Attention .action-card chrome
        (light card, thin border, coloured left accent) so the two sections read
-       as a matched pair. Only the icon + count/label layout is category-specific. */
-    .category-card {
+       as a matched pair. The compound selector beats the later .action-card
+       { display:block } rule so the icon sits to the LEFT with the count/name
+       stacked beside it. */
+    .action-card.category-card {
         display: flex;
+        flex-direction: row;
         align-items: center;
-        gap: 12px;
+        gap: 14px;
     }
-    .category-card-icon { font-size: 26px; width: 30px; text-align: center; flex: 0 0 30px; }
-    .category-card-text { min-width: 0; }
+    .category-card-icon { font-size: 30px; width: 34px; text-align: center; flex: 0 0 34px; }
+    .category-card-text { min-width: 0; text-align: left; }
     .category-card-count { font-size: 22px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
     .category-card-label { margin-bottom: 0; text-transform: uppercase; font-size: 12px; letter-spacing: 0.4px; opacity: 0.75; }
 
