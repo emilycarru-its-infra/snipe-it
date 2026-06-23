@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\Category;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
@@ -61,11 +62,59 @@ class DashboardController extends Controller
         return view('dashboard')
             ->with('asset_stats', null)
             ->with('counts', $counts)
+            ->with('categoryTiles', $this->buildCategoryTiles())
             ->with('kpis', $this->buildKpis($settings))
             ->with('lifecycle', $this->buildLifecycle())
             ->with('actionQueue', $this->buildActionQueue($settings))
             ->with('procurement', $this->buildProcurement())
             ->with('customBreakdowns', $this->buildCustomBreakdowns());
+    }
+
+    /**
+     * Quick-access category cards rendered under the Asset Lifecycle box, in the
+     * same card style as Needs Attention. Categories are resolved by name
+     * (case-insensitive) so the dashboard survives id changes and the wrong-id
+     * problem; any name not present is silently skipped. The count mirrors the
+     * categories index (showable assets, deleted excluded), and each card
+     * deep-links to /categories/{id}. Icon (Font Awesome 5 free) and accent
+     * colour are per-category — edit the map to retheme.
+     */
+    private function buildCategoryTiles(): array
+    {
+        // Ordered display list: name => [fa icon, left-border accent colour].
+        // Names match the Snipe category records exactly (singular, as created);
+        // colours come from the dashboard palette.
+        $wanted = [
+            'Desktop' => ['fa-desktop',    '#0073b7'],
+            'Laptop'  => ['fa-laptop',     '#00a65a'],
+            'Tablet'  => ['fa-tablet-alt', '#605ca8'],
+            'Phone'   => ['fa-mobile-alt', '#39cccc'],
+            'Printer' => ['fa-print',      '#f39c12'],
+            'Scanner' => ['fa-fax',        '#dd4b39'],
+        ];
+
+        $categories = Category::where('category_type', 'asset')
+            ->whereIn(DB::raw('LOWER(name)'), array_map('strtolower', array_keys($wanted)))
+            ->withCount('showableAssets as assets_count')
+            ->get()
+            ->keyBy(fn ($c) => strtolower($c->name));
+
+        $tiles = [];
+        foreach ($wanted as $name => [$icon, $color]) {
+            $category = $categories->get(strtolower($name));
+            if (! $category) {
+                continue;
+            }
+            $tiles[] = [
+                'id'    => $category->id,
+                'name'  => $category->name,
+                'icon'  => $icon,
+                'color' => $color,
+                'count' => (int) $category->assets_count,
+            ];
+        }
+
+        return $tiles;
     }
 
     private function buildKpis(Setting $settings): array
