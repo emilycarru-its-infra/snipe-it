@@ -726,9 +726,13 @@
 
     .action-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
         gap: 10px;
     }
+    /* Desktop stays a fixed 3 columns no matter how wide; only reflow at
+       iPad (2 cols) and iPhone (1 col) widths. */
+    @media (max-width: 991px) { .action-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 767px) { .action-grid { grid-template-columns: 1fr; } }
     .action-card {
         display: block;
         padding: 12px 14px;
@@ -741,8 +745,11 @@
     }
     .action-card:hover { background: rgba(127,127,127,0.12); text-decoration: none; color: inherit; }
     .action-title { font-weight: 600; margin-bottom: 6px; }
-    .action-buckets { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; opacity: 0.85; }
-    .action-buckets strong { font-size: 16px; opacity: 1; }
+    /* Keep all buckets on a single line so no card grows a second row and
+       leaves the others (equal-height grid cells) with empty space. */
+    .action-buckets { display: flex; flex-wrap: nowrap; gap: 10px; font-size: 12px; opacity: 0.85; }
+    .action-buckets > span { white-space: nowrap; }
+    .action-buckets strong { font-size: 15px; opacity: 1; }
     .action-bad strong { color: #dd4b39; }
     .action-warranty   { border-left: 3px solid #f39c12; }
     .action-lease      { border-left: 3px solid #00c0ef; }
