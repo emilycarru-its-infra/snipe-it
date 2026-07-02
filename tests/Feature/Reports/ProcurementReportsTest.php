@@ -167,7 +167,12 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.leases-financial'))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.report_leases_financial'));
+            ->assertSee(trans('admin/purchase-orders/general.report_leases_financial'))
+            // Column headers are the human-readable labels, not the raw
+            // `_snipeit_*` generated DB column names (regression: the header
+            // row was being clobbered by the field-column lookup map).
+            ->assertSee(trans('admin/purchase-orders/general.lease_contract_id'))
+            ->assertDontSee('_snipeit_lease_contract_id');
     }
 
     public function test_csi_schedule_report_renders_without_lease_data()

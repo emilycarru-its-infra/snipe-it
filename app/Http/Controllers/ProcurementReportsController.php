@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\Helper;
 use App\Models\Asset;
+use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
 use App\Models\Category;
 use App\Models\Company;
@@ -706,30 +707,96 @@ class ProcurementReportsController extends Controller
     {
         $t = fn ($k) => trans('admin/purchase-orders/general.'.$k);
 
-        $records = [];
-        $inSnipe = 0;
+        // Lessor draft Exhibit "A" emails arrive one Equipment Schedule at a
+        // time (e.g. #301452-008), so group the arrivals the same way with a
+        // per-schedule subtotal — that is the unit receiving reconciles
+        // against. Devices not yet on a schedule bucket under a clear label.
+        $pendingLabel = $t('csi_recon_pending_schedule');
+        $grouped = [];
         foreach ((new CsiReconciliation)->inProcessArrivals() as $row) {
-            $inSnipe += $row['in_snipe'] ? 1 : 0;
+            $grouped[$row['csi_schedule'] ?: $pendingLabel][] = $row;
+        }
+        ksort($grouped);
+
+        // Best-effort model-id lookup so the "add to inventory" deep-link can
+        // prefill the model, not just the serial. Cached per model name.
+        $modelIds = [];
+        $modelIdFor = function (?string $name) use (&$modelIds) {
+            $name = trim((string) $name);
+            if ($name === '') {
+                return null;
+            }
+            if (! array_key_exists($name, $modelIds)) {
+                $modelIds[$name] = AssetModel::where('name', $name)->value('id');
+            }
+
+            return $modelIds[$name];
+        };
+
+        $records = [];
+        $totalInSnipe = 0;
+        $totalCount = 0;
+
+        foreach ($grouped as $scheduleLabel => $rows) {
+            $groupInSnipe = 0;
+
+            foreach ($rows as $row) {
+                $groupInSnipe += $row['in_snipe'] ? 1 : 0;
+
+                $record = [
+                    'class' => $row['in_snipe'] ? '' : 'warning',
+                    'cells' => [
+                        $row['csi_schedule'] ?: $pendingLabel,
+                        $row['in_snipe'] ? $t('csi_recon_match') : $t('csi_recon_missing'),
+                        $row['serial'],
+                        $row['model'],
+                        $row['snipe_tag'],
+                        $row['snipe_status'],
+                    ],
+                ];
+
+                // Arriving devices Snipe doesn't know yet get a one-click add
+                // that deep-links to a create form prefilled with the serial
+                // (and the model when it maps to an existing Snipe model).
+                if (! $row['in_snipe']) {
+                    $params = ['serial' => $row['serial']];
+                    if ($modelId = $modelIdFor($row['model'])) {
+                        $params['model_id'] = $modelId;
+                    }
+                    $record['action'] = [
+                        'col' => 1,
+                        'url' => route('hardware.create', $params),
+                        'label' => $t('csi_recon_add_to_inventory'),
+                    ];
+                }
+
+                $records[] = $record;
+            }
+
             $records[] = [
-                'class' => $row['in_snipe'] ? '' : 'warning',
+                'class' => 'info rpt-subtotal',
                 'cells' => [
-                    $row['in_snipe'] ? $t('csi_recon_match') : $t('csi_recon_missing_in_snipe'),
-                    $row['serial'],
-                    $row['model'],
-                    $row['csi_schedule'],
-                    $row['snipe_tag'],
-                    $row['snipe_status'],
+                    $scheduleLabel.' '.trans('admin/orders/general.total'),
+                    $groupInSnipe.' / '.count($rows).' '.$t('csi_recon_in_snipe_suffix'),
+                    '', '', '', '',
                 ],
             ];
+
+            $totalInSnipe += $groupInSnipe;
+            $totalCount += count($rows);
         }
 
         return [
             'columns' => [
-                $t('csi_recon_status'), $t('csi_recon_serial'), $t('csi_recon_model'),
-                $t('csi_recon_csi_schedule'), $t('csi_recon_snipe_tag'), $t('csi_recon_snipe_status'),
+                $t('csi_recon_csi_schedule'), $t('csi_recon_status'), $t('csi_recon_serial'),
+                $t('csi_recon_model'), $t('csi_recon_snipe_tag'), $t('csi_recon_snipe_status'),
             ],
             'records' => $records,
-            'footer' => [$inSnipe.' / '.count($records).' '.$t('csi_recon_in_process'), '', '', '', '', ''],
+            'footer' => [
+                trans('admin/orders/general.total'),
+                $totalInSnipe.' / '.$totalCount.' '.$t('csi_recon_in_snipe_suffix'),
+                '', '', '', '',
+            ],
         ];
     }
 
@@ -2104,9 +2171,12 @@ class ProcurementReportsController extends Controller
         ];
 
         $groups = $this->groupedLeaseAssets($fy);
-        $columns = $this->leaseFieldColumns();
-        $poNumberColumn = $columns['po_number'];
-        $warrantyColumn = $columns['warranty_cost'] ?? null;
+        // Look up the lease custom-field DB columns without clobbering the
+        // human-readable header row built above (they are the generated
+        // `_snipeit_*` column names, not display labels).
+        $leaseCols = $this->leaseFieldColumns();
+        $poNumberColumn = $leaseCols['po_number'];
+        $warrantyColumn = $leaseCols['warranty_cost'] ?? null;
 
         // Order items are the transition fallback for assets whose own PO /
         // CDW / warranty fields aren't populated yet. Keyed by asset id so the
@@ -2312,7 +2382,7 @@ class ProcurementReportsController extends Controller
             // the CSI Exhibit A totals without doing the maths in their
             // head.
             $records[] = [
-                'class' => 'info',
+                'class' => 'info rpt-subtotal',
                 'cells' => [
                     $group['contract_id'].' '.trans('admin/orders/general.total'),
                     '', $scheduleQty, '', '',
