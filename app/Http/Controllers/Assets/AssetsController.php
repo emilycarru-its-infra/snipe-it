@@ -85,9 +85,19 @@ class AssetsController extends Controller
     public function create(Request $request): View
     {
         $this->authorize('create', Asset::class);
+
+        $item = new Asset;
+
+        // Prefill the serial from a query param so "add to inventory"
+        // deep-links (e.g. from the Incoming Lease Assets report) land on a
+        // ready-to-save form rather than a blank one.
+        if ($request->filled('serial')) {
+            $item->serial = $request->input('serial');
+        }
+
         $view = view('hardware/edit')
             ->with('statuslabel_list', Helper::statusLabelList())
-            ->with('item', new Asset)
+            ->with('item', $item)
             ->with('statuslabel_types', Helper::statusTypeList());
 
         if ($request->filled('model_id')) {
