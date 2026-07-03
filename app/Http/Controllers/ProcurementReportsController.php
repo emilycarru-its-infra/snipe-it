@@ -3236,6 +3236,7 @@ class ProcurementReportsController extends Controller
                 'asset_tag' => (string) $asset->asset_tag,
                 'serial' => (string) $asset->serial,
                 'status' => (string) $asset->status?->name,
+                'status_type' => $asset->status?->getStatuslabelType(),
                 'archived' => $isArchived,
                 'decommissioned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
                 'usage' => $cols['usage'] ? (string) $asset->{$cols['usage']} : '',

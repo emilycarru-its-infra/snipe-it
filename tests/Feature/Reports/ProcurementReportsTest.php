@@ -599,7 +599,7 @@ class ProcurementReportsTest extends TestCase
         return $asset->fresh();
     }
 
-    public function test_disposition_grid_is_tabbed_per_contract_and_lists_serials()
+    public function test_disposition_grid_lists_serials_under_a_contract_dropdown()
     {
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI20221201',
@@ -610,16 +610,19 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement.disposition-grid'))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.report_disposition_grid'))
+            // Contracts are selected via a dropdown now, not a tab strip.
+            ->assertSee('disp-contract-select', false)
             ->assertSee('ECI20221201')
             ->assertSee('SERIALDISP1')
             // Provider label reflects the CCA rename, not the retired Macquarie.
             ->assertSee('CCA Financial')
             ->assertDontSee('Macquarie');
 
-        // Embed (dashboard inline) renders the tabbed grid partial.
+        // Embed (dashboard inline) renders the same grid partial with the picker.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.disposition-grid', ['embed' => 1]))
             ->assertOk()
+            ->assertSee('disp-contract-select', false)
             ->assertSee('SERIALDISP1');
 
         // CSV hand-off flattens every contract's serials into one table.
