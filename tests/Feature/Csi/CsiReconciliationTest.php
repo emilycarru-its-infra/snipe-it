@@ -36,6 +36,31 @@ class CsiReconciliationTest extends TestCase
             ->assertSee('ARRX');
     }
 
+    public function test_arrivals_report_groups_by_schedule_with_add_button_for_missing()
+    {
+        $col = $this->leaseColumn();
+
+        // One device Snipe already knows, one it doesn't — same schedule.
+        $this->snipeAsset('ARRIN', $col, null);
+        CsiInprocessAsset::create(['serial' => 'ARRIN', 'lease_number' => '301452', 'schedule_name' => '301452-008', 'model' => 'Studio Display']);
+        CsiInprocessAsset::create(['serial' => 'ARROUT', 'lease_number' => '301452', 'schedule_name' => '301452-008', 'model' => 'Studio Display']);
+
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.csi-arrivals'))
+            ->assertOk()
+            // "Missing in Snipe" was shortened to just "Missing" on this report.
+            ->assertSee(trans('admin/purchase-orders/general.csi_recon_missing'))
+            // Per-schedule subtotal row: "301452-008 Total" + "1 / 2 in Snipe".
+            ->assertSee('301452-008 '.trans('admin/orders/general.total'))
+            ->assertSee('1 / 2 '.trans('admin/purchase-orders/general.csi_recon_in_snipe_suffix'))
+            // The missing device gets a one-click add-to-inventory deep link
+            // prefilled with its serial; the matched one does not.
+            ->assertSee(trans('admin/purchase-orders/general.csi_recon_add_to_inventory'));
+
+        $this->assertStringContainsString('serial=ARROUT', $response->getContent());
+        $this->assertStringNotContainsString('serial=ARRIN', $response->getContent());
+    }
+
     private function leaseColumn(): string
     {
         return CustomField::factory()->create(['name' => 'Lease Contract ID'])->db_column;
