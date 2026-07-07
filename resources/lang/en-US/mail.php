@@ -140,4 +140,10 @@ return [
     'user_agreement_signature_reminder_greeting'   => 'Hi :name,',
     'user_agreement_signature_reminder_body'       => 'This is a reminder (#:number) that your :type agreement for :asset_tag (:model) is still waiting for your signature. Please review and sign when you have a moment.',
     'user_agreement_signature_reminder_cta'        => 'Review and sign now',
+
+    'asset_buyout_request_subject'  => 'Buyout quote request — Asset :asset_tag (SN :serial)',
+    'asset_buyout_request_heading'  => 'Lease buyout quote request',
+    'asset_buyout_request_intro'    => 'Hello :lessor team, we would like to request a buyout quote for the following leased device:',
+    'asset_buyout_request_body'     => 'Please provide the current buyout cost for this device, including any applicable taxes and fees. Note that the buyout is being considered regardless of the device\'s current physical condition. Reply to all on this email and our team will follow up. Thank you.',
+    'asset_buyout_request_signoff'  => 'Requested by :name, Emily Carr University — Device Services.',
 ];

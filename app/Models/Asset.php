@@ -1190,6 +1190,82 @@ class Asset extends Depreciable
     }
 
     /**
+     * Resolve a custom-field value on this asset by the field's display name,
+     * looked up through the model's fieldset so it works whatever the field's
+     * db_column happens to be per environment. Returns null when the model has
+     * no fieldset, the named field isn't present, or the value is blank.
+     */
+    public function customFieldValueByName(string $name): ?string
+    {
+        if (! $this->model || ! $this->model->fieldset) {
+            return null;
+        }
+
+        $field = $this->model->fieldset->fields->firstWhere('name', $name);
+        if (! $field) {
+            return null;
+        }
+
+        $value = $this->{$field->db_column};
+
+        return ($value === null || $value === '') ? null : (string) $value;
+    }
+
+    /**
+     * True when this asset is financed on a lease — i.e. its "Ownership Type"
+     * custom field contains "lease" (matching the detail view's own test).
+     */
+    public function isLeased(): bool
+    {
+        return stripos((string) $this->customFieldValueByName('Ownership Type'), 'lease') !== false;
+    }
+
+    /**
+     * The lease's end date parsed from the "Lease End Date" custom field, or
+     * null when it's unset or unparseable.
+     */
+    public function leaseEndDate(): ?\Carbon\Carbon
+    {
+        $raw = $this->customFieldValueByName('Lease End Date');
+        if (! $raw) {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether this asset is on a lease that has not yet ended — leased, and the
+     * Lease End Date is either in the future or unknown. Drives visibility of
+     * the "Request Buyout" action on the detail page.
+     */
+    public function isOnActiveLease(): bool
+    {
+        if (! $this->isLeased()) {
+            return false;
+        }
+
+        $end = $this->leaseEndDate();
+
+        return $end === null || $end->gte(\Carbon\Carbon::today());
+    }
+
+    /**
+     * Whether a lease-buyout quote can actually be requested from the lessor:
+     * the asset is on an active lease AND has a lessor carrying a contact email
+     * to send the request to. When this is false but isOnActiveLease() is true,
+     * the UI shows a disabled button prompting the admin to set a lessor email.
+     */
+    public function canRequestLeaseBuyout(): bool
+    {
+        return $this->isOnActiveLease() && $this->lessor && filled($this->lessor->email);
+    }
+
+    /**
      * Establishes the asset -> location relationship
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]
@@ -2192,6 +2268,19 @@ class Asset extends Depreciable
     public function scopeOrderSupplier($query, $order)
     {
         return $query->leftJoin('suppliers as suppliers_assets', 'assets.supplier_id', '=', 'suppliers_assets.id')->orderBy('suppliers_assets.name', $order);
+    }
+
+    /**
+     * Query builder scope to order on lessor name (a Supplier record playing the
+     * lessor role, joined via lessor_id — distinct from the supplier join above).
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query  Query builder instance
+     * @param  string  $order         Order (asc/desc)
+     * @return \Illuminate\Database\Query\Builder Modified query builder
+     */
+    public function scopeOrderLessor($query, $order)
+    {
+        return $query->leftJoin('suppliers as suppliers_lessor', 'assets.lessor_id', '=', 'suppliers_lessor.id')->orderBy('suppliers_lessor.name', $order);
     }
 
     /**
