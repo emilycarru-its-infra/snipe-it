@@ -38,6 +38,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('consumables:link-printer-models', [
             '--alias' => ['IM C3500=Ricoh IM C3510'],
         ])->dailyAt('02:30');
+
+        // Nightly lessor backfill. Idempotent and non-destructive (only fills a
+        // null lessor_id from the Lease Contract ID prefix), so newly-ingested
+        // leases pick up their lessor without a code change or manual step.
+        $schedule->command('snipeit:backfill-lessors', ['--write' => true])->dailyAt('03:15');
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateMultipleAssetRequest;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\UploadFileRequest;
+use App\Mail\AssetBuyoutRequestMail;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\AssetModel;
@@ -16,6 +17,7 @@ use App\Models\Company;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Observers\AssetObserver;
 use App\Services\Transactions\PrinterUsageService;
@@ -30,6 +32,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use League\Csv\Reader;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -555,6 +558,61 @@ class AssetsController extends Controller
      * inlineEditableCoreFields() whitelist; everything else is rejected, and the
      * value is validated by the model's own $rules on save.
      */
+    /**
+     * Email the asset's lessor requesting an end-of-lease buyout quote for this
+     * device, CC'ing the assigned end user, the device team, and the requesting
+     * admin. Guarded so it can only fire for assets on an active lease whose
+     * lessor carries a contact email, and logged to the asset's activity feed.
+     */
+    public function requestBuyout(Asset $asset): RedirectResponse
+    {
+        $this->authorize('update', $asset);
+
+        $back = redirect()->route('hardware.show', $asset->id);
+
+        if (! $asset->isOnActiveLease()) {
+            return $back->with('error', trans('general.request_buyout_not_eligible'));
+        }
+
+        if (! $asset->lessor || ! filled($asset->lessor->email)) {
+            return $back->with('error', trans('general.request_buyout_missing_email'));
+        }
+
+        $requester = auth()->user();
+
+        // Cc: device team (fixed), the assigned end user (only when the asset is
+        // checked out to a real User with an email), and the acting admin. De-dupe
+        // and drop the lessor's own address so it never lands in both To and Cc.
+        $cc = [config('leasing.buyout_request_cc')];
+        if (($asset->assignedTo instanceof User) && filled($asset->assignedTo->email)) {
+            $cc[] = $asset->assignedTo->email;
+        }
+        if ($requester && filled($requester->email)) {
+            $cc[] = $requester->email;
+        }
+        $cc = array_values(array_diff(array_unique(array_filter($cc)), [$asset->lessor->email]));
+
+        Mail::to($asset->lessor->email)
+            ->cc($cc)
+            ->send(new AssetBuyoutRequestMail($asset, $requester));
+
+        // Record the request on the asset's activity timeline.
+        $log = new Actionlog;
+        $log->item_type = Asset::class;
+        $log->item_id = $asset->id;
+        $log->setAttribute('created_by', $requester?->id);
+        $log->target_id = $asset->lessor_id;
+        $log->target_type = Supplier::class;
+        $log->company_id = $asset->company_id;
+        $log->note = trans('mail.asset_buyout_request_subject', [
+            'asset_tag' => $asset->asset_tag,
+            'serial'    => $asset->serial,
+        ]);
+        $log->logaction('buyout requested');
+
+        return $back->with('success', trans('general.request_buyout_success'));
+    }
+
     public function updateCoreField(Request $request, Asset $asset): RedirectResponse
     {
         $this->authorize('update', $asset);
