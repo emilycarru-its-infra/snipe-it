@@ -600,7 +600,7 @@ class AssetsController extends Controller
         $log = new Actionlog;
         $log->item_type = Asset::class;
         $log->item_id = $asset->id;
-        $log->created_by = $requester?->id;
+        $log->setAttribute('created_by', $requester?->id);
         $log->target_id = $asset->lessor_id;
         $log->target_type = Supplier::class;
         $log->company_id = $asset->company_id;
