@@ -61,7 +61,13 @@ class AssetBuyoutRequestTest extends TestCase
 
     private function lessorWithEmail(): Supplier
     {
-        return Supplier::factory()->create(['name' => 'CSI Leasing', 'email' => 'rep@csileasing.example']);
+        // Reuse the lessor supplier the migration seeds (Supplier names are
+        // unique_undeleted, so re-creating "CSI Leasing" would fail validation)
+        // and give it a contact email.
+        $lessor = Supplier::firstWhere('name', 'CSI Leasing') ?? Supplier::factory()->create(['name' => 'CSI Leasing']);
+        $lessor->update(['email' => 'rep@csileasing.example']);
+
+        return $lessor;
     }
 
     public function test_sends_buyout_request_to_lessor_and_ccs_team_end_user_and_admin(): void
