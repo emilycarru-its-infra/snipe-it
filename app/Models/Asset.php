@@ -1190,23 +1190,21 @@ class Asset extends Depreciable
     }
 
     /**
-     * Resolve a custom-field value on this asset by the field's display name,
-     * looked up through the model's fieldset so it works whatever the field's
-     * db_column happens to be per environment. Returns null when the model has
-     * no fieldset, the named field isn't present, or the value is blank.
+     * Resolve a custom-field value on this asset by the field's display name.
+     * The db_column is looked up from the custom_fields table by name (the same
+     * approach the lease reports and the lessor backfill use), so it works
+     * whatever the column happens to be per environment and doesn't depend on
+     * the field being eager-loaded through the model's fieldset. Returns null
+     * when no such field exists or the value is blank on this asset.
      */
     public function customFieldValueByName(string $name): ?string
     {
-        if (! $this->model || ! $this->model->fieldset) {
+        $column = \Illuminate\Support\Facades\DB::table('custom_fields')->where('name', $name)->value('db_column');
+        if (! $column) {
             return null;
         }
 
-        $field = $this->model->fieldset->fields->firstWhere('name', $name);
-        if (! $field) {
-            return null;
-        }
-
-        $value = $this->{$field->db_column};
+        $value = $this->getAttribute($column);
 
         return ($value === null || $value === '') ? null : (string) $value;
     }
