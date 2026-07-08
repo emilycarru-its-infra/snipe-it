@@ -71,6 +71,23 @@ Route::group(
             [AssetCheckinController::class, 'forceCheckin']
         )->name('asset.checkin.force');
 
+        // Email the asset's lessor requesting an end-of-lease buyout quote.
+        Route::post('{asset}/buyout-request',
+            [AssetsController::class, 'requestBuyout']
+        )->name('asset.buyout.request');
+
+        // Inline single-field edit from the asset detail view, without opening
+        // the full edit form. Native columns go through corefield (whitelisted
+        // by Asset::inlineEditableCoreFields()); custom fields go through field
+        // (whitelisted by the model fieldset).
+        Route::patch('{asset}/corefield',
+            [AssetsController::class, 'updateCoreField']
+        )->name('hardware.corefield.update');
+
+        Route::patch('{asset}/field',
+            [AssetsController::class, 'updateField']
+        )->name('hardware.field.update');
+
         Route::get('history', [AssetsController::class, 'getImportHistory'])
             ->name('asset.import-history')
             ->breadcrumbs(fn (Trail $trail) => $trail->parent('hardware.index')

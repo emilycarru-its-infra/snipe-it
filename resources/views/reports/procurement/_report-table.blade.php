@@ -14,8 +14,17 @@
         <tbody>
         @forelse ($rows as $row)
             <tr @if (! empty($row['class'])) class="{{ $row['class'] }}" @endif>
-                @foreach ($row['cells'] as $cell)
-                    <td>{{ $cell }}</td>
+                @foreach ($row['cells'] as $ci => $cell)
+                    @if (! empty($canEditNotes) && isset($row['editable_note']) && $row['editable_note']['col'] === $ci)
+                        <td class="rpt-note-cell" data-model="{{ $row['editable_note']['model'] }}" data-id="{{ $row['editable_note']['id'] }}">
+                            <span class="rpt-note-text">{{ $cell }}</span>
+                            <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}">
+                                <i class="fa-solid fa-pencil" aria-hidden="true"></i>
+                            </a>
+                        </td>
+                    @else
+                        <td>{{ $cell }}</td>
+                    @endif
                 @endforeach
             </tr>
         @empty

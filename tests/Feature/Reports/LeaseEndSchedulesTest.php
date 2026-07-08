@@ -55,7 +55,7 @@ class LeaseEndSchedulesTest extends TestCase
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('ECI20221201')
-            ->assertSee('Macquarie')
+            ->assertSee('CCA Financial')
             ->assertSee('2026-12-31')
             ->assertSee(trans('admin/purchase-orders/general.lease_end_refresh_planned'))
             // 2 × $1,111.11 lands in both the schedule row and the
@@ -63,7 +63,7 @@ class LeaseEndSchedulesTest extends TestCase
             ->assertSee('$2,222.22');
     }
 
-    public function test_decided_schedule_drops_out_of_the_preapproval_estimate()
+    public function test_decided_schedule_stays_in_the_preapproval_estimate()
     {
         $this->seedSchedule('ECI20221201', '2026-12-31', 2, 1111.11);
 
@@ -72,24 +72,22 @@ class LeaseEndSchedulesTest extends TestCase
             'decision_type' => 'buyout',
             'status' => 'approved',
             'decision_date' => '2026-12-31',
-            'notes' => 'Lease-to-own; refresh budget redirected to the Faculty Laptop program.',
+            'notes' => 'Lease-to-own; device needs re-assessed for the Faculty Laptop program.',
         ]);
 
-        $response = $this->actingAs($this->superuser())
+        $this->actingAs($this->superuser())
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            // The schedule still shows, carrying its decision and note…
+            // The schedule shows, carrying its decision and note…
             ->assertSee('ECI20221201')
             ->assertSee(trans('admin/lease-decisions/general.type_buyout'))
             ->assertSee('Faculty Laptop program')
-            ->assertSee(trans('admin/purchase-orders/general.lease_end_totals_excluded'))
-            // …but its cost no longer drives the pre-approval estimate.
-            ->assertSee('$0.00');
-
-        $this->assertStringNotContainsString(
-            trans('admin/purchase-orders/general.lease_end_refresh_planned'),
-            $response->getContent()
-        );
+            // …and it's flagged as re-assessed at renewal…
+            ->assertSee(trans('admin/purchase-orders/general.lease_end_reassess'))
+            // …but its full value is still pre-approved: 2 × $1,111.11 drives
+            // the estimate, the lease's original value rolls forward whatever
+            // the renewal decision is.
+            ->assertSee('$2,222.22');
     }
 
     public function test_replace_decision_keeps_schedule_in_the_estimate()

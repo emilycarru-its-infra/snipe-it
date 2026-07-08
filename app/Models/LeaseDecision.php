@@ -40,10 +40,11 @@ class LeaseDecision extends SnipeModel
 
     protected $rules = [
         'contract_reference' => 'required|string|max:191',
-        'decision_type' => 'required|string|in:buyout,return,extend,replace',
+        'asset_id' => 'nullable|integer|exists:assets,id',
+        'decision_type' => 'nullable|string|in:buyout,return,extend,replace',
         'decision_date' => 'nullable|date',
         'amount' => 'nullable|numeric',
-        'status' => 'required|string|in:pending,approved,completed,cancelled',
+        'status' => 'nullable|string|in:pending,approved,completed,cancelled',
         'notes' => 'nullable|string|max:65535',
     ];
 
@@ -51,6 +52,7 @@ class LeaseDecision extends SnipeModel
 
     protected $fillable = [
         'contract_reference',
+        'asset_id',
         'decision_type',
         'decision_date',
         'amount',
@@ -67,6 +69,15 @@ class LeaseDecision extends SnipeModel
     public function adminuser()
     {
         return $this->belongsTo(User::class, 'created_by')->withTrashed();
+    }
+
+    /**
+     * The specific asset this decision targets, when it is a per-serial
+     * disposition. Null for contract-level decisions.
+     */
+    public function asset()
+    {
+        return $this->belongsTo(Asset::class, 'asset_id');
     }
 
     /**

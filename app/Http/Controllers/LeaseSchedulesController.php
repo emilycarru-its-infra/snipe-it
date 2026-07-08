@@ -114,7 +114,7 @@ class LeaseSchedulesController extends Controller
      * Annexure A diff. Reads the most recently uploaded file attached
      * to the schedule, extracts serials, and compares them to assets
      * carrying the matching Lease Contract ID custom field. The result
-     * is bucketed three ways so Sohee can see at a glance what the
+     * is bucketed three ways so the assets team can see at a glance what the
      * lessor sent that we haven't received yet, and what we've received
      * that isn't on their Annexure.
      */
