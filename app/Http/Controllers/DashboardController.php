@@ -87,16 +87,20 @@ class DashboardController extends Controller
         $wanted = [
             'Desktop' => ['fa-desktop',    '#0073b7'],
             'Laptop'  => ['fa-laptop',     '#00a65a'],
+            'Display' => ['fa-tv',         '#dd4b39'],
             'Tablet'  => ['fa-tablet-alt', '#605ca8'],
             'Phone'   => ['fa-mobile-alt', '#39cccc'],
             'Printer' => ['fa-print',      '#f39c12'],
-            'Scanner' => ['fa-image',      '#dd4b39'],
         ];
 
+        // sortBy('assets_count') before keyBy so that when duplicate category
+        // records share a name (there are empty "Display"/"Scanner" dupes), the
+        // populated one is iterated last and wins the key.
         $categories = Category::where('category_type', 'asset')
             ->whereIn(DB::raw('LOWER(name)'), array_map('strtolower', array_keys($wanted)))
             ->withCount('showableAssets as assets_count')
             ->get()
+            ->sortBy('assets_count')
             ->keyBy(fn ($c) => strtolower($c->name));
 
         $tiles = [];
