@@ -74,6 +74,7 @@ class CustomFieldsController extends Controller
             'predefinedFormats' => Helper::predefined_formats(),
             'customFormat' => '',
             'fieldsets' => $fieldsets,
+            'fieldGroups' => \App\Models\FieldGroup::ordered()->get(),
             'field' => new CustomField,
         ]);
     }
@@ -115,6 +116,7 @@ class CustomFieldsController extends Controller
             'display_checkin' => $request->input('display_checkin', 0),
             'display_checkout' => $request->input('display_checkout', 0),
             'display_audit' => $request->input('display_audit', 0),
+            'field_group_id' => $request->filled('field_group_id') ? (int) $request->input('field_group_id') : null,
             'created_by' => auth()->id(),
         ]);
 
@@ -213,6 +215,7 @@ class CustomFieldsController extends Controller
             'field' => $field,
             'customFormat' => $customFormat,
             'fieldsets' => $fieldsets,
+            'fieldGroups' => \App\Models\FieldGroup::ordered()->get(),
             'predefinedFormats' => Helper::predefined_formats(),
         ]);
 
@@ -257,6 +260,7 @@ class CustomFieldsController extends Controller
         $field->display_checkin = $request->input('display_checkin', 0);
         $field->display_checkout = $request->input('display_checkout', 0);
         $field->display_audit = $request->input('display_audit', 0);
+        $field->field_group_id = $request->filled('field_group_id') ? (int) $request->input('field_group_id') : null;
 
         if ($request->input('format') == 'CUSTOM REGEX') {
             $field->format = $request->input('custom_format');

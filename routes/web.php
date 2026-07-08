@@ -45,6 +45,7 @@ use App\Http\Controllers\DeploymentsController;
 use App\Http\Controllers\DeploymentItemsController;
 use App\Http\Controllers\DeploymentCatalogController;
 use App\Http\Controllers\StaffBlackoutsController;
+use App\Http\Controllers\FieldGroupsController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\SuppliersController;
@@ -359,6 +360,30 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployment-config.update');
     Route::delete('deployment-config/{catalog}/{id}', [DeploymentCatalogController::class, 'destroy'])
         ->name('deployment-config.destroy');
+
+    /*
+    * Field Groups — editable taxonomy that organizes custom fields into
+    * grouped boxes on the asset detail view.
+    */
+    Route::get('field-groups', [FieldGroupsController::class, 'index'])
+        ->name('field-groups.index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->push(trans('admin/custom_fields/general.field_groups'), route('field-groups.index')));
+    Route::get('field-groups/create', [FieldGroupsController::class, 'create'])
+        ->name('field-groups.create')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('field-groups.index')
+            ->push(trans('button.add'), route('field-groups.create')));
+    Route::post('field-groups', [FieldGroupsController::class, 'store'])
+        ->name('field-groups.store');
+    Route::get('field-groups/{fieldGroup}/edit', [FieldGroupsController::class, 'edit'])
+        ->name('field-groups.edit')
+        ->breadcrumbs(fn (Trail $trail, $fieldGroup) => $trail->parent('field-groups.index')
+            ->push($fieldGroup->name, route('field-groups.edit', $fieldGroup)));
+    Route::put('field-groups/{fieldGroup}', [FieldGroupsController::class, 'update'])
+        ->name('field-groups.update');
+    Route::delete('field-groups/{fieldGroup}', [FieldGroupsController::class, 'destroy'])
+        ->name('field-groups.destroy');
+    Route::post('field-groups/assign/{field}', [FieldGroupsController::class, 'assign'])
+        ->name('field-groups.assign');
 
     /*
     * Lease Schedules
@@ -1007,6 +1032,12 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('csi-schedule', [ProcurementReportsController::class, 'csiSchedule'])
             ->name('reports.procurement.csi-schedule')
             ->breadcrumbs($crumb('reports.procurement.csi-schedule', 'report_csi_schedule'));
+        Route::get('csi-reconciliation', [ProcurementReportsController::class, 'csiReconciliation'])
+            ->name('reports.procurement.csi-reconciliation')
+            ->breadcrumbs($crumb('reports.procurement.csi-reconciliation', 'report_csi_reconciliation'));
+        Route::get('csi-arrivals', [ProcurementReportsController::class, 'csiArrivals'])
+            ->name('reports.procurement.csi-arrivals')
+            ->breadcrumbs($crumb('reports.procurement.csi-arrivals', 'report_csi_arrivals'));
         Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
             ->name('reports.procurement.invoice-approval')
             ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
@@ -1033,6 +1064,10 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('disposition-grid', [ProcurementReportsController::class, 'dispositionGrid'])
             ->name('reports.procurement.disposition-grid')
             ->breadcrumbs($crumb('reports.procurement.disposition-grid', 'report_disposition_grid'));
+        Route::post('disposition-grid/note', [ProcurementReportsController::class, 'updateDispositionNote'])
+            ->name('reports.procurement.disposition-grid.note');
+        Route::post('note', [ProcurementReportsController::class, 'updateReportNote'])
+            ->name('reports.procurement.note');
         Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
             ->name('reports.procurement.credit-ledger')
             ->breadcrumbs($crumb('reports.procurement.credit-ledger', 'report_credit_ledger'));
@@ -1045,13 +1080,6 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('user-agreement-ledger', [ProcurementReportsController::class, 'userAgreementLedger'])
             ->name('reports.procurement.user-agreement-ledger')
             ->breadcrumbs($crumb('reports.procurement.user-agreement-ledger', 'report_user_agreement_ledger'));
-        Route::get('gl-transfer', [ProcurementReportsController::class, 'glJournalTransfer'])
-            ->name('reports.procurement.gl-transfer')
-            ->breadcrumbs($crumb('reports.procurement.gl-transfer', 'report_gl_transfer'));
-        Route::post('gl-transfer/post', [ProcurementReportsController::class, 'markGlTransactionsPosted'])
-            ->name('reports.procurement.gl-transfer.post');
-        Route::post('gl-transfer/transfer', [ProcurementReportsController::class, 'markGlTransactionsTransferred'])
-            ->name('reports.procurement.gl-transfer.transfer');
         Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
             ->name('reports.procurement.schedule-signing')
             ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));
