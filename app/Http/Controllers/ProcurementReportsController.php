@@ -1027,9 +1027,13 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        // CSV hand-off flattens every contract's serials into one table.
+        // CSV hand-off flattens every contract's serials into one table;
+        // XLSX mirrors the workbook with one sheet per contract.
         if ($request->query('format') === 'csv') {
-            return $this->streamReportCsv('disposition-grid-report', $this->dispositionGridCsv());
+            return $this->streamReportCsv('lease-disposition', $this->dispositionGridCsv());
+        }
+        if ($request->query('format') === 'xlsx') {
+            return $this->dispositionGridXlsx();
         }
 
         $data = $this->dispositionGridData();
@@ -1039,6 +1043,7 @@ class ProcurementReportsController extends Controller
             'contracts' => $data['contracts'],
             'canEdit' => $canEdit,
             'downloadUrl' => route('reports.procurement.disposition-grid', ['format' => 'csv']),
+            'downloadXlsxUrl' => route('reports.procurement.disposition-grid', ['format' => 'xlsx']),
         ];
 
         // Embed mode (dashboard inline) returns just the tabbed grid;
@@ -1690,6 +1695,47 @@ class ProcurementReportsController extends Controller
         }
 
         return $columns;
+    }
+
+    /**
+     * Finance-facing label for a device's Usage tag. The `Usage` custom
+     * field is populated by the inventory automations from the assignment:
+     * a device assigned to a location is "Shared" (a shared lab / classroom
+     * machine = Curriculum) and a device assigned to a person is "Assigned"
+     * (an individual staff machine = Admin). Finance — and the BC PST
+     * school-supplies exemption — read these as Curriculum / Admin, the
+     * same split the Leases workbook carries. Unknown or blank values pass
+     * through unchanged so nothing is silently relabelled.
+     */
+    private function useLabel(?string $usage): string
+    {
+        return match ($this->useClass($usage)) {
+            'curriculum' => trans('admin/purchase-orders/general.use_curriculum'),
+            'admin' => trans('admin/purchase-orders/general.use_admin'),
+            default => trim((string) $usage),
+        };
+    }
+
+    /**
+     * Classify a Usage tag as 'curriculum', 'admin', or null (unknown).
+     * Accepts both the raw automation values (Shared / Assigned) and a
+     * value that already reads Curriculum / Admin, so it works whatever the
+     * upstream field happens to hold.
+     */
+    private function useClass(?string $usage): ?string
+    {
+        $usage = trim((string) $usage);
+        if ($usage === '') {
+            return null;
+        }
+        if (strcasecmp($usage, 'Shared') === 0 || stripos($usage, 'curriculum') !== false) {
+            return 'curriculum';
+        }
+        if (strcasecmp($usage, 'Assigned') === 0 || stripos($usage, 'admin') !== false) {
+            return 'admin';
+        }
+
+        return null;
     }
 
     /**
@@ -3239,7 +3285,7 @@ class ProcurementReportsController extends Controller
                 'status_type' => $asset->status?->getStatuslabelType(),
                 'archived' => $isArchived,
                 'decommissioned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
-                'usage' => $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
+                'use' => $cols['usage'] ? $this->useLabel($asset->{$cols['usage']}) : '',
                 'ownership' => $ownership,
                 'category' => (string) $asset->model?->category?->name,
                 'model' => (string) $asset->model?->name,
@@ -3264,40 +3310,124 @@ class ProcurementReportsController extends Controller
      */
     private function dispositionGridCsv(): array
     {
-        $columns = [
-            trans('admin/purchase-orders/general.lease_contract_id'),
-            trans('admin/purchase-orders/general.detail_serial'),
-            trans('admin/purchase-orders/general.detail_asset_tag'),
-            trans('admin/purchase-orders/general.disposition_action'),
-            trans('admin/purchase-orders/general.disposition_decommissioned_date'),
-            trans('admin/purchase-orders/general.invoice_usage'),
-            trans('admin/purchase-orders/general.detail_ownership'),
-            trans('general.category'),
-            trans('admin/purchase-orders/general.detail_model'),
-            trans('admin/purchase-orders/general.detail_buyout_cost'),
-            trans('general.notes'),
-        ];
+        $columns = $this->dispositionGridColumns();
 
         $records = [];
         foreach ($this->dispositionGridData()['contracts'] as $contract) {
             foreach ($contract['assets'] as $row) {
-                $records[] = ['class' => '', 'cells' => [
-                    $contract['contract_id'],
-                    $row['serial'],
-                    $row['asset_tag'],
-                    $row['status'],
-                    $row['decommissioned_date'],
-                    $row['usage'],
-                    $row['ownership'],
-                    $row['category'],
-                    $row['model'],
-                    $row['buyout_cost'],
-                    $row['note'],
-                ]];
+                $records[] = ['class' => '', 'cells' => $this->dispositionGridRow($contract['contract_id'], $row)];
             }
         }
 
         return ['columns' => $columns, 'records' => $records, 'footer' => null];
+    }
+
+    /**
+     * Column headers for the flat disposition exports (CSV + the per-contract
+     * xlsx sheets). Buyout Cost sits right after the Decommissioned Date so
+     * the lifecycle reads left-to-right (returned → what it cost to keep);
+     * the per-contract xlsx omits the leading Lease Contract ID since the
+     * sheet name already carries it.
+     */
+    private function dispositionGridColumns(bool $withContract = true): array
+    {
+        return array_values(array_filter([
+            $withContract ? trans('admin/purchase-orders/general.lease_contract_id') : null,
+            trans('admin/purchase-orders/general.detail_serial'),
+            trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.disposition_action'),
+            trans('admin/purchase-orders/general.disposition_decommissioned_date'),
+            trans('admin/purchase-orders/general.detail_buyout_cost'),
+            trans('admin/purchase-orders/general.disposition_use'),
+            trans('admin/purchase-orders/general.detail_ownership'),
+            trans('general.category'),
+            trans('admin/purchase-orders/general.detail_model'),
+            trans('general.notes'),
+        ], fn ($v) => $v !== null));
+    }
+
+    /**
+     * One flat row of disposition cells in the same column order as
+     * dispositionGridColumns().
+     */
+    private function dispositionGridRow(string $contractId, array $row, bool $withContract = true): array
+    {
+        return array_values(array_filter([
+            'contract' => $withContract ? $contractId : null,
+            'serial' => $row['serial'],
+            'asset_tag' => $row['asset_tag'],
+            'status' => $row['status'],
+            'decommissioned_date' => $row['decommissioned_date'],
+            'buyout_cost' => $row['buyout_cost'],
+            'use' => $row['use'],
+            'ownership' => $row['ownership'],
+            'category' => $row['category'],
+            'model' => $row['model'],
+            'note' => $row['note'],
+        ], fn ($v) => $v !== null));
+    }
+
+    /**
+     * The disposition grid as a multi-sheet .xlsx — one worksheet per lease
+     * contract, mirroring the structure of the SharePoint Leases.xlsx
+     * workbook this report replaces. Each sheet carries the same columns as
+     * the on-screen tab; the contract id is the sheet name, so it is dropped
+     * from the columns.
+     */
+    private function dispositionGridXlsx(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $contracts = $this->dispositionGridData()['contracts'];
+        $header = $this->dispositionGridColumns(false);
+
+        $tmp = tempnam(sys_get_temp_dir(), 'lease-disposition-');
+        $writer = new \OpenSpout\Writer\XLSX\Writer;
+        $writer->openToFile($tmp);
+
+        if (empty($contracts)) {
+            $writer->getCurrentSheet()->setName('Lease Disposition');
+            $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues($header));
+        } else {
+            $usedNames = [];
+            foreach (array_values($contracts) as $i => $contract) {
+                $sheet = $i === 0 ? $writer->getCurrentSheet() : $writer->addNewSheetAndMakeItCurrent();
+                $sheet->setName($this->uniqueSheetName($contract['contract_id'], $usedNames));
+                $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues($header));
+                foreach ($contract['assets'] as $row) {
+                    $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues(
+                        $this->dispositionGridRow($contract['contract_id'], $row, false)
+                    ));
+                }
+            }
+        }
+
+        $writer->close();
+
+        return response()->download($tmp, 'lease-disposition-'.date('Y-m-d').'.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Excel sheet names are capped at 31 chars, cannot contain : \ / ? * [ ]
+     * and must be unique within a workbook. Sanitise and de-duplicate.
+     */
+    private function uniqueSheetName(string $name, array &$used): string
+    {
+        $clean = preg_replace('/[:\\\\\/?*\[\]]/', '-', $name);
+        $clean = mb_substr($clean, 0, 31);
+        if ($clean === '') {
+            $clean = 'Sheet';
+        }
+
+        $base = $clean;
+        $n = 2;
+        while (isset($used[mb_strtolower($clean)])) {
+            $suffix = '-'.$n++;
+            $clean = mb_substr($base, 0, 31 - strlen($suffix)).$suffix;
+        }
+        $used[mb_strtolower($clean)] = true;
+
+        return $clean;
     }
 
     /**
@@ -3483,10 +3613,10 @@ class ProcurementReportsController extends Controller
                 $cost = (float) $asset->purchase_cost;
                 $usage = $cols['usage'] ? (string) $asset->{$cols['usage']} : '';
 
-                if (stripos($usage, 'curriculum') !== false) {
+                if ($this->useClass($usage) === 'curriculum') {
                     $exemptCost += $cost;
                     $curriculumCount++;
-                } elseif (stripos($usage, 'admin') !== false) {
+                } elseif ($this->useClass($usage) === 'admin') {
                     $taxableCost += $cost;
                     $adminCount++;
                 } else {
