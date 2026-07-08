@@ -90,7 +90,7 @@ class DashboardController extends Controller
             'Tablet'  => ['fa-tablet-alt', '#605ca8'],
             'Phone'   => ['fa-mobile-alt', '#39cccc'],
             'Printer' => ['fa-print',      '#f39c12'],
-            'Scanner' => ['fa-fax',        '#dd4b39'],
+            'Scanner' => ['fa-image',      '#dd4b39'],
         ];
 
         $categories = Category::where('category_type', 'asset')
