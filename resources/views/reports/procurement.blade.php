@@ -27,7 +27,7 @@
     </div>
 </div>
 
-<div class="row">
+<div class="row proc-card-row">
     <div class="col-md-4 col-sm-6">
         @can('budget_allocations.manage')
             <a href="#" data-toggle="modal" data-target="#budgetAllocationsModal" class="small-box-link" style="text-decoration:none;">
@@ -181,8 +181,20 @@
             </div>
             <div class="box-body">
                 <p class="text-muted" style="margin-bottom:10px;">{{ trans('admin/purchase-orders/general.lease_end_help') }}</p>
+                <style>
+                    /* Keep contract / provider / end-date on one line each; let the
+                       Models column be the flexible one that wraps and grows. The
+                       Plan column has a reserved min-width so opening the inline
+                       note editor doesn't reflow the whole table. */
+                    .lease-end-table th:nth-child(1), .lease-end-table td:nth-child(1),
+                    .lease-end-table th:nth-child(2), .lease-end-table td:nth-child(2),
+                    .lease-end-table th:nth-child(3), .lease-end-table td:nth-child(3) { white-space: nowrap; }
+                    .lease-end-table td:nth-child(5) { white-space: normal; min-width: 280px; }
+                    .lease-end-table th:nth-child(7), .lease-end-table td:nth-child(7) { min-width: 260px; }
+                    .lease-end-table .rpt-note-input { width: 100%; box-sizing: border-box; }
+                </style>
                 <div class="table-responsive">
-                    <table class="table table-striped" style="margin-bottom:0;">
+                    <table class="table table-striped lease-end-table" style="margin-bottom:0;">
                         <thead>
                             <tr>
                                 <th>{{ trans('admin/lease-decisions/general.contract_reference') }}</th>
@@ -208,7 +220,12 @@
                                     </td>
                                     <td class="text-right">${{ Helper::formatCurrencyOutput($schedule['cost']) }}</td>
                                     <td>
-                                        @if ($schedule['decision'])
+                                        @if ($schedule['is_lease_to_own'])
+                                            <span class="label label-default">{{ trans('admin/purchase-orders/general.lease_end_retained') }}</span>
+                                            <span class="text-muted" style="display:block; font-size:12px;">
+                                                {{ trans('admin/purchase-orders/general.lease_end_retained_help') }}
+                                            </span>
+                                        @elseif ($schedule['decision'])
                                             <span class="label {{ $schedule['refresh_planned'] ? 'label-primary' : 'label-warning' }}">
                                                 {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
                                                 &middot;
@@ -216,12 +233,15 @@
                                             </span>
                                             @unless ($schedule['refresh_planned'])
                                                 <span class="text-muted" style="display:block; font-size:12px;">
-                                                    {{ trans('admin/purchase-orders/general.lease_end_no_refresh') }}
+                                                    {{ trans('admin/purchase-orders/general.lease_end_reassess') }}
                                                 </span>
                                             @endunless
-                                            @if ($schedule['decision']->notes)
-                                                <span class="text-muted" style="display:block; font-size:12px;">{{ $schedule['decision']->notes }}</span>
-                                            @endif
+                                            <span class="rpt-note-cell" data-model="lease_decision" data-id="{{ $schedule['decision']->id }}" style="display:block; font-size:12px;">
+                                                <span class="rpt-note-text text-muted">{{ $schedule['decision']->notes }}</span>
+                                                @can('create', \App\Models\Order::class)
+                                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
+                                                @endcan
+                                            </span>
                                         @else
                                             <span class="label label-success">{{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}</span>
                                         @endif
@@ -231,25 +251,15 @@
                         </tbody>
                         <tfoot>
                             @php
-                                $leaseEndAsk = collect($leaseEndSchedules)->where('refresh_planned', true);
-                                $leaseEndDecided = collect($leaseEndSchedules)->where('refresh_planned', false);
+                                $leaseEndAll = collect($leaseEndSchedules);
                             @endphp
                             <tr>
-                                <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_refresh') }}</th>
-                                <th class="text-right">{{ $leaseEndAsk->sum('count') }}</th>
+                                <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
+                                <th class="text-right">{{ $leaseEndAll->sum('count') }}</th>
                                 <th></th>
-                                <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAsk->sum('cost')) }}</th>
+                                <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAll->sum('cost')) }}</th>
                                 <th></th>
                             </tr>
-                            @if ($leaseEndDecided->isNotEmpty())
-                                <tr>
-                                    <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_excluded') }}</th>
-                                    <th class="text-right">{{ $leaseEndDecided->sum('count') }}</th>
-                                    <th></th>
-                                    <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndDecided->sum('cost')) }}</th>
-                                    <th></th>
-                                </tr>
-                            @endif
                         </tfoot>
                     </table>
                 </div>
@@ -328,9 +338,12 @@
         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc'],
         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc'],
         ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc'],
+        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc'],
         ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc'],
         ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc'],
         ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc'],
+        ['route' => 'reports.procurement.csi-reconciliation', 'name' => 'report_csi_reconciliation', 'desc' => 'report_csi_reconciliation_desc'],
+        ['route' => 'reports.procurement.csi-arrivals', 'name' => 'report_csi_arrivals', 'desc' => 'report_csi_arrivals_desc'],
         ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc'],
         ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc'],
         ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc'],
@@ -342,15 +355,13 @@
         ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc'],
         ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc'],
         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc'],
-        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc'],
-        ['route' => 'reports.procurement.gl-transfer', 'name' => 'report_gl_transfer', 'desc' => 'report_gl_transfer_desc'],
         ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc'],
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
 
 <div class="row proc-reports-row">
     {{-- Sticky jump-nav so every report stays one click away in the long scroll. --}}
-    <div class="col-md-3 hidden-sm hidden-xs">
+    <div class="proc-nav-col hidden-sm hidden-xs">
         <div class="proc-report-nav">
             <div class="box box-default" style="margin-bottom:0;">
                 <div class="box-header with-border">
@@ -379,7 +390,7 @@
         </div>
     </div>
 
-    <div class="col-md-9 col-sm-12">
+    <div class="proc-content-col col-sm-12">
         @foreach ($procReports as $report)
             <div class="box box-default proc-report-box" id="proc-{{ $report['name'] }}" style="scroll-margin-top:64px;">
                 <div class="box-header with-border">
@@ -427,11 +438,27 @@
        column — that's what gives position:sticky room to stay pinned through
        the whole scroll instead of stopping at the short nav box. */
     .proc-reports-row { display: flex; flex-wrap: wrap; }
+    /* Narrow jump-nav (~44% slimmer than the old col-md-3) so the report
+       tables get the width back. The content column flexes to fill the rest. */
+    .proc-reports-row .proc-nav-col { flex: 0 0 14%; max-width: 14%; padding-left: 15px; padding-right: 15px; }
+    .proc-reports-row .proc-content-col { flex: 1 1 0%; max-width: 86%; padding-left: 15px; padding-right: 15px; }
     .proc-report-nav { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
-    .proc-report-navlist > li > a { padding: 6px 12px; font-size: 13px; border-radius: 0; }
+    .proc-report-navlist > li > a { padding: 6px 10px; font-size: 12.5px; border-radius: 0; }
     .proc-report-navlist > li.active > a,
     .proc-report-navlist > li.active > a:hover { background-color: #3c8dbc; color: #fff; }
-    @media (max-width: 991px) { .proc-reports-row { display: block; } }
+    @media (max-width: 991px) {
+        .proc-reports-row { display: block; }
+        .proc-reports-row .proc-content-col { max-width: 100%; }
+    }
+    /* Static dashboard tiles — every card is the same height regardless of how
+       much text sits under the number, so wrapping text never reflows the grid.
+       Flexbox equalises each wrapped line of cards; the min-height keeps single-
+       and double-line cards identical. */
+    .proc-card-row { display: flex; flex-wrap: wrap; }
+    .proc-card-row > [class*="col-"] { display: flex; margin-bottom: 15px; }
+    .proc-card-row .small-box-link { display: flex; width: 100%; }
+    .proc-card-row .small-box { width: 100%; min-height: 104px; margin-bottom: 0; display: flex; flex-direction: column; justify-content: center; }
+    .proc-card-row .small-box > .inner { width: 100%; }
 </style>
 
 @can('budget_allocations.manage')
@@ -613,4 +640,9 @@
         boxes.forEach(function (box) { observer.observe(box); });
     })();
 </script>
+{{-- Delegated handlers so the lazy-loaded Per-Serial Disposition Grid stays
+     editable once it is injected into its report box. --}}
+@include('reports.procurement._disposition-grid-js')
+{{-- And the inline-editable note cells in the other report tables. --}}
+@include('reports.procurement._report-note-js')
 @stop

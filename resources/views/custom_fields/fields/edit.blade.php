@@ -139,6 +139,23 @@
               </div>
           </div>
 
+          <!-- Field Group -->
+          <div class="form-group {{ $errors->has('field_group_id') ? ' has-error' : '' }}">
+              <label for="field_group_id" class="col-md-3 control-label">
+                  {{ trans('admin/custom_fields/general.field_group') }}
+              </label>
+              <div class="col-md-8">
+                  <select class="form-control" name="field_group_id" id="field_group_id" aria-label="field_group_id">
+                      <option value="">{{ trans('admin/custom_fields/general.field_group_none') }}</option>
+                      @foreach ($fieldGroups as $group)
+                          <option value="{{ $group->id }}" {{ old('field_group_id', $field->field_group_id) == $group->id ? 'selected' : '' }}>{{ $group->name }}</option>
+                      @endforeach
+                  </select>
+                  <p class="help-block">{{ trans('admin/custom_fields/general.field_groups_about') }}</p>
+                  {!! $errors->first('field_group_id', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+              </div>
+          </div>
+
          <!-- Set up checkbox form group -->
          <div class="form-group">
 

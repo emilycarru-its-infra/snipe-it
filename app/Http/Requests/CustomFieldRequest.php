@@ -28,6 +28,9 @@ class CustomFieldRequest extends FormRequest
 
         $rules['associate_fieldsets.*'] = 'nullable|integer|exists:custom_fieldsets,id';
 
+        // A custom field's group must reference a real field_groups row.
+        $rules['field_group_id'] = 'nullable|integer|exists:field_groups,id';
+
         switch ($this->method()) {
 
             // Brand new

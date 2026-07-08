@@ -10,6 +10,14 @@
 @parent
 @stop
 
+@section('header_right')
+    @can('update', \App\Models\CustomField::class)
+        <a href="{{ route('field-groups.index') }}" class="btn btn-sm btn-default">
+            <i class="fas fa-layer-group" aria-hidden="true"></i> {{ trans('admin/custom_fields/general.manage_field_groups') }}
+        </a>
+    @endcan
+@stop
+
 @section('content')
 
 @can('view', \App\Models\CustomFieldset::class)

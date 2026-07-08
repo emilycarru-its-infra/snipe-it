@@ -103,6 +103,7 @@ class Asset extends Depreciable
         'location_id' => 'integer',
         'rtd_company_id' => 'integer',
         'supplier_id' => 'integer',
+        'lessor_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -126,6 +127,7 @@ class Asset extends Depreciable
         'serial' => ['nullable', 'string', 'unique_undeleted:assets,serial'],
         'purchase_cost' => ['nullable', 'numeric', 'gte:0', 'max:99999999999999999.99'],
         'supplier_id' => ['nullable', 'exists:suppliers,id'],
+        'lessor_id' => ['nullable', 'exists:suppliers,id'],
         'asset_eol_date' => ['nullable', 'date'],
         'eol_explicit' => ['nullable', 'boolean'],
         'byod' => ['nullable', 'boolean'],
@@ -167,6 +169,7 @@ class Asset extends Depreciable
         'serial',
         'status_id',
         'supplier_id',
+        'lessor_id',
         'warranty_months',
         'requestable',
         'last_checkout',
@@ -300,6 +303,35 @@ class Asset extends Depreciable
     public function getDisplayNameAttribute()
     {
         return $this->present()->name();
+    }
+
+    /**
+     * Native (non-custom) columns that may be edited in place from the asset
+     * detail view, without opening the full edit form. Deliberately limited to
+     * simple scalar text fields whose model validation rules ($rules) fully
+     * guard the saved value. The map's value is the input element the detail
+     * view should render for inline editing.
+     *
+     * Custom fields have their own inline-edit path on the model fieldset;
+     * this only covers the handful of native fields people touch most.
+     */
+    public static function inlineEditableCoreFields(): array
+    {
+        return [
+            'name'            => 'text',
+            'asset_tag'       => 'text',
+            'serial'          => 'text',
+            'order_number'    => 'text',
+            'gl_code'         => 'text',
+            'notes'           => 'textarea',
+            // FK selects — the model and home location are editable inline too.
+            'model_id'        => 'select',
+            'rtd_location_id' => 'select',
+            // Date columns editable inline from the sidebar.
+            'expected_checkin' => 'date',
+            'last_audit_date'  => 'date',
+            'next_audit_date'  => 'date',
+        ];
     }
 
     /**
@@ -1144,6 +1176,91 @@ class Asset extends Depreciable
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    /**
+     * The lessor that financed this device's lease (a Supplier record playing
+     * the lessor role) — distinct from the supplier that sold it.
+     *
+     * @return Relation
+     */
+    public function lessor()
+    {
+        return $this->belongsTo(Supplier::class, 'lessor_id');
+    }
+
+    /**
+     * Resolve a custom-field value on this asset by the field's display name.
+     * The db_column is looked up from the custom_fields table by name (the same
+     * approach the lease reports and the lessor backfill use), so it works
+     * whatever the column happens to be per environment and doesn't depend on
+     * the field being eager-loaded through the model's fieldset. Returns null
+     * when no such field exists or the value is blank on this asset.
+     */
+    public function customFieldValueByName(string $name): ?string
+    {
+        $column = \Illuminate\Support\Facades\DB::table('custom_fields')->where('name', $name)->value('db_column');
+        if (! $column) {
+            return null;
+        }
+
+        $value = $this->getAttribute($column);
+
+        return ($value === null || $value === '') ? null : (string) $value;
+    }
+
+    /**
+     * True when this asset is financed on a lease — i.e. its "Ownership Type"
+     * custom field contains "lease" (matching the detail view's own test).
+     */
+    public function isLeased(): bool
+    {
+        return stripos((string) $this->customFieldValueByName('Ownership Type'), 'lease') !== false;
+    }
+
+    /**
+     * The lease's end date parsed from the "Lease End Date" custom field, or
+     * null when it's unset or unparseable.
+     */
+    public function leaseEndDate(): ?\Carbon\Carbon
+    {
+        $raw = $this->customFieldValueByName('Lease End Date');
+        if (! $raw) {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether this asset is on a lease that has not yet ended — leased, and the
+     * Lease End Date is either in the future or unknown. Drives visibility of
+     * the "Request Buyout" action on the detail page.
+     */
+    public function isOnActiveLease(): bool
+    {
+        if (! $this->isLeased()) {
+            return false;
+        }
+
+        $end = $this->leaseEndDate();
+
+        return $end === null || $end->gte(\Carbon\Carbon::today());
+    }
+
+    /**
+     * Whether a lease-buyout quote can actually be requested from the lessor:
+     * the asset is on an active lease AND has a lessor carrying a contact email
+     * to send the request to. When this is false but isOnActiveLease() is true,
+     * the UI shows a disabled button prompting the admin to set a lessor email.
+     */
+    public function canRequestLeaseBuyout(): bool
+    {
+        return $this->isOnActiveLease() && $this->lessor && filled($this->lessor->email);
     }
 
     /**
@@ -2149,6 +2266,19 @@ class Asset extends Depreciable
     public function scopeOrderSupplier($query, $order)
     {
         return $query->leftJoin('suppliers as suppliers_assets', 'assets.supplier_id', '=', 'suppliers_assets.id')->orderBy('suppliers_assets.name', $order);
+    }
+
+    /**
+     * Query builder scope to order on lessor name (a Supplier record playing the
+     * lessor role, joined via lessor_id — distinct from the supplier join above).
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query  Query builder instance
+     * @param  string  $order         Order (asc/desc)
+     * @return \Illuminate\Database\Query\Builder Modified query builder
+     */
+    public function scopeOrderLessor($query, $order)
+    {
+        return $query->leftJoin('suppliers as suppliers_lessor', 'assets.lessor_id', '=', 'suppliers_lessor.id')->orderBy('suppliers_lessor.name', $order);
     }
 
     /**

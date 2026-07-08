@@ -1159,6 +1159,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         [Api\OrdersController::class, 'ingest']
     )->name('api.orders.ingest');
 
+    /**
+     * CSI mirror ingest — the csi-poller function POSTs normalized CSI
+     * lease/schedule/asset/invoice batches here for the reconciliation engine.
+     */
+    Route::post('csi/snapshot',
+        [Api\CsiController::class, 'snapshot']
+    )->name('api.csi.snapshot');
+
     Route::resource('orders',
         Api\OrdersController::class,
         ['names' => [
