@@ -157,6 +157,14 @@
                                                 {{ $asset->model?->model_number ?: '—' }}
                                             </div>
                                         </div>
+                                        @if ($asset->model?->model_identifier)
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.model_identifier') }}</div>
+                                            <div class="asset-identity-subvalue">
+                                                {{ $asset->model->model_identifier }}
+                                            </div>
+                                        </div>
+                                        @endif
                                     </div>
 
                                     <hr class="asset-identity-divider">

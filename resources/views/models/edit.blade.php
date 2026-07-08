@@ -13,6 +13,7 @@
 @include ('partials.forms.edit.category-select', ['translated_name' => trans('admin/categories/general.category_name'), 'fieldname' => 'category_id', 'required' => 'true', 'category_type' => 'asset'])
 @include ('partials.forms.edit.manufacturer-select', ['translated_name' => trans('general.manufacturer'), 'fieldname' => 'manufacturer_id'])
 @include ('partials.forms.edit.model_number')
+@include ('partials.forms.edit.model_identifier')
 @include ('partials.forms.edit.depreciation')
 @include ('partials.forms.edit.minimum_quantity')
 
