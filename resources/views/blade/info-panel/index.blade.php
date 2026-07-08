@@ -69,13 +69,18 @@
 
         @if ($infoPanelObj->notes)
             <x-info-element icon_type="notes" title="{{ trans('general.notes') }}">
-                <x-copy-to-clipboard class="pull-right" copy_what="notes">{!! nl2br(Helper::parseEscapedMarkedownInline($infoPanelObj->notes)) !!}</x-copy-to-clipboard>
+                {{-- Match the two-square, hover-only copy used everywhere else. --}}
+                <i class="js-copy-link far fa-copy hidden-print inline-core-copy pull-right" data-clipboard-target=".js-copy-panel-notes" data-tooltip="true" data-placement="top" title="{{ trans('general.copy_to_clipboard') }}" aria-hidden="true"></i>
+                <span class="js-copy-panel-notes">{!! nl2br(Helper::parseEscapedMarkedownInline($infoPanelObj->notes)) !!}</span>
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->serial)
+        {{-- Assets show their serial in the detail header, so skip it here to
+             avoid duplicating it in the side panel. --}}
+        @if ($infoPanelObj->serial && ! ($infoPanelObj instanceof \App\Models\Asset))
             @if(($infoPanelObj::class != "App\Models\License") || (Gate::allows('viewKeys', $infoPanelObj)))
                 <x-info-element icon_type="number" title="{{ trans('general.serial_number') }}">
+                    {{ trans('general.serial_number') }}
                     <x-copy-to-clipboard class="pull-right" copy_what="license_key">
                         <code>{{ $infoPanelObj->serial }}</code>
                     </x-copy-to-clipboard>
@@ -112,8 +117,11 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->model)
+        {{-- Assets surface manufacturer/category/model/model-no in the detail
+             header now, so skip them here to avoid duplicating. --}}
+        @if ($infoPanelObj->model && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="model" title="{{ trans('general.asset_model') }}">
+                {{ trans('general.asset_model') }}
                 <x-copy-to-clipboard copy_what="asset_model" class="pull-right">
                     {!!  $infoPanelObj->model->present()->formattedNameLink !!}
                 </x-copy-to-clipboard>
@@ -209,7 +217,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->purchase_cost && ! ($infoPanelObj->on_maintenance_contract ?? false))
+        @if ($infoPanelObj->purchase_cost && ! ($infoPanelObj->on_maintenance_contract ?? false) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <x-icon type="cost" class="fa-fw" title="{{ trans('general.unit_cost') }}" />
                 {{ trans('general.unit_cost') }}
@@ -242,8 +250,9 @@
 
         @endif
 
-        @if ($infoPanelObj->order_number && ! ($infoPanelObj->on_maintenance_contract ?? false))
+        @if ($infoPanelObj->order_number && ! ($infoPanelObj->on_maintenance_contract ?? false) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="order" title="{{ trans('general.order_number') }}">
+                {{ trans('general.order_number') }}
                 <x-copy-to-clipboard copy_what="order_number" class="pull-right">
                     @if ($infoPanelObj::class == "App\Models\Asset")
                         <a href="{{ route('hardware.index', ['order_number' => $infoPanelObj->order_number]) }}">{{ $infoPanelObj->order_number }}</a>
@@ -256,6 +265,7 @@
 
         @if ($infoPanelObj->gl_code ?? false)
             <x-info-element icon_type="order" title="{{ trans('admin/hardware/form.gl_code') }}">
+                {{ trans('admin/hardware/form.gl_code') }}
                 <x-copy-to-clipboard copy_what="gl_code" class="pull-right">
                     {{ $infoPanelObj->gl_code }}
                 </x-copy-to-clipboard>
@@ -293,6 +303,7 @@
 
         @if ($infoPanelObj->company)
             <x-info-element icon_type="company" icon_color="{{ $infoPanelObj->company->tag_color }}" title="{{ trans('general.company') }}">
+                {{ trans('general.company') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="company">
                 {!!  $infoPanelObj->company->present()->nameUrl !!}
                 </x-copy-to-clipboard>
@@ -301,14 +312,16 @@
 
         @if ($infoPanelObj->department)
             <x-info-element icon_type="department" icon_color="{{ $infoPanelObj->department->tag_color }}" title="{{ trans('general.department') }}">
+                {{ trans('general.department') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="department">
                     {!!  $infoPanelObj->department->present()->nameUrl !!}
                 </x-copy-to-clipboard>
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->category)
+        @if ($infoPanelObj->category && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="category" icon_color="{{ $infoPanelObj->category->tag_color }}" title="{{ trans('general.category') }}">
+                {{ trans('general.category') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="category">{!!  $infoPanelObj->category->present()->nameUrl !!}</x-copy-to-clipboard>
             </x-info-element>
         @endif
@@ -321,8 +334,9 @@
         @endif
 
 
-        @if ($infoPanelObj->location)
+        @if ($infoPanelObj->location && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element icon_type="location" icon_color="{{ $infoPanelObj->location->tag_color }}" title="{{ trans('general.location') }}">
+                {{ trans('general.location') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="location">{!!  $infoPanelObj->location->present()->nameUrl !!}</x-copy-to-clipboard>
             </x-info-element>
         @endif
@@ -330,6 +344,7 @@
 
         @if ($infoPanelObj->manager)
             <x-info-element icon_type="manager" title="{{ trans('admin/users/table.manager') }}">
+                {{ trans('admin/users/table.manager') }}
                 <x-copy-to-clipboard class="pull-right" copy_what="manager">{!!  $infoPanelObj->manager->present()->nameUrl !!}</x-copy-to-clipboard>
             </x-info-element>
         @endif
@@ -344,7 +359,12 @@
 
 
         <x-info-panel.supplier :infoPanelObj="$infoPanelObj"/>
-        <x-info-panel.manufacturer :asset="$infoPanelObj" :manufacturer="($infoPanelObj->manufacturer ?? $infoPanelObj->model?->manufacturer)"/>
+
+        <x-info-panel.lessor :infoPanelObj="$infoPanelObj"/>
+        {{-- Assets show manufacturer in the detail header now. --}}
+        @if (! ($infoPanelObj instanceof \App\Models\Asset))
+            <x-info-panel.manufacturer :asset="$infoPanelObj" :manufacturer="($infoPanelObj->manufacturer ?? $infoPanelObj->model?->manufacturer)"/>
+        @endif
 
         @if ((isset($infoPanelObj->parent)) && ($infoPanelObj->parent))
             @php
@@ -490,7 +510,7 @@
 
 
 
-        @if ($infoPanelObj->purchase_date && ! ($infoPanelObj->on_maintenance_contract ?? false))
+        @if ($infoPanelObj->purchase_date && ! ($infoPanelObj->on_maintenance_contract ?? false) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <x-icon type="calendar" class="fa-fw" title="{{ trans('general.purchase_date') }}" />
                 {{ trans('general.purchased_plain') }}
@@ -524,7 +544,9 @@
             </x-info-element>
         @endif
 
-        @if (isset($infoPanelObj->byod))
+        {{-- For assets, byod / requestable / created-by / timestamps live in a
+             dedicated Metadata box in the asset sidebar, so skip them here. --}}
+        @if (isset($infoPanelObj->byod) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element title="{{ trans('general.byod') }}">
                 @if ($infoPanelObj->byod == 1)
                 <x-icon type="checkmark" class="fa-fw text-success" />
@@ -535,7 +557,7 @@
             </x-info-element>
         @endif
 
-        @if (isset($infoPanelObj->requestable))
+        @if (isset($infoPanelObj->requestable) && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element title="{{ trans('general.requestable') }}">
                 @if ($infoPanelObj->requestable == 1)
                     <x-icon type="checkmark" class="fa-fw text-success"/>
@@ -591,7 +613,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->adminuser)
+        @if ($infoPanelObj->adminuser && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element title="{{ trans('general.created_by') }}">
                 <span class="text-muted">
                     <x-icon type="user" class="fa-fw" title="{{ trans('general.created_by') }}" />
@@ -603,7 +625,7 @@
         @endif
 
 
-        @if ($infoPanelObj->created_at)
+        @if ($infoPanelObj->created_at && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <span class="text-muted">
                     <x-icon type="calendar" class="fa-fw" title="{{ trans('general.created_at') }}" />
@@ -613,7 +635,7 @@
             </x-info-element>
         @endif
 
-        @if ($infoPanelObj->updated_at)
+        @if ($infoPanelObj->updated_at && ! ($infoPanelObj instanceof \App\Models\Asset))
             <x-info-element>
                 <span class="text-muted">
                     <x-icon type="calendar" class="fa-fw" title="{{ trans('general.updated_at') }}" />

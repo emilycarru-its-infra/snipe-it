@@ -57,6 +57,24 @@ class IngestOrderTest extends TestCase
         $this->assertEquals(1499.00, (float) $item->unit_cost);
     }
 
+    public function test_ingest_stamps_fiscal_year_from_order_date()
+    {
+        $asset = Asset::factory()->create();
+
+        $this->actingAsForApi($this->superuser())
+            ->postJson(route('api.orders.ingest'), [
+                'order_number' => 'ORD-FY-STAMP',
+                'order_date' => '2026-04-14', // ECU FY runs Apr–Mar → FY2026-27
+                'items' => [['asset_id' => $asset->id, 'unit_cost' => 100]],
+            ])
+            ->assertOk();
+
+        $this->assertEquals(
+            'FY2026-27',
+            Order::where('order_number', 'ORD-FY-STAMP')->value('fiscal_year')
+        );
+    }
+
     public function test_ingest_is_idempotent()
     {
         $asset = Asset::factory()->create();
