@@ -1,6 +1,6 @@
-{{-- Per-Serial Disposition Grid — one tab per lease contract (mirrors the
+{{-- Disposition Grid — a contract dropdown selects one lease pane (mirrors the
      sheets of the Leases workbook). One row per leased serial. The disposition
-     is NOT entered here: it is read from each device's own Snipe status +
+     is NOT entered here: it is read from each device's own Inventory status +
      Decommissioned Date (an archived status with a decommission date = the
      device has left our management). The only editable field is a free-text
      note per device (buyout justifications / special cases). No inline <script>
@@ -14,6 +14,8 @@
 @if (empty($contracts))
     <p class="text-muted">{{ trans('admin/purchase-orders/general.disposition_none_leased') }}</p>
 @else
+    {{-- Serial search (from #244): jumps the dropdown to the matching contract
+         and highlights the row. --}}
     <div class="disp-search-bar">
         <div class="input-group input-group-sm disp-search-group">
             <span class="input-group-addon"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
@@ -23,17 +25,17 @@
         </div>
         <span class="disp-search-status text-muted" aria-live="polite"></span>
     </div>
-    <ul class="nav nav-tabs disp-tabs" role="tablist">
-        @foreach ($contracts as $i => $c)
-            @php $paneId = 'disp-pane-'.$i; @endphp
-            <li class="{{ $i === 0 ? 'active' : '' }}">
-                <a href="#{{ $paneId }}" data-toggle="tab" role="tab">
-                    {{ $c['contract_id'] }}
-                    <span class="badge">{{ $c['active_count'] }}/{{ count($c['assets']) }}</span>
-                </a>
-            </li>
-        @endforeach
-    </ul>
+    <div class="form-group disp-contract-picker">
+        <label for="disp-contract-select" class="disp-contract-label">{{ trans('admin/purchase-orders/general.disposition_pick_contract') }}</label>
+        <select id="disp-contract-select" class="form-control input-sm disp-contract-select">
+            @foreach ($contracts as $i => $c)
+                <option value="disp-pane-{{ $i }}" {{ $i === 0 ? 'selected' : '' }}>
+                    {{ $c['contract_id'] }} — {{ $c['active_count'] }}/{{ count($c['assets']) }}{{ ! empty($c['provider']) ? ' · '.$c['provider'] : '' }}
+                </option>
+            @endforeach
+        </select>
+    </div>
+
 
     <div class="tab-content disp-tab-content">
         @foreach ($contracts as $i => $c)
@@ -71,11 +73,15 @@
                                     <td>{{ $a['serial'] }}</td>
                                     <td>{{ $a['asset_tag'] }}</td>
                                     <td>
-                                        @if ($a['archived'])
-                                            <span class="label label-default">{{ $a['status'] }}</span>
-                                        @else
-                                            <span class="label label-success">{{ $a['status'] }}</span>
-                                        @endif
+                                        @php
+                                            $statusClass = match ($a['status_type'] ?? null) {
+                                                'deployable' => 'label-success',
+                                                'pending' => 'label-warning',
+                                                'undeployable' => 'label-danger',
+                                                default => 'label-default',
+                                            };
+                                        @endphp
+                                        <span class="label {{ $statusClass }}">{{ $a['status'] }}</span>
                                     </td>
                                     <td>{{ $a['decommissioned_date'] }}</td>
                                     <td class="text-right">{{ $a['buyout_cost'] }}</td>

@@ -131,6 +131,7 @@ class AssetsController extends Controller
             'category',
             'manufacturer',
             'supplier',
+            'lessor',
             'status',
             'jobtitle',
             'assigned_to',
@@ -167,7 +168,8 @@ class AssetsController extends Controller
                 'model.manufacturer',
                 'model.fieldset',
                 'model.depreciation',
-                'supplier'
+                'supplier',
+                'lessor'
             ); // it might be tempting to add 'assetlog' here, but don't. It blows up update-heavy users.
 
         if ($filter_non_deprecable_assets) {
@@ -408,6 +410,9 @@ class AssetsController extends Controller
                 break;
             case 'supplier':
                 $assets->OrderSupplier($order);
+                break;
+            case 'lessor':
+                $assets->OrderLessor($order);
                 break;
             case 'assigned_to':
                 $assets->OrderAssigned($order);

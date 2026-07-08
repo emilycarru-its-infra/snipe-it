@@ -31,6 +31,7 @@ class AssetModelFactory extends Factory
             'category_id' => Category::factory(),
             'created_by' => User::factory()->superuser(),
             'model_number' => $this->faker->creditCardNumber(),
+            'model_identifier' => $this->faker->bothify('Mac##,#'),
             'name' => $this->faker->catchPhrase(),
             'notes' => 'Created by demo seeder',
             'require_serial' => 0,

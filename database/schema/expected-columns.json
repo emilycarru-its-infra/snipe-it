@@ -828,6 +828,7 @@
         "image",
         "manufacturer_id",
         "min_amt",
+        "model_identifier",
         "model_number",
         "name",
         "notes",

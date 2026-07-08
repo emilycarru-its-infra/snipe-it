@@ -45,6 +45,21 @@
                     </div>
                 </div>
             @endif
+            @if ($asset->supplier)
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.supplier') }}</div>
+                    <div class="asset-card-val"><a href="{{ route('suppliers.show', $asset->supplier->id) }}">{{ $asset->supplier->name }}</a></div>
+                </div>
+            @endif
+            {{-- Lessor: who financed the lease (a Supplier record in the lessor role),
+                 distinct from the supplier who sold the device. Surfaced here so leased
+                 assets show their lessor without opening the edit form. --}}
+            @if ($asset->lessor)
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.lessor') }}</div>
+                    <div class="asset-card-val"><a href="{{ route('suppliers.show', $asset->lessor->id) }}">{{ $asset->lessor->name }}</a></div>
+                </div>
+            @endif
         @endif
 
         @foreach ($section['fields'] as $field)

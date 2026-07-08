@@ -1,17 +1,14 @@
-{{-- Document-level delegated handler for the Per-Serial Disposition Grid's
-     editable per-device note. Included on the dashboard and the standalone
-     page so it works whether the grid was rendered server-side or lazy-injected
-     via innerHTML (which would strip an inline <script>). The disposition
-     itself is read-only (derived from status); only the note is editable. --}}
+{{-- Document-level delegated handlers for the Disposition Grid: the contract
+     dropdown that switches which lease pane is visible, and the editable
+     per-device note. Included on the dashboard and the standalone page so both
+     work whether the grid was rendered server-side or lazy-injected via
+     innerHTML (which would strip an inline <script>). The disposition itself is
+     read-only (derived from status); only the note is editable. --}}
 <style>
-    /* Flex-wrap the tab strip so wrapped contract tabs sit in an even grid
-       instead of Bootstrap's float-staggered rows (which left awkward gaps). */
-    .disp-tabs { display: flex; flex-wrap: wrap; gap: 4px; max-height: 140px; overflow-y: auto; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 0; }
-    .disp-tabs > li { float: none; margin: 0; }
-    .disp-tabs > li > a { margin: 0; padding: 5px 10px; font-size: 12px; border: 1px solid transparent; border-radius: 3px; }
-    .disp-tabs > li.active > a, .disp-tabs > li.active > a:hover, .disp-tabs > li.active > a:focus { border: 1px solid #ddd; background: #fff; }
-    .disp-tabs > li > a .badge { background-color: #aab2bd; }
-    .disp-tab-content { padding-top: 12px; }
+    .disp-contract-picker { margin-bottom: 12px; }
+    .disp-contract-label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+    .disp-contract-select { max-width: 460px; }
+    .disp-tab-content { padding-top: 4px; }
     .disp-contract-meta { margin-bottom: 8px; }
     .disp-table th, .disp-table td { vertical-align: middle !important; font-size: 12.5px; }
     .disp-note-cell { min-width: 180px; }
@@ -32,6 +29,19 @@
     window.__dispGridWired = true;
 
     function gridOf(el) { return el.closest('.disp-grid'); }
+
+    // Contract dropdown → show the chosen lease pane, hide the rest. Replaces
+    // the old tab strip (too cluttered with 40+ contracts).
+    document.addEventListener('change', function (e) {
+        var sel = e.target.closest ? e.target.closest('.disp-contract-select') : null;
+        if (! sel) { return; }
+        var grid = gridOf(sel);
+        if (! grid) { return; }
+        var panes = grid.querySelectorAll('.disp-tab-content > .tab-pane');
+        for (var i = 0; i < panes.length; i++) { panes[i].classList.remove('active'); }
+        var target = grid.querySelector('#' + sel.value);
+        if (target) { target.classList.add('active'); }
+    });
 
     function saveNote(grid, row, value) {
         var body = new URLSearchParams();
@@ -102,10 +112,10 @@
 
     function activatePane(grid, paneId) {
         if (! paneId) { return; }
-        grid.querySelectorAll('.disp-tabs > li').forEach(function (li) {
-            var a = li.querySelector('a');
-            li.classList.toggle('active', !!a && a.getAttribute('href') === '#' + paneId);
-        });
+        // Sync the contract dropdown so it reflects the jumped-to lease, then
+        // show that pane (the tab strip was replaced by the dropdown in #243).
+        var sel = grid.querySelector('.disp-contract-select');
+        if (sel) { sel.value = paneId; }
         grid.querySelectorAll('.disp-tab-content > .tab-pane').forEach(function (pane) {
             pane.classList.toggle('active', pane.id === paneId);
         });

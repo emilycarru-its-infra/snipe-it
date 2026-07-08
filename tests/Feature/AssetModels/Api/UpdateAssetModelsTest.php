@@ -36,6 +36,23 @@ class UpdateAssetModelsTest extends TestCase
 
     }
 
+    public function test_can_update_model_identifier_via_patch()
+    {
+        $model = AssetModel::factory()->create(['model_identifier' => 'Mac00,0']);
+
+        $response = $this->actingAsForApi(User::factory()->superuser()->create())
+            ->patchJson(route('api.models.update', $model), [
+                'model_identifier' => 'Mac16,1',
+            ])
+            ->assertOk()
+            ->assertStatusMessageIs('success')
+            ->json();
+
+        $model->refresh();
+        $this->assertEquals('Mac16,1', $model->model_identifier, 'Model identifier was not updated');
+        $this->assertEquals('Mac16,1', $response['payload']['model_identifier'], 'Model identifier not returned by transformer');
+    }
+
     public function test_cannot_update_asset_model_via_patch_with_accessory_category()
     {
         $category = Category::factory()->forAccessories()->create();

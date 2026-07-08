@@ -44,7 +44,7 @@ return [
     'show' => 'Show',
     'year' => 'Year',
     'student' => 'Student',
-    'student_name' => 'Student name (if not a Snipe user)',
+    'student_name' => 'Student name (if not a Inventory user)',
     'asset' => 'Assigned Device',
     'status' => 'Status',
     'project_type' => 'Project Type',

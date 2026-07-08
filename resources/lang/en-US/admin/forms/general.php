@@ -18,7 +18,7 @@ return [
     'settings_title'             => 'Forms',
     'settings_intro'             => 'Configure who can administer forms and which groups can submit each form.',
     'settings_prefix_label'      => 'Forms admin group prefix',
-    'settings_prefix_help'       => 'Any user in a Snipe group whose name begins with this prefix is treated as a Forms admin (full view + edit). Defaults to "ITS".',
+    'settings_prefix_help'       => 'Any user in a Inventory group whose name begins with this prefix is treated as a Forms admin (full view + edit). Defaults to "ITS".',
     'settings_prefix_matched'    => 'Currently matching: :groups',
     'settings_prefix_matched_none' => 'No groups currently match this prefix.',
     'settings_eligibility_label' => 'Eligibility — :form',

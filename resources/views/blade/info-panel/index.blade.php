@@ -145,6 +145,15 @@
             </x-info-element>
         @endif
 
+        @if (($infoPanelObj instanceof \App\Models\AssetModel) && $infoPanelObj->model_identifier)
+            <x-info-element icon_type="number" title="{{ trans('general.model_identifier') }}">
+                {{ trans('general.model_identifier') }}
+                <x-copy-to-clipboard copy_what="model_identifier" class="pull-right">
+                    {{ $infoPanelObj->model_identifier }}
+                </x-copy-to-clipboard>
+            </x-info-element>
+        @endif
+
         @if ($infoPanelObj->item_no)
             <x-info-element icon_type="number" title="{{ trans('admin/consumables/general.item_no') }}">
                 {{ trans('admin/consumables/general.item_no') }}

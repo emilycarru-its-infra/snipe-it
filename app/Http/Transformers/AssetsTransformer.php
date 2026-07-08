@@ -80,6 +80,11 @@ class AssetsTransformer
                 'name' => e($asset->supplier->name),
                 'tag_color' => ($asset->supplier->tag_color) ? e($asset->supplier->tag_color) : null,
             ] : null,
+            'lessor' => ($asset->lessor) ? [
+                'id' => (int) $asset->lessor->id,
+                'name' => e($asset->lessor->name),
+                'tag_color' => ($asset->lessor->tag_color) ? e($asset->lessor->tag_color) : null,
+            ] : null,
             'notes' => ($asset->notes) ? Helper::parseEscapedMarkedownInline($asset->notes) : null,
             'order_number' => ($asset->order_number) ? e($asset->order_number) : null,
             'gl_code' => ($asset->gl_code) ? e($asset->gl_code) : null,

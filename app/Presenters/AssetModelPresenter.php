@@ -71,6 +71,14 @@ class AssetModelPresenter extends Presenter
                 'visible' => true,
             ],
             [
+                'field' => 'model_identifier',
+                'searchable' => true,
+                'sortable' => true,
+                'switchable' => true,
+                'title' => trans('admin/models/table.modelidentifier'),
+                'visible' => false,
+            ],
+            [
                 'field' => 'min_amt',
                 'searchable' => true,
                 'sortable' => true,
