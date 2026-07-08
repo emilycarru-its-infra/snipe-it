@@ -224,6 +224,7 @@ return [
     'min_amt' => 'Min. QTY',
     'min_amt_help' => 'Minimum number of this item that should be available for checkout before an alert gets triggered. Leave blank if you do not wish to receive alerts for low inventory.',
     'model_no' => 'Model No.',
+    'model_identifier' => 'Model Identifier',
     'months' => 'months',
     'moreinfo' => 'More Info',
     'name' => 'Name',

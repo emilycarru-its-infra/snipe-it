@@ -2131,6 +2131,12 @@ parameters:
 			path: app/Http/Controllers/AssetModelsController.php
 
 		-
+			message: '#^Access to an undefined property App\\Models\\SnipeModel\:\:\$model_identifier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/AssetModelsController.php
+
+		-
 			message: '#^Access to an undefined property App\\Models\\SnipeModel\:\:\$name\.$#'
 			identifier: property.notFound
 			count: 1
