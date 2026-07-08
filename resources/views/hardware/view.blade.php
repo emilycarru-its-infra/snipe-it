@@ -157,6 +157,14 @@
                                                 {{ $asset->model?->model_number ?: '—' }}
                                             </div>
                                         </div>
+                                        @if ($asset->model?->model_identifier)
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.model_identifier') }}</div>
+                                            <div class="asset-identity-subvalue">
+                                                {{ $asset->model->model_identifier }}
+                                            </div>
+                                        </div>
+                                        @endif
                                     </div>
 
                                     <hr class="asset-identity-divider">
@@ -570,6 +578,30 @@
                         <x-button.label :item="$asset" :route="route('hardware.bulkedit.show')"/>
                         <x-button.delete :item="$asset"/>
                         <x-button.restore :item="$asset" :route="route('restore/hardware', ['asset' => $asset->id])"/>
+
+                        {{-- Request a buyout quote from the lessor. Only shown for assets on
+                             an active lease; enabled once the lessor has a contact email,
+                             otherwise disabled with a hint pointing to the edit form. --}}
+                        @if ($asset->isOnActiveLease())
+                            @can('update', $asset)
+                                @if ($asset->canRequestLeaseBuyout())
+                                    <form action="{{ route('asset.buyout.request', $asset->id) }}" method="POST"
+                                          onsubmit="return confirm(@js(trans('general.request_buyout_confirm', ['lessor' => $asset->lessor->name])));">
+                                        {{ csrf_field() }}
+                                        <button type="submit" class="btn btn-sm btn-primary btn-block hidden-print">
+                                            <x-icon type="request" class="fa-fw"/>
+                                            {{ trans('general.request_buyout') }}
+                                        </button>
+                                    </form>
+                                @else
+                                    <button type="button" class="btn btn-sm btn-default btn-block hidden-print" disabled
+                                            data-tooltip="true" data-placement="top" title="{{ trans('general.request_buyout_no_lessor') }}">
+                                        <x-icon type="request" class="fa-fw"/>
+                                        {{ trans('general.request_buyout') }}
+                                    </button>
+                                @endif
+                            @endcan
+                        @endif
                     </x-slot:buttons>
 
                     {{-- Assignment status, checkout dates, audit + decommission all

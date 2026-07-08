@@ -81,6 +81,9 @@ class LeaseEndSchedulesTest extends TestCase
             // The schedule shows, carrying its decision and note…
             ->assertSee('ECI20221201')
             ->assertSee(trans('admin/lease-decisions/general.type_buyout'))
+            // The Plan tag spells the decision status out ("decision confirmed")
+            // instead of a bare "Approved" that reads like budget approval.
+            ->assertSee(trans('admin/purchase-orders/general.decision_status_approved'))
             ->assertSee('Faculty Laptop program')
             // …and it's flagged as re-assessed at renewal…
             ->assertSee(trans('admin/purchase-orders/general.lease_end_reassess'))

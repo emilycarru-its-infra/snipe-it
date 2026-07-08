@@ -149,6 +149,13 @@ class AssetPresenter extends Presenter
                 'visible' => false,
                 'formatter' => 'suppliersLinkObjFormatter',
             ], [
+                'field' => 'lessor',
+                'searchable' => false,
+                'sortable' => true,
+                'title' => trans('general.lessor'),
+                'visible' => false,
+                'formatter' => 'suppliersLinkObjFormatter',
+            ], [
                 'field' => 'purchase_date',
                 'searchable' => true,
                 'sortable' => true,

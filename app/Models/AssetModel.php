@@ -51,6 +51,7 @@ class AssetModel extends SnipeModel
     protected $rules = [
         'name' => 'string|required|min:1|max:255|two_column_unique_undeleted:model_number',
         'model_number' => 'string|max:255|nullable|two_column_unique_undeleted:name',
+        'model_identifier' => 'string|max:255|nullable',
         'min_amt' => 'integer|min:0|nullable',
         'category_id' => 'required|integer|exists:categories,id',
         'manufacturer_id' => 'integer|exists:manufacturers,id|nullable',
@@ -71,6 +72,7 @@ class AssetModel extends SnipeModel
         'manufacturer_id',
         'min_amt',
         'model_number',
+        'model_identifier',
         'name',
         'notes',
         'requestable',
@@ -90,6 +92,7 @@ class AssetModel extends SnipeModel
         'eol',
         'min_amt',
         'model_number',
+        'model_identifier',
         'name',
         'notes',
     ];
@@ -338,6 +341,7 @@ class AssetModel extends SnipeModel
     {
         return $query->where('models.name', 'LIKE', "%$search%")
             ->orWhere('model_number', 'LIKE', "%$search%")
+            ->orWhere('model_identifier', 'LIKE', "%$search%")
             ->orWhere(
                 function ($query) use ($search) {
                     $query->whereHas(

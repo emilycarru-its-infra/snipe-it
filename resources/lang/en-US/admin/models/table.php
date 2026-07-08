@@ -6,6 +6,7 @@ return [
     'created_at' => 'Created at',
     'eol' => 'EOL',
     'modelnumber' => 'Model No.',
+    'modelidentifier' => 'Model Identifier',
     'name' => 'Asset Model Name',
     'numassets' => 'Assets',
     'title' => 'Asset Models',

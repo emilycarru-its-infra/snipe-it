@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Helpers\Helper;
 use App\Models\Asset;
+use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
+use App\Models\Category;
+use App\Models\Company;
 use App\Models\CustomField;
+use App\Models\Manufacturer;
 use App\Models\UserAgreement;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
@@ -13,6 +17,8 @@ use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
+use App\Models\Statuslabel;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
@@ -334,7 +340,16 @@ class ProcurementReportsController extends Controller
         $this->authorize('reports.procurement.view');
 
         $fy = $this->resolveFiscalYear($request);
-        $report = $this->refreshForecastReport($fy);
+
+        // Early-renewal slotting: any criteria the reader adds (category,
+        // ownership type, lease contract, status, …) drives the candidate
+        // set instead of the default end-of-life window, so a subset of an
+        // active contract can be forecasted for an early refresh — e.g.
+        // "Category: Laptop AND Ownership Type: Lease to Own AND Lease
+        // Contract ID: ECI20221001". Selected rows still flow through the
+        // same planned-order path as the EOL forecast.
+        $criteria = $this->forecastCriteria($request);
+        $report = $this->refreshForecastReport($fy, $criteria);
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('refresh-forecast-report', $report);
@@ -350,15 +365,148 @@ class ProcurementReportsController extends Controller
             'rows' => $report['records'],
             'footer' => $report['footer'] ?? null,
             'downloadUrl' => route('reports.procurement.forecast', array_filter(
-                ['format' => 'csv', 'fiscal_year' => $request->query('fiscal_year', $fy)],
-                fn ($v) => $v !== null && $v !== ''
+                ['format' => 'csv', 'fiscal_year' => $request->query('fiscal_year', $fy), 'criteria' => $criteria],
+                fn ($v) => $v !== null && $v !== '' && $v !== []
             )),
             'canCreate' => Gate::allows('create', Order::class),
             'fyFilterable' => true,
             'selectedFy' => $fy,
             'allFiscalYears' => $this->availableFiscalYears(),
             'reportParams' => [],
+            'filterFields' => $this->forecastFilterFields(),
+            'filterValues' => $this->forecastFilterValues(),
+            'activeCriteria' => $criteria,
+            'earlyRenewalMode' => $criteria !== [],
         ]);
+    }
+
+    /**
+     * Normalise the `criteria[]` query input into a clean list of
+     * {field, value} predicates, dropping blank rows and any field that is
+     * not in the allow-list (the static columns + the live custom fields).
+     * All predicates are ANDed in refreshForecastReport().
+     */
+    private function forecastCriteria(Request $request): array
+    {
+        $raw = $request->query('criteria', []);
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $allowed = $this->forecastFilterFields();
+        $out = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $field = (string) ($row['field'] ?? '');
+            $value = trim((string) ($row['value'] ?? ''));
+            if ($field === '' || $value === '' || ! isset($allowed[$field])) {
+                continue;
+            }
+            $out[] = ['field' => $field, 'value' => $value];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The fields a forecast criterion can target: a curated set of asset
+     * taxonomies plus every custom field (keyed `cf:<db_column>`), so the
+     * reader can slot in an early renewal by whatever mix the situation
+     * needs without the field list being hard-coded.
+     */
+    private function forecastFilterFields(): array
+    {
+        $fields = [
+            'category' => trans('general.category'),
+            'manufacturer' => trans('general.manufacturer'),
+            'model' => trans('general.asset_model'),
+            'status' => trans('general.status'),
+            'supplier' => trans('general.supplier'),
+            'company' => trans('general.company'),
+        ];
+
+        foreach (CustomField::orderBy('name')->get() as $field) {
+            if ($field->db_column) {
+                $fields['cf:'.$field->db_column] = $field->name;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Known values per field, used to populate the criteria builder's
+     * datalists so the reader can autocomplete instead of guessing exact
+     * spellings. Custom-field values are sourced from the assets that carry
+     * them (capped, since some fields are high-cardinality); Model is left
+     * free-text for the same reason.
+     */
+    private function forecastFilterValues(): array
+    {
+        $values = [
+            'category' => Category::where('category_type', 'asset')->orderBy('name')->pluck('name')->all(),
+            'manufacturer' => Manufacturer::orderBy('name')->pluck('name')->all(),
+            'status' => Statuslabel::orderBy('name')->pluck('name')->all(),
+            'supplier' => Supplier::orderBy('name')->pluck('name')->all(),
+            'company' => Company::orderBy('name')->pluck('name')->all(),
+        ];
+
+        foreach (CustomField::orderBy('name')->get() as $field) {
+            if (! $field->db_column) {
+                continue;
+            }
+            $values['cf:'.$field->db_column] = Asset::query()
+                ->whereNotNull($field->db_column)
+                ->where($field->db_column, '!=', '')
+                ->distinct()
+                ->orderBy($field->db_column)
+                ->limit(200)
+                ->pluck($field->db_column)
+                ->all();
+        }
+
+        return $values;
+    }
+
+    /**
+     * Apply one forecast criterion to the asset query. Relation fields match
+     * by name; custom fields match the generated column exactly. The column
+     * is validated against the live custom-field allow-list before it ever
+     * reaches the query builder, so an arbitrary `cf:` value can't inject a
+     * column name.
+     */
+    private function applyForecastCriterion($query, string $field, string $value): void
+    {
+        switch ($field) {
+            case 'category':
+                $query->whereHas('model.category', fn ($q) => $q->where('name', $value));
+                break;
+            case 'manufacturer':
+                $query->whereHas('model.manufacturer', fn ($q) => $q->where('name', $value));
+                break;
+            case 'model':
+                $query->whereHas('model', fn ($q) => $q->where('name', $value));
+                break;
+            case 'status':
+                $query->whereHas('status', fn ($q) => $q->where('name', $value));
+                break;
+            case 'supplier':
+                $query->whereHas('supplier', fn ($q) => $q->where('name', $value));
+                break;
+            case 'company':
+                $query->whereHas('company', fn ($q) => $q->where('name', $value));
+                break;
+            default:
+                if (str_starts_with($field, 'cf:')) {
+                    $column = substr($field, 3);
+                    $allowed = CustomField::pluck('db_column')->filter()->all();
+                    if (in_array($column, $allowed, true)) {
+                        $query->where($column, $value);
+                    }
+                }
+        }
     }
 
     /**
@@ -559,30 +707,96 @@ class ProcurementReportsController extends Controller
     {
         $t = fn ($k) => trans('admin/purchase-orders/general.'.$k);
 
-        $records = [];
-        $inSnipe = 0;
+        // Lessor draft Exhibit "A" emails arrive one Equipment Schedule at a
+        // time (e.g. #301452-008), so group the arrivals the same way with a
+        // per-schedule subtotal — that is the unit receiving reconciles
+        // against. Devices not yet on a schedule bucket under a clear label.
+        $pendingLabel = $t('csi_recon_pending_schedule');
+        $grouped = [];
         foreach ((new CsiReconciliation)->inProcessArrivals() as $row) {
-            $inSnipe += $row['in_snipe'] ? 1 : 0;
+            $grouped[$row['csi_schedule'] ?: $pendingLabel][] = $row;
+        }
+        ksort($grouped);
+
+        // Best-effort model-id lookup so the "add to inventory" deep-link can
+        // prefill the model, not just the serial. Cached per model name.
+        $modelIds = [];
+        $modelIdFor = function (?string $name) use (&$modelIds) {
+            $name = trim((string) $name);
+            if ($name === '') {
+                return null;
+            }
+            if (! array_key_exists($name, $modelIds)) {
+                $modelIds[$name] = AssetModel::where('name', $name)->value('id');
+            }
+
+            return $modelIds[$name];
+        };
+
+        $records = [];
+        $totalInSnipe = 0;
+        $totalCount = 0;
+
+        foreach ($grouped as $scheduleLabel => $rows) {
+            $groupInSnipe = 0;
+
+            foreach ($rows as $row) {
+                $groupInSnipe += $row['in_snipe'] ? 1 : 0;
+
+                $record = [
+                    'class' => $row['in_snipe'] ? '' : 'warning',
+                    'cells' => [
+                        $row['csi_schedule'] ?: $pendingLabel,
+                        $row['in_snipe'] ? $t('csi_recon_match') : $t('csi_recon_missing'),
+                        $row['serial'],
+                        $row['model'],
+                        $row['snipe_tag'],
+                        $row['snipe_status'],
+                    ],
+                ];
+
+                // Arriving devices Snipe doesn't know yet get a one-click add
+                // that deep-links to a create form prefilled with the serial
+                // (and the model when it maps to an existing Snipe model).
+                if (! $row['in_snipe']) {
+                    $params = ['serial' => $row['serial']];
+                    if ($modelId = $modelIdFor($row['model'])) {
+                        $params['model_id'] = $modelId;
+                    }
+                    $record['action'] = [
+                        'col' => 1,
+                        'url' => route('hardware.create', $params),
+                        'label' => $t('csi_recon_add_to_inventory'),
+                    ];
+                }
+
+                $records[] = $record;
+            }
+
             $records[] = [
-                'class' => $row['in_snipe'] ? '' : 'warning',
+                'class' => 'info rpt-subtotal',
                 'cells' => [
-                    $row['in_snipe'] ? $t('csi_recon_match') : $t('csi_recon_missing_in_snipe'),
-                    $row['serial'],
-                    $row['model'],
-                    $row['csi_schedule'],
-                    $row['snipe_tag'],
-                    $row['snipe_status'],
+                    $scheduleLabel.' '.trans('admin/orders/general.total'),
+                    $groupInSnipe.' / '.count($rows).' '.$t('csi_recon_in_snipe_suffix'),
+                    '', '', '', '',
                 ],
             ];
+
+            $totalInSnipe += $groupInSnipe;
+            $totalCount += count($rows);
         }
 
         return [
             'columns' => [
-                $t('csi_recon_status'), $t('csi_recon_serial'), $t('csi_recon_model'),
-                $t('csi_recon_csi_schedule'), $t('csi_recon_snipe_tag'), $t('csi_recon_snipe_status'),
+                $t('csi_recon_csi_schedule'), $t('csi_recon_status'), $t('csi_recon_serial'),
+                $t('csi_recon_model'), $t('csi_recon_snipe_tag'), $t('csi_recon_snipe_status'),
             ],
             'records' => $records,
-            'footer' => [$inSnipe.' / '.count($records).' '.$t('csi_recon_in_process'), '', '', '', '', ''],
+            'footer' => [
+                trans('admin/orders/general.total'),
+                $totalInSnipe.' / '.$totalCount.' '.$t('csi_recon_in_snipe_suffix'),
+                '', '', '', '',
+            ],
         ];
     }
 
@@ -1376,7 +1590,7 @@ class ProcurementReportsController extends Controller
      * Assets reaching end-of-life within the next year — the refresh
      * pipeline. purchase_cost stands in as the replacement-cost estimate.
      */
-    private function refreshForecastReport(?string $fy = null): array
+    private function refreshForecastReport(?string $fy = null, array $criteria = []): array
     {
         $columns = [
             trans('admin/purchase-orders/general.forecast_asset_tag'),
@@ -1390,14 +1604,24 @@ class ProcurementReportsController extends Controller
             trans('general.supplier'),
         ];
 
-        // A chosen FY scopes to that year's end-of-life dates; with no FY
-        // ("all") fall back to the rolling next-12-months refresh window.
+        // Default forecast: end-of-life devices in the FY (or the rolling
+        // next-12-months window for "all"). Early-renewal mode — any criteria
+        // supplied — drops the EOL window entirely and lists every device
+        // matching the ANDed predicates, so a subset of an active lease can
+        // be slotted in for an early refresh well before its EOL date.
         $range = $this->fiscalYearRange($fy);
         $assets = Asset::with('model', 'supplier', 'status')
-            ->whereNotNull('asset_eol_date')
-            ->when($range, fn ($query) => $query->whereBetween('asset_eol_date', $range))
-            ->when(! $range, fn ($query) => $query->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()]))
+            ->when($criteria === [], fn ($query) => $query
+                ->whereNotNull('asset_eol_date')
+                ->when($range, fn ($q) => $q->whereBetween('asset_eol_date', $range))
+                ->when(! $range, fn ($q) => $q->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])))
+            ->when($criteria !== [], function ($query) use ($criteria) {
+                foreach ($criteria as $criterion) {
+                    $this->applyForecastCriterion($query, $criterion['field'], $criterion['value']);
+                }
+            })
             ->orderBy('asset_eol_date')
+            ->orderBy('purchase_date')
             ->get();
 
         // Devices that already have a planned replacement line item are
@@ -1700,6 +1924,7 @@ class ProcurementReportsController extends Controller
                     'count' => 0,
                     'cost' => 0.0,
                     'model_counts' => [],
+                    'ownership_counts' => [],
                     'decision' => $decision,
                     'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
                     'is_lease_to_own' => false,
@@ -1712,6 +1937,17 @@ class ProcurementReportsController extends Controller
             // the view renders it as "retained", never as a logged decision.
             if ($ownershipColumn && (string) $asset->{$ownershipColumn} === 'Lease to Own') {
                 $schedules[$contractId]['is_lease_to_own'] = true;
+            }
+
+            // Tally the ownership-type mix across every device on the schedule
+            // (disposed units included, same basis as the cost envelope) so the
+            // table can show what kind of contract each ending lease is.
+            if ($ownershipColumn) {
+                $ownership = trim((string) $asset->{$ownershipColumn});
+                if ($ownership !== '') {
+                    $schedules[$contractId]['ownership_counts'][$ownership] =
+                        ($schedules[$contractId]['ownership_counts'][$ownership] ?? 0) + 1;
+                }
             }
 
             // The pre-approval envelope is the schedule's full original lease
@@ -1981,9 +2217,12 @@ class ProcurementReportsController extends Controller
         ];
 
         $groups = $this->groupedLeaseAssets($fy);
-        $columns = $this->leaseFieldColumns();
-        $poNumberColumn = $columns['po_number'];
-        $warrantyColumn = $columns['warranty_cost'] ?? null;
+        // Look up the lease custom-field DB columns without clobbering the
+        // human-readable header row built above (they are the generated
+        // `_snipeit_*` column names, not display labels).
+        $leaseCols = $this->leaseFieldColumns();
+        $poNumberColumn = $leaseCols['po_number'];
+        $warrantyColumn = $leaseCols['warranty_cost'] ?? null;
 
         // Order items are the transition fallback for assets whose own PO /
         // CDW / warranty fields aren't populated yet. Keyed by asset id so the
@@ -2189,7 +2428,7 @@ class ProcurementReportsController extends Controller
             // the CSI Exhibit A totals without doing the maths in their
             // head.
             $records[] = [
-                'class' => 'info',
+                'class' => 'info rpt-subtotal',
                 'cells' => [
                     $group['contract_id'].' '.trans('admin/orders/general.total'),
                     '', $scheduleQty, '', '',
@@ -3043,6 +3282,7 @@ class ProcurementReportsController extends Controller
                 'asset_tag' => (string) $asset->asset_tag,
                 'serial' => (string) $asset->serial,
                 'status' => (string) $asset->status?->name,
+                'status_type' => $asset->status?->getStatuslabelType(),
                 'archived' => $isArchived,
                 'decommissioned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
                 'use' => $cols['usage'] ? $this->useLabel($asset->{$cols['usage']}) : '',
