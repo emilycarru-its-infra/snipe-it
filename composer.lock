@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "dfdcc77851ecf76db2639ada1d90eaec",
+    "content-hash": "f7c4065cbf4599bc6bad9b5e6b2d1b0c",
     "packages": [
         {
             "name": "alek13/slack",
@@ -5503,16 +5503,16 @@
         },
         {
             "name": "openspout/openspout",
-            "version": "v5.7.2",
+            "version": "v5.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/openspout/openspout.git",
-                "reference": "f383ae8ab4c735b6a6a0cef396e9799900584f3e"
+                "reference": "bc0d2cdefa3fa90c7caceb778192654b20f414f7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/openspout/openspout/zipball/f383ae8ab4c735b6a6a0cef396e9799900584f3e",
-                "reference": "f383ae8ab4c735b6a6a0cef396e9799900584f3e",
+                "url": "https://api.github.com/repos/openspout/openspout/zipball/bc0d2cdefa3fa90c7caceb778192654b20f414f7",
+                "reference": "bc0d2cdefa3fa90c7caceb778192654b20f414f7",
                 "shasum": ""
             },
             "require": {
@@ -5521,18 +5521,17 @@
                 "ext-libxml": "*",
                 "ext-xmlreader": "*",
                 "ext-zip": "*",
-                "php": "~8.4.0 || ~8.5.0"
+                "php": "~8.3.0 || ~8.4.0 || ~8.5.0"
             },
             "require-dev": {
-                "ext-fileinfo": "*",
                 "ext-zlib": "*",
-                "friendsofphp/php-cs-fixer": "^3.95.2",
-                "infection/infection": "^0.33.2",
-                "phpbench/phpbench": "^1.6.1",
-                "phpstan/phpstan": "^2.2.1",
-                "phpstan/phpstan-phpunit": "^2.0.16",
-                "phpstan/phpstan-strict-rules": "^2.0.11",
-                "phpunit/phpunit": "^13.1.13"
+                "friendsofphp/php-cs-fixer": "^3.93.1",
+                "infection/infection": "^0.32.3",
+                "phpbench/phpbench": "^1.4.3",
+                "phpstan/phpstan": "^2.1.38",
+                "phpstan/phpstan-phpunit": "^2.0.12",
+                "phpstan/phpstan-strict-rules": "^2.0.8",
+                "phpunit/phpunit": "^12.5.8"
             },
             "suggest": {
                 "ext-iconv": "To handle non UTF-8 CSV files (if \"php-mbstring\" is not already installed or is too limited)",
@@ -5580,7 +5579,7 @@
             ],
             "support": {
                 "issues": "https://github.com/openspout/openspout/issues",
-                "source": "https://github.com/openspout/openspout/tree/v5.7.2"
+                "source": "https://github.com/openspout/openspout/tree/v5.3.0"
             },
             "funding": [
                 {
@@ -5592,7 +5591,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-05-29T11:43:33+00:00"
+            "time": "2026-02-02T13:08:39+00:00"
         },
         {
             "name": "osa-eg/laravel-teams-notification",
