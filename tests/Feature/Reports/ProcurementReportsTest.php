@@ -707,6 +707,77 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('ECI20880101');
     }
 
+    public function test_disposition_grid_relabels_usage_as_curriculum_and_admin()
+    {
+        // The Usage field carries the raw automation values (location-assigned
+        // ⇒ Shared, person-assigned ⇒ Assigned); finance reads them as the
+        // workbook's Curriculum / Admin split.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240801-1',
+            'Usage' => 'Shared',
+        ], ['serial' => 'SHAREDSERIAL']);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240801-1',
+            'Usage' => 'Assigned',
+        ], ['serial' => 'ASSIGNEDSERIAL']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid'))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.disposition_use'))
+            ->assertSee(trans('admin/purchase-orders/general.use_curriculum'))
+            ->assertSee(trans('admin/purchase-orders/general.use_admin'));
+    }
+
+    public function test_disposition_grid_csv_orders_buyout_after_decommissioned_and_relabels_use()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240801-2',
+            'Usage' => 'Shared',
+            'Buyout Cost' => '1234',
+        ], ['serial' => 'CSVSERIAL']);
+
+        $csv = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['format' => 'csv']));
+        $csv->assertOk();
+
+        $content = $csv->streamedContent();
+        $header = strtok($content, "\n");
+
+        $decomPos = strpos($header, trans('admin/purchase-orders/general.disposition_decommissioned_date'));
+        $buyoutPos = strpos($header, trans('admin/purchase-orders/general.detail_buyout_cost'));
+        $usePos = strpos($header, trans('admin/purchase-orders/general.disposition_use'));
+
+        $this->assertNotFalse($buyoutPos);
+        $this->assertNotFalse($usePos);
+        // Buyout Cost sits immediately right of the Decommissioned Date, before Use.
+        $this->assertLessThan($buyoutPos, $decomPos);
+        $this->assertLessThan($usePos, $buyoutPos);
+        // The finance label, not the raw automation value, lands in the export.
+        $this->assertStringContainsString(trans('admin/purchase-orders/general.use_curriculum'), $content);
+    }
+
+    public function test_disposition_grid_xlsx_downloads_a_workbook()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240801-3',
+            'Usage' => 'Shared',
+        ], ['serial' => 'XLSXSERIAL']);
+
+        $res = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['format' => 'xlsx']));
+
+        $res->assertOk();
+        $this->assertStringContainsString(
+            'spreadsheetml.sheet',
+            (string) $res->headers->get('content-type')
+        );
+        $this->assertStringContainsString(
+            'attachment',
+            (string) $res->headers->get('content-disposition')
+        );
+    }
+
     public function test_credit_ledger_excludes_regular_invoices()
     {
         $order = Order::factory()->create();

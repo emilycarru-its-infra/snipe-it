@@ -15,6 +15,13 @@
     .disp-note-edit { margin-left: 6px; color: #999; }
     .disp-note-edit:hover { color: #3c8dbc; }
     .disp-note-input { width: 100%; }
+    /* Serial search */
+    .disp-search-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .disp-search-group { width: 280px; }
+    .disp-search-clear { cursor: pointer; }
+    .disp-search-status { font-size: 12px; }
+    tr.disp-match > td { background-color: #fcf8e3 !important; }
+    tr.disp-match.disp-match-primary > td { background-color: #faf2cc !important; box-shadow: inset 3px 0 0 #f0ad4e; }
 </style>
 <script>
 (function () {
@@ -98,6 +105,81 @@
             else if (ev.key === 'Escape') { finish(false); }
         });
         input.addEventListener('blur', function () { finish(true); });
+    });
+
+    // ── Serial search → jump to the matching tab ──────────────────────────
+    var NO_MATCH = @json(trans('admin/purchase-orders/general.disposition_search_no_match'));
+
+    function activatePane(grid, paneId) {
+        if (! paneId) { return; }
+        // Sync the contract dropdown so it reflects the jumped-to lease, then
+        // show that pane (the tab strip was replaced by the dropdown in #243).
+        var sel = grid.querySelector('.disp-contract-select');
+        if (sel) { sel.value = paneId; }
+        grid.querySelectorAll('.disp-tab-content > .tab-pane').forEach(function (pane) {
+            pane.classList.toggle('active', pane.id === paneId);
+        });
+    }
+
+    function runSearch(grid, raw) {
+        var q = (raw || '').trim().toLowerCase();
+        var rows = grid.querySelectorAll('tr[data-serial]');
+        var status = grid.querySelector('.disp-search-status');
+        var clear = grid.querySelector('.disp-search-clear');
+
+        rows.forEach(function (r) { r.classList.remove('disp-match', 'disp-match-primary'); });
+        if (clear) { clear.style.display = q ? '' : 'none'; }
+        if (! q) { if (status) { status.textContent = ''; } return; }
+
+        var matches = [];
+        rows.forEach(function (r) {
+            var s = (r.getAttribute('data-serial') || '').toLowerCase();
+            var t = (r.getAttribute('data-tag') || '').toLowerCase();
+            if (s.indexOf(q) !== -1 || t.indexOf(q) !== -1) {
+                r.classList.add('disp-match');
+                matches.push(r);
+            }
+        });
+
+        if (! matches.length) {
+            if (status) { status.textContent = NO_MATCH; }
+            return;
+        }
+
+        var first = matches[0];
+        first.classList.add('disp-match-primary');
+        activatePane(grid, first.getAttribute('data-pane'));
+        if (first.scrollIntoView) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        // Show the contract the (first) match lives on so finance sees the
+        // lease at a glance; append a count when more than one serial matches.
+        var label = first.getAttribute('data-contract') || '';
+        if (matches.length > 1) { label += ' (+' + (matches.length - 1) + ')'; }
+        if (status) { status.textContent = label; }
+    }
+
+    document.addEventListener('input', function (e) {
+        var input = e.target && e.target.closest ? e.target.closest('.disp-search') : null;
+        if (! input) { return; }
+        var grid = gridOf(input);
+        if (grid) { runSearch(grid, input.value); }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        var input = e.target && e.target.closest ? e.target.closest('.disp-search') : null;
+        if (! input || e.key !== 'Escape') { return; }
+        input.value = '';
+        var grid = gridOf(input);
+        if (grid) { runSearch(grid, ''); }
+    });
+
+    document.addEventListener('click', function (e) {
+        var clear = e.target && e.target.closest ? e.target.closest('.disp-search-clear') : null;
+        if (! clear) { return; }
+        var grid = gridOf(clear);
+        if (! grid) { return; }
+        var input = grid.querySelector('.disp-search');
+        if (input) { input.value = ''; input.focus(); }
+        runSearch(grid, '');
     });
 })();
 </script>
