@@ -77,7 +77,7 @@ return [
     'report_by_provider_desc'        => 'Roll-up of count + total spend by supplier.',
     'report_serial_register'         => 'Serial register',
     'report_serial_register_title'   => 'Serial register',
-    'report_serial_register_desc'    => 'Every serial extracted from TDX Descriptions or attached manually, with its contract and matching Snipe asset (if any). This is what TDX could not search.',
+    'report_serial_register_desc'    => 'Every serial extracted from TDX Descriptions or attached manually, with its contract and matching Inventory asset (if any). This is what TDX could not search.',
     'report_naming_violators'        => 'TDX naming-convention violators',
     'report_naming_violators_title'  => 'Naming violators',
     'report_naming_violators_desc'   => 'TDX contracts whose ContractNumber does not match the `<Theme> FY<YY-YY> (<Product>)` convention.',
@@ -85,7 +85,7 @@ return [
     'report_stale_title'             => 'Stale in TDX',
     'report_stale_desc'              => 'Active contracts that have not been touched in TDX for over 180 days.',
 
-    'found_via_serial' => 'Matched serial `:serial` to a contract — the matching Snipe asset (if any) is linked above.',
+    'found_via_serial' => 'Matched serial `:serial` to a contract — the matching Inventory asset (if any) is linked above.',
     'contract'         => 'Contract',
 
     'tile_all'         => 'All Contracts',
