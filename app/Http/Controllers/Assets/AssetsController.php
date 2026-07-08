@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateMultipleAssetRequest;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\UploadFileRequest;
+use App\Mail\AssetBuyoutRequestMail;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\AssetModel;
@@ -16,6 +17,7 @@ use App\Models\Company;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Observers\AssetObserver;
 use App\Services\Transactions\PrinterUsageService;
@@ -30,6 +32,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use League\Csv\Reader;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -174,6 +177,7 @@ class AssetsController extends Controller
                 $asset->asset_eol_date = request('asset_eol_date', null);
                 $asset->assigned_to = request('assigned_to', null);
                 $asset->supplier_id = request('supplier_id', null);
+                $asset->lessor_id = request('lessor_id', null);
                 $asset->requestable = request('requestable', 0);
                 $asset->rtd_location_id = request('rtd_location_id', null);
                 $asset->byod = request('byod', 0);
@@ -380,6 +384,12 @@ class AssetsController extends Controller
                 ? app(PrinterUsageService::class)->summary($asset)
                 : null;
 
+            // Per-asset CSI lease tab — the device's live CSI lifecycle
+            // (in-process / accepted / which schedule + rent) reconciled
+            // against Snipe's own lease fields. Null (tab hidden) when the
+            // device has no CSI relevance.
+            $csiLease = app(\App\Services\CsiReconciliation::class)->forAsset($asset);
+
             return view('hardware/view', compact('asset', 'qr_code', 'settings'))
                 ->with('total_maintenance_cost', $total_maintenance_cost)
                 ->with('total_asset_cost', $total_asset_cost)
@@ -389,7 +399,8 @@ class AssetsController extends Controller
                 ->with('total_cost_for_asset', $total_cost_for_asset)
                 ->with('use_currency', $use_currency)
                 ->with('audit_log', $audit_log)
-                ->with('printerUsage', $printerUsage);
+                ->with('printerUsage', $printerUsage)
+                ->with('csiLease', $csiLease);
         }
 
         return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.does_not_exist'));
@@ -435,6 +446,7 @@ class AssetsController extends Controller
             $asset->eol_explicit = false;
         }
         $asset->supplier_id = $request->input('supplier_id', null);
+        $asset->lessor_id = $request->input('lessor_id', null);
         $asset->expected_checkin = $request->input('expected_checkin', null);
         $asset->requestable = $request->input('requestable', 0);
         $asset->rtd_location_id = $request->input('rtd_location_id', null);
@@ -537,6 +549,166 @@ class AssetsController extends Controller
         }
 
         return redirect()->back()->withInput()->withErrors($asset->getErrors());
+    }
+
+    /**
+     * Inline single-field update of a native asset column from the detail view.
+     * Lets people change one value (name, order number, …) in place without
+     * opening the full edit form. The column must be in the model's
+     * inlineEditableCoreFields() whitelist; everything else is rejected, and the
+     * value is validated by the model's own $rules on save.
+     */
+    /**
+     * Email the asset's lessor requesting an end-of-lease buyout quote for this
+     * device, CC'ing the assigned end user, the device team, and the requesting
+     * admin. Guarded so it can only fire for assets on an active lease whose
+     * lessor carries a contact email, and logged to the asset's activity feed.
+     */
+    public function requestBuyout(Asset $asset): RedirectResponse
+    {
+        $this->authorize('update', $asset);
+
+        $back = redirect()->route('hardware.show', $asset->id);
+
+        if (! $asset->isOnActiveLease()) {
+            return $back->with('error', trans('general.request_buyout_not_eligible'));
+        }
+
+        if (! $asset->lessor || ! filled($asset->lessor->email)) {
+            return $back->with('error', trans('general.request_buyout_missing_email'));
+        }
+
+        $requester = auth()->user();
+
+        // Cc: device team (fixed), the assigned end user (only when the asset is
+        // checked out to a real User with an email), and the acting admin. De-dupe
+        // and drop the lessor's own address so it never lands in both To and Cc.
+        $cc = [config('leasing.buyout_request_cc')];
+        if (($asset->assignedTo instanceof User) && filled($asset->assignedTo->email)) {
+            $cc[] = $asset->assignedTo->email;
+        }
+        if ($requester && filled($requester->email)) {
+            $cc[] = $requester->email;
+        }
+        $cc = array_values(array_diff(array_unique(array_filter($cc)), [$asset->lessor->email]));
+
+        Mail::to($asset->lessor->email)
+            ->cc($cc)
+            ->send(new AssetBuyoutRequestMail($asset, $requester));
+
+        // Record the request on the asset's activity timeline.
+        $log = new Actionlog;
+        $log->item_type = Asset::class;
+        $log->item_id = $asset->id;
+        $log->setAttribute('created_by', $requester?->id);
+        $log->target_id = $asset->lessor_id;
+        $log->target_type = Supplier::class;
+        $log->company_id = $asset->company_id;
+        $log->note = trans('mail.asset_buyout_request_subject', [
+            'asset_tag' => $asset->asset_tag,
+            'serial'    => $asset->serial,
+        ]);
+        $log->logaction('buyout requested');
+
+        return $back->with('success', trans('general.request_buyout_success'));
+    }
+
+    public function updateCoreField(Request $request, Asset $asset): RedirectResponse
+    {
+        $this->authorize('update', $asset);
+
+        $column = (string) $request->input('field');
+
+        if (! array_key_exists($column, Asset::inlineEditableCoreFields())) {
+            return redirect()->route('hardware.show', $asset->id)
+                ->with('error', trans('admin/hardware/message.update.error'));
+        }
+
+        $value = $request->input('value');
+
+        // FK selects must reference a real row (model_id is required).
+        $fkTables = ['model_id' => 'models', 'rtd_location_id' => 'locations'];
+        if (array_key_exists($column, $fkTables)) {
+            $request->validate([
+                'value' => [$column === 'model_id' ? 'required' : 'nullable', "exists:{$fkTables[$column]},id"],
+            ]);
+        }
+
+        // Date columns must be a valid date (or blank).
+        if (Asset::inlineEditableCoreFields()[$column] === 'date') {
+            $request->validate(['value' => ['nullable', 'date']]);
+        }
+
+        $asset->{$column} = ($value === '') ? null : $value;
+
+        if ($asset->save()) {
+            return redirect()->route('hardware.show', $asset->id)
+                ->with('success', trans('admin/hardware/message.update.success'));
+        }
+
+        return redirect()->route('hardware.show', $asset->id)
+            ->withErrors($asset->getErrors());
+    }
+
+    /**
+     * Inline single-field update of a custom field from the asset detail view,
+     * without opening the full edit form. The field must belong to the asset
+     * model's fieldset (the whitelist). Text/textarea take a free-text value;
+     * listbox/radio/checkbox values are validated against the field's own
+     * option list so a crafted request can't store off-list values. Encrypted
+     * fields require the encrypted-fields gate.
+     */
+    public function updateField(Request $request, Asset $asset): RedirectResponse
+    {
+        $this->authorize('update', $asset);
+
+        $column = $request->input('field');
+        $redirect = Helper::getRedirectOption($request, $asset->id, 'Assets');
+
+        // Whitelist: the column must be a real custom field on this asset's
+        // model fieldset. Anything else is rejected outright.
+        $field = null;
+        if (($asset->model) && ($asset->model->fieldset)) {
+            $field = $asset->model->fieldset->fields->firstWhere('db_column', $column);
+        }
+
+        if (! $field || ! in_array($field->element, ['text', 'textarea', 'listbox', 'radio', 'checkbox'], true)) {
+            return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+        }
+
+        $value = $request->input('value');
+
+        // Option-based fields: every submitted value must be one of the field's
+        // configured options (the '' placeholder is treated as "cleared").
+        if (in_array($field->element, ['listbox', 'radio', 'checkbox'], true)) {
+            $allowed = array_filter(array_keys($field->formatFieldValuesAsArray()), fn ($opt) => $opt !== '');
+            $submitted = array_filter(is_array($value) ? $value : [$value], fn ($v) => $v !== null && $v !== '');
+
+            foreach ($submitted as $v) {
+                if (! in_array($v, $allowed, true)) {
+                    return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+                }
+            }
+
+            $value = implode(', ', $submitted);
+        } elseif (is_array($value)) {
+            return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+        }
+
+        if ($field->field_encrypted == '1') {
+            if (! Gate::allows('assets.view.encrypted_custom_fields')) {
+                return $redirect->with('error', trans('admin/custom_fields/general.encrypted'));
+            }
+            $value = ($value === null || $value === '') ? $value : Crypt::encrypt($value);
+        }
+
+        $asset->{$field->db_column} = $value;
+
+        if ($asset->save()) {
+            return $redirect->with('success', trans('admin/hardware/message.update.success'));
+        }
+
+        return $redirect->withErrors($asset->getErrors());
     }
 
     /**

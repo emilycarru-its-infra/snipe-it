@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Watson\Validating\ValidatingTrait;
 
 /**
- * A lease schedule document issued by a lessor (CSI Leasing, Macquarie
+ * A lease schedule document issued by a lessor (CSI Leasing, CCA Financial
  * / CCA Financial) for a specific batch of devices. The schedule passes
  * through a short lifecycle — draft, awaiting_signature, signed, active
  * — while it's reviewed, budgeted, and signed by Mark / Viktor before

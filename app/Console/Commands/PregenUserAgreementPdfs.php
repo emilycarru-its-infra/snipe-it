@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
  * agreement is "signature-ready" before any email goes out. Backs the
  * summer User Agreement Program rollout: each eligible laptop
  * has up to three UserAgreement rows (pickup / upgrade / purchase),
- * and Sohee wants the PDFs cached so opening or sending one is
+ * and the assets team wants the PDFs cached so opening or sending one is
  * instant.
  *
  * By default operates on agreements still in early lifecycle stages
