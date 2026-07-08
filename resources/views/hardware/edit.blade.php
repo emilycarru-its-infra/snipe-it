@@ -186,6 +186,7 @@
                 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('general.purchase_date'),'fieldname' => 'purchase_date'])
                 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/hardware/form.eol_date'),'fieldname' => 'asset_eol_date'])
                 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
+                @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.lessor'), 'fieldname' => 'lessor_id', 'hide_new' => 'true'])
 
                 @php
                     $currency_type = null;

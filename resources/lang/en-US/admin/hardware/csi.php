@@ -1,0 +1,28 @@
+<?php
+
+return [
+    'tab_label' => 'CSI Lease',
+    'heading' => 'CSI Lease Reconciliation',
+    'lifecycle' => 'Lifecycle',
+    'state_accepted' => 'Accepted on schedule',
+    'state_in_process' => 'In process (arriving)',
+    'state_snipe_only' => 'In Snipe only (not yet on CSI)',
+    'recon' => 'Reconciliation',
+    'recon_match' => 'Matches Snipe',
+    'recon_schedule_mismatch' => 'Schedule mismatch',
+    'recon_missing_lease_in_snipe' => 'On CSI — no lease set in Snipe',
+    'recon_not_on_csi' => 'In Snipe — not returned by CSI',
+    'csi_schedule' => 'CSI schedule',
+    'snipe_schedule' => 'Snipe schedule',
+    'schedule_terms' => 'Schedule terms',
+    'term_start' => 'Term start',
+    'term_end' => 'Term end',
+    'rent' => 'Rent',
+    'payment_frequency' => 'Payment frequency',
+    'rent_invoices' => 'CSI rent invoices (schedule)',
+    'invoice_number' => 'Invoice',
+    'invoice_date' => 'Date',
+    'invoice_amount' => 'Amount',
+    'no_invoices' => 'No CSI invoices for this schedule yet.',
+    'mirror_note' => 'Live from the CSI mirror, reconciled against this device’s Snipe lease fields.',
+];

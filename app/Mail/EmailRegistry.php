@@ -264,6 +264,14 @@ class EmailRegistry
                 'merge_vars' => ['item' => 'Item (item.display_name, item.asset_tag)', 'requested_by' => 'Requester (requested_by.display_name)', 'requested_date' => 'Requested date', 'qty' => 'Quantity', 'note' => 'Note', 'last_checkout' => 'Last checkout', 'expected_checkin' => 'Expected checkin'],
                 'notification' => fn (EmailSampleData $s) => [new \App\Notifications\RequestAssetCancelation($s->requestParams()), $s->notifiable()],
             ],
+            [
+                'key' => 'request.asset_buyout',
+                'category' => 'requests',
+                'label' => 'Lease buyout request',
+                'description' => 'Sent to a leased asset\'s lessor when an admin clicks "Request Buyout" on the asset detail page.',
+                'merge_vars' => ['asset' => 'The leased asset (asset.asset_tag, asset.serial)', 'lease' => 'Lease facts (lease.contract_id, lease.end_date, lease.buyout_cost)', 'lessor' => 'The lessor (lessor.name)', 'requester' => 'Admin who requested it (requester.full_name)'],
+                'factory' => fn (EmailSampleData $s) => new AssetBuyoutRequestMail($s->asset(), $s->admin()),
+            ],
 
             // ---- Account & user (notification-channel; preview-only) ----
             [

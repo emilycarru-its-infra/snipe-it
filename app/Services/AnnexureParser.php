@@ -13,7 +13,7 @@ use Smalot\PdfParser\Parser;
  * that looks like a hardware serial.
  *
  * The matcher is intentionally permissive — Annexure layouts differ
- * across CSI Leasing, Macquarie, and CCA Financial. Heuristic:
+ * across CSI Leasing, CCA Financial, and CCA Financial. Heuristic:
  *   - All-uppercase tokens 8–18 chars long
  *   - Must contain at least one digit (rules out plain English words)
  *   - Must contain at least one letter (rules out pure numeric IDs like

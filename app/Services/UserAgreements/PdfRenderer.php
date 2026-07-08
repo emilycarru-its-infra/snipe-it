@@ -8,7 +8,7 @@ use TCPDF;
 /**
  * Branded PDF renderer for Faculty Laptop Program agreements. One method
  * per agreement_type so each layout can match the original Word templates
- * that Sohee maintains in OneDrive (Devices/Procurement/Current/Faculty
+ * that the assets team maintains in OneDrive (Devices/Procurement/Current/Faculty
  * Program/). Output is raw PDF bytes; callers wrap in HTTP responses or
  * persist to private storage.
  */
