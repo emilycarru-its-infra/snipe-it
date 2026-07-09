@@ -562,46 +562,109 @@
             <x-box class="side-box expanded">
                 <x-info-panel :infoPanelObj="$asset" img_path="{{ app('assets_upload_url') }}">
                     <x-slot:buttons>
+                        {{-- Tiered action toolbar: labeled primary actions inline, everything
+                             else in a "More" overflow menu (each item icon + label). Keeps the
+                             bar uncluttered while making each action obvious. --}}
+                        <style>
+                            .asset-actions-more .asset-more-item { display:block; width:100%; text-align:left; padding:5px 20px; line-height:1.42857143; color:#333; background:none; border:0; white-space:nowrap; }
+                            .asset-actions-more .asset-more-item:hover, .asset-actions-more .asset-more-item:focus { background-color:#f5f5f5; color:#262626; text-decoration:none; }
+                            .asset-actions-more .dropdown-menu > li > a { padding:5px 20px; }
+                        </style>
+                        @php $assetDeleted = $asset->deleted_at != ''; @endphp
 
+                        {{-- Primary: checkout / checkin (labeled by their components) --}}
                         @if (!$asset->assignedTo)
-                        <x-button.checkout permission="checkout" :item="$asset" :route="route('hardware.checkout.create', $asset->id)"/>
+                            <x-button.checkout permission="checkout" :item="$asset" :route="route('hardware.checkout.create', $asset->id)"/>
                         @endif
-
                         @if (!$asset->hasOrphanedAssignment())
                             <x-button.checkin permission="checkin" :item="$asset" :route="route('hardware.checkin.create', $asset->id)"/>
                         @endif
 
-                        <x-button.edit :item="$asset" :route="route('hardware.edit', $asset->id)"/>
-                        <x-button.clone :item="$asset" :route="route('clone/hardware', $asset->id)"/>
-                        <x-button.note :item="$asset" :route="route('clone/hardware', $asset->id)"/>
-                        <x-button.audit :item="$asset" :route="route('asset.audit.create', $asset->id)"/>
-                        <x-button.label :item="$asset" :route="route('hardware.bulkedit.show')"/>
-                        <x-button.delete :item="$asset"/>
-                        <x-button.restore :item="$asset" :route="route('restore/hardware', ['asset' => $asset->id])"/>
+                        {{-- Primary: edit (labeled, inline) --}}
+                        @can('update', $asset)
+                            @unless ($assetDeleted)
+                                <a href="{{ route('hardware.edit', $asset->id) }}" class="btn btn-sm btn-warning hidden-print" data-tooltip="true" data-placement="top" data-title="{{ trans('general.update') }}">
+                                    <x-icon type="edit" class="fa-fw"/> {{ trans('general.update') }}
+                                </a>
+                            @endunless
+                        @endcan
 
-                        {{-- Request a buyout quote from the lessor. Only shown for assets on
-                             an active lease; enabled once the lessor has a contact email,
-                             otherwise disabled with a hint pointing to the edit form. --}}
+                        {{-- Primary: Request Buyout — surfaced up top, contextual to active leases.
+                             Enabled once the lessor has a contact email, else disabled with a hint. --}}
                         @if ($asset->isOnActiveLease())
                             @can('update', $asset)
                                 @if ($asset->canRequestLeaseBuyout())
-                                    <form action="{{ route('asset.buyout.request', $asset->id) }}" method="POST"
+                                    <form action="{{ route('asset.buyout.request', $asset->id) }}" method="POST" style="display:inline;"
                                           onsubmit="return confirm(@js(trans('general.request_buyout_confirm', ['lessor' => $asset->lessor->name])));">
                                         {{ csrf_field() }}
-                                        <button type="submit" class="btn btn-sm btn-primary btn-block hidden-print">
-                                            <x-icon type="request" class="fa-fw"/>
-                                            {{ trans('general.request_buyout') }}
+                                        <button type="submit" class="btn btn-sm btn-primary hidden-print">
+                                            <x-icon type="request" class="fa-fw"/> {{ trans('general.request_buyout') }}
                                         </button>
                                     </form>
                                 @else
-                                    <button type="button" class="btn btn-sm btn-default btn-block hidden-print" disabled
+                                    <button type="button" class="btn btn-sm btn-default hidden-print" disabled
                                             data-tooltip="true" data-placement="top" title="{{ trans('general.request_buyout_no_lessor') }}">
-                                        <x-icon type="request" class="fa-fw"/>
-                                        {{ trans('general.request_buyout') }}
+                                        <x-icon type="request" class="fa-fw"/> {{ trans('general.request_buyout') }}
                                     </button>
                                 @endif
                             @endcan
                         @endif
+
+                        {{-- Primary when deleted: restore --}}
+                        @can('update', $asset)
+                            @if ($assetDeleted)
+                                <form method="POST" action="{{ route('restore/hardware', ['asset' => $asset->id]) }}" style="display:inline;">
+                                    @csrf
+                                    <button class="btn btn-sm btn-warning hidden-print">
+                                        <x-icon type="restore" class="fa-fw"/> {{ trans('general.restore') }}
+                                    </button>
+                                </form>
+                            @endif
+                        @endcan
+
+                        {{-- Secondary actions in a "More" overflow menu (not for deleted assets) --}}
+                        @unless ($assetDeleted)
+                            <div class="btn-group hidden-print asset-actions-more">
+                                <button type="button" class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fas fa-ellipsis-h fa-fw" aria-hidden="true"></i> {{ trans('general.more') }} <span class="caret"></span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-right">
+                                    @can('audit', $asset)
+                                        <li class="{{ !$asset->model ? 'disabled' : '' }}">
+                                            <a href="{{ $asset->model ? route('asset.audit.create', $asset->id) : '#' }}"><x-icon type="audit" class="fa-fw"/> {{ trans('general.audit') }}</a>
+                                        </li>
+                                    @endcan
+                                    @can('update', $asset)
+                                        <li><a href="#" data-toggle="modal" data-target="#createNoteModal"><x-icon type="note" class="fa-fw"/> {{ trans('general.add_note') }}</a></li>
+                                    @endcan
+                                    @can('create', $asset)
+                                        <li><a href="{{ route('clone/hardware', $asset->id) }}"><x-icon type="clone" class="fa-fw"/> {{ trans('general.clone') }}</a></li>
+                                    @endcan
+                                    @if ($asset->model)
+                                        <li>
+                                            <form method="POST" action="{{ route('hardware.bulkedit.show') }}" target="_blank" style="margin:0;">
+                                                @csrf
+                                                <input type="hidden" name="bulk_actions" value="labels"/>
+                                                <input type="hidden" name="ids[{{ $asset->id }}]" value="{{ $asset->id }}"/>
+                                                <button type="submit" class="asset-more-item"><x-icon type="assets" class="fa-fw"/> {{ trans_choice('button.generate_labels', 1) }}</button>
+                                            </form>
+                                        </li>
+                                    @endif
+                                    @can('delete', $asset)
+                                        @if (method_exists($asset, 'isDeletable') && $asset->isDeletable())
+                                            <li class="divider"></li>
+                                            <li>
+                                                <a href="{{ route('hardware.destroy', $asset->id) }}" class="delete-asset text-red"
+                                                   data-toggle="modal" data-target="#dataConfirmModal" data-icon="fa fa-trash"
+                                                   data-title="{{ $asset->assignedTo ? trans('general.checkin_and_delete') : trans('general.delete') }}"
+                                                   data-content="{{ trans('general.sure_to_delete_var', ['item' => $asset->display_name]) }}"
+                                                   onClick="return false;"><x-icon type="delete" class="fa-fw"/> {{ trans('general.delete') }}</a>
+                                            </li>
+                                        @endif
+                                    @endcan
+                                </ul>
+                            </div>
+                        @endunless
                     </x-slot:buttons>
 
                     {{-- Assignment status, checkout dates, audit + decommission all
