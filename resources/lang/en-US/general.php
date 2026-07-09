@@ -335,6 +335,7 @@ return [
     'lease_end_date' => 'Lease End Date',
     'buyout_cost' => 'Buyout Cost',
     'request_buyout' => 'Request Buyout',
+    'more' => 'More',
     'buyout_requested' => 'Buyout Requested',
     'request_buyout_confirm' => 'Email :lessor to request a buyout quote for this device? The assigned user and the device team will be CC\'d.',
     'request_buyout_no_lessor' => 'Set a lessor with a contact email on this asset to request a buyout.',
