@@ -98,27 +98,52 @@ class AssetBuyoutRequestTest extends TestCase
         ]);
     }
 
-    public function test_cca_financial_buyout_always_includes_both_reps(): void
+    public function test_buyout_to_includes_lessor_email_plus_configured_default_recipients(): void
     {
         Mail::fake();
+        // The seeded default (config/leasing.php buyout_request_extra_recipients)
+        // is added on top of the lessor's own email — CCA Financial's second rep.
+        config(['leasing.buyout_request_extra_recipients' => 'aasghar@ccafinancial.com']);
 
-        // CCA Financial fields two reps: the supplier's own email plus a second
-        // rep configured in leasing.additional_recipients. Both must land in To.
-        $lessor = Supplier::firstWhere('name', 'CCA Financial') ?? Supplier::factory()->create(['name' => 'CCA Financial']);
-        $lessor->update(['email' => 'rep1@ccafinancial.example']);
-
+        $lessor = $this->lessorWithEmail();
         $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
-
-        $secondRep = config('leasing.additional_recipients.CCA Financial')[0];
 
         $this->actingAs($admin)
             ->post(route('asset.buyout.request', $asset->id))
             ->assertSessionHas('success');
 
-        Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor, $secondRep) {
+        Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor) {
             return $mail->hasTo($lessor->email)
-                && $mail->hasTo($secondRep);
+                && $mail->hasTo('aasghar@ccafinancial.com');
+        });
+    }
+
+    public function test_buyout_recipients_can_be_overridden_in_the_email_cms(): void
+    {
+        Mail::fake();
+        config(['leasing.buyout_request_extra_recipients' => 'aasghar@ccafinancial.com']);
+
+        // An admin sets Recipients for the buyout email in Settings → Emails; the
+        // CMS override replaces the config default (the lessor email is still To'd).
+        \App\Models\EmailTemplate::updateOrCreate(
+            ['key' => 'request.asset_buyout'],
+            ['recipients' => 'newrep@ccafinancial.example, extra@ccafinancial.example']
+        );
+
+        $lessor = $this->lessorWithEmail();
+        $admin = User::factory()->superuser()->create();
+        $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
+
+        $this->actingAs($admin)
+            ->post(route('asset.buyout.request', $asset->id))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor) {
+            return $mail->hasTo($lessor->email)
+                && $mail->hasTo('newrep@ccafinancial.example')
+                && $mail->hasTo('extra@ccafinancial.example')
+                && ! $mail->hasTo('aasghar@ccafinancial.com');
         });
     }
 
