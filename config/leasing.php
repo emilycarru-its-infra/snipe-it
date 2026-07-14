@@ -18,4 +18,24 @@ return [
 
     'buyout_request_reply_to' => env('BUYOUT_REQUEST_REPLY_TO', env('BUYOUT_REQUEST_CC', 'devicesadmins@ecuad.ca')),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Additional lessor recipients (always To'd)
+    |--------------------------------------------------------------------------
+    |
+    | Some lessors have more than one rep who must be on every buyout request,
+    | but a Supplier record only carries a single contact email. Map extra
+    | addresses here, keyed by the exact lessor Supplier name; they are merged
+    | into the To line alongside the supplier's own email. CCA Financial fields
+    | two reps — the supplier email plus Ali Asghar.
+    |
+    */
+
+    'additional_recipients' => [
+        'CCA Financial' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('CCA_BUYOUT_RECIPIENTS', 'aasghar@ccafinancial.com'))
+        ))),
+    ],
+
 ];
