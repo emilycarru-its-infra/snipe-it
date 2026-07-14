@@ -98,6 +98,30 @@ class AssetBuyoutRequestTest extends TestCase
         ]);
     }
 
+    public function test_cca_financial_buyout_always_includes_both_reps(): void
+    {
+        Mail::fake();
+
+        // CCA Financial fields two reps: the supplier's own email plus a second
+        // rep configured in leasing.additional_recipients. Both must land in To.
+        $lessor = Supplier::firstWhere('name', 'CCA Financial') ?? Supplier::factory()->create(['name' => 'CCA Financial']);
+        $lessor->update(['email' => 'rep1@ccafinancial.example']);
+
+        $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
+        $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
+
+        $secondRep = config('leasing.additional_recipients.CCA Financial')[0];
+
+        $this->actingAs($admin)
+            ->post(route('asset.buyout.request', $asset->id))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor, $secondRep) {
+            return $mail->hasTo($lessor->email)
+                && $mail->hasTo($secondRep);
+        });
+    }
+
     public function test_request_is_blocked_for_a_non_leased_asset(): void
     {
         Mail::fake();

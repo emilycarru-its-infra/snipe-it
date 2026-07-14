@@ -590,9 +590,16 @@ class AssetsController extends Controller
 
         $requester = auth()->user();
 
+        // To: the lessor's contact email plus any extra reps configured for this
+        // lessor (some lessors — e.g. CCA Financial — field more than one rep but
+        // a Supplier record only holds a single email). De-dupe, keep the supplier
+        // email first.
+        $extraRecipients = config('leasing.additional_recipients.'.$asset->lessor->name, []);
+        $to = array_values(array_unique(array_filter(array_merge([$asset->lessor->email], $extraRecipients))));
+
         // Cc: device team (fixed), the assigned end user (only when the asset is
         // checked out to a real User with an email), and the acting admin. De-dupe
-        // and drop the lessor's own address so it never lands in both To and Cc.
+        // and drop any address already in To so it never lands in both.
         $cc = [config('leasing.buyout_request_cc')];
         if (($asset->assignedTo instanceof User) && filled($asset->assignedTo->email)) {
             $cc[] = $asset->assignedTo->email;
@@ -600,9 +607,9 @@ class AssetsController extends Controller
         if ($requester && filled($requester->email)) {
             $cc[] = $requester->email;
         }
-        $cc = array_values(array_diff(array_unique(array_filter($cc)), [$asset->lessor->email]));
+        $cc = array_values(array_diff(array_unique(array_filter($cc)), $to));
 
-        Mail::to($asset->lessor->email)
+        Mail::to($to)
             ->cc($cc)
             ->send(new AssetBuyoutRequestMail($asset, $requester));
 
