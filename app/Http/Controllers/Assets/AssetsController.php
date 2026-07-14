@@ -14,6 +14,7 @@ use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CheckoutRequest;
 use App\Models\Company;
+use App\Models\EmailTemplate;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\Statuslabel;
@@ -590,11 +591,14 @@ class AssetsController extends Controller
 
         $requester = auth()->user();
 
-        // To: the lessor's contact email plus any extra reps configured for this
-        // lessor (some lessors — e.g. CCA Financial — field more than one rep but
-        // a Supplier record only holds a single email). De-dupe, keep the supplier
-        // email first.
-        $extraRecipients = config('leasing.additional_recipients.'.$asset->lessor->name, []);
+        // To: the lessor's contact email plus any extra recipients configured in
+        // Settings → Emails for the buyout email (a Supplier record only holds a
+        // single email, but e.g. CCA Financial fields a second rep). The CMS
+        // Recipients override wins; the config value is the seeded default.
+        $extraRecipients = EmailTemplate::recipientsFor(
+            'request.asset_buyout',
+            config('leasing.buyout_request_extra_recipients')
+        );
         $to = array_values(array_unique(array_filter(array_merge([$asset->lessor->email], $extraRecipients))));
 
         // Cc: device team (fixed), the assigned end user (only when the asset is
