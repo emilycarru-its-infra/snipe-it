@@ -22,6 +22,8 @@ return [
     'parent' => 'Parent',
     'currency' => 'Location Currency',
     'ldap_ou' => 'LDAP Search OU',
+    'storage_capacity' => 'Storage Capacity',
+    'storage_capacity_help' => 'Number of staging slots when this location is used to stage devices for deployment. Leave blank if not a storage area.',
     'user_name' => 'User Name',
     'department' => 'Department',
     'location' => 'Location',

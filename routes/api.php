@@ -180,6 +180,21 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end category API routes
 
     /**
+     * Deployments API routes — staff-blackout upsert called by the
+     * deployment-staff-sync function mirroring M365 calendar OOO events.
+     */
+    Route::group(['prefix' => 'deployments'], function () {
+
+        Route::post('blackouts',
+            [
+                Api\DeploymentBlackoutsController::class,
+                'store',
+            ]
+        )->name('api.deployments.blackouts.store');
+
+    });
+
+    /**
      * Companies API routes
      */
     Route::group(['prefix' => 'companies'], function () {

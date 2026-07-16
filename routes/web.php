@@ -41,6 +41,10 @@ use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\ExhibitProjectsController;
 use App\Http\Controllers\ExhibitEmailTemplatesController;
 use App\Http\Controllers\ExhibitCatalogController;
+use App\Http\Controllers\DeploymentsController;
+use App\Http\Controllers\DeploymentItemsController;
+use App\Http\Controllers\DeploymentCatalogController;
+use App\Http\Controllers\StaffBlackoutsController;
 use App\Http\Controllers\FieldGroupsController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\PurchaseOrdersController;
@@ -266,6 +270,96 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('exhibit-config.update');
     Route::delete('exhibit-config/{catalog}/{id}', [ExhibitCatalogController::class, 'destroy'])
         ->name('exhibit-config.destroy');
+
+    /*
+    * Deployments — operational equipment-refresh planning workspace.
+    * GET routes carry breadcrumbs chained off the /reports/deployments board.
+    */
+    $deploymentCrumb = fn (Trail $trail) => $trail->parent('reports.deployments');
+
+    Route::get('deployments/forecast', [DeploymentsController::class, 'forecast'])
+        ->name('deployments.forecast')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.forecast'), route('deployments.forecast')));
+    Route::post('deployments/forecast/add', [DeploymentsController::class, 'addFromForecast'])
+        ->name('deployments.forecast.add');
+
+    Route::get('deployments/storage', [DeploymentsController::class, 'storage'])
+        ->name('deployments.storage')
+        ->middleware('can:view,App\Models\Order')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.storage_title'), route('deployments.storage')));
+
+    // Staff availability blackouts (vacation / OOO) — manual CRUD.
+    Route::get('deployments/blackouts', [StaffBlackoutsController::class, 'index'])
+        ->name('deployments.blackouts.index')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index')));
+    Route::get('deployments/blackouts/create', [StaffBlackoutsController::class, 'create'])
+        ->name('deployments.blackouts.create')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index'))
+            ->push(trans('admin/deployments/general.blackout_create'), route('deployments.blackouts.create')));
+    Route::post('deployments/blackouts', [StaffBlackoutsController::class, 'store'])
+        ->name('deployments.blackouts.store');
+    Route::get('deployments/blackouts/{blackout}/edit', [StaffBlackoutsController::class, 'edit'])
+        ->name('deployments.blackouts.edit')
+        ->breadcrumbs(fn (Trail $trail, $blackout) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index'))
+            ->push(trans('admin/deployments/general.blackout_update'), route('deployments.blackouts.edit', $blackout)));
+    Route::put('deployments/blackouts/{blackout}', [StaffBlackoutsController::class, 'update'])
+        ->name('deployments.blackouts.update');
+    Route::delete('deployments/blackouts/{blackout}', [StaffBlackoutsController::class, 'destroy'])
+        ->name('deployments.blackouts.destroy');
+
+    Route::get('deployment-waves/create', [DeploymentsController::class, 'create'])
+        ->name('deployment-waves.create')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.create'), route('deployment-waves.create')));
+    Route::get('deployment-waves/{deploymentWave}/edit', [DeploymentsController::class, 'edit'])
+        ->name('deployment-waves.edit')
+        ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.update'), route('deployment-waves.edit', $deploymentWave)));
+    Route::get('deployment-waves/{deploymentWave}', [DeploymentsController::class, 'show'])
+        ->name('deployment-waves.show')
+        ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
+            ->push($deploymentWave->name, route('deployment-waves.show', $deploymentWave)));
+
+    Route::resource('deployment-waves', DeploymentsController::class)
+        ->parameters(['deployment-waves' => 'deploymentWave'])
+        ->except(['index', 'create', 'edit', 'show']);
+    Route::get('deployment-waves/{deploymentWave}/export', [DeploymentsController::class, 'exportWave'])
+        ->name('deployment-waves.export');
+
+    // Per-device item rows on a wave board.
+    Route::post('deployment-items', [DeploymentItemsController::class, 'store'])
+        ->name('deployment-items.store');
+    Route::post('deployment-items/{deploymentItem}/stage', [DeploymentItemsController::class, 'updateStage'])
+        ->name('deployment-items.stage');
+    Route::put('deployment-items/{deploymentItem}', [DeploymentItemsController::class, 'update'])
+        ->name('deployment-items.update');
+    Route::delete('deployment-items/{deploymentItem}', [DeploymentItemsController::class, 'destroy'])
+        ->name('deployment-items.destroy');
+
+    // Editable catalogs (wave types / per-device stages).
+    Route::get('deployment-config/{catalog}', [DeploymentCatalogController::class, 'index'])
+        ->name('deployment-config.index')
+        ->breadcrumbs(fn (Trail $trail, $catalog) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
+    Route::get('deployment-config/{catalog}/create', [DeploymentCatalogController::class, 'create'])
+        ->name('deployment-config.create')
+        ->breadcrumbs(fn (Trail $trail, $catalog) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
+    Route::post('deployment-config/{catalog}', [DeploymentCatalogController::class, 'store'])
+        ->name('deployment-config.store');
+    Route::get('deployment-config/{catalog}/{id}/edit', [DeploymentCatalogController::class, 'edit'])
+        ->name('deployment-config.edit')
+        ->breadcrumbs(fn (Trail $trail, $catalog, $id) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
+    Route::put('deployment-config/{catalog}/{id}', [DeploymentCatalogController::class, 'update'])
+        ->name('deployment-config.update');
+    Route::delete('deployment-config/{catalog}/{id}', [DeploymentCatalogController::class, 'destroy'])
+        ->name('deployment-config.destroy');
 
     /*
     * Field Groups — editable taxonomy that organizes custom fields into
@@ -1103,6 +1197,13 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('reports.exhibit')));
+
+    Route::get('deployments', [DeploymentsController::class, 'report'])
+        ->name('reports.deployments')
+        ->middleware('can:view,App\Models\Order')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/deployments/general.dashboard_title'), route('reports.deployments')));
 
     Route::get('fleet-health', [FleetHealthReportsController::class, 'index'])
         ->name('reports.fleet-health')
