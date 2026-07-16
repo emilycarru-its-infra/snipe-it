@@ -1224,16 +1224,17 @@ class Asset extends Depreciable
      */
     public function isLeased(): bool
     {
-        return stripos((string) $this->customFieldValueByName('Ownership Type'), 'lease') !== false;
+        return stripos((string) $this->ownership_type, 'lease') !== false;
     }
 
     /**
-     * The lease's end date parsed from the "Lease End Date" custom field, or
-     * null when it's unset or unparseable.
+     * The lease's end date parsed from the native `lease_end_date` column
+     * (mirrored from the "Lease End Date" custom field), or null when it's
+     * unset or unparseable.
      */
     public function leaseEndDate(): ?\Carbon\Carbon
     {
-        $raw = $this->customFieldValueByName('Lease End Date');
+        $raw = $this->lease_end_date;
         if (! $raw) {
             return null;
         }

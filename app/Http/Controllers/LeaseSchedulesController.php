@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Actionlog;
 use App\Models\Asset;
-use App\Models\CustomField;
 use App\Models\LeaseSchedule;
 use App\Models\Order;
 use App\Services\AnnexureParser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 /**
@@ -137,9 +137,10 @@ class LeaseSchedulesController extends Controller
         $path = 'private_uploads/lease-schedules/'.$upload->filename;
         $annexureSerials = collect($parser->serialsFromPdf($path));
 
-        // Look up the Lease Contract ID column on assets once — the
-        // schedule_ref string match mirrors the existing data flow.
-        $contractIdColumn = CustomField::where('name', 'Lease Contract ID')->value('db_column');
+        // The native lease_contract_id column (mirrored from the "Lease
+        // Contract ID" custom field); the schedule_ref string match mirrors
+        // the existing data flow.
+        $contractIdColumn = Schema::hasColumn('assets', 'lease_contract_id') ? 'lease_contract_id' : null;
         $snipeSerials = collect();
 
         if ($contractIdColumn) {
