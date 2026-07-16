@@ -7,7 +7,7 @@ use App\Models\CsiAsset;
 use App\Models\CsiInprocessAsset;
 use App\Models\CsiInvoice;
 use App\Models\CsiSchedule;
-use App\Models\CustomField;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Diffs the local CSI mirror (populated by the csi-poller function via
@@ -22,10 +22,10 @@ use App\Models\CustomField;
  */
 class CsiReconciliation
 {
-    /** Snipe custom-field db_column holding the lease contract id (e.g. 301452-007-041426). */
+    /** Native lease_contract_id column (e.g. 301452-007-041426), mirrored from the custom field. */
     private function leaseContractColumn(): ?string
     {
-        return CustomField::where('name', 'Lease Contract ID')->value('db_column');
+        return Schema::hasColumn('assets', 'lease_contract_id') ? 'lease_contract_id' : null;
     }
 
     /** Normalize a Snipe lease contract id to a CSI schedule ref: 301452-007-041426 -> 301452-007. */
