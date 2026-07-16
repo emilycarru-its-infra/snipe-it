@@ -130,6 +130,11 @@ return [
         'note' => 'Allows the user to mark an asset as physically inventoried.',
     ],
 
+    'assetsrequest-buyout' => [
+        'name' => 'Request Lease Buyout',
+        'note' => 'Allows the user to send a lease buyout request to a leased asset\'s lessor from the asset page, without needing edit rights. Intended for HR / Finance operations staff.',
+    ],
+
     'assetsviewrequestable' => [
         'name' => 'View Requestable Assets',
         'note' => 'Allows the user to view assets that are marked as requestable.',

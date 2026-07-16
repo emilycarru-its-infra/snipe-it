@@ -180,6 +180,11 @@ class UserFactory extends Factory
         return $this->appendPermission(['assets.view.requestable' => '1']);
     }
 
+    public function requestAssetBuyouts()
+    {
+        return $this->appendPermission(['assets.request_buyout' => '1']);
+    }
+
     public function deleteAssetModels()
     {
         return $this->appendPermission(['models.delete' => '1']);

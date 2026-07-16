@@ -105,6 +105,66 @@ class AssetBuyoutRequestTest extends TestCase
         ]);
     }
 
+    public function test_buyout_cc_can_be_overridden_in_the_email_cms(): void
+    {
+        Mail::fake();
+
+        // An admin sets a CC override in Settings → Emails; it replaces the
+        // config team list, while the acting admin is still CC'd on top.
+        \App\Models\EmailTemplate::updateOrCreate(
+            ['key' => 'request.asset_buyout'],
+            ['cc' => 'hrteam@ecuad.example, finance@ecuad.example']
+        );
+
+        $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
+        $lessor = $this->lessorWithEmail();
+        $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
+
+        $this->actingAs($admin)
+            ->post(route('asset.buyout.request', $asset->id))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor, $admin) {
+            return $mail->hasTo($lessor->email)
+                && $mail->hasCc('hrteam@ecuad.example')
+                && $mail->hasCc('finance@ecuad.example')
+                && $mail->hasCc($admin->email)
+                && ! $mail->hasCc('devicesadmins@ecuad.ca')
+                && ! $mail->hasCc('rdatta@ecuad.ca');
+        });
+    }
+
+    public function test_user_with_request_buyout_permission_but_not_edit_can_send_request(): void
+    {
+        Mail::fake();
+
+        $hrUser = User::factory()->viewAssets()->requestAssetBuyouts()->create(['email' => 'hrstaff@ecuad.example']);
+        $lessor = $this->lessorWithEmail();
+        $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
+
+        $this->actingAs($hrUser)
+            ->post(route('asset.buyout.request', $asset->id))
+            ->assertRedirect(route('hardware.show', $asset->id))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(AssetBuyoutRequestMail::class);
+    }
+
+    public function test_user_without_buyout_or_edit_permission_is_denied(): void
+    {
+        Mail::fake();
+
+        $viewer = User::factory()->viewAssets()->create();
+        $lessor = $this->lessorWithEmail();
+        $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
+
+        $this->actingAs($viewer)
+            ->post(route('asset.buyout.request', $asset->id))
+            ->assertForbidden();
+
+        Mail::assertNothingSent();
+    }
+
     public function test_buyout_to_includes_lessor_email_plus_configured_default_recipients(): void
     {
         Mail::fake();
