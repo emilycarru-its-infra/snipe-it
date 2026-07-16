@@ -268,9 +268,10 @@ class EmailRegistry
                 'key' => 'request.asset_buyout',
                 'category' => 'requests',
                 'label' => 'Lease buyout request',
-                'description' => 'Sent to a leased asset\'s lessor when an admin clicks "Request Buyout" on the asset detail page. The lessor\'s own contact email is always the To; recipients set here are added on top (e.g. CCA Financial\'s second rep).',
+                'description' => 'Sent to a leased asset\'s lessor when an admin clicks "Request Buyout" on the asset detail page. The lessor\'s own contact email is always the To; recipients set here are added on top (e.g. CCA Financial\'s second rep). CC set here replaces the built-in team CC list (the assigned end user and the requesting admin are always CC\'d as well).',
                 'merge_vars' => ['asset' => 'The leased asset (asset.asset_tag, asset.serial)', 'lease' => 'Lease facts (lease.contract_id, lease.end_date, lease.buyout_cost)', 'lessor' => 'The lessor (lessor.name)', 'requester' => 'Admin who requested it (requester.full_name)'],
                 'configurable_recipients' => true,
+                'configurable_cc' => true,
                 'factory' => fn (EmailSampleData $s) => new AssetBuyoutRequestMail($s->asset(), $s->admin()),
             ],
 

@@ -37,7 +37,7 @@ class EmailsController extends Controller
         // address) so the picker can re-show who an override targets — "crystal
         // clear who gets it" — without an extra lookup per row.
         $overrideEmails = $overrides
-            ->flatMap(fn ($o) => collect(explode(',', (string) $o->recipients))->map(fn ($e) => trim($e))->filter())
+            ->flatMap(fn ($o) => collect(explode(',', (string) $o->recipients.','.(string) $o->cc))->map(fn ($e) => trim($e))->filter())
             ->unique()
             ->values();
         // first_name/last_name are needed too: User::display_name falls back to
@@ -59,14 +59,16 @@ class EmailsController extends Controller
             $email['previewable'] = EmailRegistry::isPreviewable($email);
             $email['editable'] = EmailRegistry::isEditable($email);
             $email['configurable_recipients'] = $email['configurable_recipients'] ?? false;
+            $email['configurable_cc'] = $email['configurable_cc'] ?? false;
             $email['subject_override'] = $override?->subject;
             $email['body_override'] = $override?->body;
             $email['recipients_override'] = $override?->recipients;
+            $email['cc_override'] = $override?->cc;
             $email['subject_default'] = '';
 
-            // The saved recipients as select2-ready options ({id: address, text:
-            // "Name (address)"}), so the picker can re-hydrate the chips.
-            $email['recipients_json'] = collect(explode(',', (string) ($override?->recipients ?? '')))
+            // The saved recipients/CC as select2-ready options ({id: address,
+            // text: "Name (address)"}), so the pickers can re-hydrate the chips.
+            $toOptions = fn (?string $csv) => collect(explode(',', (string) ($csv ?? '')))
                 ->map(fn ($e) => trim($e))
                 ->filter()
                 ->map(fn ($e) => [
@@ -75,6 +77,8 @@ class EmailsController extends Controller
                 ])
                 ->values()
                 ->all();
+            $email['recipients_json'] = $toOptions($override?->recipients);
+            $email['cc_json'] = $toOptions($override?->cc);
 
             // "Last edited by … · …" shown when an override exists with an editor.
             $email['last_edited'] = '';
@@ -172,25 +176,30 @@ class EmailsController extends Controller
                 ->withErrors(['body' => trans('admin/settings/general.emails_body_invalid')]);
         }
 
-        // Recipients arrive as an array from the multi-select picker, or a CSV
-        // string from the legacy text field / API. Normalise both to a clean,
-        // de-duplicated list where every entry is a valid email.
-        $recipientsInput = $request->input('recipients', []);
-        if (is_string($recipientsInput)) {
-            $recipientsInput = explode(',', $recipientsInput);
-        }
-        $recipients = collect($recipientsInput)
-            ->map(fn ($email) => trim((string) $email))
-            ->filter()
-            ->unique()
-            ->values();
-
-        foreach ($recipients as $email) {
-            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                return redirect()->route('settings.emails.index', ['selected' => $key])
-                    ->withInput()
-                    ->withErrors(['recipients' => trans('admin/settings/general.emails_recipients_invalid', ['email' => $email])]);
+        // Recipients / CC arrive as arrays from the multi-select pickers, or a
+        // CSV string from the legacy text field / API. Normalise both to a
+        // clean, de-duplicated list where every entry is a valid email.
+        $lists = [];
+        foreach (['recipients', 'cc'] as $field) {
+            $input = $request->input($field, []);
+            if (is_string($input)) {
+                $input = explode(',', $input);
             }
+            $addresses = collect($input)
+                ->map(fn ($email) => trim((string) $email))
+                ->filter()
+                ->unique()
+                ->values();
+
+            foreach ($addresses as $email) {
+                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    return redirect()->route('settings.emails.index', ['selected' => $key])
+                        ->withInput()
+                        ->withErrors([$field => trans('admin/settings/general.emails_recipients_invalid', ['email' => $email])]);
+                }
+            }
+
+            $lists[$field] = $addresses->isNotEmpty() ? $addresses->implode(',') : null;
         }
 
         EmailTemplate::updateOrCreate(
@@ -198,7 +207,8 @@ class EmailsController extends Controller
             [
                 'subject' => $subject !== '' ? $subject : null,
                 'body' => $body,
-                'recipients' => $recipients->isNotEmpty() ? $recipients->implode(',') : null,
+                'recipients' => $lists['recipients'],
+                'cc' => $lists['cc'],
                 'updated_by' => auth()->id(),
             ],
         );

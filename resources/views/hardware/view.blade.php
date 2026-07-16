@@ -592,7 +592,7 @@
                         {{-- Primary: Request Buyout — surfaced up top, contextual to active leases.
                              Enabled once the lessor has a contact email, else disabled with a hint. --}}
                         @if ($asset->isOnActiveLease())
-                            @can('update', $asset)
+                            @can('requestBuyout', $asset)
                                 @if ($asset->canRequestLeaseBuyout())
                                     <form action="{{ route('asset.buyout.request', $asset->id) }}" method="POST" style="display:inline;"
                                           onsubmit="return confirm(@js(trans('general.request_buyout_confirm', ['lessor' => $asset->lessor->name])));">
