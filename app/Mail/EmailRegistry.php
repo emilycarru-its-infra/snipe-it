@@ -35,7 +35,7 @@ class EmailRegistry
     /**
      * Every registered email, in display order.
      *
-     * @return array<int, array{key:string, category:string, label:string, description:string, merge_vars:array<string,string>, factory:callable}>
+     * @return array<int, array{key:string, category:string, label:string, description:string, merge_vars:array<string,string>, factory?:callable, notification?:callable, configurable_recipients?:bool, configurable_cc?:bool}>
      */
     public static function all(): array
     {
