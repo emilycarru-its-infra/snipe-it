@@ -68,7 +68,7 @@ class EmailTemplate extends Model
      */
     public static function recipientsFor(string $key, ?string $fallbackCsv = null): array
     {
-        return static::addressListFor($key, 'recipients', $fallbackCsv);
+        return self::addressListFor($key, 'recipients', $fallbackCsv);
     }
 
     /**
@@ -79,7 +79,7 @@ class EmailTemplate extends Model
      */
     public static function ccFor(string $key, ?string $fallbackCsv = null): array
     {
-        return static::addressListFor($key, 'cc', $fallbackCsv);
+        return self::addressListFor($key, 'cc', $fallbackCsv);
     }
 
     /** @return array<int, string> */
