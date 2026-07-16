@@ -910,7 +910,7 @@ class ProcurementReportsTest extends TestCase
 
         // A device on the same PO but bought in a different FY must not count.
         $other = Asset::factory()->create(['purchase_cost' => 5000.00, 'purchase_date' => '2026-06-01']);
-        Asset::query()->whereKey($other->id)->update([$poField->db_column => 'P0099001']);
+        Asset::query()->whereKey($other->id)->update(['po_number' => 'P0099001']);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.po-budget', ['fiscal_year' => 'FY2025-26']))

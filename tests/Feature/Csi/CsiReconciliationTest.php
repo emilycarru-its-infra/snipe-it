@@ -7,7 +7,6 @@ use App\Models\CsiAsset;
 use App\Models\CsiInprocessAsset;
 use App\Models\CsiInvoice;
 use App\Models\CsiSchedule;
-use App\Models\CustomField;
 use App\Models\User;
 use App\Services\CsiReconciliation;
 use Tests\TestCase;
@@ -63,7 +62,8 @@ class CsiReconciliationTest extends TestCase
 
     private function leaseColumn(): string
     {
-        return CustomField::factory()->create(['name' => 'Lease Contract ID'])->db_column;
+        // Reads are on the native column as of the F2·2 cutover.
+        return 'lease_contract_id';
     }
 
     private function snipeAsset(string $serial, string $col, ?string $contractId): Asset

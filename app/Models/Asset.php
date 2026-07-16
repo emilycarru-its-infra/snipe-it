@@ -29,6 +29,24 @@ use Watson\Validating\ValidatingTrait;
 /**
  * Model for Assets.
  *
+ * Native lease/purchasing columns, mirrored from the Snipe-IT custom fields by
+ * the MirrorsLeaseFields shim and read directly since the F2·2 cutover.
+ * Declared so static property access (`$asset->lease_end_date`) type-checks.
+ *
+ * @property string|null $lease_contract_id
+ * @property string|null $lease_contract_name
+ * @property string|null $lease_end_date
+ * @property string|null $ownership_type
+ * @property string|null $lease_rent
+ * @property string|null $buyout_cost
+ * @property string|null $decommission_date
+ * @property string|null $po_number
+ * @property string|null $invoice_number
+ * @property string|null $warranty_soft_cost
+ * @property string|null $lease_usage
+ * @property string|null $lease_area
+ * @property string|null $lease_book_value
+ *
  * @version v1.0
  */
 class Asset extends Depreciable
