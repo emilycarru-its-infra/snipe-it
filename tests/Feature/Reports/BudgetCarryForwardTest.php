@@ -4,7 +4,6 @@ namespace Tests\Feature\Reports;
 
 use App\Models\Asset;
 use App\Models\BudgetAllocation;
-use App\Models\CustomField;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use Tests\TestCase;
@@ -29,14 +28,11 @@ class BudgetCarryForwardTest extends TestCase
      */
     private function commitViaAsset(string $poNumber, float $committed, string $purchaseDate): void
     {
-        $poField = CustomField::where('name', 'PO Number')->first()
-            ?? CustomField::factory()->create(['name' => 'PO Number']);
-
         $asset = Asset::factory()->create([
             'purchase_cost' => $committed,
             'purchase_date' => $purchaseDate,
         ]);
-        Asset::query()->whereKey($asset->id)->update([$poField->db_column => $poNumber]);
+        Asset::query()->whereKey($asset->id)->update(['po_number' => $poNumber]);
     }
 
     /**

@@ -29,6 +29,24 @@ use Watson\Validating\ValidatingTrait;
 /**
  * Model for Assets.
  *
+ * Native lease/purchasing columns, mirrored from the Snipe-IT custom fields by
+ * the MirrorsLeaseFields shim and read directly since the F2·2 cutover.
+ * Declared so static property access (`$asset->lease_end_date`) type-checks.
+ *
+ * @property string|null $lease_contract_id
+ * @property string|null $lease_contract_name
+ * @property string|null $lease_end_date
+ * @property string|null $ownership_type
+ * @property string|null $lease_rent
+ * @property string|null $buyout_cost
+ * @property string|null $decommission_date
+ * @property string|null $po_number
+ * @property string|null $invoice_number
+ * @property string|null $warranty_soft_cost
+ * @property string|null $lease_usage
+ * @property string|null $lease_area
+ * @property string|null $lease_book_value
+ *
  * @version v1.0
  */
 class Asset extends Depreciable
@@ -110,9 +128,10 @@ class Asset extends Depreciable
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
         // Native lease / purchasing cluster (mirrored from custom fields by
-        // the MirrorsLeaseFields shim — PR 1 of the native-field migration).
-        'lease_end_date' => 'date',
-        'decommission_date' => 'date',
+        // the MirrorsLeaseFields shim). The date columns are deliberately NOT
+        // cast to Carbon: the procurement reports read them as 'Y-m-d' strings
+        // (as the source custom fields were), and a Carbon cast stringifies to
+        // 'Y-m-d H:i:s', which the reports' date parsers reject.
         'lease_rent' => 'decimal:2',
         'buyout_cost' => 'decimal:2',
         'warranty_soft_cost' => 'decimal:2',
@@ -1224,16 +1243,17 @@ class Asset extends Depreciable
      */
     public function isLeased(): bool
     {
-        return stripos((string) $this->customFieldValueByName('Ownership Type'), 'lease') !== false;
+        return stripos((string) $this->ownership_type, 'lease') !== false;
     }
 
     /**
-     * The lease's end date parsed from the "Lease End Date" custom field, or
-     * null when it's unset or unparseable.
+     * The lease's end date parsed from the native `lease_end_date` column
+     * (mirrored from the "Lease End Date" custom field), or null when it's
+     * unset or unparseable.
      */
     public function leaseEndDate(): ?\Carbon\Carbon
     {
-        $raw = $this->customFieldValueByName('Lease End Date');
+        $raw = $this->lease_end_date;
         if (! $raw) {
             return null;
         }

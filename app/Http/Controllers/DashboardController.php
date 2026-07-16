@@ -287,10 +287,10 @@ class DashboardController extends Controller
                 ])->count();
         };
 
-        // The lease-end column is a 'Y-m-d' string custom field, so a
-        // lexicographic BETWEEN works on every driver without STR_TO_DATE.
-        $leaseColumn = Schema::hasColumn('assets', '_snipeit_lease_end_date_14')
-            ? '_snipeit_lease_end_date_14' : null;
+        // Native lease_end_date is a DATE column (mirrored from the "Lease End
+        // Date" custom field); a BETWEEN on 'Y-m-d' bounds works on every driver.
+        $leaseColumn = Schema::hasColumn('assets', 'lease_end_date')
+            ? 'lease_end_date' : null;
         $leaseBucket = function (int $days) use ($now, $leaseColumn) {
             if (! $leaseColumn) return null;
             return Asset::AssetsForShow()
@@ -393,7 +393,7 @@ class DashboardController extends Controller
         // Order matches the dashboard render order: Fleet, Ownership, DMS.
         $candidates = [
             'fleet'          => ['column' => '_snipeit_fleet_41',                      'label' => 'Fleet',                       'limit' => 12],
-            'ownership_type' => ['column' => '_snipeit_ownership_type_20',             'label' => 'Ownership',                   'limit' => 8],
+            'ownership_type' => ['column' => 'ownership_type',                         'label' => 'Ownership',                   'limit' => 8],
             'dms'            => ['column' => '_snipeit_device_management_service_44',  'label' => 'Device Management Service',   'limit' => 8],
         ];
 

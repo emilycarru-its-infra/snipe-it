@@ -78,6 +78,23 @@ trait MirrorsLeaseFields
     }
 
     /**
+     * Native `assets` column for a lease custom field's display name, or null
+     * if the name isn't part of the lease cluster. Lets callers that resolve a
+     * field by name (config-driven ones especially) reach the native column
+     * without a per-environment `_snipeit_*` db_column lookup.
+     */
+    public static function nativeColumnForCustomName(string $name): ?string
+    {
+        foreach (static::$leaseFieldMap as $native => [$customName]) {
+            if ($customName === $name) {
+                return $native;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Resolve native column => custom field db_column, once per request.
      * Returns [] (and is a no-op upstream) if the custom_fields table is
      * absent — keeps a fresh DB / early-boot save from blowing up.

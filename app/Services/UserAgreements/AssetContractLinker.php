@@ -4,10 +4,10 @@ namespace App\Services\UserAgreements;
 
 use App\Models\Asset;
 use App\Models\Contract;
-use App\Models\CustomField;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * One-time migration: walk every asset that carries lease info in the
@@ -142,7 +142,9 @@ class AssetContractLinker
         if ($name === '') {
             return null;
         }
-        return CustomField::where('name', $name)->first()?->db_column;
+        $native = Asset::nativeColumnForCustomName($name);
+
+        return $native && Schema::hasColumn('assets', $native) ? $native : null;
     }
 
     private function normaliseDate(mixed $raw): ?string

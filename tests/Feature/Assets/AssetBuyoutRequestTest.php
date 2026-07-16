@@ -17,8 +17,6 @@ use Tests\TestCase;
 class AssetBuyoutRequestTest extends TestCase
 {
     private CustomFieldset $fieldset;
-    private string $ownershipCol;
-    private string $endCol;
 
     protected function setUp(): void
     {
@@ -26,9 +24,6 @@ class AssetBuyoutRequestTest extends TestCase
 
         $ownership = CustomField::factory()->create(['name' => 'Ownership Type', 'format' => 'ANY']);
         $end = CustomField::factory()->create(['name' => 'Lease End Date', 'format' => 'DATE']);
-
-        $this->ownershipCol = $ownership->db_column;
-        $this->endCol = $end->db_column;
 
         $this->fieldset = CustomFieldset::factory()->create();
         $this->fieldset->fields()->attach([$ownership->id, $end->id]);
@@ -44,9 +39,11 @@ class AssetBuyoutRequestTest extends TestCase
             'lessor_id' => $lessor?->id,
         ]);
 
+        // Reads are on the native columns as of the F2·2 cutover; a direct DB
+        // update bypasses the mirror shim, so write the native columns here.
         DB::table('assets')->where('id', $asset->id)->update([
-            $this->ownershipCol => $ownership,
-            $this->endCol       => $endDate,
+            'ownership_type' => $ownership,
+            'lease_end_date' => $endDate,
         ]);
 
         if ($assignedTo) {
