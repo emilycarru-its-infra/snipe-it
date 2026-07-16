@@ -26,7 +26,7 @@ class AssetBuyoutRequestMail extends BaseMailable
     public Asset $asset;
     public ?User $requester;
 
-    /** Lease facts resolved from the asset's custom fields, for the body. */
+    /** Lease facts resolved from the asset's native lease columns, for the body. */
     public array $lease;
 
     public function __construct(Asset $asset, ?User $requester = null)
@@ -34,11 +34,11 @@ class AssetBuyoutRequestMail extends BaseMailable
         $this->asset = $asset->loadMissing(['model.fieldset.fields', 'lessor', 'assignedTo']);
         $this->requester = $requester;
         $this->lease = [
-            'contract_id'   => $asset->customFieldValueByName('Lease Contract ID'),
-            'contract_name' => $asset->customFieldValueByName('Lease Contract Name'),
+            'contract_id'   => $asset->lease_contract_id,
+            'contract_name' => $asset->lease_contract_name,
             'end_date'      => optional($asset->leaseEndDate())->toDateString(),
-            'buyout_cost'   => $asset->customFieldValueByName('Buyout Cost'),
-            'book_value'    => $asset->customFieldValueByName('Book Value'),
+            'buyout_cost'   => $asset->buyout_cost,
+            'book_value'    => $asset->lease_book_value,
         ];
     }
 

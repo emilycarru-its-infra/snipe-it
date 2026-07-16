@@ -13,9 +13,6 @@ use Tests\TestCase;
 
 class AssetContractLinkerTest extends TestCase
 {
-    private string $nameCol;
-    private string $endCol;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -30,9 +27,6 @@ class AssetContractLinkerTest extends TestCase
             'format' => 'DATE',
         ]);
 
-        $this->nameCol = $nameField->db_column;
-        $this->endCol  = $endField->db_column;
-
         $fieldset = CustomFieldset::factory()->create();
         $fieldset->fields()->attach([$nameField->id, $endField->id]);
 
@@ -46,9 +40,11 @@ class AssetContractLinkerTest extends TestCase
         $status = Statuslabel::factory()->rtd()->create();
         $asset = Asset::factory()->create(['status_id' => $status->id]);
 
+        // Reads are on the native columns as of the F2·2 cutover; a direct DB
+        // update bypasses the mirror shim, so write the native columns here.
         DB::table('assets')->where('id', $asset->id)->update([
-            $this->nameCol => $contractName,
-            $this->endCol  => $endDate,
+            'lease_contract_name' => $contractName,
+            'lease_end_date'      => $endDate,
         ]);
 
         return $asset->fresh();

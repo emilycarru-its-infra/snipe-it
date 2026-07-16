@@ -3,9 +3,9 @@
 namespace App\Services\Deployments;
 
 use App\Models\Asset;
-use App\Models\CustomField;
 use App\Models\DeploymentItem;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Auto-collection of devices due for refresh in a fiscal year — the
@@ -110,13 +110,13 @@ class RefreshForecast
     }
 
     /**
-     * The assets db_column backing the "Lease End Date" custom field, or
-     * null in environments without that field. Every consumer MUST guard
-     * against null before touching the column.
+     * The native `lease_end_date` column (mirrored from the "Lease End Date"
+     * custom field), or null in environments where it hasn't been migrated in
+     * yet. Every consumer MUST guard against null before touching the column.
      */
     public static function leaseEndColumn(): ?string
     {
-        return CustomField::where('name', 'Lease End Date')->value('db_column');
+        return Schema::hasColumn('assets', 'lease_end_date') ? 'lease_end_date' : null;
     }
 
     /**
@@ -190,7 +190,7 @@ class RefreshForecast
             ->where(function ($q) use ($start, $end, $leaseCol, $startStr, $endStr) {
                 $q->whereBetween('asset_eol_date', [$start, $end]);
                 if ($leaseCol !== null) {
-                    // Lease End Date is stored as a 'Y-m-d' string.
+                    // Native lease_end_date is a DATE; 'Y-m-d' bounds compare fine.
                     $q->orWhereBetween($leaseCol, [$startStr, $endStr]);
                 }
             });

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Asset;
-use App\Models\CustomField;
 use Carbon\Carbon;
 
 /**
@@ -26,16 +25,12 @@ class AssetCommitted
      */
     public static function byPo(?string $fy = null): array
     {
-        $poColumn = self::fieldColumn('PO Number');
-        $warrantyColumn = self::fieldColumn('Warranty/Soft Cost');
+        $poColumn = 'po_number';
+        $warrantyColumn = 'warranty_soft_cost';
 
-        if (! $poColumn) {
-            return [];
-        }
-
-        // Only assets that carry a university PO (P00…) on their PO Number
-        // field count toward committed; CSI-schedule values (301452-…) and
-        // blanks don't map to a purchase order.
+        // Only assets that carry a university PO (P00…) on their native PO
+        // Number column count toward committed; CSI-schedule values (301452-…)
+        // and blanks don't map to a purchase order.
         $query = Asset::query()->where($poColumn, 'like', 'P00%');
 
         if ($range = self::fiscalYearRange($fy)) {
@@ -48,16 +43,11 @@ class AssetCommitted
             if ($po === '') {
                 continue;
             }
-            $warranty = $warrantyColumn ? self::parseMoney($asset->{$warrantyColumn}) : 0.0;
+            $warranty = self::parseMoney($asset->{$warrantyColumn});
             $map[$po] = ($map[$po] ?? 0.0) + (float) $asset->purchase_cost + $warranty;
         }
 
         return $map;
-    }
-
-    private static function fieldColumn(string $name): ?string
-    {
-        return CustomField::where('name', $name)->first()?->db_column;
     }
 
     /**

@@ -4,7 +4,6 @@ namespace Tests\Feature\LeaseSchedules;
 
 use App\Models\Actionlog;
 use App\Models\Asset;
-use App\Models\CustomField;
 use App\Models\LeaseSchedule;
 use App\Models\Statuslabel;
 use App\Models\User;
@@ -33,11 +32,9 @@ class AnnexureDiffTest extends TestCase
 
     public function test_diff_buckets_serials_against_snipe_assets()
     {
-        // Stand up a Lease Contract ID custom field so the diff can find
-        // assets tagged to the schedule. The factory takes care of the
-        // db_column generation.
-        $contractField = CustomField::factory()->create(['name' => 'Lease Contract ID']);
-        $contractColumn = $contractField->db_column;
+        // The diff finds assets tagged to the schedule via the native
+        // lease_contract_id column (F2·2 cutover).
+        $contractColumn = 'lease_contract_id';
         $active = Statuslabel::factory()->rtd()->create();
 
         $matchedAsset = Asset::factory()->create([

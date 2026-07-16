@@ -1664,37 +1664,33 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Lease custom fields live on the assets table under generated columns
-     * (e.g. `_snipeit_lease_contract_id_42`). Look the columns up by field
-     * name so the report keeps working if the field IDs shift between
-     * environments.
+     * Logical lease field => native `assets` column. These lived in Snipe-IT
+     * custom fields (`_snipeit_*`); as of the F2·2 read cutover the reports
+     * read the native typed columns instead. The MirrorsLeaseFields shim keeps
+     * the native columns in lock-step with the custom fields on every save,
+     * and `php artisan lease:verify-native` gates this cutover on full
+     * native/custom parity. Native names are stable across environments, so
+     * the old per-name db_column lookup is gone. The key set (and its order,
+     * matching the sharepoint.csv export) is unchanged, so every caller that
+     * reads `$asset->{$columns[...]}` keeps working. See
+     * docs/lease-native-roadmap.md.
      */
     private function leaseFieldColumns(): array
     {
-        // Same field names the sharepoint.csv export uses, so reports
-        // and the SharePoint hand-off see the same dataset.
-        $names = [
-            'contract_id' => 'Lease Contract ID',
-            'contract_name' => 'Lease Contract Name',
-            'lease_end_date' => 'Lease End Date',
-            'ownership_type' => 'Ownership Type',
-            'lease_rent' => 'Lease Rent',
-            'buyout_cost' => 'Buyout Cost',
-            'usage' => 'Usage',
-            'area' => 'Area',
-            'decommission_date' => 'Decommission Date',
-            'book_value' => 'Book Value',
-            'po_number' => 'PO Number',
-            'warranty_cost' => 'Warranty/Soft Cost',
+        return [
+            'contract_id' => 'lease_contract_id',
+            'contract_name' => 'lease_contract_name',
+            'lease_end_date' => 'lease_end_date',
+            'ownership_type' => 'ownership_type',
+            'lease_rent' => 'lease_rent',
+            'buyout_cost' => 'buyout_cost',
+            'usage' => 'lease_usage',
+            'area' => 'lease_area',
+            'decommission_date' => 'decommission_date',
+            'book_value' => 'lease_book_value',
+            'po_number' => 'po_number',
+            'warranty_cost' => 'warranty_soft_cost',
         ];
-
-        $columns = [];
-        foreach ($names as $key => $name) {
-            $field = CustomField::where('name', $name)->first();
-            $columns[$key] = $field?->db_column;
-        }
-
-        return $columns;
     }
 
     /**

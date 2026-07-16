@@ -3,7 +3,6 @@
 namespace Tests\Feature\Reports;
 
 use App\Models\Asset;
-use App\Models\CustomField;
 use App\Models\LeaseDecision;
 use App\Models\Statuslabel;
 use App\Models\User;
@@ -28,11 +27,6 @@ class LeaseEndSchedulesTest extends TestCase
      */
     private function seedSchedule(string $contractId, string $endDate, int $count, float $unitCost): void
     {
-        $contractField = CustomField::where('name', 'Lease Contract ID')->first()
-            ?? CustomField::factory()->create(['name' => 'Lease Contract ID']);
-        $endField = CustomField::where('name', 'Lease End Date')->first()
-            ?? CustomField::factory()->create(['name' => 'Lease End Date']);
-
         $active = Statuslabel::factory()->rtd()->create();
 
         for ($i = 0; $i < $count; $i++) {
@@ -41,8 +35,8 @@ class LeaseEndSchedulesTest extends TestCase
                 'purchase_cost' => $unitCost,
             ]);
             Asset::query()->whereKey($asset->id)->update([
-                $contractField->db_column => $contractId,
-                $endField->db_column => $endDate,
+                'lease_contract_id' => $contractId,
+                'lease_end_date' => $endDate,
             ]);
         }
     }
@@ -119,16 +113,14 @@ class LeaseEndSchedulesTest extends TestCase
 
         // …and one already returned (archived) — its body leaves the
         // headcount, but its cost stays in the pre-approval envelope.
-        $contractField = CustomField::where('name', 'Lease Contract ID')->first();
-        $endField = CustomField::where('name', 'Lease End Date')->first();
         $archived = Statuslabel::factory()->archived()->create();
         $returned = Asset::factory()->create([
             'status_id' => $archived->id,
             'purchase_cost' => 777.00,
         ]);
         Asset::query()->whereKey($returned->id)->update([
-            $contractField->db_column => 'ECI20990101',
-            $endField->db_column => '2026-12-31',
+            'lease_contract_id' => 'ECI20990101',
+            'lease_end_date' => '2026-12-31',
         ]);
 
         $this->actingAs($this->superuser())

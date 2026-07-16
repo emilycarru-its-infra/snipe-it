@@ -3,7 +3,6 @@
 namespace Tests\Feature\Reports;
 
 use App\Models\Asset;
-use App\Models\CustomField;
 use App\Models\LeaseDecision;
 use App\Models\UserAgreement;
 use App\Models\Order;
@@ -185,16 +184,13 @@ class ProcurementReportsTest extends TestCase
 
     public function test_leases_operational_report_groups_assets_by_contract()
     {
-        $contractField = CustomField::factory()->create(['name' => 'Lease Contract ID']);
-        $contractColumn = $contractField->db_column;
-
         $active = Statuslabel::factory()->rtd()->create();
 
         $asset = Asset::factory()->create([
             'asset_tag' => 'LEASE-OP-1',
             'status_id' => $active->id,
         ]);
-        Asset::query()->whereKey($asset->id)->update([$contractColumn => '301452-003']);
+        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '301452-003']);
 
         $superuser = $this->superuser();
 
@@ -213,15 +209,13 @@ class ProcurementReportsTest extends TestCase
 
     public function test_csi_schedule_report_skips_non_csi_contracts()
     {
-        $contractField = CustomField::factory()->create(['name' => 'Lease Contract ID']);
-        $contractColumn = $contractField->db_column;
         $active = Statuslabel::factory()->rtd()->create();
 
         $csi = Asset::factory()->create(['asset_tag' => 'CSI-1', 'status_id' => $active->id]);
-        Asset::query()->whereKey($csi->id)->update([$contractColumn => '301452-004']);
+        Asset::query()->whereKey($csi->id)->update(['lease_contract_id' => '301452-004']);
 
         $eci = Asset::factory()->create(['asset_tag' => 'ECI-1', 'status_id' => $active->id]);
-        Asset::query()->whereKey($eci->id)->update([$contractColumn => 'ECI20220901']);
+        Asset::query()->whereKey($eci->id)->update(['lease_contract_id' => 'ECI20220901']);
 
         // The CSI Schedule report is scoped to 301452-* leases only —
         // ECI contracts belong to the CCA Financial reconciliation.
@@ -577,9 +571,10 @@ class ProcurementReportsTest extends TestCase
     }
 
     /**
-     * Seed one asset carrying the given lease custom fields (keyed by field
-     * name). Returns the asset. Creates any missing custom field + an Active
-     * status, mirroring how the lease reports read assets by field.
+     * Seed one asset carrying the given lease fields (keyed by the historical
+     * custom-field name). Returns the asset. As of the F2·2 read cutover the
+     * lease reports read the native `assets` columns, so this writes those
+     * (resolved from the field name via the shim's own map).
      */
     private function seedLeaseAsset(array $fields, array $assetAttrs = []): Asset
     {
@@ -588,9 +583,10 @@ class ProcurementReportsTest extends TestCase
 
         $update = [];
         foreach ($fields as $name => $value) {
-            $field = CustomField::where('name', $name)->first()
-                ?? CustomField::factory()->create(['name' => $name]);
-            $update[$field->db_column] = $value;
+            $native = Asset::nativeColumnForCustomName($name);
+            if ($native) {
+                $update[$native] = $value;
+            }
         }
         if ($update) {
             Asset::query()->whereKey($asset->id)->update($update);
@@ -865,8 +861,6 @@ class ProcurementReportsTest extends TestCase
 
     public function test_leases_financial_report_rolls_up_warranty_costs()
     {
-        $contractField = CustomField::factory()->create(['name' => 'Lease Contract ID']);
-        $contractColumn = $contractField->db_column;
         $active = Statuslabel::factory()->rtd()->create();
 
         $asset = Asset::factory()->create([
@@ -877,7 +871,7 @@ class ProcurementReportsTest extends TestCase
             // report reads it from here, falling back to the linked order.
             'order_number' => 'PMCN-FIN-1',
         ]);
-        Asset::query()->whereKey($asset->id)->update([$contractColumn => '301452-003']);
+        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '301452-003']);
 
         $order = Order::factory()->create(['order_number' => 'PMCN-FIN-1']);
         OrderItem::create([
@@ -900,26 +894,23 @@ class ProcurementReportsTest extends TestCase
 
     public function test_po_budget_committed_is_sourced_from_assets()
     {
-        $poField = CustomField::factory()->create(['name' => 'PO Number']);
-        $warrantyField = CustomField::factory()->create(['name' => 'Warranty/Soft Cost']);
-
         $po = PurchaseOrder::factory()->create([
             'po_number' => 'P0099001', 'budget' => 10000, 'fiscal_year' => 'FY2025-26',
         ]);
 
-        // Two devices charged to the PO via the asset "PO Number" field, bought
-        // inside FY2025-26: committed = (1000 + 150 warranty) + (2000 + 0).
+        // Two devices charged to the PO via the asset native PO Number column,
+        // bought inside FY2025-26: committed = (1000 + 150 warranty) + (2000 + 0).
         foreach ([[1000.00, '150.00'], [2000.00, '0.00']] as [$cost, $warranty]) {
             $asset = Asset::factory()->create(['purchase_cost' => $cost, 'purchase_date' => '2025-06-01']);
             Asset::query()->whereKey($asset->id)->update([
-                $poField->db_column => 'P0099001',
-                $warrantyField->db_column => $warranty,
+                'po_number' => 'P0099001',
+                'warranty_soft_cost' => $warranty,
             ]);
         }
 
         // A device on the same PO but bought in a different FY must not count.
         $other = Asset::factory()->create(['purchase_cost' => 5000.00, 'purchase_date' => '2026-06-01']);
-        Asset::query()->whereKey($other->id)->update([$poField->db_column => 'P0099001']);
+        Asset::query()->whereKey($other->id)->update(['po_number' => 'P0099001']);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.po-budget', ['fiscal_year' => 'FY2025-26']))
@@ -975,13 +966,10 @@ class ProcurementReportsTest extends TestCase
 
     public function test_committed_counts_orphan_pos_with_no_ledger_row()
     {
-        $poField = CustomField::factory()->create(['name' => 'PO Number']);
-        CustomField::factory()->create(['name' => 'Warranty/Soft Cost']);
-
         // A university PO the fleet was received against — but no row was ever
         // booked in the purchase_orders ledger (the P0025747 / P0025807 case).
         $asset = Asset::factory()->create(['purchase_cost' => 2500.00, 'purchase_date' => '2025-06-01']);
-        Asset::query()->whereKey($asset->id)->update([$poField->db_column => 'P0025747']);
+        Asset::query()->whereKey($asset->id)->update(['po_number' => 'P0025747']);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2025-26']))
