@@ -601,10 +601,11 @@ class AssetsController extends Controller
         );
         $to = array_values(array_unique(array_filter(array_merge([$asset->lessor->email], $extraRecipients))));
 
-        // Cc: device team (fixed), the assigned end user (only when the asset is
-        // checked out to a real User with an email), and the acting admin. De-dupe
-        // and drop any address already in To so it never lands in both.
-        $cc = [config('leasing.buyout_request_cc')];
+        // Cc: the fixed team list (comma-separated config), the assigned end user
+        // (only when the asset is checked out to a real User with an email), and
+        // the acting admin. De-dupe and drop any address already in To so it
+        // never lands in both.
+        $cc = array_map('trim', explode(',', config('leasing.buyout_request_cc')));
         if (($asset->assignedTo instanceof User) && filled($asset->assignedTo->email)) {
             $cc[] = $asset->assignedTo->email;
         }
