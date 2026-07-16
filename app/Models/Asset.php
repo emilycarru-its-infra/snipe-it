@@ -128,9 +128,10 @@ class Asset extends Depreciable
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
         // Native lease / purchasing cluster (mirrored from custom fields by
-        // the MirrorsLeaseFields shim — PR 1 of the native-field migration).
-        'lease_end_date' => 'date',
-        'decommission_date' => 'date',
+        // the MirrorsLeaseFields shim). The date columns are deliberately NOT
+        // cast to Carbon: the procurement reports read them as 'Y-m-d' strings
+        // (as the source custom fields were), and a Carbon cast stringifies to
+        // 'Y-m-d H:i:s', which the reports' date parsers reject.
         'lease_rent' => 'decimal:2',
         'buyout_cost' => 'decimal:2',
         'warranty_soft_cost' => 'decimal:2',
