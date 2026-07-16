@@ -85,8 +85,15 @@ class AssetBuyoutRequestTest extends TestCase
             ->assertSessionHas('success');
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor, $endUser, $admin) {
+            // The team CC list is comma-separated; every address must be CC'd.
+            foreach (explode(',', config('leasing.buyout_request_cc')) as $teamAddress) {
+                if (! $mail->hasCc(trim($teamAddress))) {
+                    return false;
+                }
+            }
+
             return $mail->hasTo($lessor->email)
-                && $mail->hasCc(config('leasing.buyout_request_cc'))
+                && $mail->hasCc('rdatta@ecuad.ca')
                 && $mail->hasCc($endUser->email)
                 && $mail->hasCc($admin->email);
         });
