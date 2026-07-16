@@ -61,13 +61,27 @@ trait MirrorsLeaseFields
     }
 
     /**
+     * native column => [custom field name, cast type], for callers that need
+     * to reproduce the mirror's field set and casting (e.g. the
+     * `lease:verify-native` parity command). Reusing this map — rather than
+     * duplicating it — keeps the verifier's normalization identical to what
+     * the shim writes, so honest data never reads as drift.
+     *
+     * @return array<string, array{0:string, 1:string}>
+     */
+    public static function leaseFieldMap(): array
+    {
+        return static::$leaseFieldMap;
+    }
+
+    /**
      * Resolve native column => custom field db_column, once per request.
      * Returns [] (and is a no-op upstream) if the custom_fields table is
      * absent — keeps a fresh DB / early-boot save from blowing up.
      *
      * @return array<string, string|null>
      */
-    protected static function leaseCustomColumnMap(): array
+    public static function leaseCustomColumnMap(): array
     {
         if (static::$leaseCustomColumns !== null) {
             return static::$leaseCustomColumns;
@@ -126,9 +140,10 @@ trait MirrorsLeaseFields
 
     /**
      * Cast a raw custom-field value to the native column's type.
-     * Returns null for blank / unparseable input.
+     * Returns null for blank / unparseable input. Public so the parity
+     * verifier casts source values exactly as the mirror does.
      */
-    protected static function castLeaseValue(mixed $value, string $cast): mixed
+    public static function castLeaseValue(mixed $value, string $cast): mixed
     {
         return match ($cast) {
             'date'    => static::castLeaseDate($value),
