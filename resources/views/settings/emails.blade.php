@@ -48,9 +48,12 @@
                                            data-body-override="{{ $email['body_override'] ?? '' }}"
                                            data-recipients-override="{{ $email['recipients_override'] ?? '' }}"
                                            data-recipients-json="{{ json_encode($email['recipients_json'] ?? []) }}"
+                                           data-cc-override="{{ $email['cc_override'] ?? '' }}"
+                                           data-cc-json="{{ json_encode($email['cc_json'] ?? []) }}"
                                            data-previewable="{{ ($email['previewable'] ?? false) ? '1' : '0' }}"
                                            data-editable="{{ ($email['editable'] ?? false) ? '1' : '0' }}"
                                            data-configurable-recipients="{{ ($email['configurable_recipients'] ?? false) ? '1' : '0' }}"
+                                           data-configurable-cc="{{ ($email['configurable_cc'] ?? false) ? '1' : '0' }}"
                                            data-merge-vars="{{ implode(',', array_keys($email['merge_vars'] ?? [])) }}"
                                            data-last-edited="{{ $email['last_edited'] ?? '' }}"
                                            data-preview-url="{{ route('settings.emails.preview', $email['key']) }}">
@@ -97,6 +100,14 @@
                                     {{ trans('admin/settings/general.emails_recipients_default_none') }}
                                 @endif
                             </p>
+                        </div>
+
+                        <div id="email-cms-cc-group" class="form-group {{ $errors->has('cc') ? 'has-error' : '' }}" style="margin-bottom:8px;">
+                            <label for="email-cms-cc">{{ trans('admin/settings/general.emails_cc') }}</label>
+                            <a href="#" class="email-cms-reset pull-right small" data-target="email-cms-cc">{{ trans('admin/settings/general.emails_reset') }}</a>
+                            <select name="cc[]" id="email-cms-cc" class="form-control" multiple style="width:100%;"></select>
+                            {!! $errors->first('cc', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                            <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_cc_help') }}</p>
                         </div>
 
                         <div id="email-cms-editable-fields">
@@ -184,6 +195,7 @@
         var bodyField = document.getElementById('email-cms-body');
         var mergeVars = document.getElementById('email-cms-merge-vars');
         var recipientsGroup = document.getElementById('email-cms-recipients-group');
+        var ccGroup = document.getElementById('email-cms-cc-group');
         var editableFields = document.getElementById('email-cms-editable-fields');
         var noPreview = document.getElementById('email-cms-no-preview');
         var lastEditedEl = document.getElementById('email-cms-last-edited');
@@ -196,12 +208,12 @@
         var $ = window.jQuery;
         var hasSelect2 = !!($ && $.fn && $.fn.select2);
 
-        // The recipients picker: a searchable select2 over Snipe users (the
+        // The recipients/CC pickers: a searchable select2 over Snipe users (the
         // option value is the user's address) that also accepts free-typed
         // addresses via tags — so a distribution list works the same as a user.
-        // Submitted/stored as recipients[].
+        // Submitted/stored as recipients[] / cc[].
         if (hasSelect2) {
-            $('#email-cms-recipients').select2({
+            $('#email-cms-recipients, #email-cms-cc').select2({
                 width: '100%',
                 multiple: true,
                 tags: true,
@@ -223,10 +235,10 @@
             });
         }
 
-        // Replace the picker's chips with the given [{id,text}] options.
-        function setRecipients(options) {
+        // Replace a picker's chips with the given [{id,text}] options.
+        function setPicker(id, options) {
             if (!hasSelect2) { return; }
-            var $r = $('#email-cms-recipients');
+            var $r = $('#' + id);
             $r.empty();
             (options || []).forEach(function (o) {
                 if (o && o.id) { $r.append(new Option(o.text || o.id, o.id, true, true)); }
@@ -240,7 +252,7 @@
             link.addEventListener('click', function (e) {
                 e.preventDefault();
                 var id = link.getAttribute('data-target');
-                if (id === 'email-cms-recipients') { setRecipients([]); return; }
+                if (id === 'email-cms-recipients' || id === 'email-cms-cc') { setPicker(id, []); return; }
                 var target = document.getElementById(id);
                 if (target) { target.value = ''; target.focus(); }
             });
@@ -273,6 +285,7 @@
             var previewable = el.getAttribute('data-previewable') === '1';
             var editable = el.getAttribute('data-editable') === '1';
             var configurableRecipients = el.getAttribute('data-configurable-recipients') === '1';
+            var configurableCc = el.getAttribute('data-configurable-cc') === '1';
             // After a validation error we re-show the rejected input for this email.
             var isOld = oldInput && oldInput.key === key;
 
@@ -289,26 +302,26 @@
 
             lastEditedEl.textContent = el.getAttribute('data-last-edited') || '';
 
-            // Recipients only where the email opts in. Re-hydrate the picker
-            // from this email's saved options (or the rejected input after a
-            // validation error); clear it when hidden so a stale list can never
-            // be saved onto a different email.
-            recipientsGroup.style.display = configurableRecipients ? '' : 'none';
-            if (configurableRecipients) {
+            // Recipients / CC only where the email opts in. Re-hydrate each
+            // picker from this email's saved options (or the rejected input
+            // after a validation error); clear it when hidden so a stale list
+            // can never be saved onto a different email.
+            function hydratePicker(group, pickerId, enabled, oldValue, jsonAttr) {
+                group.style.display = enabled ? '' : 'none';
+                if (!enabled) { setPicker(pickerId, []); return; }
                 var picks;
-                if (isOld && oldInput.recipients) {
-                    var raw = oldInput.recipients;
-                    var arr = Array.isArray(raw) ? raw : String(raw).split(',');
+                if (isOld && oldValue) {
+                    var arr = Array.isArray(oldValue) ? oldValue : String(oldValue).split(',');
                     picks = arr.map(function (e2) { e2 = (e2 || '').trim(); return { id: e2, text: e2 }; })
                                .filter(function (o) { return o.id; });
                 } else {
-                    try { picks = JSON.parse(el.getAttribute('data-recipients-json') || '[]'); }
+                    try { picks = JSON.parse(el.getAttribute(jsonAttr) || '[]'); }
                     catch (err) { picks = []; }
                 }
-                setRecipients(picks);
-            } else {
-                setRecipients([]);
+                setPicker(pickerId, picks);
             }
+            hydratePicker(recipientsGroup, 'email-cms-recipients', configurableRecipients, oldInput && oldInput.recipients, 'data-recipients-json');
+            hydratePicker(ccGroup, 'email-cms-cc', configurableCc, oldInput && oldInput.cc, 'data-cc-json');
 
             // Test-send only makes sense for mailable-backed emails.
             testBtn.style.display = editable ? '' : 'none';

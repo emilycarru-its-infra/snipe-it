@@ -105,6 +105,8 @@ return [
     'emails_recipients' => 'Recipients',
     'emails_recipients_placeholder' => 'Search users by name, or type an address…',
     'emails_recipients_help' => 'Search Snipe-IT users, or type any address (e.g. a distribution list). Whoever is listed here gets this email instead of the default.',
+    'emails_cc' => 'CC',
+    'emails_cc_help' => 'Search Snipe-IT users, or type any address. Whoever is listed here is copied on this email instead of the built-in CC list; leave empty to use the built-in list.',
     'emails_recipients_default' => 'Default when empty: :list',
     'emails_recipients_default_none' => 'Default when empty: the global alert email list (Settings → Alerts).',
     'emails_recipients_invalid' => '“:email” is not a valid email address.',

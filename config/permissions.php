@@ -146,6 +146,11 @@ return [
         ],
 
         [
+            'permission' => 'assets.request_buyout',
+            'display' => true,
+        ],
+
+        [
             'permission' => 'assets.view.requestable',
             'display' => true,
         ],

@@ -225,6 +225,64 @@ class EmailsSettingTest extends TestCase
         );
     }
 
+    public function test_cc_override_is_saved_and_resolved(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'request.asset_buyout',
+                'cc' => 'hr@ecuad.ca, finance@ecuad.ca',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('email_templates', [
+            'key' => 'request.asset_buyout',
+            'cc' => 'hr@ecuad.ca,finance@ecuad.ca',
+        ]);
+
+        $this->assertSame(
+            ['hr@ecuad.ca', 'finance@ecuad.ca'],
+            EmailTemplate::ccFor('request.asset_buyout', 'fallback@ecuad.ca'),
+        );
+    }
+
+    public function test_cc_resolver_falls_back_to_default_list_when_unset(): void
+    {
+        $this->assertSame(
+            ['devicesadmins@ecuad.ca', 'rdatta@ecuad.ca'],
+            EmailTemplate::ccFor('request.asset_buyout', 'devicesadmins@ecuad.ca,rdatta@ecuad.ca'),
+        );
+    }
+
+    public function test_invalid_cc_email_is_rejected(): void
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->from(route('settings.emails.index'))
+            ->post(route('settings.emails.save'), [
+                'key' => 'request.asset_buyout',
+                'cc' => 'hr@ecuad.ca, not-an-email',
+            ])
+            ->assertSessionHasErrors('cc');
+
+        $this->assertDatabaseMissing('email_templates', ['key' => 'request.asset_buyout']);
+    }
+
+    public function test_blank_cc_clears_the_override(): void
+    {
+        EmailTemplate::create(['key' => 'request.asset_buyout', 'cc' => 'hr@ecuad.ca']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'request.asset_buyout',
+                'cc' => '',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            ['fallback@ecuad.ca'],
+            EmailTemplate::ccFor('request.asset_buyout', 'fallback@ecuad.ca'),
+        );
+    }
+
     public function test_recipient_options_endpoint_searches_users(): void
     {
         $admin = User::factory()->superuser()->create();

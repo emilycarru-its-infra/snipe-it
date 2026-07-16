@@ -21,6 +21,7 @@ class EmailTemplate extends Model
         'subject',
         'body',
         'recipients',
+        'cc',
         'updated_by',
     ];
 
@@ -54,7 +55,7 @@ class EmailTemplate extends Model
      */
     public function hasOverride(): bool
     {
-        return filled($this->subject) || filled($this->body) || filled($this->recipients);
+        return filled($this->subject) || filled($this->body) || filled($this->recipients) || filled($this->cc);
     }
 
     /**
@@ -67,15 +68,32 @@ class EmailTemplate extends Model
      */
     public static function recipientsFor(string $key, ?string $fallbackCsv = null): array
     {
+        return static::addressListFor($key, 'recipients', $fallbackCsv);
+    }
+
+    /**
+     * Resolve the CC list for an email key, same override-else-fallback
+     * semantics as recipientsFor().
+     *
+     * @return array<int, string>
+     */
+    public static function ccFor(string $key, ?string $fallbackCsv = null): array
+    {
+        return static::addressListFor($key, 'cc', $fallbackCsv);
+    }
+
+    /** @return array<int, string> */
+    private static function addressListFor(string $key, string $column, ?string $fallbackCsv): array
+    {
         $csv = $fallbackCsv;
 
         try {
             $override = static::forKey($key);
-            if ($override && filled($override->recipients)) {
-                $csv = $override->recipients;
+            if ($override && filled($override->{$column})) {
+                $csv = $override->{$column};
             }
         } catch (\Throwable $e) {
-            // fall back to the provided global list
+            // fall back to the provided default list
         }
 
         return collect(explode(',', (string) $csv))

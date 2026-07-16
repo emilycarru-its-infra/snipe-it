@@ -577,7 +577,7 @@ class AssetsController extends Controller
      */
     public function requestBuyout(Asset $asset): RedirectResponse
     {
-        $this->authorize('update', $asset);
+        $this->authorize('requestBuyout', $asset);
 
         $back = redirect()->route('hardware.show', $asset->id);
 
@@ -601,11 +601,11 @@ class AssetsController extends Controller
         );
         $to = array_values(array_unique(array_filter(array_merge([$asset->lessor->email], $extraRecipients))));
 
-        // Cc: the fixed team list (comma-separated config), the assigned end user
-        // (only when the asset is checked out to a real User with an email), and
-        // the acting admin. De-dupe and drop any address already in To so it
-        // never lands in both.
-        $cc = array_map('trim', explode(',', config('leasing.buyout_request_cc')));
+        // Cc: the team list (CMS CC override wins, else the comma-separated
+        // config default), the assigned end user (only when the asset is checked
+        // out to a real User with an email), and the acting admin. De-dupe and
+        // drop any address already in To so it never lands in both.
+        $cc = EmailTemplate::ccFor('request.asset_buyout', config('leasing.buyout_request_cc'));
         if (($asset->assignedTo instanceof User) && filled($asset->assignedTo->email)) {
             $cc[] = $asset->assignedTo->email;
         }
