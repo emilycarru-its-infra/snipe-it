@@ -573,6 +573,7 @@
     ],
     "email_templates": [
         "body",
+        "cc",
         "created_at",
         "id",
         "key",
