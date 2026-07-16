@@ -43,6 +43,9 @@ trait MirrorsLeaseFields
         'po_number'           => ['PO Number', 'string'],
         'invoice_number'      => ['Invoice Number', 'string'],
         'warranty_soft_cost'  => ['Warranty/Soft Cost', 'decimal'],
+        'lease_usage'         => ['Usage', 'string'],
+        'lease_area'          => ['Area', 'string'],
+        'lease_book_value'    => ['Book Value', 'decimal'],
     ];
 
     /**
