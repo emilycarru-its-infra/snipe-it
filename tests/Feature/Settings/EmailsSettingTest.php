@@ -245,8 +245,20 @@ class EmailsSettingTest extends TestCase
         );
     }
 
+    public function test_cc_override_is_seeded_from_the_config_default(): void
+    {
+        // The 2026_07_18 data migration promotes the env/config CC list into
+        // the override row, so the Settings → Emails GUI owns the live list.
+        $this->assertSame(
+            collect(explode(',', config('leasing.buyout_request_cc')))->map(fn ($e) => trim($e))->filter()->values()->all(),
+            EmailTemplate::ccFor('request.asset_buyout', 'fallback@example.edu'),
+        );
+    }
+
     public function test_cc_resolver_falls_back_to_default_list_when_unset(): void
     {
+        EmailTemplate::where('key', 'request.asset_buyout')->delete();
+
         $this->assertSame(
             ['devicesadmins@example.edu', 'finance.lead@example.edu'],
             EmailTemplate::ccFor('request.asset_buyout', 'devicesadmins@example.edu,finance.lead@example.edu'),
@@ -255,6 +267,8 @@ class EmailsSettingTest extends TestCase
 
     public function test_invalid_cc_email_is_rejected(): void
     {
+        EmailTemplate::where('key', 'request.asset_buyout')->delete();
+
         $this->actingAs(User::factory()->superuser()->create())
             ->from(route('settings.emails.index'))
             ->post(route('settings.emails.save'), [
@@ -268,7 +282,7 @@ class EmailsSettingTest extends TestCase
 
     public function test_blank_cc_clears_the_override(): void
     {
-        EmailTemplate::create(['key' => 'request.asset_buyout', 'cc' => 'hr@example.edu']);
+        EmailTemplate::updateOrCreate(['key' => 'request.asset_buyout'], ['cc' => 'hr@example.edu']);
 
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('settings.emails.save'), [
