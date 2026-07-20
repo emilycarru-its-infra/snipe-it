@@ -210,13 +210,19 @@
                                 $bySlug = [];
                                 if (($asset->model) && ($asset->model->fieldset)) {
                                     $sidebarFieldNames = ['Decommission Date'];
-                                    // Lease-only fields are hidden for purchased assets — show them
-                                    // only when Ownership Type contains "Lease".
-                                    $ownershipField = $asset->model->fieldset->fields->firstWhere('name', 'Ownership Type');
-                                    $ownershipVal = $ownershipField ? (string) $asset->{$ownershipField->db_column} : '';
-                                    $isLease = stripos($ownershipVal, 'lease') !== false;
-                                    $leaseOnlyFieldNames = ['Lease Contract ID', 'Lease Contract Name', 'Lease End Date', 'Lease Rent', 'Buyout Cost', 'Book Value'];
-                                    $hideFieldNames = $isLease ? $sidebarFieldNames : array_merge($sidebarFieldNames, $leaseOnlyFieldNames);
+                                    // Lease-only visibility is now decided natively inside
+                                    // hardware/_group_card.blade.php from $asset->ownership_type
+                                    // (F2 lease migration) — no fieldset lookup needed here.
+                                    // All lease / purchasing fields now render natively on the
+                                    // procurement/inventory cards, so exclude their custom-field
+                                    // twins from the generic fieldset loop unconditionally to
+                                    // avoid double-rendering (they survive the _snipeit_* drop).
+                                    $leaseCustomFieldNames = [
+                                        'Lease Contract ID', 'Lease Contract Name', 'Ownership Type',
+                                        'Lease End Date', 'Lease Rent', 'Buyout Cost', 'Book Value',
+                                        'PO Number', 'Invoice Number', 'Warranty/Soft Cost', 'Usage', 'Area',
+                                    ];
+                                    $hideFieldNames = array_merge($sidebarFieldNames, $leaseCustomFieldNames);
                                     $fsFields = $asset->model->fieldset->fields
                                         ->reject(fn ($f) => in_array($f->name, $hideFieldNames, true));
                                     $grouped = [];
