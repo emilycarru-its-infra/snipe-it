@@ -5,6 +5,7 @@
     'copy_what' => null,
     'editable' => true,
     'options' => [],
+    'link' => null,
 ])
 
 {{--
@@ -26,7 +27,11 @@
 <span class="js-inline-display inline-core-field" id="{{ $editId }}-display">
     <span class="inline-core-value @if ($copy_what) js-copy-{{ $copy_what }} @endif">
         @if ($hasValue)
-            {{ $slot->isEmpty() ? $raw : $slot }}
+            @if (! empty($link))
+                <a href="{{ $link }}" data-tooltip="true" data-placement="top" title="{{ trans('general.view_assets') }}">{{ $slot->isEmpty() ? $raw : $slot }}</a>
+            @else
+                {{ $slot->isEmpty() ? $raw : $slot }}
+            @endif
         @endif
     </span>
     @if ($hasValue && $copy_what)
