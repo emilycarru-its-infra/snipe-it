@@ -100,7 +100,7 @@ class ScheduleSigningQueueTest extends TestCase
             ->assertOk()
             // The unsigned-schedules count now lives in the Reconciling
             // chevron on the pipeline rail.
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_reconciling_note', ['pending' => 0, 'schedules' => 1]));
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_note_schedules_unsigned', ['count' => 1]));
     }
 
     public function test_create_and_update_endpoints_work()
