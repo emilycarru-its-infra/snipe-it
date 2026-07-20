@@ -35,7 +35,8 @@ class OidcApiAuthTest extends TestCase
             'private_key_bits' => 2048,
             'private_key_type' => OPENSSL_KEYTYPE_RSA,
         ]);
-        openssl_pkey_export($res, $this->privatePem);
+        openssl_pkey_export($res, $privatePem);
+        $this->privatePem = $privatePem;
         $details = openssl_pkey_get_details($res);
 
         $jwks = ['keys' => [[
