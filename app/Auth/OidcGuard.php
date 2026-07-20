@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
  * null on any failure so the framework produces a normal 401.
  *
  * Registered as the `oidc` driver in config/auth.php and layered alongside
- * Passport via the `auth:api,oidc` multi-guard, so a route accepts either an
+ * Passport via the `auth:oidc,api` multi-guard, so a route accepts either an
  * OIDC token or a Passport token. Inert until config('oidc.enabled') is true.
  */
 class OidcGuard implements Guard

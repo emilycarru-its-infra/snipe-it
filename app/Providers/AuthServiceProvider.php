@@ -115,7 +115,7 @@ class AuthServiceProvider extends ServiceProvider
         Passport::cookie(config('passport.cookie_name'));
 
         // Federated identity: a provider-agnostic OIDC bearer guard, layered
-        // alongside Passport via the `auth:api,oidc` multi-guard. Inert until
+        // alongside Passport via the `auth:oidc,api` multi-guard. Inert until
         // config('oidc.enabled') is true, so this is purely additive.
         Auth::extend('oidc', function ($app, $name, array $config) {
             return new \App\Auth\OidcGuard(
