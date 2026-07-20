@@ -62,10 +62,27 @@
             @endif
         @endif
 
+        {{-- Lease fields whose value deep-links to the matching filtered asset
+             list (native columns from the F2 lease migration). Keyed by the
+             custom-field name shown as the row label. --}}
+        @php
+            $leaseLinkColumns = [
+                'Lease Contract ID'   => 'lease_contract_id',
+                'Lease Contract Name' => 'lease_contract_name',
+                'Ownership Type'      => 'ownership_type',
+            ];
+        @endphp
         @foreach ($section['fields'] as $field)
+            @php
+                $linkColumn = $leaseLinkColumns[$field->name] ?? null;
+                $linkValue  = $linkColumn ? $asset->{$linkColumn} : null;
+                $fieldLink  = ($linkColumn && filled($linkValue))
+                    ? route('hardware.index', [$linkColumn => $linkValue])
+                    : null;
+            @endphp
             <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ $field->name }}</div>
-                <div class="asset-card-val"><x-inline-custom-field :asset="$asset" :field="$field"/></div>
+                <div class="asset-card-val"><x-inline-custom-field :asset="$asset" :field="$field" :link="$fieldLink"/></div>
             </div>
         @endforeach
 
