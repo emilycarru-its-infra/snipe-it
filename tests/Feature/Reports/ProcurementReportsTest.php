@@ -567,7 +567,9 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement'))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.card_user_agreements_unsigned', ['count' => 1]));
+            // The unsigned-agreements count now lives in the Deploying
+            // chevron on the pipeline rail.
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_deploying_note', ['sent' => 1]));
     }
 
     /**
@@ -853,10 +855,10 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement'))
             ->assertOk()
-            // Card copy uses the lang strings introduced for the new
-            // finance-facing cards.
-            ->assertSee(trans('admin/purchase-orders/general.card_pending_approvals', ['count' => 1]))
-            ->assertSee(trans('admin/purchase-orders/general.card_pending_decisions', ['count' => 0]));
+            // Pending approvals surface in the Reconciling chevron; lease
+            // decisions live on the returns lane of the pipeline board.
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_reconciling_note', ['pending' => 1, 'schedules' => 0]))
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_returns_title'));
     }
 
     public function test_leases_financial_report_rolls_up_warranty_costs()

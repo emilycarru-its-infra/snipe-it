@@ -23,6 +23,7 @@ use App\Models\User;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
+use App\Services\ProcurementPipeline;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -249,6 +250,7 @@ class ProcurementReportsController extends Controller
         )->count();
 
         return view('reports/procurement', [
+            'pipeline' => ProcurementPipeline::build($selectedFy),
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
             'userAgreementsAwaitingSignatureCount' => $userAgreementsAwaitingSignatureCount,

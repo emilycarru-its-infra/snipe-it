@@ -27,142 +27,58 @@
     </div>
 </div>
 
-<div class="row proc-card-row">
-    <div class="col-md-4 col-sm-6">
-        @can('budget_allocations.manage')
-            <a href="#" data-toggle="modal" data-target="#budgetAllocationsModal" class="small-box-link" style="text-decoration:none;">
-        @endcan
-            <div class="small-box bg-aqua">
-                <div class="inner">
-                    <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalBudget) }}</h3>
-                    <p>
-                        {{ trans('admin/purchase-orders/general.card_budget') }}
-                        @if (! $budgetFromAllocations && count($poRows))
-                            &middot; {{ trans('admin/purchase-orders/general.card_budget_from_pos') }}
-                        @elseif ($budgetFromAllocations)
-                            @can('budget_allocations.manage')
-                                &middot; {{ $allocations->count() }} {{ trans('admin/budget-allocations/general.allocations') }}
-                            @endcan
-                        @endif
-                        @if ($liveCarry)
-                            &middot; {{ trans('admin/purchase-orders/general.card_budget_incl_carry', [
-                                'amount' => '$'.Helper::formatCurrencyOutput($liveCarry['unused']),
-                                'source' => $liveCarry['source_fy'],
-                            ]) }}
-                        @endif
-                    </p>
+<div class="row">
+    <div class="col-md-3 col-sm-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_po') }}</h3>
+            </div>
+            <div class="box-body">
+                <div style="position:relative; height:200px;">
+                    <canvas id="procPoChart"></canvas>
                 </div>
-                <div class="icon"><i class="fas fa-wallet" aria-hidden="true"></i></div>
             </div>
-        @can('budget_allocations.manage')
-            </a>
-        @endcan
-    </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="small-box bg-yellow">
-            <div class="inner">
-                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalCommitted) }}</h3>
-                <p>{{ trans('admin/purchase-orders/general.card_committed') }}</p>
-            </div>
-            <div class="icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
         </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="small-box {{ $totalRemaining < 0 ? 'bg-red' : 'bg-green' }}">
-            <div class="inner">
-                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalRemaining) }}</h3>
-                <p>{{ trans('admin/purchase-orders/general.card_remaining') }}</p>
+    <div class="col-md-3 col-sm-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_utilization') }}</h3>
             </div>
-            <div class="icon"><i class="fas fa-balance-scale" aria-hidden="true"></i></div>
-        </div>
-    </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="small-box bg-blue">
-            <div class="inner">
-                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($totalInvoiced) }}</h3>
-                <p>{{ trans('admin/purchase-orders/general.card_invoiced') }} &middot; {{ $invoiceCount }} {{ trans('admin/orders/general.invoices') }}</p>
-            </div>
-            <div class="icon"><i class="fas fa-receipt" aria-hidden="true"></i></div>
-        </div>
-    </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="small-box bg-navy">
-            <div class="inner">
-                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($plannedTotal) }}</h3>
-                <p>{{ trans('admin/purchase-orders/general.card_forecast') }}</p>
-            </div>
-            <div class="icon"><i class="fas fa-chart-line" aria-hidden="true"></i></div>
-        </div>
-    </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="small-box bg-purple">
-            <div class="inner">
-                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($eolEstimate) }}</h3>
-                <p>{{ trans('admin/purchase-orders/general.card_eol', ['count' => $eolCount]) }}</p>
-            </div>
-            <div class="icon"><i class="fas fa-hourglass-end" aria-hidden="true"></i></div>
-        </div>
-    </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="small-box bg-teal">
-            <div class="inner">
-                <h3 style="font-size:24px">${{ Helper::formatCurrencyOutput($leaseExpiryTotal) }}</h3>
-                <p>{!! trans(
-                    $selectedFy
-                        ? 'admin/purchase-orders/general.card_lease_preapproval'
-                        : 'admin/purchase-orders/general.card_lease_preapproval_all',
-                    ['count' => $leaseExpiryCount]
-                ) !!}</p>
-            </div>
-            <div class="icon"><i class="fas fa-calendar-alt" aria-hidden="true"></i></div>
-        </div>
-    </div>
-    <div class="col-md-4 col-sm-6">
-        <a href="{{ route('reports.procurement.invoice-approval') }}" class="small-box-link">
-            <div class="small-box {{ $pendingApprovalCount > 0 ? 'bg-red' : 'bg-green' }}">
-                <div class="inner">
-                    <h3 style="font-size:24px">{{ $pendingApprovalCount }}</h3>
-                    <p>{{ trans('admin/purchase-orders/general.card_pending_approvals', ['count' => $pendingApprovalCount]) }}</p>
+            <div class="box-body">
+                <div style="position:relative; height:200px;">
+                    <canvas id="procUtilChart"></canvas>
                 </div>
-                <div class="icon"><i class="fas fa-clipboard-check" aria-hidden="true"></i></div>
             </div>
-        </a>
+        </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <a href="{{ route('reports.procurement.lease-decisions', ['status' => 'pending']) }}" class="small-box-link">
-            <div class="small-box {{ $pendingDecisionCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
-                <div class="inner">
-                    <h3 style="font-size:24px">{{ $pendingDecisionCount }}</h3>
-                    <p>{{ trans('admin/purchase-orders/general.card_pending_decisions', ['count' => $pendingDecisionCount]) }}</p>
-                </div>
-                <div class="icon"><i class="fas fa-handshake" aria-hidden="true"></i></div>
+    <div class="col-md-3 col-sm-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_fiscal_year') }}</h3>
             </div>
-        </a>
+            <div class="box-body">
+                <div style="position:relative; height:200px;">
+                    <canvas id="procFyChart"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <a href="{{ route('reports.procurement.user-agreement-ledger') }}" class="small-box-link">
-            <div class="small-box {{ $userAgreementsAwaitingSignatureCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
-                <div class="inner">
-                    <h3 style="font-size:24px">{{ $userAgreementsAwaitingSignatureCount }}</h3>
-                    <p>{{ trans('admin/purchase-orders/general.card_user_agreements_unsigned', ['count' => $userAgreementsAwaitingSignatureCount]) }}</p>
-                </div>
-                <div class="icon"><i class="fas fa-file-signature" aria-hidden="true"></i></div>
+    <div class="col-md-3 col-sm-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_monthly') }}</h3>
             </div>
-        </a>
-    </div>
-    <div class="col-md-4 col-sm-6">
-        <a href="{{ route('reports.procurement.schedule-signing') }}" class="small-box-link">
-            <div class="small-box {{ $scheduleSigningQueueCount > 0 ? 'bg-yellow' : 'bg-aqua' }}">
-                <div class="inner">
-                    <h3 style="font-size:24px">{{ $scheduleSigningQueueCount }}</h3>
-                    <p>{{ trans('admin/purchase-orders/general.card_schedules_unsigned', ['count' => $scheduleSigningQueueCount]) }}</p>
+            <div class="box-body">
+                <div style="position:relative; height:200px;">
+                    <canvas id="procMonthlyChart"></canvas>
                 </div>
-                <div class="icon"><i class="fas fa-stamp" aria-hidden="true"></i></div>
             </div>
-        </a>
+        </div>
     </div>
 </div>
 
+@include('reports.procurement._pipeline')
 @if (count($leaseEndSchedules))
 <div class="row">
     <div class="col-md-12">
@@ -282,60 +198,6 @@
 </div>
 @endif
 
-<div class="row">
-    <div class="col-md-7">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_po') }}</h3>
-            </div>
-            <div class="box-body">
-                <div style="position:relative; height:300px;">
-                    <canvas id="procPoChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-5">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_utilization') }}</h3>
-            </div>
-            <div class="box-body">
-                <div style="position:relative; height:300px;">
-                    <canvas id="procUtilChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-6">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_fiscal_year') }}</h3>
-            </div>
-            <div class="box-body">
-                <div style="position:relative; height:280px;">
-                    <canvas id="procFyChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_monthly') }}</h3>
-            </div>
-            <div class="box-body">
-                <div style="position:relative; height:280px;">
-                    <canvas id="procMonthlyChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 @php
     $hiddenReports = (array) (auth()->user()?->hidden_procurement_reports ?? []);
 
@@ -347,45 +209,50 @@
 
     // One list drives both the sticky jump-nav and the inline tables.
     $procReports = collect([
-        ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc'],
-        ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc'],
-        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc'],
-        ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc'],
-        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc'],
-        ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc'],
-        ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc'],
-        ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc'],
-        ['route' => 'reports.procurement.csi-reconciliation', 'name' => 'report_csi_reconciliation', 'desc' => 'report_csi_reconciliation_desc'],
-        ['route' => 'reports.procurement.csi-arrivals', 'name' => 'report_csi_arrivals', 'desc' => 'report_csi_arrivals_desc'],
-        ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc'],
-        ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc'],
-        ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc'],
-        ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc'],
-        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc'],
-        ['route' => 'reports.procurement.asset-lease-detail', 'name' => 'report_asset_lease_detail', 'desc' => 'report_asset_lease_detail_desc'],
-        ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc'],
-        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc'],
-        ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc'],
-        ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc'],
-        ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc'],
-        ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc'],
+        ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'stage' => 'budgeting'],
+        ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'budgeting'],
+        ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'stage' => 'budgeting'],
+        ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc', 'stage' => 'deploying'],
+        ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc', 'stage' => 'processing'],
+        ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc', 'stage' => 'budgeting'],
+        ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.csi-reconciliation', 'name' => 'report_csi_reconciliation', 'desc' => 'report_csi_reconciliation_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.csi-arrivals', 'name' => 'report_csi_arrivals', 'desc' => 'report_csi_arrivals_desc', 'stage' => 'processing'],
+        ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc', 'stage' => 'processing'],
+        ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'stage' => 'ordering'],
+        ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc', 'stage' => 'budgeting'],
+        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.asset-lease-detail', 'name' => 'report_asset_lease_detail', 'desc' => 'report_asset_lease_detail_desc', 'stage' => 'processing'],
+        ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc', 'stage' => 'ordering'],
+        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'processing'],
+        ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.lessor-breakdown', 'name' => 'report_lessor_breakdown', 'desc' => 'report_lessor_breakdown_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.schedule-signing', 'name' => 'report_schedule_signing', 'desc' => 'report_schedule_signing_desc', 'stage' => 'reconciling'],
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
 
 <div class="row proc-reports-row">
     {{-- Sticky jump-nav so every report stays one click away in the long scroll. --}}
     <div class="proc-nav-col hidden-sm hidden-xs">
-        <div class="proc-report-nav">
+        <div class="proc-report-nav proc-pipe">
             <div class="box box-default" style="margin-bottom:0;">
                 <div class="box-header with-border">
                     <h3 class="box-title">{{ trans('admin/purchase-orders/general.reports') }}</h3>
                 </div>
                 <div class="box-body no-padding">
+                    <div class="pp-filter-note" id="pp-filter-note">
+                        <span class="pp-fdot"></span>
+                        <span data-pp-filter-label></span>
+                        <a href="#" id="pp-filter-clear">{{ trans('admin/purchase-orders/general.pipeline_filter_clear') }}</a>
+                    </div>
                     <ul class="nav nav-pills nav-stacked proc-report-navlist">
                         @foreach ($procReports as $report)
-                            <li>
+                            <li data-report-stage="{{ $report['stage'] }}">
                                 <a href="#proc-{{ $report['name'] }}" data-target-report="proc-{{ $report['name'] }}">
-                                    {{ trans('admin/purchase-orders/general.'.$report['name']) }}
+                                    <span class="pp-sdot" style="background: var(--pp-{{ $report['stage'] }})"></span>{{ trans('admin/purchase-orders/general.'.$report['name']) }}
                                 </a>
                             </li>
                         @endforeach
@@ -403,9 +270,9 @@
         </div>
     </div>
 
-    <div class="proc-content-col col-sm-12">
+    <div class="proc-content-col col-sm-12 proc-pipe">
         @foreach ($procReports as $report)
-            <div class="box box-default proc-report-box" id="proc-{{ $report['name'] }}" style="scroll-margin-top:64px;">
+            <div class="box box-default proc-report-box" id="proc-{{ $report['name'] }}" data-report-stage="{{ $report['stage'] }}" style="scroll-margin-top:64px;">
                 <div class="box-header with-border">
                     <h3 class="box-title">
                         <a href="{{ $reportLink($report['route']) }}">{{ trans('admin/purchase-orders/general.'.$report['name']) }}</a>
