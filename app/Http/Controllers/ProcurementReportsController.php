@@ -1667,12 +1667,10 @@ class ProcurementReportsController extends Controller
 
     /**
      * Logical lease field => native `assets` column. These lived in Snipe-IT
-     * custom fields (`_snipeit_*`); as of the F2·2 read cutover the reports
-     * read the native typed columns instead. The MirrorsLeaseFields shim keeps
-     * the native columns in lock-step with the custom fields on every save,
-     * and `php artisan lease:verify-native` gates this cutover on full
-     * native/custom parity. Native names are stable across environments, so
-     * the old per-name db_column lookup is gone. The key set (and its order,
+     * custom fields (`_snipeit_*`); the F2 migration moved them to native typed
+     * columns and dropped the custom fields, so the reports read native
+     * directly. Native names are stable across environments, so the old
+     * per-name db_column lookup is gone. The key set (and its order,
      * matching the sharepoint.csv export) is unchanged, so every caller that
      * reads `$asset->{$columns[...]}` keeps working. See
      * docs/lease-native-roadmap.md.
