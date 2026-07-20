@@ -18,7 +18,9 @@ use App\Models\License;
 use App\Models\Location;
 use App\Models\Maintenance;
 use App\Models\Manufacturer;
+use App\Models\Order;
 use App\Models\PredefinedKit;
+use App\Models\PurchaseOrder;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -410,6 +412,45 @@ class BreadcrumbsServiceProvider extends ServiceProvider
 
         Breadcrumbs::for('kits.edit', fn (Trail $trail, PredefinedKit $kit) => $trail->parent('kits.index', route('kits.index'))
             ->push($kit->display_name, route('kits.show', $kit))
+            ->push(trans('general.update'))
+        );
+
+        /**
+         * Orders & Purchase Orders Breadcrumbs — these pages open from the
+         * procurement dashboard's pipeline board, so the trail is the way
+         * back to the report.
+         */
+        Breadcrumbs::for('orders.index', fn (Trail $trail) => $trail->parent('home', route('home'))
+            ->push(trans('admin/orders/general.orders'), route('orders.index'))
+        );
+
+        Breadcrumbs::for('orders.create', fn (Trail $trail) => $trail->parent('orders.index', route('orders.index'))
+            ->push(trans('general.create'), route('orders.create'))
+        );
+
+        Breadcrumbs::for('orders.show', fn (Trail $trail, Order $order) => $trail->parent('orders.index', route('orders.index'))
+            ->push($order->order_number, route('orders.show', $order))
+        );
+
+        Breadcrumbs::for('orders.edit', fn (Trail $trail, Order $order) => $trail->parent('orders.index', route('orders.index'))
+            ->push($order->order_number, route('orders.show', $order))
+            ->push(trans('general.update'))
+        );
+
+        Breadcrumbs::for('purchase-orders.index', fn (Trail $trail) => $trail->parent('home', route('home'))
+            ->push(trans('admin/purchase-orders/general.purchase_orders'), route('purchase-orders.index'))
+        );
+
+        Breadcrumbs::for('purchase-orders.create', fn (Trail $trail) => $trail->parent('purchase-orders.index', route('purchase-orders.index'))
+            ->push(trans('general.create'), route('purchase-orders.create'))
+        );
+
+        Breadcrumbs::for('purchase-orders.show', fn (Trail $trail, PurchaseOrder $purchaseOrder) => $trail->parent('purchase-orders.index', route('purchase-orders.index'))
+            ->push($purchaseOrder->po_number, route('purchase-orders.show', $purchaseOrder))
+        );
+
+        Breadcrumbs::for('purchase-orders.edit', fn (Trail $trail, PurchaseOrder $purchaseOrder) => $trail->parent('purchase-orders.index', route('purchase-orders.index'))
+            ->push($purchaseOrder->po_number, route('purchase-orders.show', $purchaseOrder))
             ->push(trans('general.update'))
         );
 

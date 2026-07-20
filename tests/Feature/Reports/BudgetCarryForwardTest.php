@@ -71,6 +71,25 @@ class BudgetCarryForwardTest extends TestCase
             ->assertSee(trans('admin/budget-allocations/general.live'));
     }
 
+    public function test_cross_year_spend_on_prior_fy_po_drains_the_carry()
+    {
+        // A blanket PO from FY2025-26 also carries this year's purchases
+        // (the schedules-007/008 shape). The envelope is drained by
+        // everything charged to it regardless of purchase date, so the
+        // carry is $10,000 − $4,000 − $2,500 = $3,500 — not $6,000.
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0077020', 'budget' => 10000, 'fiscal_year' => 'FY2025-26',
+        ]);
+        $this->commitViaAsset('P0077020', 4000, '2025-06-01');
+        $this->commitViaAsset('P0077020', 2500, '2026-05-01');
+        $this->makeTargetFySelectable();
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee($this->inclCarryText('$3,500.00'));
+    }
+
     public function test_live_carry_nets_per_po_and_ignores_budgetless_po_spend()
     {
         // Two envelopes: $4,000/$4,500 committed (over by $500) and

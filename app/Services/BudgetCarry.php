@@ -15,6 +15,12 @@ use App\Models\PurchaseOrder;
  * envelopes: spend filed against a PO with no budget record doesn't
  * drain another PO's envelope, and an overspent PO nets against the
  * others.
+ *
+ * Committed is deliberately NOT scoped to the source fiscal year: a
+ * blanket PO from the prior FY can carry this year's purchases too
+ * (e.g. schedules 007/008 — FY2026-27 spend on a FY2025-26 PO), and
+ * that spend drains the envelope all the same. Scoping by purchase
+ * date would leave it out and overstate the carry.
  */
 class BudgetCarry
 {
@@ -36,7 +42,7 @@ class BudgetCarry
             return null;
         }
 
-        $committedByPo = AssetCommitted::byPo($sourceFy);
+        $committedByPo = AssetCommitted::byPo();
         $committed = (float) $purchaseOrders->sum(
             fn ($po) => (float) ($committedByPo[$po->po_number] ?? 0.0)
         );
