@@ -1,6 +1,7 @@
 @props([
     'asset',
     'field',
+    'link' => null,
 ])
 
 {{--
@@ -37,7 +38,11 @@
 <span class="js-inline-display inline-core-field" id="{{ $editId }}-display">
     <span class="inline-core-value">
         @if ($hasValue)
-            <x-info-element.customfield :item="$asset" :field="$field"/>
+            @if (! empty($link))
+                <a href="{{ $link }}" data-tooltip="true" data-placement="top" title="{{ trans('general.view_assets') }}"><x-info-element.customfield :item="$asset" :field="$field"/></a>
+            @else
+                <x-info-element.customfield :item="$asset" :field="$field"/>
+            @endif
         @endif
     </span>
     @if ($hasValue)

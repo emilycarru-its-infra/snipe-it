@@ -373,6 +373,20 @@ class AssetsController extends Controller
             $assets->where('assets.order_number', '=', strval($request->input('order_number')));
         }
 
+        // Deep-link filters from the asset detail Procurement card (native lease
+        // columns). Exact match, mirroring order_number above.
+        if ($request->filled('lease_contract_id')) {
+            $assets->where('assets.lease_contract_id', '=', strval($request->input('lease_contract_id')));
+        }
+
+        if ($request->filled('lease_contract_name')) {
+            $assets->where('assets.lease_contract_name', '=', strval($request->input('lease_contract_name')));
+        }
+
+        if ($request->filled('ownership_type')) {
+            $assets->where('assets.ownership_type', '=', strval($request->input('ownership_type')));
+        }
+
         // This is kinda gross, but we need to do this because the Bootstrap Tables
         // API passes custom field ordering as custom_fields.fieldname, and we have to strip
         // that out to let the default sorter below order them correctly on the assets table.
