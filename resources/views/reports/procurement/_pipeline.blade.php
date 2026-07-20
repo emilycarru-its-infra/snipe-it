@@ -23,7 +23,8 @@
                     'planned' => $fmt($plannedTotal), 'remaining' => $fmt($totalRemaining),
                 ]),
                 trans('admin/purchase-orders/general.pipeline_budgeting_note2', [
-                    'eol_count' => $eolCount, 'eol_cost' => $fmt($eolEstimate), 'lease_cost' => $fmt($leaseExpiryTotal),
+                    'eol_count' => $eolCount, 'eol_cost' => $fmt($eolEstimate),
+                    'lease_cost' => $fmt($leaseExpiryTotal), 'lease_count' => $leaseExpiryCount,
                 ]),
                 ...(($liveCarry ?? null) ? [trans('admin/purchase-orders/general.card_budget_incl_carry', [
                     'amount' => $fmt($liveCarry['unused']), 'source' => $liveCarry['source_fy'],

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class OrderItem extends Model
 {
@@ -49,6 +51,9 @@ class OrderItem extends Model
         static::deleted(fn (OrderItem $item) => $item->order?->recalculateStatus());
     }
 
+    /**
+     * @return BelongsTo<Order, $this>
+     */
     public function order()
     {
         return $this->belongsTo(Order::class, 'order_id');
@@ -58,6 +63,8 @@ class OrderItem extends Model
      * The purchase order this line item is charged to. Carried per line
      * item, not per order, so a single vendor order can be split across
      * purchase orders.
+     *
+     * @return BelongsTo<PurchaseOrder, $this>
      */
     public function purchaseOrder()
     {
@@ -66,6 +73,8 @@ class OrderItem extends Model
 
     /**
      * The shipment this line item arrived (or will arrive) in, when assigned.
+     *
+     * @return BelongsTo<OrderShipment, $this>
      */
     public function shipment()
     {
@@ -74,6 +83,8 @@ class OrderItem extends Model
 
     /**
      * The invoice this line item was billed on, when assigned.
+     *
+     * @return BelongsTo<OrderInvoice, $this>
      */
     public function invoice()
     {
@@ -91,6 +102,8 @@ class OrderItem extends Model
     /**
      * The end-of-life asset this planned line item is forecast to replace,
      * when generated from the Refresh Forecast report.
+     *
+     * @return BelongsTo<Asset, $this>
      */
     public function replacesAsset()
     {
@@ -101,6 +114,8 @@ class OrderItem extends Model
      * The asset or consumable this line item resolves to, when linked.
      * Null item_type/item_id means a free-text line that isn't yet
      * matched to an inventory record.
+     *
+     * @return MorphTo<Model, $this>
      */
     public function item()
     {

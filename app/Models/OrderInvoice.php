@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * A vendor invoice against an order. A single order (e.g. a CDW order)
@@ -61,6 +62,9 @@ class OrderInvoice extends Model
         'is_final_invoice' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<Order, $this>
+     */
     public function order()
     {
         return $this->belongsTo(Order::class, 'order_id');
@@ -69,6 +73,8 @@ class OrderInvoice extends Model
     /**
      * The purchase order this invoice is charged to. A vendor order can be
      * split across purchase orders, so the invoice carries its own PO.
+     *
+     * @return BelongsTo<PurchaseOrder, $this>
      */
     public function purchaseOrder()
     {

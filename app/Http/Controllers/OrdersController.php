@@ -355,9 +355,9 @@ class OrdersController extends Controller
             foreach ($order->items as $item) {
                 $itemName = '';
                 if ($item->item) {
-                    $itemName = $item->item_type === Asset::class
+                    $itemName = $item->item instanceof Asset
                         ? $item->item->present()->fullName()
-                        : (string) $item->item->name;
+                        : (string) $item->item->getAttribute('name');
                 }
 
                 $row = [
