@@ -3,8 +3,9 @@
 namespace Tests\Feature\Authentication;
 
 use App\Models\User;
+use App\Services\Oidc\OidcTokenValidator;
 use Firebase\JWT\JWT;
-use Illuminate\Support\Facades\Cache;
+use Firebase\JWT\Key;
 use Illuminate\Support\Facades\Route;
 use Laravel\Passport\Passport;
 use Tests\TestCase;
@@ -12,16 +13,15 @@ use Tests\TestCase;
 /**
  * Provider-agnostic OIDC bearer authentication for the API. Exercised through a
  * throwaway route under the real `auth:api,oidc` multi-guard, with JWTs signed
- * by a local RSA keypair and the JWKS seeded into the cache -- so these tests
- * never touch a network or a real IdP.
+ * by a local RSA keypair. The validator's JWKS retrieval is stubbed with that
+ * keypair's public key (the network/discovery path is unchanged in production),
+ * so these tests never touch a network or a real IdP.
  */
 class OidcApiAuthTest extends TestCase
 {
     private string $issuer = 'https://issuer.test/v2.0';
 
     private string $audience = 'api://snipe-test';
-
-    private string $jwksUri = 'https://issuer.test/discovery/keys';
 
     private string $kid = 'test-key-1';
 
@@ -31,45 +31,43 @@ class OidcApiAuthTest extends TestCase
     {
         parent::setUp();
 
+        // Snipe redirects unauthenticated requests to the setup wizard (302)
+        // until at least one user exists -- create one so we get real 401s.
+        User::factory()->create();
+
         $res = openssl_pkey_new([
             'private_key_bits' => 2048,
             'private_key_type' => OPENSSL_KEYTYPE_RSA,
         ]);
         openssl_pkey_export($res, $privatePem);
         $this->privatePem = $privatePem;
-        $details = openssl_pkey_get_details($res);
-
-        $jwks = ['keys' => [[
-            'kty' => 'RSA',
-            'use' => 'sig',
-            'alg' => 'RS256',
-            'kid' => $this->kid,
-            'n' => $this->b64url($details['rsa']['n']),
-            'e' => $this->b64url($details['rsa']['e']),
-        ]]];
+        $publicPem = openssl_pkey_get_details($res)['key'];
 
         config([
             'oidc.enabled' => true,
             'oidc.issuers' => [$this->issuer],
             'oidc.audiences' => [$this->audience],
-            'oidc.jwks_uri' => $this->jwksUri,
             'oidc.algorithms' => ['RS256'],
             'oidc.username_claim' => 'preferred_username',
             'oidc.provision' => false,
             'oidc.leeway' => 60,
         ]);
 
-        // Seed the signing keys so the validator never fetches over the network.
-        Cache::put('oidc_jwks_'.md5($this->jwksUri), $jwks, 3600);
+        // Stub JWKS retrieval with the local public key so the validator never
+        // hits the network; iss/aud/exp/signature validation still run for real.
+        $this->app->instance(OidcTokenValidator::class, new class($publicPem, $this->kid) extends OidcTokenValidator
+        {
+            public function __construct(private string $pub, private string $signingKid) {}
+
+            protected function signingKeys(string $issuer): array
+            {
+                return [$this->signingKid => new Key($this->pub, 'RS256')];
+            }
+        });
 
         Route::middleware('auth:api,oidc')->get('/_test/oidc-whoami', function () {
             return response()->json(['username' => auth()->user()->username]);
         });
-    }
-
-    private function b64url(string $bin): string
-    {
-        return rtrim(strtr(base64_encode($bin), '+/', '-_'), '=');
     }
 
     private function token(array $overrides = []): string
