@@ -83,8 +83,8 @@ class OrdersTransformer
             'received_at' => Helper::getFormattedDateObject($item->received_at, 'datetime'),
             'invoice' => ($item->invoice_id && $item->invoice) ? e($item->invoice->invoice_number) : null,
             'item' => ($item->item_type && $item->item) ? [
-                'id' => (int) $item->item->id,
-                'name' => e($item->item->name),
+                'id' => (int) $item->item->getKey(),
+                'name' => e($item->item->getAttribute('name')),
                 'type' => class_basename($item->item_type),
             ] : null,
         ];

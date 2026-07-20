@@ -320,7 +320,7 @@ return [
     'stage_completed_months' => 'rolling',
     'pipeline_gate' => 'PO # required →',
     'pipeline_budgeting_note' => ':planned planned · :remaining remaining',
-    'pipeline_budgeting_note2' => ':eol_count EOL devices (:eol_cost) · :lease_cost lease-end pre-approval',
+    'pipeline_budgeting_note2' => ':eol_count EOL devices (:eol_cost) · :lease_cost lease-end pre-approval · :lease_count devices',
     'pipeline_ordering_note' => 'committed · :pos POs · :orders open orders',
     'pipeline_processing_note' => 'received in staging · :returns returns in prep',
     'pipeline_deploying_note' => 'agreements in flight · :sent awaiting signature',
