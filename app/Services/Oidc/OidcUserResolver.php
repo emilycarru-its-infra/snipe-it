@@ -46,15 +46,15 @@ class OidcUserResolver
 
     protected function usernameFromClaims(array $claims): ?string
     {
+        // Match ONLY the admin-configured claim. Falling back to other claims
+        // (upn/email) would let a token that lacks the trusted claim authenticate
+        // via a different, possibly less-trustworthy or differently-scoped claim
+        // -- an account-confusion / bypass vector. Provider differences belong in
+        // config (OIDC_API_USERNAME_CLAIM), not a silent fallback. Absent the
+        // configured claim, reject.
         $claimName = config('oidc.username_claim', 'preferred_username');
 
-        foreach ([$claimName, 'preferred_username', 'upn', 'email'] as $candidate) {
-            if (! empty($claims[$candidate])) {
-                return $claims[$candidate];
-            }
-        }
-
-        return null;
+        return ! empty($claims[$claimName]) ? (string) $claims[$claimName] : null;
     }
 
     protected function provision(array $claims, string $username): ?User
