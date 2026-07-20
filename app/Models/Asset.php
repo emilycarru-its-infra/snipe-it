@@ -170,6 +170,23 @@ class Asset extends Depreciable
         'assigned_user' => ['integer', 'nullable', 'exists:users,id,deleted_at,NULL'],
         'assigned_location' => ['integer', 'nullable', 'exists:locations,id,deleted_at,NULL', 'fmcs_location'],
         'assigned_asset' => ['integer', 'nullable', 'exists:assets,id,deleted_at,NULL'],
+        // Native lease / purchasing columns (F2 migration). Nullable so web
+        // asset forms that don't submit them are unaffected; present here so the
+        // API's fill($request->validated()) path accepts native writes and the
+        // MirrorsLeaseFields shim carries them into the custom fields.
+        'lease_contract_id' => ['nullable', 'string', 'max:255'],
+        'lease_contract_name' => ['nullable', 'string', 'max:255'],
+        'ownership_type' => ['nullable', 'string', 'max:255'],
+        'lease_end_date' => ['nullable', 'date'],
+        'decommission_date' => ['nullable', 'date'],
+        'lease_rent' => ['nullable', 'numeric'],
+        'buyout_cost' => ['nullable', 'numeric'],
+        'warranty_soft_cost' => ['nullable', 'numeric'],
+        'lease_book_value' => ['nullable', 'numeric'],
+        'po_number' => ['nullable', 'string', 'max:255'],
+        'invoice_number' => ['nullable', 'string', 'max:255'],
+        'lease_usage' => ['nullable', 'string', 'max:255'],
+        'lease_area' => ['nullable', 'string', 'max:255'],
     ];
 
     /**
@@ -209,6 +226,22 @@ class Asset extends Depreciable
         'next_audit_date',
         'last_checkin',
         'last_checkout',
+        // Native lease / purchasing columns (F2 migration) — mass-assignable so
+        // API native writes persist through fill(); kept in sync with the custom
+        // fields by the MirrorsLeaseFields shim.
+        'lease_contract_id',
+        'lease_contract_name',
+        'ownership_type',
+        'lease_end_date',
+        'decommission_date',
+        'lease_rent',
+        'buyout_cost',
+        'warranty_soft_cost',
+        'lease_book_value',
+        'po_number',
+        'invoice_number',
+        'lease_usage',
+        'lease_area',
     ];
 
     use Searchable;

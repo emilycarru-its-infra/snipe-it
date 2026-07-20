@@ -133,6 +133,22 @@ class AssetsTransformer
             'requests_counter' => (int) $asset->requests_counter,
             'user_can_checkout' => (bool) $asset->availableForCheckout(),
             'book_value' => Helper::formatCurrencyOutput($asset->getDepreciatedValue()),
+            // Native lease / purchasing columns (F2 migration), exposed as
+            // first-class API fields so external writers read and write them
+            // directly instead of the `_snipeit_*` custom_fields block below.
+            'lease_contract_id' => e($asset->lease_contract_id),
+            'lease_contract_name' => e($asset->lease_contract_name),
+            'ownership_type' => e($asset->ownership_type),
+            'lease_end_date' => Helper::getFormattedDateObject($asset->lease_end_date, 'date'),
+            'decommission_date' => Helper::getFormattedDateObject($asset->decommission_date, 'date'),
+            'lease_rent' => $asset->lease_rent,
+            'buyout_cost' => $asset->buyout_cost,
+            'warranty_soft_cost' => $asset->warranty_soft_cost,
+            'lease_book_value' => $asset->lease_book_value,
+            'po_number' => e($asset->po_number),
+            'invoice_number' => e($asset->invoice_number),
+            'lease_usage' => e($asset->lease_usage),
+            'lease_area' => e($asset->lease_area),
         ];
 
         if (($asset->model) && ($asset->model->fieldset) && ($asset->model->fieldset->fields->count() > 0)) {

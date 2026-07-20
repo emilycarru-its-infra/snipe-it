@@ -688,4 +688,41 @@ class UpdateAssetTest extends TestCase
             '_snipeit_non_existent_custom_field_50' => 'test attribute',
         ])->assertStatusMessageIs('error');
     }
+
+    public function test_native_lease_columns_are_writable_and_exposed_via_api()
+    {
+        $asset = Asset::factory()->create();
+        $user = User::factory()->editAssets()->create();
+
+        $this->actingAsForApi($user)
+            ->patchJson(route('api.assets.update', $asset->id), [
+                'lease_contract_id' => 'ECI20221001',
+                'lease_contract_name' => 'Devices Leases FY27-28 #4',
+                'ownership_type' => 'Lease to Return',
+                'lease_end_date' => '2027-10-01',
+                'lease_rent' => '1500.00',
+                'po_number' => 'PO-12345',
+                'invoice_number' => 'INV-98765',
+            ])
+            ->assertStatusMessageIs('success');
+
+        // Persisted to the native columns via the fill($validated) path.
+        $fresh = $asset->fresh();
+        $this->assertSame('ECI20221001', $fresh->getRawOriginal('lease_contract_id'));
+        $this->assertSame('Devices Leases FY27-28 #4', $fresh->getRawOriginal('lease_contract_name'));
+        $this->assertSame('Lease to Return', $fresh->getRawOriginal('ownership_type'));
+        $this->assertSame('2027-10-01', $fresh->getRawOriginal('lease_end_date'));
+        $this->assertSame(1500.00, (float) $fresh->getRawOriginal('lease_rent'));
+        $this->assertSame('PO-12345', $fresh->getRawOriginal('po_number'));
+        $this->assertSame('INV-98765', $fresh->getRawOriginal('invoice_number'));
+
+        // Exposed as first-class fields in the API response (not just the
+        // _snipeit_* custom_fields block).
+        $this->actingAsForApi($user)
+            ->getJson(route('api.assets.show', $asset->id))
+            ->assertOk()
+            ->assertJsonPath('lease_contract_id', 'ECI20221001')
+            ->assertJsonPath('ownership_type', 'Lease to Return')
+            ->assertJsonPath('po_number', 'PO-12345');
+    }
 }
