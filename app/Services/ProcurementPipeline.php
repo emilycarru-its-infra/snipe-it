@@ -272,19 +272,30 @@ class ProcurementPipeline
     }
 
     /**
-     * Line-item rows for a card's lightbox, serial included when the line
-     * is a received asset.
+     * Line-item rows for a card's lightbox. The Item column mirrors the
+     * order page: the linked record's name and tag when the line resolves
+     * to an inventory record, otherwise the free-text description.
      */
     private static function itemRows(Order $order): array
     {
-        return $order->items->take(self::ITEM_CAP)->map(fn ($item) => [
-            'description' => $item->description,
-            'quantity' => (int) $item->quantity,
-            'unit_cost' => (float) $item->unit_cost,
-            'received_at' => $item->received_at?->format('Y-m-d'),
-            'serial' => $item->item instanceof Asset ? $item->item->serial : null,
-            'deployed' => $item->item instanceof Asset && ! is_null($item->item->assigned_to),
-        ])->values()->all();
+        return $order->items->take(self::ITEM_CAP)->map(function ($item) {
+            $linked = $item->item;
+            $label = $item->description;
+            if ($linked instanceof Asset) {
+                $label = trim(($linked->name ?: (string) $linked->model?->name).' #'.$linked->asset_tag);
+            } elseif ($linked) {
+                $label = (string) $linked->getAttribute('name');
+            }
+
+            return [
+                'item_label' => $label,
+                'quantity' => (int) $item->quantity,
+                'unit_cost' => (float) $item->unit_cost,
+                'received_at' => $item->received_at?->format('Y-m-d'),
+                'serial' => $linked instanceof Asset ? $linked->serial : null,
+                'deployed' => $linked instanceof Asset && ! is_null($linked->assigned_to),
+            ];
+        })->values()->all();
     }
 
     /**

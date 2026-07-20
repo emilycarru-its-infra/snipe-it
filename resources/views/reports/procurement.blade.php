@@ -380,7 +380,6 @@
         var money = function (value) {
             return '$' + Number(value).toLocaleString('en-CA', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         };
-        var moneyAxis = function () { return { ticks: { beginAtZero: true, callback: money } }; };
         var barTooltip = { callbacks: { label: function (item, data) {
             return data.datasets[item.datasetIndex].label + ': ' + money(item.yLabel);
         } } };
@@ -388,7 +387,33 @@
             return data.labels[item.index] + ': ' + money(data.datasets[0].data[item.index]);
         } } };
 
-        new Chart(document.getElementById('procPoChart'), {
+        // Axis/legend ink and grid lines follow the app's data-theme so the
+        // charts stay legible in dark mode. The Planned navy bar also swaps
+        // for a lighter step — #001f3f vanishes on a dark surface.
+        function isDark() {
+            return document.documentElement.getAttribute('data-theme') === 'dark';
+        }
+        function inkColor() { return isDark() ? '#c8ced6' : '#666'; }
+        function gridColor() { return isDark() ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.1)'; }
+        function plannedColor() { return isDark() ? '#5f7ea6' : '#001f3f'; }
+
+        function moneyAxis() {
+            return {
+                ticks: { beginAtZero: true, callback: money, fontColor: inkColor() },
+                gridLines: { color: gridColor(), zeroLineColor: gridColor() }
+            };
+        }
+        function labelAxis() {
+            return {
+                ticks: { fontColor: inkColor() },
+                gridLines: { color: gridColor(), zeroLineColor: gridColor() }
+            };
+        }
+        function legend() { return { labels: { fontColor: inkColor() } }; }
+
+        var charts = [];
+
+        charts.push(new Chart(document.getElementById('procPoChart'), {
             type: 'bar',
             data: {
                 labels: data.poLabels,
@@ -397,32 +422,33 @@
                     { label: @json(trans('admin/purchase-orders/general.card_committed')), backgroundColor: '#f39c12', data: data.poCommitted }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
-        });
+            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, legend: legend(), scales: { yAxes: [moneyAxis()], xAxes: [labelAxis()] } }
+        }));
 
-        new Chart(document.getElementById('procUtilChart'), {
+        charts.push(new Chart(document.getElementById('procUtilChart'), {
             type: 'doughnut',
             data: {
                 labels: [@json(trans('admin/purchase-orders/general.card_committed')), @json(trans('admin/purchase-orders/general.card_remaining'))],
-                datasets: [{ backgroundColor: ['#f39c12', '#00a65a'], data: [data.committed, data.remaining] }]
+                datasets: [{ backgroundColor: ['#f39c12', '#00a65a'], borderWidth: 0, data: [data.committed, data.remaining] }]
             },
-            options: { responsive: true, maintainAspectRatio: false, tooltips: pieTooltip }
-        });
+            options: { responsive: true, maintainAspectRatio: false, tooltips: pieTooltip, legend: legend() }
+        }));
 
-        new Chart(document.getElementById('procFyChart'), {
+        var fyChart = new Chart(document.getElementById('procFyChart'), {
             type: 'bar',
             data: {
                 labels: data.fyLabels,
                 datasets: [
                     { label: @json(trans('admin/purchase-orders/general.card_committed')), backgroundColor: '#f39c12', data: data.fyCommitted },
-                    { label: @json(trans('admin/purchase-orders/general.card_forecast')), backgroundColor: '#001f3f', data: data.fyPlanned },
+                    { label: @json(trans('admin/purchase-orders/general.card_forecast')), backgroundColor: plannedColor(), data: data.fyPlanned },
                     { label: @json(trans('admin/purchase-orders/general.chart_lease_ending')), backgroundColor: '#39cccc', data: data.fyLeaseEnding }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
+            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, legend: legend(), scales: { yAxes: [moneyAxis()], xAxes: [labelAxis()] } }
         });
+        charts.push(fyChart);
 
-        new Chart(document.getElementById('procMonthlyChart'), {
+        charts.push(new Chart(document.getElementById('procMonthlyChart'), {
             type: 'line',
             data: {
                 labels: data.monthlyLabels,
@@ -433,8 +459,28 @@
                     data: data.monthlyValues
                 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, scales: { yAxes: [moneyAxis()] } }
-        });
+            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, legend: legend(), scales: { yAxes: [moneyAxis()], xAxes: [labelAxis()] } }
+        }));
+
+        // Re-theme in place when the user flips the dark-mode toggle.
+        new MutationObserver(function () {
+            charts.forEach(function (chart) {
+                chart.options.legend.labels.fontColor = inkColor();
+                (chart.options.scales && chart.options.scales.yAxes || []).forEach(function (axis) {
+                    axis.ticks.fontColor = inkColor();
+                    axis.gridLines.color = gridColor();
+                    axis.gridLines.zeroLineColor = gridColor();
+                });
+                (chart.options.scales && chart.options.scales.xAxes || []).forEach(function (axis) {
+                    axis.ticks.fontColor = inkColor();
+                    axis.gridLines.color = gridColor();
+                    axis.gridLines.zeroLineColor = gridColor();
+                });
+                chart.update();
+            });
+            fyChart.data.datasets[1].backgroundColor = plannedColor();
+            fyChart.update();
+        }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     })();
 
     // Per-user show/hide for the procurement reports list. Each click
