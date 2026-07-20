@@ -86,6 +86,40 @@ class MirrorsLeaseFieldsTest extends TestCase
         $this->assertSame('2027-06-30', $asset->fresh()->getRawOriginal('lease_end_date'));
     }
 
+    public function test_dirty_native_date_is_mirrored_back_to_custom_column(): void
+    {
+        $asset = $this->newAsset();
+        $asset->lease_end_date = '2028-01-15';
+        $asset->save();
+
+        $customColumn = $this->endField->fresh()->db_column;
+        $this->assertSame('2028-01-15', $asset->fresh()->getRawOriginal($customColumn));
+    }
+
+    public function test_dirty_native_decimal_is_mirrored_back_to_custom_column(): void
+    {
+        $asset = $this->newAsset();
+        $asset->lease_rent = '2500.00';
+        $asset->save();
+
+        $customColumn = $this->rentField->fresh()->db_column;
+        $this->assertSame(2500.00, (float) $asset->fresh()->getRawOriginal($customColumn));
+    }
+
+    public function test_custom_edit_is_not_round_tripped_by_reverse_mirror(): void
+    {
+        $asset = $this->newAsset();
+        $asset->{$this->endField->fresh()->db_column} = '06/30/2027';
+        $asset->save();
+
+        // custom -> native canonicalizes to Y-m-d; the reverse mirror must NOT
+        // then overwrite the custom column, because custom was the edited source
+        // on this save (its dirty guard blocks the round-trip).
+        $asset = $asset->fresh();
+        $this->assertSame('06/30/2027', $asset->getRawOriginal($this->endField->fresh()->db_column));
+        $this->assertSame('2027-06-30', $asset->getRawOriginal('lease_end_date'));
+    }
+
     private function newAsset(): Asset
     {
         $asset = new Asset;

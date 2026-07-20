@@ -6,13 +6,20 @@ use App\Models\CustomField;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Dual-write shim for the lease / purchasing cluster (PR 1 of the native-field
- * migration). The data still lives in Snipe-IT custom fields (the `_snipeit_*`
- * generated columns the Azure Functions write to). This trait mirrors each of
- * those values into the matching NATIVE typed column on every Asset save, so
- * the functions, edit forms, and API keep writing `_snipeit_*` UNCHANGED while
- * the native columns fill in behind them — letting later PRs cut reads over to
- * the native columns with no flag-day.
+ * Bidirectional dual-write shim for the lease / purchasing cluster, spanning the
+ * native-field migration. The lease data lives in BOTH Snipe-IT custom fields
+ * (the `_snipeit_*` columns) and the matching NATIVE typed columns; this trait
+ * keeps the two in sync on every Asset save, in whichever direction was edited:
+ *
+ *   custom -> native  (F2·1): writers still POST `_snipeit_*` UNCHANGED; the
+ *                     native columns fill in behind them, letting reads cut over
+ *                     with no flag-day (F2·2, done).
+ *   native -> custom  (F2·3): writers/API can now set native columns directly;
+ *                     the custom fields stay in sync so the inline edit UI (which
+ *                     still reads them until F2·4) keeps working.
+ *
+ * Once every writer sets native and the UI reads native, the custom columns can
+ * be dropped (F2·4) and this shim retired.
  *
  * Resolution is by custom-field NAME -> db_column (mirrors
  * ProcurementReportsController::leaseFieldColumns) because the `_snipeit_*`
@@ -59,7 +66,15 @@ trait MirrorsLeaseFields
     public static function bootMirrorsLeaseFields(): void
     {
         static::saving(function ($asset): void {
+            // Bidirectional during the transition (F2·3): custom -> native keeps
+            // the native columns filled while writers still POST `_snipeit_*`;
+            // native -> custom keeps the custom fields (and the edit UI that
+            // still reads them) in sync once writers start setting native
+            // columns directly. The per-direction dirty guards make the pair
+            // idempotent — whichever side was edited is the source, the other is
+            // the mirror, and neither round-trips back onto the source.
             $asset->mirrorLeaseFieldsToNative();
+            $asset->mirrorNativeFieldsToCustom();
         });
     }
 
@@ -155,6 +170,45 @@ trait MirrorsLeaseFields
             }
 
             $this->setAttribute($native, static::castLeaseValue($this->getAttribute($customColumn), $cast));
+        }
+    }
+
+    /**
+     * Reverse of mirrorLeaseFieldsToNative: copy each dirty NATIVE column value
+     * back into its custom field, casting per type. This is what lets external
+     * writers (the Azure Functions, the API) set native columns directly while
+     * the custom fields — still read by the inline edit UI until F2·4 — stay in
+     * sync. No-op when the native column doesn't exist, the custom field is
+     * absent, the native column isn't dirty, or the custom column was ALSO
+     * edited on this save (in which case custom is the source: mirror-to-native
+     * already ran and this direction must not clobber it back).
+     */
+    protected function mirrorNativeFieldsToCustom(): void
+    {
+        $map = static::leaseCustomColumnMap();
+        if ($map === []) {
+            return;
+        }
+
+        foreach (static::$leaseFieldMap as $native => [, $cast]) {
+            $customColumn = $map[$native] ?? null;
+            if ($customColumn === null) {
+                continue;
+            }
+
+            if (! Schema::hasColumn('assets', $native)) {
+                continue;
+            }
+
+            // Only when the native side changed on THIS save and the custom side
+            // did not — otherwise custom is the edited source (already mirrored
+            // into native above) and writing it back would be a no-op at best,
+            // a stale round-trip at worst.
+            if (! $this->isDirty($native) || $this->isDirty($customColumn)) {
+                continue;
+            }
+
+            $this->setAttribute($customColumn, static::castLeaseValue($this->getAttribute($native), $cast));
         }
     }
 
