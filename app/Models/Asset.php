@@ -10,7 +10,6 @@ use App\Models\Traits\Acceptable;
 use App\Models\Traits\CompanyableTrait;
 use App\Models\Traits\HasUploads;
 use App\Models\Traits\Loggable;
-use App\Models\Traits\MirrorsLeaseFields;
 use App\Models\Traits\Requestable;
 use App\Models\Traits\Searchable;
 use App\Presenters\AssetPresenter;
@@ -29,9 +28,9 @@ use Watson\Validating\ValidatingTrait;
 /**
  * Model for Assets.
  *
- * Native lease/purchasing columns, mirrored from the Snipe-IT custom fields by
- * the MirrorsLeaseFields shim and read directly since the F2·2 cutover.
- * Declared so static property access (`$asset->lease_end_date`) type-checks.
+ * Native lease/purchasing columns. Formerly Snipe-IT custom fields; migrated to
+ * native typed columns (F2) and the `_snipeit_*` custom fields dropped. Declared
+ * so static property access (`$asset->lease_end_date`) type-checks.
  *
  * @property string|null $lease_contract_id
  * @property string|null $lease_contract_name
@@ -59,7 +58,6 @@ class Asset extends Depreciable
     use HasFactory;
     use HasUploads;
     use Loggable;
-    use MirrorsLeaseFields;
     use Presentable;
     use Requestable;
     use SoftDeletes;
@@ -127,11 +125,10 @@ class Asset extends Depreciable
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
-        // Native lease / purchasing cluster (mirrored from custom fields by
-        // the MirrorsLeaseFields shim). The date columns are deliberately NOT
-        // cast to Carbon: the procurement reports read them as 'Y-m-d' strings
-        // (as the source custom fields were), and a Carbon cast stringifies to
-        // 'Y-m-d H:i:s', which the reports' date parsers reject.
+        // Native lease / purchasing cluster (F2 migration). The date columns are
+        // deliberately NOT cast to Carbon: the procurement reports read them as
+        // 'Y-m-d' strings, and a Carbon cast stringifies to 'Y-m-d H:i:s', which
+        // the reports' date parsers reject.
         'lease_rent' => 'decimal:2',
         'buyout_cost' => 'decimal:2',
         'warranty_soft_cost' => 'decimal:2',
@@ -172,8 +169,7 @@ class Asset extends Depreciable
         'assigned_asset' => ['integer', 'nullable', 'exists:assets,id,deleted_at,NULL'],
         // Native lease / purchasing columns (F2 migration). Nullable so web
         // asset forms that don't submit them are unaffected; present here so the
-        // API's fill($request->validated()) path accepts native writes and the
-        // MirrorsLeaseFields shim carries them into the custom fields.
+        // API's fill($request->validated()) path accepts native writes.
         'lease_contract_id' => ['nullable', 'string', 'max:255'],
         'lease_contract_name' => ['nullable', 'string', 'max:255'],
         'ownership_type' => ['nullable', 'string', 'max:255'],
@@ -227,8 +223,7 @@ class Asset extends Depreciable
         'last_checkin',
         'last_checkout',
         // Native lease / purchasing columns (F2 migration) — mass-assignable so
-        // API native writes persist through fill(); kept in sync with the custom
-        // fields by the MirrorsLeaseFields shim.
+        // API native writes persist through fill().
         'lease_contract_id',
         'lease_contract_name',
         'ownership_type',
@@ -411,6 +406,38 @@ class Asset extends Depreciable
             'warranty_soft_cost'  => 'text',
             'lease_book_value'    => 'text',
         ];
+    }
+
+    /**
+     * Native `assets` column for a lease/purchasing field's legacy custom-field
+     * display name, or null if the name isn't part of the cluster.
+     *
+     * These fields are native columns since the F2 migration (the `_snipeit_*`
+     * custom fields were dropped). Config-driven callers — AssetContractLinker,
+     * driven by config/forms.php field names — resolve the native column from a
+     * display name through this map instead of a CustomField lookup.
+     *
+     * @var array<string, string> custom-field display name => native column
+     */
+    public const LEASE_FIELD_NATIVE_COLUMNS = [
+        'Lease Contract ID'   => 'lease_contract_id',
+        'Lease Contract Name' => 'lease_contract_name',
+        'Ownership Type'      => 'ownership_type',
+        'Lease End Date'      => 'lease_end_date',
+        'Lease Rent'          => 'lease_rent',
+        'Buyout Cost'         => 'buyout_cost',
+        'Decommission Date'   => 'decommission_date',
+        'PO Number'           => 'po_number',
+        'Invoice Number'      => 'invoice_number',
+        'Warranty/Soft Cost'  => 'warranty_soft_cost',
+        'Usage'               => 'lease_usage',
+        'Area'                => 'lease_area',
+        'Book Value'          => 'lease_book_value',
+    ];
+
+    public static function nativeColumnForCustomName(string $name): ?string
+    {
+        return self::LEASE_FIELD_NATIVE_COLUMNS[$name] ?? null;
     }
 
     /**
