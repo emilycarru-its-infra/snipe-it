@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Watson\Validating\ValidatingTrait;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends SnipeModel
 {
@@ -88,6 +90,8 @@ class Order extends SnipeModel
 
     /**
      * Establishes the order -> line items relationship
+     *
+     * @return HasMany<OrderItem, $this>
      */
     public function items()
     {
@@ -112,6 +116,8 @@ class Order extends SnipeModel
 
     /**
      * Establishes the order -> shipments relationship
+     *
+     * @return HasMany<OrderShipment, $this>
      */
     public function shipments()
     {
@@ -120,6 +126,8 @@ class Order extends SnipeModel
 
     /**
      * Establishes the order -> invoices relationship
+     *
+     * @return HasMany<OrderInvoice, $this>
      */
     public function invoices()
     {
@@ -128,6 +136,8 @@ class Order extends SnipeModel
 
     /**
      * Establishes the order -> purchase order relationship
+     *
+     * @return BelongsTo<PurchaseOrder, $this>
      */
     public function purchaseOrder()
     {
@@ -136,6 +146,8 @@ class Order extends SnipeModel
 
     /**
      * Establishes the order -> supplier relationship
+     *
+     * @return BelongsTo<Supplier, $this>
      */
     public function supplier()
     {
@@ -144,6 +156,8 @@ class Order extends SnipeModel
 
     /**
      * Establishes the order -> company relationship
+     *
+     * @return BelongsTo<Company, $this>
      */
     public function company()
     {
@@ -152,6 +166,8 @@ class Order extends SnipeModel
 
     /**
      * Establishes the order -> admin user relationship
+     *
+     * @return BelongsTo<User, $this>
      */
     public function adminuser()
     {
