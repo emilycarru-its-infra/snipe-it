@@ -395,6 +395,21 @@ class Asset extends Depreciable
             // Native offboarding date — the counterpart to purchase_date
             // (onboarding). First-class native column since the F2 migration.
             'decommission_date' => 'date',
+            // Lease / purchasing fields — native columns since the F2 lease
+            // migration (formerly _snipeit_* custom fields). Rendered inline on
+            // the procurement/inventory detail cards.
+            'lease_contract_id'   => 'text',
+            'lease_contract_name' => 'text',
+            'ownership_type'      => 'text',
+            'po_number'           => 'text',
+            'invoice_number'      => 'text',
+            'lease_usage'         => 'text',
+            'lease_area'          => 'text',
+            'lease_end_date'      => 'date',
+            'lease_rent'          => 'text',
+            'buyout_cost'         => 'text',
+            'warranty_soft_cost'  => 'text',
+            'lease_book_value'    => 'text',
         ];
     }
 

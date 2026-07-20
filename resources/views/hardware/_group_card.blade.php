@@ -60,29 +60,83 @@
                     <div class="asset-card-val"><a href="{{ route('suppliers.show', $asset->lessor->id) }}">{{ $asset->lessor->name }}</a></div>
                 </div>
             @endif
+
+            {{-- Lease / purchasing fields, now rendered from NATIVE asset columns
+                 (F2 lease migration) so they survive the _snipeit_* custom-field
+                 drop. Lease-only rows show only for leased assets; PO/Invoice/
+                 Warranty/Ownership always show. Filled ID/Name/Ownership values
+                 deep-link to the matching filtered asset list. --}}
+            @php
+                $isLeaseAsset = stripos((string) ($asset->ownership_type ?? ''), 'lease') !== false;
+            @endphp
+
+            <div class="asset-card-row">
+                <div class="asset-card-lbl">{{ trans('general.ownership_type') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="ownership_type" element="text"
+                        :link="filled($asset->ownership_type) ? route('hardware.index', ['ownership_type' => $asset->ownership_type]) : null">{{ $asset->ownership_type }}</x-inline-core-field>
+                </div>
+            </div>
+
+            @if ($isLeaseAsset)
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.lease_contract_id') }}</div>
+                    <div class="asset-card-val">
+                        <x-inline-core-field :asset="$asset" column="lease_contract_id" element="text"
+                            :link="filled($asset->lease_contract_id) ? route('hardware.index', ['lease_contract_id' => $asset->lease_contract_id]) : null">{{ $asset->lease_contract_id }}</x-inline-core-field>
+                    </div>
+                </div>
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.lease_contract_name') }}</div>
+                    <div class="asset-card-val">
+                        <x-inline-core-field :asset="$asset" column="lease_contract_name" element="text"
+                            :link="filled($asset->lease_contract_name) ? route('hardware.index', ['lease_contract_name' => $asset->lease_contract_name]) : null">{{ $asset->lease_contract_name }}</x-inline-core-field>
+                    </div>
+                </div>
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.lease_end_date') }}</div>
+                    <div class="asset-card-val">
+                        <x-inline-core-field :asset="$asset" column="lease_end_date" element="date">{{ $asset->lease_end_date ? Helper::getFormattedDateObject($asset->lease_end_date, 'date', false) : '' }}</x-inline-core-field>
+                    </div>
+                </div>
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.lease_rent') }}</div>
+                    <div class="asset-card-val">
+                        <x-inline-core-field :asset="$asset" column="lease_rent" element="text">{{ $asset->lease_rent }}</x-inline-core-field>
+                    </div>
+                </div>
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.buyout_cost') }}</div>
+                    <div class="asset-card-val">
+                        <x-inline-core-field :asset="$asset" column="buyout_cost" element="text">{{ $asset->buyout_cost }}</x-inline-core-field>
+                    </div>
+                </div>
+            @endif
+
+            <div class="asset-card-row">
+                <div class="asset-card-lbl">{{ trans('general.po_number') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="po_number" element="text">{{ $asset->po_number }}</x-inline-core-field>
+                </div>
+            </div>
+            <div class="asset-card-row">
+                <div class="asset-card-lbl">{{ trans('general.invoice_number') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="invoice_number" element="text">{{ $asset->invoice_number }}</x-inline-core-field>
+                </div>
+            </div>
+            <div class="asset-card-row">
+                <div class="asset-card-lbl">{{ trans('general.warranty_soft_cost') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="warranty_soft_cost" element="text">{{ $asset->warranty_soft_cost }}</x-inline-core-field>
+                </div>
+            </div>
         @endif
 
-        {{-- Lease fields whose value deep-links to the matching filtered asset
-             list (native columns from the F2 lease migration). Keyed by the
-             custom-field name shown as the row label. --}}
-        @php
-            $leaseLinkColumns = [
-                'Lease Contract ID'   => 'lease_contract_id',
-                'Lease Contract Name' => 'lease_contract_name',
-                'Ownership Type'      => 'ownership_type',
-            ];
-        @endphp
         @foreach ($section['fields'] as $field)
-            @php
-                $linkColumn = $leaseLinkColumns[$field->name] ?? null;
-                $linkValue  = $linkColumn ? $asset->{$linkColumn} : null;
-                $fieldLink  = ($linkColumn && filled($linkValue))
-                    ? route('hardware.index', [$linkColumn => $linkValue])
-                    : null;
-            @endphp
             <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ $field->name }}</div>
-                <div class="asset-card-val"><x-inline-custom-field :asset="$asset" :field="$field" :link="$fieldLink"/></div>
+                <div class="asset-card-val"><x-inline-custom-field :asset="$asset" :field="$field"/></div>
             </div>
         @endforeach
 
@@ -91,6 +145,19 @@
                 <div class="asset-card-lbl">{{ trans('general.location') }}</div>
                 <div class="asset-card-val">
                     <x-inline-core-field :asset="$asset" column="rtd_location_id" element="select" :options="$locationOptions" copy_what="rtd-loc-{{ $asset->id }}">{!! $asset->defaultLoc?->present()->nameUrl !!}</x-inline-core-field>
+                </div>
+            </div>
+            {{-- Usage / Area — native lease columns (F2 migration), always shown. --}}
+            <div class="asset-card-row">
+                <div class="asset-card-lbl">{{ trans('general.lease_usage') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="lease_usage" element="text">{{ $asset->lease_usage }}</x-inline-core-field>
+                </div>
+            </div>
+            <div class="asset-card-row">
+                <div class="asset-card-lbl">{{ trans('general.lease_area') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="lease_area" element="text">{{ $asset->lease_area }}</x-inline-core-field>
                 </div>
             </div>
         @endif
