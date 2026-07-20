@@ -64,7 +64,7 @@ class OidcUserResolver
         $user->email = $claims['email'] ?? '';
         $user->first_name = $claims['given_name'] ?? $username;
         $user->last_name = $claims['family_name'] ?? '';
-        $user->activated = 1;
+        $user->activated = true;
         // Random unusable password -- these users authenticate only via OIDC.
         $user->password = bcrypt(Str::random(40));
         $user->save();
