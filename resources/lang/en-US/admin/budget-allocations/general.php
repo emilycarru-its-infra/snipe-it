@@ -4,7 +4,7 @@ return [
     'manage_title'         => 'Approved Budget — Allocations',
     'add_title'            => 'Add an allocation',
     'add_action'           => 'Add to Budget',
-    'help'                 => 'Each row below is one allocation event. The Approved Budget tile sums the entire ledger for the selected fiscal year. The ledger is append-only — correct mistakes with an adjustment row (negative amount) so the audit history stays intact.',
+    'help'                 => 'Each row below is one allocation event. The Budgeting stage on the pipeline sums the entire ledger for the selected fiscal year. The ledger is append-only — correct mistakes with an adjustment row (negative amount) so the audit history stays intact.',
     'none_yet'             => 'No allocations on file yet for this fiscal year.',
     'allocation_added'     => 'Budget allocation added.',
     'allocation_removed'   => 'Budget allocation removed.',

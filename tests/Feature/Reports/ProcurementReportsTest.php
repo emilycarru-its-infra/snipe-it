@@ -569,7 +569,7 @@ class ProcurementReportsTest extends TestCase
             ->assertOk()
             // The unsigned-agreements count now lives in the Deploying
             // chevron on the pipeline rail.
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_deploying_note', ['sent' => 1]));
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_agreements_sent', ['count' => 1]));
     }
 
     /**
@@ -857,7 +857,7 @@ class ProcurementReportsTest extends TestCase
             ->assertOk()
             // Pending approvals surface in the Reconciling chevron; lease
             // decisions live on the returns lane of the pipeline board.
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_reconciling_note', ['pending' => 1, 'schedules' => 0]))
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_note_invoices_pending', ['count' => 1]))
             ->assertSee(trans('admin/purchase-orders/general.pipeline_returns_title'));
     }
 
