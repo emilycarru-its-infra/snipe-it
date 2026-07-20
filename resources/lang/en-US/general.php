@@ -269,6 +269,7 @@ return [
     'purchase_cost_format_help' => 'This should be entered in your system-configured number format, e.g. :format',
     'purchase_cost_invalid' => 'Please enter a valid number (digits, dots, and commas only)',
     'purchase_date' => 'Purchase Date',
+    'decommission_date' => 'Decommission Date',
     'qty' => 'QTY',
     'quantity' => 'Quantity',
     'quantity_minimum' => 'You have one item below or almost below minimum quantity levels|You have :count items below or almost below minimum quantity levels',
