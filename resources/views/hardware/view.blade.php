@@ -705,13 +705,17 @@
                         </span>
                     </x-info-element>
 
-                    @php $decommField = $asset->model?->fieldset?->fields->firstWhere('name', 'Decommission Date'); @endphp
-                    @if ($decommField)
-                        <x-info-element icon_type="calendar" title="{{ $decommField->name }}">
-                            {{ $decommField->name }}
-                            <span class="pull-right"><x-inline-custom-field :asset="$asset" :field="$decommField"/></span>
-                        </x-info-element>
-                    @endif
+                    {{-- Decommission Date: the native offboarding counterpart to
+                         Purchase Date (onboarding). Rendered from the native
+                         decommission_date column and editable inline as a native
+                         date (F2 migration) — no longer driven by the custom field,
+                         so it always shows, like Next Audit Date above. --}}
+                    <x-info-element icon_type="calendar" title="{{ trans('general.decommission_date') }}">
+                        {{ trans('general.decommission_date') }}
+                        <span class="pull-right">
+                            <x-inline-core-field :asset="$asset" column="decommission_date" element="date">{{ $asset->decommission_date ? Helper::getFormattedDateObject($asset->decommission_date, 'date', false) : '' }}</x-inline-core-field>
+                        </span>
+                    </x-info-element>
                 </x-info-panel>
             </x-box>
 

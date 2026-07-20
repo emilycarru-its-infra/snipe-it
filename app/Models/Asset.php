@@ -392,6 +392,9 @@ class Asset extends Depreciable
             'expected_checkin' => 'date',
             'last_audit_date'  => 'date',
             'next_audit_date'  => 'date',
+            // Native offboarding date — the counterpart to purchase_date
+            // (onboarding). First-class native column since the F2 migration.
+            'decommission_date' => 'date',
         ];
     }
 
