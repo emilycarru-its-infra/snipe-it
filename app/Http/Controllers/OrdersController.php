@@ -70,7 +70,17 @@ class OrdersController extends Controller
     {
         $this->authorize('update', Order::class);
 
+        $wasPlanned = (bool) $order->is_planned;
+
         $this->fillFromRequest($order, $request);
+
+        // The pipeline's hard boundary out of Budgeting: a planned order
+        // only becomes an actual order once a purchase order is attached.
+        if ($wasPlanned && ! $order->is_planned && ! $order->purchase_order_id) {
+            return redirect()->back()->withInput()->withErrors([
+                'purchase_order_id' => trans('admin/purchase-orders/general.order_convert_requires_po'),
+            ]);
+        }
 
         if ($order->save()) {
             return redirect()->route('orders.index')->with('success', trans('admin/orders/message.update.success'));
