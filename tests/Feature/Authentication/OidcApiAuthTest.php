@@ -163,6 +163,20 @@ class OidcApiAuthTest extends TestCase
             ->assertUnauthorized();
     }
 
+    public function test_absent_configured_claim_is_not_matched_by_a_different_claim()
+    {
+        // username_claim is preferred_username. A token that lacks it must NOT
+        // authenticate by silently falling back to another claim (e.g. email),
+        // even when that other claim matches a real username.
+        User::factory()->create(['username' => 'victim@ecuad.ca', 'activated' => 1]);
+
+        $token = $this->token(['preferred_username' => null, 'email' => 'victim@ecuad.ca']);
+
+        $this->withHeaders($this->bearer($token))
+            ->getJson('/_test/oidc-whoami')
+            ->assertUnauthorized();
+    }
+
     public function test_passport_token_still_authenticates_via_multiguard()
     {
         // The oidc guard must not break the existing Passport path: a route
