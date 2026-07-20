@@ -7,6 +7,9 @@
       $requestOrderNumber = request()->input('order_number');
       $requestCompanyId = request()->input('company_id');
       $requestStatusTypeId = request()->input('status_id');
+      $requestLeaseContractId = request()->input('lease_contract_id');
+      $requestLeaseContractName = request()->input('lease_contract_name');
+      $requestOwnershipType = request()->input('ownership_type');
   @endphp
 
   @if (is_scalar($requestCompanyId) && ($company instanceof \App\Models\Company))
@@ -43,6 +46,13 @@
   @if (Request::has('order_number') && is_scalar($requestOrderNumber))
     : Order #{{ strval($requestOrderNumber) }}
   @endif
+  @if (Request::has('lease_contract_id') && is_scalar($requestLeaseContractId))
+    : {{ trans('general.lease_contract_id') }} {{ strval($requestLeaseContractId) }}
+  @elseif (Request::has('lease_contract_name') && is_scalar($requestLeaseContractName))
+    : {{ strval($requestLeaseContractName) }}
+  @elseif (Request::has('ownership_type') && is_scalar($requestOwnershipType))
+    : {{ trans('general.ownership_type') }} — {{ strval($requestOwnershipType) }}
+  @endif
 @stop
 
 {{-- Page title --}}
@@ -61,6 +71,9 @@
                     'order_number' => is_scalar($requestOrderNumber) ? strval($requestOrderNumber) : null,
                     'company_id' => is_scalar($requestCompanyId) ? $requestCompanyId : null,
                     'status_id' => is_scalar($requestStatusTypeId) ? $requestStatusTypeId : null,
+                    'lease_contract_id' => is_scalar($requestLeaseContractId) ? strval($requestLeaseContractId) : null,
+                    'lease_contract_name' => is_scalar($requestLeaseContractName) ? strval($requestLeaseContractName) : null,
+                    'ownership_type' => is_scalar($requestOwnershipType) ? strval($requestOwnershipType) : null,
                 ))"/>
         </x-box>
     </x-container>
