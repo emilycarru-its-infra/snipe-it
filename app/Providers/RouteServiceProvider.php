@@ -66,7 +66,7 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapApiRoutes()
     {
         Route::group([
-            'middleware' => 'auth:api',
+            'middleware' => 'auth:api,oidc',
             //            'namespace' => $this->namespace, // this might also be a problem? I don't really know :/
             'prefix' => 'api',
         ], function ($router) {

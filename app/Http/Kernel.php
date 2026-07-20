@@ -81,7 +81,7 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
-            'auth:api',
+            'auth:api,oidc',
             CheckLocale::class,
             LogAuthedUserHeader::class,
             SubstituteBindings::class,
