@@ -692,7 +692,8 @@ class UpdateAssetTest extends TestCase
     public function test_native_lease_columns_are_writable_and_exposed_via_api()
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->create();
+        // Needs edit (PATCH) and view (GET show) permissions.
+        $user = User::factory()->editAssets()->viewAssets()->create();
 
         $this->actingAsForApi($user)
             ->patchJson(route('api.assets.update', $asset->id), [
