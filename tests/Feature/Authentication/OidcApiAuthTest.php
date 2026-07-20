@@ -12,7 +12,7 @@ use Tests\TestCase;
 
 /**
  * Provider-agnostic OIDC bearer authentication for the API. Exercised through a
- * throwaway route under the real `auth:api,oidc` multi-guard, with JWTs signed
+ * throwaway route under the real `auth:oidc,api` multi-guard, with JWTs signed
  * by a local RSA keypair. The validator's JWKS retrieval is stubbed with that
  * keypair's public key (the network/discovery path is unchanged in production),
  * so these tests never touch a network or a real IdP.
@@ -65,7 +65,7 @@ class OidcApiAuthTest extends TestCase
             }
         });
 
-        Route::middleware('auth:api,oidc')->get('/_test/oidc-whoami', function () {
+        Route::middleware('auth:oidc,api')->get('/_test/oidc-whoami', function () {
             return response()->json(['username' => auth()->user()->username]);
         });
     }
@@ -179,7 +179,7 @@ class OidcApiAuthTest extends TestCase
     public function test_passport_token_still_authenticates_via_multiguard()
     {
         // The oidc guard must not break the existing Passport path: a route
-        // under auth:api,oidc still authenticates a Passport-acting user.
+        // under auth:oidc,api still authenticates a Passport-acting user.
         $user = User::factory()->create(['activated' => 1]);
         Passport::actingAs($user);
 
