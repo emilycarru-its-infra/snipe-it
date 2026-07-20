@@ -51,6 +51,7 @@ use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
 use Carbon\Carbon;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Laravel\Passport\Console\ClientCommand;
 use Laravel\Passport\Console\InstallCommand;
@@ -112,6 +113,18 @@ class AuthServiceProvider extends ServiceProvider
         Passport::personalAccessTokensExpireIn(Carbon::now()->addYears((int) config('passport.expiration_years')));
 
         Passport::cookie(config('passport.cookie_name'));
+
+        // Federated identity: a provider-agnostic OIDC bearer guard, layered
+        // alongside Passport via the `auth:oidc,api` multi-guard. Inert until
+        // config('oidc.enabled') is true, so this is purely additive.
+        Auth::extend('oidc', function ($app, $name, array $config) {
+            return new \App\Auth\OidcGuard(
+                Auth::createUserProvider($config['provider']),
+                $app['request'],
+                $app->make(\App\Services\Oidc\OidcTokenValidator::class),
+                $app->make(\App\Services\Oidc\OidcUserResolver::class),
+            );
+        });
 
         /**
          * BEFORE ANYTHING ELSE
