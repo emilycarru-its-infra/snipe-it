@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,7 +23,6 @@ use Watson\Validating\ValidatingTrait;
 class CatalogItem extends Model
 {
     use HasFactory;
-    use Searchable;
     use SoftDeletes;
     use ValidatingTrait;
 
@@ -82,13 +80,6 @@ class CatalogItem extends Model
         'model_id' => 'nullable|integer|exists:models,id',
         'source' => 'nullable|string|max:191',
         'notes' => 'nullable|string|max:65535',
-    ];
-
-    protected $searchableAttributes = ['name', 'description', 'vendor_sku', 'mfr_part_number', 'category', 'source'];
-
-    protected $searchableRelations = [
-        'supplier' => ['name'],
-        'manufacturer' => ['name'],
     ];
 
     /**
