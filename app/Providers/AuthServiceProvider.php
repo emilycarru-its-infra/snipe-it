@@ -21,7 +21,9 @@ use App\Models\Maintenance;
 use App\Models\Manufacturer;
 use App\Models\Order;
 use App\Models\PredefinedKit;
+use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
+use App\Models\Requisition;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -45,7 +47,9 @@ use App\Policies\MaintenancePolicy;
 use App\Policies\ManufacturerPolicy;
 use App\Policies\OrderPolicy;
 use App\Policies\PredefinedKitPolicy;
+use App\Policies\CatalogItemPolicy;
 use App\Policies\PurchaseOrderPolicy;
+use App\Policies\RequisitionPolicy;
 use App\Policies\StatuslabelPolicy;
 use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
@@ -85,6 +89,8 @@ class AuthServiceProvider extends ServiceProvider
         Maintenance::class => MaintenancePolicy::class,
         Order::class => OrderPolicy::class,
         PurchaseOrder::class => PurchaseOrderPolicy::class,
+        Requisition::class => RequisitionPolicy::class,
+        CatalogItem::class => CatalogItemPolicy::class,
         LeaseSchedule::class => LeaseSchedulePolicy::class,
         PredefinedKit::class => PredefinedKitPolicy::class,
         Statuslabel::class => StatuslabelPolicy::class,
