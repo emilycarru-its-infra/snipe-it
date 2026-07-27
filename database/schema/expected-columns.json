@@ -1062,6 +1062,7 @@
     "password_resets": [
         "created_at",
         "email",
+        "id",
         "token"
     ],
     "permission_groups": [
