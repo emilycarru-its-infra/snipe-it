@@ -11239,6 +11239,18 @@ parameters:
 			path: app/Policies/OrderPolicy.php
 
 		-
+			message: '#^Method App\\Policies\\CatalogItemPolicy\:\:columnName\(\) should return bool but returns string\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Policies/CatalogItemPolicy.php
+
+		-
+			message: '#^Method App\\Policies\\RequisitionPolicy\:\:columnName\(\) should return bool but returns string\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Policies/RequisitionPolicy.php
+
+		-
 			message: '#^Method App\\Policies\\PredefinedKitPolicy\:\:columnName\(\) should return bool but returns string\.$#'
 			identifier: return.type
 			count: 1

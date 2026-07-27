@@ -36,6 +36,7 @@ use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ContractReportsController;
 use App\Http\Controllers\BudgetAllocationsController;
 use App\Http\Controllers\ProcurementReportsController;
+use App\Http\Controllers\RequisitionsController;
 use App\Http\Controllers\FleetHealthReportsController;
 use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\ExhibitProjectsController;
@@ -140,6 +141,33 @@ Route::group(['middleware' => 'auth'], function () {
     */
     Route::resource('purchase-orders', PurchaseOrdersController::class);
     Route::post('purchase-orders/bulk/delete', [PurchaseOrdersController::class, 'bulkDelete'])->name('purchase-orders.bulk.delete');
+
+    /*
+    * Requisitions — the baskets the PO builder produces, before Colleague
+    * has issued a REQM number and finance has issued a PO number. The
+    * builder itself lives under the procurement reports (see below), which
+    * is where the reader is when they decide what to buy.
+    */
+    $reqCrumb = fn (Trail $trail) => $trail->parent('home')
+        ->push(trans('admin/purchase-orders/general.requisitions'), route('requisitions.index'));
+
+    Route::get('requisitions', [RequisitionsController::class, 'index'])
+        ->name('requisitions.index')
+        ->breadcrumbs($reqCrumb);
+    Route::post('requisitions', [RequisitionsController::class, 'store'])
+        ->name('requisitions.store');
+    Route::get('requisitions/{requisition}', [RequisitionsController::class, 'show'])
+        ->name('requisitions.show')
+        ->breadcrumbs(fn (Trail $trail, $requisition) => ($reqCrumb)($trail)
+            ->push($requisition->display_name, route('requisitions.show', $requisition)));
+    Route::patch('requisitions/{requisition}', [RequisitionsController::class, 'update'])
+        ->name('requisitions.update');
+    Route::delete('requisitions/{requisition}', [RequisitionsController::class, 'destroy'])
+        ->name('requisitions.destroy');
+    Route::get('requisitions/{requisition}/print', [RequisitionsController::class, 'print'])
+        ->name('requisitions.print');
+    Route::get('requisitions/{requisition}/export', [RequisitionsController::class, 'export'])
+        ->name('requisitions.export');
 
     /*
     * Lease Decisions
@@ -1005,6 +1033,9 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::delete('budget-allocations/{budget_allocation}', [BudgetAllocationsController::class, 'destroy'])
             ->name('budget_allocations.destroy');
 
+        Route::get('po-builder', [RequisitionsController::class, 'builder'])
+            ->name('reports.procurement.po-builder')
+            ->breadcrumbs($crumb('reports.procurement.po-builder', 'report_po_builder'));
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
