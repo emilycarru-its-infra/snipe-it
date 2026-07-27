@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Traits\Loggable;
-use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,8 +25,6 @@ use Watson\Validating\ValidatingTrait;
 class Requisition extends SnipeModel
 {
     use HasFactory;
-    use Loggable;
-    use Searchable;
     use SoftDeletes;
     use ValidatingTrait;
 
@@ -94,13 +90,6 @@ class Requisition extends SnipeModel
         'gst_rate' => 'decimal:5',
         'pst_rate' => 'decimal:5',
         'shipping' => 'decimal:4',
-    ];
-
-    protected $searchableAttributes = ['requisition_number', 'title', 'status', 'cost_center', 'fiscal_year', 'notes'];
-
-    protected $searchableRelations = [
-        'supplier' => ['name'],
-        'company' => ['name'],
     ];
 
     /**
