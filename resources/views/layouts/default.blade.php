@@ -102,10 +102,21 @@
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
             --box-header-top-border-color: #d2d6de;
             --box-header-top-border: 3px solid var(--box-header-top-border-color);
-            --btn-theme-base: hsl(from var(--main-theme-color) h s calc(l + 5));
-            --btn-theme-border:  hsl(from var(--btn-theme-base) h s calc(l + 20));
+            {{-- Clamped, not lightened. The accent is user-configurable and
+                 --nav-primary-text-color defaults to white, so a light accent
+                 used to put white text on a pale fill. Holding the fill in a
+                 dark band keeps white legible whatever hue is configured. --}}
+            --btn-theme-base: hsl(from var(--main-theme-color) h s clamp(28, l, 38));
+            --btn-theme-border: hsl(from var(--btn-theme-base) h s calc(l - 12));
             --btn-theme-hover-text-color:  var(--nav-primary-text-color);
-            --btn-theme-hover: var(--main-theme-hover);
+            --btn-theme-hover: hsl(from var(--btn-theme-base) h s calc(l - 8));
+            --btn-neutral-bg: #ffffff;
+            {{-- Darker than Bootstrap's #ccc, which only reaches 1.6:1 against
+                 a white box — not enough to read the segmented filter group as
+                 a control at all. --}}
+            --btn-neutral-border: #8b9199;
+            --btn-neutral-fg: #3d4144;
+            --btn-neutral-active-bg: #dfe5ee;
             --callout-bg-color: var(--box-header-bottom-border-color);
             --callout-left-border: var(--box-header-top-border-color);
             --chrome-active-bg: #ffffff;
@@ -135,10 +146,17 @@
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
             --box-header-top-border-color: #605e5e;
             --box-header-top-border: 3px solid var(--box-header-top-border-color);
-            --btn-theme-base: hsl(from var(--main-theme-color) h s calc(l + 5));
-            --btn-theme-border:  hsl(from var(--btn-theme-base) h s calc(l + 20));
+            {{-- Same clamp as light mode so white stays legible on the fill.
+                 The fill is close in lightness to --box-bg here, so the button
+                 edge comes from a *lighter* border rather than a darker one. --}}
+            --btn-theme-base: hsl(from var(--main-theme-color) h s clamp(32, l, 44));
+            --btn-theme-border: hsl(from var(--btn-theme-base) h s calc(l + 18));
             --btn-theme-hover-text-color:  var(--nav-primary-text-color);
-            --btn-theme-hover: var(--main-theme-hover);
+            --btn-theme-hover: hsl(from var(--btn-theme-base) h s calc(l - 8));
+            --btn-neutral-bg: #4a4e52;
+            --btn-neutral-border: #62676c;
+            --btn-neutral-fg: #f2f4f6;
+            --btn-neutral-active-bg: #5c6165;
             --callout-bg-color: var(--box-header-top-border-color);
             --callout-left-border: #323131;
             --chrome-active-bg: #3d4144;
@@ -207,16 +225,14 @@
 
         .btn-theme {
             background-color: var(--btn-theme-base);
-            /*color: var(--btn-theme-hover-text-color) !important;*/
             color: var(--nav-primary-text-color) !important;
-            border: 1px solid hsl(from var(--btn-theme-base) h s calc(l - 15)) !important;
+            border: 1px solid var(--btn-theme-border) !important;
         }
 
         .btn-theme:hover {
             background-color: var(--btn-theme-hover);
-            /*color: var(--btn-theme-hover-text-color) !important;*/
             color: var(--nav-primary-text-color) !important;
-            border: 1px solid hsl(from var(--btn-theme-base) h s calc(l - 15)) !important;
+            border: 1px solid var(--btn-theme-border) !important;
         }
 
         .btn-theme.active
@@ -251,6 +267,10 @@
         input[type="email"],
         input[type="password"],
         input[type="tel"],
+        {{-- bootstrap-table renders its toolbar filter as type="search", which
+             was missing from this list and so kept Bootstrap's white fill in
+             dark mode. --}}
+        input[type="search"],
         option:active,
         option[active],
         option[selected],
@@ -417,10 +437,37 @@
 
         }
 
+        {{-- Bootstrap paints .btn-default white with dark text, which is a
+             light-mode-only assumption — in dark mode the filter pills above
+             a table came out as white slabs. Route it through neutral tokens
+             so it follows the theme. --}}
         .btn-default,
-        .btn-default:hover
+        .btn-default:link,
+        .btn-default:visited
         {
-            color: #3d4144 !important;
+            background-color: var(--btn-neutral-bg) !important;
+            border-color: var(--btn-neutral-border) !important;
+            color: var(--btn-neutral-fg) !important;
+        }
+
+        .btn-default:hover,
+        .btn-default:focus,
+        .btn-default.active,
+        .btn-default:active,
+        .open > .dropdown-toggle.btn-default
+        {
+            background-color: var(--btn-neutral-active-bg) !important;
+            border-color: var(--btn-neutral-border) !important;
+            color: var(--btn-neutral-fg) !important;
+        }
+
+        {{-- The pressed filter needs to be distinguishable from hover, and
+             from its unpressed neighbours in the same group. --}}
+        .btn-default.active,
+        .btn-default:active
+        {
+            box-shadow: inset 0 -3px 0 var(--main-theme-color);
+            font-weight: 600;
         }
 
         body
@@ -695,6 +742,9 @@
 
         {{-- Pagination stays branded — it is a control on a content box, not
              part of the window chrome. --}}
+        {{-- Pagination stays branded, but on the clamped button fill rather
+             than the raw accent — same reason: --nav-primary-text-color is
+             white and a pale accent leaves the page numbers unreadable. --}}
         .page-next a,
         .pagination > .active > a:hover,
         .page-item.active,
@@ -703,15 +753,15 @@
         .pagination > li > .active > a:hover,
         .pagination > li > a:hover
         {
-            background-color: var(--main-theme-hover) !important;
-            border-color: var(--btn-theme-hover) !important;
+            background-color: var(--btn-theme-hover) !important;
+            border-color: var(--btn-theme-border) !important;
             color: var(--nav-primary-text-color) !important;
         }
 
         .pagination > li > a
         {
-            background-color: var(--main-theme-color) !important;
-            border-color: var(--btn-theme-hover) !important;
+            background-color: var(--btn-theme-base) !important;
+            border-color: var(--btn-theme-border) !important;
             color: var(--nav-primary-text-color) !important;
         }
 
@@ -1107,6 +1157,7 @@
         input[type="email"]:focus,
         input[type="password"]:focus,
         input[type="tel"]:focus,
+        input[type="search"]:focus,
         textarea:focus
         {
             border-color: hsl(from var(--main-theme-color) h s calc(l - 5)) !important;
