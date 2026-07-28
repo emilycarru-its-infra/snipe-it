@@ -26,7 +26,8 @@
     </div></div>
 @else
     {{-- Pull-into-requisition wraps the whole list so approved orders can
-         be checkbox-selected across page sections. --}}
+         be checkbox-selected; the vendor batch forms harvest the same
+         checkboxes via JS on submit. --}}
     <form method="POST" action="{{ route('procurement.queue.pull') }}" id="pq-pull-form">
         {{ csrf_field() }}
 
@@ -36,6 +37,14 @@
                     <input type="text" name="title" class="form-control" style="min-width:320px;" required
                            placeholder="{{ trans('admin/purchase-orders/general.builder_title_placeholder') }}">
                     <button type="submit" class="btn btn-primary">{{ trans('admin/store/general.queue_pull_selected') }}</button>
+                    <span style="display:inline-block; width:18px;"></span>
+                    <button type="submit" form="pq-vendor-batch" class="btn btn-success">
+                        <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+                        {{ trans('admin/store/general.vendor_send_selected') }}
+                    </button>
+                    <button type="submit" form="pq-vendor-batch-test" class="btn btn-default">
+                        {{ trans('admin/store/general.vendor_send_test_button') }}
+                    </button>
                 </div>
             </div>
         @endif
@@ -47,8 +56,15 @@
                         @if ($selectedStatus === 'approved')
                             <input type="checkbox" name="orders[]" value="{{ $order->id }}" style="margin-right:8px;">
                         @endif
-                        {{ trans('admin/store/general.queue_requested_by') }}
-                        <strong>{{ $order->user?->present()->fullName ?: trans('general.na') }}</strong>
+                        <strong>{{ trans('admin/store/general.queue_order_ref', ['id' => $order->id]) }}</strong>
+                        <span style="margin-left:10px;">{{ trans('admin/store/general.queue_requested_by') }}
+                        <strong>{{ $order->user?->present()->fullName ?: trans('general.na') }}</strong></span>
+                        @if ($order->user?->email)
+                            <a href="mailto:{{ $order->user->email }}" class="text-muted" style="font-weight:400;">{{ $order->user->email }}</a>
+                        @endif
+                        @if ($order->user?->department)
+                            <span class="text-muted" style="font-weight:400;">· {{ $order->user->department->name }}</span>
+                        @endif
                         <span class="text-muted" style="font-weight:400; margin-left:6px;">{{ $order->created_at->diffForHumans() }}</span>
                         <span class="label label-default" style="margin-left:6px;">{{ ucfirst($order->status) }}</span>
                         @if ($order->isFacultyProgram())
@@ -70,17 +86,26 @@
                     <div class="row">
                         <div class="col-md-7">
                             <table class="table table-condensed" style="margin-bottom:0;">
+                                <thead>
+                                    <tr>
+                                        <th>{{ trans('admin/store/general.queue_col_item') }}</th>
+                                        <th class="text-right" style="width:60px;">{{ trans('admin/store/general.queue_col_qty') }}</th>
+                                        <th class="text-right" style="width:110px;">{{ trans('admin/store/general.queue_col_unit') }}</th>
+                                        <th class="text-right" style="width:110px;">{{ trans('admin/store/general.queue_col_total') }}</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     @foreach ($order->items as $line)
                                         <tr>
                                             <td>{{ $line->description }}</td>
-                                            <td style="white-space:nowrap;">&times;{{ $line->quantity }}</td>
-                                            <td class="text-right" style="white-space:nowrap;">{{ \App\Helpers\Helper::formatCurrencyOutput($line->lineTotal()) }}</td>
+                                            <td class="text-right">{{ $line->quantity }}</td>
+                                            <td class="text-right" style="white-space:nowrap;">${{ \App\Helpers\Helper::formatCurrencyOutput($line->unit_cost) }}</td>
+                                            <td class="text-right" style="white-space:nowrap;">${{ \App\Helpers\Helper::formatCurrencyOutput($line->lineTotal()) }}</td>
                                         </tr>
                                     @endforeach
                                     <tr>
-                                        <td colspan="2" class="text-right"><strong>{{ trans('admin/purchase-orders/general.builder_total') }}</strong></td>
-                                        <td class="text-right"><strong>{{ \App\Helpers\Helper::formatCurrencyOutput($order->total()) }}</strong></td>
+                                        <td colspan="3" class="text-right"><strong>{{ trans('admin/purchase-orders/general.builder_total') }}</strong></td>
+                                        <td class="text-right"><strong>${{ \App\Helpers\Helper::formatCurrencyOutput($order->total()) }}</strong></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -134,8 +159,9 @@
         @endforeach
     </form>
 
-    {{-- One decision form per pending order (and vendor-send forms per
-         approved order), outside the pull form so nothing ever nests. --}}
+    {{-- One decision form per pending order, and vendor-send forms — one
+         per approved order plus the two batch forms — all outside the
+         pull form so nothing ever nests. --}}
     @foreach ($orders as $order)
         @if ($order->status === 'pending')
             <form method="POST" action="{{ route('procurement.queue.decide', $order->id) }}" id="pq-decide-{{ $order->id }}">
@@ -143,15 +169,47 @@
             </form>
         @endif
         @if ($order->status === 'approved')
-            <form method="POST" action="{{ route('procurement.queue.send-vendor', $order->id) }}" id="pq-vendor-{{ $order->id }}">
+            <form method="POST" action="{{ route('procurement.queue.send-vendor') }}" id="pq-vendor-{{ $order->id }}">
                 {{ csrf_field() }}
+                <input type="hidden" name="orders[]" value="{{ $order->id }}">
             </form>
-            <form method="POST" action="{{ route('procurement.queue.send-vendor', $order->id) }}" id="pq-vendor-test-{{ $order->id }}">
+            <form method="POST" action="{{ route('procurement.queue.send-vendor') }}" id="pq-vendor-test-{{ $order->id }}">
                 {{ csrf_field() }}
+                <input type="hidden" name="orders[]" value="{{ $order->id }}">
                 <input type="hidden" name="test" value="1">
             </form>
         @endif
     @endforeach
+
+    @if ($selectedStatus === 'approved')
+        <form method="POST" action="{{ route('procurement.queue.send-vendor') }}" id="pq-vendor-batch">
+            {{ csrf_field() }}
+        </form>
+        <form method="POST" action="{{ route('procurement.queue.send-vendor') }}" id="pq-vendor-batch-test">
+            {{ csrf_field() }}
+            <input type="hidden" name="test" value="1">
+        </form>
+        <script>
+        // The batch vendor forms harvest whichever orders are ticked in
+        // the pull form's checkboxes at the moment of submit.
+        ['pq-vendor-batch', 'pq-vendor-batch-test'].forEach(function (id) {
+            var form = document.getElementById(id);
+            if (! form) { return; }
+            form.addEventListener('submit', function (e) {
+                form.querySelectorAll('input[name="orders[]"]').forEach(function (el) { el.remove(); });
+                var checked = document.querySelectorAll('#pq-pull-form input[name="orders[]"]:checked');
+                if (! checked.length) { e.preventDefault(); return; }
+                checked.forEach(function (box) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'orders[]';
+                    input.value = box.value;
+                    form.appendChild(input);
+                });
+            });
+        });
+        </script>
+    @endif
 
     {{ $orders->links() }}
 @endif

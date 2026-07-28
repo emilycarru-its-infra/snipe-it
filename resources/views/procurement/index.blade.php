@@ -36,6 +36,33 @@
     @endforeach
 </div>
 
+@if (auth()->user()->isSuperUser())
+    <div class="row">
+        <div class="col-md-6">
+            <div class="box box-default">
+                <div class="box-header with-border">
+                    <h3 class="box-title">{{ trans('admin/store/general.approvers_title') }}</h3>
+                </div>
+                <div class="box-body">
+                    <p class="text-muted">{{ trans('admin/store/general.approvers_intro') }}</p>
+                    <form method="POST" action="{{ route('procurement.approvers.save') }}">
+                        {{ csrf_field() }}
+                        <select class="js-data-ajax" data-endpoint="users" multiple name="approvers[]"
+                                data-placeholder="{{ trans('general.select_user') }}" style="width:100%;">
+                            @foreach ($approvers as $approver)
+                                @if ($approver->user)
+                                    <option value="{{ $approver->user_id }}" selected>{{ $approver->user->present()->fullName }}</option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <button type="submit" class="btn btn-primary" style="margin-top:10px;">{{ trans('general.save') }}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
+
 <div class="row">
     <div class="col-md-12">
         <div class="box box-default">

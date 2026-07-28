@@ -1,9 +1,10 @@
 {{-- The storefront: an Apple-buy-page-style walk from product family to a
      fully specified configuration, plus the cart. Selecting a family
-     expands its configurator in place inside the grid (a full-width
-     accordion row), never a separate page. All selection logic is
-     client-side over the JSON payload the controller ships; the server
-     re-reads every price at order time, so nothing here is trusted.
+     morphs its own card into the configurator, in place in the grid —
+     the card grows to span a few columns, the neighbours reflow around
+     it, and closing shrinks it back. All selection logic is client-side
+     over the JSON payload the controller ships; the server re-reads
+     every price at order time, so nothing here is trusted.
 
      Every colour goes through light-dark() — the layout declares
      color-scheme: light dark, so the store follows the user's theme
@@ -23,7 +24,6 @@
               border-radius: 14px; padding: 22px 18px; text-align: center; cursor: pointer;
               transition: box-shadow .15s ease; }
     .st-fam:hover { box-shadow: 0 4px 16px light-dark(rgba(0,0,0,.08), rgba(0,0,0,.5)); }
-    .st-fam.sel { border: 2px solid var(--st-accent); padding: 21px 17px; }
     .st-fam-img { height: 150px; display: flex; align-items: center; justify-content: center;
                   color: light-dark(#d2d2d7, #6e6e73); font-size: 44px; margin-bottom: 14px; }
     .st-fam-img img { max-height: 150px; max-width: 100%; object-fit: contain; }
@@ -31,16 +31,22 @@
     .st-fam-chips { font-size: 12px; color: light-dark(#6e6e73, #a1a1a6); margin-bottom: 8px; min-height: 16px; }
     .st-fam-price { font-size: 13px; color: light-dark(#1d1d1f, #f5f5f7); }
 
-    /* ---- In-place configurator (full-width accordion row) ---- */
-    .st-expand { grid-column: 1 / -1; background: light-dark(#fff, #2c2c2e);
-                 border: 1px solid light-dark(#e8e8ed, #3a3a3c); border-radius: 16px;
-                 padding: 24px 26px; }
+    /* ---- The open card: the card itself, grown into the configurator.
+           It keeps its grid position (sense of place); the span is set
+           inline by JS from the current column count. ---- */
+    .st-fam.st-open { text-align: left; cursor: default; padding: 24px 26px;
+                      animation: st-grow .3s ease; transform-origin: top left; }
+    .st-fam.st-open:hover { box-shadow: none; }
+    @keyframes st-grow {
+        from { transform: scale(.96); opacity: .4; }
+        to { transform: scale(1); opacity: 1; }
+    }
     .st-expand-close { float: right; background: none; border: none; color: inherit; font-size: 20px;
                        cursor: pointer; line-height: 1; padding: 4px 8px; }
     .st-hero { display: flex; gap: 22px; align-items: center; margin-bottom: 6px; }
-    .st-hero-img { width: 170px; min-width: 170px; height: 130px; display: flex; align-items: center;
+    .st-hero-img { width: 150px; min-width: 150px; height: 116px; display: flex; align-items: center;
                    justify-content: center; color: light-dark(#d2d2d7, #6e6e73); font-size: 44px; }
-    .st-hero-img img { max-height: 130px; max-width: 100%; object-fit: contain; }
+    .st-hero-img img { max-height: 116px; max-width: 100%; object-fit: contain; }
     .st-hero h2 { margin: 0 0 4px; font-size: 24px; font-weight: 700; }
     .st-config { max-width: 680px; }
     .st-step { margin: 24px 0; }
@@ -57,7 +63,7 @@
     .st-opt-price { font-size: 13px; color: light-dark(#1d1d1f, #f5f5f7); white-space: nowrap; text-align: right; }
     .st-swatches { display: flex; gap: 14px; flex-wrap: wrap; }
     .st-swatch { text-align: center; cursor: pointer; background: none; border: none; padding: 0; color: inherit; }
-    .st-swatch-dot { width: 36px; height: 36px; border-radius: 50%; margin: 0 auto 6px;
+    .st-swatch-dot { width: 36px; height: 36px; border-radius: 50%; margin: 0 auto 6px; display: block;
                      border: 1px solid light-dark(rgba(0,0,0,.15), rgba(255,255,255,.25)); }
     .st-swatch.sel .st-swatch-dot { outline: 2px solid var(--st-accent); outline-offset: 2px; }
     .st-swatch.off { opacity: .35; cursor: not-allowed; }
@@ -97,30 +103,31 @@
                     -moz-appearance: textfield; }
     .st-qty input::-webkit-outer-spin-button, .st-qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-    /* ---- Cart ---- */
+    /* ---- Cart: each line is the same summary card the configurator
+           shows, shrunk to sidebar width. ---- */
     .st-cart-box { background: light-dark(#fff, #2c2c2e); border: 1px solid light-dark(#e8e8ed, #3a3a3c);
                    border-radius: 16px; padding: 22px; position: sticky; top: 60px; }
     @media (max-width: 991px) { .st-cart-box { position: static; } }
-    .st-cart-title { margin: 0 0 6px; font-size: 21px; font-weight: 700; }
-    .st-cart-line { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid light-dark(#e8e8ed, #3f3f42); }
-    .st-cart-thumb { width: 58px; min-width: 58px; height: 58px; display: flex; align-items: center;
-                     justify-content: center; color: light-dark(#d2d2d7, #6e6e73); font-size: 22px; }
-    .st-cart-thumb img { max-width: 58px; max-height: 58px; object-fit: contain; }
-    .st-cart-info { flex: 1; min-width: 0; }
-    .st-cart-name { font-size: 15px; font-weight: 700; }
-    .st-cart-desc { font-size: 12.5px; color: light-dark(#6e6e73, #a1a1a6); margin: 2px 0 10px; }
-    .st-cart-ctl { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .st-cart-ctl .st-qty button { width: 28px; padding: 4px 0; font-size: 14px; }
-    .st-cart-ctl .st-qty input { width: 36px; font-size: 13px; padding: 4px 2px; }
-    .st-cart-price { font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .st-cart-title { margin: 0 0 10px; font-size: 21px; font-weight: 700; }
+    .st-cart-card { background: light-dark(#f5f5f7, #232326); border-radius: 14px; padding: 16px;
+                    margin-bottom: 14px; }
+    .st-cart-card-name { font-size: 16px; font-weight: 700; }
+    .st-cart-card-img { text-align: center; margin: 10px 0 12px; color: light-dark(#d2d2d7, #6e6e73); font-size: 30px; }
+    .st-cart-card-img img { max-height: 110px; max-width: 100%; object-fit: contain; }
+    .st-cart-specs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 12px; margin: 0 0 4px; }
+    .st-cart-specs div dt { font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+                            color: light-dark(#86868b, #a1a1a6); margin-bottom: 1px; font-weight: 600; }
+    .st-cart-specs div dd { margin: 0; font-size: 12.5px; }
+    .st-cart-card-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; }
+    .st-cart-price { font-size: 20px; font-weight: 700; white-space: nowrap; }
+    .st-cart-card-foot .st-qty button { width: 30px; padding: 5px 0; font-size: 14px; }
+    .st-cart-card-foot .st-qty input { width: 38px; font-size: 13px; padding: 5px 2px; }
     .st-cart-remove { font-size: 12.5px; color: var(--text-danger); background: none; border: none;
-                      padding: 0; cursor: pointer; display: block; margin-top: 8px; }
+                      padding: 0; cursor: pointer; display: block; margin-top: 10px; }
     .st-cart-subtotal { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700;
-                        padding: 16px 0 4px; }
+                        padding: 12px 0 4px; border-top: 1px solid light-dark(#e8e8ed, #3f3f42); }
     .st-cart-disclaimer { font-size: 11.5px; color: light-dark(#86868b, #a1a1a6); margin: 4px 0 0; }
     .st-cart-empty { font-size: 13px; }
-    /* The Place Order button matches the configurator's Add button, not
-       AdminLTE's default blue. */
     .st-cart-box .btn-primary { background: var(--st-accent); border: none; border-radius: 12px;
                                 padding: 12px; font-size: 16px; font-weight: 600; }
     .st-cart-box .btn-primary:hover:not(:disabled) { background: #0077ed; }
@@ -143,9 +150,6 @@
                      'Yellow': '#f9d94d', 'Orange': '#ec8934', 'Green': '#495e48', 'Starlight': '#f0e4d3',
                      'Midnight': '#2e3642' };
 
-    // Items with no display finish of their own sit in the "standard"
-    // bucket, so a family that offers Nano-texture gets a clean pair of
-    // options instead of a phantom third one.
     ITEMS.forEach(function (it) { if (! it.display_finish) { it.display_finish = 'standard'; } });
 
     var money = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
@@ -233,21 +237,19 @@
         return [it.spec_cpu, it.spec_gpu, it.spec_npu].filter(Boolean).join(', ');
     }
 
+    // How many columns the family grid currently lays out — the open
+    // card spans up to three of them so it stays anchored where the
+    // card was instead of taking the whole page.
+    function gridSpan() {
+        var width = main.clientWidth || 900;
+        var cols = Math.max(1, Math.floor((width + 16) / 256));
+        return Math.min(3, cols);
+    }
+
     // ---- Rendering ----
     function render() {
         renderMain();
         renderCart();
-    }
-
-    function famCardHtml(k) {
-        var f = families[k];
-        var sel = state.family === k;
-        return '<div class="st-fam' + (sel ? ' sel' : '') + '" data-family="' + esc(k) + '" role="button" tabindex="0">'
-            + '<div class="st-fam-img">' + (f.image ? '<img src="' + esc(f.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
-            + '<div class="st-fam-name">' + esc(f.name) + '</div>'
-            + '<div class="st-fam-chips">' + esc(f.chips.join(' · ')) + '</div>'
-            + '<div class="st-fam-price">' + esc(STR.from) + ' ' + money.format(f.minPrice) + '</div>'
-            + '</div>';
     }
 
     function renderMain() {
@@ -278,13 +280,23 @@
             html += '<p class="text-muted">' + esc(STR.storeEmpty) + '</p>';
         } else {
             html += '<div class="st-fam-grid">' + keys.map(function (k) {
-                // The configurator expands in place: a full-width row
-                // right after the selected family's card.
-                var card = famCardHtml(k);
+                var f = families[k];
+
+                // The selected family's card IS the configurator: same
+                // grid slot, grown to span a few columns, neighbours
+                // reflow around it.
                 if (state.family === k) {
-                    card += '<div class="st-expand" id="st-expand">' + configHtml(families[k]) + '</div>';
+                    return '<div class="st-fam st-open" data-family="' + esc(k) + '" id="st-open"'
+                        + ' style="grid-column: span ' + gridSpan() + ';">'
+                        + configHtml(f) + '</div>';
                 }
-                return card;
+
+                return '<div class="st-fam" data-family="' + esc(k) + '" role="button" tabindex="0">'
+                    + '<div class="st-fam-img">' + (f.image ? '<img src="' + esc(f.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
+                    + '<div class="st-fam-name">' + esc(f.name) + '</div>'
+                    + '<div class="st-fam-chips">' + esc(f.chips.join(' · ')) + '</div>'
+                    + '<div class="st-fam-price">' + esc(STR.from) + ' ' + money.format(f.minPrice) + '</div>'
+                    + '</div>';
             }).join('') + '</div>';
         }
 
@@ -305,8 +317,6 @@
             html += '<div class="st-step"><div class="st-step-title">' + esc(labels.title)
                 + ' <span class="st-sub">' + esc(labels.sub) + '</span></div>';
 
-            // Options constrained by the steps above this one only — the
-            // steps below re-settle when the pick lands.
             var prior = {};
             fam.steps.slice(0, stepIndex).forEach(function (a) { prior[a] = state.sel[a]; });
 
@@ -356,7 +366,6 @@
             html += '</div>';
         });
 
-        // Summary — "Your new MacBook Pro. Everything look good?"
         var specHtml = Object.keys(cur.specs || {}).map(function (label) {
             return '<div><dt>' + esc(label) + '</dt><dd>' + esc(cur.specs[label]) + '</dd></div>';
         }).join('');
@@ -394,12 +403,6 @@
         return ITEMS.filter(function (i) { return i.id === id; })[0] || null;
     }
 
-    function cartDesc(it) {
-        return [it.chip, it.ram_gb ? it.ram_gb + 'GB' : null, it.storage, it.color,
-                it.display_finish === 'nano' ? 'Nano-texture' : null, it.extras]
-            .filter(Boolean).join(' · ');
-    }
-
     function renderCart() {
         var html = '';
         var total = 0;
@@ -407,19 +410,24 @@
             var it = itemById(line.id);
             if (! it) { return; }
             total += it.price * line.quantity;
-            html += '<div class="st-cart-line" data-line="' + i + '">'
-                + '<div class="st-cart-thumb">' + (it.image ? '<img src="' + esc(it.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
-                + '<div class="st-cart-info">'
-                + '<div class="st-cart-name">' + esc(it.family) + (it.screen_size ? ' ' + esc(it.screen_size) + '"' : '') + '</div>'
-                + '<div class="st-cart-desc">' + esc(cartDesc(it)) + '</div>'
-                + '<div class="st-cart-ctl">'
+
+            // Each cart line is the summary card, sidebar-sized.
+            var specHtml = Object.keys(it.specs || {}).map(function (label) {
+                return '<div><dt>' + esc(label) + '</dt><dd>' + esc(it.specs[label]) + '</dd></div>';
+            }).join('');
+
+            html += '<div class="st-cart-card" data-line="' + i + '">'
+                + '<div class="st-cart-card-name">' + esc(it.family) + (it.screen_size ? ' ' + esc(it.screen_size) + '"' : '') + '</div>'
+                + '<div class="st-cart-card-img">' + (it.image ? '<img src="' + esc(it.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
+                + '<dl class="st-cart-specs">' + specHtml + '</dl>'
+                + '<div class="st-cart-card-foot">'
                 + '<span class="st-qty"><button type="button" class="st-minus" data-cartqty="-1" aria-label="-">&minus;</button>'
                 + '<input type="number" min="1" max="100" value="' + line.quantity + '" data-cartline="' + i + '" aria-label="' + esc(STR.quantity) + '">'
                 + '<button type="button" class="st-plus" data-cartqty="1" aria-label="+">+</button></span>'
                 + '<span class="st-cart-price">' + money.format(it.price * line.quantity) + '</span>'
                 + '</div>'
                 + '<button type="button" class="st-cart-remove" data-remove="' + i + '">' + esc(STR.remove) + '</button>'
-                + '</div></div>';
+                + '</div>';
         });
         cartList.innerHTML = html;
         cartEmpty.hidden = cart.length > 0;
@@ -438,23 +446,6 @@
     main.addEventListener('click', function (e) {
         var pill = e.target.closest('.st-pill');
         if (pill) { state.category = pill.dataset.cat || null; render(); return; }
-
-        var famCard = e.target.closest('.st-fam');
-        if (famCard) {
-            var k = famCard.dataset.family;
-            if (state.family === k) {
-                state.family = null;
-            } else {
-                state.family = k;
-                state.qty = 1;
-                state.sel = {};
-                settle(families[k], null, undefined);
-            }
-            render();
-            var expand = document.getElementById('st-expand');
-            if (expand) { expand.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-            return;
-        }
 
         if (e.target.closest('[data-close]')) { state.family = null; render(); return; }
 
@@ -481,11 +472,37 @@
             if (line) { line.quantity = clampQty(line.quantity + qty); } else { cart.push({ id: id, quantity: qty }); }
             state.qty = 1;
             render();
+            return;
+        }
+
+        // Card clicks come last: the open card's inner controls were all
+        // handled above, so a click that lands here on the open card is
+        // just background — ignore it.
+        var famCard = e.target.closest('.st-fam');
+        if (famCard && ! famCard.classList.contains('st-open')) {
+            state.family = famCard.dataset.family;
+            state.qty = 1;
+            state.sel = {};
+            settle(families[state.family], null, undefined);
+            render();
+            var open = document.getElementById('st-open');
+            if (open) { open.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
         }
     });
 
     main.addEventListener('input', function (e) {
         if (e.target.id === 'st-config-qty') { state.qty = clampQty(e.target.value); }
+    });
+
+    // Keep the open card's span honest across window resizes.
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+        if (! state.family) { return; }
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            var open = document.getElementById('st-open');
+            if (open) { open.style.gridColumn = 'span ' + gridSpan(); }
+        }, 150);
     });
 
     cartList.addEventListener('click', function (e) {
@@ -494,7 +511,7 @@
 
         var qtyBtn = e.target.closest('[data-cartqty]');
         if (qtyBtn) {
-            var lineEl = qtyBtn.closest('.st-cart-line');
+            var lineEl = qtyBtn.closest('.st-cart-card');
             var line = cart[parseInt(lineEl.dataset.line, 10)];
             line.quantity = clampQty(line.quantity + parseInt(qtyBtn.dataset.cartqty, 10));
             renderCart();

@@ -7,6 +7,7 @@ use App\Models\CatalogItem;
 use App\Models\EmailTemplate;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
+use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
@@ -42,6 +43,7 @@ class ProcurementController extends Controller
             'storeItemCount' => CatalogItem::inStore()->count(),
             'catalogCount' => CatalogItem::active()->count(),
             'estimateCount' => CatalogItem::inStore()->where(fn ($q) => $q->whereNull('unit_cost')->orWhere('price_type', 'estimate'))->count(),
+            'approvers' => StoreApprover::with('user')->get(),
         ]);
     }
 
@@ -51,14 +53,18 @@ class ProcurementController extends Controller
      */
     public function queue(Request $request)
     {
-        $this->authorize('view', Requisition::class);
+        // Listed approvers get in even without the orders permission —
+        // they cannot decide what they cannot see.
+        if (! StoreApprover::allows(auth()->user())) {
+            $this->authorize('view', Requisition::class);
+        }
 
         $status = $request->query('status', 'pending');
         if (! in_array($status, StoreOrder::STATUSES, true) && $status !== 'all') {
             $status = 'pending';
         }
 
-        $orders = StoreOrder::with('items.catalogItem.supplier', 'user', 'decidedBy', 'requisition.purchaseOrder')
+        $orders = StoreOrder::with('items.catalogItem.supplier', 'user.department', 'decidedBy', 'requisition.purchaseOrder')
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->orderBy('created_at')
             ->paginate(50)
@@ -77,7 +83,9 @@ class ProcurementController extends Controller
      */
     public function decide(Request $request, StoreOrder $order): RedirectResponse
     {
-        $this->authorize('update', Requisition::class);
+        // The configurable approver list outranks the orders permission
+        // the moment anyone is on it; empty list = permission as usual.
+        abort_unless(StoreApprover::allows(auth()->user()), 403);
 
         $validated = $request->validate([
             'decision' => 'required|string|in:approved,declined',
@@ -103,38 +111,49 @@ class ProcurementController extends Controller
     }
 
     /**
-     * Email an approved order to the vendor's reps as an order request.
+     * Email approved orders to the vendor's reps as one order request —
+     * a single order from its own button, or several batched together
+     * from the queue's checkboxes.
      *
      * With `test`, the exact same email goes only to the person clicking
      * — so the layout can be confirmed before a real rep ever sees one —
-     * and nothing changes on the order. A real send flips the order to
-     * `ordered`, stamps vendor_sent_at, and tells the requester.
+     * and nothing changes on any order. A real send flips every order to
+     * `ordered`, stamps vendor_sent_at, and tells each requester.
      */
-    public function sendVendorOrder(Request $request, StoreOrder $order): RedirectResponse
+    public function sendVendorOrders(Request $request): RedirectResponse
     {
         $this->authorize('update', Requisition::class);
 
+        $validated = $request->validate([
+            'orders' => 'required|array|min:1',
+            'orders.*' => 'integer|exists:store_orders,id',
+        ]);
+
         $test = $request->boolean('test');
 
-        if (! $test && $order->status !== 'approved') {
+        $orders = StoreOrder::with('items.catalogItem.supplier', 'user')
+            ->whereIn('id', $validated['orders'])
+            ->where('status', 'approved')
+            ->orderBy('id')
+            ->get();
+
+        if ($orders->isEmpty()) {
             return redirect()->route('procurement.queue', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.vendor_send_not_approved'));
         }
-
-        $order->loadMissing('items.catalogItem.supplier', 'user');
 
         if ($test) {
             $to = [auth()->user()->email];
             $cc = [];
         } else {
-            $to = EmailTemplate::recipientsFor('store.vendor_order', $order->supplier()?->order_emails);
+            $to = EmailTemplate::recipientsFor('store.vendor_order', $orders->first()->supplier()?->order_emails);
             $cc = EmailTemplate::ccFor('store.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca');
         }
 
         $to = array_filter($to);
 
         if ($to === []) {
-            return redirect()->route('procurement.queue', ['status' => $order->status])
+            return redirect()->route('procurement.queue', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.vendor_send_no_recipients'));
         }
 
@@ -143,24 +162,54 @@ class ProcurementController extends Controller
             if ($cc !== []) {
                 $mail->cc($cc);
             }
-            $mail->send(new StoreVendorOrderMail($order, $test));
+            $mail->send(new StoreVendorOrderMail($orders, $test));
         } catch (\Throwable $e) {
-            Log::warning('Vendor order email failed for store order '.$order->id.': '.$e->getMessage());
+            Log::warning('Vendor order email failed for store orders ['.$orders->pluck('id')->implode(',').']: '.$e->getMessage());
 
-            return redirect()->route('procurement.queue', ['status' => $order->status])
+            return redirect()->route('procurement.queue', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
         }
 
         if ($test) {
-            return redirect()->route('procurement.queue', ['status' => $order->status])
+            return redirect()->route('procurement.queue', ['status' => 'approved'])
                 ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $to[0]]));
         }
 
-        $order->update(['status' => 'ordered', 'vendor_sent_at' => now()]);
-        StoreOrderNotifier::requester($order, 'ordered');
+        foreach ($orders as $order) {
+            $order->update(['status' => 'ordered', 'vendor_sent_at' => now()]);
+            StoreOrderNotifier::requester($order, 'ordered');
+        }
 
         return redirect()->route('procurement.queue', ['status' => 'approved'])
             ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
+    }
+
+    /**
+     * Save the approver list: who may approve or decline store orders.
+     * Superuser-gated, like the rest of who-can-do-what configuration.
+     */
+    public function saveApprovers(Request $request): RedirectResponse
+    {
+        abort_unless(auth()->user()->isSuperUser(), 403);
+
+        $validated = $request->validate([
+            'approvers' => 'nullable|array',
+            'approvers.*' => 'integer|exists:users,id',
+        ]);
+
+        $wanted = collect($validated['approvers'] ?? [])->unique()->values();
+
+        StoreApprover::whereNotIn('user_id', $wanted)->delete();
+
+        foreach ($wanted as $userId) {
+            StoreApprover::firstOrCreate(
+                ['user_id' => $userId],
+                ['created_by' => auth()->id()]
+            );
+        }
+
+        return redirect()->route('procurement.index')
+            ->with('success', trans('admin/store/general.approvers_saved'));
     }
 
     /**

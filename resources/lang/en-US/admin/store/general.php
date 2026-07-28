@@ -89,6 +89,15 @@ return [
     'vendor_send_test_sent' => 'Test order request sent to :email — the real one is untouched.',
     'vendor_send_sent' => 'Order request emailed to :emails.',
     'shipment_wrong_state' => 'A shipment cannot land on an order in state ":status".',
+    'approvers_title' => 'Order approvers',
+    'approvers_intro' => 'Who may approve or decline store orders. Leave empty to fall back to everyone with the orders permission; superusers can always decide.',
+    'approvers_saved' => 'Approver list saved.',
+    'vendor_send_selected' => 'Email order request for selected',
+    'queue_col_item' => 'Item',
+    'queue_col_qty' => 'Qty',
+    'queue_col_unit' => 'Unit',
+    'queue_col_total' => 'Line total',
+    'queue_order_ref' => 'ECU-STORE-:id',
     'line_requested_by' => 'Requested by :name via the Store',
 
     // Storefront management
