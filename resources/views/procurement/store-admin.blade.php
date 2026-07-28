@@ -48,6 +48,9 @@
                         </td>
                         <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($item->effectiveCost()) }}</td>
                         <td style="min-width:180px;">
+                            @unless ($item->model)
+                                <span class="label label-danger">{{ trans('admin/store/general.no_model') }}</span>
+                            @endunless
                             <select class="js-data-ajax" data-endpoint="models" name="model_id" form="sa-{{ $item->id }}"
                                     data-placeholder="{{ trans('general.select_model') }}" style="width:100%;">
                                 @if ($item->model)

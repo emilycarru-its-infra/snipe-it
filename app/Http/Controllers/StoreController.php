@@ -20,32 +20,95 @@ use Illuminate\Support\Facades\DB;
 class StoreController extends Controller
 {
     /**
-     * The storefront: category sidebar plus a product grid, mirroring the
-     * CDW eStore layout the fleet already knows.
+     * The storefront: an Apple-style walk from product family to a fully
+     * specified configuration. The server ships every shelf item with its
+     * structured specs as one JSON payload; the browser does the
+     * configurator narrowing client-side, exactly like the PO builder
+     * keeps its basket client-side until one POST.
+     *
+     * Accessories deliberately do not appear — cables and pencils ride
+     * along on a laptop order's notes, they are not a thing users shop
+     * for here.
      */
     public function index(Request $request)
     {
         $items = CatalogItem::with('model')
             ->inStore()
+            ->where(fn ($q) => $q->whereNull('category')->orWhere('category', '!=', 'Accessories'))
             ->orderBy('store_sort')
             ->orderBy('name')
             ->get();
 
-        $categories = $items->pluck('category')->filter()->unique()->sort()->values();
-        $selected = $request->query('category');
-
-        if ($selected && ! $categories->contains($selected)) {
-            $selected = null;
-        }
+        $payload = $items->map(fn (CatalogItem $item) => [
+            'id' => $item->id,
+            'name' => $item->name,
+            'category' => $item->category,
+            'family' => $item->family ?: $item->name,
+            'screen_size' => $item->screen_size,
+            'chip' => $item->chip,
+            'spec_cpu' => $item->spec_cpu,
+            'spec_gpu' => $item->spec_gpu,
+            'spec_npu' => $item->spec_npu,
+            'ram_gb' => $item->ram_gb,
+            'storage' => $item->storage,
+            'color' => $item->color,
+            'display_finish' => $item->display_finish,
+            'extras' => $item->extras,
+            'price' => round($item->effectiveCost()),
+            'estimate' => $item->isEstimate(),
+            'image' => $item->storeImageUrl(),
+            'specs' => $item->specList(),
+        ])->values();
 
         return view('store.index', [
-            'items' => $selected ? $items->where('category', $selected)->values() : $items,
-            'categories' => $categories,
-            'selectedCategory' => $selected,
+            'payload' => $payload,
+            'strings' => $this->storefrontStrings(),
             'openOrderCount' => StoreOrder::where('user_id', auth()->id())
                 ->whereIn('status', ['pending', 'approved'])
                 ->count(),
         ]);
+    }
+
+    /**
+     * Every string the client-side storefront renders, so the JS stays
+     * translation-clean.
+     *
+     * @return array<string, mixed>
+     */
+    private function storefrontStrings(): array
+    {
+        $step = fn (string $key) => [
+            'title' => trans('admin/store/general.step_'.$key.'_title'),
+            'sub' => trans('admin/store/general.step_'.$key.'_sub'),
+        ];
+
+        return [
+            'from' => trans('admin/store/general.from_price'),
+            'back' => trans('admin/store/general.back_to_products'),
+            'add' => trans('admin/store/general.add_to_order'),
+            'approx' => trans('admin/store/general.approx_price'),
+            'included' => trans('admin/store/general.included'),
+            'quantity' => trans('admin/store/general.quantity'),
+            'remove' => trans('admin/store/general.remove'),
+            'summaryTitle' => trans('admin/store/general.summary_title'),
+            'summarySub' => trans('admin/store/general.summary_sub'),
+            'standardConfig' => trans('admin/store/general.standard_config'),
+            'unifiedMemory' => trans('admin/store/general.unified_memory'),
+            'ssdStorage' => trans('admin/store/general.ssd_storage'),
+            'displayStandard' => trans('admin/store/general.display_standard'),
+            'displayNano' => trans('admin/store/general.display_nano'),
+            'allProducts' => trans('admin/store/general.all_categories'),
+            'storeEmpty' => trans('admin/store/general.store_empty'),
+            'steps' => [
+                'screen_size' => $step('size'),
+                'chip' => $step('chip'),
+                'color' => $step('color'),
+                'ram_gb' => $step('ram'),
+                'storage' => $step('storage'),
+                'display_finish' => $step('display'),
+                'extras' => $step('extras'),
+            ],
+        ];
     }
 
     /**

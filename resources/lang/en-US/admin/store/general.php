@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'store' => 'IT Store',
+    'store' => 'Store',
     'store_intro' => 'Pick what you need and place an order. IT reviews every order before anything is purchased — nothing is charged to you.',
     'procurement' => 'Procurement',
     'procurement_intro' => 'The operational hub: store orders, the approval queue, the catalog and the PO builder. Reporting lives under Reports.',
@@ -10,9 +10,37 @@ return [
     'store_admin' => 'Storefront',
 
     // Storefront
-    'all_categories' => 'All categories',
-    'add_to_order' => 'Add',
+    'all_categories' => 'All products',
+    'add_to_order' => 'Add to Order',
     'your_order' => 'Your Order',
+    'from_price' => 'From',
+    'back_to_products' => 'All products',
+    'step_size_title' => 'Model.',
+    'step_size_sub' => 'Choose your size.',
+    'step_chip_title' => 'Chip.',
+    'step_chip_sub' => 'Choose from these powerful options.',
+    'step_color_title' => 'Colour.',
+    'step_color_sub' => 'Pick your favourite.',
+    'step_ram_title' => 'Memory.',
+    'step_ram_sub' => 'How much will you be running at once?',
+    'step_storage_title' => 'Storage.',
+    'step_storage_sub' => 'How much space do you need?',
+    'step_display_title' => 'Display.',
+    'step_display_sub' => 'Choose the best screen type for your workflow.',
+    'step_extras_title' => 'Options.',
+    'step_extras_sub' => 'Anything else this build carries.',
+    'display_standard' => 'Standard display',
+    'display_nano' => 'Nano-texture display',
+    'standard_config' => 'Standard configuration',
+    'summary_title' => 'Your new :family.',
+    'summary_sub' => 'Everything look good?',
+    'unified_memory' => 'unified memory',
+    'ssd_storage' => 'SSD storage',
+    'included' => 'Included',
+    'quantity' => 'Quantity',
+    'approx_disclaimer' => 'All prices are approximate — IT confirms the final cost with the vendor before anything is purchased.',
+    'subtotal' => 'Subtotal',
+    'remove' => 'Remove',
     'order_note_label' => 'Anything IT should know?',
     'order_note_placeholder' => 'Who this is for, room number, deadline…',
     'place_order' => 'Place Order',
@@ -47,7 +75,7 @@ return [
     'queue_pull_selected' => 'Pull selected into a requisition',
     'queue_requested_by' => 'Requested by',
     'queue_empty' => 'The queue is clear.',
-    'line_requested_by' => 'Requested by :name via the IT Store',
+    'line_requested_by' => 'Requested by :name via the Store',
 
     // Storefront management
     'store_admin_intro' => 'Choose which catalog items the store shows, in what order, and with what image. Items with no image fall back to their asset model\'s photo.',
@@ -56,6 +84,7 @@ return [
     'store_image' => 'Image',
     'store_item_updated' => 'Storefront settings saved.',
     'no_image' => 'No image',
+    'no_model' => 'No model — hidden from the store',
 
     // Procurement landing
     'card_pending_orders' => 'Orders awaiting review',

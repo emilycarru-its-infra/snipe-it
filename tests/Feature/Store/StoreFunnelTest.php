@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Store;
 
+use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Requisition;
 use App\Models\StoreOrder;
@@ -28,8 +29,15 @@ class StoreFunnelTest extends TestCase
 
     private function shelfItem(array $overrides = []): CatalogItem
     {
+        // Every store item resolves to a real asset model — the store
+        // hides anything unlinked. An explicit null override stays null.
+        if (! array_key_exists('model_id', $overrides)) {
+            $overrides['model_id'] = AssetModel::factory()->create()->getKey();
+        }
+
         return CatalogItem::create(array_merge([
             'name' => 'MacBook Pro | 14" | M5 | 16GB | 1TB',
+            'family' => 'MacBook Pro',
             'category' => 'Laptops',
             'product_type' => 'standard',
             'vendor_sku' => '854413',
@@ -41,14 +49,41 @@ class StoreFunnelTest extends TestCase
 
     public function test_any_user_can_browse_and_only_shelf_items_show()
     {
-        $shown = $this->shelfItem();
+        // Quote-free names: the payload is JSON, where a double quote
+        // leaves as ".
+        $shown = $this->shelfItem(['name' => 'MacBook Pro 14 M5', 'family' => 'MacBook Pro']);
         $hidden = $this->shelfItem(['name' => 'Not on the shelf', 'vendor_sku' => '999', 'show_in_store' => false]);
 
         $response = $this->actingAs($this->endUser())->get(route('store.index'))->assertOk();
 
-        // Names carry quotes (14"), so match the escaped form Blade emits.
-        $response->assertSee($shown->name);
-        $response->assertDontSee($hidden->name);
+        $response->assertSee('MacBook Pro 14 M5', false);
+        $response->assertDontSee('Not on the shelf', false);
+    }
+
+    public function test_an_item_with_no_asset_model_stays_off_the_shelf()
+    {
+        $unlinked = $this->shelfItem(['name' => 'Mystery Machine', 'vendor_sku' => '111', 'model_id' => null]);
+
+        $this->actingAs($this->endUser())->get(route('store.index'))
+            ->assertOk()
+            ->assertDontSee('Mystery Machine', false);
+
+        $this->actingAs($this->endUser())
+            ->post(route('store.orders.store'), [
+                'items' => [['catalog_item_id' => $unlinked->id, 'quantity' => 1]],
+            ])
+            ->assertRedirect(route('store.index'));
+
+        $this->assertSame(0, StoreOrder::count());
+    }
+
+    public function test_accessories_do_not_reach_the_storefront()
+    {
+        $this->shelfItem(['name' => 'Thunderbolt Cable', 'vendor_sku' => '222', 'category' => 'Accessories']);
+
+        $this->actingAs($this->endUser())->get(route('store.index'))
+            ->assertOk()
+            ->assertDontSee('Thunderbolt Cable', false);
     }
 
     public function test_placing_an_order_snapshots_the_catalog_price()
