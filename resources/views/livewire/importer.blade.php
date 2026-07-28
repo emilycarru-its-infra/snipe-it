@@ -216,6 +216,36 @@
 
 
 
+                                                                @if ($typeOfImport === 'catalogItem')
+                                                                    {{-- A price list carries facts that aren't in the sheet:
+                                                                         who sent it, what it's called, and when it was
+                                                                         priced. Without these a quote can't be told apart
+                                                                         from last quarter's. --}}
+                                                                    <div class="form-group">
+                                                                        <label for="supplier_name">{{ trans('general.supplier') }}</label>
+                                                                        <input type="text" class="form-control" id="supplier_name"
+                                                                               wire:model.live="supplier_name"
+                                                                               placeholder="{{ trans('admin/purchase-orders/general.catalog_supplier_placeholder') }}">
+                                                                        <p class="help-block">{{ trans('admin/purchase-orders/general.catalog_supplier_help') }}</p>
+                                                                    </div>
+                                                                    <div class="form-group">
+                                                                        <label for="price_list_source">{{ trans('admin/purchase-orders/general.catalog_source') }}</label>
+                                                                        <input type="text" class="form-control" id="price_list_source"
+                                                                               wire:model.live="price_list_source"
+                                                                               placeholder="{{ trans('admin/purchase-orders/general.catalog_source_placeholder') }}">
+                                                                        <p class="help-block">{{ trans('admin/purchase-orders/general.catalog_source_help') }}</p>
+                                                                    </div>
+                                                                    <div class="form-group">
+                                                                        <label for="quoted_at">{{ trans('admin/purchase-orders/general.catalog_quoted_at') }}</label>
+                                                                        <input type="date" class="form-control" id="quoted_at" wire:model.live="quoted_at">
+                                                                    </div>
+                                                                    <label class="form-control">
+                                                                        <input type="checkbox" name="deactivate_missing" data-livewire-component="{{ $this->getId() }}" wire:model.live="deactivate_missing">
+                                                                        {{ trans('admin/purchase-orders/general.catalog_deactivate_missing') }}
+                                                                    </label>
+                                                                    <p class="help-block">{{ trans('admin/purchase-orders/general.catalog_deactivate_missing_help') }}</p>
+                                                                @endif
+
                                                                 @if ($typeOfImport === 'user')
                                                                 <label class="form-control">
                                                                     <input type="checkbox" name="send_welcome" data-livewire-component="{{ $this->getId() }}" wire:model.live="send_welcome">
@@ -401,6 +431,10 @@
                             'send-welcome': !!$wire.$get('send_welcome'),
                             'import-type': $wire.$get('typeOfImport'),
                             'run-backup': !!$wire.$get('run_backup'),
+                            'supplier-name': $wire.$get('supplier_name'),
+                            'price-list-source': $wire.$get('price_list_source'),
+                            'quoted-at': $wire.$get('quoted_at'),
+                            'deactivate-missing': !!$wire.$get('deactivate_missing'),
                             'column-mappings': mappings
                         }),
                         headers: {
