@@ -35,7 +35,9 @@ use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ContractReportsController;
 use App\Http\Controllers\BudgetAllocationsController;
+use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProcurementReportsController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\RequisitionsController;
 use App\Http\Controllers\FleetHealthReportsController;
 use App\Http\Controllers\PrintingReportsController;
@@ -141,6 +143,51 @@ Route::group(['middleware' => 'auth'], function () {
     */
     Route::resource('purchase-orders', PurchaseOrdersController::class);
     Route::post('purchase-orders/bulk/delete', [PurchaseOrdersController::class, 'bulkDelete'])->name('purchase-orders.bulk.delete');
+
+    /*
+    * The internal store — every authenticated user can browse and order.
+    * No procurement permission on this side; the gate is on the queue.
+    */
+    $storeCrumb = fn (Trail $trail) => $trail->parent('home')
+        ->push(trans('admin/store/general.store'), route('store.index'));
+
+    Route::get('store', [StoreController::class, 'index'])
+        ->name('store.index')
+        ->breadcrumbs($storeCrumb);
+    Route::post('store/orders', [StoreController::class, 'store'])
+        ->name('store.orders.store');
+    Route::get('store/orders', [StoreController::class, 'orders'])
+        ->name('store.orders')
+        ->breadcrumbs(fn (Trail $trail) => ($storeCrumb)($trail)
+            ->push(trans('admin/store/general.my_orders'), route('store.orders')));
+    Route::post('store/orders/{order}/cancel', [StoreController::class, 'cancel'])
+        ->name('store.orders.cancel');
+
+    /*
+    * Procurement — the operational hub. The store approval queue and
+    * storefront management live here; the PO builder and requisitions are
+    * reachable from its landing. /reports/procurement stays reporting.
+    */
+    $procCrumb = fn (Trail $trail) => $trail->parent('home')
+        ->push(trans('admin/store/general.procurement'), route('procurement.index'));
+
+    Route::get('procurement', [ProcurementController::class, 'index'])
+        ->name('procurement.index')
+        ->breadcrumbs($procCrumb);
+    Route::get('procurement/queue', [ProcurementController::class, 'queue'])
+        ->name('procurement.queue')
+        ->breadcrumbs(fn (Trail $trail) => ($procCrumb)($trail)
+            ->push(trans('admin/store/general.queue'), route('procurement.queue')));
+    Route::post('procurement/queue/{order}/decide', [ProcurementController::class, 'decide'])
+        ->name('procurement.queue.decide');
+    Route::post('procurement/queue/pull', [ProcurementController::class, 'pullIntoRequisition'])
+        ->name('procurement.queue.pull');
+    Route::get('procurement/store', [ProcurementController::class, 'storeAdmin'])
+        ->name('procurement.store-admin')
+        ->breadcrumbs(fn (Trail $trail) => ($procCrumb)($trail)
+            ->push(trans('admin/store/general.store_admin'), route('procurement.store-admin')));
+    Route::post('procurement/store/{item}', [ProcurementController::class, 'updateStoreItem'])
+        ->name('procurement.store-admin.update');
 
     /*
     * Requisitions — the baskets the PO builder produces, before Colleague

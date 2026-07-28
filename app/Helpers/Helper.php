@@ -1465,6 +1465,8 @@ class Helper
     {
         return [
             '#',
+            'procurement*',
+            'requisitions*',
             'orders*',
             'purchase-orders*',
             'suppliers*',
