@@ -169,6 +169,7 @@
         "estimated_cost",
         "expires_at",
         "id",
+        "image",
         "is_active",
         "manufacturer_id",
         "mfr_part_number",
@@ -178,7 +179,9 @@
         "price_type",
         "product_type",
         "quoted_at",
+        "show_in_store",
         "source",
+        "store_sort",
         "subcategory",
         "supplier_id",
         "unit_cost",
@@ -1369,6 +1372,30 @@
         "pending",
         "show_in_nav",
         "updated_at"
+    ],
+    "store_order_items": [
+        "catalog_item_id",
+        "created_at",
+        "description",
+        "id",
+        "mfr_part_number",
+        "quantity",
+        "store_order_id",
+        "unit_cost",
+        "updated_at",
+        "vendor_sku"
+    ],
+    "store_orders": [
+        "created_at",
+        "decided_at",
+        "decided_by",
+        "decision_notes",
+        "id",
+        "notes",
+        "requisition_id",
+        "status",
+        "updated_at",
+        "user_id"
     ],
     "suppliers": [
         "address",
