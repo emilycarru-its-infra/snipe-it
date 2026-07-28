@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\StoreVendorOrderMail;
 use App\Models\CatalogItem;
+use App\Models\EmailTemplate;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\StoreOrder;
+use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * The /procurement operational hub.
@@ -53,7 +58,7 @@ class ProcurementController extends Controller
             $status = 'pending';
         }
 
-        $orders = StoreOrder::with('items', 'user', 'decidedBy', 'requisition.purchaseOrder')
+        $orders = StoreOrder::with('items.catalogItem.supplier', 'user', 'decidedBy', 'requisition.purchaseOrder')
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->orderBy('created_at')
             ->paginate(50)
@@ -91,8 +96,71 @@ class ProcurementController extends Controller
             'decided_at' => now(),
         ]);
 
+        StoreOrderNotifier::requester($order, $validated['decision']);
+
         return redirect()->route('procurement.queue')
             ->with('success', trans('admin/store/general.queue_decided_'.$validated['decision']));
+    }
+
+    /**
+     * Email an approved order to the vendor's reps as an order request.
+     *
+     * With `test`, the exact same email goes only to the person clicking
+     * — so the layout can be confirmed before a real rep ever sees one —
+     * and nothing changes on the order. A real send flips the order to
+     * `ordered`, stamps vendor_sent_at, and tells the requester.
+     */
+    public function sendVendorOrder(Request $request, StoreOrder $order): RedirectResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $test = $request->boolean('test');
+
+        if (! $test && $order->status !== 'approved') {
+            return redirect()->route('procurement.queue', ['status' => 'approved'])
+                ->with('error', trans('admin/store/general.vendor_send_not_approved'));
+        }
+
+        $order->loadMissing('items.catalogItem.supplier', 'user');
+
+        if ($test) {
+            $to = [auth()->user()->email];
+            $cc = [];
+        } else {
+            $to = EmailTemplate::recipientsFor('store.vendor_order', $order->supplier()?->order_emails);
+            $cc = EmailTemplate::ccFor('store.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca');
+        }
+
+        $to = array_filter($to);
+
+        if ($to === []) {
+            return redirect()->route('procurement.queue', ['status' => $order->status])
+                ->with('error', trans('admin/store/general.vendor_send_no_recipients'));
+        }
+
+        try {
+            $mail = Mail::to($to);
+            if ($cc !== []) {
+                $mail->cc($cc);
+            }
+            $mail->send(new StoreVendorOrderMail($order, $test));
+        } catch (\Throwable $e) {
+            Log::warning('Vendor order email failed for store order '.$order->id.': '.$e->getMessage());
+
+            return redirect()->route('procurement.queue', ['status' => $order->status])
+                ->with('error', trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
+        }
+
+        if ($test) {
+            return redirect()->route('procurement.queue', ['status' => $order->status])
+                ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $to[0]]));
+        }
+
+        $order->update(['status' => 'ordered', 'vendor_sent_at' => now()]);
+        StoreOrderNotifier::requester($order, 'ordered');
+
+        return redirect()->route('procurement.queue', ['status' => 'approved'])
+            ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
     }
 
     /**

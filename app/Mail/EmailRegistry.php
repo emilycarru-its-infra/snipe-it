@@ -2,7 +2,20 @@
 
 namespace App\Mail;
 
+use App\Notifications\AcceptanceItemAcceptedNotification;
+use App\Notifications\AcceptanceItemAcceptedToUserNotification;
+use App\Notifications\AcceptanceItemDeclinedNotification;
+use App\Notifications\CurrentInventory;
+use App\Notifications\ExpectedCheckinAdminNotification;
+use App\Notifications\ExpectedCheckinNotification;
+use App\Notifications\FirstAdminNotification;
+use App\Notifications\InventoryAlert;
+use App\Notifications\RequestAssetCancelation;
+use App\Notifications\RequestAssetNotification;
+use App\Notifications\WelcomeNotification;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Markdown;
+use Illuminate\Notifications\Notification;
 
 /**
  * The single source of truth for every email Snipe-IT can send, used by the
@@ -28,6 +41,7 @@ class EmailRegistry
             'requests' => 'Requests',
             'reports' => 'Reports & alerts',
             'agreements' => 'User Agreements',
+            'store' => 'Store & procurement',
             'account' => 'Account & user',
         ];
     }
@@ -191,7 +205,7 @@ class EmailRegistry
                 'description' => 'Daily admin digest of assets due for check-in soon.',
                 'merge_vars' => ['rows' => 'Rows (asset_tag, name, assigned_to, expected_checkin)', 'assets' => 'Asset objects'],
                 'configurable_recipients' => true,
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\ExpectedCheckinAdminNotification($s->assets()), $s->notifiable()],
+                'notification' => fn (EmailSampleData $s) => [new ExpectedCheckinAdminNotification($s->assets()), $s->notifiable()],
             ],
             [
                 'key' => 'report.low_inventory',
@@ -200,7 +214,7 @@ class EmailRegistry
                 'description' => 'Alert when consumables/accessories fall below their minimum quantity. Toners are grouped by printer model.',
                 'merge_vars' => ['groups' => 'Printer-model groups (model_name, manufacturer, printers_count, items)', 'items' => 'Flat low-stock rows (name, type, remaining, min_amt)', 'count' => 'Number of low items', 'threshold' => 'Alert threshold'],
                 'configurable_recipients' => true,
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\InventoryAlert($s->lowInventoryItems(), 5), $s->notifiable()],
+                'notification' => fn (EmailSampleData $s) => [new InventoryAlert($s->lowInventoryItems(), 5), $s->notifiable()],
             ],
 
             // ---- User Agreements ----
@@ -228,7 +242,7 @@ class EmailRegistry
                 'label' => 'Item accepted (to admin)',
                 'description' => 'Sent to the admin when a user accepts an item.',
                 'merge_vars' => ['assigned_to' => 'User', 'item_name' => 'Item name', 'item_tag' => 'Asset tag', 'item_model' => 'Model', 'item_serial' => 'Serial', 'item_status' => 'Status', 'company_name' => 'Company', 'qty' => 'Quantity', 'note' => 'Note', 'accepted_date' => 'Accepted date', 'intro_text' => 'Intro line'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemAcceptedNotification($s->acceptanceParams()), $s->notifiable()],
+                'notification' => fn (EmailSampleData $s) => [new AcceptanceItemAcceptedNotification($s->acceptanceParams()), $s->notifiable()],
             ],
             [
                 'key' => 'acceptance.accepted_user',
@@ -236,7 +250,7 @@ class EmailRegistry
                 'label' => 'Item accepted (to user)',
                 'description' => 'Confirmation sent to the user who accepted an item.',
                 'merge_vars' => ['assigned_to' => 'User', 'item_name' => 'Item name', 'item_tag' => 'Asset tag', 'item_model' => 'Model', 'item_serial' => 'Serial', 'item_status' => 'Status', 'company_name' => 'Company', 'qty' => 'Quantity', 'note' => 'Note', 'accepted_date' => 'Accepted date', 'intro_text' => 'Intro line'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemAcceptedToUserNotification($s->acceptanceParams()), $s->recipient()],
+                'notification' => fn (EmailSampleData $s) => [new AcceptanceItemAcceptedToUserNotification($s->acceptanceParams()), $s->recipient()],
             ],
             [
                 'key' => 'acceptance.declined',
@@ -244,7 +258,7 @@ class EmailRegistry
                 'label' => 'Item declined',
                 'description' => 'Sent to the admin when a user declines an item.',
                 'merge_vars' => ['assigned_to' => 'User', 'item_name' => 'Item name', 'item_tag' => 'Asset tag', 'item_model' => 'Model', 'item_serial' => 'Serial', 'item_status' => 'Status', 'company_name' => 'Company', 'qty' => 'Quantity', 'note' => 'Note', 'declined_date' => 'Declined date', 'intro_text' => 'Intro line'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\AcceptanceItemDeclinedNotification($s->acceptanceParams()), $s->notifiable()],
+                'notification' => fn (EmailSampleData $s) => [new AcceptanceItemDeclinedNotification($s->acceptanceParams()), $s->notifiable()],
             ],
 
             // ---- Requests (notification-channel; preview-only) ----
@@ -254,7 +268,7 @@ class EmailRegistry
                 'label' => 'Asset requested',
                 'description' => 'Sent when a user requests an asset.',
                 'merge_vars' => ['item' => 'Item (item.display_name, item.asset_tag)', 'requested_by' => 'Requester (requested_by.display_name)', 'requested_date' => 'Requested date', 'qty' => 'Quantity', 'note' => 'Note', 'last_checkout' => 'Last checkout', 'expected_checkin' => 'Expected checkin'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\RequestAssetNotification($s->requestParams()), $s->notifiable()],
+                'notification' => fn (EmailSampleData $s) => [new RequestAssetNotification($s->requestParams()), $s->notifiable()],
             ],
             [
                 'key' => 'request.cancel',
@@ -262,7 +276,7 @@ class EmailRegistry
                 'label' => 'Asset request canceled',
                 'description' => 'Sent when a user cancels an asset request.',
                 'merge_vars' => ['item' => 'Item (item.display_name, item.asset_tag)', 'requested_by' => 'Requester (requested_by.display_name)', 'requested_date' => 'Requested date', 'qty' => 'Quantity', 'note' => 'Note', 'last_checkout' => 'Last checkout', 'expected_checkin' => 'Expected checkin'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\RequestAssetCancelation($s->requestParams()), $s->notifiable()],
+                'notification' => fn (EmailSampleData $s) => [new RequestAssetCancelation($s->requestParams()), $s->notifiable()],
             ],
             [
                 'key' => 'request.asset_buyout',
@@ -276,13 +290,74 @@ class EmailRegistry
             ],
 
             // ---- Account & user (notification-channel; preview-only) ----
+            // ---- Store & procurement ----
+            [
+                'key' => 'store.requested',
+                'category' => 'store',
+                'label' => 'Store order received',
+                'description' => 'Sent to the requester the moment they place a store order. CC defaults to the procurement admin lists.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order (items, notes)'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder(), 'requested'),
+                'configurable_cc' => true,
+            ],
+            [
+                'key' => 'store.approved',
+                'category' => 'store',
+                'label' => 'Store order approved',
+                'description' => 'Sent to the requester when procurement approves their order.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('approved'), 'approved'),
+            ],
+            [
+                'key' => 'store.declined',
+                'category' => 'store',
+                'label' => 'Store order declined',
+                'description' => 'Sent to the requester when an order is declined, including the reviewer\'s note.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order', 'note' => 'Reviewer note'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('declined'), 'declined'),
+            ],
+            [
+                'key' => 'store.ordered',
+                'category' => 'store',
+                'label' => 'Store order placed with vendor',
+                'description' => 'Sent to the requester when their order request goes to the vendor.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('ordered'), 'ordered'),
+            ],
+            [
+                'key' => 'store.shipped',
+                'category' => 'store',
+                'label' => 'Store order shipped',
+                'description' => 'Sent to the requester when the vendor\'s shipping webhook fires, with the tracking number.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order', 'tracking' => 'Tracking number'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('ordered'), 'shipped', ['tracking' => '1Z999AA10123456784']),
+            ],
+            [
+                'key' => 'store.arrived',
+                'category' => 'store',
+                'label' => 'Store order arrived',
+                'description' => 'Sent to the requester when their order arrives on campus.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order', 'serials' => 'Serial numbers'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('ordered'), 'arrived', ['serials' => ['C02ABC123DEF']]),
+            ],
+            [
+                'key' => 'store.vendor_order',
+                'category' => 'store',
+                'label' => 'Vendor order request (to reps)',
+                'description' => 'The order request emailed to the vendor\'s reps from the queue. Recipients default to the supplier\'s order email list; CC defaults to the procurement admin lists.',
+                'merge_vars' => ['order' => 'The order (lines with CDW/MFR part numbers)', 'supplier' => 'The vendor'],
+                'factory' => fn (EmailSampleData $s) => new StoreVendorOrderMail($s->storeOrder('approved')),
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+            ],
+
             [
                 'key' => 'account.welcome',
                 'category' => 'account',
                 'label' => 'Welcome (new user)',
                 'description' => 'Sent to a new user when their account is created.',
                 'merge_vars' => ['first_name' => 'First name', 'last_name' => 'Last name', 'username' => 'Username', 'email' => 'Email', 'token' => 'Invite token', 'expire_date' => 'Invite expiry'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\WelcomeNotification($s->recipient()), $s->recipient()],
+                'notification' => fn (EmailSampleData $s) => [new WelcomeNotification($s->recipient()), $s->recipient()],
             ],
             [
                 'key' => 'account.first_admin',
@@ -290,7 +365,7 @@ class EmailRegistry
                 'label' => 'First admin setup',
                 'description' => 'Sent to the first administrator during initial setup.',
                 'merge_vars' => ['first_name' => 'First name', 'last_name' => 'Last name', 'username' => 'Username', 'email' => 'Email', 'password' => 'Password', 'url' => 'Site URL'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\FirstAdminNotification($s->firstAdminData()), $s->recipient()],
+                'notification' => fn (EmailSampleData $s) => [new FirstAdminNotification($s->firstAdminData()), $s->recipient()],
             ],
             [
                 'key' => 'account.expected_checkin_user',
@@ -298,7 +373,7 @@ class EmailRegistry
                 'label' => 'Expected checkin reminder (user)',
                 'description' => 'Reminds a user that an item assigned to them is due for check-in.',
                 'merge_vars' => ['asset' => 'Asset name', 'asset_tag' => 'Asset tag', 'serial' => 'Serial', 'date' => 'Expected checkin (formatted)', 'expected_checkin_date' => 'Expected checkin (raw)'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\ExpectedCheckinNotification($s->asset()), $s->recipient()],
+                'notification' => fn (EmailSampleData $s) => [new ExpectedCheckinNotification($s->asset()), $s->recipient()],
             ],
             [
                 'key' => 'account.inventory',
@@ -306,7 +381,7 @@ class EmailRegistry
                 'label' => 'Inventory report (to user)',
                 'description' => 'A user’s personal inventory summary, sent on request.',
                 'merge_vars' => ['assets' => 'Assigned assets', 'accessories' => 'Assigned accessories', 'licenses' => 'Assigned licenses', 'consumables' => 'Assigned consumables'],
-                'notification' => fn (EmailSampleData $s) => [new \App\Notifications\CurrentInventory($s->userWithInventory()), $s->userWithInventory()],
+                'notification' => fn (EmailSampleData $s) => [new CurrentInventory($s->userWithInventory()), $s->userWithInventory()],
             ],
         ];
     }
@@ -343,7 +418,7 @@ class EmailRegistry
      * Returns [Notification, Notifiable] or null when the key isn't a
      * notification-channel email.
      *
-     * @return array{0: \Illuminate\Notifications\Notification, 1: mixed}|null
+     * @return array{0: Notification, 1: mixed}|null
      */
     public static function makeNotification(string $key): ?array
     {
@@ -404,7 +479,7 @@ class EmailRegistry
             [$notification, $notifiable] = ($entry['notification'])(new EmailSampleData);
             $message = $notification->toMail($notifiable);
 
-            return app(\Illuminate\Mail\Markdown::class)->render($message->markdown, $message->data());
+            return app(Markdown::class)->render($message->markdown, $message->data());
         }
 
         return null;

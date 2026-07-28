@@ -2,11 +2,16 @@
 
 namespace Tests\Feature\Store;
 
+use App\Mail\StoreOrderStatusMail;
+use App\Mail\StoreVendorOrderMail;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
+use App\Models\Group;
 use App\Models\Requisition;
 use App\Models\StoreOrder;
+use App\Models\Supplier;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 /**
@@ -237,6 +242,150 @@ class StoreFunnelTest extends TestCase
         $this->actingAs($staff)->post(route('procurement.queue.decide', $order->id), ['decision' => 'approved']);
 
         $this->assertSame('declined', $order->fresh()->status);
+    }
+
+    public function test_the_lifecycle_emails_fire_on_request_and_decision()
+    {
+        Mail::fake();
+
+        $item = $this->shelfItem();
+        $requester = $this->endUser();
+
+        $this->actingAs($requester)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        Mail::assertSent(StoreOrderStatusMail::class, fn ($mail) => $mail->event === 'requested' && $mail->hasTo($requester->email));
+
+        $order = StoreOrder::first();
+
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.decide', $order->id), ['decision' => 'approved']);
+
+        Mail::assertSent(StoreOrderStatusMail::class, fn ($mail) => $mail->event === 'approved' && $mail->hasTo($requester->email));
+    }
+
+    public function test_a_vendor_test_send_reaches_only_the_tester_and_changes_nothing()
+    {
+        Mail::fake();
+
+        $staff = $this->procurement();
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca,rep2@cdw.ca']);
+        $item = $this->shelfItem(['supplier_id' => $supplier->id]);
+
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+        $order = StoreOrder::first();
+        $order->update(['status' => 'approved']);
+
+        $this->actingAs($staff)
+            ->post(route('procurement.queue.send-vendor', $order->id), ['test' => 1])
+            ->assertRedirect();
+
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->test
+            && $mail->hasTo($staff->email) && ! $mail->hasTo('rep1@cdw.ca'));
+
+        $this->assertSame('approved', $order->fresh()->status);
+        $this->assertNull($order->fresh()->vendor_sent_at);
+    }
+
+    public function test_a_real_vendor_send_goes_to_the_reps_and_flips_the_order()
+    {
+        Mail::fake();
+
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca,rep2@cdw.ca']);
+        $item = $this->shelfItem(['supplier_id' => $supplier->id]);
+        $requester = $this->endUser();
+
+        $this->actingAs($requester)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+        $order = StoreOrder::first();
+        $order->update(['status' => 'approved']);
+
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.send-vendor', $order->id))
+            ->assertRedirect();
+
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => ! $mail->test
+            && $mail->hasTo('rep1@cdw.ca') && $mail->hasTo('rep2@cdw.ca')
+            && $mail->hasCc('devicesadmins@ecuad.ca') && $mail->hasCc('assetsadmins@ecuad.ca'));
+        Mail::assertSent(StoreOrderStatusMail::class, fn ($mail) => $mail->event === 'ordered' && $mail->hasTo($requester->email));
+
+        $order->refresh();
+        $this->assertSame('ordered', $order->status);
+        $this->assertNotNull($order->vendor_sent_at);
+        $this->assertSame('ordered', $order->displayStatus());
+    }
+
+    public function test_faculty_orders_carry_the_program_flag()
+    {
+        Mail::fake();
+
+        $item = $this->shelfItem();
+        $faculty = $this->endUser();
+        $group = Group::create(['name' => 'Regular Faculty']);
+        $faculty->groups()->sync([$group->id]);
+
+        $this->actingAs($faculty)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        $this->assertSame('faculty', StoreOrder::first()->program);
+        $this->assertTrue(StoreOrder::first()->isFacultyProgram());
+
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        $this->assertNull(StoreOrder::orderBy('id', 'desc')->first()->program);
+    }
+
+    public function test_the_shipment_webhook_updates_status_and_notifies()
+    {
+        Mail::fake();
+
+        $item = $this->shelfItem();
+        $requester = $this->endUser();
+
+        $this->actingAs($requester)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+        $order = StoreOrder::first();
+        $order->update(['status' => 'ordered', 'vendor_sent_at' => now()]);
+
+        $this->actingAsForApi($this->procurement())
+            ->postJson(route('api.store-orders.shipment', $order->id), [
+                'status' => 'shipped',
+                'tracking_number' => '1Z999AA10123456784',
+                'serials' => ['C02XYZ987'],
+            ])
+            ->assertOk();
+
+        $order->refresh();
+        $this->assertSame('shipped', $order->displayStatus());
+        $this->assertSame('1Z999AA10123456784', $order->tracking_number);
+        Mail::assertSent(StoreOrderStatusMail::class, fn ($mail) => $mail->event === 'shipped' && $mail->hasTo($requester->email));
+
+        $this->actingAsForApi($this->procurement())
+            ->postJson(route('api.store-orders.shipment', $order->id), ['status' => 'arrived'])
+            ->assertOk();
+
+        $this->assertSame('arrived', $order->fresh()->displayStatus());
+        Mail::assertSent(StoreOrderStatusMail::class, fn ($mail) => $mail->event === 'arrived');
+    }
+
+    public function test_the_shipment_webhook_rejects_undecided_orders()
+    {
+        $item = $this->shelfItem();
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        $this->actingAsForApi($this->procurement())
+            ->postJson(route('api.store-orders.shipment', StoreOrder::first()->id), ['status' => 'shipped'])
+            ->assertStatus(422);
     }
 
     public function test_only_approved_orders_can_be_pulled()

@@ -695,6 +695,12 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('catalog/apple-sync', [Api\CatalogImportController::class, 'appleSync'])
         ->name('api.catalog.apple-sync');
 
+    // Shipment facts from the vendor's webhook (cdw-orders-listener):
+    // tracking + serials land on the store order and the requester gets
+    // the shipped/arrived email.
+    Route::post('store-orders/{order}/shipment', [Api\StoreOrdersController::class, 'shipment'])
+        ->name('api.store-orders.shipment');
+
     // Exhibit project CSV backfill — token-authed, drives the multi-year
     // historical import without an SSO session.
     Route::post('exhibit/import', [Api\ExhibitImportController::class, 'import'])

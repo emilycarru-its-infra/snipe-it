@@ -1,59 +1,61 @@
 <?php
 
 use App\Actions\Breadcrumbs\BuildAcceptanceBreadcrumbs;
+use App\Forms\FormRegistry;
 use App\Http\Controllers\Account;
 use App\Http\Controllers\ActionlogController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\BudgetAllocationsController;
 use App\Http\Controllers\BulkCategoriesController;
 use App\Http\Controllers\BulkManufacturersController;
 use App\Http\Controllers\BulkSuppliersController;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\CompaniesController;
+use App\Http\Controllers\ContractReportsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentsController;
+use App\Http\Controllers\DeploymentCatalogController;
+use App\Http\Controllers\DeploymentItemsController;
+use App\Http\Controllers\DeploymentsController;
 use App\Http\Controllers\DepreciationsController;
+use App\Http\Controllers\EmailsController;
+use App\Http\Controllers\ExhibitCatalogController;
+use App\Http\Controllers\ExhibitEmailTemplatesController;
+use App\Http\Controllers\ExhibitProjectsController;
+use App\Http\Controllers\FieldGroupsController;
+use App\Http\Controllers\FleetHealthReportsController;
+use App\Http\Controllers\FormsController;
 use App\Http\Controllers\GroupsController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\LabelsController;
+use App\Http\Controllers\LeaseDecisionsController;
+use App\Http\Controllers\LeaseSchedulesController;
+use App\Http\Controllers\LicenseModelsController;
 use App\Http\Controllers\ManufacturersController;
 use App\Http\Controllers\ModalController;
 use App\Http\Controllers\NotesController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ReportsController;
-use App\Http\Controllers\ReportTemplatesController;
-use App\Http\Controllers\EmailsController;
-use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\SetupController;
-use App\Http\Controllers\StatuslabelsController;
-use App\Http\Controllers\StorageProxyController;
-use App\Http\Controllers\FormsController;
-use App\Http\Controllers\UserAgreementsController;
-use App\Http\Controllers\LeaseSchedulesController;
-use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\OrdersController;
-use App\Http\Controllers\ContractReportsController;
-use App\Http\Controllers\BudgetAllocationsController;
+use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProcurementReportsController;
-use App\Http\Controllers\StoreController;
-use App\Http\Controllers\RequisitionsController;
-use App\Http\Controllers\FleetHealthReportsController;
-use App\Http\Controllers\PrintingReportsController;
-use App\Http\Controllers\ExhibitProjectsController;
-use App\Http\Controllers\ExhibitEmailTemplatesController;
-use App\Http\Controllers\ExhibitCatalogController;
-use App\Http\Controllers\DeploymentsController;
-use App\Http\Controllers\DeploymentItemsController;
-use App\Http\Controllers\DeploymentCatalogController;
-use App\Http\Controllers\StaffBlackoutsController;
-use App\Http\Controllers\FieldGroupsController;
-use App\Http\Controllers\TransactionsReportsController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrdersController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\ReportTemplatesController;
+use App\Http\Controllers\RequisitionsController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SetupController;
+use App\Http\Controllers\StaffBlackoutsController;
+use App\Http\Controllers\StatuslabelsController;
+use App\Http\Controllers\StorageProxyController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\TonersController;
+use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\UploadedFilesController;
+use App\Http\Controllers\UserAgreementsController;
 use App\Http\Controllers\ViewAssetsController;
 use App\Livewire\Importer;
 use App\Mail\CheckoutComponentMail;
@@ -103,7 +105,7 @@ Route::group(['middleware' => 'auth'], function () {
         // the adjacent manufacturer (alphabetical tie-break inside the same
         // order value). Used by the up/down arrows on /toners and the
         // dashboard embedded above /consumables.
-        Route::post('{manufacturer}/move-up',   [ManufacturersController::class, 'moveUp'])->name('manufacturers.move-up');
+        Route::post('{manufacturer}/move-up', [ManufacturersController::class, 'moveUp'])->name('manufacturers.move-up');
         Route::post('{manufacturer}/move-down', [ManufacturersController::class, 'moveDown'])->name('manufacturers.move-down');
     });
 
@@ -182,6 +184,8 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('procurement.queue.decide');
     Route::post('procurement/queue/pull', [ProcurementController::class, 'pullIntoRequisition'])
         ->name('procurement.queue.pull');
+    Route::post('procurement/queue/{order}/send-vendor', [ProcurementController::class, 'sendVendorOrder'])
+        ->name('procurement.queue.send-vendor');
     Route::get('procurement/store', [ProcurementController::class, 'storeAdmin'])
         ->name('procurement.store-admin')
         ->breadcrumbs(fn (Trail $trail) => ($procCrumb)($trail)
@@ -733,14 +737,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
 
     Route::resource('groups', GroupsController::class);
 
-    Route::resource('license-models', \App\Http\Controllers\LicenseModelsController::class, [
+    Route::resource('license-models', LicenseModelsController::class, [
         'names' => [
-            'index'   => 'license-models.index',
-            'create'  => 'license-models.create',
-            'store'   => 'license-models.store',
-            'show'    => 'license-models.show',
-            'edit'    => 'license-models.edit',
-            'update'  => 'license-models.update',
+            'index' => 'license-models.index',
+            'create' => 'license-models.create',
+            'store' => 'license-models.store',
+            'show' => 'license-models.show',
+            'edit' => 'license-models.edit',
+            'update' => 'license-models.update',
             'destroy' => 'license-models.destroy',
         ],
         'parameters' => ['license-models' => 'licenseModel'],
@@ -905,8 +909,8 @@ Route::group(['middleware' => ['auth'], 'prefix' => 'forms'], function () {
     Route::get('{slug}', [FormsController::class, 'show'])
         ->name('forms.show')
         ->breadcrumbs(fn (Trail $trail, string $slug) => $trail->parent('forms.index')
-            ->push(\App\Forms\FormRegistry::find($slug)
-                ? trans(\App\Forms\FormRegistry::modules()[$slug]['label_key'])
+            ->push(FormRegistry::find($slug)
+                ? trans(FormRegistry::modules()[$slug]['label_key'])
                 : $slug, route('forms.show', $slug)));
 
     Route::post('{slug}', [FormsController::class, 'submit'])
@@ -1062,9 +1066,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     Route::prefix('procurement')->group(function () {
         // Each procurement report's breadcrumb chains off the procurement
         // landing — same Home > Reports > Procurement Reports > <Title> shape.
-        $crumb = fn (string $routeName, string $titleKey) =>
-            fn (Trail $trail) => $trail->parent('reports.procurement')
-                ->push(trans("admin/purchase-orders/general.$titleKey"), route($routeName));
+        $crumb = fn (string $routeName, string $titleKey) => fn (Trail $trail) => $trail->parent('reports.procurement')
+            ->push(trans("admin/purchase-orders/general.$titleKey"), route($routeName));
 
         Route::get('/', [ProcurementReportsController::class, 'index'])
             ->name('reports.procurement')
@@ -1164,9 +1167,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     });
 
     Route::prefix('transactions')->group(function () {
-        $txCrumb = fn (string $routeName, string $titleKey) =>
-            fn (Trail $trail) => $trail->parent('reports.transactions.index')
-                ->push(trans("admin/reports/transactions.$titleKey"), route($routeName));
+        $txCrumb = fn (string $routeName, string $titleKey) => fn (Trail $trail) => $trail->parent('reports.transactions.index')
+            ->push(trans("admin/reports/transactions.$titleKey"), route($routeName));
 
         Route::get('/', [TransactionsReportsController::class, 'index'])
             ->name('reports.transactions.index')
@@ -1229,9 +1231,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     });
 
     Route::prefix('contracts')->group(function () {
-        $crumb = fn (string $routeName, string $titleKey) =>
-            fn (Trail $trail) => $trail->parent('reports.contracts')
-                ->push(trans("admin/contracts/general.$titleKey"), route($routeName));
+        $crumb = fn (string $routeName, string $titleKey) => fn (Trail $trail) => $trail->parent('reports.contracts')
+            ->push(trans("admin/contracts/general.$titleKey"), route($routeName));
 
         Route::get('/', [ContractReportsController::class, 'index'])
             ->name('reports.contracts')
