@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Mail\SendUpcomingAuditMail;
 use App\Models\Asset;
+use App\Models\EmailTemplate;
 use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -61,10 +62,8 @@ class SendUpcomingAuditReport extends Command
             // Send a rollup to the admin, if settings dictate
             if ($settings->alert_email != '') {
 
-                $recipients = collect(explode(',', $settings->alert_email))
-                    ->map(fn ($item) => trim($item))
-                    ->filter(fn ($item) => ! empty($item))
-                    ->all();
+                // Per-email recipient override (Settings → Emails) ?? global alert_email.
+                $recipients = EmailTemplate::recipientsFor('report.upcoming_audits', $settings->alert_email);
 
                 Mail::to($recipients)->send(new SendUpcomingAuditMail($assets_for_email, $settings->audit_warning_days, $asset_count));
                 $this->info('Audit notification sent to: '.$settings->alert_email);

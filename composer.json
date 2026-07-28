@@ -70,7 +70,8 @@
     "tecnickcom/tc-lib-pdf-font": "^2.6",
     "tecnickcom/tcpdf": "^6.5",
     "unicodeveloper/laravel-password": "^1.0",
-    "watson/validating": "^8.1"
+    "watson/validating": "^8.1",
+    "zordius/lightncandy": "^1.2"
   },
   "suggest": {
     "ext-ldap": "*",

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Helpers\Helper;
+use App\Models\EmailTemplate;
 use App\Models\Recipients\AlertRecipient;
 use App\Models\Setting;
 use App\Notifications\InventoryAlert;
@@ -48,9 +49,9 @@ class SendInventoryAlerts extends Command
             if (($items) && (count($items) > 0)) {
                 $this->info(trans_choice('mail.low_inventory_alert', count($items)));
                 // Send a rollup to the admin, if settings dictate
-                $recipients = collect(explode(',', $settings->alert_email))->map(function ($item, $key) {
-                    return new AlertRecipient($item);
-                });
+                // Per-email recipient override (Settings → Emails) ?? global alert_email.
+                $recipients = collect(EmailTemplate::recipientsFor('report.low_inventory', $settings->alert_email))
+                    ->map(fn ($email) => new AlertRecipient($email));
 
                 Notification::send($recipients, new InventoryAlert($items, $settings->alert_threshold));
             } else {

@@ -31,7 +31,7 @@ class ExpiringLicenseMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Expiring_Licenses_Report'),
+            subject: $this->overriddenSubject('report.expiring_licenses', trans('mail.Expiring_Licenses_Report')),
         );
     }
 
@@ -40,13 +40,10 @@ class ExpiringLicenseMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'notifications.markdown.report-expiring-licenses',
-            with: [
+        return $this->bodyContent('report.expiring_licenses', 'notifications.markdown.report-expiring-licenses', [
                 'licenses' => $this->licenses,
                 'threshold' => $this->threshold,
-            ]
-        );
+            ]);
     }
 
     /**

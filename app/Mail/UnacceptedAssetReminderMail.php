@@ -33,7 +33,7 @@ class UnacceptedAssetReminderMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.unaccepted_asset_reminder'),
+            subject: $this->overriddenSubject('acceptance.unaccepted_reminder', trans('mail.unaccepted_asset_reminder')),
         );
     }
 
@@ -44,15 +44,12 @@ class UnacceptedAssetReminderMail extends BaseMailable
     {
         $accept_url = route('account.accept');
 
-        return new Content(
-            markdown: 'notifications.markdown.asset-reminder',
-            with: [
+        return $this->bodyContent('acceptance.unaccepted_reminder', 'notifications.markdown.asset-reminder', [
                 'count' => $this->count,
                 'assigned_to' => $this->target?->present()->fullName,
                 'link' => route('account.accept'),
                 'accept_url' => $accept_url,
-            ]
-        );
+            ]);
     }
 
     /**

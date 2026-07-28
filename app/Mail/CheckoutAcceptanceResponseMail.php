@@ -40,7 +40,7 @@ class CheckoutAcceptanceResponseMail extends BaseMailable
             : trans('mail.initiated_declined');
 
         return new Envelope(
-            subject: $subject,
+            subject: $this->overriddenSubject('acceptance.response', $subject),
         );
     }
 
@@ -49,16 +49,13 @@ class CheckoutAcceptanceResponseMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'mail.markdown.checkout-acceptance-response',
-            with: [
+        return $this->bodyContent('acceptance.response', 'mail.markdown.checkout-acceptance-response', [
                 'assignedTo' => $this->acceptance->assignedTo,
                 'introduction' => $this->introduction(),
                 'item' => $this->acceptance->checkoutable,
                 'note' => $this->acceptance->note,
                 'recipient' => $this->recipient,
-            ]
-        );
+            ]);
     }
 
     /**
