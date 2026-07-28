@@ -280,7 +280,14 @@ class Consumable extends SnipeModel
     public function users(): Relation
     {
         return $this->belongsToMany(User::class, 'consumables_users', 'consumable_id', 'assigned_to')
-            ->wherePivot('assigned_type', User::class)
+            // A null assigned_type means "user": rows written before asset
+            // checkouts existed, and any attach() path that doesn't name a type
+            // (predefined-kit checkout, the API checkout endpoint). Asset
+            // checkouts always set the type explicitly.
+            ->where(function ($query) {
+                $query->where('consumables_users.assigned_type', User::class)
+                    ->orWhereNull('consumables_users.assigned_type');
+            })
             ->withPivot('created_by')->withTrashed()->withTimestamps();
     }
 
