@@ -682,6 +682,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ]
     ); // end imports API routes
 
+    // Reseller price lists — token-authed, so the purchasing catalog can be
+    // refreshed on a deployed environment. The App Service containers run no
+    // shell, so this is the only headless route in; `catalog:import` only
+    // reaches local and dev boxes.
+    Route::post('catalog/price-list', [Api\CatalogImportController::class, 'store'])
+        ->name('api.catalog.price-list');
+
     // Exhibit project CSV backfill — token-authed, drives the multi-year
     // historical import without an SSO session.
     Route::post('exhibit/import', [Api\ExhibitImportController::class, 'import'])
