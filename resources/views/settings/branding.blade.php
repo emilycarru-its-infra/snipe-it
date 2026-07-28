@@ -456,9 +456,15 @@
         // This takes the color from the color picker to show a live preview
         $(function() {
 
+            {{-- The primary colour is an accent, not the chrome surface: the
+                 sidebar and topbar always sit on the body background. So the
+                 live preview repaints the accent swatch and themed buttons
+                 only — repainting .main-header/.navbar here would fight the
+                 neutral chrome and show a state the saved settings can never
+                 produce. --}}
             $('#header-color').colorpicker().on('changeColor', function(e) {
                 var color = e.color.toString('rgba');
-                $('.main-header .navbar, .header-preview, .left-navblock, .navbar-custom-menu > .navbar-nav, .navbar-custom-menu > .navbar-nav > li > .navbar-form, .navbar-nav > li > a:link, .navbar-nav > li > a').css('background-color', color);
+                $('.header-preview').css('background-color', color);
                 $('.btn-theme').css('background-color', color);
             });
 
@@ -466,8 +472,6 @@
                 var color = e.color.toString('rgba');
                 var header_color = $('#header_color').val();
 
-                // $('.navbar-nav > li > a').css('background-color', header_color);
-                $('.navbar-nav > li > a:link').attr('style','color: '+ color +' !important').css('background-color', header_color);
                 $('.btn-theme').attr('style','color: '+ color +' !important').css('background-color', header_color);
 
             });
@@ -487,10 +491,9 @@
                 $('#link_light_color').val(link_light_color);
                 $('#link_dark_color').val(link_dark_color);
 
-                $('.main-header .navbar, .header-preview, .left-navblock, .navbar-custom-menu > .navbar-nav, .navbar-custom-menu > .navbar-nav > li > .navbar-form, .navbar-nav > li > a:link, .navbar-nav > li > a').css('background-color', header_color);
+                $('.header-preview').css('background-color', header_color);
                 $('.btn-theme').css('background-color', header_color);
 
-                $('.navbar-nav > li > a:link').attr('style','color: '+ nav_link_color +' !important').css('background-color', header_color);
                 $('.btn-theme').attr('style','color: '+ nav_link_color +' !important').css('background-color', header_color);
 
                 return false;
