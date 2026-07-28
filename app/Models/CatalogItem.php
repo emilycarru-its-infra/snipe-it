@@ -52,6 +52,9 @@ class CatalogItem extends Model
         'quoted_at',
         'expires_at',
         'is_active',
+        'show_in_store',
+        'image',
+        'store_sort',
         'notes',
         'created_by',
     ];
@@ -60,6 +63,8 @@ class CatalogItem extends Model
         'unit_cost' => 'decimal:4',
         'estimated_cost' => 'decimal:4',
         'is_active' => 'boolean',
+        'show_in_store' => 'boolean',
+        'store_sort' => 'integer',
         'quoted_at' => 'date',
         'expires_at' => 'date',
     ];
@@ -140,5 +145,29 @@ class CatalogItem extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /** The curated slice the storefront shows. */
+    public function scopeInStore($query)
+    {
+        return $query->where('is_active', true)->where('show_in_store', true);
+    }
+
+    /**
+     * The image the store card shows: this row's own upload when it has
+     * one, otherwise the linked asset model's image, so most rows need no
+     * upload at all.
+     */
+    public function storeImageUrl(): ?string
+    {
+        if ($this->image) {
+            return \Illuminate\Support\Facades\Storage::disk('public')->url('catalog/'.$this->image);
+        }
+
+        if ($this->model && $this->model->image) {
+            return \Illuminate\Support\Facades\Storage::disk('public')->url(app('models_upload_path').$this->model->image);
+        }
+
+        return null;
     }
 }

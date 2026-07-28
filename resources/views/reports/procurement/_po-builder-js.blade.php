@@ -9,8 +9,14 @@
     .pob-catalog-scroll { max-height: 640px; overflow-y: auto; }
     .pob-table th, .pob-table td { vertical-align: middle !important; font-size: 12.5px; }
     .pob-num { text-align: right; white-space: nowrap; }
-    .pob-qty-col { width: 70px; }
-    .pob-qty-input { width: 60px; padding: 2px 6px; text-align: right; }
+    .pob-qty-col { width: 118px; }
+    /* Dedicated stepper buttons — the native spinner is too small to hit. */
+    .pob-qty { display: inline-flex; align-items: stretch; }
+    .pob-qty .btn { width: 30px; padding: 4px 0; font-size: 15px; line-height: 1; font-weight: 700; }
+    .pob-qty .pob-minus { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .pob-qty .pob-plus { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .pob-qty-input { width: 46px; padding: 2px 4px; text-align: center; border-radius: 0; border-left: 0; border-right: 0; -moz-appearance: textfield; }
+    .pob-qty-input::-webkit-outer-spin-button, .pob-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     .pob-num-input { width: 100px; display: inline-block; text-align: right; }
     .pob-rate-input { width: 80px; display: inline-block; margin-left: 6px; text-align: right; }
     .pob-inline-label { margin: 0; font-weight: 400; }
@@ -111,7 +117,11 @@
                 + '<td><span class="pob-cat-name">' + escapeHtml(item.name) + badges + '</span>'
                 + '<span class="pob-cat-meta">' + meta + '</span></td>'
                 + '<td class="pob-num">' + money(item.unit_cost) + '</td>'
-                + '<td><input type="number" min="1" step="1" value="1" class="form-control input-sm pob-qty-input pob-add-qty"></td>'
+                + '<td>' + '<span class="pob-qty">'
+                + '<button type="button" class="btn btn-sm btn-default pob-minus" aria-label="-">&minus;</button>'
+                + '<input type="number" min="1" step="1" value="1" class="form-control input-sm pob-qty-input pob-add-qty">'
+                + '<button type="button" class="btn btn-sm btn-default pob-plus" aria-label="+">+</button>'
+                + '</span>' + '</td>'
                 + '<td><button type="button" class="btn btn-sm btn-default pob-add">'
                 + '{{ trans('admin/purchase-orders/general.builder_add') }}</button></td>'
                 + '</tr>';
@@ -169,8 +179,11 @@
             html += '<tr data-line="' + i + '">'
                 + '<td>' + escapeHtml(line.description) + badge
                 + '<span class="pob-cat-meta">' + meta + '</span></td>'
-                + '<td><input type="number" min="1" step="1" value="' + line.quantity
-                + '" class="form-control input-sm pob-qty-input pob-line-qty"></td>'
+                + '<td>' + '<span class="pob-qty">'
+                + '<button type="button" class="btn btn-sm btn-default pob-minus" aria-label="-">&minus;</button>'
+                + '<input type="number" min="1" step="1" value="' + line.quantity + '" class="form-control input-sm pob-qty-input pob-line-qty">'
+                + '<button type="button" class="btn btn-sm btn-default pob-plus" aria-label="+">+</button>'
+                + '</span>' + '</td>'
                 + '<td class="pob-num"><input type="number" min="0" step="0.01" value="' + Number(line.unit_cost).toFixed(2)
                 + '" class="form-control input-sm pob-num-input pob-line-cost"></td>'
                 + '<td class="pob-num">' + money(line.quantity * line.unit_cost) + '</td>'
@@ -240,6 +253,23 @@
             }
         });
     }
+
+    // Stepper buttons: bump the sibling input and let its own input event
+    // drive whatever is wired to it (basket re-totals, catalog add qty).
+    document.addEventListener('click', function (e) {
+        var minus = e.target.closest('.pob-minus');
+        var plus = e.target.closest('.pob-plus');
+        if (! minus && ! plus) { return; }
+        e.preventDefault();
+
+        var wrap = e.target.closest('.pob-qty');
+        var input = wrap && wrap.querySelector('.pob-qty-input');
+        if (! input) { return; }
+
+        var qty = parseInt(input.value, 10) || 1;
+        input.value = Math.max(1, qty + (plus ? 1 : -1));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
 
     if (catalogRows) {
         catalogRows.addEventListener('click', function (e) {

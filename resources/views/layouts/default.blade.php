@@ -1896,6 +1896,14 @@
                             </li>
                         @endif
 
+                        {{-- The internal store — visible to every signed-in user. --}}
+                        <li {{!! (request()->is('store*') ? ' class="active"' : '') !!}}>
+                            <a href="{{ route('store.index') }}">
+                                <i class="fa-solid fa-store fa-fw" aria-hidden="true"></i>
+                                <span>{{ trans('admin/store/general.store') }}</span>
+                            </a>
+                        </li>
+
                         {{-- Procurement: operational purchasing data. --}}
                         @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class))
                             <li id="procurement-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
@@ -1906,6 +1914,21 @@
                                 </a>
                                 <ul class="treeview-menu">
                                     @can('view', \App\Models\Order::class)
+                                        <li {{!! (request()->is('procurement') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('procurement.index') }}">
+                                                {{ trans('admin/store/general.procurement') }}
+                                            </a>
+                                        </li>
+                                        <li {{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('procurement.queue') }}">
+                                                {{ trans('admin/store/general.queue') }}
+                                            </a>
+                                        </li>
+                                        <li {{!! (request()->is('requisitions*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('requisitions.index') }}">
+                                                {{ trans('admin/purchase-orders/general.requisitions') }}
+                                            </a>
+                                        </li>
                                         <li {{!! (request()->is('orders*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('orders.index') }}">
                                                 {{ trans('admin/orders/general.orders') }}
