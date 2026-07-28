@@ -55,13 +55,12 @@
             --nav-hover-text-color: {{ $nav_link_color ?? 'hsl(from var(--main-theme-color) h s calc(l - 10))' }};
             --nav-primary-text-color: {{ $nav_link_color ?? '#ffffff' }};
             --search-highlight: #e9d15b;
-            --sidenav-hover-color-bg: #4c4b4b;
-            --sidenav-text-hover-color: #fff;
-            {{-- Near-white: the sidebar now shares the theme colour, and the
-                 old #b8c7ce (tuned for the old dark slab) reads as washed-out
-                 grey against it. High-opacity white keeps icons/labels crisp
-                 while leaving hover (#fff) a touch brighter still. --}}
-            --sidenav-text-nohover-color: rgba(255, 255, 255, 0.85);
+            {{-- Sidebar and topbar text ride on the neutral chrome surface, so
+                 they take the same foreground as body copy rather than the
+                 near-white that the old coloured slab required. --}}
+            --sidenav-hover-color-bg: var(--chrome-hover-bg);
+            --sidenav-text-hover-color: var(--chrome-fg);
+            --sidenav-text-nohover-color: var(--chrome-fg-muted);
             --table-border-row-color: light-dark(#ecf0f5, #656464);
             --table-border-row-top: 1px solid #ecf0f5;
             --table-border-row: 1px solid var(--table-border-row-color);
@@ -75,8 +74,29 @@
             --input-border-color: light-dark(#d2d6de,#656464);
         }
 
+        {{--
+            Chrome tokens.
+
+            The sidebar and topbar are *not* painted with the brand colour.
+            They sit on the same surface as the body so the whole window reads
+            as one field with the content boxes floating on it, rather than a
+            coloured slab wrapped around a grey page. --main-theme-color stays
+            in play as an accent only: active rails, buttons, badges, links.
+
+            --chrome-bg is deliberately identical to --color-bg. Keep it that
+            way — it is the whole point of the treatment. Separation between
+            chrome and content comes from --chrome-border-color hairlines and
+            from the white/raised --box-bg of the content boxes, not from a
+            background contrast step.
+        --}}
+
         [data-theme="light"] {
             color-scheme: light;
+            {{-- The uploaded wordmark is a white PNG sized for the old
+                 coloured bar. brightness(0) flattens any non-transparent pixel
+                 to black so it reads on the light chrome without needing a
+                 second upload. Set to `none` if a dark logo is uploaded. --}}
+            --brand-logo-filter: brightness(0);
             --box-bg: #ffffff;
             --box-header-bottom-border-color: #f4f4f4;
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
@@ -88,6 +108,13 @@
             --btn-theme-hover: var(--main-theme-hover);
             --callout-bg-color: var(--box-header-bottom-border-color);
             --callout-left-border: var(--box-header-top-border-color);
+            --chrome-active-bg: #ffffff;
+            --chrome-bg: #ecf0f5;
+            --chrome-border-color: #d3dae3;
+            --chrome-fg: #2f3237;
+            --chrome-fg-muted: #5b616b;
+            --chrome-hover-bg: #dfe5ee;
+            --chrome-shadow: 0 6px 16px rgba(0, 0, 0, .16);
             --color-bg: #ecf0f5;
             --header-color: #000000;
             --input-group-bg: hsl(from var(--box-bg) h s calc(l - 5));
@@ -102,6 +129,7 @@
 
         [data-theme="dark"] {
             color-scheme: dark;
+            --brand-logo-filter: none;
             --box-bg: #3d4144;
             --box-header-bottom-border-color: #605e5e;
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
@@ -113,6 +141,13 @@
             --btn-theme-hover: var(--main-theme-hover);
             --callout-bg-color: var(--box-header-top-border-color);
             --callout-left-border: #323131;
+            --chrome-active-bg: #3d4144;
+            --chrome-bg: #222222;
+            --chrome-border-color: #3a3d40;
+            --chrome-fg: #f2f4f6;
+            --chrome-fg-muted: #b4b9c0;
+            --chrome-hover-bg: #2e3134;
+            --chrome-shadow: 0 6px 18px rgba(0, 0, 0, .55);
             --color-bg: #222222;
             --header-color: #ffffff;
             --input-group-bg: hsl(from var(--box-bg) h s calc(l + 10));
@@ -567,15 +602,33 @@
          */
 
 
+        {{-- Dropdown panels float above the chrome, so they take the raised
+             box surface plus a shadow rather than the chrome surface — the
+             two are the same colour and a flat panel would have no edge. --}}
         .dropdown-menu {
-            background-color: var(--main-theme-color);
-            border-color: var(--main-theme-color);
+            background-color: var(--box-bg);
+            border-color: var(--chrome-border-color);
+            box-shadow: var(--chrome-shadow);
         }
 
+        .main-header .navbar {
+            border-bottom: 1px solid var(--chrome-border-color);
+        }
 
-        .dropdown-menu > li,
+        .dropdown-menu > li {
+            background-color: var(--box-bg);
+            color: var(--color-fg) !important;
+        }
+
         .navbar,
-        .navbar-nav,
+        .navbar-nav
+        {
+            background-color: var(--chrome-bg);
+            color: var(--chrome-fg) !important;
+        }
+
+        {{-- Badges keep the brand colour: they sit on white content boxes,
+             where the chrome surface would leave them invisible. --}}
         .label-default,
         .label-default:hover
         {
@@ -589,16 +642,19 @@
         .dropdown-menu > li > a:visited,
         .dropdown-menu > .active > a:link,
         .dropdown-menu > .active > a:visited,
+        .main-header .navbar .dropdown-menu li a
+        {
+            background-color: var(--box-bg) !important;
+            color: var(--color-fg) !important;
+        }
+
         .navbar-nav .open > a:link,
         .navbar-nav .open > a:visited,
         .navbar-nav > li > a:link,
         .navbar-nav > li > a:visited
         {
-            background-color: var(--main-theme-color) !important;
-            /*background-color: rgba(0,0,0,.15);*/
-            color: var(--nav-primary-text-color) !important;
-            /*color: var(--nav-primary-text-color) !important;*/
-
+            background-color: var(--chrome-bg) !important;
+            color: var(--chrome-fg) !important;
         }
 
         /* Topbar quick-nav: icon + spelled-out label instead of a bare icon. */
@@ -610,6 +666,8 @@
             .topbar-nav-label { display: none; }
         }
 
+        {{-- Chrome hover/open states: a neutral tint of the chrome surface,
+             not the brand colour. --}}
         .btn-tableButton.active.focus,
         .btn-tableButton.active:focus,
         .btn-tableButton.active:hover,
@@ -628,7 +686,15 @@
         .navbar-nav > li > a:focus,
         .navbar-nav > li > a:hover,
         .open > .dropdown-toggle.btn-tableButton:focus,
-        .open > .dropdown-toggle.btn-tableButton:hover,
+        .open > .dropdown-toggle.btn-tableButton:hover
+        {
+            background-color: var(--chrome-hover-bg) !important;
+            border-color: var(--chrome-border-color) !important;
+            color: var(--color-fg) !important;
+        }
+
+        {{-- Pagination stays branded — it is a control on a content box, not
+             part of the window chrome. --}}
         .page-next a,
         .pagination > .active > a:hover,
         .page-item.active,
@@ -652,27 +718,31 @@
 
         .bootstrap-table .fixed-table-toolbar li.dropdown-item-marker label
         {
-            color: var(--nav-primary-text-color) !important;
+            color: var(--color-fg) !important;
         }
 
         .bootstrap-table .fixed-table-toolbar li.dropdown-item-marker label:hover
         {
-            background-color: var(--main-theme-hover) !important;
-            color: var(--nav-primary-text-color) !important;
+            background-color: var(--chrome-hover-bg) !important;
+            color: var(--color-fg) !important;
         }
 
 
         .dropdown-menu,
         .dropdown-menu > li
         {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 5));
-            border-color: hsl(from var(--main-theme-color) h s calc(l - 10));
-            color: var(--nav-primary-text-color) !important;
+            background-color: var(--box-bg);
+            border-color: var(--chrome-border-color);
+            color: var(--color-fg) !important;
         }
 
+        {{-- Selected topbar section: a raised surface plus a brand rail along
+             the bottom edge, instead of a darker patch of the header colour. --}}
         .main-header .navbar .nav>.active>a {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 5)) !important;
-            color: var(--nav-primary-text-color) !important;
+            background-color: var(--chrome-active-bg) !important;
+            box-shadow: inset 0 -3px 0 var(--main-theme-color);
+            color: var(--chrome-fg) !important;
+            font-weight: 600;
         }
 
         .navbar-nav > .notifications-menu > .dropdown-menu > li.header,
@@ -685,13 +755,13 @@
         .navbar-nav > .tasks-menu > .dropdown-menu > li .menu > li:hover > a,
         .task_menu
         {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 5)) !important;
-            color: var(--nav-primary-text-color) !important;
+            background-color: var(--box-bg) !important;
+            color: var(--color-fg) !important;
             margin-bottom: 0;
         }
 
         .navbar-nav > .notifications-menu > .dropdown-menu > li .menu > li > a, .navbar-nav > .messages-menu > .dropdown-menu > li .menu > li > a, .navbar-nav > .tasks-menu > .dropdown-menu > li .menu > li > a {
-            border-bottom: 1px solid hsl(from var(--main-theme-color) h s calc(l - 10));
+            border-bottom: 1px solid var(--chrome-border-color);
         }
 
 
@@ -700,16 +770,16 @@
          */
 
         /**
-        The sidebar and the topbar share a colour — both anchor to
-        --main-theme-color (the same `header_color` setting the topbar
-        uses) so a custom theme paints the whole chrome consistently
-        instead of leaving the sidebar as an unrelated dark slab.
-        Active / hover backgrounds are a darker shade of the same hue
-        so the row separation stays readable.
+        The sidebar and the topbar share the *body* surface — neither is
+        painted with --main-theme-color. The window reads as one continuous
+        field with the content boxes raised on it, rather than a coloured
+        slab wrapped around a grey page. The brand colour survives as the
+        active rail, so the current section is still obvious.
          */
 
         .main-sidebar {
-            background-color: var(--main-theme-color);
+            background-color: var(--chrome-bg);
+            border-right: 1px solid var(--chrome-border-color);
         }
 
 
@@ -718,24 +788,35 @@
         .treeview-menu>li> a
         {
             color: var(--sidenav-text-hover-color) !important;
-            border-left-color: hsl(from var(--main-theme-color) h s calc(l - 20));
+            border-left-color: var(--main-theme-color);
         }
 
         .sidebar-menu > li:hover > a,
         .sidebar-menu > li.active > a
         {
-            border-left-color: hsl(from var(--main-theme-color) h s calc(l - 20));
+            border-left-color: var(--main-theme-color);
             padding-left: 12px;
         }
 
 
         .sidebar-menu > li:hover {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 8));
+            background-color: var(--chrome-hover-bg);
         }
 
         .sidebar-menu>li>.treeview-menu
         {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 5));
+            background-color: var(--chrome-bg);
+        }
+
+        {{-- Collapsed rail: the hover flyout leaves the sidebar and floats over
+             the content, so it needs the raised surface and an edge. --}}
+        .sidebar-mini.sidebar-collapse .sidebar-menu > li:hover > a > span,
+        .sidebar-mini.sidebar-collapse .sidebar-menu > li:hover > .treeview-menu
+        {
+            background-color: var(--chrome-active-bg) !important;
+            border: 1px solid var(--chrome-border-color);
+            box-shadow: var(--chrome-shadow);
+            color: var(--chrome-fg) !important;
         }
 
 
@@ -753,11 +834,18 @@
         .sidebar-menu > li.active > a,
         .sidebar-menu > li:hover > a
         {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 10));
-            border-left-color: hsl(from var(--main-theme-color) h s calc(l - 20));
+            background-color: var(--chrome-hover-bg);
+            border-left-color: var(--main-theme-color);
             border-left-style: solid;
             border-left-width: 3px;
             color: var(--sidenav-text-hover-color) !important;
+        }
+
+        {{-- The current section reads as a raised card in the rail: the box
+             surface the content uses, with the brand rail down its edge. --}}
+        .sidebar-menu > li.active > a {
+            background-color: var(--chrome-active-bg);
+            font-weight: 600;
         }
 
         thead,
@@ -824,7 +912,7 @@
         }
 
         .dropdown-menu > .divider {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 10));
+            background-color: var(--chrome-border-color);
             margin-top: 0;
             margin-bottom: 0;
             padding-top: 1px;
@@ -888,11 +976,43 @@
         .datepicker.dropdown-menu td:hover,
         .datepicker.datepicker-inline td:hover,
         .datepicker table tr td span:hover,
-        .datepicker table tr td span.focused,
-        .logo:hover
+        .datepicker table tr td span.focused
         {
             background-color: var(--main-theme-color) !important;
             color: var(--nav-primary-text-color) !important;
+        }
+
+        {{--
+            Brand block. overrides.less pins the wordmark and the surrounding
+            .left-navblock to white, which only worked against the old coloured
+            header. On the neutral chrome it has to follow --chrome-fg, and the
+            uploaded logo image gets flattened to black in light mode (see
+            --brand-logo-filter).
+        --}}
+        .left-navblock,
+        .main-header .logo,
+        .main-header .logo a:link,
+        .main-header .logo a:hover,
+        .main-header .logo a:visited,
+        a.logo.navbar-brand,
+        a.logo.navbar-brand:link,
+        a.logo.navbar-brand:visited
+        {
+            color: var(--chrome-fg) !important;
+        }
+
+        .logo:hover,
+        a.logo.navbar-brand:hover,
+        a.logo.navbar-brand:focus
+        {
+            background-color: transparent !important;
+            color: var(--chrome-fg) !important;
+        }
+
+        img.navbar-brand-img,
+        .navbar-brand > img
+        {
+            filter: var(--brand-logo-filter);
         }
 
         .datepicker.dropdown-menu,
@@ -934,7 +1054,7 @@
 
 
         .treeview-menu > li {
-            background-color: hsl(from var(--main-theme-color) h s calc(l - 8));
+            background-color: var(--chrome-bg);
             color: var(--sidenav-text-nohover-color) !important;
         }
 
@@ -942,15 +1062,22 @@
         .treeview-menu > li:hover,
         .treeview-menu > li.active > a
         {
-            color: white !important;
+            color: var(--chrome-fg) !important;
             background-color: var(--sidenav-hover-color-bg) !important;
-            /*color: var(--sidenav-text-hover-color) !important;*/
+        }
+
+        {{-- Without a coloured slab behind it, a sub-item's active state is
+             otherwise indistinguishable from its hover state. --}}
+        .treeview-menu > li.active > a {
+            box-shadow: inset 3px 0 0 var(--main-theme-color);
+            font-weight: 600;
         }
 
         .sidebar-toggle.btn,
-        .sidebar-toggle.btn:hover
+        .sidebar-toggle.btn:hover,
+        .sidebar-toggle-mobile
         {
-            color: white !important;
+            color: var(--chrome-fg) !important;
         }
 
         .chart-responsive {
@@ -1191,7 +1318,7 @@
                 <!-- Header Navbar: style can be found in header.less -->
                 <nav class="navbar navbar-static-top" role="navigation">
                     <!-- Sidebar toggle button above the compact sidenav -->
-                    <a href="#" style="color: white" class="sidebar-toggle btn btn-white" data-toggle="push-menu"
+                    <a href="#" class="sidebar-toggle btn btn-white" data-toggle="push-menu"
                        role="button">
                         <span class="sr-only">{{ trans('general.toggle_navigation') }}</span>
                     </a>
