@@ -37,15 +37,23 @@ class StoreOrder extends Model
     protected $fillable = [
         'user_id',
         'status',
+        'program',
         'notes',
         'decision_notes',
         'decided_by',
         'decided_at',
         'requisition_id',
+        'vendor_sent_at',
+        'tracking_number',
+        'shipped_at',
+        'arrived_at',
     ];
 
     protected $casts = [
         'decided_at' => 'datetime',
+        'vendor_sent_at' => 'datetime',
+        'shipped_at' => 'datetime',
+        'arrived_at' => 'datetime',
     ];
 
     /**
@@ -94,17 +102,45 @@ class StoreOrder extends Model
     }
 
     /**
-     * What the requester sees on "my orders". Once the lines are on a
-     * requisition, the truthful status comes from the procurement chain —
-     * the store record stops being the authority the moment it hands off.
+     * What the requester sees on "my orders". Once the order is with the
+     * vendor, the shipping facts the webhook lands (shipped_at,
+     * arrived_at) outrank everything; before that, being on a requisition
+     * without a vendor send yet reads as "processing".
      */
     public function displayStatus(): string
     {
-        if ($this->status === 'ordered' && $this->requisition) {
-            return $this->requisition->purchaseOrder ? 'ordered' : 'processing';
+        if ($this->status !== 'ordered') {
+            return $this->status;
         }
 
-        return $this->status;
+        if ($this->arrived_at) {
+            return 'arrived';
+        }
+
+        if ($this->shipped_at) {
+            return 'shipped';
+        }
+
+        if ($this->vendor_sent_at || $this->requisition?->purchaseOrder) {
+            return 'ordered';
+        }
+
+        return 'processing';
+    }
+
+    /** Part of the faculty laptop program's intake-and-agreement flow? */
+    public function isFacultyProgram(): bool
+    {
+        return $this->program === 'faculty';
+    }
+
+    /**
+     * The supplier a vendor order request for this order goes to — the
+     * supplier of its first line's catalog item.
+     */
+    public function supplier(): ?Supplier
+    {
+        return $this->items->first()?->catalogItem?->supplier;
     }
 
     public function scopePending($query)

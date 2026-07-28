@@ -1397,16 +1397,21 @@
         "vendor_sku"
     ],
     "store_orders": [
+        "arrived_at",
         "created_at",
         "decided_at",
         "decided_by",
         "decision_notes",
         "id",
         "notes",
+        "program",
         "requisition_id",
+        "shipped_at",
         "status",
+        "tracking_number",
         "updated_at",
-        "user_id"
+        "user_id",
+        "vendor_sent_at"
     ],
     "suppliers": [
         "address",
@@ -1424,6 +1429,7 @@
         "image",
         "name",
         "notes",
+        "order_emails",
         "phone",
         "state",
         "tag_color",

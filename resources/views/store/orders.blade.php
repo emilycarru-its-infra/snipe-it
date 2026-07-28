@@ -24,7 +24,8 @@
             @php
                 $status = $order->displayStatus();
                 $labelClass = ['pending' => 'label-warning', 'approved' => 'label-info', 'processing' => 'label-info',
-                               'ordered' => 'label-success', 'declined' => 'label-danger', 'cancelled' => 'label-default'][$status] ?? 'label-default';
+                               'ordered' => 'label-success', 'shipped' => 'label-success', 'arrived' => 'label-success',
+                               'declined' => 'label-danger', 'cancelled' => 'label-default'][$status] ?? 'label-default';
             @endphp
             <div class="box box-default">
                 <div class="box-header with-border">
@@ -56,6 +57,11 @@
                     </table>
                     @if ($order->decision_notes)
                         <p class="text-muted" style="margin:8px 0 0;"><em>{{ $order->decision_notes }}</em></p>
+                    @endif
+                    @if ($order->tracking_number)
+                        <p class="text-muted" style="margin:8px 0 0;">
+                            {{ trans('admin/store/general.order_tracking') }} {{ $order->tracking_number }}
+                        </p>
                     @endif
                 </div>
             </div>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CatalogItem;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
+use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -125,10 +126,17 @@ class StoreController extends Controller
             'notes' => 'nullable|string|max:65535',
         ]);
 
-        $order = DB::transaction(function () use ($validated) {
+        // Orders from faculty ride the faculty laptop program — its
+        // intake and agreement flow picks them up from the queue.
+        $isFaculty = auth()->user()->groups()
+            ->where('permission_groups.name', 'like', '%faculty%')
+            ->exists();
+
+        $order = DB::transaction(function () use ($validated, $isFaculty) {
             $order = StoreOrder::create([
                 'user_id' => auth()->id(),
                 'status' => 'pending',
+                'program' => $isFaculty ? 'faculty' : null,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -161,6 +169,8 @@ class StoreController extends Controller
             return redirect()->route('store.index')
                 ->with('error', trans('admin/store/general.order_empty'));
         }
+
+        StoreOrderNotifier::requester($order->load('items', 'user'), 'requested');
 
         return redirect()->route('store.orders')
             ->with('success', trans('admin/store/general.order_placed'));

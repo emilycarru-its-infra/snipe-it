@@ -1,5 +1,7 @@
 {{-- The storefront: an Apple-buy-page-style walk from product family to a
-     fully specified configuration, plus the cart. All selection logic is
+     fully specified configuration, plus the cart. Selecting a family
+     expands its configurator in place inside the grid (a full-width
+     accordion row), never a separate page. All selection logic is
      client-side over the JSON payload the controller ships; the server
      re-reads every price at order time, so nothing here is trusted.
 
@@ -7,7 +9,7 @@
      color-scheme: light dark, so the store follows the user's theme
      without any skin-specific selectors. --}}
 <style>
-    #st-main { --st-accent: #0071e3; }
+    #st-main, .st-cart-box { --st-accent: #0071e3; }
 
     /* ---- Category pills ---- */
     .st-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -21,6 +23,7 @@
               border-radius: 14px; padding: 22px 18px; text-align: center; cursor: pointer;
               transition: box-shadow .15s ease; }
     .st-fam:hover { box-shadow: 0 4px 16px light-dark(rgba(0,0,0,.08), rgba(0,0,0,.5)); }
+    .st-fam.sel { border: 2px solid var(--st-accent); padding: 21px 17px; }
     .st-fam-img { height: 150px; display: flex; align-items: center; justify-content: center;
                   color: light-dark(#d2d2d7, #6e6e73); font-size: 44px; margin-bottom: 14px; }
     .st-fam-img img { max-height: 150px; max-width: 100%; object-fit: contain; }
@@ -28,19 +31,23 @@
     .st-fam-chips { font-size: 12px; color: light-dark(#6e6e73, #a1a1a6); margin-bottom: 8px; min-height: 16px; }
     .st-fam-price { font-size: 13px; color: light-dark(#1d1d1f, #f5f5f7); }
 
-    /* ---- Configurator ---- */
+    /* ---- In-place configurator (full-width accordion row) ---- */
+    .st-expand { grid-column: 1 / -1; background: light-dark(#fff, #2c2c2e);
+                 border: 1px solid light-dark(#e8e8ed, #3a3a3c); border-radius: 16px;
+                 padding: 24px 26px; }
+    .st-expand-close { float: right; background: none; border: none; color: inherit; font-size: 20px;
+                       cursor: pointer; line-height: 1; padding: 4px 8px; }
+    .st-hero { display: flex; gap: 22px; align-items: center; margin-bottom: 6px; }
+    .st-hero-img { width: 170px; min-width: 170px; height: 130px; display: flex; align-items: center;
+                   justify-content: center; color: light-dark(#d2d2d7, #6e6e73); font-size: 44px; }
+    .st-hero-img img { max-height: 130px; max-width: 100%; object-fit: contain; }
+    .st-hero h2 { margin: 0 0 4px; font-size: 24px; font-weight: 700; }
     .st-config { max-width: 680px; }
-    .st-back { display: inline-block; margin-bottom: 14px; font-size: 13px; cursor: pointer; }
-    .st-hero { display: flex; gap: 24px; align-items: center; margin-bottom: 10px; }
-    .st-hero-img { width: 210px; min-width: 210px; height: 160px; display: flex; align-items: center;
-                   justify-content: center; color: light-dark(#d2d2d7, #6e6e73); font-size: 48px; }
-    .st-hero-img img { max-height: 160px; max-width: 100%; object-fit: contain; }
-    .st-hero h2 { margin: 0 0 4px; font-size: 26px; font-weight: 700; }
-    .st-step { margin: 26px 0; }
-    .st-step-title { font-size: 21px; font-weight: 700; margin-bottom: 12px; }
+    .st-step { margin: 24px 0; }
+    .st-step-title { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
     .st-step-title .st-sub { color: light-dark(#86868b, #a1a1a6); font-weight: 700; }
     .st-opt { display: flex; justify-content: space-between; align-items: center; gap: 14px; width: 100%;
-              text-align: left; background: light-dark(#fff, #2c2c2e); color: inherit;
+              text-align: left; background: light-dark(#fff, #35353a); color: inherit;
               border: 1px solid light-dark(#d2d2d7, #4a4a4f); border-radius: 12px;
               padding: 14px 16px; margin-bottom: 10px; cursor: pointer; }
     .st-opt.sel { border: 2px solid var(--st-accent); padding: 13px 15px; }
@@ -57,7 +64,7 @@
     .st-swatch-name { font-size: 12px; }
 
     /* ---- Summary ---- */
-    .st-summary { background: light-dark(#f5f5f7, #2c2c2e); border-radius: 16px; padding: 24px; margin: 30px 0; }
+    .st-summary { background: light-dark(#f5f5f7, #232326); border-radius: 16px; padding: 24px; margin: 26px 0 4px; }
     .st-summary h3 { margin: 0 0 2px; font-size: 21px; font-weight: 700; }
     .st-summary .st-sub { color: light-dark(#86868b, #a1a1a6); }
     .st-summary-body { display: flex; gap: 24px; margin-top: 16px; }
@@ -92,27 +99,32 @@
 
     /* ---- Cart ---- */
     .st-cart-box { background: light-dark(#fff, #2c2c2e); border: 1px solid light-dark(#e8e8ed, #3a3a3c);
-                   border-radius: 14px; padding: 18px; position: sticky; top: 60px; }
+                   border-radius: 16px; padding: 22px; position: sticky; top: 60px; }
     @media (max-width: 991px) { .st-cart-box { position: static; } }
-    .st-cart-title { margin: 0 0 12px; font-size: 19px; font-weight: 700; }
-    .st-cart-line { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid light-dark(#e8e8ed, #3a3a3c); }
-    .st-cart-thumb { width: 54px; min-width: 54px; height: 54px; display: flex; align-items: center;
+    .st-cart-title { margin: 0 0 6px; font-size: 21px; font-weight: 700; }
+    .st-cart-line { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid light-dark(#e8e8ed, #3f3f42); }
+    .st-cart-thumb { width: 58px; min-width: 58px; height: 58px; display: flex; align-items: center;
                      justify-content: center; color: light-dark(#d2d2d7, #6e6e73); font-size: 22px; }
-    .st-cart-thumb img { max-width: 54px; max-height: 54px; object-fit: contain; }
+    .st-cart-thumb img { max-width: 58px; max-height: 58px; object-fit: contain; }
     .st-cart-info { flex: 1; min-width: 0; }
-    .st-cart-name { font-size: 14px; font-weight: 600; }
-    .st-cart-desc { font-size: 11.5px; color: light-dark(#6e6e73, #a1a1a6); margin: 1px 0 8px; }
+    .st-cart-name { font-size: 15px; font-weight: 700; }
+    .st-cart-desc { font-size: 12.5px; color: light-dark(#6e6e73, #a1a1a6); margin: 2px 0 10px; }
     .st-cart-ctl { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .st-cart-ctl .st-qty button { width: 26px; padding: 3px 0; font-size: 13px; }
-    .st-cart-ctl .st-qty input { width: 34px; font-size: 12px; padding: 3px 2px; }
-    .st-cart-price { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
-    .st-cart-remove { font-size: 11.5px; color: var(--text-danger); background: none; border: none;
-                      padding: 0; cursor: pointer; display: block; margin-top: 4px; }
-    .st-cart-subtotal { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700;
-                        padding: 14px 0 4px; }
-    .st-cart-disclaimer { font-size: 11px; color: light-dark(#86868b, #a1a1a6); margin: 4px 0 0; }
+    .st-cart-ctl .st-qty button { width: 28px; padding: 4px 0; font-size: 14px; }
+    .st-cart-ctl .st-qty input { width: 36px; font-size: 13px; padding: 4px 2px; }
+    .st-cart-price { font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .st-cart-remove { font-size: 12.5px; color: var(--text-danger); background: none; border: none;
+                      padding: 0; cursor: pointer; display: block; margin-top: 8px; }
+    .st-cart-subtotal { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700;
+                        padding: 16px 0 4px; }
+    .st-cart-disclaimer { font-size: 11.5px; color: light-dark(#86868b, #a1a1a6); margin: 4px 0 0; }
     .st-cart-empty { font-size: 13px; }
-    #st-submit { border-radius: 10px; }
+    /* The Place Order button matches the configurator's Add button, not
+       AdminLTE's default blue. */
+    .st-cart-box .btn-primary { background: var(--st-accent); border: none; border-radius: 12px;
+                                padding: 12px; font-size: 16px; font-weight: 600; }
+    .st-cart-box .btn-primary:hover:not(:disabled) { background: #0077ed; }
+    .st-cart-box .btn-primary:disabled { opacity: .45; }
 </style>
 <script>
 (function () {
@@ -153,7 +165,7 @@
         f.steps = STEPS.filter(function (attr) { return uniq(f.items.map(function (i) { return key(i[attr]); })).length > 1; });
     });
 
-    var state = { mode: 'grid', category: null, family: null, sel: {}, qty: 1 };
+    var state = { category: null, family: null, sel: {}, qty: 1 };
     var cart = [];
 
     function uniq(list) {
@@ -204,7 +216,7 @@
         return cheapest(candidates(fam, state.sel));
     }
 
-    function optionLabel(attr, value, fam) {
+    function optionLabel(attr, value) {
         if (value === '') { return STR.standardConfig; }
         switch (attr) {
             case 'screen_size': return value + '-inch';
@@ -223,11 +235,22 @@
 
     // ---- Rendering ----
     function render() {
-        if (state.mode === 'config' && state.family) { renderConfig(); } else { renderGrid(); }
+        renderMain();
         renderCart();
     }
 
-    function renderGrid() {
+    function famCardHtml(k) {
+        var f = families[k];
+        var sel = state.family === k;
+        return '<div class="st-fam' + (sel ? ' sel' : '') + '" data-family="' + esc(k) + '" role="button" tabindex="0">'
+            + '<div class="st-fam-img">' + (f.image ? '<img src="' + esc(f.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
+            + '<div class="st-fam-name">' + esc(f.name) + '</div>'
+            + '<div class="st-fam-chips">' + esc(f.chips.join(' · ')) + '</div>'
+            + '<div class="st-fam-price">' + esc(STR.from) + ' ' + money.format(f.minPrice) + '</div>'
+            + '</div>';
+    }
+
+    function renderMain() {
         var cats = uniq(Object.keys(families).map(function (k) { return families[k].category; }).filter(Boolean));
         cats.sort(function (a, b) {
             var ia = CATEGORY_ORDER.indexOf(a); var ib = CATEGORY_ORDER.indexOf(b);
@@ -255,23 +278,22 @@
             html += '<p class="text-muted">' + esc(STR.storeEmpty) + '</p>';
         } else {
             html += '<div class="st-fam-grid">' + keys.map(function (k) {
-                var f = families[k];
-                return '<div class="st-fam" data-family="' + esc(k) + '" role="button" tabindex="0">'
-                    + '<div class="st-fam-img">' + (f.image ? '<img src="' + esc(f.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
-                    + '<div class="st-fam-name">' + esc(f.name) + '</div>'
-                    + '<div class="st-fam-chips">' + esc(f.chips.join(' · ')) + '</div>'
-                    + '<div class="st-fam-price">' + esc(STR.from) + ' ' + money.format(f.minPrice) + '</div>'
-                    + '</div>';
+                // The configurator expands in place: a full-width row
+                // right after the selected family's card.
+                var card = famCardHtml(k);
+                if (state.family === k) {
+                    card += '<div class="st-expand" id="st-expand">' + configHtml(families[k]) + '</div>';
+                }
+                return card;
             }).join('') + '</div>';
         }
 
         main.innerHTML = html;
     }
 
-    function renderConfig() {
-        var fam = families[state.family];
+    function configHtml(fam) {
         var cur = current(fam);
-        var html = '<a class="st-back" data-back="1"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> ' + esc(STR.back) + '</a>'
+        var html = '<button type="button" class="st-expand-close" data-close="1" aria-label="close">&times;</button>'
             + '<div class="st-hero">'
             + '<div class="st-hero-img">' + (cur.image || fam.image ? '<img src="' + esc(cur.image || fam.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
             + '<div><h2>' + esc(fam.name) + '</h2>'
@@ -288,7 +310,7 @@
             var prior = {};
             fam.steps.slice(0, stepIndex).forEach(function (a) { prior[a] = state.sel[a]; });
 
-            var values = uniq(candidates(fam, {}).map(function (i) { return key(i[attr]); }));
+            var values = uniq(fam.items.map(function (i) { return key(i[attr]); }));
             if (attr === 'ram_gb') { values.sort(function (a, b) { return Number(a) - Number(b); }); }
 
             var curPrice = cur.price;
@@ -325,7 +347,7 @@
                     var desc = attr === 'chip' ? chipDesc(fam, v) : '';
                     return '<button type="button" class="st-opt' + (sel ? ' sel' : '') + (off ? ' off' : '')
                         + '" data-attr="' + esc(attr) + '" data-value="' + esc(v) + '"' + (off ? ' disabled' : '') + '>'
-                        + '<span><span class="st-opt-name">' + esc(optionLabel(attr, v, fam)) + '</span>'
+                        + '<span><span class="st-opt-name">' + esc(optionLabel(attr, v)) + '</span>'
                         + (desc ? '<div class="st-opt-desc">' + esc(desc) + '</div>' : '')
                         + '</span><span class="st-opt-price">' + priceHtml + '</span></button>';
                 }).join('');
@@ -357,8 +379,7 @@
             + '<button type="button" class="st-add-btn" data-add="' + cur.id + '">' + esc(STR.add) + '</button>'
             + '</div></div></div>';
 
-        html += '</div>';
-        main.innerHTML = html;
+        return html + '</div>';
     }
 
     // ---- Cart ----
@@ -420,18 +441,22 @@
 
         var famCard = e.target.closest('.st-fam');
         if (famCard) {
-            state.mode = 'config';
-            state.family = famCard.dataset.family;
-            state.qty = 1;
-            var fam = families[state.family];
-            state.sel = {};
-            settle(fam, null, undefined);
+            var k = famCard.dataset.family;
+            if (state.family === k) {
+                state.family = null;
+            } else {
+                state.family = k;
+                state.qty = 1;
+                state.sel = {};
+                settle(families[k], null, undefined);
+            }
             render();
-            window.scrollTo({ top: 0 });
+            var expand = document.getElementById('st-expand');
+            if (expand) { expand.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
             return;
         }
 
-        if (e.target.closest('[data-back]')) { state.mode = 'grid'; state.family = null; render(); return; }
+        if (e.target.closest('[data-close]')) { state.family = null; render(); return; }
 
         var qtyBtn = e.target.closest('[data-qtybtn]');
         if (qtyBtn) {
@@ -442,8 +467,7 @@
 
         var opt = e.target.closest('[data-attr]');
         if (opt && ! opt.disabled) {
-            var fam2 = families[state.family];
-            settle(fam2, opt.dataset.attr, opt.dataset.value);
+            settle(families[state.family], opt.dataset.attr, opt.dataset.value);
             render();
             return;
         }

@@ -51,6 +51,12 @@
                         <strong>{{ $order->user?->present()->fullName ?: trans('general.na') }}</strong>
                         <span class="text-muted" style="font-weight:400; margin-left:6px;">{{ $order->created_at->diffForHumans() }}</span>
                         <span class="label label-default" style="margin-left:6px;">{{ ucfirst($order->status) }}</span>
+                        @if ($order->isFacultyProgram())
+                            <span class="label label-primary" style="margin-left:4px;">{{ trans('admin/store/general.faculty_program') }}</span>
+                        @endif
+                        @if ($order->vendor_sent_at)
+                            <span class="label label-success" style="margin-left:4px;">{{ trans('admin/store/general.vendor_sent', ['when' => $order->vendor_sent_at->format('M j')]) }}</span>
+                        @endif
                     </h3>
                     @if ($order->requisition)
                         <div class="box-tools pull-right">
@@ -101,6 +107,26 @@
                                     @if ($order->decision_notes)<br><em>{{ $order->decision_notes }}</em>@endif
                                 </p>
                             @endif
+
+                            @if ($order->status === 'approved')
+                                <div style="margin-top:8px;">
+                                    <button type="submit" form="pq-vendor-{{ $order->id }}" class="btn btn-primary">
+                                        <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+                                        {{ trans('admin/store/general.vendor_send_button', ['supplier' => $order->supplier()?->name ?: 'vendor']) }}
+                                    </button>
+                                    <button type="submit" form="pq-vendor-test-{{ $order->id }}" class="btn btn-default">
+                                        {{ trans('admin/store/general.vendor_send_test_button') }}
+                                    </button>
+                                </div>
+                            @endif
+
+                            @if ($order->isFacultyProgram() && in_array($order->status, ['approved', 'ordered'], true))
+                                <p style="margin-top:8px;">
+                                    <a href="{{ route('user-agreements.create', ['user_id' => $order->user_id]) }}" class="btn btn-xs btn-default">
+                                        {{ trans('admin/store/general.faculty_intake_link') }}
+                                    </a>
+                                </p>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -108,12 +134,21 @@
         @endforeach
     </form>
 
-    {{-- One decision form per pending order, outside the pull form so the
-         two never nest. --}}
+    {{-- One decision form per pending order (and vendor-send forms per
+         approved order), outside the pull form so nothing ever nests. --}}
     @foreach ($orders as $order)
         @if ($order->status === 'pending')
             <form method="POST" action="{{ route('procurement.queue.decide', $order->id) }}" id="pq-decide-{{ $order->id }}">
                 {{ csrf_field() }}
+            </form>
+        @endif
+        @if ($order->status === 'approved')
+            <form method="POST" action="{{ route('procurement.queue.send-vendor', $order->id) }}" id="pq-vendor-{{ $order->id }}">
+                {{ csrf_field() }}
+            </form>
+            <form method="POST" action="{{ route('procurement.queue.send-vendor', $order->id) }}" id="pq-vendor-test-{{ $order->id }}">
+                {{ csrf_field() }}
+                <input type="hidden" name="test" value="1">
             </form>
         @endif
     @endforeach
