@@ -270,7 +270,7 @@ class ProcurementController extends Controller
             return $requisition;
         });
 
-        return redirect()->route('reports.procurement.po-builder', ['requisition' => $requisition->id])
+        return redirect()->route('purchase-orders.builder', ['requisition' => $requisition->id])
             ->with('success', trans('admin/store/general.queue_pulled', ['count' => $orders->count()]));
     }
 

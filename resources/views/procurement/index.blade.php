@@ -69,7 +69,7 @@
             <div class="box-body">
                 <a href="{{ route('procurement.queue') }}" class="btn btn-primary">{{ trans('admin/store/general.go_queue') }}</a>
                 <a href="{{ route('procurement.store-admin') }}" class="btn btn-default">{{ trans('admin/store/general.go_store_admin') }}</a>
-                <a href="{{ route('reports.procurement.po-builder') }}" class="btn btn-default">{{ trans('admin/store/general.go_builder') }}</a>
+                <a href="{{ route('purchase-orders.builder') }}" class="btn btn-default">{{ trans('admin/store/general.go_builder') }}</a>
                 <a href="{{ route('requisitions.index') }}" class="btn btn-default">{{ trans('admin/store/general.go_requisitions') }}</a>
                 <a href="{{ route('store.index') }}" class="btn btn-default">{{ trans('admin/store/general.go_store') }}</a>
                 <a href="{{ route('reports.procurement') }}" class="btn btn-link">{{ trans('admin/store/general.go_reports') }}</a>

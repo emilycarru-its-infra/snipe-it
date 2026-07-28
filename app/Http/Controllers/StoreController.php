@@ -27,15 +27,13 @@ class StoreController extends Controller
      * configurator narrowing client-side, exactly like the PO builder
      * keeps its basket client-side until one POST.
      *
-     * Accessories deliberately do not appear — cables and pencils ride
-     * along on a laptop order's notes, they are not a thing users shop
-     * for here.
+     * Accessories ride along too, rendered as their own separated
+     * section so pencils and cables never clutter the device grid.
      */
     public function index(Request $request)
     {
         $items = CatalogItem::with('model')
             ->inStore()
-            ->where(fn ($q) => $q->whereNull('category')->orWhere('category', '!=', 'Accessories'))
             ->orderBy('store_sort')
             ->orderBy('name')
             ->get();
@@ -100,6 +98,7 @@ class StoreController extends Controller
             'displayNano' => trans('admin/store/general.display_nano'),
             'allProducts' => trans('admin/store/general.all_categories'),
             'storeEmpty' => trans('admin/store/general.store_empty'),
+            'accessoriesHeading' => trans('admin/store/general.accessories_heading'),
             'steps' => [
                 'screen_size' => $step('size'),
                 'chip' => $step('chip'),

@@ -6,7 +6,7 @@
 @stop
 
 @section('header_right')
-    <a href="{{ route('reports.procurement.po-builder') }}" class="btn btn-sm btn-primary">
+    <a href="{{ route('purchase-orders.builder') }}" class="btn btn-sm btn-primary">
         <i class="fa-solid fa-plus" aria-hidden="true"></i> {{ trans('admin/purchase-orders/general.report_po_builder') }}
     </a>
 @stop

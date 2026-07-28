@@ -161,15 +161,17 @@ class CatalogItem extends Model
     }
 
     /**
-     * The curated slice the storefront shows. Every store item must
-     * resolve to a real asset model — that is where its photo and its
-     * place in the fleet come from.
+     * The curated slice the storefront shows. Every device must resolve
+     * to a real asset model — that is where its photo and its place in
+     * the fleet come from. Accessories are exempt: cables and pencils
+     * are not asset-tracked, so they carry their own uploaded image
+     * instead.
      */
     public function scopeInStore($query)
     {
         return $query->where('is_active', true)
             ->where('show_in_store', true)
-            ->whereNotNull('model_id');
+            ->where(fn ($q) => $q->whereNotNull('model_id')->orWhere('category', 'Accessories'));
     }
 
     /**
