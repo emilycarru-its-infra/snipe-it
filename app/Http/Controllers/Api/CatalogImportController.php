@@ -36,6 +36,7 @@ class CatalogImportController extends Controller
             'expires_at' => 'nullable|date',
             'deactivate_missing' => 'nullable|boolean',
             'dry_run' => 'nullable|boolean',
+            'show_in_store' => 'nullable|boolean',
         ]);
 
         $file = $request->file('file');
@@ -51,6 +52,7 @@ class CatalogImportController extends Controller
             'expires_at' => $validated['expires_at'] ?? null,
             'deactivate_missing' => (bool) ($validated['deactivate_missing'] ?? false),
             'dry_run' => (bool) ($validated['dry_run'] ?? false),
+            'show_in_store' => (bool) ($validated['show_in_store'] ?? false),
             'created_by' => auth()->id(),
         ]);
 

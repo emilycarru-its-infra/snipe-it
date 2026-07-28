@@ -23,6 +23,7 @@
                     <th>{{ trans('general.category') }}</th>
                     <th>{{ trans('admin/purchase-orders/general.builder_col_description') }}</th>
                     <th class="text-right">{{ trans('admin/purchase-orders/general.builder_col_unit_cost') }}</th>
+                    <th>{{ trans('general.asset_model') }}</th>
                     <th>{{ trans('admin/store/general.show_in_store') }}</th>
                     <th>{{ trans('admin/store/general.store_sort') }}</th>
                     <th></th>
@@ -46,6 +47,14 @@
                             @endif
                         </td>
                         <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($item->effectiveCost()) }}</td>
+                        <td style="min-width:180px;">
+                            <select class="js-data-ajax" data-endpoint="models" name="model_id" form="sa-{{ $item->id }}"
+                                    data-placeholder="{{ trans('general.select_model') }}" style="width:100%;">
+                                @if ($item->model)
+                                    <option value="{{ $item->model_id }}" selected>{{ $item->model->name }}</option>
+                                @endif
+                            </select>
+                        </td>
                         <td>
                             <input type="checkbox" name="show_in_store" value="1" form="sa-{{ $item->id }}"
                                    {{ $item->show_in_store ? 'checked' : '' }}>
