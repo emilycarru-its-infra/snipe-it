@@ -186,11 +186,13 @@ class ProcurementController extends Controller
         $validated = $request->validate([
             'show_in_store' => 'nullable|boolean',
             'store_sort' => 'nullable|integer',
+            'model_id' => 'nullable|integer|exists:models,id',
             'image' => 'nullable|image|max:4096',
         ]);
 
         $item->show_in_store = (bool) ($validated['show_in_store'] ?? false);
         $item->store_sort = (int) ($validated['store_sort'] ?? 0);
+        $item->model_id = $validated['model_id'] ?? null;
 
         if ($request->hasFile('image')) {
             $stored = $request->file('image')->store('catalog', 'public');
