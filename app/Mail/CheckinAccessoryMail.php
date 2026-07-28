@@ -37,7 +37,7 @@ class CheckinAccessoryMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Accessory_Checkin_Notification'),
+            subject: $this->overriddenSubject('checkin.accessory', trans('mail.Accessory_Checkin_Notification')),
         );
     }
 
@@ -46,15 +46,12 @@ class CheckinAccessoryMail extends BaseMailable
      */
     public function content(): Content
     {
-        return new Content(
-            markdown: 'mail.markdown.checkin-accessory',
-            with: [
+        return $this->bodyContent('checkin.accessory', 'mail.markdown.checkin-accessory', [
                 'item' => $this->item,
                 'admin' => $this->admin,
                 'note' => $this->note,
                 'target' => $this->target,
-            ]
-        );
+            ]);
     }
 
     /**

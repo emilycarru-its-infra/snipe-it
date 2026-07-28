@@ -45,7 +45,7 @@ class CheckinAssetMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Asset_Checkin_Notification', ['tag' => $this->item->asset_tag]),
+            subject: $this->overriddenSubject('checkin.asset', trans('mail.Asset_Checkin_Notification', ['tag' => $this->item->asset_tag])),
         );
     }
 
@@ -80,9 +80,7 @@ class CheckinAssetMail extends BaseMailable
             }
         }
 
-        return new Content(
-            markdown: 'mail.markdown.checkin-asset',
-            with: [
+        return $this->bodyContent('checkin.asset', 'mail.markdown.checkin-asset', [
                 'item' => $this->item,
                 'status' => $this->item->status?->name,
                 'admin' => $this->admin,
@@ -91,8 +89,7 @@ class CheckinAssetMail extends BaseMailable
                 'fields' => $fields,
                 'custom_fields' => $customFields,
                 'expected_checkin' => $this->expected_checkin,
-            ],
-        );
+            ]);
     }
 
     /**

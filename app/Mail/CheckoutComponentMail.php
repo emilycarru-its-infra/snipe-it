@@ -40,7 +40,7 @@ class CheckoutComponentMail extends BaseMailable
 
         return new Envelope(
             from: $from,
-            subject: trans('mail.Confirm_component_delivery'),
+            subject: $this->overriddenSubject('checkout.component', trans('mail.Confirm_component_delivery')),
         );
     }
 
@@ -55,9 +55,7 @@ class CheckoutComponentMail extends BaseMailable
 
         $accept_url = is_null($this->acceptance) ? null : route('account.accept.item', $this->acceptance);
 
-        return new Content(
-            markdown: 'mail.markdown.checkout-component',
-            with: [
+        return $this->bodyContent('checkout.component', 'mail.markdown.checkout-component', [
                 'item' => $this->item,
                 'admin' => $this->admin,
                 'note' => $this->note,
@@ -66,8 +64,7 @@ class CheckoutComponentMail extends BaseMailable
                 'req_accept' => $req_accept,
                 'accept_url' => $accept_url,
                 'qty' => $this->qty,
-            ]
-        );
+            ]);
     }
 
     /**
