@@ -209,7 +209,7 @@
 
     // One list drives both the sticky jump-nav and the inline tables.
     $procReports = collect([
-        ['route' => 'reports.procurement.po-builder', 'name' => 'report_po_builder', 'desc' => 'report_po_builder_desc', 'stage' => 'ordering'],
+        ['route' => 'purchase-orders.builder', 'name' => 'report_po_builder', 'desc' => 'report_po_builder_desc', 'stage' => 'ordering'],
         ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'budgeting'],
@@ -282,7 +282,7 @@
                         <a href="{{ $reportLink($report['route']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.view') }}">
                             <x-icon type="reports" />
                         </a>
-                        @if ($report['route'] !== 'reports.procurement.po-builder')
+                        @if ($report['route'] !== 'purchase-orders.builder')
                             <a href="{{ $reportLink($report['route'], ['format' => 'csv']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_csv') }}">
                                 <x-icon type="download" />
                             </a>
@@ -304,7 +304,7 @@
                 </div>
                 <div class="box-body">
                     <p class="text-muted">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</p>
-                    @if ($report['route'] === 'reports.procurement.po-builder')
+                    @if ($report['route'] === 'purchase-orders.builder')
                         {{-- The builder is an interactive form, not a table, so it
                              gets an entry point here rather than an inline embed. --}}
                         <a href="{{ $reportLink($report['route']) }}" class="btn btn-primary">

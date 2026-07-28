@@ -2,7 +2,8 @@
 
 return [
     'store' => 'Store',
-    'store_intro' => 'Pick what you need and place an order. IT reviews every order before anything is purchased — nothing is charged to you.',
+    'store_intro' => 'Pick what you need and place an order. IT reviews every order before anything is purchased.',
+    'accessories_heading' => 'Accessories',
     'procurement' => 'Procurement',
     'procurement_intro' => 'The operational hub: store orders, the approval queue, the catalog and the PO builder. Reporting lives under Reports.',
     'my_orders' => 'My Orders',

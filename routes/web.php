@@ -143,6 +143,14 @@ Route::group(['middleware' => 'auth'], function () {
     /*
     * Purchase Orders
     */
+    // The PO builder: operational home under /purchase-orders, out of
+    // the reports tree it started life in. Registered before the
+    // resource so "builder" never binds as a {purchase_order}.
+    Route::get('purchase-orders/builder', [RequisitionsController::class, 'builder'])
+        ->name('purchase-orders.builder')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('procurement.index')
+            ->push(trans('admin/purchase-orders/general.report_po_builder'), route('purchase-orders.builder')));
+
     Route::resource('purchase-orders', PurchaseOrdersController::class);
     Route::post('purchase-orders/bulk/delete', [PurchaseOrdersController::class, 'bulkDelete'])->name('purchase-orders.bulk.delete');
 
@@ -1090,9 +1098,11 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::delete('budget-allocations/{budget_allocation}', [BudgetAllocationsController::class, 'destroy'])
             ->name('budget_allocations.destroy');
 
-        Route::get('po-builder', [RequisitionsController::class, 'builder'])
-            ->name('reports.procurement.po-builder')
-            ->breadcrumbs($crumb('reports.procurement.po-builder', 'report_po_builder'));
+        // The builder moved to /purchase-orders/builder — it is an
+        // operational tool, not a report. Old links keep working.
+        Route::get('po-builder', function () {
+            return redirect()->route('purchase-orders.builder', request()->query());
+        });
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));

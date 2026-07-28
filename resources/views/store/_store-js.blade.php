@@ -31,6 +31,18 @@
     .st-fam-chips { font-size: 12px; color: light-dark(#6e6e73, #a1a1a6); margin-bottom: 8px; min-height: 16px; }
     .st-fam-price { font-size: 13px; color: light-dark(#1d1d1f, #f5f5f7); }
 
+    /* Accessories: their own separated section with compact cards, so
+       cables and pencils never crowd the device grid. */
+    .st-acc-heading { font-size: 19px; font-weight: 700; margin: 30px 0 14px; }
+    .st-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .st-acc-grid .st-fam { padding: 14px 12px; }
+    .st-acc-grid .st-fam-img { height: 90px; font-size: 30px; margin-bottom: 8px; }
+    .st-acc-grid .st-fam-img img { max-height: 90px; }
+    .st-acc-grid .st-fam-name { font-size: 13.5px; }
+    .st-acc-grid .st-fam-chips { display: none; }
+    .st-acc-grid .st-fam-price { font-size: 12px; }
+    .st-acc-grid .st-fam.st-open { padding: 24px 26px; }
+
     /* ---- The open card: the card itself, grown into the configurator.
            It keeps its grid position (sense of place); the span is set
            inline by JS from the current column count. ---- */
@@ -169,8 +181,18 @@
         f.steps = STEPS.filter(function (attr) { return uniq(f.items.map(function (i) { return key(i[attr]); })).length > 1; });
     });
 
-    var state = { category: null, family: null, sel: {}, qty: 1 };
+    // Deep-linkable filter: /store?category=Laptops arrives with the
+    // matching pill active, and clicking pills keeps the URL honest.
+    var state = {
+        category: new URLSearchParams(window.location.search).get('category') || null,
+        family: null, sel: {}, qty: 1
+    };
     var cart = [];
+
+    function syncUrl() {
+        var url = window.location.pathname + (state.category ? '?category=' + encodeURIComponent(state.category) : '');
+        window.history.replaceState(null, '', url);
+    }
 
     function uniq(list) {
         return list.filter(function (v, i) { return list.indexOf(v) === i; });
@@ -252,12 +274,47 @@
         renderCart();
     }
 
+    function famCardHtml(k) {
+        var f = families[k];
+
+        // The selected family's card IS the configurator: same grid
+        // slot, grown to span a few columns, neighbours reflow.
+        if (state.family === k) {
+            return '<div class="st-fam st-open" data-family="' + esc(k) + '" id="st-open"'
+                + ' style="grid-column: span ' + gridSpan() + ';">'
+                + configHtml(f) + '</div>';
+        }
+
+        return '<div class="st-fam" data-family="' + esc(k) + '" role="button" tabindex="0">'
+            + '<div class="st-fam-img">' + (f.image ? '<img src="' + esc(f.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
+            + '<div class="st-fam-name">' + esc(f.name) + '</div>'
+            + '<div class="st-fam-chips">' + esc(f.chips.join(' · ')) + '</div>'
+            + '<div class="st-fam-price">' + esc(STR.from) + ' ' + money.format(f.minPrice) + '</div>'
+            + '</div>';
+    }
+
+    function sortKeys(keys) {
+        keys.sort(function (a, b) {
+            var fa = families[a]; var fb = families[b];
+            var ia = CATEGORY_ORDER.indexOf(fa.category); var ib = CATEGORY_ORDER.indexOf(fb.category);
+            if (ia !== ib) { return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib); }
+            return fa.name.localeCompare(fb.name);
+        });
+        return keys;
+    }
+
     function renderMain() {
         var cats = uniq(Object.keys(families).map(function (k) { return families[k].category; }).filter(Boolean));
         cats.sort(function (a, b) {
             var ia = CATEGORY_ORDER.indexOf(a); var ib = CATEGORY_ORDER.indexOf(b);
             return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
         });
+
+        // A stale deep link (renamed category, empty shelf) falls back
+        // to All products instead of a dead filter.
+        if (state.category !== null && cats.indexOf(state.category) === -1) {
+            state.category = null;
+        }
 
         var html = '<div class="st-pills">'
             + '<button type="button" class="st-pill' + (state.category === null ? ' active' : '') + '" data-cat="">' + esc(STR.allProducts) + '</button>'
@@ -269,35 +326,25 @@
         var keys = Object.keys(families).filter(function (k) {
             return state.category === null || families[k].category === state.category;
         });
-        keys.sort(function (a, b) {
-            var fa = families[a]; var fb = families[b];
-            var ia = CATEGORY_ORDER.indexOf(fa.category); var ib = CATEGORY_ORDER.indexOf(fb.category);
-            if (ia !== ib) { return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib); }
-            return fa.name.localeCompare(fb.name);
-        });
 
-        if (! keys.length) {
+        // Accessories always render as their own separated section —
+        // compact cards below the device grid, never mixed into it.
+        var devices = sortKeys(keys.filter(function (k) { return families[k].category !== 'Accessories'; }));
+        var accessories = sortKeys(keys.filter(function (k) { return families[k].category === 'Accessories'; }));
+
+        if (! devices.length && ! accessories.length) {
             html += '<p class="text-muted">' + esc(STR.storeEmpty) + '</p>';
-        } else {
-            html += '<div class="st-fam-grid">' + keys.map(function (k) {
-                var f = families[k];
+        }
 
-                // The selected family's card IS the configurator: same
-                // grid slot, grown to span a few columns, neighbours
-                // reflow around it.
-                if (state.family === k) {
-                    return '<div class="st-fam st-open" data-family="' + esc(k) + '" id="st-open"'
-                        + ' style="grid-column: span ' + gridSpan() + ';">'
-                        + configHtml(f) + '</div>';
-                }
+        if (devices.length) {
+            html += '<div class="st-fam-grid">' + devices.map(famCardHtml).join('') + '</div>';
+        }
 
-                return '<div class="st-fam" data-family="' + esc(k) + '" role="button" tabindex="0">'
-                    + '<div class="st-fam-img">' + (f.image ? '<img src="' + esc(f.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
-                    + '<div class="st-fam-name">' + esc(f.name) + '</div>'
-                    + '<div class="st-fam-chips">' + esc(f.chips.join(' · ')) + '</div>'
-                    + '<div class="st-fam-price">' + esc(STR.from) + ' ' + money.format(f.minPrice) + '</div>'
-                    + '</div>';
-            }).join('') + '</div>';
+        if (accessories.length) {
+            if (devices.length) {
+                html += '<div class="st-acc-heading">' + esc(STR.accessoriesHeading) + '</div>';
+            }
+            html += '<div class="st-fam-grid st-acc-grid">' + accessories.map(famCardHtml).join('') + '</div>';
         }
 
         main.innerHTML = html;
@@ -445,7 +492,7 @@
     // ---- Events ----
     main.addEventListener('click', function (e) {
         var pill = e.target.closest('.st-pill');
-        if (pill) { state.category = pill.dataset.cat || null; render(); return; }
+        if (pill) { state.category = pill.dataset.cat || null; syncUrl(); render(); return; }
 
         if (e.target.closest('[data-close]')) { state.family = null; render(); return; }
 

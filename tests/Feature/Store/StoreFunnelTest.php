@@ -84,13 +84,34 @@ class StoreFunnelTest extends TestCase
         $this->assertSame(0, StoreOrder::count());
     }
 
-    public function test_accessories_do_not_reach_the_storefront()
+    public function test_accessories_render_without_needing_an_asset_model()
     {
-        $this->shelfItem(['name' => 'Thunderbolt Cable', 'vendor_sku' => '222', 'category' => 'Accessories']);
+        Mail::fake();
+
+        // Cables and pencils are not asset-tracked, so the model
+        // requirement that gates devices does not apply to them.
+        $cable = $this->shelfItem(['name' => 'Thunderbolt 5 Pro Cable 1m', 'vendor_sku' => '222',
+            'category' => 'Accessories', 'model_id' => null]);
 
         $this->actingAs($this->endUser())->get(route('store.index'))
             ->assertOk()
-            ->assertDontSee('Thunderbolt Cable', false);
+            ->assertSee('Thunderbolt 5 Pro Cable 1m', false);
+
+        // And they can be ordered like anything else.
+        $this->actingAs($this->endUser())
+            ->post(route('store.orders.store'), [
+                'items' => [['catalog_item_id' => $cable->id, 'quantity' => 2]],
+            ])
+            ->assertRedirect(route('store.orders'));
+
+        $this->assertSame(1, StoreOrder::count());
+    }
+
+    public function test_the_old_builder_path_redirects_to_purchase_orders()
+    {
+        $this->actingAs($this->procurement())
+            ->get('/reports/procurement/po-builder?requisition=7')
+            ->assertRedirect(route('purchase-orders.builder', ['requisition' => 7]));
     }
 
     public function test_placing_an_order_snapshots_the_catalog_price()

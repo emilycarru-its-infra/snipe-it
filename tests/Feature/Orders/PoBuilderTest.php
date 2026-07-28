@@ -39,7 +39,7 @@ class PoBuilderTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.po-builder'))
+            ->get(route('purchase-orders.builder'))
             ->assertOk();
 
         // The catalog is handed to the page as a JSON payload, so assert
@@ -262,7 +262,7 @@ class PoBuilderTest extends TestCase
         $this->actingAs($user)->get(route('requisitions.print', $requisition->id))->assertOk();
         $this->actingAs($user)->get(route('requisitions.export', $requisition->id))->assertOk();
         $this->actingAs($user)
-            ->get(route('reports.procurement.po-builder', ['requisition' => $requisition->id]))
+            ->get(route('purchase-orders.builder', ['requisition' => $requisition->id]))
             ->assertOk();
     }
 }
