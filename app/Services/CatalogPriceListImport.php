@@ -154,10 +154,15 @@ class CatalogPriceListImport
             return;
         }
 
+        $specs = (new CatalogSpecParser)->parse($parsed['name']);
+
         if ($existing) {
             $this->applyToExisting($existing, $parsed, $source, $quotedAt, $expiresAt);
+            $existing->fill($specs);
             if ($showInStore && ! $existing->show_in_store) {
                 $existing->show_in_store = true;
+            }
+            if ($existing->isDirty()) {
                 $existing->save();
             }
             $this->updated++;
@@ -165,7 +170,7 @@ class CatalogPriceListImport
             return;
         }
 
-        CatalogItem::create([
+        CatalogItem::create($specs + [
             'supplier_id' => $supplierId,
             'manufacturer_id' => $this->resolveManufacturer($parsed['vendor']),
             'name' => $parsed['name'],

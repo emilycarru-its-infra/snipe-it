@@ -43,6 +43,11 @@ class Kernel extends ConsoleKernel
         // null lessor_id from the Lease Contract ID prefix), so newly-ingested
         // leases pick up their lessor without a code change or manual step.
         $schedule->command('snipeit:backfill-lessors', ['--write' => true])->dailyAt('03:15');
+
+        // Weekly catalog refresh from Apple's Canadian store: retail
+        // prices land as estimates (quotes always outrank them) and spec
+        // columns are corrected from Apple's own configuration data.
+        $schedule->command('catalog:sync-apple')->weeklyOn(1, '05:30');
     }
 
     /**
