@@ -49,6 +49,15 @@ class ImportController extends Controller
             $detector = new EncodingDetector;
 
             foreach ($files as $file) {
+                // Resellers and finance send workbooks, not CSVs. Flatten an
+                // .xlsx to CSV up front and carry on with that, so the rest
+                // of this method — and every importer behind it — only ever
+                // deals with one format. Mirrors how the transliteration
+                // step below swaps in a rewritten temp file.
+                if ($converted = $this->convertSpreadsheetToCsv($file)) {
+                    $file = $converted;
+                }
+
                 if (! in_array($file->getMimeType(), [
                     'application/vnd.ms-excel',
                     'text/csv',
@@ -258,6 +267,10 @@ class ImportController extends Controller
                 $model_perms = 'App\Models\Category';
                 $redirectTo = 'categories.index';
                 break;
+            case 'catalogItem':
+                $model_perms = 'App\Models\CatalogItem';
+                $redirectTo = 'reports.procurement.po-builder';
+                break;
         }
 
         if ($errors) { // Failure
@@ -271,6 +284,56 @@ class ImportController extends Controller
         }
 
         return response()->json(Helper::formatStandardApiResponse('success', null, ['redirect_url' => route('imports.index')]));
+    }
+
+    /**
+     * Flatten an uploaded .xlsx to a CSV upload of the same name, or null if
+     * the file isn't a spreadsheet and should be left alone.
+     *
+     * Only the first worksheet is read: these uploads are single-sheet data
+     * exports, and silently concatenating a second tab would import whatever
+     * notes someone left there as data.
+     */
+    private function convertSpreadsheetToCsv(UploadedFile $file): ?UploadedFile
+    {
+        if (strtolower((string) $file->getClientOriginalExtension()) !== 'xlsx') {
+            return null;
+        }
+
+        $tmpname = tempnam(sys_get_temp_dir(), 'xlsx-').'.csv';
+        $out = fopen($tmpname, 'w');
+
+        try {
+            $reader = new \OpenSpout\Reader\XLSX\Reader;
+            $reader->open($file->getRealPath());
+
+            foreach ($reader->getSheetIterator() as $sheet) {
+                foreach ($sheet->getRowIterator() as $row) {
+                    fputcsv($out, array_map(
+                        fn ($cell) => is_scalar($cell) ? (string) $cell : '',
+                        $row->toArray()
+                    ), ',', '"', '\\');
+                }
+
+                break;
+            }
+
+            $reader->close();
+        } catch (\Throwable $e) {
+            fclose($out);
+            @unlink($tmpname);
+            Log::warning('Could not read uploaded xlsx: '.$e->getMessage());
+
+            return null;
+        }
+
+        fclose($out);
+
+        $name = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).'.csv';
+
+        // 'test mode' so the temp file is accepted as an upload, same trick
+        // the transliteration path above relies on.
+        return new UploadedFile($tmpname, $name, 'text/csv', null, true);
     }
 
     /**
