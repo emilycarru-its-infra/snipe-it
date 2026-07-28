@@ -144,6 +144,8 @@
             vendor_sku: item.vendor_sku,
             mfr_part_number: item.mfr_part_number,
             quantity: quantity,
+            unit_of_measure: 'EA',
+            gl_number: (document.getElementById('pob-gl') || {}).value || null,
             unit_cost: item.unit_cost,
             pst_applicable: true,
             notes: null,
@@ -228,6 +230,17 @@
         if (el) { el.addEventListener('input', renderTotals); }
     });
 
+    // The GL number is usually the same for every line, so editing the
+    // header field retro-fills any line that hasn't been given its own.
+    var glField = document.getElementById('pob-gl');
+    if (glField) {
+        glField.addEventListener('input', function () {
+            for (var i = 0; i < basket.length; i++) {
+                if (! basket[i].gl_number_overridden) { basket[i].gl_number = glField.value || null; }
+            }
+        });
+    }
+
     if (catalogRows) {
         catalogRows.addEventListener('click', function (e) {
             var button = e.target.closest('.pob-add');
@@ -291,6 +304,8 @@
                 + '<input type="hidden" name="items[' + i + '][vendor_sku]" value="' + escapeHtml(line.vendor_sku || '') + '">'
                 + '<input type="hidden" name="items[' + i + '][mfr_part_number]" value="' + escapeHtml(line.mfr_part_number || '') + '">'
                 + '<input type="hidden" name="items[' + i + '][quantity]" value="' + line.quantity + '">'
+                + '<input type="hidden" name="items[' + i + '][unit_of_measure]" value="' + escapeHtml(line.unit_of_measure || 'EA') + '">'
+                + '<input type="hidden" name="items[' + i + '][gl_number]" value="' + escapeHtml(line.gl_number || '') + '">'
                 + '<input type="hidden" name="items[' + i + '][unit_cost]" value="' + Number(line.unit_cost).toFixed(2) + '">'
                 + '<input type="hidden" name="items[' + i + '][pst_applicable]" value="' + (line.pst_applicable ? 1 : 0) + '">';
         }
