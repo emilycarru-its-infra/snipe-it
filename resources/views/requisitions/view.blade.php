@@ -33,6 +33,22 @@
                 </div>
             </div>
             <div class="box-body">
+                @if ($requisition->printer_comments)
+                    {{-- Printed onto the PO the vendor receives. --}}
+                    <div class="well well-sm" style="white-space: pre-wrap;">
+                        <strong>{{ trans('admin/purchase-orders/general.printer_comments') }}</strong><br>
+                        {{ $requisition->printer_comments }}
+                    </div>
+                @endif
+
+                @if ($requisition->internal_comments)
+                    {{-- Never leaves the record. --}}
+                    <div class="well well-sm" style="white-space: pre-wrap; background:#fbfbfb;">
+                        <strong>{{ trans('admin/purchase-orders/general.internal_comments') }}</strong><br>
+                        {{ $requisition->internal_comments }}
+                    </div>
+                @endif
+
                 @if ($requisition->hasEstimatedLines())
                     <div class="alert alert-warning">
                         {{ trans('admin/purchase-orders/general.requisition_estimate_warning') }}
@@ -45,6 +61,7 @@
                             <tr>
                                 <th>{{ trans('admin/purchase-orders/general.builder_col_sku') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.builder_col_mfr') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.gl_number') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.builder_col_description') }}</th>
                                 <th class="text-right">{{ trans('admin/purchase-orders/general.builder_col_qty') }}</th>
                                 <th class="text-right">{{ trans('admin/purchase-orders/general.builder_col_unit_cost') }}</th>
@@ -56,13 +73,14 @@
                                 <tr>
                                     <td>{{ $line->vendor_sku ?: trans('general.na') }}</td>
                                     <td>{{ $line->mfr_part_number ?: trans('general.na') }}</td>
+                                    <td>{{ $line->gl_number ?: ($requisition->default_gl_number ?: trans('general.na')) }}</td>
                                     <td>
                                         {{ $line->description }}
                                         @if ($line->isEstimate())
                                             <span class="label label-warning">{{ trans('admin/purchase-orders/general.builder_estimate_badge') }}</span>
                                         @endif
                                     </td>
-                                    <td class="text-right">{{ $line->quantity }}</td>
+                                    <td class="text-right">{{ $line->quantity }} {{ $line->unit_of_measure ?: 'EA' }}</td>
                                     <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($line->unit_cost) }}</td>
                                     <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($line->lineTotal()) }}</td>
                                 </tr>
@@ -70,23 +88,23 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="5" class="text-right">{{ trans('admin/purchase-orders/general.builder_subtotal') }}</td>
+                                <td colspan="6" class="text-right">{{ trans('admin/purchase-orders/general.builder_subtotal') }}</td>
                                 <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->subtotal()) }}</td>
                             </tr>
                             <tr>
-                                <td colspan="5" class="text-right">{{ trans('admin/purchase-orders/general.builder_shipping') }}</td>
+                                <td colspan="6" class="text-right">{{ trans('admin/purchase-orders/general.builder_shipping') }}</td>
                                 <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->shipping) }}</td>
                             </tr>
                             <tr>
-                                <td colspan="5" class="text-right">{{ trans('admin/purchase-orders/general.builder_gst') }}</td>
+                                <td colspan="6" class="text-right">{{ trans('admin/purchase-orders/general.builder_gst') }}</td>
                                 <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->gstAmount()) }}</td>
                             </tr>
                             <tr>
-                                <td colspan="5" class="text-right">{{ trans('admin/purchase-orders/general.builder_pst') }}</td>
+                                <td colspan="6" class="text-right">{{ trans('admin/purchase-orders/general.builder_pst') }}</td>
                                 <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->pstAmount()) }}</td>
                             </tr>
                             <tr>
-                                <td colspan="5" class="text-right"><strong>{{ trans('admin/purchase-orders/general.builder_total') }}</strong></td>
+                                <td colspan="6" class="text-right"><strong>{{ trans('admin/purchase-orders/general.builder_total') }}</strong></td>
                                 <td class="text-right"><strong>{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->total()) }}</strong></td>
                             </tr>
                         </tfoot>
@@ -111,7 +129,8 @@
                     <div class="form-group">
                         <label for="req-number">{{ trans('admin/purchase-orders/general.requisition_number') }}</label>
                         <input type="text" name="requisition_number" id="req-number" class="form-control"
-                               value="{{ old('requisition_number', $requisition->requisition_number) }}">
+                               value="{{ old('requisition_number', $requisition->requisition_number) }}"
+                               placeholder="{{ trans('admin/purchase-orders/general.requisition_number_placeholder') }}">
                         <p class="help-block">{{ trans('admin/purchase-orders/general.requisition_number_help') }}</p>
                     </div>
                     <div class="form-group">
@@ -167,6 +186,10 @@
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.requisition_needed_by') }}</td>
                             <td>{{ $requisition->needed_by?->format('Y-m-d') ?: trans('general.na') }}</td>
+                        </tr>
+                        <tr>
+                            <td>{{ trans('admin/purchase-orders/general.gl_number') }}</td>
+                            <td>{{ $requisition->default_gl_number ?: trans('general.na') }}</td>
                         </tr>
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.requisition_created_by') }}</td>

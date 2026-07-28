@@ -430,4 +430,17 @@ return [
     'catalog_deactivate_missing_help' => 'Marks catalog rows from this price list that the file no longer carries as inactive. They stay readable on existing requisitions.',
     'catalog_import_no_rows' => 'No data rows found — is the header row present?',
     'catalog_import_result' => ':created created, :updated updated, :skipped skipped.',
+
+    // Fields Colleague asks for when a purchase order is keyed.
+    'internal_comments' => 'Internal Comments',
+    'internal_comments_help' => 'Kept on the record. Never printed on the purchase order or sent to the vendor.',
+    'printer_comments' => 'Printer Comments',
+    'printer_comments_help' => 'Printed on the purchase order the vendor receives, under the line items.',
+    'printer_comments_placeholder' => 'LEASE - PO will be ordered in online eStore. Do not email PO.',
+    'gl_number' => 'GL Number',
+    'gl_number_placeholder' => '31-00-350010-8236',
+    'gl_number_help' => 'Pre-fills every line. A line can still carry its own.',
+    'unit_of_measure' => 'Unit',
+    'requisition_number_placeholder' => '0017253',
+    'colleague_vendor_id' => 'Colleague Vendor ID',
 ];

@@ -55,6 +55,7 @@ class SuppliersController extends Controller
         $supplier = new Supplier;
         // Save the location data
         $supplier->name = request('name');
+        $supplier->colleague_vendor_id = request('colleague_vendor_id');
         $supplier->address = request('address');
         $supplier->address2 = request('address2');
         $supplier->city = request('city');
@@ -100,6 +101,7 @@ class SuppliersController extends Controller
         $this->authorize('update', Supplier::class);
         // Save the  data
         $supplier->name = request('name');
+        $supplier->colleague_vendor_id = request('colleague_vendor_id');
         $supplier->address = request('address');
         $supplier->address2 = request('address2');
         $supplier->city = request('city');
