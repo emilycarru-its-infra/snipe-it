@@ -184,8 +184,10 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('procurement.queue.decide');
     Route::post('procurement/queue/pull', [ProcurementController::class, 'pullIntoRequisition'])
         ->name('procurement.queue.pull');
-    Route::post('procurement/queue/{order}/send-vendor', [ProcurementController::class, 'sendVendorOrder'])
+    Route::post('procurement/queue/send-vendor', [ProcurementController::class, 'sendVendorOrders'])
         ->name('procurement.queue.send-vendor');
+    Route::post('procurement/approvers', [ProcurementController::class, 'saveApprovers'])
+        ->name('procurement.approvers.save');
     Route::get('procurement/store', [ProcurementController::class, 'storeAdmin'])
         ->name('procurement.store-admin')
         ->breadcrumbs(fn (Trail $trail) => ($procCrumb)($trail)
@@ -1066,8 +1068,13 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     Route::prefix('procurement')->group(function () {
         // Each procurement report's breadcrumb chains off the procurement
         // landing — same Home > Reports > Procurement Reports > <Title> shape.
-        $crumb = fn (string $routeName, string $titleKey) => fn (Trail $trail) => $trail->parent('reports.procurement')
-            ->push(trans("admin/purchase-orders/general.$titleKey"), route($routeName));
+        // A plain function, not a one-line curried arrow fn: closure
+        // serialization extracts source by start line, and two arrow fns
+        // beginning on the same line make it grab the wrong one.
+        $crumb = function (string $routeName, string $titleKey) {
+            return fn (Trail $trail) => $trail->parent('reports.procurement')
+                ->push(trans("admin/purchase-orders/general.$titleKey"), route($routeName));
+        };
 
         Route::get('/', [ProcurementReportsController::class, 'index'])
             ->name('reports.procurement')
@@ -1167,8 +1174,10 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     });
 
     Route::prefix('transactions')->group(function () {
-        $txCrumb = fn (string $routeName, string $titleKey) => fn (Trail $trail) => $trail->parent('reports.transactions.index')
-            ->push(trans("admin/reports/transactions.$titleKey"), route($routeName));
+        $txCrumb = function (string $routeName, string $titleKey) {
+            return fn (Trail $trail) => $trail->parent('reports.transactions.index')
+                ->push(trans("admin/reports/transactions.$titleKey"), route($routeName));
+        };
 
         Route::get('/', [TransactionsReportsController::class, 'index'])
             ->name('reports.transactions.index')
@@ -1231,8 +1240,10 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     });
 
     Route::prefix('contracts')->group(function () {
-        $crumb = fn (string $routeName, string $titleKey) => fn (Trail $trail) => $trail->parent('reports.contracts')
-            ->push(trans("admin/contracts/general.$titleKey"), route($routeName));
+        $crumb = function (string $routeName, string $titleKey) {
+            return fn (Trail $trail) => $trail->parent('reports.contracts')
+                ->push(trans("admin/contracts/general.$titleKey"), route($routeName));
+        };
 
         Route::get('/', [ContractReportsController::class, 'index'])
             ->name('reports.contracts')

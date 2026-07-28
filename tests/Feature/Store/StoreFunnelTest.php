@@ -8,9 +8,11 @@ use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Group;
 use App\Models\Requisition;
+use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -280,7 +282,7 @@ class StoreFunnelTest extends TestCase
         $order->update(['status' => 'approved']);
 
         $this->actingAs($staff)
-            ->post(route('procurement.queue.send-vendor', $order->id), ['test' => 1])
+            ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id], 'test' => 1])
             ->assertRedirect();
 
         Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->test
@@ -305,7 +307,7 @@ class StoreFunnelTest extends TestCase
         $order->update(['status' => 'approved']);
 
         $this->actingAs($this->procurement())
-            ->post(route('procurement.queue.send-vendor', $order->id))
+            ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
             ->assertRedirect();
 
         Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => ! $mail->test
@@ -319,6 +321,70 @@ class StoreFunnelTest extends TestCase
         $this->assertSame('ordered', $order->displayStatus());
     }
 
+    public function test_a_batch_vendor_send_groups_orders_into_one_email()
+    {
+        Mail::fake();
+
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca']);
+        $item = $this->shelfItem(['supplier_id' => $supplier->id]);
+
+        foreach ([1, 2] as $qty) {
+            $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+                'items' => [['catalog_item_id' => $item->id, 'quantity' => $qty]],
+            ]);
+        }
+        StoreOrder::query()->update(['status' => 'approved']);
+        $ids = StoreOrder::pluck('id')->all();
+
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.send-vendor'), ['orders' => $ids])
+            ->assertRedirect();
+
+        // One email carrying both orders, every order flipped.
+        Mail::assertSent(StoreVendorOrderMail::class, 1);
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->orders->count() === 2
+            && str_contains($mail->references(), 'ECU-STORE-'.$ids[0])
+            && str_contains($mail->references(), 'ECU-STORE-'.$ids[1]));
+
+        $this->assertSame(2, StoreOrder::where('status', 'ordered')->whereNotNull('vendor_sent_at')->count());
+    }
+
+    public function test_the_approver_list_outranks_the_orders_permission_once_set()
+    {
+        Mail::fake();
+
+        $item = $this->shelfItem();
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+        $order = StoreOrder::first();
+
+        // A plain user named on the approver list can decide…
+        $listedApprover = $this->endUser();
+        StoreApprover::create(['user_id' => $listedApprover->id]);
+
+        $this->actingAs($listedApprover)
+            ->post(route('procurement.queue.decide', $order->id), ['decision' => 'approved'])
+            ->assertRedirect();
+        $this->assertSame('approved', $order->fresh()->status);
+
+        // …while an unlisted plain user cannot, even for a fresh order.
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+        $second = StoreOrder::orderBy('id', 'desc')->first();
+
+        $this->actingAs($this->endUser())
+            ->post(route('procurement.queue.decide', $second->id), ['decision' => 'approved'])
+            ->assertForbidden();
+
+        // Superusers always can.
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.decide', $second->id), ['decision' => 'declined'])
+            ->assertRedirect();
+        $this->assertSame('declined', $second->fresh()->status);
+    }
+
     public function test_faculty_orders_carry_the_program_flag()
     {
         Mail::fake();
@@ -326,7 +392,10 @@ class StoreFunnelTest extends TestCase
         $item = $this->shelfItem();
         $faculty = $this->endUser();
         $group = Group::create(['name' => 'Regular Faculty']);
-        $faculty->groups()->sync([$group->id]);
+        DB::table('users_groups')->insert([
+            'user_id' => $faculty->id,
+            'group_id' => $group->id,
+        ]);
 
         $this->actingAs($faculty)->post(route('store.orders.store'), [
             'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],

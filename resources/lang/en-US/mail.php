@@ -175,14 +175,15 @@ return [
     'store_order_footer' => 'Questions? Reply to this email and IT will pick it up.',
 
     // Vendor order request (to the reseller's reps)
-    'store_vendor_order_subject' => 'Emily Carr University — order request ECU-STORE-:id',
+    'store_vendor_order_subject' => 'Emily Carr University — order request :references',
     'store_vendor_order_test_prefix' => '[TEST]',
-    'store_vendor_order_heading' => 'Order request ECU-STORE-:id',
+    'store_vendor_order_heading' => 'Order request :references',
     'store_vendor_order_intro' => 'Hello :supplier team, please place the following order for Emily Carr University of Art + Design:',
+    'store_vendor_col_ref' => 'Ref',
     'store_vendor_col_sku' => 'CDW #',
     'store_vendor_col_mfr' => 'MFR #',
     'store_vendor_col_desc' => 'Description',
     'store_vendor_col_qty' => 'Qty',
-    'store_vendor_order_reference' => 'Please reference ECU-STORE-:id on the order confirmation so our systems can match the shipment automatically.',
+    'store_vendor_order_reference' => 'Please reference :references on the order confirmation so our systems can match the shipment automatically.',
     'store_vendor_order_footer' => 'Reply to all on this email and our team will follow up. Thank you.',
 ];

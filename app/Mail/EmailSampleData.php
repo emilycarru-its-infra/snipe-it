@@ -319,7 +319,7 @@ class EmailSampleData
     }
 
     /** A store order with two lines, for the store lifecycle emails. */
-    public function storeOrder(string $status = 'pending'): StoreOrder
+    public function storeOrder(string $status = 'pending', int $id = 481): StoreOrder
     {
         $supplier = new Supplier(['name' => 'CDW Canada Inc']);
 
@@ -343,7 +343,7 @@ class EmailSampleData
             'notes' => 'For the new animation lab — room B2210, needed before September.',
             'decision_notes' => $status === 'declined' ? 'Out of cycle — let\'s revisit this in September.' : null,
         ]);
-        $order->id = 481;
+        $order->id = $id;
         $order->setRelation('user', $this->recipient());
         $order->setRelation('items', collect([
             $line('MacBook Pro | 14" | M5 Pro | 24GB | 1TB | Black', '854420', 'MGDP4LL/A', 2, 3799.00),

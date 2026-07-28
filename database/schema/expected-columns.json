@@ -1384,6 +1384,13 @@
         "show_in_nav",
         "updated_at"
     ],
+    "store_approvers": [
+        "created_at",
+        "created_by",
+        "id",
+        "updated_at",
+        "user_id"
+    ],
     "store_order_items": [
         "catalog_item_id",
         "created_at",
