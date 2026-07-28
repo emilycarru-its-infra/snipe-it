@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Importer\CatalogItemImporter;
 use App\Models\Import;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Log;
@@ -65,6 +66,17 @@ class ItemImportRequest extends FormRequest
             ->setShouldNotify($this->input('send-welcome'))
             ->setUsernameFormat('firstname.lastname')
             ->setFieldMappings($fieldMappings);
+
+        // A reseller price list needs facts that aren't in the sheet — which
+        // supplier sent it, what the list is called, when it was priced.
+        // They come from the catalog-specific fields on the importer screen.
+        if ($importer instanceof CatalogItemImporter) {
+            $importer->setSupplierName($this->input('supplier-name'))
+                ->setPriceListSource($this->input('price-list-source') ?: $import->file_path)
+                ->setQuotedAt($this->input('quoted-at'))
+                ->setDeactivateMissing((bool) $this->input('deactivate-missing'));
+        }
+
         $importer->import();
 
         return $this->errors;

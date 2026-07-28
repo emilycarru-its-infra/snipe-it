@@ -68,6 +68,17 @@ class Importer extends Component
 
     public $categories_fields;
 
+    public $catalog_fields;
+
+    /** Catalog price lists carry run metadata that is not in the sheet. */
+    public $supplier_name;
+
+    public $price_list_source;
+
+    public $quoted_at;
+
+    public $deactivate_missing = false;
+
     public $aliases_fields;
 
     protected $rules = [
@@ -132,6 +143,9 @@ class Importer extends Component
                 break;
             case 'category':
                 $results = $this->categories_fields;
+                break;
+            case 'catalogItem':
+                $results = $this->catalog_fields;
                 break;
             default:
                 $results = [];
@@ -215,6 +229,7 @@ class Importer extends Component
             'supplier' => trans('general.suppliers'),
             'manufacturer' => trans('general.manufacturers'),
             'category' => trans('general.categories'),
+            'catalogItem' => trans('admin/purchase-orders/general.catalog_price_list'),
         ];
 
         /**
@@ -439,6 +454,20 @@ class Importer extends Component
             'checkin_email' => trans('admin/categories/general.import_checkin_email'),
             'alert_on_response' => trans('admin/categories/general.import_alert_on_response'),
             'tag_color' => trans('general.tag_color'),
+        ];
+
+        // A reseller price list. Description plus one of the two part
+        // numbers is the minimum that identifies a row; everything else
+        // refines it.
+        $this->catalog_fields = [
+            'description' => trans('admin/purchase-orders/general.builder_col_description'),
+            'vendor_sku' => trans('admin/purchase-orders/general.builder_col_sku'),
+            'mfr_part_number' => trans('admin/purchase-orders/general.builder_col_mfr'),
+            'unit_cost' => trans('admin/purchase-orders/general.builder_col_unit_cost'),
+            'category' => trans('general.category'),
+            'subcategory' => trans('admin/purchase-orders/general.catalog_subcategory'),
+            'product_type' => trans('admin/purchase-orders/general.catalog_product_type'),
+            'vendor' => trans('general.manufacturer'),
         ];
 
         $this->assetmodels_fields = [
