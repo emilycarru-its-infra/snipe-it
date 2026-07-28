@@ -55,6 +55,9 @@ class Requisition extends SnipeModel
         'purchase_order_id' => 'nullable|exists:purchase_orders,id',
         'fiscal_year' => 'nullable|string|max:16',
         'cost_center' => 'nullable|string|max:191',
+        'default_gl_number' => 'nullable|string|max:191',
+        'internal_comments' => 'nullable|string|max:65535',
+        'printer_comments' => 'nullable|string|max:65535',
         'needed_by' => 'nullable|date',
         'gst_rate' => 'nullable|numeric|min:0|max:1',
         'pst_rate' => 'nullable|numeric|min:0|max:1',
@@ -73,6 +76,7 @@ class Requisition extends SnipeModel
         'purchase_order_id',
         'fiscal_year',
         'cost_center',
+        'default_gl_number',
         'needed_by',
         'gst_rate',
         'pst_rate',
@@ -80,6 +84,8 @@ class Requisition extends SnipeModel
         'submitted_at',
         'requisitioned_at',
         'notes',
+        'internal_comments',
+        'printer_comments',
         'created_by',
     ];
 

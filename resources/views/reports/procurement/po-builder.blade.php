@@ -89,10 +89,33 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-3 form-group">
+                            <label for="pob-gl">{{ trans('admin/purchase-orders/general.gl_number') }}</label>
+                            <input type="text" name="default_gl_number" id="pob-gl" class="form-control"
+                                   value="{{ old('default_gl_number', $requisition?->default_gl_number) }}"
+                                   placeholder="{{ trans('admin/purchase-orders/general.gl_number_placeholder') }}">
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.gl_number_help') }}</p>
+                        </div>
+                        <div class="col-md-3 form-group">
                             <label for="pob-notes">{{ trans('general.notes') }}</label>
                             <input type="text" name="notes" id="pob-notes" class="form-control"
                                    value="{{ old('notes', $requisition?->notes) }}">
+                        </div>
+                    </div>
+                    {{-- Colleague keeps these apart and so do we: printer
+                         comments are typeset onto the PO the vendor receives,
+                         internal comments never leave the record. --}}
+                    <div class="row">
+                        <div class="col-md-6 form-group">
+                            <label for="pob-printer-comments">{{ trans('admin/purchase-orders/general.printer_comments') }}</label>
+                            <textarea name="printer_comments" id="pob-printer-comments" class="form-control" rows="3"
+                                      placeholder="{{ trans('admin/purchase-orders/general.printer_comments_placeholder') }}">{{ old('printer_comments', $requisition?->printer_comments) }}</textarea>
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.printer_comments_help') }}</p>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label for="pob-internal-comments">{{ trans('admin/purchase-orders/general.internal_comments') }}</label>
+                            <textarea name="internal_comments" id="pob-internal-comments" class="form-control" rows="3">{{ old('internal_comments', $requisition?->internal_comments) }}</textarea>
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.internal_comments_help') }}</p>
                         </div>
                     </div>
                 </div>

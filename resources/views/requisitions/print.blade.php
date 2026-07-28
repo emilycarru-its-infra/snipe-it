@@ -22,6 +22,8 @@
         table.lines tfoot tr.grand td { border-top: 2px solid #333; font-weight: 700; font-size: 15px; padding-top: 8px; }
         .note { background: #fcf8e3; border: 1px solid #faebcc; padding: 8px 10px; margin-bottom: 16px; }
         .intro { color: #666; margin-bottom: 18px; }
+        .printer-comments { border: 1px solid #ddd; padding: 10px 12px; margin-bottom: 16px; white-space: pre-wrap; }
+        .printer-comments .label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #666; margin-bottom: 4px; }
         .estimate { color: #8a6d3b; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
         @media print { body { margin: 0; } .no-print { display: none; } }
     </style>
@@ -60,10 +62,12 @@
     <table class="lines">
         <thead>
             <tr>
+                <th class="num">{{ trans('admin/purchase-orders/general.builder_col_qty') }}</th>
+                <th>{{ trans('admin/purchase-orders/general.unit_of_measure') }}</th>
                 <th>{{ trans('admin/purchase-orders/general.builder_col_sku') }}</th>
                 <th>{{ trans('admin/purchase-orders/general.builder_col_mfr') }}</th>
+                <th>{{ trans('admin/purchase-orders/general.gl_number') }}</th>
                 <th>{{ trans('admin/purchase-orders/general.builder_col_description') }}</th>
-                <th class="num">{{ trans('admin/purchase-orders/general.builder_col_qty') }}</th>
                 <th class="num">{{ trans('admin/purchase-orders/general.builder_col_unit_cost') }}</th>
                 <th class="num">{{ trans('admin/purchase-orders/general.builder_col_line_total') }}</th>
             </tr>
@@ -71,15 +75,17 @@
         <tbody>
             @foreach ($requisition->items as $line)
                 <tr>
+                    <td class="num">{{ $line->quantity }}</td>
+                    <td>{{ $line->unit_of_measure ?: 'EA' }}</td>
                     <td>{{ $line->vendor_sku ?: '—' }}</td>
                     <td>{{ $line->mfr_part_number ?: '—' }}</td>
+                    <td>{{ $line->gl_number ?: ($requisition->default_gl_number ?: '—') }}</td>
                     <td>
                         {{ $line->description }}
                         @if ($line->isEstimate())
                             <span class="estimate">({{ trans('admin/purchase-orders/general.builder_estimate_badge') }})</span>
                         @endif
                     </td>
-                    <td class="num">{{ $line->quantity }}</td>
                     <td class="num">{{ \App\Helpers\Helper::formatCurrencyOutput($line->unit_cost) }}</td>
                     <td class="num">{{ \App\Helpers\Helper::formatCurrencyOutput($line->lineTotal()) }}</td>
                 </tr>
@@ -87,27 +93,34 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="5" class="num">{{ trans('admin/purchase-orders/general.builder_subtotal') }}</td>
+                <td colspan="7" class="num">{{ trans('admin/purchase-orders/general.builder_subtotal') }}</td>
                 <td class="num">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->subtotal()) }}</td>
             </tr>
             <tr>
-                <td colspan="5" class="num">{{ trans('admin/purchase-orders/general.builder_shipping') }}</td>
+                <td colspan="7" class="num">{{ trans('admin/purchase-orders/general.builder_shipping') }}</td>
                 <td class="num">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->shipping) }}</td>
             </tr>
             <tr>
-                <td colspan="5" class="num">{{ trans('admin/purchase-orders/general.builder_gst') }}</td>
+                <td colspan="7" class="num">{{ trans('admin/purchase-orders/general.builder_gst') }}</td>
                 <td class="num">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->gstAmount()) }}</td>
             </tr>
             <tr>
-                <td colspan="5" class="num">{{ trans('admin/purchase-orders/general.builder_pst') }}</td>
+                <td colspan="7" class="num">{{ trans('admin/purchase-orders/general.builder_pst') }}</td>
                 <td class="num">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->pstAmount()) }}</td>
             </tr>
             <tr class="grand">
-                <td colspan="5" class="num">{{ trans('admin/purchase-orders/general.builder_total') }}</td>
+                <td colspan="7" class="num">{{ trans('admin/purchase-orders/general.builder_total') }}</td>
                 <td class="num">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->total()) }}</td>
             </tr>
         </tfoot>
     </table>
+
+    @if ($requisition->printer_comments)
+        <div class="printer-comments">
+            <div class="label">{{ trans('admin/purchase-orders/general.printer_comments') }}</div>
+            {{ $requisition->printer_comments }}
+        </div>
+    @endif
 
     @if ($requisition->notes)
         <p>{{ $requisition->notes }}</p>
