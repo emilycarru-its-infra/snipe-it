@@ -13,6 +13,16 @@
 @include ('partials.forms.edit.name', ['translated_name' => trans('admin/suppliers/table.name')])
 @include ('partials.forms.edit.address')
 
+{{-- Colleague's own vendor identifier, needed to key a purchase order
+     against the right vendor. Distinct from this record's id. --}}
+<div class="form-group {{ $errors->has('colleague_vendor_id') ? ' has-error' : '' }}">
+    <label for="colleague_vendor_id" class="col-md-3 control-label">{{ trans('admin/purchase-orders/general.colleague_vendor_id') }}</label>
+    <div class="col-md-7">
+        <input class="form-control" name="colleague_vendor_id" type="text" id="colleague_vendor_id" value="{{ old('colleague_vendor_id', $item->colleague_vendor_id) }}" placeholder="0135495">
+        {!! $errors->first('colleague_vendor_id', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
+
 <div class="form-group {{ $errors->has('contact') ? ' has-error' : '' }}">
     <label for="contact" class="col-md-3 control-label">{{ trans('admin/suppliers/table.contact') }}</label>
     <div class="col-md-7">

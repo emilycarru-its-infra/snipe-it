@@ -60,7 +60,7 @@ class Supplier extends SnipeModel
      *
      * @var array
      */
-    protected $searchableAttributes = ['name', 'notes', 'phone', 'fax', 'url', 'email', 'contact', 'address', 'address2', 'city', 'state', 'country', 'zip'];
+    protected $searchableAttributes = ['name', 'colleague_vendor_id', 'notes', 'phone', 'fax', 'url', 'email', 'contact', 'address', 'address2', 'city', 'state', 'country', 'zip'];
 
     /**
      * The relations and their attributes that should be included when searching the model.
@@ -74,7 +74,7 @@ class Supplier extends SnipeModel
      *
      * @var array
      */
-    protected $fillable = ['name', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
+    protected $fillable = ['name', 'colleague_vendor_id', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
 
     public function isDeletable()
     {
