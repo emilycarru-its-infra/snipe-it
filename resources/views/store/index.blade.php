@@ -36,6 +36,14 @@
 
         {{-- The order (cart) --}}
         <div class="col-md-4 col-lg-3">
+            {{-- A section heading pushes the product grid down its own
+                 height. The same heading box, left blank, keeps the order
+                 card's top edge level with the first product card instead
+                 of stranding it a heading higher. An empty copy of the real
+                 element rather than a measured offset: the two then agree
+                 by construction, whatever the heading's font does. --}}
+            <div class="st-section-heading st-section-first" id="st-cart-offset" aria-hidden="true" hidden>&nbsp;</div>
+
             <div class="st-cart-box" id="st-cart-box">
                 <h3 class="st-cart-title">{{ trans('admin/store/general.your_order') }}</h3>
                 <div id="st-cart"></div>
