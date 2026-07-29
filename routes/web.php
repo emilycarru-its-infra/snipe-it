@@ -223,6 +223,9 @@ Route::group(['middleware' => 'auth'], function () {
             ->push($requisition->display_name, route('requisitions.show', $requisition)));
     Route::patch('requisitions/{requisition}', [RequisitionsController::class, 'update'])
         ->name('requisitions.update');
+    // The crossing into the budget ledger: REQM becomes PO, PDF in hand.
+    Route::post('requisitions/{requisition}/promote', [RequisitionsController::class, 'promote'])
+        ->name('requisitions.promote');
     Route::delete('requisitions/{requisition}', [RequisitionsController::class, 'destroy'])
         ->name('requisitions.destroy');
     Route::get('requisitions/{requisition}/print', [RequisitionsController::class, 'print'])

@@ -711,6 +711,35 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::delete('catalog-items/{catalogItem}', [Api\CatalogItemsController::class, 'destroy'])
         ->name('api.catalog-items.destroy');
 
+    /*
+    * Requisitions — the PO builder without the browser, so a basket can be
+    * assembled headlessly and finished in the UI (or the other way round).
+    * `options` and `catalog` come first so neither binds as {requisition}.
+    */
+    Route::get('requisitions/options', [Api\RequisitionsController::class, 'options'])
+        ->name('api.requisitions.options');
+
+    Route::get('requisitions/catalog', [Api\RequisitionsController::class, 'catalog'])
+        ->name('api.requisitions.catalog');
+
+    Route::get('requisitions', [Api\RequisitionsController::class, 'index'])
+        ->name('api.requisitions.index');
+
+    Route::post('requisitions', [Api\RequisitionsController::class, 'store'])
+        ->name('api.requisitions.store');
+
+    Route::get('requisitions/{requisition}', [Api\RequisitionsController::class, 'show'])
+        ->name('api.requisitions.show');
+
+    Route::match(['put', 'patch'], 'requisitions/{requisition}', [Api\RequisitionsController::class, 'update'])
+        ->name('api.requisitions.update');
+
+    Route::post('requisitions/{requisition}/promote', [Api\RequisitionsController::class, 'promote'])
+        ->name('api.requisitions.promote');
+
+    Route::delete('requisitions/{requisition}', [Api\RequisitionsController::class, 'destroy'])
+        ->name('api.requisitions.destroy');
+
     // Shipment facts from the vendor's webhook (cdw-orders-listener):
     // tracking + serials land on the store order and the requester gets
     // the shipped/arrived email.

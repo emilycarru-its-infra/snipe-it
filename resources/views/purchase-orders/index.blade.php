@@ -12,15 +12,29 @@
         <x-box>
 
             <x-slot:bulkactions>
-                <x-table.bulk-actions
-                        name='purchaseorder'
-                        action_route="{{ route('purchase-orders.bulk.delete') }}"
-                        model_name="purchase_orders"
-                >
-                    @can('delete', App\Models\Order::class)
-                        <option>{{ trans('general.delete') }}</option>
+                {{-- The builder sits at the head of the toolbar because it is
+                     where a purchase order starts. It is deep-linked to the
+                     current fiscal year: the year is almost always this one,
+                     and a preselected picker is one less field to remember. --}}
+                <div class="po-toolbar">
+                    @can('create', App\Models\Order::class)
+                        <a href="{{ route('purchase-orders.builder', ['fiscal_year' => \App\Helpers\Helper::currentFiscalYear()]) }}"
+                           class="btn btn-primary">
+                            <i class="fas fa-calculator" aria-hidden="true"></i>
+                            {{ trans('admin/purchase-orders/general.open_builder') }}
+                        </a>
                     @endcan
-                </x-table.bulk-actions>
+
+                    <x-table.bulk-actions
+                            name='purchaseorder'
+                            action_route="{{ route('purchase-orders.bulk.delete') }}"
+                            model_name="purchase_orders"
+                    >
+                        @can('delete', App\Models\Order::class)
+                            <option>{{ trans('general.delete') }}</option>
+                        @endcan
+                    </x-table.bulk-actions>
+                </div>
             </x-slot:bulkactions>
 
             <x-table
@@ -39,69 +53,12 @@
 @stop
 
 @section('moar_scripts')
-<script nonce="{{ csrf_token() }}">
-    (function () {
-        var baseUrl = "{{ route('purchase-orders.index') }}";
-        var csrfToken = $('meta[name="csrf-token"]').attr('content');
-
-        function esc(text) {
-            return $('<span>').text(text == null ? '' : text).html();
-        }
-
-        window.purchaseOrdersLinkFormatter = function (value, row) {
-            return '<a href="' + baseUrl + '/' + row.id + '">' + esc(value) + '</a>';
-        };
-
-        window.purchaseOrdersObjNameFormatter = function (value) {
-            return (value && value.name) ? esc(value.name) : '';
-        };
-
-        window.purchaseOrdersStatusFormatter = function (value) {
-            if (!value) { return ''; }
-            return esc(value.charAt(0).toUpperCase() + value.slice(1));
-        };
-
-        window.purchaseOrdersRemainingFormatter = function (value, row) {
-            if (value == null) { return ''; }
-            if (row.over_budget) {
-                return '<span class="text-danger">' + esc(value) + '</span>';
-            }
-            return esc(value);
-        };
-
-        window.purchaseOrdersActionsFormatter = function (value, row) {
-            var actions = row.available_actions || {};
-            var html = '';
-            if (actions.update) {
-                html += '<a href="' + baseUrl + '/' + row.id + '/edit" class="btn btn-warning btn-sm" data-tooltip="true" title="{{ trans('general.update') }}"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a> ';
-            }
-            if (actions.delete) {
-                html += '<form method="POST" action="' + baseUrl + '/' + row.id + '" style="display:inline-block" '
-                    + 'onsubmit="return confirm(\'{{ trans('admin/purchase-orders/message.delete_confirm') }}\')">'
-                    + '<input type="hidden" name="_token" value="' + csrfToken + '">'
-                    + '<input type="hidden" name="_method" value="DELETE">'
-                    + '<button type="submit" class="btn btn-danger btn-sm" data-tooltip="true" title="{{ trans('general.delete') }}"><i class="fas fa-trash" aria-hidden="true"></i></button>'
-                    + '</form>';
-            }
-            return html;
-        };
-
-        @can('create', \App\Models\Order::class)
-        window.purchaseOrderButtons = () => ({
-            btnAdd: {
-                text: '{{ trans('admin/purchase-orders/general.create') }}',
-                icon: 'fa fa-plus',
-                event () {
-                    window.location.href = '{{ route('purchase-orders.create') }}';
-                },
-                attributes: {
-                    class: 'btn-warning',
-                    title: '{{ trans('admin/purchase-orders/general.create') }}',
-                },
-            },
-        });
-        @endcan
-    })();
-</script>
+<style>
+    /* Keeps the builder link on the same line as the bulk-action form, which
+       renders as a block element of its own. */
+    .po-toolbar { display: flex; align-items: flex-start; gap: 10px; }
+    .po-toolbar > .btn { white-space: nowrap; }
+</style>
+@include('purchase-orders._table-js')
 @include ('partials.bootstrap-table', ['exportFile' => 'purchase-orders-export', 'search' => true])
 @stop

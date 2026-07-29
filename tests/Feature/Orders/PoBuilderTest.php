@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Orders;
 
+use App\Helpers\Helper;
 use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
@@ -164,9 +165,14 @@ class PoBuilderTest extends TestCase
         $this->assertSame('REQM0012345', $requisition->display_name);
     }
 
-    public function test_linking_a_purchase_order_marks_the_requisition_ordered()
+    /**
+     * The status update route no longer links a purchase order — promotion
+     * is the only way onto the budget ledger, because it is the only path
+     * that demands the PO document. Setting the status by hand must not be
+     * able to route around that.
+     */
+    public function test_a_requisition_cannot_be_marked_ordered_without_a_purchase_order()
     {
-        $po = PurchaseOrder::create(['po_number' => 'P0025747', 'status' => 'open']);
         $requisition = Requisition::create([
             'title' => 'Faculty refresh',
             'status' => 'requisitioned',
@@ -174,14 +180,33 @@ class PoBuilderTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->patch(route('requisitions.update', $requisition->id), [
-                'requisition_number' => 'REQM0012345',
-                'purchase_order_id' => $po->id,
-            ])
+            ->patch(route('requisitions.update', $requisition->id), ['status' => 'ordered'])
+            ->assertRedirect();
+
+        $this->assertSame('requisitioned', $requisition->refresh()->status);
+    }
+
+    /**
+     * Recording the REQM again must not clear a purchase order that has
+     * already been promoted — an omitted field is not a request to blank it.
+     */
+    public function test_updating_a_requisition_does_not_unlink_its_purchase_order()
+    {
+        $po = PurchaseOrder::create(['po_number' => 'P0025747', 'status' => 'open']);
+        $requisition = Requisition::create([
+            'title' => 'Faculty refresh',
+            'status' => 'ordered',
+            'requisition_number' => 'REQM0012345',
+            'purchase_order_id' => $po->id,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->patch(route('requisitions.update', $requisition->id), ['notes' => 'Shipped in two waves'])
             ->assertRedirect();
 
         $requisition->refresh();
 
+        $this->assertSame($po->id, $requisition->purchase_order_id);
         $this->assertSame('ordered', $requisition->status);
         $this->assertSame('P0025747', $requisition->display_name);
     }
@@ -241,6 +266,74 @@ class PoBuilderTest extends TestCase
         $requisition = Requisition::with('items.catalogItem')->first();
 
         $this->assertTrue($requisition->hasEstimatedLines());
+    }
+
+    /**
+     * The purchase order list is where someone decides to raise an order, so
+     * the builder is reachable from it — deep-linked to the year they are
+     * almost certainly working in.
+     */
+    public function test_the_purchase_order_list_links_to_the_builder_for_the_current_year()
+    {
+        $currentFy = Helper::currentFiscalYear();
+
+        $this->actingAs($this->superuser())
+            ->get(route('purchase-orders.index'))
+            ->assertOk()
+            ->assertSee(route('purchase-orders.builder', ['fiscal_year' => $currentFy]), false);
+    }
+
+    public function test_a_fiscal_year_in_the_url_preselects_the_dropdown()
+    {
+        $this->actingAs($this->superuser())
+            ->get(route('purchase-orders.builder', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee('<option value="FY2026-27" selected>FY2026-27</option>', false);
+    }
+
+    /**
+     * A year nothing has been ordered against yet still has to be selectable,
+     * or a deep link to it would silently fall back to blank.
+     */
+    public function test_a_fiscal_year_the_ledger_has_never_seen_is_still_offered()
+    {
+        $this->actingAs($this->superuser())
+            ->get(route('purchase-orders.builder', ['fiscal_year' => 'FY2031-32']))
+            ->assertOk()
+            ->assertSee('<option value="FY2031-32" selected>FY2031-32</option>', false);
+    }
+
+    public function test_the_saved_fiscal_year_wins_when_reopening_a_draft()
+    {
+        $requisition = Requisition::create([
+            'title' => 'Faculty refresh',
+            'status' => 'draft',
+            'fiscal_year' => 'FY2025-26',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('purchase-orders.builder', ['requisition' => $requisition->id]))
+            ->assertOk()
+            ->assertSee('<option value="FY2025-26" selected>FY2025-26</option>', false);
+    }
+
+    /**
+     * Categories are a row of tabs rather than a select: the set is small and
+     * stable, and showing it beats hiding it behind a click.
+     */
+    public function test_categories_render_as_tabs_not_a_dropdown()
+    {
+        $this->catalogItem();
+        $this->catalogItem(['name' => 'Studio Display', 'category' => 'Displays', 'vendor_sku' => '5544332']);
+
+        $response = $this->actingAs($this->superuser())
+            ->get(route('purchase-orders.builder'))
+            ->assertOk();
+
+        $response->assertSee('pob-category-tabs', false);
+        $response->assertSee('data-category="Laptops"', false);
+        $response->assertSee('data-category="Displays"', false);
+        $response->assertDontSee('id="pob-category"', false);
     }
 
     public function test_the_requisition_pages_render()

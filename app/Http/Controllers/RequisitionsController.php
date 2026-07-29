@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Helper;
 use App\Models\CatalogItem;
 use App\Models\Company;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\Supplier;
+use App\Services\RequisitionBasket;
+use App\Services\RequisitionPromotion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use League\Csv\EscapeFormula;
 use League\Csv\Writer;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -36,6 +38,10 @@ class RequisitionsController extends Controller
      * Opens empty for a new requisition, or hydrated from an existing draft
      * when `?requisition=<id>` is supplied, so a basket can be put down and
      * picked up again.
+     *
+     * `?fiscal_year=FY2026-27` preselects the year, which is how the button
+     * on the purchase order list arrives here — landing on the current year
+     * rather than on a blank picker nobody remembers to set.
      */
     public function builder(Request $request)
     {
@@ -57,6 +63,16 @@ class RequisitionsController extends Controller
             ->orderBy('name')
             ->get();
 
+        // A year asked for by name is offered even if nothing has been ordered
+        // against it yet — otherwise a deep link to a year the ledger has not
+        // seen would silently fall back to blank.
+        $fiscalYears = Helper::fiscalYearOptions();
+        $selectedFiscalYear = $request->query('fiscal_year') ?: $requisition?->fiscal_year;
+
+        if ($selectedFiscalYear && ! in_array($selectedFiscalYear, $fiscalYears, true)) {
+            array_unshift($fiscalYears, $selectedFiscalYear);
+        }
+
         return view('reports/procurement/po-builder', [
             'reportTitle' => trans('admin/purchase-orders/general.report_po_builder'),
             'requisition' => $requisition,
@@ -67,7 +83,8 @@ class RequisitionsController extends Controller
             'categories' => $catalog->pluck('category')->filter()->unique()->sort()->values(),
             'suppliers' => Supplier::orderBy('name')->pluck('name', 'id'),
             'companies' => Company::orderBy('name')->pluck('name', 'id'),
-            'fiscalYears' => $this->fiscalYearOptions(),
+            'fiscalYears' => $fiscalYears,
+            'selectedFiscalYear' => $selectedFiscalYear,
             'selectedSupplierId' => $supplierId,
         ]);
     }
@@ -123,123 +140,35 @@ class RequisitionsController extends Controller
 
     /**
      * Save a basket. Creates a requisition, or replaces the lines on the
-     * one being edited.
-     *
-     * Lines are rewritten wholesale rather than diffed: the builder owns the
-     * entire basket, a partial line-level merge would need identity the UI
-     * doesn't carry, and the write is small enough to be cheap. Only a draft
-     * can be rewritten — once a requisition has been keyed into Colleague,
-     * its lines are what was keyed and must stay that way.
+     * one being edited. The write itself lives in RequisitionBasket, which
+     * the API shares.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, RequisitionBasket $basket): RedirectResponse
     {
         $this->authorize('create', Requisition::class);
 
-        $validated = $request->validate([
-            'requisition_id' => 'nullable|integer|exists:requisitions,id',
-            'title' => 'required|string|max:191',
-            'supplier_id' => 'nullable|integer|exists:suppliers,id',
-            'company_id' => 'nullable|integer|exists:companies,id',
-            'fiscal_year' => 'nullable|string|max:16',
-            'cost_center' => 'nullable|string|max:191',
-            'default_gl_number' => 'nullable|string|max:191',
-            'needed_by' => 'nullable|date',
-            'gst_rate' => 'nullable|numeric|min:0|max:1',
-            'pst_rate' => 'nullable|numeric|min:0|max:1',
-            'shipping' => 'nullable|numeric|min:0',
-            'notes' => 'nullable|string|max:65535',
-            'internal_comments' => 'nullable|string|max:65535',
-            'printer_comments' => 'nullable|string|max:65535',
-            'items' => 'required|array|min:1',
-            'items.*.catalog_item_id' => 'nullable|integer|exists:catalog_items,id',
-            'items.*.description' => 'required|string|max:191',
-            'items.*.vendor_sku' => 'nullable|string|max:191',
-            'items.*.mfr_part_number' => 'nullable|string|max:191',
-            'items.*.gl_number' => 'nullable|string|max:191',
-            'items.*.unit_of_measure' => 'nullable|string|max:16',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_cost' => 'required|numeric|min:0',
-            'items.*.pst_applicable' => 'nullable|boolean',
-            'items.*.notes' => 'nullable|string|max:191',
-        ]);
+        $validated = $request->validate(RequisitionBasket::rules());
 
-        $requisition = ! empty($validated['requisition_id'])
-            ? Requisition::find($validated['requisition_id'])
-            : new Requisition;
-
-        if ($requisition->exists && $requisition->status !== 'draft') {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('error', trans('admin/purchase-orders/general.requisition_locked'));
+        try {
+            $requisition = $basket->save($validated);
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
-
-        $requisition->fill([
-            'title' => $validated['title'],
-            'supplier_id' => $validated['supplier_id'] ?? null,
-            'company_id' => $validated['company_id'] ?? null,
-            'fiscal_year' => $validated['fiscal_year'] ?? null,
-            'cost_center' => $validated['cost_center'] ?? null,
-            'default_gl_number' => $validated['default_gl_number'] ?? null,
-            'needed_by' => $validated['needed_by'] ?? null,
-            'gst_rate' => $validated['gst_rate'] ?? 0.05,
-            'pst_rate' => $validated['pst_rate'] ?? 0.07,
-            'shipping' => $validated['shipping'] ?? 0,
-            'notes' => $validated['notes'] ?? null,
-            'internal_comments' => $validated['internal_comments'] ?? null,
-            'printer_comments' => $validated['printer_comments'] ?? null,
-        ]);
-
-        if (! $requisition->exists) {
-            $requisition->status = 'draft';
-            $requisition->created_by = auth()->id();
-        }
-
-        if (! $requisition->save()) {
-            return redirect()->back()->withInput()->withErrors($requisition->getErrors());
-        }
-
-        DB::transaction(function () use ($requisition, $validated) {
-            $requisition->items()->delete();
-
-            foreach (array_values($validated['items']) as $index => $line) {
-                RequisitionItem::create([
-                    'requisition_id' => $requisition->id,
-                    'catalog_item_id' => $line['catalog_item_id'] ?? null,
-                    'description' => $line['description'],
-                    'vendor_sku' => $line['vendor_sku'] ?? null,
-                    'mfr_part_number' => $line['mfr_part_number'] ?? null,
-                    'gl_number' => $line['gl_number'] ?? $validated['default_gl_number'] ?? null,
-                    'quantity' => (int) $line['quantity'],
-                    'unit_of_measure' => $line['unit_of_measure'] ?? 'EA',
-                    'unit_cost' => (float) $line['unit_cost'],
-                    'pst_applicable' => (bool) ($line['pst_applicable'] ?? true),
-                    'notes' => $line['notes'] ?? null,
-                    'sort_order' => $index,
-                ]);
-            }
-        });
 
         return redirect()->route('requisitions.show', $requisition->id)
             ->with('success', trans('admin/purchase-orders/general.requisition_saved'));
     }
 
     /**
-     * Every requisition, newest first, with its running total.
+     * Every requisition. The rows come from the API so the list sorts,
+     * searches and exports like every other table in the app — and so the
+     * procurement hub can render the same table without duplicating it.
      */
-    public function index(Request $request)
+    public function index()
     {
         $this->authorize('view', Requisition::class);
 
-        $requisitions = Requisition::with('items', 'supplier', 'purchaseOrder', 'adminuser')
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
-            ->orderByDesc('created_at')
-            ->paginate(50)
-            ->withQueryString();
-
-        return view('requisitions/index', [
-            'requisitions' => $requisitions,
-            'statuses' => Requisition::STATUSES,
-            'selectedStatus' => $request->query('status'),
-        ]);
+        return view('requisitions/index');
     }
 
     public function show(Requisition $requisition)
@@ -251,7 +180,57 @@ class RequisitionsController extends Controller
         return view('requisitions/view', [
             'requisition' => $requisition,
             'purchaseOrders' => PurchaseOrder::orderByDesc('po_number')->pluck('po_number', 'id'),
+            'fiscalYears' => Helper::fiscalYearOptions(),
         ]);
+    }
+
+    /**
+     * The PO email has arrived: turn this requisition into a row on the
+     * purchase order ledger, or link the row that is already there.
+     *
+     * The PDF is required rather than encouraged. This is the step that makes
+     * the money real — from here on the purchase order holds budget and
+     * orders can be allocated against it — and a ledger row whose number
+     * cannot be traced back to the document that issued it is exactly the
+     * kind of entry the reports later cannot explain.
+     */
+    public function promote(Request $request, Requisition $requisition, RequisitionPromotion $promotion): RedirectResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $requisition->load('items');
+
+        $existing = $request->filled('purchase_order_id')
+            ? PurchaseOrder::find($request->input('purchase_order_id'))
+            : null;
+
+        // Re-linking a purchase order that already carries its paperwork does
+        // not ask for a second copy of it.
+        $documentRule = ($existing && $promotion->hasDocument($existing)) ? 'nullable' : 'required';
+
+        $validated = $request->validate([
+            'purchase_order_id' => 'nullable|integer|exists:purchase_orders,id',
+            'po_number' => 'required_without:purchase_order_id|nullable|string|max:191',
+            'title' => 'nullable|string|max:191',
+            'fiscal_year' => 'nullable|string|max:191',
+            'cost_center' => 'nullable|string|max:191',
+            'budget' => 'nullable|numeric|min:0',
+            'order_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:65535',
+            'document' => $documentRule.'|file|mimes:pdf|max:'.Helper::file_upload_max_size(),
+            'document_notes' => 'nullable|string|max:191',
+        ], [
+            'document.required' => trans('admin/purchase-orders/general.promote_document_required'),
+        ]);
+
+        try {
+            $purchaseOrder = $promotion->promote($requisition, $validated, $request->file('document'));
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('purchase-orders.show', $purchaseOrder->id)
+            ->with('success', trans('admin/purchase-orders/general.promote_success', ['po' => $purchaseOrder->po_number]));
     }
 
     /**
@@ -269,19 +248,21 @@ class RequisitionsController extends Controller
         $this->authorize('update', Requisition::class);
 
         $validated = $request->validate([
-            'requisition_number' => 'nullable|string|max:191',
-            'purchase_order_id' => 'nullable|integer|exists:purchase_orders,id',
-            'status' => 'nullable|string|in:'.implode(',', Requisition::STATUSES),
-            'notes' => 'nullable|string|max:65535',
+            'requisition_number' => 'sometimes|nullable|string|max:191',
+            'status' => 'sometimes|nullable|string|in:'.implode(',', Requisition::STATUSES),
+            'notes' => 'sometimes|nullable|string|max:65535',
         ]);
 
         $hadRequisitionNumber = (bool) $requisition->requisition_number;
 
-        $requisition->fill([
-            'requisition_number' => $validated['requisition_number'] ?? null,
-            'purchase_order_id' => $validated['purchase_order_id'] ?? null,
-            'notes' => $validated['notes'] ?? $requisition->notes,
-        ]);
+        // Only what was submitted is touched. The purchase order link is set
+        // by promotion and is deliberately not settable here — a form that
+        // omits a field must not be read as a request to clear it.
+        foreach (['requisition_number', 'notes'] as $field) {
+            if ($request->has($field)) {
+                $requisition->{$field} = $validated[$field] ?? null;
+            }
+        }
 
         // An explicit status wins (that's how a requisition gets submitted or
         // cancelled); otherwise the paperwork decides.
@@ -291,6 +272,13 @@ class RequisitionsController extends Controller
             $requisition->status = 'ordered';
         } elseif ($requisition->requisition_number) {
             $requisition->status = 'requisitioned';
+        }
+
+        // Promotion is the only thing that says "ordered", because it is the
+        // only thing that produces the purchase order the word refers to.
+        if ($requisition->status === 'ordered' && ! $requisition->purchase_order_id) {
+            return redirect()->back()->withInput()
+                ->with('error', trans('admin/purchase-orders/general.promote_required_for_ordered'));
         }
 
         if ($requisition->status === 'submitted' && ! $requisition->submitted_at) {
@@ -379,34 +367,5 @@ class RequisitionsController extends Controller
             $csv->insertOne(['', '', trans('admin/purchase-orders/general.builder_pst'), '', '', number_format($requisition->pstAmount(), 2, '.', '')]);
             $csv->insertOne(['', '', trans('admin/purchase-orders/general.builder_total'), '', '', number_format($requisition->total(), 2, '.', '')]);
         }, $filename, ['Content-Type' => 'text/csv']);
-    }
-
-    /**
-     * Fiscal years worth offering: the ones already in use on the purchase
-     * order ledger, plus the current and next one so a new requisition can
-     * be raised against a year nothing has been ordered against yet.
-     *
-     * ECU's fiscal year runs April to March, so April onward belongs to the
-     * year that is starting.
-     *
-     * @return array<int, string>
-     */
-    private function fiscalYearOptions(): array
-    {
-        $years = PurchaseOrder::whereNotNull('fiscal_year')
-            ->distinct()
-            ->pluck('fiscal_year')
-            ->all();
-
-        $startYear = (int) now()->format('n') >= 4 ? (int) now()->format('Y') : (int) now()->format('Y') - 1;
-
-        foreach ([$startYear, $startYear + 1] as $year) {
-            $years[] = sprintf('FY%d-%s', $year, substr((string) ($year + 1), 2));
-        }
-
-        $years = array_values(array_unique(array_filter($years)));
-        rsort($years);
-
-        return $years;
     }
 }

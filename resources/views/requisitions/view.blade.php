@@ -69,20 +69,33 @@
                             </tr>
                         </thead>
                         <tbody>
+                            {{-- Every value is copyable: this table is what
+                                 gets re-typed into Colleague line by line, so
+                                 each cell is a paste source rather than
+                                 something to read off the screen. --}}
                             @foreach ($requisition->items as $line)
+                                @php $gl = $line->gl_number ?: $requisition->default_gl_number; @endphp
                                 <tr>
-                                    <td>{{ $line->vendor_sku ?: trans('general.na') }}</td>
-                                    <td>{{ $line->mfr_part_number ?: trans('general.na') }}</td>
-                                    <td>{{ $line->gl_number ?: ($requisition->default_gl_number ?: trans('general.na')) }}</td>
+                                    <td><x-copy-field :value="$line->vendor_sku" /></td>
+                                    <td><x-copy-field :value="$line->mfr_part_number" /></td>
+                                    <td><x-copy-field :value="$gl" /></td>
                                     <td>
-                                        {{ $line->description }}
+                                        <x-copy-field :value="$line->description" />
                                         @if ($line->isEstimate())
                                             <span class="label label-warning">{{ trans('admin/purchase-orders/general.builder_estimate_badge') }}</span>
                                         @endif
                                     </td>
-                                    <td class="text-right">{{ $line->quantity }} {{ $line->unit_of_measure ?: 'EA' }}</td>
-                                    <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($line->unit_cost) }}</td>
-                                    <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($line->lineTotal()) }}</td>
+                                    <td class="text-right">
+                                        <x-copy-field :value="$line->quantity" /> {{ $line->unit_of_measure ?: 'EA' }}
+                                    </td>
+                                    <td class="text-right">
+                                        <x-copy-field :value="number_format((float) $line->unit_cost, 2, '.', '')"
+                                                      :display="\App\Helpers\Helper::formatCurrencyOutput($line->unit_cost)" />
+                                    </td>
+                                    <td class="text-right">
+                                        <x-copy-field :value="number_format($line->lineTotal(), 2, '.', '')"
+                                                      :display="\App\Helpers\Helper::formatCurrencyOutput($line->lineTotal())" />
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -134,23 +147,18 @@
                         <p class="help-block">{{ trans('admin/purchase-orders/general.requisition_number_help') }}</p>
                     </div>
                     <div class="form-group">
-                        <label for="req-po">{{ trans('admin/purchase-orders/general.po_number') }}</label>
-                        <select name="purchase_order_id" id="req-po" class="form-control">
-                            <option value="">{{ trans('general.na') }}</option>
-                            @foreach ($purchaseOrders as $id => $poNumber)
-                                <option value="{{ $id }}" {{ (int) old('purchase_order_id', $requisition->purchase_order_id) === (int) $id ? 'selected' : '' }}>{{ $poNumber }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="form-group">
                         <label for="req-status">{{ trans('general.status') }}</label>
                         <select name="status" id="req-status" class="form-control">
                             @foreach (\App\Models\Requisition::STATUSES as $status)
-                                <option value="{{ $status }}" {{ $requisition->status === $status ? 'selected' : '' }}>
+                                <option value="{{ $status }}" {{ $requisition->status === $status ? 'selected' : '' }}
+                                        {{ ($status === 'ordered' && ! $requisition->purchase_order_id) ? 'disabled' : '' }}>
                                     {{ trans('admin/purchase-orders/general.requisition_status_'.$status) }}
                                 </option>
                             @endforeach
                         </select>
+                        @unless ($requisition->purchase_order_id)
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.promote_required_for_ordered') }}</p>
+                        @endunless
                     </div>
                     <div class="form-group">
                         <label for="req-notes">{{ trans('general.notes') }}</label>
@@ -163,33 +171,138 @@
             </form>
         </div>
 
+        {{-- The crossing into the budget ledger.
+
+             Up to here nothing this requisition says has moved a single
+             number in the procurement reports — that is the point of keeping
+             baskets out of the purchase_orders table. Promotion is where it
+             starts counting, so it is gated on the PDF finance emailed: a
+             purchase order that can hold budget without the document that
+             issued its number is an entry the reports can't later explain. --}}
+        @if ($requisition->purchase_order_id)
+            <div class="box box-success">
+                <div class="box-header with-border">
+                    <h3 class="box-title">{{ trans('admin/purchase-orders/general.po_number') }}</h3>
+                </div>
+                <div class="box-body">
+                    <p>
+                        <a href="{{ route('purchase-orders.show', $requisition->purchase_order_id) }}">
+                            {{ $requisition->purchaseOrder?->po_number }}
+                        </a>
+                    </p>
+                    <p class="text-muted">{{ trans('admin/purchase-orders/general.promoted_help') }}</p>
+                </div>
+            </div>
+        @elseif ($requisition->status !== 'cancelled')
+            <div class="box box-warning">
+                <div class="box-header with-border">
+                    <h3 class="box-title">{{ trans('admin/purchase-orders/general.promote_title') }}</h3>
+                </div>
+                <form method="POST" action="{{ route('requisitions.promote', $requisition->id) }}"
+                      enctype="multipart/form-data">
+                    {{ csrf_field() }}
+                    <div class="box-body">
+                        <p class="text-muted">{{ trans('admin/purchase-orders/general.promote_help') }}</p>
+
+                        <div class="form-group">
+                            <label for="promote-po-number">{{ trans('admin/purchase-orders/general.po_number') }}</label>
+                            <input type="text" name="po_number" id="promote-po-number" class="form-control"
+                                   value="{{ old('po_number') }}"
+                                   placeholder="{{ trans('admin/purchase-orders/general.promote_po_number_placeholder') }}">
+                        </div>
+
+                        {{-- The vendor feed sometimes lands a PO here before we
+                             get to it; linking that row is the alternative to
+                             minting a duplicate. --}}
+                        <div class="form-group">
+                            <label for="promote-existing">{{ trans('admin/purchase-orders/general.promote_link_existing') }}</label>
+                            <select name="purchase_order_id" id="promote-existing" class="form-control">
+                                <option value="">{{ trans('admin/purchase-orders/general.promote_create_new') }}</option>
+                                @foreach ($purchaseOrders as $id => $poNumber)
+                                    <option value="{{ $id }}" {{ (int) old('purchase_order_id') === (int) $id ? 'selected' : '' }}>{{ $poNumber }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="promote-budget">{{ trans('admin/purchase-orders/general.budget') }}</label>
+                            <input type="number" step="0.01" min="0" name="budget" id="promote-budget" class="form-control"
+                                   value="{{ old('budget', number_format($requisition->total(), 2, '.', '')) }}">
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.promote_budget_help') }}</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="promote-fy">{{ trans('admin/purchase-orders/general.fiscal_year') }}</label>
+                            <select name="fiscal_year" id="promote-fy" class="form-control">
+                                @foreach ($fiscalYears as $fy)
+                                    <option value="{{ $fy }}" {{ old('fiscal_year', $requisition->fiscal_year ?: \App\Helpers\Helper::currentFiscalYear()) === $fy ? 'selected' : '' }}>{{ $fy }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="promote-order-date">{{ trans('admin/purchase-orders/general.order_date') }}</label>
+                            <input type="date" name="order_date" id="promote-order-date" class="form-control"
+                                   value="{{ old('order_date', now()->format('Y-m-d')) }}">
+                        </div>
+
+                        <div class="form-group {{ $errors->has('document') ? ' has-error' : '' }}">
+                            <label for="promote-document">
+                                {{ trans('admin/purchase-orders/general.promote_document') }}
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" name="document" id="promote-document" accept="application/pdf" required>
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.promote_document_help') }}</p>
+                            {!! $errors->first('document', '<span class="help-block">:message</span>') !!}
+                        </div>
+                    </div>
+                    <div class="box-footer">
+                        <button type="submit" class="btn btn-warning btn-block">
+                            {{ trans('admin/purchase-orders/general.promote_submit') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        @endif
+
         <div class="box box-default">
             <div class="box-body">
                 <table class="table table-condensed">
                     <tbody>
                         <tr>
+                            <td>{{ trans('admin/purchase-orders/general.builder_title') }}</td>
+                            <td><x-copy-field :value="$requisition->title" /></td>
+                        </tr>
+                        <tr>
                             <td>{{ trans('general.supplier') }}</td>
-                            <td>{{ $requisition->supplier?->name ?: trans('general.na') }}</td>
+                            <td><x-copy-field :value="$requisition->supplier?->name" /></td>
                         </tr>
                         <tr>
                             <td>{{ trans('general.company') }}</td>
-                            <td>{{ $requisition->company?->name ?: trans('general.na') }}</td>
+                            <td><x-copy-field :value="$requisition->company?->name" /></td>
                         </tr>
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.fiscal_year') }}</td>
-                            <td>{{ $requisition->fiscal_year ?: trans('general.na') }}</td>
+                            <td><x-copy-field :value="$requisition->fiscal_year" /></td>
                         </tr>
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.cost_center') }}</td>
-                            <td>{{ $requisition->cost_center ?: trans('general.na') }}</td>
+                            <td><x-copy-field :value="$requisition->cost_center" /></td>
                         </tr>
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.requisition_needed_by') }}</td>
-                            <td>{{ $requisition->needed_by?->format('Y-m-d') ?: trans('general.na') }}</td>
+                            <td><x-copy-field :value="$requisition->needed_by?->format('Y-m-d')" /></td>
                         </tr>
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.gl_number') }}</td>
-                            <td>{{ $requisition->default_gl_number ?: trans('general.na') }}</td>
+                            <td><x-copy-field :value="$requisition->default_gl_number" /></td>
+                        </tr>
+                        <tr>
+                            <td>{{ trans('admin/purchase-orders/general.builder_total') }}</td>
+                            <td>
+                                <x-copy-field :value="number_format($requisition->total(), 2, '.', '')"
+                                              :display="\App\Helpers\Helper::formatCurrencyOutput($requisition->total())" />
+                            </td>
                         </tr>
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.requisition_created_by') }}</td>
@@ -201,4 +314,6 @@
         </div>
     </div>
 </div>
+
+@include('partials.copy-fields')
 @stop

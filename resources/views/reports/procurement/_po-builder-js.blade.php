@@ -3,9 +3,18 @@
      procurement reports. The whole basket is serialised into hidden inputs on
      submit, so the page holds no server state until it is saved. --}}
 <style>
-    .pob-filters { display: flex; gap: 8px; margin-bottom: 10px; }
+    .pob-filters { display: flex; gap: 8px; margin-bottom: 8px; }
     .pob-filters #pob-search { flex: 2 1 240px; }
     .pob-filters select { flex: 1 1 140px; }
+    /* Categories as a wrapping row of tabs on their own line: the set is
+       small and stable, so showing it beats hiding it in a select. */
+    .pob-cat-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px;
+                    border-bottom: 1px solid #e3e3e3; padding-bottom: 8px; }
+    .pob-cat-tab { border: 1px solid transparent; background: transparent; border-radius: 3px;
+                   padding: 3px 10px; font-size: 12.5px; color: #666; cursor: pointer; line-height: 1.5; }
+    .pob-cat-tab:hover { background: rgba(127, 127, 127, .12); color: inherit; }
+    .pob-cat-tab.active { background: rgba(127, 127, 127, .18); border-color: rgba(127, 127, 127, .35);
+                          color: inherit; font-weight: 600; }
     .pob-catalog-scroll { max-height: 640px; overflow-y: auto; }
     .pob-table th, .pob-table td { vertical-align: middle !important; font-size: 12.5px; }
     .pob-num { text-align: right; white-space: nowrap; }
@@ -30,6 +39,19 @@
     .pob-basket-box { position: sticky; top: 60px; }
     .pob-line-remove { color: #a94442; cursor: pointer; }
     .pob-no-results { padding: 12px 4px; }
+    /* Generated PO — the keying surface. Fields read as label-over-value so
+       a copied value is never ambiguous about which Colleague field it is. */
+    .pob-gen-field { margin-bottom: 12px; }
+    .pob-gen-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; }
+    .pob-gen-value { font-size: 13px; word-break: break-word; }
+    .pob-gen-value.pob-gen-pre { white-space: pre-wrap; }
+    .pob-generated-table td { font-size: 12.5px; }
+    /* Copies the whole line tab-separated. It has no value of its own to
+       hover, so the row is its hover target. */
+    .cp-row-copy { min-width: 20px; min-height: 16px; }
+    .pob-generated-table tr:hover .cp-row-copy .cp-btn { opacity: 1; }
+    .pob-gen-totals { margin-top: 8px; }
+    .pob-gen-totals .pob-gen-field { margin-bottom: 8px; }
     @media (max-width: 991px) { .pob-basket-box { position: static; } }
 </style>
 <script>
@@ -45,7 +67,8 @@
     for (var i = 0; i < CATALOG.length; i++) { byId[CATALOG[i].id] = CATALOG[i]; }
 
     var searchEl = document.getElementById('pob-search');
-    var categoryEl = document.getElementById('pob-category');
+    var categoryTabs = document.getElementById('pob-category-tabs');
+    var selectedCategory = '';
     var typeEl = document.getElementById('pob-type');
     var catalogRows = document.getElementById('pob-catalog-rows');
     var noResults = document.getElementById('pob-no-results');
@@ -69,7 +92,7 @@
 
     function matchesFilters(item) {
         var term = (searchEl && searchEl.value || '').trim().toLowerCase();
-        var category = categoryEl && categoryEl.value || '';
+        var category = selectedCategory;
         var type = typeEl && typeEl.value || '';
 
         if (category && item.category !== category) { return false; }
@@ -196,7 +219,7 @@
         if (saveButton) { saveButton.disabled = basket.length === 0; }
     }
 
-    function renderTotals() {
+    function computeTotals() {
         var subtotal = 0;
         var pstBase = 0;
         var anyEstimate = false;
@@ -217,31 +240,244 @@
         var gst = (subtotal + shipping) * gstRate;
         var pst = pstBase * pstRate;
 
-        document.getElementById('pob-subtotal').textContent = money(subtotal);
-        document.getElementById('pob-gst').textContent = money(gst);
-        document.getElementById('pob-pst').textContent = money(pst);
-        document.getElementById('pob-total').textContent = money(subtotal + shipping + gst + pst);
+        return {
+            subtotal: subtotal,
+            shipping: shipping,
+            gst: gst,
+            pst: pst,
+            total: subtotal + shipping + gst + pst,
+            anyEstimate: anyEstimate
+        };
+    }
 
-        if (estimateAlert) { estimateAlert.hidden = ! anyEstimate; }
+    function renderTotals() {
+        var t = computeTotals();
+
+        document.getElementById('pob-subtotal').textContent = money(t.subtotal);
+        document.getElementById('pob-gst').textContent = money(t.gst);
+        document.getElementById('pob-pst').textContent = money(t.pst);
+        document.getElementById('pob-total').textContent = money(t.total);
+
+        if (estimateAlert) { estimateAlert.hidden = ! t.anyEstimate; }
+    }
+
+    // --- Generated purchase order ------------------------------------------
+
+    // The panel that gets re-typed into Colleague. Every value is wrapped in
+    // a .cp-field so partials/copy-fields can hang a copy button off it.
+
+    function selectedText(id) {
+        var el = document.getElementById(id);
+        if (! el || ! el.options || el.selectedIndex < 0) { return ''; }
+        var option = el.options[el.selectedIndex];
+
+        return (! el.value) ? '' : (option.textContent || '').trim();
+    }
+
+    function fieldValue(id) {
+        var el = document.getElementById(id);
+
+        return el ? (el.value || '').trim() : '';
+    }
+
+    function copyField(label, value, options) {
+        options = options || {};
+        var shown = value === '' || value === null || value === undefined;
+        var body = shown
+            ? '<span class="cp-empty">—</span>'
+            : '<span class="cp-field" data-copy="' + escapeHtml(value) + '">' + escapeHtml(value) + '</span>';
+
+        return '<div class="' + (options.wrapper || 'col-md-3') + '">'
+            + '<div class="pob-gen-field">'
+            + '<span class="pob-gen-label">' + escapeHtml(label) + '</span>'
+            + '<span class="pob-gen-value' + (options.pre ? ' pob-gen-pre' : '') + '">' + body + '</span>'
+            + '</div></div>';
+    }
+
+    function generatedHeaderFields() {
+        return [
+            [@json(trans('admin/purchase-orders/general.builder_title')), fieldValue('pob-title'), {}],
+            [@json(trans('general.supplier')), selectedText('pob-supplier'), {}],
+            [@json(trans('admin/purchase-orders/general.fiscal_year')), selectedText('pob-fy'), {}],
+            [@json(trans('admin/purchase-orders/general.requisition_needed_by')), fieldValue('pob-needed'), {}],
+            [@json(trans('admin/purchase-orders/general.cost_center')), fieldValue('pob-cc'), {}],
+            [@json(trans('general.company')), selectedText('pob-company'), {}],
+            [@json(trans('admin/purchase-orders/general.gl_number')), fieldValue('pob-gl'), {}],
+            [@json(trans('general.notes')), fieldValue('pob-notes'), {}],
+            [@json(trans('admin/purchase-orders/general.printer_comments')), fieldValue('pob-printer-comments'), { wrapper: 'col-md-6', pre: true }],
+            [@json(trans('admin/purchase-orders/general.internal_comments')), fieldValue('pob-internal-comments'), { wrapper: 'col-md-6', pre: true }]
+        ];
+    }
+
+    function renderGenerated() {
+        var wrapper = document.getElementById('pob-generated-row');
+        if (! wrapper) { return; }
+
+        wrapper.hidden = basket.length === 0;
+        if (basket.length === 0) { return; }
+
+        var header = document.getElementById('pob-generated-header');
+        var rows = document.getElementById('pob-generated-rows');
+        var totalsEl = document.getElementById('pob-generated-totals');
+        var defaultGl = fieldValue('pob-gl');
+
+        header.innerHTML = generatedHeaderFields()
+            .map(function (f) { return copyField(f[0], f[1], f[2]); })
+            .join('');
+
+        var html = '';
+        for (var i = 0; i < basket.length; i++) {
+            var line = basket[i];
+            var gl = line.gl_number || defaultGl || '';
+            var unitCost = Number(line.unit_cost).toFixed(2);
+            var lineTotal = (line.quantity * line.unit_cost).toFixed(2);
+
+            // The whole line as tab-separated text, for the case where the
+            // target accepts a paste of the row rather than field by field.
+            var rowText = [line.quantity, line.unit_of_measure || 'EA', line.vendor_sku || '',
+                line.mfr_part_number || '', gl, line.description, unitCost, lineTotal].join('\t');
+
+            html += '<tr>'
+                + '<td class="pob-num"><span class="cp-field" data-copy="' + line.quantity + '">' + line.quantity + '</span></td>'
+                + '<td><span class="cp-field" data-copy="' + escapeHtml(line.unit_of_measure || 'EA') + '">' + escapeHtml(line.unit_of_measure || 'EA') + '</span></td>'
+                + '<td>' + cell(line.vendor_sku) + '</td>'
+                + '<td>' + cell(line.mfr_part_number) + '</td>'
+                + '<td>' + cell(gl) + '</td>'
+                + '<td>' + cell(line.description) + '</td>'
+                + '<td class="pob-num"><span class="cp-field" data-copy="' + unitCost + '">' + money(line.unit_cost) + '</span></td>'
+                + '<td class="pob-num"><span class="cp-field" data-copy="' + lineTotal + '">' + money(line.quantity * line.unit_cost) + '</span></td>'
+                + '<td class="pob-num" title="' + @json(trans('admin/purchase-orders/general.copy_row')) + '">'
+                + '<span class="cp-field cp-row-copy" data-copy="' + escapeHtml(rowText) + '"></span></td>'
+                + '</tr>';
+        }
+        rows.innerHTML = html;
+
+        var t = computeTotals();
+        totalsEl.className = 'row pob-gen-totals';
+        totalsEl.innerHTML = [
+            copyField(@json(trans('admin/purchase-orders/general.builder_subtotal')), t.subtotal.toFixed(2), {}),
+            copyField(@json(trans('admin/purchase-orders/general.builder_shipping')), t.shipping.toFixed(2), {}),
+            copyField(@json(trans('admin/purchase-orders/general.builder_gst')), t.gst.toFixed(2), {}),
+            copyField(@json(trans('admin/purchase-orders/general.builder_pst')), t.pst.toFixed(2), {}),
+            copyField(@json(trans('admin/purchase-orders/general.builder_total')), t.total.toFixed(2), {})
+        ].join('');
+
+        if (window.decorateCopyFields) { window.decorateCopyFields(wrapper); }
+    }
+
+    function cell(value) {
+        return (value === null || value === undefined || value === '')
+            ? '<span class="cp-empty">—</span>'
+            : '<span class="cp-field" data-copy="' + escapeHtml(value) + '">' + escapeHtml(value) + '</span>';
+    }
+
+    /** The entire purchase order as plain text, header then lines then totals. */
+    function generatedAsText() {
+        var out = generatedHeaderFields()
+            .filter(function (f) { return f[1]; })
+            .map(function (f) { return f[0] + ': ' + f[1]; });
+
+        out.push('');
+
+        var defaultGl = fieldValue('pob-gl');
+        for (var i = 0; i < basket.length; i++) {
+            var line = basket[i];
+            out.push([line.quantity, line.unit_of_measure || 'EA', line.vendor_sku || '',
+                line.mfr_part_number || '', line.gl_number || defaultGl || '', line.description,
+                Number(line.unit_cost).toFixed(2), (line.quantity * line.unit_cost).toFixed(2)].join('\t'));
+        }
+
+        var t = computeTotals();
+        out.push('');
+        out.push(@json(trans('admin/purchase-orders/general.builder_subtotal')) + '\t' + t.subtotal.toFixed(2));
+        out.push(@json(trans('admin/purchase-orders/general.builder_shipping')) + '\t' + t.shipping.toFixed(2));
+        out.push(@json(trans('admin/purchase-orders/general.builder_gst')) + '\t' + t.gst.toFixed(2));
+        out.push(@json(trans('admin/purchase-orders/general.builder_pst')) + '\t' + t.pst.toFixed(2));
+        out.push(@json(trans('admin/purchase-orders/general.builder_total')) + '\t' + t.total.toFixed(2));
+
+        return out.join('\n');
     }
 
     function render() {
         renderBasket();
         renderTotals();
+        renderGenerated();
     }
 
     // --- Events ------------------------------------------------------------
 
     ['input', 'change'].forEach(function (evt) {
-        [searchEl, categoryEl, typeEl].forEach(function (el) {
+        [searchEl, typeEl].forEach(function (el) {
             if (el) { el.addEventListener(evt, renderCatalog); }
         });
     });
 
+    if (categoryTabs) {
+        categoryTabs.addEventListener('click', function (e) {
+            var tab = e.target.closest('.pob-cat-tab');
+            if (! tab) { return; }
+            e.preventDefault();
+
+            var tabs = categoryTabs.querySelectorAll('.pob-cat-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                var isActive = tabs[i] === tab;
+                tabs[i].classList.toggle('active', isActive);
+                tabs[i].setAttribute('aria-selected', isActive ? 'true' : 'false');
+            }
+
+            selectedCategory = tab.dataset.category || '';
+            renderCatalog();
+        });
+    }
+
     ['pob-shipping', 'pob-gst-rate', 'pob-pst-rate'].forEach(function (id) {
         var el = document.getElementById(id);
-        if (el) { el.addEventListener('input', renderTotals); }
+        if (el) {
+            el.addEventListener('input', function () { renderTotals(); renderGenerated(); });
+        }
     });
+
+    // Header fields feed straight into the generated PO, so editing one has
+    // to be visible there immediately — it is the copy source, and a stale
+    // value is one that gets keyed into Colleague wrong.
+    ['pob-title', 'pob-supplier', 'pob-fy', 'pob-needed', 'pob-cc', 'pob-company',
+     'pob-notes', 'pob-printer-comments', 'pob-internal-comments'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', renderGenerated);
+            el.addEventListener('change', renderGenerated);
+        }
+    });
+
+    var copyAll = document.getElementById('pob-copy-all');
+    if (copyAll) {
+        copyAll.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            var text = generatedAsText();
+            var done = function () {
+                var original = copyAll.innerHTML;
+                copyAll.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i> '
+                    + @json(trans('admin/purchase-orders/general.copied'));
+                setTimeout(function () { copyAll.innerHTML = original; }, 1200);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done, function () {});
+
+                return;
+            }
+
+            var scratch = document.createElement('textarea');
+            scratch.value = text;
+            scratch.style.position = 'fixed';
+            scratch.style.opacity = '0';
+            document.body.appendChild(scratch);
+            scratch.select();
+            try { document.execCommand('copy'); done(); } catch (err) {}
+            document.body.removeChild(scratch);
+        });
+    }
 
     // The GL number is usually the same for every line, so editing the
     // header field retro-fills any line that hasn't been given its own.
@@ -251,6 +487,8 @@
             for (var i = 0; i < basket.length; i++) {
                 if (! basket[i].gl_number_overridden) { basket[i].gl_number = glField.value || null; }
             }
+
+            renderGenerated();
         });
     }
 
@@ -313,9 +551,12 @@
             }
 
             // Re-render totals and the line total only — rebuilding the whole
-            // table here would yank focus out of the field being typed in.
+            // basket table here would yank focus out of the field being typed
+            // in. The generated panel holds no focusable inputs, so it can be
+            // rebuilt wholesale.
             row.children[3].textContent = money(basket[index].quantity * basket[index].unit_cost);
             renderTotals();
+            renderGenerated();
         });
     }
 

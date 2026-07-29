@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Mail\StoreVendorOrderMail;
 use App\Models\CatalogItem;
 use App\Models\EmailTemplate;
+use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
+use App\Models\Supplier;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,13 +30,25 @@ use Illuminate\Support\Facades\Mail;
 class ProcurementController extends Controller
 {
     /**
-     * Landing: queue depth, catalog health, and the doors to everything
-     * else. Numbers over navigation — the page should answer "does
-     * anything need me?" at a glance.
+     * The hub. Queue depth and catalog health at the top, then every
+     * procurement table on the page behind tabs.
+     *
+     * Each of those tables still has its own route in the sidebar — this is
+     * not a replacement for them. It is the answer to "where do I go to do
+     * procurement", which previously was six different places.
+     *
+     * The queue arrives server-rendered because approving and declining are
+     * forms per order; the rest are ajax datatables that fetch when their
+     * tab is opened.
      */
-    public function index()
+    public function index(Request $request)
     {
         $this->authorize('view', Requisition::class);
+
+        $status = $request->query('status', 'pending');
+        if (! in_array($status, StoreOrder::STATUSES, true) && $status !== 'all') {
+            $status = 'pending';
+        }
 
         return view('procurement.index', [
             'pendingOrders' => StoreOrder::pending()->count(),
@@ -44,6 +58,20 @@ class ProcurementController extends Controller
             'catalogCount' => CatalogItem::active()->count(),
             'estimateCount' => CatalogItem::inStore()->where(fn ($q) => $q->whereNull('unit_cost')->orWhere('price_type', 'estimate'))->count(),
             'approvers' => StoreApprover::with('user')->get(),
+
+            // The queue tab renders the same list the dedicated page does.
+            'orders' => StoreOrder::with('items.catalogItem.supplier', 'user.department', 'decidedBy', 'requisition.purchaseOrder')
+                ->when($status !== 'all', fn ($q) => $q->where('status', $status))
+                ->orderBy('created_at')
+                ->paginate(50)
+                ->withQueryString(),
+            'selectedStatus' => $status,
+            'statuses' => StoreOrder::STATUSES,
+
+            // Tab badges: what is countable without loading the table.
+            'purchaseOrderCount' => PurchaseOrder::count(),
+            'requisitionCount' => Requisition::count(),
+            'supplierCount' => Supplier::count(),
         ]);
     }
 
