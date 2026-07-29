@@ -244,6 +244,85 @@ class RequisitionApiTest extends TestCase
         $this->assertSame('This year', $rows[0]['title']);
     }
 
+    /** @return array<int, string> */
+    private function seedThree(): array
+    {
+        foreach ($titles = ['Alpha', 'Bravo', 'Charlie'] as $title) {
+            Requisition::create(['title' => $title, 'status' => 'draft']);
+        }
+
+        return $titles;
+    }
+
+    /**
+     * The list feeds the datatable on the requisitions page and the
+     * procurement hub, so it has to honour the table's paging, sorting and
+     * search parameters — not just the domain filters.
+     *
+     * Each of these is its own test on purpose: `api_offset_value` is a
+     * container singleton, so a second request inside one test would reuse
+     * the first request's offset. Real requests each boot their own
+     * container, which is why this only bites in tests.
+     */
+    public function test_the_list_pages_and_sorts()
+    {
+        $this->seedThree();
+
+        $page = $this->actingAsForApi($this->superuser())
+            ->getJson(route('api.requisitions.index', ['limit' => 2, 'offset' => 0, 'sort' => 'title', 'order' => 'asc']))
+            ->assertOk()
+            ->json();
+
+        // total counts the whole set; rows are only the page asked for.
+        $this->assertSame(3, $page['total']);
+        $this->assertCount(2, $page['rows']);
+        $this->assertSame(['Alpha', 'Bravo'], array_column($page['rows'], 'title'));
+    }
+
+    public function test_the_list_honours_an_offset()
+    {
+        $this->seedThree();
+
+        $second = $this->actingAsForApi($this->superuser())
+            ->getJson(route('api.requisitions.index', ['limit' => 2, 'offset' => 2, 'sort' => 'title', 'order' => 'asc']))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame(3, $second['total']);
+        $this->assertSame(['Charlie'], array_column($second['rows'], 'title'));
+    }
+
+    public function test_the_list_searches()
+    {
+        $this->seedThree();
+
+        $searched = $this->actingAsForApi($this->superuser())
+            ->getJson(route('api.requisitions.index', ['search' => 'Brav']))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame(1, $searched['total']);
+        $this->assertSame('Bravo', $searched['rows'][0]['title']);
+    }
+
+    /**
+     * Dates go out in Snipe's {datetime, formatted} shape, which is what the
+     * datatable's date formatter reads — a bare ISO string renders blank.
+     */
+    public function test_dates_come_back_in_the_shape_the_datatable_expects()
+    {
+        Requisition::create(['title' => 'Faculty refresh', 'status' => 'draft']);
+
+        $row = $this->actingAsForApi($this->superuser())
+            ->getJson(route('api.requisitions.index'))
+            ->assertOk()
+            ->json('rows.0');
+
+        $this->assertIsArray($row['created_at']);
+        $this->assertArrayHasKey('datetime', $row['created_at']);
+        $this->assertArrayHasKey('formatted', $row['created_at']);
+    }
+
     public function test_the_endpoints_are_closed_to_anonymous_callers()
     {
         // A fresh instance with no users redirects everything to /setup; seed
