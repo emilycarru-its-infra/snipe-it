@@ -12,6 +12,7 @@ use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\VendorOrderCsv;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -325,7 +326,7 @@ class StoreFunnelTest extends TestCase
             'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
         ]);
         $order = StoreOrder::first();
-        $order->update(['status' => 'approved']);
+        $order->update(['status' => 'approved', 'funding_account' => 'purchase']);
 
         $this->actingAs($this->procurement())
             ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
@@ -339,7 +340,10 @@ class StoreFunnelTest extends TestCase
         $order->refresh();
         $this->assertSame('ordered', $order->status);
         $this->assertNotNull($order->vendor_sent_at);
-        $this->assertSame('ordered', $order->displayStatus());
+
+        // Sent is not placed. CDW quotes the request before ordering it, so
+        // the requester is told it is with the vendor rather than on order.
+        $this->assertSame('with_vendor', $order->displayStatus());
     }
 
     public function test_a_batch_vendor_send_groups_orders_into_one_email()
@@ -354,7 +358,7 @@ class StoreFunnelTest extends TestCase
                 'items' => [['catalog_item_id' => $item->id, 'quantity' => $qty]],
             ]);
         }
-        StoreOrder::query()->update(['status' => 'approved']);
+        StoreOrder::query()->update(['status' => 'approved', 'funding_account' => 'purchase']);
         $ids = StoreOrder::pluck('id')->all();
 
         $this->actingAs($this->procurement())
@@ -613,5 +617,232 @@ class StoreFunnelTest extends TestCase
         // Two of them, priced as two of them.
         $this->assertStringContainsString("\u{00D7} 2", $body);
         $this->assertStringContainsString('5,317', $body);
+    }
+
+    public function test_the_vendor_order_request_carries_whole_lines_and_a_part_list_csv()
+    {
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca']);
+
+        // The worst case for the old markdown table: six pipes in the name.
+        $item = $this->shelfItem([
+            'supplier_id' => $supplier->id,
+            'name' => 'MacBook Pro | 16" | M5 Max | 48GB | 2TB | Black | Nano-texture',
+            'family' => 'MacBook Pro',
+            'mfr_part_number' => 'Z1N1-2310166117-2',
+            'vendor_sku' => '9219353',
+            'warranty_months' => 36,
+            'bundle_url' => 'https://www.cdw.ca/accountcenter/ManagedList/BundleList/abc123',
+        ]);
+
+        $requester = $this->endUser();
+        $this->actingAs($requester)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 3]],
+        ]);
+
+        $order = StoreOrder::first();
+        $order->update([
+            'status' => 'approved',
+            'funding_account' => 'lease',
+            'lease_schedule' => '301452-009',
+        ]);
+
+        $mail = new StoreVendorOrderMail(StoreOrder::where('id', $order->id)->get());
+        $body = $mail->render();
+
+        // The whole configuration survives, not just its first pipe-segment.
+        $this->assertStringContainsString('MacBook Pro | 16" | M5 Max | 48GB | 2TB | Black | Nano-texture', $body);
+        $this->assertStringContainsString('Z1N1-2310166117-2', $body);
+        $this->assertStringContainsString('9219353', $body);
+        $this->assertStringContainsString('3 years', $body);
+        $this->assertStringContainsString('301452-009', $body);
+
+        // And the part list CDW actually keys from.
+        $csv = (new VendorOrderCsv(StoreOrder::where('id', $order->id)->get()))->contents();
+
+        $this->assertStringContainsString('MFR #', $csv);
+        $this->assertStringContainsString('CDW EDC #', $csv);
+        $this->assertStringContainsString('Z1N1-2310166117-2', $csv);
+        $this->assertStringContainsString('9219353', $csv);
+        $this->assertStringContainsString('301452-009', $csv);
+        $this->assertStringContainsString('Lease', $csv);
+        $this->assertStringContainsString('3 years', $csv);
+        $this->assertStringContainsString('ECU-STORE-'.$order->id, $csv);
+
+        // A name full of commas and quotes is one field, not several — the
+        // reseller opens this in Excel and a split line is a wrong order.
+        $lines = array_values(array_filter(explode("\n", str_replace("\r", '', $csv))));
+        $this->assertCount(2, $lines);
+        $this->assertSame(11, count(str_getcsv($lines[1])));
+        $this->assertSame('3', str_getcsv($lines[1])[4]);
+    }
+
+    public function test_an_order_with_no_account_is_not_sent_to_the_vendor()
+    {
+        Mail::fake();
+
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca']);
+        $item = $this->shelfItem(['supplier_id' => $supplier->id]);
+
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        $order = StoreOrder::first();
+        $order->update(['status' => 'approved']);
+
+        // No account: CDW would not know which blanket PO to place against.
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
+            ->assertRedirect();
+
+        Mail::assertNotSent(StoreVendorOrderMail::class);
+        $this->assertSame('approved', $order->fresh()->status);
+
+        // A lease with no schedule is just as unplaceable.
+        $order->update(['funding_account' => 'lease']);
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
+            ->assertRedirect();
+        Mail::assertNotSent(StoreVendorOrderMail::class);
+
+        // Named schedule, and it goes.
+        $order->update(['lease_schedule' => '301452-010']);
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
+            ->assertRedirect();
+        Mail::assertSent(StoreVendorOrderMail::class, 1);
+        $this->assertSame('ordered', $order->fresh()->status);
+    }
+
+    public function test_a_test_send_still_carries_the_csv_and_changes_nothing()
+    {
+        Mail::fake();
+
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca']);
+        $item = $this->shelfItem(['supplier_id' => $supplier->id]);
+        $staff = $this->procurement();
+
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+        $order = StoreOrder::first();
+        $order->update(['status' => 'approved']);
+
+        // No account set, yet the test send goes: it exists to check the
+        // layout, and the attachment is the part most worth checking.
+        $this->actingAs($staff)
+            ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id], 'test' => 1])
+            ->assertRedirect();
+
+        Mail::assertSent(StoreVendorOrderMail::class, function ($mail) use ($staff) {
+            return $mail->test
+                && $mail->hasTo($staff->email)
+                && count($mail->attachments()) === 1;
+        });
+
+        $this->assertSame('approved', $order->fresh()->status);
+        $this->assertNull($order->fresh()->vendor_sent_at);
+    }
+
+    public function test_the_quote_comes_back_then_is_confirmed()
+    {
+        Mail::fake();
+
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca']);
+        $item = $this->shelfItem(['supplier_id' => $supplier->id]);
+
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        $order = StoreOrder::first();
+
+        // A quote cannot be recorded before the request has gone out.
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.quote', $order->id), ['quote_number' => 'Q-1'])
+            ->assertRedirect();
+        $this->assertNull($order->fresh()->quote_number);
+
+        $order->update(['status' => 'approved', 'funding_account' => 'purchase']);
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]]);
+
+        $this->assertSame('with_vendor', $order->fresh()->displayStatus());
+
+        // CDW answers with a quote — recorded, but nothing is placed yet.
+        $this->actingAs($this->procurement())->post(route('procurement.queue.quote', $order->id), [
+            'quote_number' => 'QUOTE-88213',
+            'quote_total' => 2799.00,
+            'quote_expires_at' => now()->addDays(30)->toDateString(),
+        ])->assertRedirect();
+
+        $order->refresh();
+        $this->assertSame('QUOTE-88213', $order->quote_number);
+        $this->assertNotNull($order->quote_received_at);
+        $this->assertNull($order->confirmed_at);
+        $this->assertSame('quoted', $order->displayStatus());
+        $this->assertFalse($order->quoteIsExpired());
+
+        // Signing it off is what places the order.
+        $this->actingAs($this->procurement())
+            ->post(route('procurement.queue.quote', $order->id), ['confirm' => 1])
+            ->assertRedirect();
+
+        $order->refresh();
+        $this->assertNotNull($order->confirmed_at);
+        $this->assertSame('ordered', $order->displayStatus());
+        $this->assertSame('QUOTE-88213', $order->quote_number);
+    }
+
+    public function test_an_expired_unconfirmed_quote_is_flagged()
+    {
+        $order = StoreOrder::create([
+            'user_id' => $this->endUser()->id,
+            'status' => 'ordered',
+            'vendor_sent_at' => now()->subDays(60),
+            'quote_received_at' => now()->subDays(60),
+            'quote_expires_at' => now()->subDay(),
+        ]);
+
+        $this->assertTrue($order->quoteIsExpired());
+
+        // Confirmed in time, so the expiry no longer matters.
+        $order->update(['confirmed_at' => now()->subDays(2)]);
+        $this->assertFalse($order->fresh()->quoteIsExpired());
+    }
+
+    public function test_received_is_read_off_the_arrival_the_webhook_lands()
+    {
+        Mail::fake();
+
+        $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep1@cdw.ca']);
+        $item = $this->shelfItem(['supplier_id' => $supplier->id]);
+
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        $order = StoreOrder::first();
+        $order->update(['status' => 'ordered', 'vendor_sent_at' => now(), 'confirmed_at' => now()]);
+
+        $this->assertFalse($order->isReceived());
+
+        $this->actingAsForApi($this->procurement())->postJson(route('api.store-orders.shipment', $order->id), [
+            'status' => 'arrived',
+            'tracking_number' => '1Z999',
+            'serials' => ['C02XY1234'],
+        ])->assertOk();
+
+        $order->refresh();
+        $this->assertTrue($order->isReceived());
+        $this->assertSame('arrived', $order->displayStatus());
+    }
+
+    public function test_a_warranty_term_reads_in_years_when_it_divides()
+    {
+        $this->assertSame('3 years', $this->shelfItem(['warranty_months' => 36])->warrantyLabel());
+        $this->assertSame('1 year', $this->shelfItem(['warranty_months' => 12, 'vendor_sku' => '2'])->warrantyLabel());
+        $this->assertSame('18 months', $this->shelfItem(['warranty_months' => 18, 'vendor_sku' => '3'])->warrantyLabel());
+        $this->assertNull($this->shelfItem(['warranty_months' => null, 'vendor_sku' => '4'])->warrantyLabel());
     }
 }
