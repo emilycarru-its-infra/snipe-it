@@ -37,17 +37,10 @@
     .st-section-heading { font-size: 19px; font-weight: 700; margin: 30px 0 14px; }
     .st-section-heading.st-section-first { margin-top: 0; }
 
-    /* Platform columns grow with what they hold, so a card is the same
-       width whichever side of the rule it sits on. */
-    .st-platforms { display: flex; align-items: flex-start; gap: 24px; }
-    .st-platform { flex-basis: 0; min-width: 0; }
-    .st-platform-split { border-left: 1px solid var(--st-border); padding-left: 24px; }
-
-    @media (max-width: 767px) {
-        .st-platforms { display: block; }
-        .st-platform-split { border-left: 0; padding-left: 0; margin-top: 24px; padding-top: 24px;
-                             border-top: 1px solid var(--st-border); }
-    }
+    /* Each platform gets its own band of the section, one above the other,
+       so a row reads as "these are the Macs" without a card ever having to
+       share a line with the other platform. */
+    .st-platform-split { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--st-border); }
     .st-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
     .st-acc-grid .st-fam { padding: 14px 12px; }
     .st-acc-grid .st-fam-img { height: 90px; font-size: 30px; margin-bottom: 8px; }
@@ -133,6 +126,10 @@
            shows, shrunk to sidebar width. ---- */
     .st-cart-box { background: light-dark(#fff, #2c2c2e); border: 1px solid light-dark(#e8e8ed, #3a3a3c);
                    border-radius: 16px; padding: 22px; position: sticky; top: 60px; }
+    /* Sized and placed like the order card it sits on, because that is
+       where someone looks for their own orders. */
+    .st-my-orders { border-radius: 16px; margin-bottom: 14px; font-weight: 600; }
+    .st-my-orders .badge { margin-left: 6px; }
     @media (max-width: 991px) { .st-cart-box { position: static; } }
     .st-cart-title { margin: 0 0 10px; font-size: 21px; font-weight: 700; }
     .st-cart-card { background: light-dark(#f5f5f7, #232326); border-radius: 14px; padding: 16px;
@@ -397,12 +394,11 @@
             // One platform alone gets the plain grid, not a lone column with
             // a divider hanging off it.
             if (groups.length > 1) {
-                html += '<div class="st-platforms">' + groups.map(function (group, gi) {
-                    return '<div class="st-platform' + (gi ? ' st-platform-split' : '') + '"'
-                        + ' style="flex-grow:' + group.length + ';">'
+                html += groups.map(function (group, gi) {
+                    return '<div class="st-platform' + (gi ? ' st-platform-split' : '') + '">'
                         + '<div class="' + grid + '">' + group.map(famCardHtml).join('') + '</div>'
                         + '</div>';
-                }).join('') + '</div>';
+                }).join('');
 
                 return;
             }
