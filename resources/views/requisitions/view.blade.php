@@ -7,7 +7,7 @@
 
 @section('header_right')
     @if ($requisition->status === 'draft')
-        <a href="{{ route('reports.procurement.po-builder', ['requisition' => $requisition->id]) }}" class="btn btn-sm btn-primary">
+        <a href="{{ route('purchase-orders.builder', ['requisition' => $requisition->id]) }}" class="btn btn-sm btn-primary">
             {{ trans('admin/purchase-orders/general.requisition_open_builder') }}
         </a>
     @endif

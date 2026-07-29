@@ -130,7 +130,7 @@ class RequisitionColleagueFieldsTest extends TestCase
         $this->actingAs($user)->post(route('requisitions.store'), $this->basket());
 
         $response = $this->actingAs($user)
-            ->get(route('reports.procurement.po-builder', ['requisition' => Requisition::first()->id]))
+            ->get(route('purchase-orders.builder', ['requisition' => Requisition::first()->id]))
             ->assertOk();
 
         preg_match('/id="pob-basket">(.*?)<\/script>/s', $response->getContent(), $matches);

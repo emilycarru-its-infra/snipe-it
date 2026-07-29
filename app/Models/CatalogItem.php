@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 use Watson\Validating\ValidatingTrait;
 
 /**
@@ -41,6 +42,17 @@ class CatalogItem extends Model
         'description',
         'category',
         'subcategory',
+        'family',
+        'screen_size',
+        'chip',
+        'spec_cpu',
+        'spec_gpu',
+        'spec_npu',
+        'ram_gb',
+        'storage',
+        'color',
+        'display_finish',
+        'extras',
         'product_type',
         'vendor_sku',
         'mfr_part_number',
@@ -52,6 +64,9 @@ class CatalogItem extends Model
         'quoted_at',
         'expires_at',
         'is_active',
+        'show_in_store',
+        'image',
+        'store_sort',
         'notes',
         'created_by',
     ];
@@ -60,6 +75,9 @@ class CatalogItem extends Model
         'unit_cost' => 'decimal:4',
         'estimated_cost' => 'decimal:4',
         'is_active' => 'boolean',
+        'show_in_store' => 'boolean',
+        'store_sort' => 'integer',
+        'ram_gb' => 'integer',
         'quoted_at' => 'date',
         'expires_at' => 'date',
     ];
@@ -140,5 +158,81 @@ class CatalogItem extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * The curated slice the storefront shows. Every device must resolve
+     * to a real asset model — that is where its photo and its place in
+     * the fleet come from. Accessories are exempt: cables and pencils
+     * are not asset-tracked, so they carry their own uploaded image
+     * instead.
+     */
+    public function scopeInStore($query)
+    {
+        return $query->where('is_active', true)
+            ->where('show_in_store', true)
+            ->where(fn ($q) => $q->whereNotNull('model_id')->orWhere('category', 'Accessories'));
+    }
+
+    /**
+     * The spec rows the store lists under a configuration, in display
+     * order. Only what the row actually knows shows up.
+     *
+     * @return array<string, string>
+     */
+    public function specList(): array
+    {
+        $specs = [];
+
+        if ($this->chip) {
+            $specs['Chip'] = $this->chip;
+        }
+        if ($this->spec_cpu) {
+            $specs['CPU'] = $this->spec_cpu;
+        }
+        if ($this->spec_gpu) {
+            $specs['GPU'] = $this->spec_gpu;
+        }
+        if ($this->spec_npu) {
+            $specs['Neural Engine'] = $this->spec_npu;
+        }
+        if ($this->ram_gb) {
+            $specs['Memory'] = $this->ram_gb.'GB unified memory';
+        }
+        if ($this->storage) {
+            $specs['Storage'] = $this->storage.' SSD';
+        }
+        if ($this->screen_size) {
+            $display = $this->screen_size.'-inch';
+            if ($this->display_finish === 'nano') {
+                $display .= ' Nano-texture';
+            }
+            $specs['Display'] = $display;
+        } elseif ($this->display_finish === 'nano') {
+            $specs['Display'] = 'Nano-texture glass';
+        }
+        if ($this->extras) {
+            $specs['Also'] = $this->extras;
+        }
+
+        return $specs;
+    }
+
+    /**
+     * The image the store card shows: this row's own upload when it has
+     * one, otherwise the linked asset model's image, so most rows need no
+     * upload at all.
+     */
+    public function storeImageUrl(): ?string
+    {
+        if ($this->image) {
+            return Storage::disk('public')->url('catalog/'.$this->image);
+        }
+
+        if ($this->model && $this->model->image) {
+            return Storage::disk('public')->url(app('models_upload_path').$this->model->image);
+        }
+
+        return null;
     }
 }

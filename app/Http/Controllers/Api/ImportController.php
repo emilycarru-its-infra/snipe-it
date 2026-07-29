@@ -269,7 +269,7 @@ class ImportController extends Controller
                 break;
             case 'catalogItem':
                 $model_perms = 'App\Models\CatalogItem';
-                $redirectTo = 'reports.procurement.po-builder';
+                $redirectTo = 'purchase-orders.builder';
                 break;
         }
 

@@ -5,7 +5,9 @@ namespace App\Mail;
 use App\Models\Accessory;
 use App\Models\Asset;
 use App\Models\AssetModel;
+use App\Models\CatalogItem;
 use App\Models\Category;
+use App\Models\CheckoutAcceptance;
 use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\Contract;
@@ -13,6 +15,10 @@ use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\Location;
 use App\Models\Manufacturer;
+use App\Models\Statuslabel;
+use App\Models\StoreOrder;
+use App\Models\StoreOrderItem;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserAgreement;
 use Illuminate\Support\Collection;
@@ -105,10 +111,10 @@ class EmailSampleData
         $asset->setRelation('manufacturer', $this->manufacturer());
         // A real (deployable) status so present()->statusMeta / getStatuslabelType()
         // resolve in the request/checkin digests.
-        $asset->setRelation('assetstatus', new \App\Models\Statuslabel([
+        $asset->setRelation('assetstatus', new Statuslabel([
             'name' => 'Deployed', 'deployable' => 1, 'pending' => 0, 'archived' => 0,
         ]));
-        $asset->setRelation('status', new \App\Models\Statuslabel([
+        $asset->setRelation('status', new Statuslabel([
             'name' => 'Deployed', 'deployable' => 1, 'pending' => 0, 'archived' => 0,
         ]));
         $asset->setRelation('supplier', null);
@@ -203,9 +209,9 @@ class EmailSampleData
         });
     }
 
-    public function acceptance(): \App\Models\CheckoutAcceptance
+    public function acceptance(): CheckoutAcceptance
     {
-        $acceptance = new \App\Models\CheckoutAcceptance;
+        $acceptance = new CheckoutAcceptance;
         $acceptance->id = 0;
         $acceptance->note = 'Signed at pickup.';
         $acceptance->setRelation('checkoutable', $this->asset());
@@ -310,6 +316,41 @@ class EmailSampleData
             'requested_date' => '2026-06-02 09:00:00',
             'note' => 'Needed for onboarding.',
         ];
+    }
+
+    /** A store order with two lines, for the store lifecycle emails. */
+    public function storeOrder(string $status = 'pending', int $id = 481): StoreOrder
+    {
+        $supplier = new Supplier(['name' => 'CDW Canada Inc']);
+
+        $line = function (string $description, string $sku, string $mfr, int $qty, float $cost) use ($supplier) {
+            $item = new StoreOrderItem([
+                'description' => $description,
+                'vendor_sku' => $sku,
+                'mfr_part_number' => $mfr,
+                'quantity' => $qty,
+                'unit_cost' => $cost,
+            ]);
+            $catalogItem = new CatalogItem(['name' => $description, 'product_type' => 'standard', 'price_type' => 'quoted']);
+            $catalogItem->setRelation('supplier', $supplier);
+            $item->setRelation('catalogItem', $catalogItem);
+
+            return $item;
+        };
+
+        $order = new StoreOrder([
+            'status' => $status,
+            'notes' => 'For the new animation lab — room B2210, needed before September.',
+            'decision_notes' => $status === 'declined' ? 'Out of cycle — let\'s revisit this in September.' : null,
+        ]);
+        $order->id = $id;
+        $order->setRelation('user', $this->recipient());
+        $order->setRelation('items', collect([
+            $line('MacBook Pro | 14" | M5 Pro | 24GB | 1TB | Black', '854420', 'MGDP4LL/A', 2, 3799.00),
+            $line('Apple Studio Display | Standard Glass | Tilt Adj.', '854431', 'MFEW4CL/A', 2, 2100.00),
+        ]));
+
+        return $order;
     }
 
     /** Low-inventory rows for InventoryAlert (blade reads array keys). */
