@@ -71,7 +71,8 @@ class CatalogPriceListImport
      *
      * @param  array{supplier?:string|null, supplier_id?:int|null, source?:string|null,
      *               quoted_at?:string|null, expires_at?:string|null,
-     *               deactivate_missing?:bool, dry_run?:bool, created_by?:int|null}  $options
+     *               deactivate_missing?:bool, dry_run?:bool, show_in_store?:bool,
+     *               created_by?:int|null}  $options
      * @return array{created:int, updated:int, skipped:int, deactivated:int, rows:int}
      */
     public function importFile(string $path, array $options = []): array
@@ -99,9 +100,10 @@ class CatalogPriceListImport
         $quotedAt = ! empty($options['quoted_at']) ? Carbon::parse($options['quoted_at']) : Carbon::today();
         $expiresAt = ! empty($options['expires_at']) ? Carbon::parse($options['expires_at']) : null;
         $createdBy = $options['created_by'] ?? null;
+        $showInStore = (bool) ($options['show_in_store'] ?? false);
 
         foreach ($rows as $row) {
-            $this->importRow($row, $supplierId, $source, $quotedAt, $expiresAt, $createdBy, $dryRun);
+            $this->importRow($row, $supplierId, $source, $quotedAt, $expiresAt, $createdBy, $dryRun, $showInStore);
         }
 
         if (! empty($options['deactivate_missing'])) {
@@ -129,7 +131,8 @@ class CatalogPriceListImport
         Carbon $quotedAt,
         ?Carbon $expiresAt,
         ?int $createdBy,
-        bool $dryRun
+        bool $dryRun,
+        bool $showInStore = false
     ): void {
         $parsed = $this->parseRow($row);
 
@@ -151,14 +154,23 @@ class CatalogPriceListImport
             return;
         }
 
+        $specs = (new CatalogSpecParser)->parse($parsed['name']);
+
         if ($existing) {
             $this->applyToExisting($existing, $parsed, $source, $quotedAt, $expiresAt);
+            $existing->fill($specs);
+            if ($showInStore && ! $existing->show_in_store) {
+                $existing->show_in_store = true;
+            }
+            if ($existing->isDirty()) {
+                $existing->save();
+            }
             $this->updated++;
 
             return;
         }
 
-        CatalogItem::create([
+        CatalogItem::create($specs + [
             'supplier_id' => $supplierId,
             'manufacturer_id' => $this->resolveManufacturer($parsed['vendor']),
             'name' => $parsed['name'],
@@ -176,6 +188,7 @@ class CatalogPriceListImport
             'quoted_at' => $quotedAt,
             'expires_at' => $expiresAt,
             'is_active' => true,
+            'show_in_store' => $showInStore,
             'created_by' => $createdBy,
         ]);
 

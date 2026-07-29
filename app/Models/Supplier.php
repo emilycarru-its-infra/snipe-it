@@ -32,6 +32,7 @@ class Supplier extends SnipeModel
         'contact' => 'max:100|nullable',
         'notes' => 'max:191|nullable', // Default string length is 191 characters..
         'email' => 'email|max:150|nullable',
+        'order_emails' => 'string|max:191|nullable',
         'address' => 'max:250|nullable',
         'address2' => 'max:250|nullable',
         'city' => 'max:191|nullable',
@@ -74,7 +75,7 @@ class Supplier extends SnipeModel
      *
      * @var array
      */
-    protected $fillable = ['name', 'colleague_vendor_id', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
+    protected $fillable = ['name', 'colleague_vendor_id', 'order_emails', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
 
     public function isDeletable()
     {

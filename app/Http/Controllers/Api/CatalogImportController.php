@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Models\CatalogItem;
+use App\Services\AppleStoreSync;
 use App\Services\CatalogPriceListImport;
+use App\Services\CatalogRelink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -36,6 +38,7 @@ class CatalogImportController extends Controller
             'expires_at' => 'nullable|date',
             'deactivate_missing' => 'nullable|boolean',
             'dry_run' => 'nullable|boolean',
+            'show_in_store' => 'nullable|boolean',
         ]);
 
         $file = $request->file('file');
@@ -51,6 +54,7 @@ class CatalogImportController extends Controller
             'expires_at' => $validated['expires_at'] ?? null,
             'deactivate_missing' => (bool) ($validated['deactivate_missing'] ?? false),
             'dry_run' => (bool) ($validated['dry_run'] ?? false),
+            'show_in_store' => (bool) ($validated['show_in_store'] ?? false),
             'created_by' => auth()->id(),
         ]);
 
@@ -70,5 +74,33 @@ class CatalogImportController extends Controller
                 'skipped' => $result['skipped'],
             ])
         ));
+    }
+
+    /**
+     * Re-derive specs and asset-model links across the whole catalog —
+     * the headless twin of `catalog:relink`, for the same no-shell reason
+     * as the import above.
+     */
+    public function relink(Request $request, CatalogRelink $relinker): JsonResponse
+    {
+        $this->authorize('update', CatalogItem::class);
+
+        $stats = $relinker->relink((bool) $request->boolean('rematch_linked'));
+
+        return response()->json(Helper::formatStandardApiResponse('success', $stats, null));
+    }
+
+    /**
+     * Refresh prices and specs from apple.com/ca on demand. The weekly
+     * scheduler run does this unattended; the endpoint exists for "the
+     * new MacBooks just dropped" moments.
+     */
+    public function appleSync(Request $request, AppleStoreSync $sync): JsonResponse
+    {
+        $this->authorize('update', CatalogItem::class);
+
+        $stats = $sync->sync([], (bool) $request->boolean('dry_run'));
+
+        return response()->json(Helper::formatStandardApiResponse('success', $stats, null));
     }
 }

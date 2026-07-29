@@ -689,6 +689,18 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('catalog/price-list', [Api\CatalogImportController::class, 'store'])
         ->name('api.catalog.price-list');
 
+    Route::post('catalog/relink', [Api\CatalogImportController::class, 'relink'])
+        ->name('api.catalog.relink');
+
+    Route::post('catalog/apple-sync', [Api\CatalogImportController::class, 'appleSync'])
+        ->name('api.catalog.apple-sync');
+
+    // Shipment facts from the vendor's webhook (cdw-orders-listener):
+    // tracking + serials land on the store order and the requester gets
+    // the shipped/arrived email.
+    Route::post('store-orders/{order}/shipment', [Api\StoreOrdersController::class, 'shipment'])
+        ->name('api.store-orders.shipment');
+
     // Exhibit project CSV backfill — token-authed, drives the multi-year
     // historical import without an SSO session.
     Route::post('exhibit/import', [Api\ExhibitImportController::class, 'import'])
@@ -777,10 +789,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::resource('contracts',
         Api\ContractsController::class,
         ['names' => [
-            'index'   => 'api.contracts.index',
-            'show'    => 'api.contracts.show',
-            'update'  => 'api.contracts.update',
-            'store'   => 'api.contracts.store',
+            'index' => 'api.contracts.index',
+            'show' => 'api.contracts.show',
+            'update' => 'api.contracts.update',
+            'store' => 'api.contracts.store',
             'destroy' => 'api.contracts.destroy',
         ],
             'except' => ['create', 'edit'],
@@ -794,10 +806,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::resource('license-models',
         Api\LicenseModelsController::class,
         ['names' => [
-            'index'   => 'api.licensemodels.index',
-            'show'    => 'api.licensemodels.show',
-            'update'  => 'api.licensemodels.update',
-            'store'   => 'api.licensemodels.store',
+            'index' => 'api.licensemodels.index',
+            'show' => 'api.licensemodels.show',
+            'update' => 'api.licensemodels.update',
+            'store' => 'api.licensemodels.store',
             'destroy' => 'api.licensemodels.destroy',
         ],
             'except' => ['create', 'edit'],
@@ -1243,10 +1255,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::resource('user-agreements',
         Api\UserAgreementsController::class,
         ['names' => [
-            'index'   => 'api.user-agreements.index',
-            'show'    => 'api.user-agreements.show',
-            'store'   => 'api.user-agreements.store',
-            'update'  => 'api.user-agreements.update',
+            'index' => 'api.user-agreements.index',
+            'show' => 'api.user-agreements.show',
+            'store' => 'api.user-agreements.store',
+            'update' => 'api.user-agreements.update',
             'destroy' => 'api.user-agreements.destroy',
         ],
             'except' => ['create', 'edit'],
