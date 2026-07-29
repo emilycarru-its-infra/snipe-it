@@ -44,7 +44,7 @@ return [
     'remove' => 'Remove',
     'order_note_label' => 'Anything IT should know?',
     'order_note_placeholder' => 'Who this is for, room number, deadline…',
-    'place_order' => 'Place Order',
+    'place_order' => 'Send Order Request',
     'order_empty' => 'Nothing was ordered — the items are no longer available.',
     'order_placed' => 'Order placed. IT will review it and you can follow it under My Orders.',
     'order_cancelled' => 'Order cancelled.',

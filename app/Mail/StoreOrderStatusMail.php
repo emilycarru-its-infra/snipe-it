@@ -40,6 +40,10 @@ class StoreOrderStatusMail extends BaseMailable
 
     public function content(): Content
     {
+        // The card for each line reaches through to the catalog row for its
+        // specs and photo, so load them once rather than per line.
+        $this->order->loadMissing('items.catalogItem.model');
+
         return $this->bodyContent($this->key(), 'notifications.markdown.store-order-status', [
             'order' => $this->order,
             'event' => $this->event,
