@@ -98,7 +98,7 @@ class StoreController extends Controller
             'displayNano' => trans('admin/store/general.display_nano'),
             'allProducts' => trans('admin/store/general.all_categories'),
             'storeEmpty' => trans('admin/store/general.store_empty'),
-            'accessoriesHeading' => trans('admin/store/general.accessories_heading'),
+            'otherHeading' => trans('admin/store/general.other_heading'),
             'steps' => [
                 'screen_size' => $step('size'),
                 'chip' => $step('chip'),
