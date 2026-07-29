@@ -37,4 +37,26 @@ class CsiSchedule extends Model
         'raw' => 'array',
         'last_seen_at' => 'datetime',
     ];
+
+    /**
+     * The schedules an order can be placed against today. Two are open at
+     * any time — a four-year lease-to-return and a five-year lease-to-own —
+     * and they roll over quarterly, so this is deliberately read live
+     * rather than configured: the answer to "which lease is open" changes
+     * without anyone editing a setting.
+     *
+     * A schedule with no end date counts as open. CSI issues the document
+     * before the term is signed, and that is exactly the window in which
+     * the newest schedule is the one to order against.
+     *
+     * @return array<int, string>
+     */
+    public static function openScheduleNames(): array
+    {
+        return static::query()
+            ->where(fn ($q) => $q->whereNull('term_end_date')->orWhere('term_end_date', '>=', now()->toDateString()))
+            ->orderByDesc('schedule_name')
+            ->pluck('schedule_name')
+            ->all();
+    }
 }

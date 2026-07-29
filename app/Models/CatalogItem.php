@@ -53,6 +53,8 @@ class CatalogItem extends Model
         'color',
         'display_finish',
         'extras',
+        'warranty_months',
+        'bundle_url',
         'product_type',
         'vendor_sku',
         'mfr_part_number',
@@ -78,6 +80,7 @@ class CatalogItem extends Model
         'show_in_store' => 'boolean',
         'store_sort' => 'integer',
         'ram_gb' => 'integer',
+        'warranty_months' => 'integer',
         'quoted_at' => 'date',
         'expires_at' => 'date',
     ];
@@ -90,6 +93,8 @@ class CatalogItem extends Model
         'price_type' => 'required|string|in:quoted,estimate,list',
         'vendor_sku' => 'nullable|string|max:191',
         'mfr_part_number' => 'nullable|string|max:191',
+        'warranty_months' => 'nullable|integer|min:0|max:120',
+        'bundle_url' => 'nullable|url|max:1024',
         'unit_cost' => 'nullable|numeric|min:0',
         'estimated_cost' => 'nullable|numeric|min:0',
         'currency' => 'nullable|string|max:8',
@@ -233,8 +238,29 @@ class CatalogItem extends Model
         if ($this->extras) {
             $specs['Also'] = $this->extras;
         }
+        if ($this->warrantyLabel()) {
+            $specs['Warranty'] = $this->warrantyLabel();
+        }
 
         return $specs;
+    }
+
+    /**
+     * The warranty term in the unit a reader thinks in. Stored in months
+     * because the Lenovo and Microsoft terms are quoted that way, but a
+     * whole number of years reads as years — "3 years", not "36 months".
+     */
+    public function warrantyLabel(): ?string
+    {
+        $months = (int) $this->warranty_months;
+
+        if ($months <= 0) {
+            return null;
+        }
+
+        return $months % 12 === 0
+            ? trans_choice('admin/store/general.warranty_years', intdiv($months, 12), ['count' => intdiv($months, 12)])
+            : trans_choice('admin/store/general.warranty_months', $months, ['count' => $months]);
     }
 
     /**
