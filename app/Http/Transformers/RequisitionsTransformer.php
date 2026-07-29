@@ -2,9 +2,11 @@
 
 namespace App\Http\Transformers;
 
+use App\Helpers\Helper;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Requisitions over the API.
@@ -30,6 +32,13 @@ class RequisitionsTransformer
     public function transformRequisition(Requisition $requisition): array
     {
         return [
+            'available_actions' => [
+                // A promoted requisition is history: its lines are what was
+                // ordered, so the builder and the delete both close.
+                'update' => Gate::allows('update', Requisition::class),
+                'delete' => Gate::allows('delete', Requisition::class) && $requisition->status !== 'ordered',
+                'edit_basket' => Gate::allows('update', Requisition::class) && $requisition->status === 'draft',
+            ],
             'id' => (int) $requisition->id,
             'display_name' => $requisition->display_name,
             'title' => e($requisition->title),
@@ -50,7 +59,7 @@ class RequisitionsTransformer
             'fiscal_year' => $requisition->fiscal_year ? e($requisition->fiscal_year) : null,
             'cost_center' => $requisition->cost_center ? e($requisition->cost_center) : null,
             'default_gl_number' => $requisition->default_gl_number ? e($requisition->default_gl_number) : null,
-            'needed_by' => $requisition->needed_by?->format('Y-m-d'),
+            'needed_by' => Helper::getFormattedDateObject($requisition->needed_by, 'date'),
             'notes' => $requisition->notes ? e($requisition->notes) : null,
             'internal_comments' => $requisition->internal_comments ? e($requisition->internal_comments) : null,
             'printer_comments' => $requisition->printer_comments ? e($requisition->printer_comments) : null,
@@ -63,9 +72,12 @@ class RequisitionsTransformer
             'total' => $requisition->total(),
             'has_estimated_lines' => $requisition->hasEstimatedLines(),
             'created_by' => $requisition->adminuser?->present()->fullName,
-            'submitted_at' => $requisition->submitted_at?->toIso8601String(),
-            'requisitioned_at' => $requisition->requisitioned_at?->toIso8601String(),
-            'created_at' => $requisition->created_at?->toIso8601String(),
+            // Dates go out as Snipe's {datetime, formatted} objects rather
+            // than bare ISO strings: every other transformer does, and the
+            // datatable's date formatter reads that shape.
+            'submitted_at' => Helper::getFormattedDateObject($requisition->submitted_at, 'datetime'),
+            'requisitioned_at' => Helper::getFormattedDateObject($requisition->requisitioned_at, 'datetime'),
+            'created_at' => Helper::getFormattedDateObject($requisition->created_at, 'datetime'),
             'items' => $requisition->items->map(fn (RequisitionItem $line) => self::transformItem($line))->values()->all(),
         ];
     }

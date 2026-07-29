@@ -126,20 +126,50 @@ class RequisitionsController extends Controller
         ], null));
     }
 
+    /**
+     * The requisition list. Serves both a plain API caller and the
+     * bootstrap-table on the requisitions page and the procurement hub, so
+     * it honours the table's paging, sorting and search parameters as well
+     * as the domain filters.
+     */
     public function index(Request $request): JsonResponse
     {
         $this->authorize('view', Requisition::class);
 
-        $requisitions = Requisition::with('items.catalogItem', 'supplier', 'company', 'purchaseOrder', 'adminuser')
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
-            ->when($request->filled('fiscal_year'), fn ($q) => $q->where('fiscal_year', $request->query('fiscal_year')))
-            ->when($request->filled('supplier_id'), fn ($q) => $q->where('supplier_id', $request->query('supplier_id')))
-            ->when($request->filled('requisition_number'), fn ($q) => $q->where('requisition_number', $request->query('requisition_number')))
-            ->orderByDesc('created_at')
-            ->get();
+        $allowedColumns = [
+            'id', 'title', 'status', 'requisition_number', 'fiscal_year',
+            'cost_center', 'needed_by', 'created_at',
+        ];
+
+        $query = Requisition::with('items.catalogItem', 'supplier', 'company', 'purchaseOrder', 'adminuser')
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->when($request->filled('fiscal_year'), fn ($q) => $q->where('fiscal_year', $request->input('fiscal_year')))
+            ->when($request->filled('supplier_id'), fn ($q) => $q->where('supplier_id', $request->input('supplier_id')))
+            ->when($request->filled('requisition_number'), fn ($q) => $q->where('requisition_number', $request->input('requisition_number')));
+
+        $term = $request->input('filter') ?: $request->input('search');
+        if ($term) {
+            $query->where(function ($inner) use ($term) {
+                $like = '%'.$term.'%';
+                $inner->where('title', 'like', $like)
+                    ->orWhere('requisition_number', 'like', $like)
+                    ->orWhere('fiscal_year', 'like', $like)
+                    ->orWhere('cost_center', 'like', $like);
+            });
+        }
+
+        $order = $request->input('order') === 'asc' ? 'asc' : 'desc';
+        $sort = in_array($request->input('sort'), $allowedColumns, true) ? $request->input('sort') : 'created_at';
+        $query->orderBy($sort, $order);
+
+        $total = $query->count();
+
+        // app('api_limit_value') defaults to the configured page size, so a
+        // caller that asks for nothing still gets a bounded response.
+        $requisitions = $query->skip(app('api_offset_value'))->take(app('api_limit_value'))->get();
 
         return response()->json(
-            (new RequisitionsTransformer)->transformRequisitions($requisitions, $requisitions->count())
+            (new RequisitionsTransformer)->transformRequisitions($requisitions, $total)
         );
     }
 

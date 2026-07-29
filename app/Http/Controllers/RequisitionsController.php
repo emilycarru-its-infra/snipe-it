@@ -160,23 +160,15 @@ class RequisitionsController extends Controller
     }
 
     /**
-     * Every requisition, newest first, with its running total.
+     * Every requisition. The rows come from the API so the list sorts,
+     * searches and exports like every other table in the app — and so the
+     * procurement hub can render the same table without duplicating it.
      */
-    public function index(Request $request)
+    public function index()
     {
         $this->authorize('view', Requisition::class);
 
-        $requisitions = Requisition::with('items', 'supplier', 'purchaseOrder', 'adminuser')
-            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->query('status')))
-            ->orderByDesc('created_at')
-            ->paginate(50)
-            ->withQueryString();
-
-        return view('requisitions/index', [
-            'requisitions' => $requisitions,
-            'statuses' => Requisition::STATUSES,
-            'selectedStatus' => $request->query('status'),
-        ]);
+        return view('requisitions/index');
     }
 
     public function show(Requisition $requisition)

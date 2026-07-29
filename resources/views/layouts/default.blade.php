@@ -1427,6 +1427,17 @@
                                     </a>
                                 </li>
                             @endcan
+                            {{-- Procurement earns a top-level slot: the hub is
+                                 a daily destination, not something to go
+                                 hunting for in a sidebar treeview. --}}
+                            @can('view', \App\Models\Order::class)
+                                <li aria-hidden="true"{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' class="active"' : '') !!}>
+                                    <a href="{{ route('procurement.index') }}" tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.procurement') }}">
+                                        <x-icon type="procurement" class="fa-fw" />
+                                        <span class="topbar-nav-label">{{ trans('general.procurement') }}</span>
+                                    </a>
+                                </li>
+                            @endcan
                             @can('view', \App\Models\Contract::class)
                                 <li aria-hidden="true"{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' class="active"' : '') !!}>
                                     <a href="{{ route('contracts.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=2" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/contracts/general.contracts') }}">
