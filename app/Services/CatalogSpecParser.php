@@ -30,6 +30,23 @@ class CatalogSpecParser
         'M3 Ultra' => ['28-core CPU', '60-core GPU', '32-core Neural Engine'],
     ];
 
+    /**
+     * A PC price list names its processor and graphics the way the maker
+     * markets them, with no common shape between them: "Ryzen 7 PRO 8700G",
+     * "Ultra 9", a bare Threadripper part code like "5955WX". Recognising
+     * them by vocabulary is what keeps a CPU out of the leftovers bucket,
+     * where it read as "Also: 5955WX".
+     */
+    private const GPU_PATTERN = '/\b(rtx|gtx|geforce|radeon|quadro|nvidia)\b/i';
+
+    private const CPU_PATTERN = '/\b(ryzen|xeon|threadripper|snapdragon|pentium|celeron|arm|intel)\b/i';
+
+    /** "Core i7", "Ultra 9" — a tier named ahead of its number. */
+    private const CPU_TIER_PATTERN = '/^(core\s+i\d|ultra\s+\d)/i';
+
+    /** A bare workstation part code: 5955WX, 7965WX. */
+    private const CPU_CODE_PATTERN = '/^\d{4}[a-z]{2}$/i';
+
     private const COLORS = [
         'silver', 'black', 'space black', 'gray', 'grey', 'space gray', 'space grey',
         'blue', 'pink', 'purple', 'yellow', 'orange', 'green', 'starlight', 'midnight',
@@ -104,6 +121,22 @@ class CatalogSpecParser
 
             if (in_array(strtolower($token), self::COLORS, true)) {
                 $out['color'] = self::normalizeColor($token);
+
+                continue;
+            }
+
+            // Graphics before processor: a discrete card names a number
+            // ("RTX 4000 ADA 20GB") that no CPU vocabulary would claim.
+            if ($out['spec_gpu'] === null && preg_match(self::GPU_PATTERN, $token)) {
+                $out['spec_gpu'] = $token;
+
+                continue;
+            }
+
+            if ($out['spec_cpu'] === null && (preg_match(self::CPU_PATTERN, $token)
+                || preg_match(self::CPU_TIER_PATTERN, $token)
+                || preg_match(self::CPU_CODE_PATTERN, $token))) {
+                $out['spec_cpu'] = $token;
 
                 continue;
             }

@@ -32,7 +32,7 @@ class StoreController extends Controller
      */
     public function index(Request $request)
     {
-        $items = CatalogItem::with('model')
+        $items = CatalogItem::with('model.manufacturer')
             ->inStore()
             ->orderBy('store_sort')
             ->orderBy('name')
@@ -42,6 +42,7 @@ class StoreController extends Controller
             'id' => $item->id,
             'name' => $item->name,
             'category' => $item->category,
+            'platform' => $item->platform(),
             'family' => $item->family ?: $item->name,
             'screen_size' => $item->screen_size,
             'chip' => $item->chip,
@@ -53,6 +54,7 @@ class StoreController extends Controller
             'color' => $item->color,
             'display_finish' => $item->display_finish,
             'extras' => $item->extras,
+            'sku' => $item->mfr_part_number ?: $item->vendor_sku,
             'price' => round($item->effectiveCost()),
             'estimate' => $item->isEstimate(),
             'image' => $item->storeImageUrl(),
