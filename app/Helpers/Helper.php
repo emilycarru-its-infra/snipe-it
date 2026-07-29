@@ -1910,6 +1910,32 @@ class Helper
     }
 
     /**
+     * Fiscal years worth offering in a picker: the ones already in use on the
+     * purchase order ledger, plus the current and next one so work can be
+     * raised against a year nothing has been ordered against yet.
+     *
+     * Newest first, so the year a picker opens on is the one being worked in.
+     *
+     * @return array<int, string>
+     */
+    public static function fiscalYearOptions(): array
+    {
+        $years = \App\Models\PurchaseOrder::whereNotNull('fiscal_year')
+            ->distinct()
+            ->pluck('fiscal_year')
+            ->all();
+
+        $current = self::currentFiscalYear();
+        $years[] = $current;
+        $years[] = 'FY'.((int) substr($current, 2, 4) + 1).'-'.substr((string) ((int) substr($current, 2, 4) + 2), -2);
+
+        $years = array_values(array_unique(array_filter($years)));
+        rsort($years);
+
+        return $years;
+    }
+
+    /**
      * Build a carrier tracking URL from a carrier name and tracking number.
      *
      * Carrier matching is a loose contains-check so feed values like

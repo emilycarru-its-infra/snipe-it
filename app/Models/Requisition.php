@@ -21,6 +21,8 @@ use Watson\Validating\ValidatingTrait;
  * A requisition is deliberately not a draft `purchase_orders` row: that
  * table is what every procurement report sums for committed and remaining
  * budget, and an unapproved basket must not move those numbers.
+ *
+ * @property-read string $display_name
  */
 class Requisition extends SnipeModel
 {

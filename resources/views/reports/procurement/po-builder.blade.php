@@ -64,7 +64,7 @@
                             <select name="fiscal_year" id="pob-fy" class="form-control">
                                 <option value="">{{ trans('general.na') }}</option>
                                 @foreach ($fiscalYears as $fy)
-                                    <option value="{{ $fy }}" {{ old('fiscal_year', $requisition?->fiscal_year) === $fy ? 'selected' : '' }}>{{ $fy }}</option>
+                                    <option value="{{ $fy }}" {{ old('fiscal_year', $selectedFiscalYear) === $fy ? 'selected' : '' }}>{{ $fy }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -137,17 +137,27 @@
                         <div class="pob-filters">
                             <input type="text" id="pob-search" class="form-control"
                                    placeholder="{{ trans('admin/purchase-orders/general.builder_search') }}">
-                            <select id="pob-category" class="form-control">
-                                <option value="">{{ trans('admin/purchase-orders/general.builder_all_categories') }}</option>
-                                @foreach ($categories as $category)
-                                    <option value="{{ $category }}">{{ $category }}</option>
-                                @endforeach
-                            </select>
                             <select id="pob-type" class="form-control">
                                 <option value="">{{ trans('admin/purchase-orders/general.builder_all_types') }}</option>
                                 <option value="standard">{{ trans('admin/purchase-orders/general.builder_type_standard') }}</option>
                                 <option value="cto">{{ trans('admin/purchase-orders/general.builder_type_cto') }}</option>
                             </select>
+                        </div>
+
+                        {{-- Categories are the coarsest cut through the shelf and
+                             the one reached for most, so they get a row of their
+                             own rather than a dropdown that hides what is on
+                             offer behind a click. --}}
+                        <div class="pob-cat-tabs" id="pob-category-tabs" role="tablist"
+                             aria-label="{{ trans('admin/purchase-orders/general.builder_all_categories') }}">
+                            <button type="button" class="pob-cat-tab active" data-category="" role="tab" aria-selected="true">
+                                {{ trans('admin/purchase-orders/general.builder_all_categories') }}
+                            </button>
+                            @foreach ($categories as $category)
+                                <button type="button" class="pob-cat-tab" data-category="{{ $category }}" role="tab" aria-selected="false">
+                                    {{ $category }}
+                                </button>
+                            @endforeach
                         </div>
 
                         <div class="table-responsive pob-catalog-scroll">
@@ -248,10 +258,60 @@
         </div>
     </div>
 
+    {{-- The generated purchase order.
+         Colleague is not connected to this system and will not be, so the
+         order has to be re-typed into it by hand. This panel is that keying
+         surface: the finished PO laid out field by field, each one copyable
+         on its own, so the transcription is a series of paste operations
+         rather than a series of readings. It renders live off the basket —
+         what is copied is always what is about to be saved. --}}
+    <div class="row" id="pob-generated-row" hidden>
+        <div class="col-md-12">
+            <div class="box box-solid">
+                <div class="box-header with-border">
+                    <h3 class="box-title">{{ trans('admin/purchase-orders/general.generated_po') }}</h3>
+                    <div class="box-tools pull-right">
+                        <button type="button" class="btn btn-xs btn-default" id="pob-copy-all">
+                            <i class="far fa-copy" aria-hidden="true"></i>
+                            {{ trans('admin/purchase-orders/general.copy_all') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <p class="text-muted">{{ trans('admin/purchase-orders/general.generated_po_intro') }}</p>
+
+                    <div class="row" id="pob-generated-header"></div>
+
+                    <div class="table-responsive">
+                        <table class="table table-condensed pob-table pob-generated-table">
+                            <thead>
+                                <tr>
+                                    <th class="pob-num">{{ trans('admin/purchase-orders/general.builder_col_qty') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.unit_of_measure') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.builder_col_sku') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.builder_col_mfr') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.gl_number') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.builder_col_description') }}</th>
+                                    <th class="pob-num">{{ trans('admin/purchase-orders/general.builder_col_unit_cost') }}</th>
+                                    <th class="pob-num">{{ trans('admin/purchase-orders/general.builder_col_line_total') }}</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="pob-generated-rows"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="row" id="pob-generated-totals"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Basket lines are serialised into this container on submit. --}}
     <div id="pob-line-inputs" hidden></div>
 </form>
 
+@include('partials.copy-fields')
 @include('reports/procurement/_po-builder-js')
 
 @stop
