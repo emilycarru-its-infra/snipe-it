@@ -443,4 +443,33 @@ return [
     'unit_of_measure' => 'Unit',
     'requisition_number_placeholder' => '0017253',
     'colleague_vendor_id' => 'Colleague Vendor ID',
+
+    // The builder, reached from the purchase order list.
+    'open_builder' => 'PO Builder',
+
+    // The generated purchase order — the keying surface for Colleague.
+    'generated_po' => 'Generated Purchase Order',
+    'generated_po_intro' => 'The order as it has to be keyed into Colleague. Hover any value for a copy button.',
+    'copy_all' => 'Copy all',
+    'copy_row' => 'Copy the whole line',
+    'copied' => 'Copied',
+
+    // REQM → PO promotion.
+    'promote_title' => 'Turn into a Purchase Order',
+    'promote_help' => 'Once finance emails the purchase order, record it here. This is what puts the order on the budget ledger, so the PO document is required.',
+    'promote_submit' => 'Create Purchase Order',
+    'promote_document' => 'Purchase Order PDF',
+    'promote_document_help' => 'The PDF finance emailed. Filed against the purchase order and readable from its Documents tab.',
+    'promote_document_required' => 'The purchase order PDF is required — a purchase order cannot hold budget without the document that issued it.',
+    'promote_document_note' => 'Purchase order document, filed when the requisition was promoted.',
+    'promote_link_existing' => 'Or link an existing purchase order',
+    'promote_create_new' => 'Create a new purchase order',
+    'promote_po_number_placeholder' => 'P0012345',
+    'promote_budget_help' => 'Defaults to the requisition total. This is the amount orders can be allocated against.',
+    'promote_success' => 'Purchase order :po created. Orders can now be allocated against it.',
+    'promote_already_ordered' => 'This requisition has already been promoted to a purchase order.',
+    'promote_no_lines' => 'A requisition with no lines cannot become a purchase order.',
+    'promote_po_missing' => 'That purchase order no longer exists.',
+    'promote_required_for_ordered' => 'A requisition becomes ordered by being promoted to a purchase order, not by setting its status.',
+    'promoted_help' => 'This requisition is on the budget ledger. Orders and invoices are recorded against the purchase order.',
 ];
