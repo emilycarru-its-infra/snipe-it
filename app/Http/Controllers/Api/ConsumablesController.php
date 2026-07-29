@@ -333,6 +333,10 @@ class ConsumablesController extends Controller
                         'consumable_id' => $consumable->id,
                         'created_by' => $user->id,
                         'assigned_to' => $request->input('assigned_to'),
+                        // Named explicitly so checkedOutTo() can resolve the
+                        // morph. The API only checks out to users; the asset
+                        // target is a web-UI flow.
+                        'assigned_type' => User::class,
                         'note' => $request->input('note'),
                     ]
                 );
