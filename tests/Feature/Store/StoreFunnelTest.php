@@ -578,4 +578,40 @@ class StoreFunnelTest extends TestCase
         $this->assertSame('pending', $order->fresh()->status);
         $this->assertSame(0, Requisition::count());
     }
+
+    public function test_the_order_email_carries_the_whole_line_not_a_split_name()
+    {
+        // A catalog name is full of pipe characters, and the email used to
+        // render lines into a markdown table — so every pipe opened a new
+        // column and a screen size arrived under the heading "Qty".
+        $item = $this->shelfItem([
+            'name' => 'MacBook Pro | 16" | M5 Max | 48GB | 2TB | Black | Nano-texture',
+            'family' => 'MacBook Pro',
+            'screen_size' => '16',
+            'chip' => 'M5 Max',
+            'ram_gb' => 48,
+            'storage' => '2TB',
+            'display_finish' => 'nano',
+            'mfr_part_number' => 'MDH84LL/A',
+        ]);
+
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 2]],
+            'notes' => 'For the print studio refresh.',
+        ]);
+
+        $body = (new StoreOrderStatusMail(StoreOrder::first(), 'requested'))->render();
+
+        // The line's own detail, rather than whatever survived the pipes.
+        $this->assertStringContainsString('MacBook Pro', $body);
+        $this->assertStringContainsString('MDH84LL/A', $body);
+        $this->assertStringContainsString('48GB unified memory', $body);
+        $this->assertStringContainsString('2TB SSD', $body);
+        $this->assertStringContainsString('16-inch Nano-texture', $body);
+        $this->assertStringContainsString('For the print studio refresh.', $body);
+
+        // Two of them, priced as two of them.
+        $this->assertStringContainsString("\u{00D7} 2", $body);
+        $this->assertStringContainsString('5,317', $body);
+    }
 }

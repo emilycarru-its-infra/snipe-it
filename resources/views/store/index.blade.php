@@ -5,14 +5,9 @@
     @parent
 @stop
 
-@section('header_right')
-    <a href="{{ route('store.orders') }}" class="btn btn-sm btn-default">
-        {{ trans('admin/store/general.my_orders') }}
-        @if ($openOrderCount)
-            <span class="badge">{{ $openOrderCount }}</span>
-        @endif
-    </a>
-@stop
+{{-- No header_right link: at this page width it landed against the far
+     right edge, a screen away from anything it related to. Someone with
+     orders in flight finds them above their order card instead. --}}
 
 @section('content')
 
@@ -43,6 +38,13 @@
                  element rather than a measured offset: the two then agree
                  by construction, whatever the heading's font does. --}}
             <div class="st-section-heading st-section-first" id="st-cart-offset" aria-hidden="true" hidden>&nbsp;</div>
+
+            @if ($openOrderCount)
+                <a href="{{ route('store.orders') }}" class="btn btn-default btn-block btn-lg st-my-orders">
+                    {{ trans('admin/store/general.my_orders') }}
+                    <span class="badge">{{ $openOrderCount }}</span>
+                </a>
+            @endif
 
             <div class="st-cart-box" id="st-cart-box">
                 <h3 class="st-cart-title">{{ trans('admin/store/general.your_order') }}</h3>
