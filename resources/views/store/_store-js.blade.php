@@ -31,9 +31,11 @@
     .st-fam-chips { font-size: 12px; color: light-dark(#6e6e73, #a1a1a6); margin-bottom: 8px; min-height: 16px; }
     .st-fam-price { font-size: 13px; color: light-dark(#1d1d1f, #f5f5f7); }
 
-    /* Accessories: their own separated section with compact cards, so
-       cables and pencils never crowd the device grid. */
-    .st-acc-heading { font-size: 19px; font-weight: 700; margin: 30px 0 14px; }
+    /* Each category is its own headed section in the All products view.
+       Accessories keep the compact card on top of that, so cables and
+       pencils never take a device-sized tile. */
+    .st-section-heading { font-size: 19px; font-weight: 700; margin: 30px 0 14px; }
+    .st-section-heading.st-section-first { margin-top: 0; }
     .st-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
     .st-acc-grid .st-fam { padding: 14px 12px; }
     .st-acc-grid .st-fam-img { height: 90px; font-size: 30px; margin-bottom: 8px; }
@@ -151,12 +153,13 @@
 
     var dataEl = document.getElementById('st-data');
     var main = document.getElementById('st-main');
+    var pills = document.getElementById('st-pills');
     if (! dataEl || ! main) { return; }
 
     var ITEMS = JSON.parse(dataEl.textContent);
     var STR = JSON.parse(document.getElementById('st-strings').textContent);
     var STEPS = ['screen_size', 'chip', 'color', 'ram_gb', 'storage', 'display_finish', 'extras'];
-    var CATEGORY_ORDER = ['Laptops', 'Desktops', 'Displays', 'Tablets'];
+    var CATEGORY_ORDER = ['Laptops', 'Desktops', 'Tablets', 'Displays', 'Accessories', 'Components', 'Scanners'];
     var SWATCHES = { 'Silver': '#d6d6d7', 'Black': '#2e2c2e', 'Space Black': '#2e2c2e', 'Gray': '#7d7e80',
                      'Space Gray': '#7d7e80', 'Blue': '#2d5474', 'Pink': '#f0b9c4', 'Purple': '#b9a8e3',
                      'Yellow': '#f9d94d', 'Orange': '#ec8934', 'Green': '#495e48', 'Starlight': '#f0e4d3',
@@ -316,35 +319,59 @@
             state.category = null;
         }
 
-        var html = '<div class="st-pills">'
+        pills.innerHTML = '<div class="st-pills">'
             + '<button type="button" class="st-pill' + (state.category === null ? ' active' : '') + '" data-cat="">' + esc(STR.allProducts) + '</button>'
             + cats.map(function (c) {
                 return '<button type="button" class="st-pill' + (state.category === c ? ' active' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + '</button>';
             }).join('')
             + '</div>';
 
+        var html = '';
+
         var keys = Object.keys(families).filter(function (k) {
             return state.category === null || families[k].category === state.category;
         });
 
-        // Accessories always render as their own separated section —
-        // compact cards below the device grid, never mixed into it.
-        var devices = sortKeys(keys.filter(function (k) { return families[k].category !== 'Accessories'; }));
-        var accessories = sortKeys(keys.filter(function (k) { return families[k].category === 'Accessories'; }));
+        if (! keys.length) {
+            main.innerHTML = '<p class="text-muted">' + esc(STR.storeEmpty) + '</p>';
 
-        if (! devices.length && ! accessories.length) {
-            html += '<p class="text-muted">' + esc(STR.storeEmpty) + '</p>';
+            return;
         }
 
-        if (devices.length) {
-            html += '<div class="st-fam-grid">' + devices.map(famCardHtml).join('') + '</div>';
-        }
+        // In All products every category is its own headed section, the way
+        // accessories always were — a flat grid of everything the shelf
+        // carries reads as one undifferentiated wall. Filtered to a single
+        // category the heading would only repeat the active pill, so it is
+        // dropped and the section stands alone.
+        var sections = state.category === null
+            ? cats.filter(function (c) { return keys.some(function (k) { return families[k].category === c; }); })
+            : [state.category];
 
-        if (accessories.length) {
-            if (devices.length) {
-                html += '<div class="st-acc-heading">' + esc(STR.accessoriesHeading) + '</div>';
+        sections.forEach(function (cat, index) {
+            var inCat = sortKeys(keys.filter(function (k) { return families[k].category === cat; }));
+
+            if (! inCat.length) {
+                return;
             }
-            html += '<div class="st-fam-grid st-acc-grid">' + accessories.map(famCardHtml).join('') + '</div>';
+
+            if (state.category === null) {
+                html += '<div class="st-section-heading' + (index === 0 ? ' st-section-first' : '') + '">' + esc(cat) + '</div>';
+            }
+
+            // Accessories stay on the compact card — they are small, there
+            // are many, and they carry no configurable specs.
+            var grid = cat === 'Accessories' ? 'st-fam-grid st-acc-grid' : 'st-fam-grid';
+            html += '<div class="' + grid + '">' + inCat.map(famCardHtml).join('') + '</div>';
+        });
+
+        // Anything whose category is blank still has to land somewhere.
+        var uncategorised = sortKeys(keys.filter(function (k) { return ! families[k].category; }));
+
+        if (uncategorised.length) {
+            if (state.category === null && sections.length) {
+                html += '<div class="st-section-heading">' + esc(STR.otherHeading) + '</div>';
+            }
+            html += '<div class="st-fam-grid">' + uncategorised.map(famCardHtml).join('') + '</div>';
         }
 
         main.innerHTML = html;
@@ -490,10 +517,15 @@
     }
 
     // ---- Events ----
-    main.addEventListener('click', function (e) {
+    pills.addEventListener('click', function (e) {
         var pill = e.target.closest('.st-pill');
-        if (pill) { state.category = pill.dataset.cat || null; syncUrl(); render(); return; }
+        if (! pill) { return; }
+        state.category = pill.dataset.cat || null;
+        syncUrl();
+        render();
+    });
 
+    main.addEventListener('click', function (e) {
         if (e.target.closest('[data-close]')) { state.family = null; render(); return; }
 
         var qtyBtn = e.target.closest('[data-qtybtn]');

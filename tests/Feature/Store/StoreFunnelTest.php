@@ -478,6 +478,91 @@ class StoreFunnelTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_the_catalog_api_lists_the_shelf_and_the_wider_catalog()
+    {
+        $shelf = $this->shelfItem(['name' => 'On the shelf']);
+        $this->shelfItem(['name' => 'Off the shelf', 'show_in_store' => false, 'vendor_sku' => '999111']);
+
+        $all = $this->actingAsForApi($this->procurement())
+            ->getJson(route('api.catalog-items.index'))
+            ->assertOk()
+            ->json('payload');
+
+        $this->assertSame(2, $all['total']);
+
+        $inStore = $this->actingAsForApi($this->procurement())
+            ->getJson(route('api.catalog-items.index', ['in_store' => 1]))
+            ->assertOk()
+            ->json('payload');
+
+        $this->assertSame(1, $inStore['total']);
+        $this->assertSame($shelf->id, $inStore['rows'][0]['id']);
+    }
+
+    public function test_the_catalog_api_curates_one_row_without_disturbing_the_rest()
+    {
+        $item = $this->shelfItem(['store_sort' => 7]);
+        $model = $item->model_id;
+
+        $this->actingAsForApi($this->procurement())
+            ->patchJson(route('api.catalog-items.update', $item->id), ['show_in_store' => false])
+            ->assertOk();
+
+        $item->refresh();
+        $this->assertFalse((bool) $item->show_in_store);
+        // Untouched fields stay untouched — hiding a row is not a reset.
+        $this->assertSame(7, (int) $item->store_sort);
+        $this->assertSame($model, $item->model_id);
+
+        $this->actingAsForApi($this->procurement())
+            ->patchJson(route('api.catalog-items.update', $item->id), ['store_sort' => 2, 'model_id' => null])
+            ->assertOk();
+
+        $item->refresh();
+        $this->assertSame(2, (int) $item->store_sort);
+        $this->assertNull($item->model_id);
+    }
+
+    public function test_the_catalog_api_creates_and_retires_a_row()
+    {
+        $model = AssetModel::factory()->create();
+
+        $created = $this->actingAsForApi($this->procurement())
+            ->postJson(route('api.catalog-items.store'), [
+                'name' => 'Apple Thunderbolt 5 Pro Cable 1m',
+                'category' => 'Accessories',
+                'mfr_part_number' => 'MDW94AM/A',
+                'unit_cost' => 80,
+                'model_id' => $model->getKey(),
+                'show_in_store' => true,
+            ])
+            ->assertOk()
+            ->json('payload');
+
+        $this->assertTrue($created['show_in_store']);
+        $this->assertSame('quoted', $created['price_type']);
+
+        $this->actingAsForApi($this->procurement())
+            ->deleteJson(route('api.catalog-items.destroy', $created['id']))
+            ->assertOk();
+
+        $retired = CatalogItem::withTrashed()->find($created['id']);
+        $this->assertNotNull($retired->deleted_at);
+        $this->assertFalse((bool) $retired->show_in_store);
+        $this->assertSame(0, CatalogItem::inStore()->count());
+    }
+
+    public function test_curating_the_catalog_needs_the_orders_permission()
+    {
+        $item = $this->shelfItem();
+
+        $this->actingAsForApi($this->endUser())
+            ->patchJson(route('api.catalog-items.update', $item->id), ['show_in_store' => false])
+            ->assertForbidden();
+
+        $this->assertTrue((bool) $item->fresh()->show_in_store);
+    }
+
     public function test_only_approved_orders_can_be_pulled()
     {
         $item = $this->shelfItem();
