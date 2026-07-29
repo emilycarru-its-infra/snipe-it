@@ -32,18 +32,33 @@ class StoreOrder extends Model
      */
     public const STATUSES = ['pending', 'approved', 'ordered', 'declined', 'cancelled'];
 
+    /**
+     * Which account an order is charged to. This decides which document
+     * the reseller places it against, so it is a fact about the order and
+     * not a reporting label: `lease` orders go on a CSI schedule's blanket
+     * purchase order, the other three on operating purchases.
+     */
+    public const FUNDING_ACCOUNTS = ['lease', 'purchase', 'curriculum', 'grant'];
+
     protected $table = 'store_orders';
 
     protected $fillable = [
         'user_id',
         'status',
         'program',
+        'funding_account',
+        'lease_schedule',
         'notes',
         'decision_notes',
         'decided_by',
         'decided_at',
         'requisition_id',
         'vendor_sent_at',
+        'quote_number',
+        'quote_total',
+        'quote_expires_at',
+        'quote_received_at',
+        'confirmed_at',
         'tracking_number',
         'shipped_at',
         'arrived_at',
@@ -52,6 +67,10 @@ class StoreOrder extends Model
     protected $casts = [
         'decided_at' => 'datetime',
         'vendor_sent_at' => 'datetime',
+        'quote_total' => 'decimal:4',
+        'quote_expires_at' => 'date',
+        'quote_received_at' => 'datetime',
+        'confirmed_at' => 'datetime',
         'shipped_at' => 'datetime',
         'arrived_at' => 'datetime',
     ];
@@ -102,10 +121,16 @@ class StoreOrder extends Model
     }
 
     /**
-     * What the requester sees on "my orders". Once the order is with the
-     * vendor, the shipping facts the webhook lands (shipped_at,
-     * arrived_at) outrank everything; before that, being on a requisition
-     * without a vendor send yet reads as "processing".
+     * What the requester sees on "my orders". Read as the latest fact that
+     * is true rather than a stored state, so the reseller's webhook and our
+     * own sign-off can land in either order without a state machine to
+     * keep in step.
+     *
+     * The middle of the chain is the part CDW drives. An order request
+     * leaves here, comes back as a quote, and is only placed once we sign
+     * that quote off — so "sent" and "ordered" are genuinely different
+     * things to be waiting on, and collapsing them would tell a requester
+     * their machine was on order days before it was.
      */
     public function displayStatus(): string
     {
@@ -121,11 +146,66 @@ class StoreOrder extends Model
             return 'shipped';
         }
 
-        if ($this->vendor_sent_at || $this->requisition?->purchaseOrder) {
+        // A purchase order against the requisition is the pre-quote path's
+        // own proof the order was placed, and still counts.
+        if ($this->confirmed_at || $this->requisition?->purchaseOrder) {
             return 'ordered';
         }
 
+        if ($this->quote_received_at) {
+            return 'quoted';
+        }
+
+        if ($this->vendor_sent_at) {
+            return 'with_vendor';
+        }
+
         return 'processing';
+    }
+
+    /**
+     * Received means the hardware is here — the fact the CDW webhook lands,
+     * and the one question the order queue has to answer at a glance.
+     */
+    public function isReceived(): bool
+    {
+        return $this->arrived_at !== null;
+    }
+
+    /**
+     * Whether this order can be sent to the reseller yet. An order request
+     * without an account cannot be placed: the account decides which
+     * blanket purchase order it goes against, and a lease needs the
+     * schedule too. Better to refuse here than to send CDW a request their
+     * desk has to email back about.
+     */
+    public function readyForVendor(): bool
+    {
+        if ($this->funding_account === null) {
+            return false;
+        }
+
+        return $this->funding_account !== 'lease' || $this->lease_schedule !== null;
+    }
+
+    /** The account, and for a lease the schedule it rides. */
+    public function fundingLabel(): string
+    {
+        if ($this->funding_account === null) {
+            return trans('admin/store/general.funding_unset');
+        }
+
+        $label = trans('admin/store/general.funding_'.$this->funding_account);
+
+        return $this->lease_schedule ? $label.' · '.$this->lease_schedule : $label;
+    }
+
+    /** A quote CDW will no longer honour. */
+    public function quoteIsExpired(): bool
+    {
+        return $this->quote_expires_at !== null
+            && $this->confirmed_at === null
+            && $this->quote_expires_at->isPast();
     }
 
     /** Part of the faculty laptop program's intake-and-agreement flow? */

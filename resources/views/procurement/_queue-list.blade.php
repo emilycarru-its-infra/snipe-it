@@ -58,6 +58,23 @@
                         @if ($order->vendor_sent_at)
                             <span class="label label-success" style="margin-left:4px;">{{ trans('admin/store/general.vendor_sent', ['when' => $order->vendor_sent_at->format('M j')]) }}</span>
                         @endif
+                        @if ($order->funding_account)
+                            <span class="label label-info" style="margin-left:4px;">{{ $order->fundingLabel() }}</span>
+                        @endif
+                        {{-- Received or not is the question this list exists
+                             to answer once an order is with the vendor, so it
+                             is a badge on the header rather than a date to go
+                             hunting for. Silent before the order is sent:
+                             nothing unsent is waiting to arrive. --}}
+                        @if ($order->vendor_sent_at)
+                            <span class="label {{ $order->isReceived() ? 'label-success' : 'label-warning' }}" style="margin-left:4px;">
+                                <i class="fa-solid {{ $order->isReceived() ? 'fa-box-open' : 'fa-truck' }}" aria-hidden="true"></i>
+                                {{ $order->isReceived() ? trans('admin/store/general.received_yes') : trans('admin/store/general.received_no') }}
+                            </span>
+                        @endif
+                        @if ($order->quoteIsExpired())
+                            <span class="label label-danger" style="margin-left:4px;">{{ trans('admin/store/general.quote_expired') }}</span>
+                        @endif
                     </h3>
                     @if ($order->requisition)
                         <div class="box-tools pull-right">
@@ -101,6 +118,8 @@
                         <div class="col-md-5">
                             @if ($order->status === 'pending')
                                 {{-- Decision form posts outside the pull form via the form attribute. --}}
+                                @include('procurement._queue-funding', ['order' => $order, 'formId' => 'pq-decide-'.$order->id])
+
                                 <textarea class="form-control" rows="2" form="pq-decide-{{ $order->id }}" name="decision_notes"
                                           placeholder="{{ trans('admin/store/general.queue_decision_note') }}"></textarea>
                                 <div style="margin-top:8px;">
@@ -119,14 +138,78 @@
                             @endif
 
                             @if ($order->status === 'approved')
+                                {{-- Approved but not yet sent: the account can
+                                     still be set or corrected here, which is
+                                     the common case when a schedule rolled
+                                     over between approval and the batch. --}}
+                                @include('procurement._queue-funding', ['order' => $order, 'formId' => 'pq-funding-'.$order->id])
+                                <button type="submit" form="pq-funding-{{ $order->id }}" class="btn btn-xs btn-default">
+                                    {{ trans('admin/store/general.funding_saved') }}
+                                </button>
+
                                 <div style="margin-top:8px;">
-                                    <button type="submit" form="pq-vendor-{{ $order->id }}" class="btn btn-primary">
+                                    <button type="submit" form="pq-vendor-{{ $order->id }}" class="btn btn-primary"
+                                            @disabled(! $order->readyForVendor())>
                                         <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
                                         {{ trans('admin/store/general.vendor_send_button', ['supplier' => $order->supplier()?->name ?: 'vendor']) }}
                                     </button>
                                     <button type="submit" form="pq-vendor-test-{{ $order->id }}" class="btn btn-default">
                                         {{ trans('admin/store/general.vendor_send_test_button') }}
                                     </button>
+                                </div>
+                                @unless ($order->readyForVendor())
+                                    <p class="text-muted" style="margin:6px 0 0; font-size:12px;">{{ trans('admin/store/general.funding_required') }}</p>
+                                @endunless
+                            @endif
+
+                            {{-- Once the request is with CDW the panel becomes
+                                 about their answer: the quote number, its
+                                 total and its expiry, then our sign-off. The
+                                 order is not placed until that sign-off, so
+                                 the confirm button is the last step here. --}}
+                            @if ($order->vendor_sent_at)
+                                <div style="margin-top:12px; padding-top:10px; border-top:1px solid #ebebee;">
+                                    <strong style="font-size:12px;">{{ trans('admin/store/general.quote_heading') }}</strong>
+                                    @if ($order->confirmed_at)
+                                        <p class="text-muted" style="margin:4px 0 0; font-size:12px;">
+                                            {{ $order->quote_number ?: trans('general.na') }} ·
+                                            {{ trans('admin/store/general.quote_confirmed') }}
+                                            {{ $order->confirmed_at->format('M j, Y') }}
+                                        </p>
+                                    @else
+                                        <div class="form-inline" style="margin-top:6px;">
+                                            <input type="text" name="quote_number" form="pq-quote-{{ $order->id }}"
+                                                   class="form-control input-sm" style="width:120px;"
+                                                   value="{{ $order->quote_number }}"
+                                                   placeholder="{{ trans('admin/store/general.quote_number') }}">
+                                            <input type="number" step="0.01" min="0" name="quote_total" form="pq-quote-{{ $order->id }}"
+                                                   class="form-control input-sm" style="width:110px;"
+                                                   value="{{ $order->quote_total !== null ? (float) $order->quote_total : '' }}"
+                                                   placeholder="{{ trans('admin/store/general.quote_total') }}">
+                                            <input type="date" name="quote_expires_at" form="pq-quote-{{ $order->id }}"
+                                                   class="form-control input-sm" style="width:150px;"
+                                                   value="{{ $order->quote_expires_at?->format('Y-m-d') }}">
+                                        </div>
+                                        <div style="margin-top:6px;">
+                                            <button type="submit" form="pq-quote-{{ $order->id }}" class="btn btn-xs btn-default">
+                                                {{ trans('admin/store/general.quote_record') }}
+                                            </button>
+                                            {{-- Same form as Record, so a quote
+                                                 typed and confirmed in one go
+                                                 is still stored rather than
+                                                 discarded by the confirm. --}}
+                                            <button type="submit" form="pq-quote-{{ $order->id }}" name="confirm" value="1" class="btn btn-xs btn-success">
+                                                {{ trans('admin/store/general.quote_confirm') }}
+                                            </button>
+                                        </div>
+                                    @endif
+                                    @if ($order->quote_total !== null && $order->total() > 0)
+                                        @php($variance = round(((float) $order->quote_total - $order->total()) / $order->total() * 100, 1))
+                                        <p class="text-muted" style="margin:6px 0 0; font-size:12px;">
+                                            ${{ \App\Helpers\Helper::formatCurrencyOutput($order->quote_total) }} —
+                                            {{ trans('admin/store/general.quote_variance', ['percent' => ($variance > 0 ? '+' : '').$variance]) }}
+                                        </p>
+                                    @endif
                                 </div>
                             @endif
 
@@ -163,6 +246,14 @@
                 <input type="hidden" name="orders[]" value="{{ $order->id }}">
                 <input type="hidden" name="test" value="1">
             </form>
+            <form method="POST" action="{{ route('procurement.queue.funding', $order->id) }}" id="pq-funding-{{ $order->id }}">
+                {{ csrf_field() }}
+            </form>
+        @endif
+        @if ($order->vendor_sent_at && ! $order->confirmed_at)
+            <form method="POST" action="{{ route('procurement.queue.quote', $order->id) }}" id="pq-quote-{{ $order->id }}">
+                {{ csrf_field() }}
+            </form>
         @endif
     @endforeach
 
@@ -195,6 +286,19 @@
         });
         </script>
     @endif
+
+    <script>
+    // A CSI schedule only means anything on a lease, so its field follows
+    // the account selection rather than sitting there inviting a reference
+    // that would land in the CDW part list against a cash purchase.
+    document.querySelectorAll('select[data-lease-toggle]').forEach(function (select) {
+        var group = document.getElementById(select.dataset.leaseToggle);
+        if (! group) { return; }
+        select.addEventListener('change', function () {
+            group.hidden = select.value !== 'lease';
+        });
+    });
+    </script>
 
     {{ $orders->links() }}
 @endif

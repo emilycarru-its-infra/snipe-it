@@ -159,8 +159,8 @@ return [
     'store_order_declined_heading' => 'Order declined',
     'store_order_declined_intro' => 'IT reviewed your order and cannot proceed with it this time:',
     'store_order_ordered_subject' => 'Your order is with the vendor',
-    'store_order_ordered_heading' => 'Order placed',
-    'store_order_ordered_intro' => 'Your order has been sent to the vendor. We will update you when it ships.',
+    'store_order_ordered_heading' => 'Order sent to the vendor',
+    'store_order_ordered_intro' => 'Your order request has gone to the vendor, who will confirm pricing and availability before it is placed. We will update you when it ships.',
     'store_order_shipped_subject' => 'Your order has shipped',
     'store_order_shipped_heading' => 'On its way',
     'store_order_shipped_intro' => 'The vendor has shipped your order.',
@@ -187,6 +187,26 @@ return [
     'store_vendor_col_mfr' => 'MFR #',
     'store_vendor_col_desc' => 'Description',
     'store_vendor_col_qty' => 'Qty',
+    'store_vendor_order_csv_note' => 'The attached CSV carries all :lines lines with exact part numbers and quantities.',
+    'store_vendor_order_line_for' => 'Requested by :name',
+    'store_vendor_part_missing' => 'not on file',
+    'store_vendor_bundle_link' => 'CDW bundle for this build',
+    'store_vendor_order_estimate_note' => 'Our estimate for this request is C$:total before tax and shipping, from the last price list we hold — please quote the current figure and flag anything discontinued or replaced.',
     'store_vendor_order_reference' => 'Please reference :references on the order confirmation so our systems can match the shipment automatically.',
     'store_vendor_order_footer' => 'Reply to all on this email and our team will follow up. Thank you.',
+
+    // Columns of the attached part list. These are the headings the
+    // reseller's desk reads, so they use the reseller's own vocabulary
+    // (EDC) rather than ours (vendor SKU).
+    'store_vendor_csv_reference' => 'ECU Reference',
+    'store_vendor_csv_mfr' => 'MFR #',
+    'store_vendor_csv_edc' => 'CDW EDC #',
+    'store_vendor_csv_description' => 'Description',
+    'store_vendor_csv_quantity' => 'Quantity',
+    'store_vendor_csv_warranty' => 'Warranty',
+    'store_vendor_csv_account' => 'Account',
+    'store_vendor_csv_schedule' => 'Lease Schedule',
+    'store_vendor_csv_bundle' => 'CDW Bundle',
+    'store_vendor_csv_requested_by' => 'Requested By',
+    'store_vendor_csv_estimated_unit' => 'Our Estimated Unit Price (CAD)',
 ];

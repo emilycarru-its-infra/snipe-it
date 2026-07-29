@@ -106,9 +106,15 @@ class CatalogItemsController extends Controller
     }
 
     /**
-     * One row's storefront settings. Every field is optional and only what
-     * is sent is touched, so hiding a row does not silently reset its sort
-     * or unlink its model.
+     * One row's storefront settings and its identifiers. Every field is
+     * optional and only what is sent is touched, so hiding a row does not
+     * silently reset its sort or unlink its model.
+     *
+     * The part numbers are writable here because they are the fields the
+     * reseller's desk works from — an order for a row with no manufacturer
+     * part number cannot be placed at all — and a price-list import only
+     * fills them for rows it created. Rows added by hand need a way in that
+     * is not a database console.
      */
     public function update(Request $request, CatalogItem $catalogItem): JsonResponse
     {
@@ -119,7 +125,36 @@ class CatalogItemsController extends Controller
             'store_sort' => 'sometimes|integer|min:0|max:65535',
             'model_id' => 'sometimes|nullable|integer|exists:models,id',
             'image' => 'sometimes|image|max:4096',
+            'vendor_sku' => 'sometimes|nullable|string|max:191',
+            'mfr_part_number' => 'sometimes|nullable|string|max:191',
+            'warranty_months' => 'sometimes|nullable|integer|min:0|max:120',
+            'bundle_url' => 'sometimes|nullable|url|max:1024',
+            'subcategory' => 'sometimes|nullable|string|max:191',
+            'product_type' => 'sometimes|string|in:standard,cto',
+            'supplier_id' => 'sometimes|nullable|integer|exists:suppliers,id',
         ]);
+
+        // The supplier is who a vendor order request is addressed to, so a
+        // row without one cannot be ordered from anybody.
+        if ($request->has('supplier_id')) {
+            $catalogItem->supplier_id = $validated['supplier_id'] ?: null;
+        }
+
+        // Whitespace is not a distinguishing feature of a part number, and
+        // the reseller's own workbook has it on both sides of several — a
+        // trailing space would break every later lookup by SKU.
+        foreach (['vendor_sku', 'mfr_part_number', 'subcategory', 'product_type'] as $field) {
+            if ($request->has($field)) {
+                $value = is_string($validated[$field] ?? null) ? trim($validated[$field]) : $validated[$field];
+                $catalogItem->{$field} = $value === '' ? null : $value;
+            }
+        }
+
+        foreach (['warranty_months', 'bundle_url'] as $field) {
+            if ($request->has($field)) {
+                $catalogItem->{$field} = $validated[$field] ?: null;
+            }
+        }
 
         if ($request->has('show_in_store')) {
             $catalogItem->show_in_store = (bool) $validated['show_in_store'];
@@ -194,8 +229,12 @@ class CatalogItemsController extends Controller
             'id' => $item->id,
             'name' => $item->name,
             'category' => $item->category,
+            'subcategory' => $item->subcategory,
+            'product_type' => $item->product_type,
             'vendor_sku' => $item->vendor_sku,
             'mfr_part_number' => $item->mfr_part_number,
+            'warranty_months' => $item->warranty_months,
+            'bundle_url' => $item->bundle_url,
             'supplier' => $item->supplier?->name,
             'unit_cost' => $item->unit_cost !== null ? (float) $item->unit_cost : null,
             'estimated_cost' => $item->estimated_cost !== null ? (float) $item->estimated_cost : null,
