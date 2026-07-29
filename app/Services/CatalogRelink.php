@@ -124,7 +124,7 @@ class CatalogRelink
 
             // A leading maker is the maker. "Intel" further down a spec list
             // is the chip vendor, not who built the laptop.
-            if ($makers && ! in_array(self::normalize($model->manufacturer?->name ?? ''), $makers, true)) {
+            if ($makers && ! in_array(self::normalize($model->manufacturer->name ?? ''), $makers, true)) {
                 continue;
             }
 
@@ -205,7 +205,7 @@ class CatalogRelink
         }
 
         $modelTokens = self::tokens($modelName);
-        $maker = self::normalize($model->manufacturer?->name ?? '');
+        $maker = self::normalize($model->manufacturer->name ?? '');
 
         if ($maker !== '' && in_array($maker, $tokens, true)) {
             $score += 2;
@@ -259,7 +259,7 @@ class CatalogRelink
         $makers = [];
 
         foreach ($models as $model) {
-            $maker = self::normalize($model->manufacturer?->name ?? '');
+            $maker = self::normalize($model->manufacturer->name ?? '');
 
             if ($maker === '' || in_array($maker, $makers, true)) {
                 continue;
