@@ -94,4 +94,42 @@ class CatalogSpecParserTest extends TestCase
         $this->assertSame('Cellular', $specs['extras']);
         $this->assertSame('Black', $specs['color']);
     }
+
+    public function test_a_pc_names_its_processor_and_graphics_in_their_own_fields(): void
+    {
+        // Before these were recognised, a workstation's CPU and GPU fell
+        // into the leftovers bucket and the store read "Also: 5955WX".
+        $parser = new CatalogSpecParser;
+
+        $cases = [
+            ['Lenovo ThinkStation P620 | 5955WX | 64GB | 2TB | RTX 4000 ADA 20GB', '5955WX', 'RTX 4000 ADA 20GB'],
+            ['Lenovo ThinkStation P3 | Ultra 9 | RTX 5080 | 64GB | 2TB', 'Ultra 9', 'RTX 5080'],
+            ['HP Z2 mini | Ryzen 395 | 64GB | 2TB', 'Ryzen 395', null],
+            ['ThinkCentre M75s (Gen 5) | Ryzen 7 PRO 8700G | 16GB | 1TB', 'Ryzen 7 PRO 8700G', null],
+            ['Surface Laptop | 13.8" | 16GB | 512GB | Intel', 'Intel', null],
+        ];
+
+        foreach ($cases as [$name, $cpu, $gpu]) {
+            $specs = $parser->parse($name);
+            $this->assertSame($cpu, $specs['spec_cpu'], $name);
+            $this->assertSame($gpu, $specs['spec_gpu'], $name);
+            $this->assertNull($specs['extras'], $name);
+        }
+    }
+
+    public function test_a_processor_never_swallows_a_genuine_extra(): void
+    {
+        $specs = (new CatalogSpecParser)->parse('ThinkPad T14 (Gen 6) | Ryzen 7 Pro | 16GB | 1TB | OLED');
+
+        $this->assertSame('Ryzen 7 Pro', $specs['spec_cpu']);
+        $this->assertSame('OLED', $specs['extras']);
+    }
+
+    public function test_an_apple_chip_still_wins_its_published_core_counts(): void
+    {
+        $specs = (new CatalogSpecParser)->parse('MacBook Pro | 14" | M5 Pro | 24GB | 1TB | Black');
+
+        $this->assertSame('15-core CPU', $specs['spec_cpu']);
+        $this->assertSame('16-core GPU', $specs['spec_gpu']);
+    }
 }

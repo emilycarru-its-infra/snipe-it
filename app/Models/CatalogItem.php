@@ -180,6 +180,23 @@ class CatalogItem extends Model
      *
      * @return array<string, string>
      */
+    /**
+     * Which side of the estate a machine belongs to. Read off the asset
+     * model's manufacturer rather than the product name, because that is
+     * the fact Snipe already holds — and the two never disagree, since a
+     * row without a model is not a machine anyone can order.
+     */
+    public function platform(): ?string
+    {
+        $manufacturer = $this->model?->manufacturer?->name;
+
+        if ($manufacturer === null) {
+            return null;
+        }
+
+        return $manufacturer === 'Apple' ? 'Macintosh' : 'Windows';
+    }
+
     public function specList(): array
     {
         $specs = [];
@@ -197,7 +214,9 @@ class CatalogItem extends Model
             $specs['Neural Engine'] = $this->spec_npu;
         }
         if ($this->ram_gb) {
-            $specs['Memory'] = $this->ram_gb.'GB unified memory';
+            // "Unified memory" is Apple's architecture and Apple's phrase;
+            // a ThinkStation's 64GB is just 64GB.
+            $specs['Memory'] = $this->ram_gb.'GB'.($this->chip ? ' unified memory' : '');
         }
         if ($this->storage) {
             $specs['Storage'] = $this->storage.' SSD';
