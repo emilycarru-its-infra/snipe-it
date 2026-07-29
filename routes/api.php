@@ -695,6 +695,22 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('catalog/apple-sync', [Api\CatalogImportController::class, 'appleSync'])
         ->name('api.catalog.apple-sync');
 
+    // Storefront curation — visibility, order, the asset model behind a row
+    // and its picture. Same no-shell reason as the import above: without
+    // this the shelf could only be arranged through the SSO-gated admin
+    // form, so nothing could tidy it on a deployed environment.
+    Route::get('catalog-items', [Api\CatalogItemsController::class, 'index'])
+        ->name('api.catalog-items.index');
+
+    Route::post('catalog-items', [Api\CatalogItemsController::class, 'store'])
+        ->name('api.catalog-items.store');
+
+    Route::match(['put', 'patch'], 'catalog-items/{catalogItem}', [Api\CatalogItemsController::class, 'update'])
+        ->name('api.catalog-items.update');
+
+    Route::delete('catalog-items/{catalogItem}', [Api\CatalogItemsController::class, 'destroy'])
+        ->name('api.catalog-items.destroy');
+
     // Shipment facts from the vendor's webhook (cdw-orders-listener):
     // tracking + serials land on the store order and the requester gets
     // the shipped/arrived email.
