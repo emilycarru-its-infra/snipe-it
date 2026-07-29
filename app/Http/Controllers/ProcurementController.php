@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\StoreVendorOrderMail;
 use App\Models\CatalogItem;
+use App\Models\CsiSchedule;
 use App\Models\EmailTemplate;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
@@ -67,6 +68,8 @@ class ProcurementController extends Controller
                 ->withQueryString(),
             'selectedStatus' => $status,
             'statuses' => StoreOrder::STATUSES,
+            'fundingAccounts' => StoreOrder::FUNDING_ACCOUNTS,
+            'leaseSchedules' => CsiSchedule::openScheduleNames(),
 
             // Tab badges: what is countable without loading the table.
             'purchaseOrderCount' => PurchaseOrder::count(),
@@ -102,6 +105,8 @@ class ProcurementController extends Controller
             'orders' => $orders,
             'selectedStatus' => $status,
             'statuses' => StoreOrder::STATUSES,
+            'fundingAccounts' => StoreOrder::FUNDING_ACCOUNTS,
+            'leaseSchedules' => CsiSchedule::openScheduleNames(),
         ]);
     }
 
@@ -118,6 +123,8 @@ class ProcurementController extends Controller
         $validated = $request->validate([
             'decision' => 'required|string|in:approved,declined',
             'decision_notes' => 'nullable|string|max:65535',
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'lease_schedule' => 'nullable|string|max:32',
         ]);
 
         if ($order->status !== 'pending') {
@@ -128,6 +135,12 @@ class ProcurementController extends Controller
         $order->update([
             'status' => $validated['decision'],
             'decision_notes' => $validated['decision_notes'] ?? null,
+            'funding_account' => $validated['funding_account'] ?? null,
+            // Only a lease rides a schedule; carrying one on a purchase
+            // would put a reference in the CSV that means nothing there.
+            'lease_schedule' => ($validated['funding_account'] ?? null) === 'lease'
+                ? ($validated['lease_schedule'] ?: null)
+                : null,
             'decided_by' => auth()->id(),
             'decided_at' => now(),
         ]);
@@ -170,6 +183,16 @@ class ProcurementController extends Controller
                 ->with('error', trans('admin/store/general.vendor_send_not_approved'));
         }
 
+        // A test send is for checking the layout, so it goes out whatever
+        // state the orders are in. A real one is refused without an
+        // account: CDW places each line against a blanket purchase order
+        // and cannot pick which, so sending anyway would buy nothing but a
+        // round trip through their desk.
+        if (! $test && $orders->contains(fn (StoreOrder $order) => ! $order->readyForVendor())) {
+            return redirect()->route('procurement.queue', ['status' => 'approved'])
+                ->with('error', trans('admin/store/general.funding_required'));
+        }
+
         if ($test) {
             $to = [auth()->user()->email];
             $cc = [];
@@ -210,6 +233,97 @@ class ProcurementController extends Controller
 
         return redirect()->route('procurement.queue', ['status' => 'approved'])
             ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
+    }
+
+    /**
+     * Record the quote CDW sends back against an order request, and — on a
+     * second pass — confirm it, which is the moment the order is actually
+     * placed.
+     *
+     * Two steps rather than one because they are two different people's
+     * decisions. CDW's quote arrives with its own number, its own total and
+     * an expiry, and often with substitutions for parts that were
+     * discontinued since our price list; confirming it is us accepting
+     * those. Collapsing them would record an order as placed at the moment
+     * the vendor asked us a question.
+     */
+    public function recordQuote(Request $request, StoreOrder $order): RedirectResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'confirm' => 'nullable|boolean',
+        ]);
+
+        // Nothing to quote against until the request has actually gone out.
+        if ($order->vendor_sent_at === null) {
+            return redirect()->route('procurement.queue', ['status' => 'ordered'])
+                ->with('error', trans('admin/store/general.quote_wrong_state'));
+        }
+
+        $updates = [];
+
+        foreach (['quote_number', 'quote_total', 'quote_expires_at'] as $field) {
+            if ($request->filled($field)) {
+                $updates[$field] = $validated[$field];
+            }
+        }
+
+        if ($updates !== [] && $order->quote_received_at === null) {
+            $updates['quote_received_at'] = now();
+        }
+
+        if ($request->boolean('confirm')) {
+            // Confirming without a quote on file is legitimate — some
+            // orders CDW simply places — so this stamps the arrival too
+            // rather than refusing.
+            $updates['quote_received_at'] = $order->quote_received_at ?? now();
+            $updates['confirmed_at'] = $order->confirmed_at ?? now();
+        }
+
+        if ($updates === []) {
+            return redirect()->route('procurement.queue', ['status' => 'ordered']);
+        }
+
+        $order->update($updates);
+
+        return redirect()->route('procurement.queue', ['status' => 'ordered'])
+            ->with('success', trans($request->boolean('confirm')
+                ? 'admin/store/general.quote_confirmed'
+                : 'admin/store/general.quote_recorded'));
+    }
+
+    /**
+     * Set which account an order is charged to after it was approved —
+     * the common case being a lease schedule that rolled over between
+     * approval and the batch actually going out.
+     */
+    public function setFunding(Request $request, StoreOrder $order): RedirectResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'lease_schedule' => 'nullable|string|max:32',
+        ]);
+
+        $account = $validated['funding_account'] ?? null;
+
+        if ($account === 'lease' && empty($validated['lease_schedule'])) {
+            return redirect()->route('procurement.queue', ['status' => $order->status])
+                ->with('error', trans('admin/store/general.funding_lease_needs_schedule'));
+        }
+
+        $order->update([
+            'funding_account' => $account,
+            'lease_schedule' => $account === 'lease' ? $validated['lease_schedule'] : null,
+        ]);
+
+        return redirect()->route('procurement.queue', ['status' => $order->status])
+            ->with('success', trans('admin/store/general.funding_saved'));
     }
 
     /**
@@ -333,11 +447,22 @@ class ProcurementController extends Controller
             'store_sort' => 'nullable|integer',
             'model_id' => 'nullable|integer|exists:models,id',
             'image' => 'nullable|image|max:4096',
+            'vendor_sku' => 'nullable|string|max:191',
+            'mfr_part_number' => 'nullable|string|max:191',
+            'warranty_months' => 'nullable|integer|min:0|max:120',
+            'supplier_id' => 'nullable|integer|exists:suppliers,id',
         ]);
 
         $item->show_in_store = (bool) ($validated['show_in_store'] ?? false);
         $item->store_sort = (int) ($validated['store_sort'] ?? 0);
         $item->model_id = $validated['model_id'] ?? null;
+
+        // Trimmed, because the reseller's workbook carries stray whitespace
+        // on part numbers and a trailing space breaks every later lookup.
+        $item->vendor_sku = trim((string) ($validated['vendor_sku'] ?? '')) ?: null;
+        $item->mfr_part_number = trim((string) ($validated['mfr_part_number'] ?? '')) ?: null;
+        $item->warranty_months = $validated['warranty_months'] ?? null;
+        $item->supplier_id = $validated['supplier_id'] ?? null;
 
         if ($request->hasFile('image')) {
             $stored = $request->file('image')->store('catalog', 'public');

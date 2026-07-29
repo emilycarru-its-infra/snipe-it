@@ -194,6 +194,10 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('procurement.queue.pull');
     Route::post('procurement/queue/send-vendor', [ProcurementController::class, 'sendVendorOrders'])
         ->name('procurement.queue.send-vendor');
+    Route::post('procurement/queue/{order}/funding', [ProcurementController::class, 'setFunding'])
+        ->name('procurement.queue.funding');
+    Route::post('procurement/queue/{order}/quote', [ProcurementController::class, 'recordQuote'])
+        ->name('procurement.queue.quote');
     Route::post('procurement/approvers', [ProcurementController::class, 'saveApprovers'])
         ->name('procurement.approvers.save');
     Route::get('procurement/store', [ProcurementController::class, 'storeAdmin'])

@@ -57,6 +57,8 @@ return [
     'order_status_pending' => 'Waiting for review',
     'order_status_approved' => 'Approved',
     'order_status_processing' => 'Being processed',
+    'order_status_with_vendor' => 'Sent to CDW',
+    'order_status_quoted' => 'Quoted — confirming',
     'order_status_ordered' => 'Ordered',
     'order_status_shipped' => 'Shipped',
     'order_status_arrived' => 'Arrived',
@@ -101,15 +103,54 @@ return [
     'queue_order_ref' => 'ECU-STORE-:id',
     'line_requested_by' => 'Requested by :name via the Store',
 
+    // Which account an order is charged to — the reseller places it
+    // against a different document depending on the answer.
+    'funding_label' => 'Account',
+    'funding_unset' => 'No account set',
+    'funding_lease' => 'Lease',
+    'funding_purchase' => 'Purchase',
+    'funding_curriculum' => 'Curriculum',
+    'funding_grant' => 'Grant',
+    'funding_schedule_label' => 'CSI lease schedule',
+    'funding_schedule_none' => 'No open CSI schedule is mirrored yet — set the account once one is.',
+    'funding_saved' => 'Account saved.',
+    'funding_required' => 'Set an account on every selected order first — CDW needs it to know which blanket PO to place against.',
+    'funding_lease_needs_schedule' => 'A lease order needs its CSI schedule as well.',
+
+    // The quote CDW sends back before anything is actually placed.
+    'quote_heading' => 'CDW quote',
+    'quote_number' => 'Quote #',
+    'quote_total' => 'Quoted total',
+    'quote_expires' => 'Expires',
+    'quote_record' => 'Record quote',
+    'quote_recorded' => 'Quote recorded — confirm it to mark the order placed.',
+    'quote_confirm' => 'Confirm and place',
+    'quote_confirmed' => 'Order confirmed as placed with CDW.',
+    'quote_expired' => 'This quote has expired — ask CDW to requote before confirming.',
+    'quote_wrong_state' => 'A quote can only be recorded once the order request has gone to CDW.',
+    'quote_none_yet' => 'Waiting on CDW\'s quote.',
+    'quote_variance' => ':percent% vs our estimate',
+
+    // Warranty term, stored in months and read in whichever unit divides.
+    'warranty_years' => '{1} 1 year|[2,*] :count years',
+    'warranty_months' => '{1} 1 month|[2,*] :count months',
+
+    // Has the hardware landed? The one question the queue answers at a glance.
+    'received_yes' => 'Received',
+    'received_no' => 'Not received',
+
     // Storefront management
     'store_admin_intro' => 'Choose which catalog items the store shows, in what order, and with what image. Items with no image fall back to their asset model\'s photo.',
     'show_in_store' => 'In store',
     'store_sort' => 'Sort',
     'store_image' => 'Image',
+    'part_missing' => 'not set',
+    'parts_missing_warning' => '{1} 1 catalog row is missing a part number — CDW cannot place an order for it. Fill the MFR # and CDW EDC # below.|[2,*] :count catalog rows are missing a part number — CDW cannot place an order for those. Fill the MFR # and CDW EDC # below.',
     'store_item_updated' => 'Storefront settings saved.',
     'store_item_deleted' => 'Catalog item retired.',
     'no_image' => 'No image',
     'no_model' => 'No model — hidden from the store',
+    'no_supplier' => 'No supplier — cannot be ordered',
 
     // Procurement landing
     'card_pending_orders' => 'Orders awaiting review',

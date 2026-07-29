@@ -3,8 +3,10 @@
 namespace App\Mail;
 
 use App\Models\StoreOrder;
+use App\Services\VendorOrderCsv;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -50,15 +52,31 @@ class StoreVendorOrderMail extends BaseMailable
 
     public function content(): Content
     {
+        // Warranty term and the CTO bundle link are per product, so each
+        // line reaches through to its catalog row for them.
+        $this->orders->each(fn (StoreOrder $order) => $order->loadMissing('items.catalogItem', 'user'));
+
         return $this->bodyContent('store.vendor_order', 'notifications.markdown.store-vendor-order', [
             'orders' => $this->orders,
             'references' => $this->references(),
             'supplier' => $this->orders->first()?->supplier(),
+            'lineCount' => $this->orders->sum(fn (StoreOrder $order) => $order->items->count()),
         ]);
     }
 
+    /**
+     * The part list as a CSV. The email is for a human to read; this is
+     * what the reseller's desk keys the order from, so it ships with every
+     * send including a test — a test that omitted it would not be testing
+     * the thing most likely to be wrong.
+     */
     public function attachments(): array
     {
-        return [];
+        $csv = new VendorOrderCsv($this->orders);
+
+        return [
+            Attachment::fromData(fn () => $csv->contents(), $csv->filename())
+                ->withMime('text/csv'),
+        ];
     }
 }

@@ -14,6 +14,20 @@
 
 <p class="text-muted">{{ trans('admin/store/general.store_admin_intro') }}</p>
 
+@php($missingParts = $items->filter(fn ($item) => ! $item->mfr_part_number || ! $item->vendor_sku)->count())
+@if ($missingParts)
+    <div class="callout callout-warning" style="margin-bottom:14px;">
+        {{ trans_choice('admin/store/general.parts_missing_warning', $missingParts, ['count' => $missingParts]) }}
+    </div>
+@endif
+
+<style>
+/* A blank part number is not a neutral empty field — it is a row that
+   cannot be ordered — so it reads as a problem at a glance instead of
+   only when someone tries to send it. */
+.st-part-missing { border-color: #d9534f; background: light-dark(#fdf3f3, #3a2626); }
+</style>
+
 <div class="box box-default">
     <div class="box-body table-responsive">
         <table class="table table-striped table-condensed">
@@ -22,6 +36,10 @@
                     <th>{{ trans('admin/store/general.store_image') }}</th>
                     <th>{{ trans('general.category') }}</th>
                     <th>{{ trans('admin/purchase-orders/general.builder_col_description') }}</th>
+                    <th>{{ trans('mail.store_vendor_csv_mfr') }}</th>
+                    <th>{{ trans('mail.store_vendor_csv_edc') }}</th>
+                    <th>{{ trans('mail.store_vendor_csv_warranty') }}</th>
+                    <th>{{ trans('general.supplier') }}</th>
                     <th class="text-right">{{ trans('admin/purchase-orders/general.builder_col_unit_cost') }}</th>
                     <th>{{ trans('general.asset_model') }}</th>
                     <th>{{ trans('admin/store/general.show_in_store') }}</th>
@@ -45,6 +63,49 @@
                             @if ($item->isEstimate())
                                 <span class="label label-warning">{{ trans('admin/purchase-orders/general.builder_estimate_badge') }}</span>
                             @endif
+                        </td>
+                        {{-- The two part numbers are the fields an order
+                             actually travels on: CDW identifies a product by
+                             the manufacturer's number and places their own
+                             (the EDC). A row missing either cannot be ordered
+                             at all, so both are editable in place here and a
+                             blank one is called out rather than left as an
+                             empty cell nobody notices. --}}
+                        <td style="min-width:150px;">
+                            <input type="text" name="mfr_part_number" value="{{ $item->mfr_part_number }}" form="sa-{{ $item->id }}"
+                                   class="form-control input-sm {{ $item->mfr_part_number ? '' : 'st-part-missing' }}"
+                                   placeholder="{{ trans('admin/store/general.part_missing') }}"
+                                   style="font-family:ui-monospace,Menlo,monospace; font-size:12px;">
+                        </td>
+                        <td style="min-width:110px;">
+                            <input type="text" name="vendor_sku" value="{{ $item->vendor_sku }}" form="sa-{{ $item->id }}"
+                                   class="form-control input-sm {{ $item->vendor_sku ? '' : 'st-part-missing' }}"
+                                   placeholder="{{ trans('admin/store/general.part_missing') }}"
+                                   style="font-family:ui-monospace,Menlo,monospace; font-size:12px;">
+                        </td>
+                        <td style="width:120px;">
+                            <select name="warranty_months" form="sa-{{ $item->id }}" class="form-control input-sm">
+                                <option value="">{{ trans('general.na') }}</option>
+                                @foreach ([12, 24, 36, 48, 60] as $months)
+                                    <option value="{{ $months }}" @selected((int) $item->warranty_months === $months)>
+                                        {{ trans_choice('admin/store/general.warranty_years', intdiv($months, 12), ['count' => intdiv($months, 12)]) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </td>
+                        {{-- The supplier decides who the order request is
+                             addressed to, so a blank one is as blocking as a
+                             missing part number. --}}
+                        <td style="min-width:170px;">
+                            @unless ($item->supplier)
+                                <span class="label label-danger">{{ trans('admin/store/general.no_supplier') }}</span>
+                            @endunless
+                            <select class="js-data-ajax" data-endpoint="suppliers" name="supplier_id" form="sa-{{ $item->id }}"
+                                    data-placeholder="{{ trans('general.select_supplier') }}" style="width:100%;">
+                                @if ($item->supplier)
+                                    <option value="{{ $item->supplier_id }}" selected>{{ $item->supplier->name }}</option>
+                                @endif
+                            </select>
                         </td>
                         <td class="text-right">{{ \App\Helpers\Helper::formatCurrencyOutput($item->effectiveCost()) }}</td>
                         <td style="min-width:180px;">
