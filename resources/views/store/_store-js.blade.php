@@ -36,6 +36,18 @@
        pencils never take a device-sized tile. */
     .st-section-heading { font-size: 19px; font-weight: 700; margin: 30px 0 14px; }
     .st-section-heading.st-section-first { margin-top: 0; }
+
+    /* Platform columns grow with what they hold, so a card is the same
+       width whichever side of the rule it sits on. */
+    .st-platforms { display: flex; align-items: flex-start; gap: 24px; }
+    .st-platform { flex-basis: 0; min-width: 0; }
+    .st-platform-split { border-left: 1px solid var(--st-border); padding-left: 24px; }
+
+    @media (max-width: 767px) {
+        .st-platforms { display: block; }
+        .st-platform-split { border-left: 0; padding-left: 0; margin-top: 24px; padding-top: 24px;
+                             border-top: 1px solid var(--st-border); }
+    }
     .st-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
     .st-acc-grid .st-fam { padding: 14px 12px; }
     .st-acc-grid .st-fam-img { height: 90px; font-size: 30px; margin-bottom: 8px; }
@@ -126,6 +138,8 @@
     .st-cart-card { background: light-dark(#f5f5f7, #232326); border-radius: 14px; padding: 16px;
                     margin-bottom: 14px; }
     .st-cart-card-name { font-size: 16px; font-weight: 700; }
+    .st-cart-card-sku { font-size: 11px; letter-spacing: .04em; opacity: .6; margin-top: 2px;
+                        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .st-cart-card-img { text-align: center; margin: 10px 0 12px; color: light-dark(#d2d2d7, #6e6e73); font-size: 30px; }
     .st-cart-card-img img { max-height: 110px; max-width: 100%; object-fit: contain; }
     .st-cart-specs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 12px; margin: 0 0 4px; }
@@ -162,6 +176,11 @@
     var STR = JSON.parse(document.getElementById('st-strings').textContent);
     var STEPS = ['screen_size', 'chip', 'color', 'ram_gb', 'storage', 'display_finish', 'extras'];
     var CATEGORY_ORDER = ['Laptops', 'Desktops', 'Tablets', 'Displays', 'Accessories', 'Components', 'Scanners'];
+    // Computers are chosen platform-first — nobody cross-shops a MacBook
+    // against a ThinkPad — so those two sections are split down the middle.
+    // Everywhere else the platform is not how the choice is made.
+    var PLATFORM_SPLIT = ['Laptops', 'Desktops'];
+    var PLATFORM_ORDER = ['Macintosh', 'Windows'];
     var SWATCHES = { 'Silver': '#d6d6d7', 'Black': '#2e2c2e', 'Space Black': '#2e2c2e', 'Gray': '#7d7e80',
                      'Space Gray': '#7d7e80', 'Blue': '#2d5474', 'Pink': '#f0b9c4', 'Purple': '#b9a8e3',
                      'Yellow': '#f9d94d', 'Orange': '#ec8934', 'Green': '#495e48', 'Starlight': '#f0e4d3',
@@ -183,6 +202,7 @@
         f.minPrice = f.items[0].price;
         f.image = (f.items.filter(function (i) { return i.image; })[0] || {}).image || null;
         f.chips = uniq(f.items.map(function (i) { return i.chip; }).filter(Boolean));
+        f.platform = (f.items.filter(function (i) { return i.platform; })[0] || {}).platform || null;
         f.steps = STEPS.filter(function (attr) { return uniq(f.items.map(function (i) { return key(i[attr]); })).length > 1; });
     });
 
@@ -368,6 +388,25 @@
             // Accessories stay on the compact card — they are small, there
             // are many, and they carry no configurable specs.
             var grid = cat === 'Accessories' ? 'st-fam-grid st-acc-grid' : 'st-fam-grid';
+
+            var groups = PLATFORM_SPLIT.indexOf(cat) === -1 ? [] : PLATFORM_ORDER
+                .map(function (p) { return inCat.filter(function (k) { return families[k].platform === p; }); })
+                .filter(function (g) { return g.length; });
+
+            // Only split when there is something on both sides of the rule.
+            // One platform alone gets the plain grid, not a lone column with
+            // a divider hanging off it.
+            if (groups.length > 1) {
+                html += '<div class="st-platforms">' + groups.map(function (group, gi) {
+                    return '<div class="st-platform' + (gi ? ' st-platform-split' : '') + '"'
+                        + ' style="flex-grow:' + group.length + ';">'
+                        + '<div class="' + grid + '">' + group.map(famCardHtml).join('') + '</div>'
+                        + '</div>';
+                }).join('') + '</div>';
+
+                return;
+            }
+
             html += '<div class="' + grid + '">' + inCat.map(famCardHtml).join('') + '</div>';
         });
 
@@ -484,6 +523,10 @@
         return ITEMS.filter(function (i) { return i.id === id; })[0] || null;
     }
 
+    function cartImage(it) {
+        return it.image || (families[it.family] || {}).image || null;
+    }
+
     function renderCart() {
         var html = '';
         var total = 0;
@@ -499,7 +542,14 @@
 
             html += '<div class="st-cart-card" data-line="' + i + '">'
                 + '<div class="st-cart-card-name">' + esc(it.family) + (it.screen_size ? ' ' + esc(it.screen_size) + '"' : '') + '</div>'
-                + '<div class="st-cart-card-img">' + (it.image ? '<img src="' + esc(it.image) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
+                // The part number is what the reseller quotes against, so
+                // it is what makes a line checkable rather than merely
+                // plausible-looking.
+                + (it.sku ? '<div class="st-cart-card-sku">' + esc(it.sku) + '</div>' : '')
+                // Same image rule as the configurator: fall back to the
+                // family photo. A line that showed a picture while it was
+                // being configured must not lose it on the way to the cart.
+                + '<div class="st-cart-card-img">' + (cartImage(it) ? '<img src="' + esc(cartImage(it)) + '" alt="">' : '<i class="fa-regular fa-image" aria-hidden="true"></i>') + '</div>'
                 + '<dl class="st-cart-specs">' + specHtml + '</dl>'
                 + '<div class="st-cart-card-foot">'
                 + '<span class="st-qty"><button type="button" class="st-minus" data-cartqty="-1" aria-label="-">&minus;</button>'
