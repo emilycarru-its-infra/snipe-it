@@ -154,6 +154,8 @@
     var dataEl = document.getElementById('st-data');
     var main = document.getElementById('st-main');
     var pills = document.getElementById('st-pills');
+    var cartBox = document.getElementById('st-cart-box');
+    var cartOffset = document.getElementById('st-cart-offset');
     if (! dataEl || ! main) { return; }
 
     var ITEMS = JSON.parse(dataEl.textContent);
@@ -334,9 +336,14 @@
 
         if (! keys.length) {
             main.innerHTML = '<p class="text-muted">' + esc(STR.storeEmpty) + '</p>';
+            cartOffset.hidden = true;
 
             return;
         }
+
+        // Only the unfiltered view is headed, so only it needs the order
+        // card held down to match.
+        cartOffset.hidden = state.category !== null;
 
         // In All products every category is its own headed section, the way
         // accessories always were — a flat grid of everything the shelf
@@ -549,8 +556,17 @@
             var qty = clampQty(qtyInput ? qtyInput.value : state.qty);
             var line = cart.filter(function (l) { return l.id === id; })[0];
             if (line) { line.quantity = clampQty(line.quantity + qty); } else { cart.push({ id: id, quantity: qty }); }
+
+            // The configurator has done its job, so fold it away and take
+            // the reader back to the order it just changed — otherwise the
+            // only feedback for adding something is a number moving in a
+            // panel that is now scrolled off the top of the page.
+            state.family = null;
+            state.sel = {};
             state.qty = 1;
             render();
+            cartBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
             return;
         }
 
