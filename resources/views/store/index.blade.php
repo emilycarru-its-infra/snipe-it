@@ -21,6 +21,15 @@
 <form method="POST" action="{{ route('store.orders.store') }}" id="st-form">
     {{ csrf_field() }}
 
+    {{-- The category filter spans the page above both columns, so the grid
+         and the order card start on the same line. Kept out of #st-main:
+         with the pills inside it the cart sat a pill-row higher than the
+         first product card, and any fixed offset would drift the moment
+         the pills wrapped. --}}
+    <div class="row">
+        <div class="col-md-12" id="st-pills"></div>
+    </div>
+
     <div class="row">
         {{-- Family grid / configurator — all rendered client-side. --}}
         <div class="col-md-8 col-lg-9" id="st-main"></div>

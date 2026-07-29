@@ -3,7 +3,6 @@
 return [
     'store' => 'Store',
     'store_intro' => 'Pick what you need and place an order. IT reviews every order before anything is purchased.',
-    'accessories_heading' => 'Accessories',
     'procurement' => 'Procurement',
     'procurement_intro' => 'The operational hub: store orders, the approval queue, the catalog and the PO builder. Reporting lives under Reports.',
     'my_orders' => 'My Orders',
@@ -12,6 +11,7 @@ return [
 
     // Storefront
     'all_categories' => 'All products',
+    'other_heading' => 'Other',
     'add_to_order' => 'Add to Order',
     'your_order' => 'Your Order',
     'from_price' => 'From',
@@ -107,6 +107,7 @@ return [
     'store_sort' => 'Sort',
     'store_image' => 'Image',
     'store_item_updated' => 'Storefront settings saved.',
+    'store_item_deleted' => 'Catalog item retired.',
     'no_image' => 'No image',
     'no_model' => 'No model — hidden from the store',
 

@@ -92,10 +92,11 @@
 
         [data-theme="light"] {
             color-scheme: light;
-            {{-- The uploaded wordmark is a white PNG sized for the old
-                 coloured bar. brightness(0) flattens any non-transparent pixel
-                 to black so it reads on the light chrome without needing a
-                 second upload. Set to `none` if a dark logo is uploaded. --}}
+            {{-- Flatten the uploaded wordmark to solid black so it reads on
+                 the light chrome whatever was uploaded — a white PNG sized
+                 for the old coloured bar, or dark artwork. The dark theme
+                 flattens the same asset to white; between them no second
+                 upload is needed. Single-colour wordmarks only. --}}
             --brand-logo-filter: brightness(0);
             --box-bg: #ffffff;
             --box-header-bottom-border-color: #f4f4f4;
@@ -140,7 +141,11 @@
 
         [data-theme="dark"] {
             color-scheme: dark;
-            --brand-logo-filter: none;
+            {{-- The mirror of the light theme: brightness(0) knocks every
+                 non-transparent pixel to black, invert(1) lifts it to white,
+                 so dark artwork reverses out of the dark chrome instead of
+                 disappearing into it. --}}
+            --brand-logo-filter: brightness(0) invert(1);
             --box-bg: #3d4144;
             --box-header-bottom-border-color: #605e5e;
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
@@ -1036,8 +1041,8 @@
             Brand block. overrides.less pins the wordmark and the surrounding
             .left-navblock to white, which only worked against the old coloured
             header. On the neutral chrome it has to follow --chrome-fg, and the
-            uploaded logo image gets flattened to black in light mode (see
-            --brand-logo-filter).
+            uploaded logo image gets flattened to black in light mode and to
+            white in dark mode (see --brand-logo-filter).
         --}}
         .left-navblock,
         .main-header .logo,
