@@ -4,7 +4,7 @@ return [
     'store' => 'Store',
     'store_intro' => 'Pick what you need and place an order. IT reviews every order before anything is purchased.',
     'procurement' => 'Procurement',
-    'procurement_intro' => 'The operational hub: store orders, the approval queue, the catalog and the PO builder. Reporting lives under Reports.',
+    'procurement_intro' => 'Everything procurement in one place: the approval queue, requisitions, purchase orders, vendor orders, suppliers, leases, agreements and depreciation. Each also has its own page. Reporting lives under Reports.',
     'my_orders' => 'My Orders',
     'queue' => 'Order Queue',
     'store_admin' => 'Storefront',
@@ -124,4 +124,10 @@ return [
     'go_requisitions' => 'Requisitions',
     'go_reports' => 'Procurement Reports',
     'go_store' => 'View the store',
+
+    // Hub tabs. Each of these also has its own page in the sidebar; the hub
+    // gathers them so procurement is one destination rather than six.
+    'tab_leases' => 'Lease Tracking',
+    'tab_agreements' => 'Agreements',
+    'tab_loading' => 'Loading…',
 ];
