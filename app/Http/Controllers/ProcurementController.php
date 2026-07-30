@@ -457,10 +457,10 @@ class ProcurementController extends Controller
         $item->store_sort = (int) ($validated['store_sort'] ?? 0);
         $item->model_id = $validated['model_id'] ?? null;
 
-        // Trimmed, because the reseller's workbook carries stray whitespace
-        // on part numbers and a trailing space breaks every later lookup.
-        $item->vendor_sku = trim((string) ($validated['vendor_sku'] ?? '')) ?: null;
-        $item->mfr_part_number = trim((string) ($validated['mfr_part_number'] ?? '')) ?: null;
+        // Tidied rather than trimmed: the whitespace that actually arrives on
+        // a pasted part number is a no-break space, which trim() leaves alone.
+        $item->vendor_sku = CatalogItem::tidyIdentifier((string) ($validated['vendor_sku'] ?? '')) ?: null;
+        $item->mfr_part_number = CatalogItem::tidyIdentifier((string) ($validated['mfr_part_number'] ?? '')) ?: null;
         $item->warranty_months = $validated['warranty_months'] ?? null;
         $item->supplier_id = $validated['supplier_id'] ?? null;
 
