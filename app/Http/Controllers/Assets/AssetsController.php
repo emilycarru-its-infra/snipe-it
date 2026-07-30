@@ -8,19 +8,21 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateMultipleAssetRequest;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\UploadFileRequest;
-use App\Mail\AssetBuyoutRequestMail;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CheckoutRequest;
 use App\Models\Company;
-use App\Models\EmailTemplate;
+use App\Models\Contract;
+use App\Models\ContractSerial;
+use App\Models\CustomField;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\Statuslabel;
-use App\Models\Supplier;
 use App\Models\User;
 use App\Observers\AssetObserver;
+use App\Services\AssetBuyoutRequester;
+use App\Services\CsiReconciliation;
 use App\Services\Transactions\PrinterUsageService;
 use App\View\Label;
 use Carbon\Carbon;
@@ -33,7 +35,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use League\Csv\Reader;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -399,7 +401,7 @@ class AssetsController extends Controller
             // (in-process / accepted / which schedule + rent) reconciled
             // against Snipe's own lease fields. Null (tab hidden) when the
             // device has no CSI relevance.
-            $csiLease = app(\App\Services\CsiReconciliation::class)->forAsset($asset);
+            $csiLease = app(CsiReconciliation::class)->forAsset($asset);
 
             return view('hardware/view', compact('asset', 'qr_code', 'settings'))
                 ->with('total_maintenance_cost', $total_maintenance_cost)
@@ -581,56 +583,9 @@ class AssetsController extends Controller
 
         $back = redirect()->route('hardware.show', $asset->id);
 
-        if (! $asset->isOnActiveLease()) {
-            return $back->with('error', trans('general.request_buyout_not_eligible'));
+        if ($error = app(AssetBuyoutRequester::class)->send($asset, auth()->user())) {
+            return $back->with('error', trans($error));
         }
-
-        if (! $asset->lessor || ! filled($asset->lessor->email)) {
-            return $back->with('error', trans('general.request_buyout_missing_email'));
-        }
-
-        $requester = auth()->user();
-
-        // To: the lessor's contact email plus any extra recipients configured in
-        // Settings → Emails for the buyout email (a Supplier record only holds a
-        // single email, but e.g. CCA Financial fields a second rep). The CMS
-        // Recipients override wins; the config value is the seeded default.
-        $extraRecipients = EmailTemplate::recipientsFor(
-            'request.asset_buyout',
-            config('leasing.buyout_request_extra_recipients')
-        );
-        $to = array_values(array_unique(array_filter(array_merge([$asset->lessor->email], $extraRecipients))));
-
-        // Cc: the team list (CMS CC override wins, else the comma-separated
-        // config default), the assigned end user (only when the asset is checked
-        // out to a real User with an email), and the acting admin. De-dupe and
-        // drop any address already in To so it never lands in both.
-        $cc = EmailTemplate::ccFor('request.asset_buyout', config('leasing.buyout_request_cc'));
-        if (($asset->assignedTo instanceof User) && filled($asset->assignedTo->email)) {
-            $cc[] = $asset->assignedTo->email;
-        }
-        if ($requester && filled($requester->email)) {
-            $cc[] = $requester->email;
-        }
-        $cc = array_values(array_diff(array_unique(array_filter($cc)), $to));
-
-        Mail::to($to)
-            ->cc($cc)
-            ->send(new AssetBuyoutRequestMail($asset, $requester));
-
-        // Record the request on the asset's activity timeline.
-        $log = new Actionlog;
-        $log->item_type = Asset::class;
-        $log->item_id = $asset->id;
-        $log->setAttribute('created_by', $requester?->id);
-        $log->target_id = $asset->lessor_id;
-        $log->target_type = Supplier::class;
-        $log->company_id = $asset->company_id;
-        $log->note = trans('mail.asset_buyout_request_subject', [
-            'asset_tag' => $asset->asset_tag,
-            'serial'    => $asset->serial,
-        ]);
-        $log->logaction('buyout requested');
 
         return $back->with('success', trans('general.request_buyout_success'));
     }
@@ -805,6 +760,7 @@ class AssetsController extends Controller
         if ($assets->count() === 1) {
             $asset = $assets->first();
             $this->authorize('view', $asset);
+
             return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
         }
 
@@ -816,6 +772,7 @@ class AssetsController extends Controller
             if ($bySerial->count() === 1) {
                 $asset = $bySerial->first();
                 $this->authorize('view', $asset);
+
                 return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
             }
         }
@@ -824,8 +781,8 @@ class AssetsController extends Controller
         // lives on a contract (e.g. a FortiWifi appliance referenced
         // in a TDX contract Description). TDX cannot do this; Snipe
         // can. Match exact, jump to the contract.
-        if ($tag && \Illuminate\Support\Facades\Schema::hasTable('contract_serials')) {
-            $contractSerial = \App\Models\ContractSerial::where('serial', '=', strtoupper($tag))
+        if ($tag && Schema::hasTable('contract_serials')) {
+            $contractSerial = ContractSerial::where('serial', '=', strtoupper($tag))
                 ->orWhere('serial', '=', $tag)
                 ->first();
             if ($contractSerial && $contractSerial->contract_id) {
@@ -836,8 +793,8 @@ class AssetsController extends Controller
         }
 
         // 4. Contract name exact match — last fallback before giving up.
-        if ($tag && class_exists(\App\Models\Contract::class)) {
-            $contract = \App\Models\Contract::where('name', '=', $tag)
+        if ($tag && class_exists(Contract::class)) {
+            $contract = Contract::where('name', '=', $tag)
                 ->orWhere('contract_number', '=', $tag)
                 ->first();
             if ($contract) {
@@ -854,6 +811,7 @@ class AssetsController extends Controller
             if ($byTracking->count() === 1) {
                 $asset = $byTracking->first();
                 $this->authorize('view', $asset);
+
                 return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
             }
         }
@@ -867,6 +825,7 @@ class AssetsController extends Controller
             if ($byName->count() === 1) {
                 $asset = $byName->first();
                 $this->authorize('view', $asset);
+
                 return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
             }
         }
@@ -878,18 +837,19 @@ class AssetsController extends Controller
         // physically scans. Encrypted fields are skipped — exact-match on
         // ciphertext is meaningless.
         if ($tag) {
-            $customFields = \App\Models\CustomField::where('show_in_listview', '=', 1)
+            $customFields = CustomField::where('show_in_listview', '=', 1)
                 ->where('field_encrypted', '=', 0)
                 ->get();
             foreach ($customFields as $customField) {
                 $column = $customField->db_column;
-                if (! $column || ! \Illuminate\Support\Facades\Schema::hasColumn('assets', $column)) {
+                if (! $column || ! Schema::hasColumn('assets', $column)) {
                     continue;
                 }
                 $byCustom = Asset::where($column, '=', $tag);
                 if ($byCustom->count() === 1) {
                     $asset = $byCustom->first();
                     $this->authorize('view', $asset);
+
                     return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
                 }
             }

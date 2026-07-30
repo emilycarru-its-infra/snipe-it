@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
+use App\Models\UserAgreement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -165,13 +166,22 @@ class StoreOrderAssetProvisioner
     }
 
     /**
-     * The requester's current machine — same resolution the faculty intake
-     * form uses, so the two surfaces never disagree about which laptop is
-     * "the old one".
+     * The machine this order replaces. The intake form's own pick wins —
+     * whoever holds several laptops said on the form which one they are
+     * returning, and that answer is stored on their open pickup agreement.
+     * Only when no agreement carries a pick does the resolver fall back to
+     * guessing their most recent laptop.
      */
     public function outgoingMachine(StoreOrder $order): ?Asset
     {
-        return Asset::currentLaptopOf($order->user_id);
+        $picked = UserAgreement::where('user_id', $order->user_id)
+            ->where('agreement_type', 'pickup')
+            ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
+            ->whereNotNull('asset_id')
+            ->latest('created_at')
+            ->first()?->asset;
+
+        return $picked ?? Asset::currentLaptopOf($order->user_id);
     }
 
     /**

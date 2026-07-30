@@ -354,6 +354,7 @@ return [
     'request_buyout_success' => 'Buyout quote request sent to the lessor.',
     'request_buyout_not_eligible' => 'This asset is not on an active lease, so a buyout cannot be requested.',
     'request_buyout_missing_email' => 'This asset\'s lessor has no contact email set, so the buyout request could not be sent.',
+    'request_buyout_already_requested' => 'A buyout request for this asset already went to the lessor recently — no need to send another.',
     'suppliers' => 'Suppliers',
     'sure_to_delete' => 'Are you sure you wish to delete',
     'sure_to_delete_var' => 'Are you sure you wish to delete :item?',

@@ -2,11 +2,16 @@
 
 namespace Tests\Feature\Forms;
 
+use App\Models\Asset;
+use App\Models\AssetModel;
+use App\Models\Category;
 use App\Models\FormEligibility;
 use App\Models\Group;
+use App\Models\StoreOrder;
 use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\FormAccess;
+use App\Services\StoreOrderAssetProvisioner;
 use Tests\TestCase;
 
 class FacultyProgramFormTest extends TestCase
@@ -95,6 +100,77 @@ class FacultyProgramFormTest extends TestCase
         $this->assertSame('ECI-12345', $buyout->old_asset_tag);
         $this->assertSame('XYZ987', $buyout->old_serial);
         $this->assertNotNull($buyout->terms_accepted_at);
+    }
+
+    public function test_the_form_lists_every_laptop_and_stores_the_pick(): void
+    {
+        $user = $this->facultyUser();
+        $category = Category::factory()->create(['name' => 'Laptop']);
+        $model = AssetModel::factory()->create(['category_id' => $category->id]);
+
+        $newer = Asset::factory()->create([
+            'model_id' => $model->id, 'assigned_to' => $user->id,
+            'assigned_type' => User::class, 'asset_tag' => 'A00NEWER',
+            'last_checkout' => now()->subYear(),
+        ]);
+        $older = Asset::factory()->create([
+            'model_id' => $model->id, 'assigned_to' => $user->id,
+            'assigned_type' => User::class, 'asset_tag' => 'A00OLDER',
+            'last_checkout' => now()->subYears(4),
+        ]);
+
+        // Both machines are offered…
+        $this->actingAs($user)->get(route('forms.show', 'faculty-program'))
+            ->assertOk()
+            ->assertSee('A00NEWER', false)
+            ->assertSee('A00OLDER', false)
+            ->assertSee('returning_asset_id', false);
+
+        // …and picking the non-default one is what lands on the agreement
+        // and what the order pipeline treats as the outgoing machine.
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no',
+            'returning_asset_id' => (string) $older->id,
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $pickup = UserAgreement::where('user_id', $user->id)->firstWhere('agreement_type', 'pickup');
+        $this->assertSame($older->id, $pickup->asset_id);
+
+        $outgoing = app(StoreOrderAssetProvisioner::class)
+            ->outgoingMachine(new StoreOrder(['user_id' => $user->id]));
+        $this->assertSame($older->id, $outgoing?->id);
+        $this->assertNotSame($newer->id, $outgoing?->id);
+    }
+
+    public function test_a_foreign_asset_id_falls_back_to_their_own_laptop(): void
+    {
+        $user = $this->facultyUser();
+        $category = Category::factory()->create(['name' => 'Laptop']);
+        $model = AssetModel::factory()->create(['category_id' => $category->id]);
+
+        $own = Asset::factory()->create([
+            'model_id' => $model->id, 'assigned_to' => $user->id,
+            'assigned_type' => User::class, 'last_checkout' => now()->subYears(3),
+        ]);
+        $strangers = Asset::factory()->create([
+            'model_id' => $model->id,
+            'assigned_to' => User::factory()->create()->id,
+            'assigned_type' => User::class,
+        ]);
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no',
+            'returning_asset_id' => (string) $strangers->id,
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $pickup = UserAgreement::where('user_id', $user->id)->firstWhere('agreement_type', 'pickup');
+        $this->assertSame($own->id, $pickup->asset_id);
     }
 
     public function test_buyout_yes_without_asset_tag_fails_validation(): void

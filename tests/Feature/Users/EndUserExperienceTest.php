@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Users;
 
+use App\Mail\AssetBuyoutRequestMail;
 use App\Mail\StoreOrderStatusMail;
 use App\Models\Asset;
 use App\Models\AssetModel;
@@ -11,6 +12,7 @@ use App\Models\FormEligibility;
 use App\Models\Group;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Services\FormAccess;
 use Illuminate\Support\Facades\Mail;
@@ -115,19 +117,98 @@ class EndUserExperienceTest extends TestCase
     public function test_the_dashboard_answers_the_lease_question_all_year()
     {
         $user = $this->faculty();
+        $end = now()->addYears(2);
         $this->laptopFor($user, [
             'asset_tag' => 'A004242',
-            'lease_end_date' => now()->addYears(2)->format('Y-m-d'),
+            'lease_end_date' => $end->format('Y-m-d'),
             'buyout_cost' => 640,
         ]);
 
-        // Two years out: no renewal prompt, no tracker — just the answer.
+        // Two years out: no renewal prompt, no tracker — the lease answer
+        // rides on the asset row itself, date first, countdown small.
         $this->actingAs($user)->get(route('home'))->assertRedirect(route('my'));
         $page = $this->actingAs($user)->get(route('my'))->assertOk();
         $page->assertSee('A004242', false);
-        $page->assertSee('days until your lease ends', false);
+        $page->assertSee($end->format('M j, Y'), false);
+        $page->assertSee('days left', false);
         $page->assertSee('640', false);
+        $page->assertDontSee('My Dashboard', false);
         $page->assertDontSee('Start the laptop program form', false);
+    }
+
+    public function test_every_active_lease_is_listed_and_accessories_sink()
+    {
+        $user = $this->faculty();
+        $first = $this->laptopFor($user, [
+            'asset_tag' => 'A001111',
+            'lease_end_date' => now()->addMonths(30)->format('Y-m-d'),
+        ]);
+        $second = Asset::factory()->create([
+            'model_id' => $first->model_id,
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'asset_tag' => 'A002222',
+            'last_checkout' => now()->subYear(),
+            'lease_end_date' => now()->addMonths(40)->format('Y-m-d'),
+        ]);
+
+        $accessoryCategory = Category::factory()->create(['name' => 'Accessory']);
+        $accessoryModel = AssetModel::factory()->create(['category_id' => $accessoryCategory->id]);
+        Asset::factory()->create([
+            'model_id' => $accessoryModel->id,
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'asset_tag' => 'A003333',
+            'last_checkout' => now()->subDay(),
+        ]);
+
+        $html = $this->actingAs($user)->get(route('my'))->assertOk()->getContent();
+
+        // Both leases carry their dates…
+        $this->assertStringContainsString($first->leaseEndDate()->format('M j, Y'), $html);
+        $this->assertStringContainsString($second->leaseEndDate()->format('M j, Y'), $html);
+
+        // …and the accessory renders below both laptops despite the newest
+        // checkout date.
+        $this->assertGreaterThan(strpos($html, 'A002222'), strpos($html, 'A003333'));
+        $this->assertGreaterThan(strpos($html, 'A001111'), strpos($html, 'A003333'));
+    }
+
+    public function test_an_end_user_requests_a_buyout_on_their_own_leased_machine()
+    {
+        Mail::fake();
+
+        $user = $this->faculty();
+        $lessor = Supplier::factory()->create(['email' => 'leasing@lessor.example']);
+        $laptop = $this->laptopFor($user, [
+            'ownership_type' => 'Leased',
+            'lease_end_date' => now()->addMonths(18)->format('Y-m-d'),
+            'lessor_id' => $lessor->id,
+        ]);
+
+        // The button is on their dashboard, and it sends the same lessor
+        // email an admin's button sends.
+        $this->actingAs($user)->get(route('my'))->assertOk()
+            ->assertSee('Request a buyout', false);
+
+        $this->actingAs($user)->post(route('my.request-buyout', $laptop->id))
+            ->assertRedirect(route('my'));
+        Mail::assertSent(AssetBuyoutRequestMail::class,
+            fn ($mail) => $mail->hasTo('leasing@lessor.example'));
+
+        // A second click inside the cooldown does not mail the lessor again,
+        // and the row now says so instead of showing the button.
+        $this->actingAs($user)->post(route('my.request-buyout', $laptop->id))
+            ->assertSessionHas('error');
+        Mail::assertSentCount(1);
+        $this->actingAs($user)->get(route('my'))->assertOk()
+            ->assertSee('Buyout requested', false)
+            ->assertDontSee('Request a buyout', false);
+
+        // Someone else's machine is a 403, not an email.
+        $other = User::factory()->create(['activated' => 1]);
+        $this->actingAs($other)->post(route('my.request-buyout', $laptop->id))
+            ->assertForbidden();
     }
 
     public function test_the_dashboard_opens_the_door_at_renewal_time()

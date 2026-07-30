@@ -21,6 +21,8 @@ use Watson\Validating\ValidatingTrait;
  * through their shared lifecycle: eligible → quoted → agreement_sent
  * → agreement_signed → deployed → in_repayment → paid_off
  * (or closed_buyout, for purchases).
+ *
+ * @property Asset|null $asset
  */
 class UserAgreement extends SnipeModel
 {
