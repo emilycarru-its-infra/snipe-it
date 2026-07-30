@@ -7,6 +7,24 @@
 @stop
 
 @section('header_right')
+    {{-- View-as. Superuser-only and never offered for another superuser or a
+         deactivated account, so the button is absent rather than present and
+         refusing. --}}
+    @if (auth()->user()?->isSuperUser()
+        && ! $user->isSuperUser()
+        && $user->id !== auth()->id()
+        && $user->activated
+        && $user->deleted_at === null
+        && ! session()->has(\App\Http\Controllers\ImpersonateController::SESSION_KEY))
+        <form method="POST" action="{{ route('users.impersonate', $user->id) }}" style="display:inline;">
+            {{ csrf_field() }}
+            <button type="submit" class="btn btn-sm btn-warning"
+                    title="{{ trans('admin/users/general.impersonate_hint') }}">
+                <x-icon type="user"/>
+                {{ trans('admin/users/general.impersonate') }}
+            </button>
+        </form>
+    @endif
     <x-button.info-panel-toggle hide-on-xs/>
 @endsection
 
