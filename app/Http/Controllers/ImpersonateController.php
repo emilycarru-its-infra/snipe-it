@@ -76,14 +76,11 @@ class ImpersonateController extends Controller
             'viewing_as' => $user->username,
         ]);
 
-        session()->put(self::SESSION_KEY, $actor->id);
-
-        // Regenerated deliberately: the borrowed session must not be the
-        // same session id as the administrator's own.
-        session()->regenerate(true);
-        session()->put(self::SESSION_KEY, $actor->id);
-
+        // Auth::login migrates the session id itself, so the borrowed session
+        // is never the administrator's own — no separate regenerate needed.
         Auth::login($user);
+        session()->put(self::SESSION_KEY, $actor->id);
+        $this->releasePasswordHash();
 
         return redirect()->route('home')
             ->with('success', trans('admin/users/general.impersonate_started', ['name' => $user->present()->fullName]));
@@ -114,11 +111,32 @@ class ImpersonateController extends Controller
                 $actor->present()->fullName.' stopped viewing as '.$borrowed->present()->fullName);
         }
 
-        session()->regenerate(true);
         Auth::login($actor);
+        $this->releasePasswordHash();
 
         return redirect()->route('users.index')
             ->with('success', trans('admin/users/general.impersonate_stopped'));
+    }
+
+    /**
+     * Drop the session's cached password hash when the session changes hands.
+     *
+     * `AuthenticateSession` runs on every web request and logs the session out
+     * when that cached hash does not match the user it now holds — which is
+     * exactly what switching users does. It happens to re-cache the hash on
+     * the way out of the same request, so this would survive without help,
+     * but only as a side effect of middleware ordering we do not control.
+     * Forgetting the key makes the next request re-derive it from whoever is
+     * logged in, which is true regardless of what runs when.
+     *
+     * Forgotten rather than overwritten: the middleware may store the hash
+     * put through `hashPasswordForCookie`, and writing the raw hash where a
+     * transformed one is expected would log the session out on the very next
+     * request — the failure this exists to avoid.
+     */
+    private function releasePasswordHash(): void
+    {
+        session()->forget('password_hash_'.Auth::getDefaultDriver());
     }
 
     /**

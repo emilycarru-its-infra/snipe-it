@@ -712,6 +712,19 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.catalog-items.destroy');
 
     /*
+    * Form ↔ group bindings. Same reasoning as the catalog identifiers above:
+    * whether a group can open a form is the difference between a working
+    * intake and a 403 on its first step, and it was only settable through the
+    * SSO-gated settings page — so nothing could check or fix it on a deployed
+    * environment.
+    */
+    Route::get('form-eligibility', [Api\FormEligibilityController::class, 'index'])
+        ->name('api.form-eligibility.index');
+
+    Route::match(['put', 'patch'], 'form-eligibility/{slug}', [Api\FormEligibilityController::class, 'update'])
+        ->name('api.form-eligibility.update');
+
+    /*
     * Requisitions — the PO builder without the browser, so a basket can be
     * assembled headlessly and finished in the UI (or the other way round).
     * `options` and `catalog` come first so neither binds as {requisition}.
