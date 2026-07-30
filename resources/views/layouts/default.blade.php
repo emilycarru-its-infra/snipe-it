@@ -1572,15 +1572,20 @@
 
                                     <ul class="dropdown-menu">
 
-                                        <!-- User assets -->
-                                        @can('self.profile')
+                                        {{-- User assets. Deliberately not behind
+                                             `self.profile`: that gate is the
+                                             Admin → General "users may edit
+                                             their profile" setting, which says
+                                             nothing about whether someone may
+                                             see the equipment issued to them.
+                                             With it off, the only route to your
+                                             own laptop was knowing the URL. --}}
                                         <li {!! (request()->is('account/view-assets') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('view-assets') }}">
                                                 <x-icon type="checkmark" class="fa-fw" />
                                                 {{ trans('general.viewassets') }}
                                             </a>
                                         </li>
-                                        @endcan
 
 
                                         @can('viewRequestable', \App\Models\Asset::class)
@@ -1763,7 +1768,10 @@
                                         </a>
                                     </li>
 
-                                    <?php $status_navs = \App\Models\Statuslabel::where('show_in_nav', '=', 1)->withCount('assets as asset_count')->get(); ?>
+                                    <?php
+use App\Models\Statuslabel;
+
+$status_navs = Statuslabel::where('show_in_nav', '=', 1)->withCount('assets as asset_count')->get(); ?>
                                     @if (count($status_navs) > 0)
                                         @foreach ($status_navs as $status_nav)
                                             <li{!! (request()->is('statuslabels/'.$status_nav->id) ? ' class="active"' : '') !!}>
@@ -2089,6 +2097,20 @@
                                 </ul>
                             </li>
                         @endif
+
+                        {{-- Your own equipment. Ungated, because the page only
+                             ever shows the assets checked out to whoever is
+                             asking — there is nothing here to be permitted to
+                             see. It is also in the account dropdown, but for
+                             someone whose entire sidebar is Store and this,
+                             burying "where is my laptop" behind an avatar menu
+                             is not a findable answer. --}}
+                        <li {{!! (request()->is('account/view-assets') ? ' class="active"' : '') !!}}>
+                            <a href="{{ route('view-assets') }}">
+                                <x-icon type="checkmark" class="fa-fw" />
+                                <span>{{ trans('general.viewassets') }}</span>
+                            </a>
+                        </li>
 
                         {{-- The internal store — visible to every signed-in user. --}}
                         <li {{!! (request()->is('store*') ? ' class="active"' : '') !!}}>
