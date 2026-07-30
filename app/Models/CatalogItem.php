@@ -246,6 +246,25 @@ class CatalogItem extends Model
     }
 
     /**
+     * Clean a part number that arrived from a spreadsheet.
+     *
+     * PHP's own trim() only strips ASCII whitespace, and the whitespace that
+     * actually turns up in a reseller's workbook is not ASCII: four EDC values
+     * reached the live catalog carrying a trailing U+00A0 no-break space,
+     * pasted from CDW's Excel export. Invisible in every UI, and it ships
+     * straight into the part list their desk keys the order from, where a
+     * lookup on "9094668\u{A0}" finds nothing.
+     *
+     * Also collapses the zero-width and narrow spaces Excel emits, for the
+     * same reason: a part number is an identifier, so any character that
+     * cannot be seen has no business being significant in it.
+     */
+    public static function tidyIdentifier(string $value): string
+    {
+        return trim(preg_replace('/[\x{00A0}\x{2007}\x{202F}\x{200B}\x{FEFF}]/u', '', $value) ?? $value);
+    }
+
+    /**
      * The warranty term in the unit a reader thinks in. Stored in months
      * because the Lenovo and Microsoft terms are quoted that way, but a
      * whole number of years reads as years — "3 years", not "36 months".
