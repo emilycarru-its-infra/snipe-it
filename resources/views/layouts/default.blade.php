@@ -1768,10 +1768,11 @@
                                         </a>
                                     </li>
 
-                                    <?php
-use App\Models\Statuslabel;
-
-$status_navs = Statuslabel::where('show_in_nav', '=', 1)->withCount('assets as asset_count')->get(); ?>
+                                    {{-- Fully qualified deliberately: an inline PHP block inside
+                                         Blade control flow cannot carry a `use` statement, because
+                                         PHP only permits imports at top-level file scope. A
+                                         formatter that hoists one here produces a parse error. --}}
+                                    <?php $status_navs = \App\Models\Statuslabel::where('show_in_nav', '=', 1)->withCount('assets as asset_count')->get(); ?>
                                     @if (count($status_navs) > 0)
                                         @foreach ($status_navs as $status_nav)
                                             <li{!! (request()->is('statuslabels/'.$status_nav->id) ? ' class="active"' : '') !!}>
