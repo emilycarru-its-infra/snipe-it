@@ -2220,6 +2220,31 @@
 
             <div class="content-wrapper" role="main" id="setting-list">
 
+                {{-- Borrowed identity. Loud and on every page, because the
+                     failure mode is forgetting: an administrator who thinks
+                     they are themselves will read a deliberately restricted
+                     view as a bug, and anything they change is written to
+                     someone else's name. The exit is in the banner so it is
+                     never more than one click from wherever they got to. --}}
+                @if (session()->has(\App\Http\Controllers\ImpersonateController::SESSION_KEY))
+                    <div class="row" style="margin-bottom:0;">
+                        <div class="col-md-12" style="margin-bottom:0; background-color:#7a3d00; color:#fff; padding:10px 20px;">
+                            <form method="POST" action="{{ route('impersonate.stop') }}" style="display:inline; float:right;">
+                                {{ csrf_field() }}
+                                <button type="submit" class="btn btn-sm btn-default">
+                                    {{ trans('admin/users/general.impersonate_stop') }}
+                                </button>
+                            </form>
+                            <x-icon type="user" class="fa-2x pull-left" style="margin-right:12px;"/>
+                            <strong>{{ strtoupper(trans('admin/users/general.impersonate_banner_title')) }}</strong>
+                            {{ trans('admin/users/general.impersonate_banner', [
+                                'name' => auth()->user()?->present()->fullName,
+                                'email' => auth()->user()?->email ?: trans('general.na'),
+                            ]) }}
+                        </div>
+                    </div>
+                @endif
+
                 @if ($debug_in_production)
                     <div class="row" style="margin-bottom: 0px; background-color: red; color: white; font-size: 15px;">
                         <div class="col-md-12"

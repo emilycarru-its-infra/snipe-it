@@ -60,4 +60,19 @@ return [
     'department_manager' => 'Department Manager',
     'generate_password' => 'Generate random password',
     'individual_override' => 'This user has at least one individual permission set, which may override group permissions.',
+
+    // View-as: seeing the system with someone else's permissions, which is
+    // the only way to check a view built for people who are not us.
+    'impersonate' => 'View as this user',
+    'impersonate_hint' => 'See the system exactly as they do, with their permissions. Everything you do is logged against you.',
+    'impersonate_started' => 'You are now viewing as :name. Use "Stop viewing as" to come back.',
+    'impersonate_stop' => 'Stop viewing as',
+    'impersonate_stopped' => 'Back to your own account.',
+    'impersonate_banner_title' => 'Viewing as another user',
+    'impersonate_banner' => 'You are seeing this system as :name (:email), with their permissions. Anything you change is recorded against them.',
+    'impersonate_already' => 'You are already viewing as someone else — stop that first.',
+    'impersonate_self' => 'That is already you.',
+    'impersonate_superuser' => 'A superuser cannot be viewed as — they already see everything, and the audit trail would name the wrong person.',
+    'impersonate_inactive' => 'That account is deactivated or deleted, so there is no view to borrow.',
+    'impersonate_lost' => 'The account you were viewing from no longer exists. Please sign in again.',
 ];

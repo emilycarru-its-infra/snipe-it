@@ -1,8 +1,23 @@
 <?php
 
+use App\Http\Controllers\ImpersonateController;
 use App\Http\Controllers\Users;
 use Illuminate\Support\Facades\Route;
 use Tabuna\Breadcrumbs\Trail;
+
+// View-as. Starting is superuser-gated inside the controller rather than by
+// middleware, so the refusals can say *why* — you cannot borrow a superuser,
+// yourself, or a deactivated account.
+Route::post('users/{user}/impersonate', [ImpersonateController::class, 'start'])
+    ->middleware('auth')
+    ->name('users.impersonate');
+
+// Stopping is deliberately outside any authorization: the borrowed identity
+// has fewer rights than the real one by design, so gating the exit on
+// anything the target lacks would strand the session with no way back.
+Route::post('impersonate/stop', [ImpersonateController::class, 'stop'])
+    ->middleware('auth')
+    ->name('impersonate.stop');
 
 // User Management
 
