@@ -20,8 +20,9 @@
                 <p>{{ trans('admin/forms/faculty-program.success_body') }}</p>
 
                 <div style="margin-top:20px; text-align:center;">
-                    <a href="{{ $externalPurchaseUrl }}" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
-                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                    <a href="{{ $purchaseUrl }}" class="btn btn-primary btn-lg"
+                       @if ($purchaseIsExternal) target="_blank" rel="noopener" @endif>
+                        <i class="fas {{ $purchaseIsExternal ? 'fa-external-link-alt' : 'fa-cart-shopping' }}" aria-hidden="true"></i>
                         {{ trans('admin/forms/faculty-program.success_button') }}
                     </a>
                 </div>

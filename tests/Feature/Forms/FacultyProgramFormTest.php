@@ -13,7 +13,7 @@ class FacultyProgramFormTest extends TestCase
 {
     private function facultyUser(): User
     {
-        $user  = User::factory()->create();
+        $user = User::factory()->create();
         $group = Group::factory()->create(['name' => 'Regular Faculty']);
         $user->groups()->attach($group->id);
 
@@ -54,10 +54,10 @@ class FacultyProgramFormTest extends TestCase
         $this->actingAs($user)
             ->post(route('forms.submit', 'faculty-program'), [
                 'acknowledge_top_up' => '1',
-                'payment_method'  => 'pay_in_full',
+                'payment_method' => 'pay_in_full',
                 'buyout_decision' => 'no_prior_laptop',
-                'notes'           => 'no upgrades please',
-                'accept_terms'    => '1',
+                'notes' => 'no upgrades please',
+                'accept_terms' => '1',
             ])
             ->assertRedirect(route('forms.success', 'faculty-program'));
 
@@ -78,11 +78,11 @@ class FacultyProgramFormTest extends TestCase
         $this->actingAs($user)
             ->post(route('forms.submit', 'faculty-program'), [
                 'acknowledge_top_up' => '1',
-                'payment_method'   => 'payroll_deduction',
-                'buyout_decision'  => 'yes',
+                'payment_method' => 'payroll_deduction',
+                'buyout_decision' => 'yes',
                 'buyout_asset_tag' => 'ECI-12345',
-                'buyout_serial'    => 'XYZ987',
-                'accept_terms'     => '1',
+                'buyout_serial' => 'XYZ987',
+                'accept_terms' => '1',
             ])
             ->assertRedirect(route('forms.success', 'faculty-program'));
 
@@ -103,9 +103,9 @@ class FacultyProgramFormTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('forms.submit', 'faculty-program'), [
-                'payment_method'  => 'pay_in_full',
+                'payment_method' => 'pay_in_full',
                 'buyout_decision' => 'yes',
-                'accept_terms'    => '1',
+                'accept_terms' => '1',
             ])
             ->assertSessionHasErrors('buyout_asset_tag');
 
@@ -118,9 +118,9 @@ class FacultyProgramFormTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('forms.submit', 'faculty-program'), [
-                'payment_method'  => 'pay_in_full',
+                'payment_method' => 'pay_in_full',
                 'buyout_decision' => 'no_prior_laptop',
-                'accept_terms'    => '1',
+                'accept_terms' => '1',
             ])
             ->assertSessionHasErrors('acknowledge_top_up');
 
@@ -133,7 +133,7 @@ class FacultyProgramFormTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('forms.submit', 'faculty-program'), [
-                'payment_method'  => 'pay_in_full',
+                'payment_method' => 'pay_in_full',
                 'buyout_decision' => 'no_prior_laptop',
             ])
             ->assertSessionHasErrors('accept_terms');
@@ -143,7 +143,7 @@ class FacultyProgramFormTest extends TestCase
 
     public function test_no_eligibility_rows_means_no_access(): void
     {
-        $user  = User::factory()->create();
+        $user = User::factory()->create();
         $group = Group::factory()->create(['name' => 'Regular Faculty']);
         $user->groups()->attach($group->id);
         FormAccess::flush();
@@ -160,5 +160,36 @@ class FacultyProgramFormTest extends TestCase
         $this->actingAs($user)
             ->get('/user-form')
             ->assertRedirect(route('forms.show', 'faculty-program'));
+    }
+
+    public function test_the_success_page_sends_faculty_to_our_own_store()
+    {
+        // The last step of the program used to be a link to CDW's hosted
+        // eStore, which the 2026-07-29 process change retired — leaving the
+        // flow ending on a dead page. It now points at the internal store,
+        // in this tab, because it is the next step of the same journey.
+        config(['forms.faculty_program.purchase_url' => null]);
+
+        $user = $this->facultyUser();
+
+        $this->actingAs($user)->get(route('forms.success', 'faculty-program'))
+            ->assertOk()
+            ->assertSee(route('store.index'), false)
+            ->assertDontSee('cdw.ca', false)
+            // The internal destination drops the external-link affordance;
+            // asserted on the icon because the layout carries other
+            // target="_blank" links of its own.
+            ->assertSee('fa-cart-shopping', false)
+            ->assertDontSee('fa-external-link-alt', false);
+    }
+
+    public function test_a_configured_vendor_url_still_opens_externally()
+    {
+        config(['forms.faculty_program.purchase_url' => 'https://example.test/store']);
+
+        $this->actingAs($this->facultyUser())->get(route('forms.success', 'faculty-program'))
+            ->assertOk()
+            ->assertSee('https://example.test/store', false)
+            ->assertSee('fa-external-link-alt', false);
     }
 }
