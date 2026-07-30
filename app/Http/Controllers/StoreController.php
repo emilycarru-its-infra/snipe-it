@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Asset;
 use App\Models\CatalogItem;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
+use App\Models\UserAgreement;
+use App\Services\StoreOrderAssetProvisioner;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The internal store — the CDW-eStore replacement.
@@ -171,6 +175,16 @@ class StoreController extends Controller
                 ->with('error', trans('admin/store/general.order_empty'));
         }
 
+        // The devices on this order become real assets now — A-number, model,
+        // requester's name, no serial until CDW ships. Failure here must not
+        // undo a placed order, so it logs rather than throws; the queue makes
+        // a missing record visible.
+        try {
+            app(StoreOrderAssetProvisioner::class)->provision($order->load('items.catalogItem', 'user'));
+        } catch (\Throwable $e) {
+            Log::error('Asset provisioning failed for order '.$order->id.': '.$e->getMessage());
+        }
+
         StoreOrderNotifier::requester($order->load('items', 'user'), 'requested');
 
         return redirect()->route('store.orders')
@@ -181,14 +195,40 @@ class StoreController extends Controller
      * The requester's own orders, newest first, with where each one sits
      * in the pipeline.
      */
-    public function orders()
+    public function orders(StoreOrderAssetProvisioner $provisioner)
     {
-        $orders = StoreOrder::with('items', 'requisition.purchaseOrder')
+        $orders = StoreOrder::with('items.catalogItem', 'requisition.purchaseOrder')
             ->where('user_id', auth()->id())
             ->orderByDesc('created_at')
             ->paginate(25);
 
-        return view('store.orders', ['orders' => $orders]);
+        // One query for every order's provisioned assets, keyed by the
+        // reference they were stamped with at submission.
+        $assetsByReference = Asset::whereIn(
+            'order_number',
+            $orders->getCollection()->map(fn (StoreOrder $order) => $order->reference())
+        )->with('model', 'status')->get()->groupBy('order_number');
+
+        // The machine being replaced, and what the intake form said should
+        // happen to it. An open purchase-type agreement means they chose the
+        // buyout; otherwise it goes back at handover.
+        $outgoing = null;
+        $buyout = false;
+
+        if ($orders->getCollection()->contains(fn (StoreOrder $order) => $order->isOpen() || $order->status === 'ordered')) {
+            $outgoing = $provisioner->outgoingMachine(new StoreOrder(['user_id' => auth()->id()]));
+            $buyout = UserAgreement::where('user_id', auth()->id())
+                ->where('agreement_type', 'purchase')
+                ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
+                ->exists();
+        }
+
+        return view('store.orders', [
+            'orders' => $orders,
+            'assetsByReference' => $assetsByReference,
+            'outgoing' => $outgoing,
+            'buyout' => $buyout,
+        ]);
     }
 
     /**
@@ -205,6 +245,10 @@ class StoreController extends Controller
         }
 
         $order->update(['status' => 'cancelled']);
+
+        // The assets provisioned at submission will never arrive; release
+        // them while they are still serial-less and unassigned.
+        app(StoreOrderAssetProvisioner::class)->release($order);
 
         return redirect()->route('store.orders')
             ->with('success', trans('admin/store/general.order_cancelled'));

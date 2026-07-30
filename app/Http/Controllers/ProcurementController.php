@@ -12,6 +12,7 @@ use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
+use App\Services\StoreOrderAssetProvisioner;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -144,6 +145,11 @@ class ProcurementController extends Controller
             'decided_by' => auth()->id(),
             'decided_at' => now(),
         ]);
+
+        if ($validated['decision'] === 'declined') {
+            // A declined order's provisioned assets will never arrive.
+            app(StoreOrderAssetProvisioner::class)->release($order);
+        }
 
         StoreOrderNotifier::requester($order, $validated['decision']);
 
