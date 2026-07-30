@@ -34,7 +34,7 @@ class StoreVendorOrderMail extends BaseMailable
 
     public function references(): string
     {
-        return $this->orders->map(fn ($order) => 'ECU-STORE-'.$order->id)->implode(', ');
+        return $this->orders->map(fn ($order) => $order->reference())->implode(', ');
     }
 
     public function envelope(): Envelope

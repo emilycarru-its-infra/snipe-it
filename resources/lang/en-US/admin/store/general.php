@@ -65,6 +65,26 @@ return [
     'order_status_declined' => 'Declined',
     'order_status_cancelled' => 'Cancelled',
     'order_tracking' => 'Tracking:',
+
+    // The order status page: the old machine on the left, the incoming one
+    // on the right, and the plain-words answer to "where is my laptop".
+    'status_page_title' => 'My Orders',
+    'status_current_machine' => 'Your current laptop',
+    'status_current_none' => 'No current laptop',
+    'status_current_none_sub' => 'This order is your first machine — nothing to hand back.',
+    'status_current_returning' => 'Being returned at handover',
+    'status_current_buyout' => 'You chose to purchase this laptop — the buyout paperwork happens at handover.',
+    'status_current_le' => 'Reached its lease end and is being replaced by the order on the right.',
+    'status_new_machine' => 'Your new laptop',
+    'status_new_tag' => 'Asset tag',
+    'status_new_tag_sub' => 'Assigned the moment you ordered — the serial number arrives when it ships.',
+    'status_serial' => 'Serial',
+    'status_step_requested' => 'Requested',
+    'status_step_approved' => 'Approved',
+    'status_step_ordered' => 'Ordered',
+    'status_step_shipped' => 'Shipped',
+    'status_step_arrived' => 'Arrived',
+    'asset_provisioned_note' => 'Provisioned from store order :reference for :name. Serial arrives with the shipment.',
     'orders_none' => 'You have not ordered anything yet.',
     'cancel_order' => 'Cancel',
 

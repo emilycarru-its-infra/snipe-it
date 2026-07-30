@@ -110,6 +110,16 @@ class StoreOrder extends Model
         return $this->belongsTo(Requisition::class, 'requisition_id');
     }
 
+    /**
+     * The one string every system uses for this order: the vendor email and
+     * CSV, the queue heading, and the order_number on the assets provisioned
+     * at submission — which is what lets the CDW webhook claim them.
+     */
+    public function reference(): string
+    {
+        return 'ECU-STORE-'.$this->id;
+    }
+
     public function total(): float
     {
         return round($this->items->sum(fn (StoreOrderItem $item) => $item->lineTotal()), 2);
