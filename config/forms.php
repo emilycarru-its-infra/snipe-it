@@ -1,5 +1,7 @@
 <?php
 
+use App\Forms\FacultyProgram\FacultyProgramForm;
+
 return [
 
     /*
@@ -16,15 +18,20 @@ return [
 
     'modules' => [
         'faculty-program' => [
-            'class'           => \App\Forms\FacultyProgram\FacultyProgramForm::class,
-            'label_key'       => 'admin/forms/faculty-program.title',
+            'class' => FacultyProgramForm::class,
+            'label_key' => 'admin/forms/faculty-program.title',
             'description_key' => 'admin/forms/faculty-program.tile_description',
-            'icon'            => 'fas fa-laptop',
+            'icon' => 'fas fa-laptop',
         ],
     ],
 
     'faculty_program' => [
-        'external_purchase_url' => env('USER_FORM_EXTERNAL_PURCHASE_URL', 'https://cdw.ca/emilycarru'),
+        // Where the form sends someone once their commitment is recorded.
+        // Defaults to our own store: since the 2026-07-29 process change CDW's
+        // hosted eStore is retired, and pointing faculty at it left the last
+        // step of the program flow at a dead page. Still an env override, for
+        // the case where a vendor storefront is the right destination again.
+        'purchase_url' => env('USER_FORM_PURCHASE_URL'),
     ],
 
     /*
@@ -70,10 +77,10 @@ return [
     */
 
     'asset_lease_migration' => [
-        'contract_name_field_name'    => env('USER_AGREEMENT_LEASE_CONTRACT_NAME_FIELD', 'Lease Contract Name'),
-        'contract_id_field_name'      => env('USER_AGREEMENT_LEASE_CONTRACT_ID_FIELD',   'Lease Contract ID'),
-        'lease_end_date_field_name'   => env('USER_AGREEMENT_LEASE_END_DATE_FIELD',      'Lease End Date'),
-        'contract_name_pattern'       => env('USER_AGREEMENT_LEASE_CONTRACT_NAME_PATTERN', 'Devices Leases FY%'),
+        'contract_name_field_name' => env('USER_AGREEMENT_LEASE_CONTRACT_NAME_FIELD', 'Lease Contract Name'),
+        'contract_id_field_name' => env('USER_AGREEMENT_LEASE_CONTRACT_ID_FIELD', 'Lease Contract ID'),
+        'lease_end_date_field_name' => env('USER_AGREEMENT_LEASE_END_DATE_FIELD', 'Lease End Date'),
+        'contract_name_pattern' => env('USER_AGREEMENT_LEASE_CONTRACT_NAME_PATTERN', 'Devices Leases FY%'),
     ],
 
     /*
@@ -91,22 +98,22 @@ return [
     */
 
     'pickup_auto_create' => [
-        'enabled'                 => env('USER_AGREEMENT_PICKUP_AUTO_CREATE_ENABLED', true),
-        'base_program_price'      => (float) env('USER_AGREEMENT_BASE_PROGRAM_PRICE', 2383.11),
+        'enabled' => env('USER_AGREEMENT_PICKUP_AUTO_CREATE_ENABLED', true),
+        'base_program_price' => (float) env('USER_AGREEMENT_BASE_PROGRAM_PRICE', 2383.11),
         'lease_end_within_months' => (int) env('USER_AGREEMENT_LEASE_END_WITHIN_MONTHS', 6),
-        'eligibility_form_slug'   => env('USER_AGREEMENT_PICKUP_FORM_SLUG', 'faculty-program'),
+        'eligibility_form_slug' => env('USER_AGREEMENT_PICKUP_FORM_SLUG', 'faculty-program'),
 
         // Cutoff date — the Reconciler will only emit pickup and
         // upgrade rows for assets whose `last_checkout` is on or
         // after this date. Skips pre-system devices that already
         // had paperwork signed outside Snipe-IT. Format: YYYY-MM-DD.
         // null = no filter (legacy behaviour, reconcile everything).
-        'reconcile_from'          => env('USER_AGREEMENT_PICKUP_RECONCILE_FROM'),
+        'reconcile_from' => env('USER_AGREEMENT_PICKUP_RECONCILE_FROM'),
 
         // Custom field that carries the asset's purpose-built buyout
         // cost (separate from purchase_cost so it can be filled in by
         // the lease admin without overwriting historical PO data).
-        'buyout_cost_field_name'  => env('USER_AGREEMENT_BUYOUT_COST_FIELD', 'Buyout Cost'),
+        'buyout_cost_field_name' => env('USER_AGREEMENT_BUYOUT_COST_FIELD', 'Buyout Cost'),
     ],
 
     /*
@@ -122,7 +129,7 @@ return [
     */
 
     'signature_reminders' => [
-        'enabled'       => env('USER_AGREEMENT_REMINDERS_ENABLED', true),
+        'enabled' => env('USER_AGREEMENT_REMINDERS_ENABLED', true),
         'interval_days' => (int) env('USER_AGREEMENT_REMINDER_INTERVAL_DAYS', 3),
         'max_reminders' => (int) env('USER_AGREEMENT_MAX_REMINDERS', 5),
     ],
