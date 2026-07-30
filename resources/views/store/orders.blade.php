@@ -1,7 +1,7 @@
 @extends('layouts/default')
 
 @section('title')
-    {{ trans('admin/store/general.my_orders') }}
+    {{ trans('admin/store/general.status_page_title') }}
     @parent
 @stop
 
@@ -11,63 +11,184 @@
     </a>
 @stop
 
+{{-- The order status page — the link a requester gets in email, and the
+     answer to "where is my laptop" without asking IT.
+
+     For a faculty refresh it reads as a handover: the machine going out on
+     the left, the machine coming in on the right, each with its own facts.
+     A first machine keeps the same two-column shape with the left side
+     saying so — the layout stays constant so the page reads the same way
+     for everyone.
+
+     The right side carries the asset tag from the minute the order was
+     placed, because the asset is provisioned at submission; the serial
+     appears when CDW ships. --}}
+
 @section('content')
-<div class="row">
-    <div class="col-md-9">
-        @if ($orders->isEmpty())
-            <div class="box box-default"><div class="box-body">
-                <p class="text-muted">{{ trans('admin/store/general.orders_none') }}</p>
-            </div></div>
+
+<style>
+.sto-split { display: flex; gap: 18px; flex-wrap: wrap; }
+.sto-pane { flex: 1 1 340px; border: 1px solid light-dark(#e2e2e6, #3a3a3e); border-radius: 14px; padding: 20px; background: light-dark(#fff, #1f2023); }
+.sto-pane-muted { background: light-dark(#fafafc, #212226); }
+.sto-kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .55; margin-bottom: 6px; }
+.sto-name { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
+.sto-sub { font-size: 13px; opacity: .7; margin: 0; }
+.sto-img { max-height: 120px; max-width: 100%; object-fit: contain; display: block; margin: 12px auto; }
+.sto-facts { margin-top: 12px; font-size: 13px; width: 100%; }
+.sto-facts td { padding: 3px 0; }
+.sto-facts td:first-child { opacity: .6; width: 38%; }
+.sto-tag { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
+.sto-steps { display: flex; margin-top: 18px; }
+.sto-step { flex: 1; text-align: center; position: relative; font-size: 11px; opacity: .45; }
+.sto-step::before { content: ''; display: block; width: 14px; height: 14px; border-radius: 50%; margin: 0 auto 5px;
+    background: light-dark(#d4d4d8, #4a4a4e); position: relative; z-index: 1; }
+.sto-step::after { content: ''; position: absolute; top: 6px; left: 50%; width: 100%; height: 2px;
+    background: light-dark(#d4d4d8, #4a4a4e); }
+.sto-step:last-child::after { display: none; }
+.sto-step.done, .sto-step.now { opacity: 1; }
+.sto-step.done::before, .sto-step.done::after, .sto-step.now::before { background: #00a65a; }
+.sto-step.now { font-weight: 700; }
+.sto-order-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; flex-wrap: wrap; }
+</style>
+
+<div class="row"><div class="col-md-11 col-lg-10">
+
+@if ($orders->isEmpty())
+    <div class="box box-default"><div class="box-body">
+        <p class="text-muted">{{ trans('admin/store/general.orders_none') }}</p>
+    </div></div>
+@endif
+
+@foreach ($orders as $order)
+    @php
+        $status = $order->displayStatus();
+        $assets = $assetsByReference->get($order->reference(), collect());
+        $deviceItems = $order->items->filter(fn ($line) => $line->catalogItem?->model_id);
+        $labelClass = ['pending' => 'label-warning', 'approved' => 'label-info', 'processing' => 'label-info',
+                       'with_vendor' => 'label-info', 'quoted' => 'label-info',
+                       'ordered' => 'label-success', 'shipped' => 'label-success', 'arrived' => 'label-success',
+                       'declined' => 'label-danger', 'cancelled' => 'label-default'][$status] ?? 'label-default';
+        // Where this order sits on the five steps a requester thinks in.
+        $stepIndex = ['pending' => 0, 'approved' => 1, 'processing' => 1,
+                      'with_vendor' => 2, 'quoted' => 2, 'ordered' => 2,
+                      'shipped' => 3, 'arrived' => 4][$status] ?? null;
+        $steps = ['requested', 'approved', 'ordered', 'shipped', 'arrived'];
+    @endphp
+
+    <div class="sto-order-head" @if($loop->first) style="margin-top:4px;" @endif>
+        <h4 style="margin:0;">{{ $order->reference() }}</h4>
+        <span class="text-muted">{{ $order->created_at->format('M j, Y') }}</span>
+        <span class="label {{ $labelClass }}">{{ trans('admin/store/general.order_status_'.$status) }}</span>
+        @if ($order->status === 'pending')
+            <form method="POST" action="{{ route('store.orders.cancel', $order->id) }}" style="display:inline; margin-left:auto;">
+                {{ csrf_field() }}
+                <button type="submit" class="btn btn-xs btn-default">{{ trans('admin/store/general.cancel_order') }}</button>
+            </form>
         @endif
-
-        @foreach ($orders as $order)
-            @php
-                $status = $order->displayStatus();
-                $labelClass = ['pending' => 'label-warning', 'approved' => 'label-info', 'processing' => 'label-info',
-                               'ordered' => 'label-success', 'shipped' => 'label-success', 'arrived' => 'label-success',
-                               'declined' => 'label-danger', 'cancelled' => 'label-default'][$status] ?? 'label-default';
-            @endphp
-            <div class="box box-default">
-                <div class="box-header with-border">
-                    <h3 class="box-title">
-                        {{ $order->created_at->format('M j, Y') }}
-                        <span class="label {{ $labelClass }}" style="margin-left:8px;">
-                            {{ trans('admin/store/general.order_status_'.$status) }}
-                        </span>
-                    </h3>
-                    @if ($order->status === 'pending')
-                        <div class="box-tools pull-right">
-                            <form method="POST" action="{{ route('store.orders.cancel', $order->id) }}">
-                                {{ csrf_field() }}
-                                <button type="submit" class="btn btn-xs btn-default">{{ trans('admin/store/general.cancel_order') }}</button>
-                            </form>
-                        </div>
-                    @endif
-                </div>
-                <div class="box-body">
-                    <table class="table table-condensed" style="margin-bottom:0;">
-                        <tbody>
-                            @foreach ($order->items as $line)
-                                <tr>
-                                    <td>{{ $line->description }}</td>
-                                    <td class="text-right" style="white-space:nowrap;">&times;{{ $line->quantity }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                    @if ($order->decision_notes)
-                        <p class="text-muted" style="margin:8px 0 0;"><em>{{ $order->decision_notes }}</em></p>
-                    @endif
-                    @if ($order->tracking_number)
-                        <p class="text-muted" style="margin:8px 0 0;">
-                            {{ trans('admin/store/general.order_tracking') }} {{ $order->tracking_number }}
-                        </p>
-                    @endif
-                </div>
-            </div>
-        @endforeach
-
-        {{ $orders->links() }}
     </div>
-</div>
+
+    @if ($deviceItems->isNotEmpty() && ! in_array($status, ['declined', 'cancelled'], true))
+        <div class="sto-split">
+            {{-- Left: the machine going out, or the plain statement that
+                 there is none. Only on the newest order — history rows
+                 below do not re-litigate the handover. --}}
+            @if ($loop->first)
+                <div class="sto-pane sto-pane-muted">
+                    <div class="sto-kicker">{{ trans('admin/store/general.status_current_machine') }}</div>
+                    @if ($outgoing)
+                        <p class="sto-name">{{ $outgoing->name ?: ($outgoing->model->name ?? '') }}</p>
+                        <p class="sto-sub">{{ $outgoing->model->name ?? '' }}</p>
+                        @if ($outgoing->getImageUrl())
+                            <img src="{{ $outgoing->getImageUrl() }}" alt="" class="sto-img">
+                        @endif
+                        <table class="sto-facts">
+                            <tr><td>{{ trans('admin/store/general.status_new_tag') }}</td>
+                                <td class="sto-tag">{{ $outgoing->asset_tag }}</td></tr>
+                            @if ($outgoing->serial)
+                                <tr><td>{{ trans('admin/store/general.status_serial') }}</td>
+                                    <td class="sto-tag">{{ $outgoing->serial }}</td></tr>
+                            @endif
+                        </table>
+                        <p class="sto-sub" style="margin-top:12px;">{{ trans('admin/store/general.status_current_le') }}</p>
+                        <p class="sto-sub" style="margin-top:6px;">
+                            <strong>{{ $buyout
+                                ? trans('admin/store/general.status_current_buyout')
+                                : trans('admin/store/general.status_current_returning') }}</strong>
+                        </p>
+                    @else
+                        <p class="sto-name">{{ trans('admin/store/general.status_current_none') }}</p>
+                        <p class="sto-sub">{{ trans('admin/store/general.status_current_none_sub') }}</p>
+                    @endif
+                </div>
+            @endif
+
+            {{-- Right: the incoming machine, its tag, and where it is. --}}
+            <div class="sto-pane">
+                <div class="sto-kicker">{{ trans('admin/store/general.status_new_machine') }}</div>
+                @foreach ($deviceItems as $line)
+                    <p class="sto-name" @if(!$loop->first) style="margin-top:14px;" @endif>{{ $line->catalogItem->family ?: $line->description }}</p>
+                    <p class="sto-sub">{{ $line->description }}@if ($line->quantity > 1) &nbsp;×{{ $line->quantity }}@endif</p>
+                    @if ($loop->first && $line->catalogItem?->storeImageUrl())
+                        <img src="{{ $line->catalogItem->storeImageUrl() }}" alt="" class="sto-img">
+                    @endif
+                @endforeach
+
+                @if ($assets->isNotEmpty())
+                    <table class="sto-facts">
+                        @foreach ($assets as $asset)
+                            <tr><td>{{ trans('admin/store/general.status_new_tag') }}</td>
+                                <td class="sto-tag">{{ $asset->asset_tag }}</td></tr>
+                            @if ($asset->serial)
+                                <tr><td>{{ trans('admin/store/general.status_serial') }}</td>
+                                    <td class="sto-tag">{{ $asset->serial }}</td></tr>
+                            @endif
+                        @endforeach
+                    </table>
+                    @unless ($assets->contains(fn ($asset) => filled($asset->serial)))
+                        <p class="sto-sub" style="margin-top:6px;">{{ trans('admin/store/general.status_new_tag_sub') }}</p>
+                    @endunless
+                @endif
+
+                @if ($order->tracking_number)
+                    <p class="sto-sub" style="margin-top:10px;">
+                        {{ trans('admin/store/general.order_tracking') }}
+                        <span class="sto-tag">{{ $order->tracking_number }}</span>
+                    </p>
+                @endif
+
+                @if ($stepIndex !== null)
+                    <div class="sto-steps">
+                        @foreach ($steps as $i => $step)
+                            <div class="sto-step {{ $i < $stepIndex ? 'done' : ($i === $stepIndex ? 'now' : '') }}">
+                                {{ trans('admin/store/general.status_step_'.$step) }}
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        {{-- Accessory lines ride below the panes rather than inside them. --}}
+        @php($extras = $order->items->reject(fn ($line) => $line->catalogItem?->model_id))
+        @if ($extras->isNotEmpty())
+            <p class="text-muted" style="margin:10px 2px 0; font-size:13px;">
+                + {{ $extras->map(fn ($line) => $line->description.($line->quantity > 1 ? ' ×'.$line->quantity : ''))->implode(', ') }}
+            </p>
+        @endif
+    @else
+        {{-- Accessory-only, declined or cancelled orders: a plain compact list. --}}
+        <div class="box box-default"><div class="box-body">
+            @foreach ($order->items as $line)
+                <div style="font-size:13px;">{{ $line->description }}@if ($line->quantity > 1) ×{{ $line->quantity }}@endif</div>
+            @endforeach
+            @if ($order->decision_notes && $order->status === 'declined')
+                <p class="text-muted" style="margin:8px 0 0;"><em>{{ $order->decision_notes }}</em></p>
+            @endif
+        </div></div>
+    @endif
+@endforeach
+
+{{ $orders->links() }}
+
+</div></div>
 @stop
