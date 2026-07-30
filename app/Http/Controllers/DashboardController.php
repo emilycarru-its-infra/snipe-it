@@ -13,7 +13,9 @@ use App\Models\Maintenance;
 use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
+use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\AssetBuyoutRequester;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -452,6 +454,27 @@ class DashboardController extends Controller
         $user = auth()->user();
         $laptop = Asset::currentLaptopOf($user->id);
 
+        // Everything checked out to them, one list. Lease facts ride on the
+        // rows themselves (most of the fleet is leased, so a separate
+        // "current laptop" card was just the first row repeated), machines
+        // sort above peripherals, and accessories sink to the bottom.
+        $myAssets = $user->assets()->with('model.category', 'status')->get()
+            ->sortBy(fn (Asset $asset) => [
+                $this->categoryRank($asset->model?->category?->name),
+                -(int) optional($asset->last_checkout)->timestamp,
+                $asset->asset_tag,
+            ])->values();
+
+        // Which leased rows already have a buyout request cooling down, so
+        // the button becomes a quiet "requested" note instead of re-mailing
+        // the lessor.
+        $buyoutRequester = app(AssetBuyoutRequester::class);
+        $buyoutRequestedAt = $myAssets
+            ->filter(fn (Asset $asset) => $asset->leaseEndDate()?->gte(today()))
+            ->mapWithKeys(fn (Asset $asset) => [
+                $asset->id => optional($buyoutRequester->pendingRequest($asset))->created_at,
+            ]);
+
         $agreement = UserAgreement::where('user_id', $user->id)
             ->where('agreement_type', 'pickup')
             ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
@@ -511,20 +534,87 @@ class DashboardController extends Controller
 
         return view('dashboard.my', [
             'user' => $user,
-            'laptop' => $laptop,
             'leaseEnd' => $leaseEnd,
             'order' => $order,
+            'orderSummary' => $this->orderDeviceSummary($order),
             'incoming' => $incoming,
             'steps' => $steps,
             'journeyComplete' => $journeyComplete,
             'renewalDue' => $renewalDue,
-
-            // Everything checked out to them — the tables of the old tabbed
-            // "assigned items" page, on one screen, zero-count ones omitted.
-            'myAssets' => $user->assets()->with('model.category', 'status')->get(),
+            'myAssets' => $myAssets,
+            'buyoutRequestedAt' => $buyoutRequestedAt,
             'myLicenses' => $user->licenses()->get(),
             'myAccessories' => $user->accessories()->get(),
             'myConsumables' => $user->consumables()->get(),
         ]);
+    }
+
+    /**
+     * "Request a buyout" from the person's own dashboard. Deliberately not
+     * behind the assets.request_buyout grant — an end user holds no grants
+     * at all. The scope is the ownership check: only an asset checked out
+     * to you, only while its lease is active, and the requester service
+     * throttles repeats. The email is the same one an admin's button sends,
+     * with the lessor in To and the device team plus the requester in Cc.
+     */
+    public function myRequestBuyout(Asset $asset): RedirectResponse
+    {
+        abort_unless(
+            (int) $asset->assigned_to === (int) auth()->id()
+                && $asset->assigned_type === User::class,
+            403
+        );
+
+        if ($error = app(AssetBuyoutRequester::class)->send($asset, auth()->user())) {
+            return redirect()->route('my')->with('error', trans($error));
+        }
+
+        return redirect()->route('my')->with('success', trans('general.request_buyout_success'));
+    }
+
+    /**
+     * What machine this order is about, for the journey tracker's header —
+     * the first device line's config, with a count when the order carries
+     * more than one device line.
+     */
+    private function orderDeviceSummary(?StoreOrder $order): ?string
+    {
+        if (! $order) {
+            return null;
+        }
+
+        $devices = $order->items->filter(fn ($line) => $line->catalogItem?->model_id);
+        $first = $devices->first();
+
+        if (! $first) {
+            return null;
+        }
+
+        $summary = $first->description;
+        if ((int) $first->quantity > 1) {
+            $summary .= ' ×'.$first->quantity;
+        }
+        if ($devices->count() > 1) {
+            $summary .= ' +'.($devices->count() - 1);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Sort weight for the dashboard's asset list: the machines someone
+     * actually works on first, then tablets and screens, accessories last.
+     */
+    private function categoryRank(?string $category): int
+    {
+        return match (true) {
+            $category === null => 5,
+            str_starts_with($category, 'Laptop') => 0,
+            str_starts_with($category, 'Desktop') => 1,
+            str_starts_with($category, 'Tablet') => 2,
+            str_starts_with($category, 'Display'), str_starts_with($category, 'Monitor') => 3,
+            str_starts_with($category, 'Accessor') => 9,
+            default => 5,
+        };
     }
 }

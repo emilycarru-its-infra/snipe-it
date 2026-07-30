@@ -1,31 +1,35 @@
 @extends('layouts/default')
 
 @section('title')
-    {{ trans('admin/store/general.my_dashboard') }}
+    {{ trans('general.viewassets') }}
     @parent
 @stop
 
 {{-- /my — the end-user one-stop, at a link short enough to say out loud.
 
-     One screen, no tabs: for one person there is not enough density to
-     justify clicking between five of them. The journey tracker and the
-     lease answer at the top, then every table that is not empty — assets
-     first — with the profile as a quiet column on the right. No avatar
-     anywhere: nobody uploads one, so it was always the same grey silhouette
-     taking up a card. --}}
+     One screen, no tabs. The journey tracker names its order and machine so
+     nobody has to guess what the chevrons are about; the lease answer lives
+     on the asset rows themselves rather than a separate card, because most
+     of the fleet is leased and the card was just the first row repeated.
+     Machines sort above peripherals, accessories sink to the bottom, and
+     each leased row carries its own "request a buyout" doorway. No page
+     header, no avatar: the greeting is the header. --}}
 
 @section('content')
 
 <style>
+/* The layout's page-title strip would say the obvious over its own greeting. */
+.content-header { display: none; }
 .eud-wrap { max-width: 1100px; }
 .eud-cols { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
 .eud-main { flex: 1 1 620px; min-width: 0; }
 .eud-side { flex: 0 1 280px; }
-.eud-hello { font-size: 24px; font-weight: 700; margin: 0 0 2px; }
+.eud-hello { font-size: 24px; font-weight: 700; margin: 14px 0 2px; }
 .eud-sub { opacity: .65; margin: 0 0 18px; }
 .eud-card { border: 1px solid light-dark(#e2e2e6, #3a3a3e); border-radius: 14px;
     background: light-dark(#fff, #1f2023); padding: 18px 20px; margin-bottom: 14px; }
 .eud-kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .55; margin-bottom: 8px; }
+.eud-order-line { font-size: 15px; margin: 0 0 10px; }
 .eud-rail { display: flex; gap: 4px; margin: 6px 0 4px; }
 .eud-chev { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 12px 6px 12px 14px;
     background: light-dark(#e9e9ee, #33343a); color: light-dark(#5a5a62, #9a9aa4);
@@ -35,12 +39,13 @@
 .eud-chev.done { background: #00a65a; color: #fff; }
 .eud-chev.now { background: light-dark(#f39c12, #d68910); color: #fff; }
 .eud-tag { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
-.eud-lease { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-.eud-lease-days { font-size: 34px; font-weight: 800; line-height: 1; }
 .eud-table { width: 100%; font-size: 13px; }
 .eud-table th { opacity: .55; font-weight: 600; font-size: 11px; text-transform: uppercase; text-align: left; padding: 4px 10px 4px 0; }
-.eud-table td { padding: 6px 10px 6px 0; border-top: 1px solid light-dark(#f0f0f3, #2c2d31); }
+.eud-table td { padding: 6px 10px 6px 0; border-top: 1px solid light-dark(#f0f0f3, #2c2d31); vertical-align: middle; }
 .eud-table img { max-height: 30px; max-width: 44px; object-fit: contain; }
+.eud-lease-date { font-weight: 700; white-space: nowrap; }
+.eud-lease-sub { font-size: 11px; opacity: .6; white-space: nowrap; }
+.eud-buyout-btn { margin-top: 3px; }
 .eud-profile td { padding: 4px 8px 4px 0; font-size: 13px; }
 .eud-profile td:first-child { opacity: .6; white-space: nowrap; }
 </style>
@@ -53,13 +58,20 @@
     <div class="eud-cols">
         <div class="eud-main">
 
-            {{-- The journey, while one is under way. --}}
+            {{-- The journey, while one is under way — named, so it is clear
+                 which order and which machine the chevrons are about. --}}
             @if ($steps)
                 <div class="eud-card">
                     <div class="eud-kicker">
-                        {{ $order?->reference() ?? trans('admin/store/general.dash_journey') }}
-                        @if ($incoming) · <span class="eud-tag">{{ $incoming->asset_tag }}</span> @endif
+                        {{ trans('admin/store/general.dash_journey') }}
+                        @if ($order) · {{ $order->reference() }} @endif
                     </div>
+                    @if ($orderSummary || $incoming)
+                        <p class="eud-order-line">
+                            @if ($orderSummary)<strong>{{ $orderSummary }}</strong>@endif
+                            @if ($incoming) <span class="eud-tag" style="margin-left:6px;">{{ $incoming->asset_tag }}</span> @endif
+                        </p>
+                    @endif
                     <div class="eud-rail">
                         @foreach ($steps as $step)
                             <div class="eud-chev {{ $step['state'] }}">{{ trans('admin/store/general.dash_step_'.$step['key']) }}</div>
@@ -88,45 +100,9 @@
                 </div>
             @endif
 
-            {{-- The standing lease answer — here all year. --}}
-            @if ($laptop)
-                <div class="eud-card">
-                    <div class="eud-kicker">{{ trans('admin/store/general.dash_lease_kicker') }}</div>
-                    <div class="eud-lease">
-                        <div>
-                            <div><strong>{{ $laptop->model?->name }}</strong>
-                                <span class="eud-tag" style="margin-left:8px;">{{ $laptop->asset_tag }}</span></div>
-                            @if ($laptop->lease_contract_id)
-                                <div class="eud-sub" style="margin:2px 0 0;">{{ trans('admin/store/general.dash_lease_contract') }}
-                                    <span class="eud-tag">{{ $laptop->lease_contract_id }}</span></div>
-                            @endif
-                        </div>
-                        <div style="margin-left:auto; text-align:right;">
-                            @if ($leaseEnd)
-                                @php($days = (int) now()->diffInDays($leaseEnd, false))
-                                @if ($days >= 0)
-                                    <div class="eud-lease-days">{{ number_format($days) }}</div>
-                                    <div class="eud-sub">{{ trans('admin/store/general.dash_lease_days_left', ['date' => $leaseEnd->format('F j, Y')]) }}</div>
-                                @else
-                                    <strong>{{ trans('admin/store/general.dash_lease_ended', ['date' => $leaseEnd->format('F j, Y')]) }}</strong>
-                                @endif
-                            @else
-                                <span class="eud-sub">{{ trans('admin/store/general.dash_lease_no_date') }}</span>
-                            @endif
-                        </div>
-                    </div>
-                    @if ($laptop->buyout_cost)
-                        <p class="eud-sub" style="margin:10px 0 0;">
-                            {{ trans('admin/store/general.dash_lease_buyout') }}:
-                            <strong>${{ \App\Helpers\Helper::formatCurrencyOutput($laptop->buyout_cost) }}</strong>
-                            — {{ trans('admin/store/general.dash_lease_what_happens') }}
-                        </p>
-                    @endif
-                </div>
-            @endif
-
-            {{-- Everything checked out to them, assets first; empty tables
-                 are simply not there. --}}
+            {{-- Everything checked out to them, lease facts on the rows:
+                 every leased device shows its end date (the date leads, the
+                 countdown is the small print) and its buyout doorway. --}}
             <div class="eud-card">
                 <div class="eud-kicker">{{ trans('general.assets') }} <span class="badge">{{ $myAssets->count() }}</span></div>
                 @if ($myAssets->isEmpty())
@@ -139,6 +115,7 @@
                             <th>{{ trans('general.asset_model') }}</th>
                             <th>{{ trans('mail.serial') }}</th>
                             <th>{{ trans('general.category') }}</th>
+                            <th>{{ trans('admin/store/general.dash_lease_col') }}</th>
                         </tr></thead>
                         <tbody>
                         @foreach ($myAssets as $asset)
@@ -148,6 +125,30 @@
                                 <td>{{ $asset->model?->name }}</td>
                                 <td class="eud-tag">{{ $asset->serial }}</td>
                                 <td>{{ $asset->model?->category?->name }}</td>
+                                <td>
+                                    @php
+                                        $leaseEnds = $asset->leaseEndDate();
+                                    @endphp
+                                    @if ($leaseEnds && $leaseEnds->gte(today()))
+                                        <div class="eud-lease-date">{{ $leaseEnds->format('M j, Y') }}</div>
+                                        <div class="eud-lease-sub">{{ trans('admin/store/general.dash_lease_days_small', ['days' => number_format(max((int) now()->diffInDays($leaseEnds, false), 0))]) }}</div>
+                                        @if (is_numeric($asset->buyout_cost))
+                                            <div class="eud-lease-sub">{{ trans('admin/store/general.dash_buyout_estimate', ['cost' => \App\Helpers\Helper::formatCurrencyOutput($asset->buyout_cost)]) }}</div>
+                                        @endif
+                                        @if ($requestedAt = $buyoutRequestedAt->get($asset->id))
+                                            <div class="eud-lease-sub">{{ trans('admin/store/general.dash_buyout_requested', ['date' => $requestedAt->format('M j')]) }}</div>
+                                        @elseif ($asset->canRequestLeaseBuyout())
+                                            <form method="POST" action="{{ route('my.request-buyout', $asset->id) }}" class="eud-buyout-btn">
+                                                {{ csrf_field() }}
+                                                <button type="submit" class="btn btn-xs btn-default">{{ trans('admin/store/general.dash_buyout_button') }}</button>
+                                            </form>
+                                        @endif
+                                    @elseif ($leaseEnds)
+                                        <div class="eud-lease-sub">{{ trans('admin/store/general.dash_lease_ended', ['date' => $leaseEnds->format('M j, Y')]) }}</div>
+                                    @else
+                                        <span style="opacity:.35;">—</span>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                         </tbody>

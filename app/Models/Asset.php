@@ -17,6 +17,7 @@ use App\Presenters\Presentable;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -46,6 +47,7 @@ use Watson\Validating\ValidatingTrait;
  * @property string|null $lease_usage
  * @property string|null $lease_area
  * @property string|null $lease_book_value
+ * @property \Carbon\Carbon|null $last_checkout
  *
  * @version v1.0
  */
@@ -1196,16 +1198,29 @@ class Asset extends Depreciable
      */
     public static function currentLaptopOf(?int $userId): ?self
     {
+        return self::laptopsOf($userId)->first();
+    }
+
+    /**
+     * Every laptop in a person's hands, most recently checked out first —
+     * the intake form lists these when someone holds more than one so they
+     * can say which machine is actually being returned.
+     *
+     * @return Collection<int, self>
+     */
+    public static function laptopsOf(?int $userId): Collection
+    {
         if (! $userId) {
-            return null;
+            return new Collection;
         }
 
         return self::where('assigned_to', $userId)
             ->where('assigned_type', User::class)
             ->whereHas('model.category', fn ($q) => $q->where('name', 'like', 'Laptop%'))
+            ->with('model.category')
             ->orderByDesc('last_checkout')
             ->orderByDesc('purchase_date')
-            ->first();
+            ->get();
     }
 
     /**
