@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\Component;
+use App\Models\Consumable;
+use App\Models\License;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
+use App\Services\ArrivalAllocator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,16 +25,77 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class OrdersController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
         $this->authorize('view', Order::class);
 
-        $orders = Order::with('supplier', 'company')
-            ->withCount('items as items_count')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        // The page is a walk through every order without clicking into
+        // each: collapsed rows that expand in place. Filters narrow by
+        // lifecycle, and "needs allocation" surfaces the orders holding
+        // hardware that arrived without a request waiting for it.
+        $status = $request->query('status', 'all');
+        if (! in_array($status, Order::STATUSES, true) && $status !== 'all') {
+            $status = 'all';
+        }
 
-        return view('orders/index', compact('orders'));
+        $orders = Order::with([
+            'supplier', 'company', 'shipments', 'invoices',
+            'items.item' => fn ($q) => $q->withTrashed(),
+        ])
+            ->when($status !== 'all', fn ($q) => $q->where('status', $status))
+            ->orderBy('created_at', 'desc')
+            ->paginate(50)
+            ->withQueryString();
+
+        $allocator = app(ArrivalAllocator::class);
+        $arrivals = $allocator->unallocatedArrivals();
+        $waiting = $allocator->waitingRequests();
+
+        if ($request->boolean('needs_allocation')) {
+            $arrivalIds = $arrivals->pluck('id')->flip();
+            $orders->setCollection($orders->getCollection()->filter(
+                fn (Order $order) => $order->items->contains(
+                    fn ($line) => $line->item_type === Asset::class
+                        && $arrivalIds->has($line->item_id)
+                )
+            ));
+        }
+
+        return view('orders/index', [
+            'orders' => $orders,
+            'selectedStatus' => $status,
+            'needsAllocation' => $request->boolean('needs_allocation'),
+            'arrivals' => $arrivals,
+            'waiting' => $waiting,
+        ]);
+    }
+
+    /**
+     * Pair an unallocated arrival with a waiting store request — the
+     * manual form of the webhook's automatic claim, for the units that
+     * arrived without one (extras on a batch, or a reference CDW did not
+     * carry). Model equality is enforced by the allocator.
+     */
+    public function allocate(Request $request): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'arrival_id' => 'required|integer|exists:assets,id',
+            'waiting_id' => 'required|integer|exists:assets,id',
+        ]);
+
+        try {
+            $result = app(ArrivalAllocator::class)->allocate(
+                Asset::findOrFail($validated['arrival_id']),
+                Asset::findOrFail($validated['waiting_id']),
+            );
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->route('orders.index')->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('orders.index')->with('success',
+            trans('admin/orders/general.allocated', ['tag' => $result['asset']->asset_tag]));
     }
 
     public function create(): View
@@ -112,11 +178,11 @@ class OrdersController extends Controller
      * short form used in the add-item form.
      */
     public const ITEM_TYPES = [
-        'asset' => \App\Models\Asset::class,
-        'license' => \App\Models\License::class,
-        'accessory' => \App\Models\Accessory::class,
-        'consumable' => \App\Models\Consumable::class,
-        'component' => \App\Models\Component::class,
+        'asset' => Asset::class,
+        'license' => License::class,
+        'accessory' => Accessory::class,
+        'consumable' => Consumable::class,
+        'component' => Component::class,
     ];
 
     public function storeItem(Request $request, Order $order): RedirectResponse
