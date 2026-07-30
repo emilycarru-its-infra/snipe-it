@@ -172,6 +172,12 @@ class AssetsTransformer
                         'value' => e($value),
                         'field_format' => $field->format,
                         'element' => $field->element,
+                        // Field-group taxonomy (fork): lets API consumers group
+                        // fields into the same sections the asset detail page
+                        // renders, and follow admin re-grouping without code
+                        // changes. Nullable -- ungrouped fields belong to "other".
+                        'field_group' => $field->group?->slug,
+                        'field_group_name' => $field->group?->name,
                     ];
 
                 } else {
@@ -186,6 +192,8 @@ class AssetsTransformer
                         'value' => e($value),
                         'field_format' => $field->format,
                         'element' => $field->element,
+                        'field_group' => $field->group?->slug,
+                        'field_group_name' => $field->group?->name,
                     ];
                 }
 
