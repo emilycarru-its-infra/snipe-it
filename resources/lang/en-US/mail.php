@@ -174,7 +174,7 @@ return [
     'store_order_col_qty' => 'Qty',
     'store_order_tracking' => 'Tracking number: :tracking',
     'store_order_serials' => 'Serial number(s):',
-    'store_order_button' => 'View my orders',
+    'store_order_button' => 'Track your order',
     'store_order_footer' => 'Questions? Reply to this email and IT will pick it up.',
 
     // Vendor order request (to the reseller's reps)

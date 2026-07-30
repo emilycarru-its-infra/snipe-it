@@ -2121,6 +2121,29 @@
                             </a>
                         </li>
 
+                        {{-- Where your order is. The status page is the link
+                             emails carry, so it belongs one click from
+                             anywhere — not behind the store page's button. --}}
+                        <li {{!! (request()->is('store/orders*') ? ' class="active"' : '') !!}}>
+                            <a href="{{ route('store.orders') }}">
+                                <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
+                                <span>{{ trans('admin/store/general.my_orders') }}</span>
+                            </a>
+                        </li>
+
+                        {{-- The forms platform — the faculty program intake
+                             starts here, which makes it the documented first
+                             step of that whole flow. Shown only to someone a
+                             form is actually open to. --}}
+                        @if (! empty($formsAccessible))
+                            <li {{!! (request()->is('forms*') ? ' class="active"' : '') !!}}>
+                                <a href="{{ route('forms.index') }}">
+                                    <i class="fas fa-file-signature fa-fw" aria-hidden="true"></i>
+                                    <span>{{ trans('admin/forms/general.menu_link') }}</span>
+                                </a>
+                            </li>
+                        @endif
+
                         {{-- Procurement: operational purchasing data. --}}
                         @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class))
                             <li id="procurement-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
