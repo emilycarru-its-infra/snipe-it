@@ -845,4 +845,31 @@ class StoreFunnelTest extends TestCase
         $this->assertSame('18 months', $this->shelfItem(['warranty_months' => 18, 'vendor_sku' => '3'])->warrantyLabel());
         $this->assertNull($this->shelfItem(['warranty_months' => null, 'vendor_sku' => '4'])->warrantyLabel());
     }
+
+    public function test_a_pasted_part_number_is_cleaned_of_invisible_whitespace()
+    {
+        // Four EDC values reached the live catalog carrying a trailing
+        // U+00A0, pasted from CDW's Excel export. PHP's trim() leaves those
+        // alone, and they ship into the part list the reseller keys from.
+        $this->assertSame('9094668', CatalogItem::tidyIdentifier("9094668\u{00A0}"));
+        $this->assertSame('9094668', CatalogItem::tidyIdentifier("\u{FEFF}9094668 "));
+        $this->assertSame('MDE54LL/A', CatalogItem::tidyIdentifier("MDE54LL/A\u{200B}"));
+        $this->assertSame('', CatalogItem::tidyIdentifier("\u{00A0} "));
+
+        // A space inside a name is left alone — only identifiers are tidied,
+        // and only characters that cannot be seen are removed.
+        $this->assertSame('4X20M26268', CatalogItem::tidyIdentifier(' 4X20M26268 '));
+
+        $item = $this->shelfItem();
+
+        $this->actingAsForApi($this->procurement())
+            ->patchJson(route('api.catalog-items.update', $item->id), [
+                'vendor_sku' => "9094640\u{00A0}",
+                'mfr_part_number' => " MGDT4LL/A\u{00A0}",
+            ])->assertOk();
+
+        $item->refresh();
+        $this->assertSame('9094640', $item->vendor_sku);
+        $this->assertSame('MGDT4LL/A', $item->mfr_part_number);
+    }
 }

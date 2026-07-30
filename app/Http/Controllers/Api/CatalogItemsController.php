@@ -142,10 +142,13 @@ class CatalogItemsController extends Controller
 
         // Whitespace is not a distinguishing feature of a part number, and
         // the reseller's own workbook has it on both sides of several — a
-        // trailing space would break every later lookup by SKU.
+        // trailing space breaks every later lookup by SKU, and ships into the
+        // part list the reseller keys the order from.
         foreach (['vendor_sku', 'mfr_part_number', 'subcategory', 'product_type'] as $field) {
             if ($request->has($field)) {
-                $value = is_string($validated[$field] ?? null) ? trim($validated[$field]) : $validated[$field];
+                $value = is_string($validated[$field] ?? null)
+                    ? CatalogItem::tidyIdentifier($validated[$field])
+                    : $validated[$field];
                 $catalogItem->{$field} = $value === '' ? null : $value;
             }
         }
