@@ -16,7 +16,9 @@ use Illuminate\View\View;
 /**
  * Faculty Laptop Program intake — first form on the /forms platform.
  * Captures payment intent, prior-laptop buyout decision, and the
- * terms acceptance, then redirects faculty to the CDW eStore.
+ * terms acceptance, then sends faculty on to choose a machine in the
+ * store. (Until the 2026-07-29 process change that last step was CDW's
+ * own eStore; it is ours now.)
  *
  * Submissions land as UserAgreement rows at lifecycle_stage='quoted',
  * which downstream surfaces (the user-profile Agreements tab, the
@@ -34,10 +36,10 @@ class FacultyProgramForm extends FormDefinition
         $priorAsset = $this->findPriorAsset($user);
 
         return view('forms.faculty-program.show', [
-            'user'             => $user,
-            'priorAsset'       => $priorAsset,
-            'priorBuyoutCost'  => $this->buyoutCostFor($priorAsset),
-            'existingPickup'   => $this->existingPickup($user),
+            'user' => $user,
+            'priorAsset' => $priorAsset,
+            'priorBuyoutCost' => $this->buyoutCostFor($priorAsset),
+            'existingPickup' => $this->existingPickup($user),
         ]);
     }
 
@@ -45,36 +47,36 @@ class FacultyProgramForm extends FormDefinition
     {
         $validated = $request->validate([
             'acknowledge_top_up' => 'accepted',
-            'payment_method'    => 'required|string|in:'.implode(',', UserAgreement::PAYMENT_METHODS),
-            'buyout_decision'   => 'required|string|in:yes,no,no_prior_laptop',
-            'buyout_asset_tag'  => 'nullable|string|max:191|required_if:buyout_decision,yes',
-            'buyout_serial'     => 'nullable|string|max:191',
-            'notes'             => 'nullable|string|max:65535',
-            'accept_terms'      => 'accepted',
+            'payment_method' => 'required|string|in:'.implode(',', UserAgreement::PAYMENT_METHODS),
+            'buyout_decision' => 'required|string|in:yes,no,no_prior_laptop',
+            'buyout_asset_tag' => 'nullable|string|max:191|required_if:buyout_decision,yes',
+            'buyout_serial' => 'nullable|string|max:191',
+            'notes' => 'nullable|string|max:65535',
+            'accept_terms' => 'accepted',
         ]);
 
         $now = now();
 
         $pickup = UserAgreement::create([
-            'agreement_type'    => 'pickup',
-            'user_id'           => $user->id,
-            'lifecycle_stage'   => 'quoted',
-            'payment_method'    => $validated['payment_method'],
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+            'payment_method' => $validated['payment_method'],
             'terms_accepted_at' => $now,
-            'notes'             => $validated['notes'] ?? null,
+            'notes' => $validated['notes'] ?? null,
         ]);
 
         $buyout = null;
         if ($validated['buyout_decision'] === 'yes') {
             $buyout = UserAgreement::create([
-                'agreement_type'    => 'purchase',
-                'user_id'           => $user->id,
-                'lifecycle_stage'   => 'quoted',
-                'payment_method'    => $validated['payment_method'],
+                'agreement_type' => 'purchase',
+                'user_id' => $user->id,
+                'lifecycle_stage' => 'quoted',
+                'payment_method' => $validated['payment_method'],
                 'terms_accepted_at' => $now,
-                'old_asset_tag'     => $validated['buyout_asset_tag'] ?? null,
-                'old_serial'        => $validated['buyout_serial'] ?? null,
-                'notes'             => $validated['notes'] ?? null,
+                'old_asset_tag' => $validated['buyout_asset_tag'] ?? null,
+                'old_serial' => $validated['buyout_serial'] ?? null,
+                'notes' => $validated['notes'] ?? null,
             ]);
         }
 
@@ -86,8 +88,15 @@ class FacultyProgramForm extends FormDefinition
 
     public function success(User $user): View
     {
+        // Our own store unless something is configured, and the distinction
+        // matters to the view: an internal destination should open in this tab
+        // and carry no external-link affordance, because it is the next step of
+        // the same journey rather than a handoff to someone else's site.
+        $configured = config('forms.faculty_program.purchase_url');
+
         return view('forms.faculty-program.success', [
-            'externalPurchaseUrl' => config('forms.faculty_program.external_purchase_url'),
+            'purchaseUrl' => $configured ?: route('store.index'),
+            'purchaseIsExternal' => (bool) $configured,
         ]);
     }
 
