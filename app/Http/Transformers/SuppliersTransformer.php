@@ -37,6 +37,12 @@ class SuppliersTransformer
                 'fax' => e($supplier->fax),
                 'phone' => e($supplier->phone),
                 'email' => e($supplier->email),
+                // Where a store order request is sent, as opposed to `email`
+                // which is just the account contact. Exposed because it
+                // decides whether a real vendor send has anywhere to go —
+                // absent from the payload, the only way to check it was to
+                // attempt a send and read the error.
+                'order_emails' => e($supplier->order_emails),
                 'contact' => e($supplier->contact),
                 'assets_count' => (int) $supplier->assets_count,
                 'accessories_count' => (int) $supplier->accessories_count,

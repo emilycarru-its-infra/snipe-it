@@ -173,4 +173,29 @@ class ImpersonateTest extends TestCase
             ->assertSee('VIEWING AS ANOTHER USER', false)
             ->assertSee('Stop viewing as', false);
     }
+
+    public function test_the_borrowed_session_survives_repeated_requests()
+    {
+        // AuthenticateSession evicts a session whose cached password hash does
+        // not match the user it holds, which is precisely what switching users
+        // does. One request proves the login; several prove the session was
+        // not quietly thrown away on the next hop.
+        $admin = User::factory()->superuser()->create();
+        $target = $this->faculty();
+
+        $this->actingAs($admin)->post(route('users.impersonate', $target->id));
+
+        foreach (['store.index', 'store.orders', 'store.index'] as $route) {
+            $this->get(route($route))->assertOk();
+            $this->assertSame($target->id, auth()->id(), "lost the session at {$route}");
+        }
+
+        $this->post(route('impersonate.stop'));
+
+        // And the same on the way back.
+        foreach (['users.index', 'procurement.queue'] as $route) {
+            $this->get(route($route))->assertOk();
+            $this->assertSame($admin->id, auth()->id(), "lost the session at {$route}");
+        }
+    }
 }
