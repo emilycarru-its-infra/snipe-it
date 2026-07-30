@@ -130,6 +130,8 @@ Route::group(['middleware' => 'auth'], function () {
     // The end-user one-stop: tracker, lease, and everything checked out to
     // them, at a link short enough to say out loud.
     Route::get('my', [DashboardController::class, 'my'])->name('my');
+    Route::post('my/assets/{asset}/request-buyout', [DashboardController::class, 'myRequestBuyout'])
+        ->name('my.request-buyout');
     Route::get('orders/{order}/export', [OrdersController::class, 'export'])->name('orders.export');
     Route::post('orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('orders.cancel');
     Route::post('orders/{order}/reopen', [OrdersController::class, 'reopen'])->name('orders.reopen');
