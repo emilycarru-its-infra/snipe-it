@@ -71,4 +71,27 @@ return [
     'equipment_cost' => 'Equipment Cost',
     'warranty_cost' => 'Warranty / Soft Cost',
     'unassigned_invoice' => 'No invoice',
+
+    // Allocation: pairing an arrival that has no request with the request
+    // that has no hardware.
+    'allocation_heading' => 'Awaiting allocation',
+    'allocation_intro' => 'Hardware that arrived without a matching request. Pick the waiting request each unit should fill — only requests for the same model are offered.',
+    'allocation_none_waiting' => 'No waiting request for this model — it stays as stock.',
+    'allocate_button' => 'Allocate',
+    'allocated' => 'Allocated — :tag now carries the serial, and the requester has been told it shipped.',
+    'allocate_no_serial' => 'That arrival has no serial number to allocate.',
+    'allocate_not_waiting' => 'That request is not waiting — it already has hardware or is not a store order.',
+    'allocate_model_mismatch' => 'Different model — a request is only filled by the machine that was ordered.',
+    'allocate_note' => 'Serial allocated from arrival :tag (CDW order :order).',
+    'allocation_from_order' => 'from order',
+    'allocation_for' => 'for',
+    'waiting_since' => 'waiting since',
+
+    // The collapsed order list.
+    'filter_all' => 'All',
+    'filter_needs_allocation' => 'Needs allocation',
+    'expand_all' => 'Expand all',
+    'collapse_all' => 'Collapse all',
+    'received_progress' => ':received of :total received',
+    'open_order' => 'Open',
 ];
