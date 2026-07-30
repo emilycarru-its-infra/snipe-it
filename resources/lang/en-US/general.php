@@ -386,7 +386,7 @@ return [
     'unaccepted_asset_report' => 'Unaccepted Items',
     'users' => 'Users',
     'viewall' => 'View All',
-    'viewassets' => 'View Assigned Items',
+    'viewassets' => 'My Assets',
     'viewassetsfor' => 'View Items for :name',
     'view_user_assets' => 'View Items Assigned to User',
     'me' => 'Me',

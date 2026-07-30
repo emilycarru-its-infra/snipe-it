@@ -26,23 +26,23 @@ class FormsIndexTest extends TestCase
             ->assertSee(trans('admin/forms/general.no_forms'));
     }
 
-    public function test_eligible_user_sees_their_form_tile(): void
+    public function test_an_eligible_user_lands_on_their_only_form(): void
     {
-        $user  = User::factory()->create();
+        $user = User::factory()->create();
         $group = Group::factory()->create(['name' => 'Regular Faculty']);
         $user->groups()->attach($group->id);
         FormEligibility::create(['form_slug' => 'faculty-program', 'group_id' => $group->id]);
         FormAccess::flush();
 
+        // One submittable form means the index is just a doorway — skip it.
         $this->actingAs($user)
             ->get(route('forms.index'))
-            ->assertOk()
-            ->assertSee(trans('admin/forms/faculty-program.title'));
+            ->assertRedirect(route('forms.show', 'faculty-program'));
     }
 
     public function test_admin_can_open_submissions_index(): void
     {
-        $user  = User::factory()->create();
+        $user = User::factory()->create();
         $group = Group::factory()->create(['name' => 'ITS Engineering']);
         $user->groups()->attach($group->id);
         FormAccess::flush();

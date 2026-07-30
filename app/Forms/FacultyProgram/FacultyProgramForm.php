@@ -151,11 +151,7 @@ class FacultyProgramForm extends FormDefinition
 
     private function findPriorAsset(User $user): ?Asset
     {
-        return Asset::where('assigned_to', $user->id)
-            ->where('assigned_type', User::class)
-            ->orderByDesc('last_checkout')
-            ->orderByDesc('purchase_date')
-            ->first();
+        return Asset::currentLaptopOf($user->id);
     }
 
     /**

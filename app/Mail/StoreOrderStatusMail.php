@@ -19,7 +19,7 @@ class StoreOrderStatusMail extends BaseMailable
 {
     use Queueable, SerializesModels;
 
-    public const EVENTS = ['requested', 'approved', 'declined', 'ordered', 'shipped', 'arrived'];
+    public const EVENTS = ['requested', 'approved', 'declined', 'ordered', 'shipped', 'arrived', 'inventoried', 'ready'];
 
     /**
      * @param  array{tracking?: string, serials?: array<int, string>}  $extra

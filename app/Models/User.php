@@ -509,9 +509,43 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      * @author A. Gianotto <snipe@snipe.net>
      *
      * @since  [v1.0]
-     *
-     * @return bool
      */
+    /**
+     * Someone the system serves rather than someone who runs it.
+     *
+     * An end user — a faculty member, a summer program account — holds no
+     * administrative permission at all. For them the whole product is four
+     * places (Store, My Orders, My Assets, Forms) and a dashboard, reached
+     * from the top bar; the admin sidebar would be an empty frame around
+     * nothing they can open.
+     *
+     * Deliberately defined by the absence of admin-facing grants rather
+     * than by group membership, so a new end-user group is an end user by
+     * default and a group that gains a real permission stops being one
+     * without anyone updating a list.
+     */
+    public function isEndUser(): bool
+    {
+        if ($this->isSuperUser()) {
+            return false;
+        }
+
+        foreach ([
+            'admin', 'reports.view', 'assets.view', 'accessories.view',
+            'licenses.view', 'consumables.view', 'components.view',
+            'kits.view', 'users.view', 'models.view', 'categories.view',
+            'statuslabels.view', 'customfields.view', 'suppliers.view',
+            'manufacturers.view', 'departments.view', 'locations.view',
+            'companies.view', 'depreciations.view', 'orders.view',
+        ] as $section) {
+            if ($this->hasAccess($section)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function hasAccess($section)
     {
         if ($this->isSuperUser()) {
@@ -726,9 +760,10 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
     {
         return $this->belongsToMany(License::class, 'license_seats', 'assigned_to', 'license_id')->withPivot('id', 'created_at', 'updated_at');
     }
+
     public function directLicenses()
     {
-        return $this->belongsToMany(\App\Models\License::class, 'license_seats', 'assigned_to', 'license_id')->withPivot('id', 'created_at', 'updated_at')->wherePivotNull('asset_id')->withTrashed();
+        return $this->belongsToMany(License::class, 'license_seats', 'assigned_to', 'license_id')->withPivot('id', 'created_at', 'updated_at')->wherePivotNull('asset_id')->withTrashed();
     }
 
     /**
@@ -1394,6 +1429,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
             ->orwhereRaw('CONCAT(users.first_name," ",users.last_name) LIKE \''.$search.'%\'');
 
     }
+
     public function scopeWithInventoryRelations($query, int $id)
     {
         return $query->where('id', $id)
@@ -1435,6 +1471,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
             ])
             ->withTrashed();
     }
+
     /**
      * Get all direct and indirect subordinates for this user.
      *
