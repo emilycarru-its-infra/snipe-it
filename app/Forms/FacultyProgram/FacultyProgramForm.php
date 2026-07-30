@@ -33,12 +33,18 @@ class FacultyProgramForm extends FormDefinition
 
     public function show(User $user): View
     {
-        $priorAsset = $this->findPriorAsset($user);
+        // Every laptop in their hands, not just the best guess: someone with
+        // two machines picks which one this renewal is about, and that pick
+        // is what the order's handover page shows as "the old one".
+        $laptops = Asset::laptopsOf($user->id);
 
         return view('forms.faculty-program.show', [
             'user' => $user,
-            'priorAsset' => $priorAsset,
-            'priorBuyoutCost' => $this->buyoutCostFor($priorAsset),
+            'laptops' => $laptops,
+            'priorAsset' => $laptops->first(),
+            'buyoutCosts' => $laptops->mapWithKeys(fn (Asset $laptop) => [
+                $laptop->id => $this->buyoutCostFor($laptop),
+            ]),
             'existingPickup' => $this->existingPickup($user),
         ]);
     }
@@ -49,17 +55,31 @@ class FacultyProgramForm extends FormDefinition
             'acknowledge_top_up' => 'accepted',
             'payment_method' => 'required|string|in:'.implode(',', UserAgreement::PAYMENT_METHODS),
             'buyout_decision' => 'required|string|in:yes,no,no_prior_laptop',
+            'returning_asset_id' => 'nullable|integer',
             'buyout_asset_tag' => 'nullable|string|max:191|required_if:buyout_decision,yes',
             'buyout_serial' => 'nullable|string|max:191',
             'notes' => 'nullable|string|max:65535',
             'accept_terms' => 'accepted',
         ]);
 
+        // The machine this submission is about. Their pick when they made
+        // one and it is genuinely theirs; the resolver's best guess
+        // otherwise. Stored on the agreement so every later surface — the
+        // order's handover page, the -LE rename, the queue — talks about
+        // the machine they pointed at, not a re-guess.
+        $returning = null;
+        if ($validated['buyout_decision'] !== 'no_prior_laptop') {
+            $returning = Asset::laptopsOf($user->id)
+                ->firstWhere('id', (int) ($validated['returning_asset_id'] ?? 0))
+                ?? Asset::currentLaptopOf($user->id);
+        }
+
         $now = now();
 
         $pickup = UserAgreement::create([
             'agreement_type' => 'pickup',
             'user_id' => $user->id,
+            'asset_id' => $returning?->id,
             'lifecycle_stage' => 'quoted',
             'payment_method' => $validated['payment_method'],
             'terms_accepted_at' => $now,
@@ -71,11 +91,12 @@ class FacultyProgramForm extends FormDefinition
             $buyout = UserAgreement::create([
                 'agreement_type' => 'purchase',
                 'user_id' => $user->id,
+                'asset_id' => $returning?->id,
                 'lifecycle_stage' => 'quoted',
                 'payment_method' => $validated['payment_method'],
                 'terms_accepted_at' => $now,
-                'old_asset_tag' => $validated['buyout_asset_tag'] ?? null,
-                'old_serial' => $validated['buyout_serial'] ?? null,
+                'old_asset_tag' => $validated['buyout_asset_tag'] ?? $returning?->asset_tag,
+                'old_serial' => $validated['buyout_serial'] ?? $returning?->serial,
                 'notes' => $validated['notes'] ?? null,
             ]);
         }
@@ -147,11 +168,6 @@ class FacultyProgramForm extends FormDefinition
             ->whereIn('lifecycle_stage', ['quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment'])
             ->latest('created_at')
             ->first();
-    }
-
-    private function findPriorAsset(User $user): ?Asset
-    {
-        return Asset::currentLaptopOf($user->id);
     }
 
     /**

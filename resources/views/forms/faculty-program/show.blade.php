@@ -33,6 +33,9 @@
 .fp-tradein-machine { flex: 0 1 250px; text-align: center; }
 .fp-tradein-machine img { max-height: 110px; max-width: 100%; object-fit: contain; margin: 8px auto; display: block; }
 .fp-tradein-choice { flex: 1 1 320px; }
+.fp-machines { flex: 0 1 290px; }
+.fp-machine img { max-height: 44px; max-width: 64px; object-fit: contain; }
+.fp-machine-facts { font-size: 12px; opacity: .7; }
 .fp-tag { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
 .fp-facts { font-size: 13px; margin: 8px auto 0; display: inline-block; text-align: left; }
 .fp-facts td { padding: 2px 8px 2px 0; }
@@ -98,8 +101,41 @@
                 : trans('admin/forms/faculty-program.tradein_none_title') }}</h2>
 
             <div class="fp-tradein">
-                @if ($priorAsset)
+                {{-- One laptop: shown as fact. Several: they say which one
+                     this renewal is about, and that pick follows the order
+                     everywhere — the handover page, the -LE rename, the
+                     buyout paperwork. --}}
+                @if ($laptops->count() > 1)
+                    <div class="fp-machines">
+                        @foreach ($laptops as $laptop)
+                            @php
+                                $machineChecked = (int) old('returning_asset_id', $priorAsset?->id) === $laptop->id;
+                            @endphp
+                            <label class="fp-opt {{ $machineChecked ? 'fp-selected' : '' }}">
+                                <input type="radio" name="returning_asset_id" value="{{ $laptop->id }}"
+                                       data-tag="{{ $laptop->asset_tag }}" data-serial="{{ $laptop->serial }}"
+                                       {{ $machineChecked ? 'checked' : '' }}>
+                                <span class="fp-ctl"></span>
+                                <span class="fp-opt-text">
+                                    <strong>{{ $laptop->model?->name }}</strong><br>
+                                    <span class="fp-machine-facts">
+                                        <span class="fp-tag">{{ $laptop->asset_tag }}</span>
+                                        @if ($laptop->serial) · <span class="fp-tag">{{ $laptop->serial }}</span> @endif
+                                        @if (! is_null($buyoutCosts->get($laptop->id)))
+                                            <br>{{ trans('admin/forms/faculty-program.tradein_buyout_estimate') }}
+                                            <strong>${{ \App\Helpers\Helper::formatCurrencyOutput($buyoutCosts->get($laptop->id)) }}</strong>
+                                        @endif
+                                    </span>
+                                </span>
+                                @if ($laptop->getImageUrl())
+                                    <img src="{{ $laptop->getImageUrl() }}" alt="" style="margin-left:auto;">
+                                @endif
+                            </label>
+                        @endforeach
+                    </div>
+                @elseif ($priorAsset)
                     <div class="fp-tradein-machine">
+                        <input type="hidden" name="returning_asset_id" value="{{ $priorAsset->id }}">
                         @if ($priorAsset->getImageUrl())
                             <img src="{{ $priorAsset->getImageUrl() }}" alt="">
                         @else
@@ -110,8 +146,8 @@
                             <tr><td>{{ trans('mail.asset_tag') }}</td><td class="fp-tag">{{ $priorAsset->asset_tag }}</td></tr>
                             <tr><td>{{ trans('mail.serial') }}</td><td class="fp-tag">{{ $priorAsset->serial }}</td></tr>
                         </table>
-                        @if (! is_null($priorBuyoutCost))
-                            <div class="fp-buyout-price">${{ \App\Helpers\Helper::formatCurrencyOutput($priorBuyoutCost) }}</div>
+                        @if (! is_null($buyoutCosts->get($priorAsset->id)))
+                            <div class="fp-buyout-price">${{ \App\Helpers\Helper::formatCurrencyOutput($buyoutCosts->get($priorAsset->id)) }}</div>
                             <div class="fp-muted">{{ trans('admin/forms/faculty-program.tradein_buyout_estimate') }}</div>
                         @endif
                     </div>
@@ -295,6 +331,18 @@ document.querySelectorAll('.fp-opt input').forEach(function (input) {
         group.forEach(function (peer) {
             peer.closest('.fp-opt').classList.toggle('fp-selected', peer.checked);
         });
+    });
+});
+
+// Picking a different machine re-fills the buyout tag/serial fields, so the
+// paperwork always names the laptop the card selection points at.
+document.querySelectorAll('input[name="returning_asset_id"][type="radio"]').forEach(function (input) {
+    input.addEventListener('change', function () {
+        if (!input.checked) return;
+        var tag = document.getElementById('buyout_asset_tag');
+        var serial = document.getElementById('buyout_serial');
+        if (tag) tag.value = input.dataset.tag || '';
+        if (serial) serial.value = input.dataset.serial || '';
     });
 });
 </script>
