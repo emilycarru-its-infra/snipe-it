@@ -5,6 +5,7 @@ namespace Tests\Feature\Store;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
+use App\Models\Category;
 use App\Models\Group;
 use App\Models\Setting;
 use App\Models\StoreOrder;
@@ -32,6 +33,13 @@ class StoreOrderAssetProvisioningTest extends TestCase
         $settings->zerofill_count = 6;
         $settings->next_auto_tag_base = 900001;
         $settings->save();
+    }
+
+    private function laptopModel(): AssetModel
+    {
+        return AssetModel::factory()->create([
+            'category_id' => Category::factory()->create(['name' => 'Laptop'])->id,
+        ]);
     }
 
     private function requester(): User
@@ -118,6 +126,7 @@ class StoreOrderAssetProvisioningTest extends TestCase
 
         $old = Asset::factory()->create([
             'name' => 'Frida Kahlo',
+            'model_id' => $this->laptopModel()->id,
             'assigned_to' => $user->id,
             'assigned_type' => User::class,
             'last_checkout' => now()->subYears(3),
@@ -191,6 +200,7 @@ class StoreOrderAssetProvisioningTest extends TestCase
         Asset::factory()->create([
             'name' => 'Frida Kahlo',
             'asset_tag' => 'A000042',
+            'model_id' => $this->laptopModel()->id,
             'assigned_to' => $user->id,
             'assigned_type' => User::class,
             'last_checkout' => now()->subYears(3),

@@ -1372,12 +1372,20 @@
                 <!-- Logo -->
 
                 <!-- Header Navbar: style can be found in header.less -->
+                @php
+                    // An end user gets the top bar as their whole navigation:
+                    // the sidebar is an empty frame for someone who can open
+                    // none of it, so it is not rendered for them at all.
+                    $isEndUser = auth()->check() && auth()->user()->isEndUser();
+                @endphp
                 <nav class="navbar navbar-static-top" role="navigation">
+                    @unless ($isEndUser)
                     <!-- Sidebar toggle button above the compact sidenav -->
                     <a href="#" class="sidebar-toggle btn btn-white" data-toggle="push-menu"
                        role="button">
                         <span class="sr-only">{{ trans('general.toggle_navigation') }}</span>
                     </a>
+                    @endunless
                     <div class="nav navbar-nav navbar-left">
                         <div class="left-navblock">
                             @if ($snipeSettings->brand == '3')
@@ -1406,16 +1414,45 @@
                         </div>
                     </div>
 
+                    @if ($isEndUser)
+                        {{-- The whole product, for an end user: their
+                             dashboard is the brand link; these are the rest. --}}
+                        <ul class="nav navbar-nav eu-nav">
+                            <li {!! request()->is('store') ? 'class="active"' : '' !!}>
+                                <a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.store') }}</a>
+                            </li>
+                            <li {!! request()->is('store/orders*') ? 'class="active"' : '' !!}>
+                                <a href="{{ route('store.orders') }}"><i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.my_orders') }}</a>
+                            </li>
+                            <li {!! request()->is('my') ? 'class="active"' : '' !!}>
+                                <a href="{{ route('my') }}"><i class="fa-solid fa-laptop fa-fw" aria-hidden="true"></i> {{ trans('general.viewassets') }}</a>
+                            </li>
+                            @if (! empty($formsAccessible))
+                                <li {!! request()->is('forms*') ? 'class="active"' : '' !!}>
+                                    <a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw" aria-hidden="true"></i> {{ trans('admin/forms/general.menu_link') }}</a>
+                                </li>
+                            @endif
+                        </ul>
+                        <style>
+                            /* No sidebar exists for an end user; the content
+                               takes the full width on every breakpoint. */
+                            .content-wrapper, .main-footer { margin-left: 0 !important; }
+                            .eu-nav > li > a { padding-top: 18px; padding-bottom: 18px; font-weight: 600; }
+                        </style>
+                    @endif
+
                     <!-- Navbar Right Menu -->
                     <div class="navbar-custom-menu">
                         <ul class="nav navbar-nav">
                             <li aria-hidden="true">
 
+                                    @unless ($isEndUser)
                                     <a href="#" class="sidebar-toggle-mobile visible-xs hidden-lg hidden-md" data-toggle="push-menu"
                                    role="button">
                                     <span class="sr-only">{{ trans('general.toggle_navigation') }}</span>
                                     <x-icon type="nav-toggle" />
                                 </a>
+                                    @endunless
 
                             </li>
 
@@ -1682,6 +1719,7 @@
             </header>
 
             <!-- Left side column. contains the logo and sidebar -->
+            @unless ($isEndUser ?? false)
             <aside class="main-sidebar">
                 <!-- sidebar: style can be found in sidebar.less -->
                 <section class="sidebar">
@@ -2261,6 +2299,7 @@
                 </section>
                 <!-- /.sidebar -->
             </aside>
+            @endunless
 
             <!-- Content Wrapper. Contains page content -->
 

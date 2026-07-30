@@ -7,7 +7,9 @@ use App\Models\Asset;
 use App\Models\OrderItem;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Models\StoreOrder;
 use App\Models\User;
+use App\Services\StoreOrderNotifier;
 use App\Services\UserAgreements\PickupUpgradeAutoCreator;
 use App\Services\UserAgreements\PurchaseAutoCreator;
 use Carbon\Carbon;
@@ -133,6 +135,7 @@ class AssetObserver
         if ($asset->wasChanged('status_id')) {
             $this->markOrderItemsReceived($asset);
             $this->autoCreatePurchaseIfLeaseEnd($asset);
+            $this->notifyStoreOrderProgress($asset);
         }
 
         if ($this->wasJustCheckedOutToUser($asset)) {
@@ -156,7 +159,7 @@ class AssetObserver
         }
 
         $previousType = $asset->getOriginal('assigned_type');
-        $previousId   = $asset->getOriginal('assigned_to');
+        $previousId = $asset->getOriginal('assigned_to');
 
         // Already assigned to the same user before this save → not a
         // new checkout.
@@ -173,7 +176,7 @@ class AssetObserver
             app(PickupUpgradeAutoCreator::class)->ensureForCheckout($asset);
         } catch (\Throwable $e) {
             Log::error('pickup/upgrade auto-create failed', [
-                'asset_id'  => $asset->id,
+                'asset_id' => $asset->id,
                 'exception' => $e,
             ]);
         }
@@ -192,7 +195,7 @@ class AssetObserver
             app(PurchaseAutoCreator::class)->ensureFor($asset);
         } catch (\Throwable $e) {
             Log::error('purchase auto-create failed', [
-                'asset_id'  => $asset->id,
+                'asset_id' => $asset->id,
                 'exception' => $e,
             ]);
         }
@@ -291,6 +294,36 @@ class AssetObserver
 
         if ((! is_null($asset->asset_eol_date)) && (! is_null($asset->purchase_date)) && (is_null($asset->model?->eol) || ($asset->model?->eol == 0))) {
             $asset->eol_explicit = true;
+        }
+    }
+
+    /**
+     * The last two emails of the laptop journey. After arrival the store
+     * order stops changing — the asset is what moves: inventoried, then
+     * provisioned and ready for pick up. Both transitions are made by a
+     * person in the asset UI, so this is where the requester hears about
+     * them, matching the "email at every step" contract of the tracker.
+     */
+    private function notifyStoreOrderProgress(Asset $asset): void
+    {
+        // Read the label fresh by id: the `status` relation may still hold
+        // the pre-update label on the instance the observer receives.
+        $event = match (Statuslabel::find($asset->status_id)?->name) {
+            'New (Inventoried)' => 'inventoried',
+            'New (Provisioned)' => 'ready',
+            default => null,
+        };
+
+        if (! $event || ! preg_match('/^ECU-STORE-(\d+)$/', (string) $asset->order_number, $matches)) {
+            return;
+        }
+
+        $order = StoreOrder::find((int) $matches[1]);
+
+        if ($order) {
+            StoreOrderNotifier::requester($order->load('items', 'user'), $event, [
+                'serials' => array_filter([(string) $asset->serial]),
+            ]);
         }
     }
 }
