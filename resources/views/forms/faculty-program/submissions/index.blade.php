@@ -36,7 +36,7 @@
                                             {{ $agreement->id }}
                                         </a>
                                     </td>
-                                    <td>{{ $agreement->user?->present()?->fullName() ?? '—' }}</td>
+                                    <td>{{ $agreement->user?->present()->fullName ?? '—' }}</td>
                                     <td>{{ $agreement->agreement_type }}</td>
                                     <td>{{ $agreement->lifecycle_stage }}</td>
                                     <td>{{ $agreement->asset?->asset_tag ?? '—' }}</td>

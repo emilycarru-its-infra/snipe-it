@@ -177,6 +177,13 @@ return [
     'store_order_button' => 'Track your order',
     'store_order_footer' => 'Questions? Reply to this email and IT will pick it up.',
 
+    'store_order_inventoried_subject' => 'Your new laptop is being set up',
+    'store_order_inventoried_heading' => 'Being set up',
+    'store_order_inventoried_intro' => 'Your new laptop has been inventoried and is being set up by IT. One more email and it will be ready for pick up.',
+    'store_order_ready_subject' => 'Your new laptop is ready for pick up',
+    'store_order_ready_heading' => 'Ready for pick up',
+    'store_order_ready_intro' => 'Your new laptop is set up and ready. Come pick it up at the IT service desk (B1116) — bring your old laptop if you are returning it.',
+
     // Vendor order request (to the reseller's reps)
     'store_vendor_order_subject' => 'Emily Carr University — order request :references',
     'store_vendor_order_test_prefix' => '[TEST]',

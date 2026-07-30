@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Watson\Validating\ValidatingTrait;
@@ -374,37 +375,37 @@ class Asset extends Depreciable
     public static function inlineEditableCoreFields(): array
     {
         return [
-            'name'            => 'text',
-            'asset_tag'       => 'text',
-            'serial'          => 'text',
-            'order_number'    => 'text',
-            'gl_code'         => 'text',
-            'notes'           => 'textarea',
+            'name' => 'text',
+            'asset_tag' => 'text',
+            'serial' => 'text',
+            'order_number' => 'text',
+            'gl_code' => 'text',
+            'notes' => 'textarea',
             // FK selects — the model and home location are editable inline too.
-            'model_id'        => 'select',
+            'model_id' => 'select',
             'rtd_location_id' => 'select',
             // Date columns editable inline from the sidebar.
             'expected_checkin' => 'date',
-            'last_audit_date'  => 'date',
-            'next_audit_date'  => 'date',
+            'last_audit_date' => 'date',
+            'next_audit_date' => 'date',
             // Native offboarding date — the counterpart to purchase_date
             // (onboarding). First-class native column since the F2 migration.
             'decommission_date' => 'date',
             // Lease / purchasing fields — native columns since the F2 lease
             // migration (formerly _snipeit_* custom fields). Rendered inline on
             // the procurement/inventory detail cards.
-            'lease_contract_id'   => 'text',
+            'lease_contract_id' => 'text',
             'lease_contract_name' => 'text',
-            'ownership_type'      => 'text',
-            'po_number'           => 'text',
-            'invoice_number'      => 'text',
-            'lease_usage'         => 'text',
-            'lease_area'          => 'text',
-            'lease_end_date'      => 'date',
-            'lease_rent'          => 'text',
-            'buyout_cost'         => 'text',
-            'warranty_soft_cost'  => 'text',
-            'lease_book_value'    => 'text',
+            'ownership_type' => 'text',
+            'po_number' => 'text',
+            'invoice_number' => 'text',
+            'lease_usage' => 'text',
+            'lease_area' => 'text',
+            'lease_end_date' => 'date',
+            'lease_rent' => 'text',
+            'buyout_cost' => 'text',
+            'warranty_soft_cost' => 'text',
+            'lease_book_value' => 'text',
         ];
     }
 
@@ -420,19 +421,19 @@ class Asset extends Depreciable
      * @var array<string, string> custom-field display name => native column
      */
     public const LEASE_FIELD_NATIVE_COLUMNS = [
-        'Lease Contract ID'   => 'lease_contract_id',
+        'Lease Contract ID' => 'lease_contract_id',
         'Lease Contract Name' => 'lease_contract_name',
-        'Ownership Type'      => 'ownership_type',
-        'Lease End Date'      => 'lease_end_date',
-        'Lease Rent'          => 'lease_rent',
-        'Buyout Cost'         => 'buyout_cost',
-        'Decommission Date'   => 'decommission_date',
-        'PO Number'           => 'po_number',
-        'Invoice Number'      => 'invoice_number',
-        'Warranty/Soft Cost'  => 'warranty_soft_cost',
-        'Usage'               => 'lease_usage',
-        'Area'                => 'lease_area',
-        'Book Value'          => 'lease_book_value',
+        'Ownership Type' => 'ownership_type',
+        'Lease End Date' => 'lease_end_date',
+        'Lease Rent' => 'lease_rent',
+        'Buyout Cost' => 'buyout_cost',
+        'Decommission Date' => 'decommission_date',
+        'PO Number' => 'po_number',
+        'Invoice Number' => 'invoice_number',
+        'Warranty/Soft Cost' => 'warranty_soft_cost',
+        'Usage' => 'lease_usage',
+        'Area' => 'lease_area',
+        'Book Value' => 'lease_book_value',
     ];
 
     public static function nativeColumnForCustomName(string $name): ?string
@@ -1184,6 +1185,30 @@ class Asset extends Depreciable
     }
 
     /**
+     * The laptop currently in a person's hands — the machine the faculty
+     * program replaces and the store's handover page shows on the left.
+     *
+     * Scoped to the Laptop category deliberately. The previous resolver took
+     * the most recently checked-out asset of any kind, and a monitor or dock
+     * checked out after the laptop won: the intake form then offered someone
+     * a "buyout" of their external display. Category is matched by name so
+     * environments and test databases need no shared ids.
+     */
+    public static function currentLaptopOf(?int $userId): ?self
+    {
+        if (! $userId) {
+            return null;
+        }
+
+        return self::where('assigned_to', $userId)
+            ->where('assigned_type', User::class)
+            ->whereHas('model.category', fn ($q) => $q->where('name', 'like', 'Laptop%'))
+            ->orderByDesc('last_checkout')
+            ->orderByDesc('purchase_date')
+            ->first();
+    }
+
+    /**
      * Establishes the asset -> model relationship
      *
      * @author [A. Gianotto] [<snipe@snipe.net>]
@@ -1305,7 +1330,7 @@ class Asset extends Depreciable
      */
     public function customFieldValueByName(string $name): ?string
     {
-        $column = \Illuminate\Support\Facades\DB::table('custom_fields')->where('name', $name)->value('db_column');
+        $column = DB::table('custom_fields')->where('name', $name)->value('db_column');
         if (! $column) {
             return null;
         }
@@ -1329,7 +1354,7 @@ class Asset extends Depreciable
      * (mirrored from the "Lease End Date" custom field), or null when it's
      * unset or unparseable.
      */
-    public function leaseEndDate(): ?\Carbon\Carbon
+    public function leaseEndDate(): ?Carbon
     {
         $raw = $this->lease_end_date;
         if (! $raw) {
@@ -1337,7 +1362,7 @@ class Asset extends Depreciable
         }
 
         try {
-            return \Carbon\Carbon::parse($raw)->startOfDay();
+            return Carbon::parse($raw)->startOfDay();
         } catch (\Throwable $e) {
             return null;
         }
@@ -1356,7 +1381,7 @@ class Asset extends Depreciable
 
         $end = $this->leaseEndDate();
 
-        return $end === null || $end->gte(\Carbon\Carbon::today());
+        return $end === null || $end->gte(Carbon::today());
     }
 
     /**
@@ -2380,7 +2405,7 @@ class Asset extends Depreciable
      * lessor role, joined via lessor_id — distinct from the supplier join above).
      *
      * @param  \Illuminate\Database\Query\Builder  $query  Query builder instance
-     * @param  string  $order         Order (asc/desc)
+     * @param  string  $order  Order (asc/desc)
      * @return \Illuminate\Database\Query\Builder Modified query builder
      */
     public function scopeOrderLessor($query, $order)

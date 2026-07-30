@@ -18,7 +18,7 @@
             <div class="box-body">
                 <dl class="dl-horizontal">
                     <dt>{{ trans('admin/forms/faculty-program.submission_user') }}</dt>
-                    <dd>{{ $agreement->user?->present()?->fullName() ?? '—' }}</dd>
+                    <dd>{{ $agreement->user?->present()->fullName ?? '—' }}</dd>
 
                     <dt>{{ trans('admin/forms/faculty-program.submission_type') }}</dt>
                     <dd>{{ $agreement->agreement_type }}</dd>

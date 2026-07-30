@@ -12,6 +12,8 @@ use App\Models\License;
 use App\Models\Maintenance;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Models\StoreOrder;
+use App\Models\UserAgreement;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -32,18 +34,27 @@ class DashboardController extends Controller
 {
     public function index(): View|RedirectResponse
     {
+        // An end user's home is their own dashboard: where their order is on
+        // the seven-step journey, and where their lease stands the rest of
+        // the year. Mid-tier accounts (some permissions, no admin) keep the
+        // old redirect to their assigned items.
+        if (auth()->user()->isEndUser()) {
+            return redirect()->route('my');
+        }
+
         if (! auth()->user()->hasAccess('admin')) {
             Session::reflash();
+
             return redirect()->intended('account/view-assets');
         }
 
         $counts = [
-            'asset'       => Asset::count(),
-            'accessory'   => Accessory::count(),
-            'license'     => License::assetcount(),
-            'consumable'  => Consumable::count(),
-            'component'   => Component::count(),
-            'user'        => Company::scopeCompanyables(auth()->user())->count(),
+            'asset' => Asset::count(),
+            'accessory' => Accessory::count(),
+            'license' => License::assetcount(),
+            'consumable' => Consumable::count(),
+            'component' => Component::count(),
+            'user' => Company::scopeCompanyables(auth()->user())->count(),
         ];
         $counts['grand_total'] = $counts['asset'] + $counts['accessory']
             + $counts['license'] + $counts['consumable'];
@@ -86,10 +97,10 @@ class DashboardController extends Controller
         // colours come from the dashboard palette.
         $wanted = [
             'Desktop' => ['fa-desktop',    '#0073b7'],
-            'Laptop'  => ['fa-laptop',     '#00a65a'],
+            'Laptop' => ['fa-laptop',     '#00a65a'],
             'Display' => ['fa-tv',         '#dd4b39'],
-            'Tablet'  => ['fa-tablet-alt', '#605ca8'],
-            'Phone'   => ['fa-mobile-alt', '#39cccc'],
+            'Tablet' => ['fa-tablet-alt', '#605ca8'],
+            'Phone' => ['fa-mobile-alt', '#39cccc'],
             'Printer' => ['fa-print',      '#f39c12'],
         ];
 
@@ -110,9 +121,9 @@ class DashboardController extends Controller
                 continue;
             }
             $tiles[] = [
-                'id'    => $category->id,
-                'name'  => $category->name,
-                'icon'  => $icon,
+                'id' => $category->id,
+                'name' => $category->name,
+                'icon' => $icon,
                 'color' => $color,
                 'count' => (int) $category->assets_count,
             ];
@@ -153,10 +164,10 @@ class DashboardController extends Controller
             ->count();
 
         $overdueAudit = Asset::OverdueForAudit()->count();
-        $dueAudit     = Asset::DueForAudit($settings)->count();
-        $dueCheckin   = Asset::DueForCheckin($settings)->count();
+        $dueAudit = Asset::DueForAudit($settings)->count();
+        $dueCheckin = Asset::DueForCheckin($settings)->count();
 
-        $openMaint       = Maintenance::whereNull('completion_date')->count();
+        $openMaint = Maintenance::whereNull('completion_date')->count();
         $inProgressMaint = Maintenance::whereNull('completion_date')
             ->where('start_date', '<=', Carbon::now())->count();
 
@@ -166,19 +177,19 @@ class DashboardController extends Controller
         ])->count();
 
         return [
-            'total'                   => $total,
-            'deployed'                => $deployed,
-            'ready_to_deploy'         => $readyToDeploy,
-            'not_checked_out'         => $notCheckedOut,
-            'pending'                 => $pending,
-            'damaged_missing'         => $damagedMissing,
-            'overdue_audit'           => $overdueAudit,
-            'due_audit'               => $dueAudit,
-            'due_checkin'             => $dueCheckin,
-            'open_maintenance'        => $openMaint,
+            'total' => $total,
+            'deployed' => $deployed,
+            'ready_to_deploy' => $readyToDeploy,
+            'not_checked_out' => $notCheckedOut,
+            'pending' => $pending,
+            'damaged_missing' => $damagedMissing,
+            'overdue_audit' => $overdueAudit,
+            'due_audit' => $dueAudit,
+            'due_checkin' => $dueCheckin,
+            'open_maintenance' => $openMaint,
             'in_progress_maintenance' => $inProgressMaint,
-            'created_last_7'          => $createdLast7,
-            'created_prev_7'          => $createdPrev7,
+            'created_last_7' => $createdLast7,
+            'created_prev_7' => $createdPrev7,
         ];
     }
 
@@ -191,9 +202,9 @@ class DashboardController extends Controller
     private function buildLifecycle(): array
     {
         $rows = Statuslabel::leftJoin('assets', function ($join) {
-                $join->on('assets.status_id', '=', 'status_labels.id')
-                     ->whereNull('assets.deleted_at');
-            })
+            $join->on('assets.status_id', '=', 'status_labels.id')
+                ->whereNull('assets.deleted_at');
+        })
             ->whereNull('status_labels.deleted_at')
             ->select(
                 'status_labels.id',
@@ -209,14 +220,14 @@ class DashboardController extends Controller
             ->get();
 
         $stages = [
-            'new'        => ['label' => 'New',        'color' => '#3c8dbc', 'items' => [], 'count' => 0],
-            'active'     => ['label' => 'Active',     'color' => '#00a65a', 'items' => [], 'count' => 0],
-            'storage'    => ['label' => 'Storage',    'color' => '#dd4b39', 'items' => [], 'count' => 0],
+            'new' => ['label' => 'New',        'color' => '#3c8dbc', 'items' => [], 'count' => 0],
+            'active' => ['label' => 'Active',     'color' => '#00a65a', 'items' => [], 'count' => 0],
+            'storage' => ['label' => 'Storage',    'color' => '#dd4b39', 'items' => [], 'count' => 0],
             'processing' => ['label' => 'Processing', 'color' => '#b03cb0', 'items' => [], 'count' => 0],
-            'damaged'    => ['label' => 'Damaged',    'color' => '#f39c12', 'items' => [], 'count' => 0],
-            'missing'    => ['label' => 'Missing',    'color' => '#f39c12', 'items' => [], 'count' => 0],
-            'archived'   => ['label' => 'Archived',   'color' => '#777777', 'items' => [], 'count' => 0],
-            'other'      => ['label' => 'Other',      'color' => '#999999', 'items' => [], 'count' => 0],
+            'damaged' => ['label' => 'Damaged',    'color' => '#f39c12', 'items' => [], 'count' => 0],
+            'missing' => ['label' => 'Missing',    'color' => '#f39c12', 'items' => [], 'count' => 0],
+            'archived' => ['label' => 'Archived',   'color' => '#777777', 'items' => [], 'count' => 0],
+            'other' => ['label' => 'Other',      'color' => '#999999', 'items' => [], 'count' => 0],
         ];
 
         foreach ($rows as $row) {
@@ -244,8 +255,8 @@ class DashboardController extends Controller
             }
             $count = (int) $row->asset_count;
             $stages[$stage]['items'][] = [
-                'id'    => $row->id,
-                'name'  => $row->name,
+                'id' => $row->id,
+                'name' => $row->name,
                 'color' => $row->color ?: $stages[$stage]['color'],
                 'count' => $count,
             ];
@@ -253,7 +264,7 @@ class DashboardController extends Controller
         }
 
         foreach ($stages as $key => &$stage) {
-            usort($stage['items'], fn($a, $b) => $b['count'] <=> $a['count']);
+            usort($stage['items'], fn ($a, $b) => $b['count'] <=> $a['count']);
             if ($stage['count'] === 0 && empty($stage['items'])) {
                 unset($stages[$key]);
             }
@@ -292,7 +303,10 @@ class DashboardController extends Controller
         $leaseColumn = Schema::hasColumn('assets', 'lease_end_date')
             ? 'lease_end_date' : null;
         $leaseBucket = function (int $days) use ($now, $leaseColumn) {
-            if (! $leaseColumn) return null;
+            if (! $leaseColumn) {
+                return null;
+            }
+
             return Asset::AssetsForShow()
                 ->whereNotNull($leaseColumn)
                 ->where($leaseColumn, '!=', '')
@@ -309,20 +323,20 @@ class DashboardController extends Controller
             ->count();
 
         return [
-            'warranty_30'       => $warrantyBucket(30),
-            'warranty_60'       => $warrantyBucket(60),
-            'warranty_90'       => $warrantyBucket(90),
-            'lease_30'          => $leaseBucket(30),
-            'lease_60'          => $leaseBucket(60),
-            'lease_90'          => $leaseBucket(90),
-            'audit_overdue'     => Asset::OverdueForAudit()->count(),
-            'audit_due_30'      => Asset::DueForAudit($settings)->count(),
-            'checkin_due'       => Asset::DueForCheckin($settings)->count(),
-            'stuck_processing'  => $stuckProcessing,
-            'open_maint'        => Maintenance::whereNull('completion_date')->count(),
+            'warranty_30' => $warrantyBucket(30),
+            'warranty_60' => $warrantyBucket(60),
+            'warranty_90' => $warrantyBucket(90),
+            'lease_30' => $leaseBucket(30),
+            'lease_60' => $leaseBucket(60),
+            'lease_90' => $leaseBucket(90),
+            'audit_overdue' => Asset::OverdueForAudit()->count(),
+            'audit_due_30' => Asset::DueForAudit($settings)->count(),
+            'checkin_due' => Asset::DueForCheckin($settings)->count(),
+            'stuck_processing' => $stuckProcessing,
+            'open_maint' => Maintenance::whereNull('completion_date')->count(),
             'in_progress_maint' => Maintenance::whereNull('completion_date')
                 ->where('start_date', '<=', $now)->count(),
-            'scheduled_maint'   => Maintenance::whereNull('completion_date')
+            'scheduled_maint' => Maintenance::whereNull('completion_date')
                 ->where('start_date', '>', $now)->count(),
         ];
     }
@@ -374,11 +388,11 @@ class DashboardController extends Controller
             : 0;
 
         return [
-            'open_orders'        => $openOrdersList,
-            'recent_orders'      => $recentOrdersList,
-            'open_orders_count'  => $openOrderCount,
+            'open_orders' => $openOrdersList,
+            'recent_orders' => $recentOrdersList,
+            'open_orders_count' => $openOrderCount,
             'unmatched_invoices' => $unmatchedInvoices,
-            'open_po_count'      => DB::table('purchase_orders')
+            'open_po_count' => DB::table('purchase_orders')
                 ->whereIn('status', ['open', 'amended'])
                 ->whereNull('deleted_at')->count(),
         ];
@@ -392,9 +406,9 @@ class DashboardController extends Controller
     {
         // Order matches the dashboard render order: Fleet, Ownership, DMS.
         $candidates = [
-            'fleet'          => ['column' => '_snipeit_fleet_41',                      'label' => 'Fleet',                       'limit' => 12],
+            'fleet' => ['column' => '_snipeit_fleet_41',                      'label' => 'Fleet',                       'limit' => 12],
             'ownership_type' => ['column' => 'ownership_type',                         'label' => 'Ownership',                   'limit' => 8],
-            'dms'            => ['column' => '_snipeit_device_management_service_44',  'label' => 'Device Management Service',   'limit' => 8],
+            'dms' => ['column' => '_snipeit_device_management_service_44',  'label' => 'Device Management Service',   'limit' => 8],
         ];
 
         $out = [];
@@ -414,11 +428,103 @@ class DashboardController extends Controller
                 continue;
             }
             $out[$key] = [
-                'label'   => $spec['label'],
-                'column'  => $spec['column'],
-                'buckets' => $rows->map(fn($r) => ['name' => $r->bucket, 'count' => (int) $r->cnt])->all(),
+                'label' => $spec['label'],
+                'column' => $spec['column'],
+                'buckets' => $rows->map(fn ($r) => ['name' => $r->bucket, 'count' => (int) $r->cnt])->all(),
             ];
         }
+
         return $out;
+    }
+
+    /**
+     * The end-user home: a pizza-tracker for the laptop journey, and the
+     * standing answer to "when does my lease end".
+     *
+     * The seven steps are Rod's, verbatim: form → order → processing →
+     * shipped → arrived → inventoried → ready for pick up. The first four
+     * live on the store order; the last three are read off the provisioned
+     * asset's status label, because after arrival the order stops changing
+     * and the asset is what moves through inventory.
+     */
+    public function my(): View
+    {
+        $user = auth()->user();
+        $laptop = Asset::currentLaptopOf($user->id);
+
+        $agreement = UserAgreement::where('user_id', $user->id)
+            ->where('agreement_type', 'pickup')
+            ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
+            ->latest('created_at')
+            ->first();
+
+        $order = StoreOrder::with('items.catalogItem')
+            ->where('user_id', $user->id)
+            ->whereNotIn('status', ['declined', 'cancelled'])
+            ->latest('created_at')
+            ->first();
+
+        $incoming = $order
+            ? Asset::where('order_number', $order->reference())->with('model', 'status')->orderBy('id')->first()
+            : null;
+
+        $steps = null;
+        $journeyComplete = false;
+
+        if ($agreement || $order) {
+            $statusName = $incoming?->status->name ?? '';
+            $arrivedByAsset = in_array($statusName, ['New (Arrived)', 'New (Inventoried)', 'New (Provisioned)'], true);
+
+            $done = [
+                // Inside this branch a journey exists by definition, so the
+                // first chevron is always lit.
+                'form' => true,
+                'order' => (bool) $order,
+                'processing' => $order && in_array($order->status, ['approved', 'ordered'], true),
+                'shipped' => (bool) ($order?->shipped_at),
+                'arrived' => (bool) ($order?->arrived_at) || $arrivedByAsset,
+                'inventoried' => in_array($statusName, ['New (Inventoried)', 'New (Provisioned)'], true),
+                'ready' => $statusName === 'New (Provisioned)',
+            ];
+
+            // Picked up: the incoming machine is in their hands — the journey
+            // is over and the dashboard says so instead of tracking it.
+            $journeyComplete = $incoming && (int) $incoming->assigned_to === (int) $user->id;
+
+            $steps = [];
+            $reachedNow = false;
+            foreach ($done as $key => $isDone) {
+                $state = $isDone ? 'done' : ($reachedNow ? 'todo' : 'now');
+                if (! $isDone) {
+                    $reachedNow = true;
+                }
+                $steps[] = ['key' => $key, 'state' => $journeyComplete ? 'done' : $state];
+            }
+        }
+
+        // Renewal season: the lease is inside its last eight months and no
+        // journey has started — the dashboard's job is to start it.
+        $leaseEnd = $laptop?->leaseEndDate();
+        $renewalDue = $leaseEnd !== null
+            && ! $agreement && ! $order
+            && now()->diffInDays($leaseEnd, false) < 240;
+
+        return view('dashboard.my', [
+            'user' => $user,
+            'laptop' => $laptop,
+            'leaseEnd' => $leaseEnd,
+            'order' => $order,
+            'incoming' => $incoming,
+            'steps' => $steps,
+            'journeyComplete' => $journeyComplete,
+            'renewalDue' => $renewalDue,
+
+            // Everything checked out to them — the tables of the old tabbed
+            // "assigned items" page, on one screen, zero-count ones omitted.
+            'myAssets' => $user->assets()->with('model.category', 'status')->get(),
+            'myLicenses' => $user->licenses()->get(),
+            'myAccessories' => $user->accessories()->get(),
+            'myConsumables' => $user->consumables()->get(),
+        ]);
     }
 }
