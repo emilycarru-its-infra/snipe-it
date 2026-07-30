@@ -125,6 +125,7 @@ Route::group(['middleware' => 'auth'], function () {
     */
     Route::resource('orders', OrdersController::class);
     Route::post('orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
+    Route::post('orders/allocate', [OrdersController::class, 'allocate'])->name('orders.allocate');
     Route::get('orders/{order}/export', [OrdersController::class, 'export'])->name('orders.export');
     Route::post('orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('orders.cancel');
     Route::post('orders/{order}/reopen', [OrdersController::class, 'reopen'])->name('orders.reopen');
