@@ -7,7 +7,6 @@ use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
-use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -172,11 +171,7 @@ class StoreOrderAssetProvisioner
      */
     public function outgoingMachine(StoreOrder $order): ?Asset
     {
-        return Asset::where('assigned_to', $order->user_id)
-            ->where('assigned_type', User::class)
-            ->orderByDesc('last_checkout')
-            ->orderByDesc('purchase_date')
-            ->first();
+        return Asset::currentLaptopOf($order->user_id);
     }
 
     /**

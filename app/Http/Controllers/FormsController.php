@@ -18,12 +18,22 @@ use Illuminate\View\View;
  */
 class FormsController extends Controller
 {
-    public function index(): View
+    public function index(): View|RedirectResponse
     {
         $user = Auth::user();
+        $forms = FormRegistry::accessibleTo($user);
+        $isAdmin = FormAccess::isAdmin($user);
+
+        // A person with exactly one form to fill in should land on the form,
+        // not on a page whose entire content is a button to the form. Admins
+        // keep the index — for them it is a directory, not a doorway.
+        if (! $isAdmin && count($forms) === 1) {
+            return redirect()->route('forms.show', array_key_first($forms));
+        }
+
         return view('forms.index', [
-            'forms'   => FormRegistry::accessibleTo($user),
-            'isAdmin' => FormAccess::isAdmin($user),
+            'forms' => $forms,
+            'isAdmin' => $isAdmin,
         ]);
     }
 
@@ -32,6 +42,7 @@ class FormsController extends Controller
         $form = $this->resolveOrFail($slug);
         $user = Auth::user();
         abort_unless(FormAccess::canAccess($user, $slug), 403, trans('admin/forms/general.not_eligible'));
+
         return $form->show($user);
     }
 
@@ -40,6 +51,7 @@ class FormsController extends Controller
         $form = $this->resolveOrFail($slug);
         $user = Auth::user();
         abort_unless(FormAccess::canAccess($user, $slug), 403, trans('admin/forms/general.not_eligible'));
+
         return $form->submit($request, $user);
     }
 
@@ -48,6 +60,7 @@ class FormsController extends Controller
         $form = $this->resolveOrFail($slug);
         $user = Auth::user();
         abort_unless(FormAccess::canAccess($user, $slug), 403, trans('admin/forms/general.not_eligible'));
+
         return $form->success($user);
     }
 
@@ -55,6 +68,7 @@ class FormsController extends Controller
     {
         $form = $this->resolveOrFail($slug);
         abort_unless(FormAccess::isAdmin(Auth::user()), 403, trans('admin/forms/general.admin_only'));
+
         return $form->submissionsIndexView($form->submissionsIndexQuery());
     }
 
@@ -68,6 +82,7 @@ class FormsController extends Controller
             403,
             trans('admin/forms/general.not_eligible'),
         );
+
         return $form->submissionShow($submission);
     }
 
@@ -75,6 +90,7 @@ class FormsController extends Controller
     {
         $form = FormRegistry::find($slug);
         abort_unless($form, 404);
+
         return $form;
     }
 }

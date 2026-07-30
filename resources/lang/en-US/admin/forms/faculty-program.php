@@ -103,4 +103,15 @@ return [
     'success_body' => 'Your commitment has been recorded and the IT team has been notified. The next step is to choose your laptop in the store and send the order request. IT reviews it, orders it, and when it ships your asset appears in your account here automatically.',
     'success_button' => 'Choose your laptop',
     'success_back' => 'Back to my account',
+
+    // The trade-in framing of the intake.
+    'tradein_kicker' => 'Your current laptop',
+    'tradein_title' => 'Trade in or keep?',
+    'tradein_none_title' => 'Your first program laptop',
+    'tradein_none_sub' => 'We found no leased laptop checked out to you — if that\'s wrong, enter its tag and serial below.',
+    'tradein_buyout_estimate' => 'estimated buyout, confirmed before anything is charged',
+    'newmachine_kicker' => 'Your new laptop',
+    'payment_kicker' => 'If you go above the base',
+    'notes_kicker' => 'Anything else',
+    'terms_kicker' => 'The agreement',
 ];
