@@ -73,11 +73,11 @@
             --sidenav-hover-color-bg: var(--chrome-hover-bg);
             --sidenav-text-hover-color: var(--chrome-fg);
             --sidenav-text-nohover-color: var(--chrome-fg-muted);
-            --table-border-row-color: light-dark(#ecf0f5, #656464);
-            --table-border-row-top: 1px solid #ecf0f5;
+            --table-border-row-color: light-dark(#f0f0f3, #2c2d31);
+            --table-border-row-top: 1px solid var(--table-border-row-color);
             --table-border-row: 1px solid var(--table-border-row-color);
-            --table-stripe-bg-alt: light-dark(rgba(211, 211, 211, 0.25), #323131);
-            --table-stripe-bg: light-dark(#ffffff, #494747);
+            --table-stripe-bg-alt: light-dark(#fafafc, #212226);
+            --table-stripe-bg: light-dark(#ffffff, #1f2023);
             --text-danger: light-dark(#a94442, #fa5b48);
             --text-help: light-dark(#777676,#a6a4a4);
             --text-info: light-dark(#31708f,#2baae6);
@@ -786,6 +786,68 @@
             color: var(--nav-primary-text-color) !important;
         }
 
+
+        {{-- Controls are rounded app-wide: every button and input shares
+             one radius instead of Bootstrap 3's squares. Input groups keep
+             their seam — outer corners round, the joint stays square. --}}
+        .btn {
+            border-radius: 10px;
+        }
+        .form-control,
+        .input-group-addon,
+        .select2-container--default .select2-selection--single,
+        .select2-container--default .select2-selection--multiple {
+            border-radius: 10px;
+        }
+        .input-group .form-control:first-child,
+        .input-group-addon:first-child {
+            border-radius: 10px 0 0 10px;
+        }
+        .input-group .form-control:last-child,
+        .input-group-addon:last-child {
+            border-radius: 0 10px 10px 0;
+        }
+        .input-group-btn:last-child > .btn { border-radius: 0 10px 10px 0; }
+        .input-group-btn:first-child > .btn { border-radius: 10px 0 0 10px; }
+        .input-group .form-control:not(:first-child):not(:last-child) { border-radius: 0; }
+        .dropdown-menu {
+            border-radius: 12px;
+            overflow: clip;
+            padding: 4px;
+        }
+        .dropdown-menu > li > a { border-radius: 8px; }
+
+        {{-- List-page chrome (#3955). One rule-set for every
+             bootstrap-table page: rounded controls, a quiet uppercase
+             header row, and pagination as pills — the parts of a list
+             page the box-to-card change could not reach. --}}
+        .bootstrap-table .fixed-table-toolbar .btn,
+        .bootstrap-table .fixed-table-toolbar .form-control,
+        .box-body > .btn,
+        .box-header .btn,
+        .box-footer .btn,
+        .content .btn-group > .btn,
+        #assetsToolBar .btn,
+        .search input.form-control {
+            border-radius: 10px;
+        }
+        .bootstrap-table .fixed-table-toolbar .btn-group > .btn:not(:first-child):not(:last-child) { border-radius: 0; }
+        .bootstrap-table .fixed-table-toolbar .btn-group > .btn:first-child:not(:last-child) { border-radius: 10px 0 0 10px; }
+        .bootstrap-table .fixed-table-toolbar .btn-group > .btn:last-child:not(:first-child) { border-radius: 0 10px 10px 0; }
+
+        .bootstrap-table .table > thead > tr > th {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--chrome-fg-muted);
+        }
+        .bootstrap-table .table > thead > tr > th .sortable { color: inherit; }
+
+        .pagination > li:first-child > a { border-radius: 999px 0 0 999px; }
+        .pagination > li:last-child > a { border-radius: 0 999px 999px 0; }
+
+        .bootstrap-table .fixed-table-container { border: none; }
 
         .bootstrap-table .fixed-table-toolbar li.dropdown-item-marker label
         {
