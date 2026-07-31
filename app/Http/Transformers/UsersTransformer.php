@@ -48,6 +48,8 @@ class UsersTransformer
             'phone' => ($user->phone) ? e($user->phone) : null,
             'mobile' => ($user->mobile) ? e($user->mobile) : null,
             'website' => ($user->website) ? e($user->website) : null,
+            'idp_url' => ($user->idp_url) ? e($user->idp_url) : null,
+            'idp_label' => ($user->idp_label) ? e($user->idp_label) : null,
             'address' => ($user->address) ? e($user->address) : null,
             'city' => ($user->city) ? e($user->city) : null,
             'state' => ($user->state) ? e($user->state) : null,

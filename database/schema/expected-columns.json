@@ -1596,6 +1596,8 @@
         "gravatar",
         "hidden_procurement_reports",
         "id",
+        "idp_label",
+        "idp_url",
         "jobtitle",
         "last_login",
         "last_name",
