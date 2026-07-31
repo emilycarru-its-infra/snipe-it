@@ -654,38 +654,47 @@
     @media (max-width: 1199px) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
     @media (max-width: 767px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 
+    /* Tiles are cards, not paint buckets (#3958): the status colour is an
+       accent — the headline number and a hairline top rail — on the same
+       quiet surface every other card uses, in both themes. */
     .kpi-tile {
         display: block;
         padding: 12px 14px;
-        border-radius: 4px;
-        color: #fff;
+        border-radius: 14px;
+        border: 1px solid var(--box-header-top-border-color);
+        border-top: 3px solid var(--kpi-accent);
+        background: var(--box-bg);
+        color: var(--color-fg);
         text-decoration: none;
-        transition: transform 0.1s ease;
+        transition: transform 0.1s ease, border-color 0.1s ease;
     }
-    .kpi-tile:hover { transform: translateY(-2px); color: #fff; text-decoration: none; }
-    /* Solid white text with a tiny shadow keeps the headline number legible on
-       every card background (teal, green, yellow, etc.) without re-tuning each
-       one separately. The label and subtext keep their previous hierarchy but
-       at higher opacity so the meaning of each tile is readable too. */
-    .kpi-tile .kpi-value { font-size: 24px; font-weight: 800; line-height: 1.1; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.18); }
-    .kpi-tile .kpi-label { font-size: 12px; text-transform: uppercase; font-weight: 600; opacity: 1; margin-top: 2px; letter-spacing: 0.4px; color: #fff; }
-    .kpi-tile .kpi-sub   { font-size: 11px; opacity: 0.92; margin-top: 4px; color: #fff; }
+    .kpi-tile:hover {
+        transform: translateY(-2px);
+        border-color: var(--kpi-accent);
+        color: var(--color-fg);
+        text-decoration: none;
+    }
+    .kpi-tile .kpi-value { font-size: 24px; font-weight: 800; line-height: 1.1; color: var(--kpi-accent); font-variant-numeric: tabular-nums; }
+    .kpi-tile .kpi-label { font-size: 12px; text-transform: uppercase; font-weight: 600; margin-top: 2px; letter-spacing: 0.4px; }
+    .kpi-tile .kpi-sub   { font-size: 11px; opacity: 0.65; margin-top: 4px; }
 
-    .kpi-teal   { background: #39cccc; }
-    .kpi-green  { background: #00a65a; }
-    .kpi-blue   { background: #0073b7; }
-    .kpi-aqua   { background: #00c0ef; }
-    .kpi-yellow { background: #f39c12; }
-    .kpi-red    { background: #dd4b39; }
-    .kpi-purple { background: #605ca8; }
-    .kpi-orange { background: #ff851b; }
+    {{-- The dark variants lift each hue enough to read as text on the
+         dark card; light-dark() picks per theme. --}}
+    .kpi-teal   { --kpi-accent: light-dark(#2aa5a5, #4ed6d6); }
+    .kpi-green  { --kpi-accent: light-dark(#00a65a, #35cc86); }
+    .kpi-blue   { --kpi-accent: light-dark(#0073b7, #4aa3dd); }
+    .kpi-aqua   { --kpi-accent: light-dark(#0097bc, #45cdec); }
+    .kpi-yellow { --kpi-accent: light-dark(#d68910, #f0b429); }
+    .kpi-red    { --kpi-accent: light-dark(#dd4b39, #ee7060); }
+    .kpi-purple { --kpi-accent: light-dark(#605ca8, #8f8ccc); }
+    .kpi-orange { --kpi-accent: light-dark(#e07000, #ff9a47); }
 
     .lifecycle-bar {
         display: flex;
         height: 32px;
-        border-radius: 4px;
+        border-radius: 999px;
         overflow: hidden;
-        background: rgba(0,0,0,0.1);
+        background: var(--table-stripe-bg-alt);
     }
     .lifecycle-segment {
         height: 100%;
@@ -736,9 +745,9 @@
     .action-card {
         display: block;
         padding: 12px 14px;
-        border-radius: 4px;
-        border: 1px solid rgba(127,127,127,0.2);
-        background: rgba(127,127,127,0.05);
+        border-radius: 12px;
+        border: 1px solid var(--box-header-top-border-color);
+        background: var(--table-stripe-bg-alt);
         color: inherit;
         text-decoration: none;
         transition: background 0.1s ease;
