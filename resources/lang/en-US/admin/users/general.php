@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'idp_url' => 'Identity Provider',
+    'idp_url_help' => 'Link to this person\'s record in the identity provider (for example their Entra ID profile).',
+    'idp_label' => 'Show as',
+    'idp_label_placeholder' => 'Entra ID profile',
     'activated_help_text' => 'This user can login',
     'activated_disabled_help_text' => 'You cannot edit activation status for your own account.',
     'assets_user' => 'Assets assigned to :name',

@@ -94,6 +94,8 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         'vip',
         'autoassign_licenses',
         'website',
+        'idp_url',
+        'idp_label',
     ];
 
     protected $casts = [
@@ -120,6 +122,8 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         'password' => 'required|min:8',
         'locale' => 'max:10|nullable',
         'website' => 'url|nullable|max:191',
+        'idp_url' => 'url|nullable|max:191',
+        'idp_label' => 'nullable|string|max:191',
         'manager_id' => 'nullable|exists:users,id|cant_manage_self',
         'location_id' => 'exists:locations,id|nullable|fmcs_location',
         'start_date' => 'nullable|date_format:Y-m-d',
