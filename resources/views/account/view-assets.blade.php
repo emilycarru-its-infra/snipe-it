@@ -136,13 +136,18 @@
                     <!-- Start button column -->
                     <div class="col-md-3 col-xs-12 col-sm-push-9 info-stack">
 
+                            {{-- Only a real photo earns the space — the
+                                 default silhouette was a giant black block
+                                 that made the page look broken. --}}
+                            @if ($user->avatar)
                             <div class="col-md-12 text-center">
-                              <img src="{{ $user->present()->gravatar() }}"  class=" img-thumbnail hidden-print" style="margin-bottom: 20px;" alt="{{ $user->display_name }}" alt="User avatar">
+                              <img src="{{ $user->present()->gravatar() }}" class="img-thumbnail hidden-print" style="margin-bottom: 20px; border-radius: 14px;" alt="{{ $user->display_name }}">
                             </div>
+                            @endif
 
                               @if (!request()->filled('user_id') || auth()->user()->id == $user->id)
                                   <div class="col-md-12">
-                                    <a href="{{ route('profile') }}" style="width: 100%;" class="btn btn-sm btn-warning btn-social btn-block hidden-print">
+                                    <a href="{{ route('profile') }}" style="width: 100%;" class="btn btn-sm btn-theme btn-social btn-block hidden-print">
                                       <x-icon type="edit" />
                                       {{ trans('general.editprofile') }}
                                     </a>
