@@ -82,7 +82,7 @@ class FacultyVisibilityTest extends TestCase
         ]);
         Asset::factory()->create(['asset_tag' => 'SOMEONE-ELSES-001', 'requestable' => 0]);
 
-        $this->actingAs($faculty)->get(route('view-assets'))
+        $this->actingAs($faculty)->followingRedirects()->get(route('view-assets'))
             ->assertOk()
             ->assertSee('MINE-001', false)
             ->assertDontSee('SOMEONE-ELSES-001', false);
@@ -152,7 +152,7 @@ class FacultyVisibilityTest extends TestCase
         $this->actingAs($faculty)->get(route('store.index'))->assertOk();
         $this->actingAs($faculty)->get(route('store.orders'))->assertOk();
         $this->actingAs($faculty)->get(route('profile'))->assertOk();
-        $this->actingAs($faculty)->get(route('view-assets'))
+        $this->actingAs($faculty)->followingRedirects()->get(route('view-assets'))
             ->assertOk()
             ->assertSee('MINE-001', false);
     }

@@ -101,43 +101,11 @@ class ViewAssetsController extends Controller
      */
     public function getIndex(Request $request): View|RedirectResponse
     {
-        $authUser = auth()->user();
-        $settings = Setting::getSettings();
-        $subordinates = collect();
-        $selectedUserId = $authUser->id;
-
-        // Process manager view if enabled
-        if ($settings->manager_view_enabled) {
-            $subordinates = $this->getViewableUsers($authUser);
-            $selectedUserId = $this->getSelectedUserId($request, $subordinates, $authUser->id);
-        }
-
-        // Load the data for the user to be viewed (either auth user or selected subordinate)
-        $userToView = User::with([
-            'assets',
-            'assets.model',
-            'assets.model.fieldset.fields',
-            'consumables',
-            'accessories',
-            'licenses',
-        ])->find($selectedUserId);
-
-        // If the user to view couldn't be found (shouldn't happen with proper logic), redirect with error
-        if (! $userToView) {
-            return redirect()->route('view-assets')->with('error', trans('admin/users/message.user_not_found'));
-        }
-
-        // Process custom fields for the user being viewed
-        $fieldArray = $this->extractCustomFields($userToView);
-
-        // Pass the necessary data to the view
-        return view('account/view-assets', [
-            'user' => $userToView, // Use 'user' for compatibility with the existing view
-            'field_array' => $fieldArray,
-            'settings' => $settings,
-            'subordinates' => $subordinates,
-            'selectedUserId' => $selectedUserId,
-        ]);
+        // The tabbed profile page folded into /my — everything it showed
+        // (assets, licences, accessories, consumables, EULAs, profile
+        // actions) lives there now. The route names stay because sent
+        // emails and bookmarks point at them.
+        return redirect()->route('my');
     }
 
     /**
