@@ -19,7 +19,7 @@
 @endif
 </x-mail::table>
 
-**[{{ trans('mail.your_assets') }}]({{ route('view-assets') }})**
+**[{{ trans('mail.your_assets') }}]({{ route('my') }})**
 
 {{ trans('mail.best_regards') }}
 

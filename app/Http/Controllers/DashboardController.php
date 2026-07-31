@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Accessory;
 use App\Models\Asset;
 use App\Models\Category;
+use App\Models\CheckoutAcceptance;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
@@ -49,7 +50,7 @@ class DashboardController extends Controller
         if (! auth()->user()->hasAccess('admin')) {
             Session::reflash();
 
-            return redirect()->intended('account/view-assets');
+            return redirect()->intended('my');
         }
 
         $counts = [
@@ -547,6 +548,9 @@ class DashboardController extends Controller
 
         return view('dashboard.my', [
             'user' => $user,
+            'pendingAcceptances' => CheckoutAcceptance::forUser($user)->pending()->with('checkoutable')->get(),
+            'myEulas' => $user->eulas()->get(),
+            'isFacultyProgramMember' => $user->isFacultyProgramMember(),
             'leaseEnd' => $leaseEnd,
             'order' => $order,
             'orderSummary' => $this->orderDeviceSummary($order),

@@ -1683,6 +1683,8 @@
                              forms see no Forms tab at all. --}}
                         @php
                             $euCanUseStore = auth()->user()->canUseStore();
+                            $euHasOrders = $euCanUseStore
+                                && \App\Models\StoreOrder::where('user_id', auth()->id())->exists();
                         @endphp
                         <ul class="nav navbar-nav eu-nav">
                             <li {!! request()->is('my') ? 'class="active"' : '' !!}>
@@ -1697,6 +1699,10 @@
                                 <li {!! request()->is('store') ? 'class="active"' : '' !!}>
                                     <a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.store') }}</a>
                                 </li>
+                            @endif
+                            {{-- Orders only earns a tab once there is an order
+                                 to look at. --}}
+                            @if ($euHasOrders)
                                 <li {!! request()->is('store/orders*') ? 'class="active"' : '' !!}>
                                     <a href="{{ route('store.orders') }}"><i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.nav_orders') }}</a>
                                 </li>
@@ -1719,6 +1725,15 @@
                                content that had already been pulled flush. */
                             :root { --eu-gutter: 28px; }
                             .main-header .navbar { margin-left: 0 !important; padding-left: var(--eu-gutter); padding-right: 12px; }
+                            /* On wide screens the header contents track the
+                               centred 1200px content column instead of
+                               hugging the far left edge. The header band
+                               itself still paints edge to edge. */
+                            .main-header .navbar {
+                                max-width: calc(1200px + 2 * var(--eu-gutter));
+                                margin-left: auto !important;
+                                margin-right: auto !important;
+                            }
                             .main-header .navbar-brand { padding-left: 0 !important; }
                             /* !important only to beat the base template's
                                inline padding-top:0 on .content, which exists
@@ -1955,15 +1970,9 @@
                                             </li>
                                         @endif
 
-                                        @can('self.profile')
-                                        <li {!! (request()->is('account/accept') ? ' class="active"' : '') !!}>
-                                            <a href="{{ route('account.accept') }}">
-                                                <x-icon type="checkmark" class="fa-fw" />
-                                                {{ trans('general.accept_assets_menu') }}
-                                            </a>
-                                        </li>
-
-                                        @endcan
+                                        {{-- Accept Assets left this menu: anything
+                                             waiting on a signature is the first
+                                             card on /my now. --}}
                                         <li {!! (request()->is('account/profile') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('profile') }}">
                                                 <x-icon type="user" class="fa-fw" />
