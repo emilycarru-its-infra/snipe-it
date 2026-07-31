@@ -552,18 +552,50 @@
         }
 
 
+        {{-- Detail-page tabs (#3956): the tab row is a quiet strip of
+             pills inside the card — no boxed tabs, no 3px brand underline.
+             The active tab is the raised pill the topbar established, so
+             every tabbed view (user profile, asset view, settings) reads
+             as one system. --}}
         .nav-tabs-custom > .nav-tabs {
             border-bottom: var(--tab-bottom-border);
-            border-top-right-radius: 3px;
-            border-top-left-radius: 3px;
-            padding-bottom: 0;
-
+            border-radius: 14px 14px 0 0;
+            padding: 8px 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
         }
 
         .nav-tabs > li > a {
             margin-right: 0;
             border: 0;
         }
+
+        .nav-tabs-custom > .nav-tabs > li {
+            float: none;
+            margin: 0;
+        }
+        .nav-tabs-custom > .nav-tabs > li > a {
+            border-radius: 999px !important;
+            padding: 7px 14px;
+            margin: 0;
+        }
+        .nav-tabs-custom > .nav-tabs > li > a:hover {
+            background-color: var(--chrome-hover-bg) !important;
+        }
+        .nav-tabs-custom > .nav-tabs > li.active {
+            border-top: none;
+        }
+        .nav-tabs-custom > .nav-tabs > li.active > a,
+        .nav-tabs-custom > .nav-tabs > li.active > a:link,
+        .nav-tabs-custom > .nav-tabs > li.active > a:visited,
+        .nav-tabs-custom > .nav-tabs > li.active > a:hover {
+            background-color: var(--chrome-active-bg) !important;
+            box-shadow: inset 0 0 0 1px var(--chrome-border-color);
+            font-weight: 600;
+        }
+        {{-- The badge count riding a tab keeps its pill from ballooning. --}}
+        .nav-tabs-custom > .nav-tabs > li > a .badge { margin-left: 6px; }
 
         .box,
         .box-footer,
