@@ -1601,7 +1601,7 @@
                                 <a href="{{ route('my') }}"><i class="fa-solid fa-laptop fa-fw" aria-hidden="true"></i> {{ trans('general.assets') }}</a>
                             </li>
                             @if (! empty($formsAccessible))
-                                <li {!! request()->is('forms*') ? 'class="active"' : '' !!}>
+                                <li {!! request()->is('procurement/forms*') ? 'class="active"' : '' !!}>
                                     <a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw" aria-hidden="true"></i> {{ trans('admin/forms/general.menu_link') }}</a>
                                 </li>
                             @endif
@@ -1859,7 +1859,7 @@
                                         @endcan
 
                                         @if (! empty($formsAccessible))
-                                            <li {!! (request()->is('forms*') ? ' class="active"' : '') !!}>
+                                            <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('forms.index') }}">
                                                     <i class="fas fa-file-alt fa-fw" aria-hidden="true"></i>
                                                     {{ trans('admin/forms/general.menu_link') }}
@@ -2394,19 +2394,6 @@
                             </a>
                         </li>
 
-                        {{-- The forms platform — the faculty program intake
-                             starts here, which makes it the documented first
-                             step of that whole flow. Shown only to someone a
-                             form is actually open to. --}}
-                        @if (! empty($formsAccessible))
-                            <li {{!! (request()->is('forms*') ? ' class="active"' : '') !!}}>
-                                <a href="{{ route('forms.index') }}">
-                                    <i class="fas fa-file-signature fa-fw" aria-hidden="true"></i>
-                                    <span>{{ trans('admin/forms/general.menu_link') }}</span>
-                                </a>
-                            </li>
-                        @endif
-
                         {{-- Procurement: operational purchasing data. --}}
                         @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class))
                             <li id="procurement-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
@@ -2427,6 +2414,19 @@
                                                 {{ trans('admin/store/general.queue') }}
                                             </a>
                                         </li>
+                                    @endcan
+                                    {{-- The forms platform — the faculty program
+                                         intake starts here, the first step of the
+                                         procurement flow it now lives under. Shown
+                                         only to someone a form is open to. --}}
+                                    @if (! empty($formsAccessible))
+                                        <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('forms.index') }}">
+                                                {{ trans('admin/forms/general.menu_link') }}
+                                            </a>
+                                        </li>
+                                    @endif
+                                    @can('view', \App\Models\Order::class)
                                         <li {{!! (request()->is('requisitions*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('requisitions.index') }}">
                                                 {{ trans('admin/purchase-orders/general.requisitions') }}

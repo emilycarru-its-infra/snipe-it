@@ -8,8 +8,8 @@
 @section('content')
 
 <div class="row">
-    <div class="col-md-10 col-md-offset-1">
-        <h1 style="margin-top:0;">{{ trans('admin/forms/general.title') }}</h1>
+    <div class="col-md-12">
+        <h1 style="margin-top:0; font-size:22px;">{{ trans('admin/forms/general.title') }}</h1>
         <p class="text-muted">{{ trans('admin/forms/general.intro') }}</p>
 
         @if (empty($forms))
