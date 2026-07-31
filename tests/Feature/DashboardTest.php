@@ -14,9 +14,10 @@ class DashboardTest extends TestCase
 {
     public function test_users_without_admin_access_are_redirected()
     {
+        // A bare user is an end user, and an end user's home is /my.
         $this->actingAs(User::factory()->create())
             ->get(route('home'))
-            ->assertRedirect(route('view-assets'));
+            ->assertRedirect(route('my'));
     }
 
     public function test_counts_are_loaded_correctly_for_admins()

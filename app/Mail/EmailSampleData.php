@@ -344,6 +344,8 @@ class EmailSampleData
             'decision_notes' => $status === 'declined' ? 'Out of cycle — let\'s revisit this in September.' : null,
         ]);
         $order->id = $id;
+        // A real order always has one; the vendor CSV names its file from it.
+        $order->created_at = now();
         $order->setRelation('user', $this->recipient());
         $order->setRelation('items', collect([
             $line('MacBook Pro | 14" | M5 Pro | 24GB | 1TB | Black', '854420', 'MGDP4LL/A', 2, 3799.00),

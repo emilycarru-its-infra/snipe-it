@@ -70,6 +70,8 @@ return [
     'impersonate_stopped' => 'Back to your own account.',
     'impersonate_banner_title' => 'Viewing as another user',
     'impersonate_banner' => 'You are seeing this system as :name (:email), with their permissions. Anything you change is recorded against them.',
+    'impersonate_banner_hide' => 'Hide',
+    'impersonate_chip' => 'Viewing as :name',
     'impersonate_already' => 'You are already viewing as someone else — stop that first.',
     'impersonate_self' => 'That is already you.',
     'impersonate_superuser' => 'A superuser cannot be viewed as — they already see everything, and the audit trail would name the wrong person.',

@@ -70,7 +70,7 @@
         <span class="text-muted">{{ $order->created_at->format('M j, Y') }}</span>
         <span class="label {{ $labelClass }}">{{ trans('admin/store/general.order_status_'.$status) }}</span>
         @if ($order->isShared())
-            <span class="label label-default">{{ trans('admin/store/general.usage_shared_chip') }}@if ($order->usage_note) · {{ $order->usage_note }}@endif</span>
+            <span class="label label-default">{{ trans('admin/store/general.usage_shared_chip') }}@if ($order->location) · {{ $order->location->name }}@endif</span>
         @endif
         @if ($order->status === 'pending')
             <form method="POST" action="{{ route('store.orders.cancel', $order->id) }}" style="display:inline; margin-left:auto;">

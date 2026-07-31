@@ -47,7 +47,7 @@ class StoreOrder extends Model
         'status',
         'program',
         'order_usage',
-        'usage_note',
+        'location_id',
         'funding_account',
         'lease_schedule',
         'notes',
@@ -99,6 +99,18 @@ class StoreOrder extends Model
     public function decidedBy()
     {
         return $this->belongsTo(User::class, 'decided_by')->withTrashed();
+    }
+
+    /**
+     * Where a shared order is destined — the lab, classroom or team space.
+     * The same Location an asset is checked out to, so the provisioner can
+     * seat the arriving devices without anyone re-keying a room number.
+     *
+     * @return BelongsTo<Location, $this>
+     */
+    public function location()
+    {
+        return $this->belongsTo(Location::class, 'location_id');
     }
 
     /**
