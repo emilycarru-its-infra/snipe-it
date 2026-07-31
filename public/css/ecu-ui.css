@@ -1,0 +1,151 @@
+/*
+ * ECU design layer — the tokens and components born on the store surfaces
+ * (/my, /store/orders, the faculty intake form, /orders), extracted so every
+ * page draws the same idiom from one place instead of a per-view style block.
+ *
+ * Loaded globally by layouts/default after the AdminLTE bundle; everything is
+ * namespaced ecu- and inert until a page uses it. light-dark() drives both
+ * themes — pages must not restate these colors locally.
+ *
+ * Component vs layout: this file owns how a thing looks (card skin, kicker
+ * type, chevron geometry, control states). Pages own where things sit —
+ * paddings, margins, column widths — via their own small style blocks, which
+ * come later in the cascade and may override at equal specificity.
+ */
+
+:root {
+    --ecu-border: light-dark(#e2e2e6, #3a3a3e);
+    --ecu-card-bg: light-dark(#ffffff, #1f2023);
+    --ecu-card-bg-muted: light-dark(#fafafc, #212226);
+    --ecu-row-border: light-dark(#f0f0f3, #2c2d31);
+    --ecu-chev-bg: light-dark(#e9e9ee, #33343a);
+    --ecu-chev-fg: light-dark(#5a5a62, #9a9aa4);
+    --ecu-ok: #00a65a;
+    --ecu-now: light-dark(#f39c12, #d68910);
+    --ecu-danger: #dd4b39;
+    --ecu-radius: 14px;
+}
+
+/* The card — the rounded panel everything modern in the app sits in. */
+.ecu-card {
+    border: 1px solid var(--ecu-border);
+    border-radius: var(--ecu-radius);
+    background: var(--ecu-card-bg);
+}
+.ecu-card-muted { background: var(--ecu-card-bg-muted); }
+
+/* The kicker — a quiet uppercase section label above a card's content. */
+.ecu-kicker {
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    opacity: .55;
+    margin-bottom: 6px;
+}
+
+/* Monospace identity — asset tags, serials, contract ids, references. */
+.ecu-tag {
+    font-family: ui-monospace, Menlo, monospace;
+    font-weight: 700;
+}
+
+/* The quiet table — uppercase muted headers, hairline rows, no box chrome. */
+.ecu-table { width: 100%; font-size: 13px; }
+.ecu-table th {
+    opacity: .55;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 4px 10px 4px 0;
+}
+.ecu-table td {
+    padding: 6px 10px 6px 0;
+    border-top: 1px solid var(--ecu-row-border);
+    vertical-align: middle;
+}
+
+/* The chevron rail — the pizza-tracker. Notch depth is a token so the same
+ * component renders full-size on /my and compact inside an order pane. */
+.ecu-rail { display: flex; gap: 4px; }
+.ecu-chev {
+    --ecu-chev-notch: 14px;
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 12px 6px 12px 14px;
+    background: var(--ecu-chev-bg);
+    color: var(--ecu-chev-fg);
+    clip-path: polygon(0 0, calc(100% - var(--ecu-chev-notch)) 0, 100% 50%,
+        calc(100% - var(--ecu-chev-notch)) 100%, 0 100%, var(--ecu-chev-notch) 50%);
+}
+.ecu-chev:first-child {
+    clip-path: polygon(0 0, calc(100% - var(--ecu-chev-notch)) 0, 100% 50%,
+        calc(100% - var(--ecu-chev-notch)) 100%, 0 100%);
+}
+.ecu-chev:last-child {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, var(--ecu-chev-notch) 50%);
+}
+.ecu-chev.done { background: var(--ecu-ok); color: #fff; }
+.ecu-chev.now { background: var(--ecu-now); color: #fff; }
+.ecu-rail-sm .ecu-chev {
+    --ecu-chev-notch: 12px;
+    font-size: 11px;
+    padding: 9px 4px 9px 12px;
+}
+
+/* The control kit — selectable option rows with custom radios/checkboxes
+ * that render correctly in dark mode (no half-moons, no invisible borders). */
+.ecu-opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    margin: 0 0 8px;
+    border: 1px solid light-dark(#d9d9de, #44444a);
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 400;
+    transition: border-color .12s ease;
+    background: light-dark(#fafafc, #26272b);
+}
+.ecu-opt:hover { border-color: light-dark(#9a9aa2, #6a6a72); }
+.ecu-opt.ecu-selected { border-color: var(--ecu-ok); box-shadow: 0 0 0 1px var(--ecu-ok) inset; }
+.ecu-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.ecu-ctl {
+    flex: 0 0 20px;
+    height: 20px;
+    width: 20px;
+    margin-top: 1px;
+    border: 2px solid light-dark(#9a9aa2, #7a7a82);
+    background: light-dark(#fff, #1a1b1e);
+    position: relative;
+}
+.ecu-opt input[type="radio"] + .ecu-ctl { border-radius: 50%; }
+.ecu-opt input[type="checkbox"] + .ecu-ctl { border-radius: 5px; }
+.ecu-opt input:checked + .ecu-ctl { border-color: var(--ecu-ok); background: var(--ecu-ok); }
+.ecu-opt input[type="radio"]:checked + .ecu-ctl::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: #fff;
+}
+.ecu-opt input[type="checkbox"]:checked + .ecu-ctl::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 6px;
+    height: 11px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.ecu-opt input:focus-visible + .ecu-ctl {
+    outline: 2px solid light-dark(#3c8dbc, #6cb2e0);
+    outline-offset: 2px;
+}
+.ecu-opt-text { line-height: 1.45; }
+.ecu-error { color: var(--ecu-danger); font-size: 12px; margin: 4px 0 0; }
