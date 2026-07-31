@@ -22,23 +22,28 @@
 .content-header { display: none; }
 /* Layout only — the component skins (cards, kickers, chevrons, tags, quiet
    tables) come from the shared ECU design layer (public/css/ecu-ui.css). */
-.eud-wrap { max-width: 1100px; }
-.eud-cols { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
-.eud-main { flex: 1 1 620px; min-width: 0; }
-.eud-side { flex: 0 1 280px; }
-.eud-hello { font-size: 24px; font-weight: 700; margin: 14px 0 2px; }
-.eud-sub { opacity: .65; margin: 0 0 18px; }
-.eud-card { padding: 18px 20px; margin-bottom: 14px; }
-.eud-wrap .ecu-kicker { margin-bottom: 8px; }
+/* Centred, and sized like a product rather than a draft pinned to the
+   left edge of a wide screen. */
+.eud-wrap { max-width: 1200px; margin: 0 auto; }
+.eud-cols { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.eud-main { flex: 1 1 680px; min-width: 0; }
+.eud-side { flex: 1 1 300px; max-width: 360px; }
+.eud-hello { font-size: 28px; font-weight: 700; margin: 18px 0 4px; }
+.eud-sub { opacity: .65; margin: 0 0 22px; }
+.eud-card { padding: 20px 24px; margin-bottom: 16px; }
+.eud-wrap .ecu-kicker { margin-bottom: 10px; }
 .eud-order-line { font-size: 15px; margin: 0 0 10px; }
 .eud-wrap .ecu-rail { margin: 6px 0 4px; }
-.eud-wrap .ecu-table img { max-height: 30px; max-width: 44px; object-fit: contain; }
+/* The equipment list is the page — read at body size, not caption size. */
+.eud-wrap .ecu-table { font-size: 14px; }
+.eud-wrap .ecu-table td { padding: 10px 12px 10px 0; }
+.eud-wrap .ecu-table img { max-height: 40px; max-width: 56px; object-fit: contain; }
 .eud-lease-date { font-weight: 700; white-space: nowrap; }
 .eud-lease-sub { font-size: 11px; opacity: .6; white-space: nowrap; }
 .eud-refresh summary { list-style: none; cursor: pointer; display: inline-block; }
 .eud-refresh summary::-webkit-details-marker { display: none; }
 .eud-refresh-form { margin-top: 6px; min-width: 200px; }
-.eud-profile td { padding: 4px 8px 4px 0; font-size: 13px; }
+.eud-profile td { padding: 5px 10px 5px 0; font-size: 13.5px; }
 .eud-profile td:first-child { opacity: .6; white-space: nowrap; }
 </style>
 
