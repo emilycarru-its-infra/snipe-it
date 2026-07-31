@@ -202,6 +202,11 @@
     .toner-printer-card {
         margin: 0;
         align-self: start;       /* don't stretch cards to row height */
+        /* The striped rows inside are square; without a clip their corners
+           poke past the card's 14px radius as edge artifacts. Nothing in
+           these cards overflows on purpose (no dropdowns), so clipping is
+           safe. */
+        overflow: hidden;
     }
     .toner-printer-card.ui-sortable-helper {
         transform: rotate(-1deg);
@@ -211,7 +216,7 @@
     .toner-printer-card-placeholder {
         border: 2px dashed rgba(127,127,127,0.45);
         background: rgba(127,127,127,0.06);
-        border-radius: 4px;
+        border-radius: 14px;
     }
 
     .toner-printer-card-header {
@@ -264,13 +269,13 @@
         white-space: nowrap;
     }
     .toner-auto-order-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; }
-    .toner-printer-card-body { padding: 0 0 6px; }
-    .toner-printer-card-body table td { padding: 8px 12px; vertical-align: middle; }
+    .toner-printer-card-body { padding: 0 0 8px; }
+    .toner-printer-card-body table td { padding: 9px 16px; vertical-align: middle; }
     .toner-printer-card-body table td.toner-name-cell { width: 100%; }
     .toner-printer-card-body table td.toner-qty-cell {
         text-align: right;
         white-space: nowrap;
-        padding: 4px 12px;
+        padding: 5px 16px;
     }
 </style>
 @endpush
