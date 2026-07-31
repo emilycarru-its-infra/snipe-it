@@ -926,7 +926,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('notes', [NotesController::class, 'store'])->name('notes.store');
 });
 
-Route::group(['middleware' => ['auth'], 'prefix' => 'forms'], function () {
+Route::group(['middleware' => ['auth'], 'prefix' => 'procurement/forms'], function () {
     Route::get('/', [FormsController::class, 'index'])
         ->name('forms.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
@@ -965,6 +965,12 @@ Route::group(['middleware' => ['auth']], function () {
         ->name('user-form.show');
     Route::get('user-form/success', fn () => redirect()->route('forms.success', 'faculty-program'))
         ->name('user-form.success');
+
+    // Forms moved under /procurement; the old /forms URLs live in sent
+    // emails and bookmarks, so they redirect rather than 404.
+    Route::get('forms', fn () => redirect()->route('forms.index'));
+    Route::get('forms/{path}', fn (string $path) => redirect('/procurement/forms/'.$path))
+        ->where('path', '.*');
 });
 
 Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
