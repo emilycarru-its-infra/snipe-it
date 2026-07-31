@@ -187,7 +187,7 @@
             <div class="box-body">
                 <div class="action-grid">
                     @foreach ($categoryTiles as $tile)
-                        <a class="action-card category-card" style="border-left-color: {{ $tile['color'] }};"
+                        <a class="action-card category-card"
                            href="{{ route('categories.show', $tile['id']) }}">
                             <i class="category-card-icon fas {{ $tile['icon'] }}" style="color: {{ $tile['color'] }};" aria-hidden="true"></i>
                             <div class="category-card-text">
@@ -630,10 +630,10 @@
 @push('css')
 <style>
     /* Category quick-access cards reuse the Needs Attention .action-card chrome
-       (light card, thin border, coloured left accent) so the two sections read
-       as a matched pair. The compound selector beats the later .action-card
-       { display:block } rule so the icon sits to the LEFT with the count/name
-       stacked beside it. */
+       (light card, thin neutral border — colour lives in the icon only) so the
+       two sections read as a matched pair. The compound selector beats the later
+       .action-card { display:block } rule so the icon sits to the LEFT with the
+       count/name stacked beside it. */
     .action-card.category-card {
         display: flex;
         flex-direction: row;
@@ -654,23 +654,22 @@
     @media (max-width: 1199px) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
     @media (max-width: 767px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 
-    /* Tiles are cards, not paint buckets (#3958): the status colour is an
-       accent — the headline number and a hairline top rail — on the same
-       quiet surface every other card uses, in both themes. */
+    /* Tiles are cards, not paint buckets (#3958): the status colour lives in
+       the headline number only — the card chrome stays identical to every
+       other card, no coloured borders or rails. */
     .kpi-tile {
         display: block;
         padding: 12px 14px;
         border-radius: 14px;
         border: 1px solid var(--box-header-top-border-color);
-        border-top: 3px solid var(--kpi-accent);
         background: var(--box-bg);
         color: var(--color-fg);
         text-decoration: none;
-        transition: transform 0.1s ease, border-color 0.1s ease;
+        transition: transform 0.1s ease, background 0.1s ease;
     }
     .kpi-tile:hover {
         transform: translateY(-2px);
-        border-color: var(--kpi-accent);
+        background: var(--table-stripe-bg-alt);
         color: var(--color-fg);
         text-decoration: none;
     }
@@ -760,12 +759,6 @@
     .action-buckets > span { white-space: nowrap; }
     .action-buckets strong { font-size: 15px; opacity: 1; }
     .action-bad strong { color: #dd4b39; }
-    .action-warranty   { border-left: 3px solid #f39c12; }
-    .action-lease      { border-left: 3px solid #00c0ef; }
-    .action-audit      { border-left: 3px solid #605ca8; }
-    .action-checkin    { border-left: 3px solid #ff851b; }
-    .action-processing { border-left: 3px solid #dd4b39; }
-    .action-maint      { border-left: 3px solid #00a65a; }
 
     .procurement-mini-stats {
         display: grid;

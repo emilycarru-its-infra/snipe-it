@@ -48,21 +48,13 @@
 
         :root {
             color-scheme: light dark;
-            {{-- The wordmark's flatten filter, defaulted here rather than
-                 only inside the two [data-theme] blocks. Those depend on the
-                 toggle script having run; if it has not, the var resolves to
-                 nothing, `filter: var(--brand-logo-filter)` is dropped as
-                 invalid, and dark artwork disappears into the dark chrome.
-                 light-dark() needs no script, so the logo is right from the
-                 first paint and the theme blocks below simply pin it. --}}
-            --brand-logo-filter: light-dark(brightness(0), brightness(0) invert(1));
             --btn-theme-hover-text-color: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l - 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
             --btn-theme-hover: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l - 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
             --btn-theme-text-color: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l + 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
             --color-fg: light-dark(#373636, #ffffff);
-            --main-footer-bg-color: light-dark(#f4f4f7,#1a1b1e);
-            --main-footer-text-color: light-dark(#6a6a72, #8a8a94);
-            --main-footer-top-border-color: light-dark(#e2e2e6,#3a3a3e);
+            --main-footer-bg-color: light-dark(#f4f4f4,#1a1a1a);
+            --main-footer-text-color: light-dark(#6a6a6a, #8c8c8c);
+            --main-footer-top-border-color: light-dark(#e4e4e4,#3a3a3a);
             --main-theme-color: {{ $snipeSettings->header_color ?? '#3c8dbc' }};
             --nav-hover-text-color: {{ $nav_link_color ?? 'hsl(from var(--main-theme-color) h s calc(l - 10))' }};
             --nav-primary-text-color: {{ $nav_link_color ?? '#ffffff' }};
@@ -73,11 +65,11 @@
             --sidenav-hover-color-bg: var(--chrome-hover-bg);
             --sidenav-text-hover-color: var(--chrome-fg);
             --sidenav-text-nohover-color: var(--chrome-fg-muted);
-            --table-border-row-color: light-dark(#f0f0f3, #2c2d31);
+            --table-border-row-color: light-dark(#f0f0f0, #2c2c2c);
             --table-border-row-top: 1px solid var(--table-border-row-color);
             --table-border-row: 1px solid var(--table-border-row-color);
-            --table-stripe-bg-alt: light-dark(#fafafc, #212226);
-            --table-stripe-bg: light-dark(#ffffff, #1f2023);
+            --table-stripe-bg-alt: light-dark(#fafafa, #212121);
+            --table-stripe-bg: light-dark(#ffffff, #1f1f1f);
             --text-danger: light-dark(#a94442, #fa5b48);
             --text-help: light-dark(#777676,#a6a4a4);
             --text-info: light-dark(#31708f,#2baae6);
@@ -104,14 +96,8 @@
 
         [data-theme="light"] {
             color-scheme: light;
-            {{-- Flatten the uploaded wordmark to solid black so it reads on
-                 the light chrome whatever was uploaded — a white PNG sized
-                 for the old coloured bar, or dark artwork. The dark theme
-                 flattens the same asset to white; between them no second
-                 upload is needed. Single-colour wordmarks only. --}}
-            --brand-logo-filter: brightness(0);
             --box-bg: #ffffff;
-            --box-header-bottom-border-color: #f0f0f3;
+            --box-header-bottom-border-color: #f0f0f0;
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
             --box-header-top-border-color: #d2d6de;
             --box-header-top-border: 3px solid var(--box-header-top-border-color);
@@ -127,19 +113,19 @@
             {{-- Darker than Bootstrap's #ccc, which only reaches 1.6:1 against
                  a white box — not enough to read the segmented filter group as
                  a control at all. --}}
-            --btn-neutral-border: #8b9199;
+            --btn-neutral-border: #909090;
             --btn-neutral-fg: #3d4144;
-            --btn-neutral-active-bg: #dfe5ee;
+            --btn-neutral-active-bg: #e8e8e8;
             --callout-bg-color: var(--box-header-bottom-border-color);
             --callout-left-border: var(--box-header-top-border-color);
             --chrome-active-bg: #ffffff;
-            --chrome-bg: #f4f4f7;
-            --chrome-border-color: #e2e2e6;
-            --chrome-fg: #2f3237;
-            --chrome-fg-muted: #5b616b;
-            --chrome-hover-bg: #e9e9ee;
+            --chrome-bg: #f4f4f4;
+            --chrome-border-color: #e4e4e4;
+            --chrome-fg: #2f2f2f;
+            --chrome-fg-muted: #5f5f5f;
+            --chrome-hover-bg: #eaeaea;
             --chrome-shadow: 0 6px 16px rgba(0, 0, 0, .16);
-            --color-bg: #f4f4f7;
+            --color-bg: #f4f4f4;
             --header-color: #000000;
             --input-group-bg: hsl(from var(--box-bg) h s calc(l - 5));
             --input-group-fg: hsl(from var(--input-group-bg) h s calc(l - 50));
@@ -153,15 +139,10 @@
 
         [data-theme="dark"] {
             color-scheme: dark;
-            {{-- The mirror of the light theme: brightness(0) knocks every
-                 non-transparent pixel to black, invert(1) lifts it to white,
-                 so dark artwork reverses out of the dark chrome instead of
-                 disappearing into it. --}}
-            --brand-logo-filter: brightness(0) invert(1);
-            --box-bg: #1f2023;
-            --box-header-bottom-border-color: #2c2d31;
+            --box-bg: #1f1f1f;
+            --box-header-bottom-border-color: #2c2c2c;
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
-            --box-header-top-border-color: #3a3a3e;
+            --box-header-top-border-color: #3a3a3a;
             --box-header-top-border: 3px solid var(--box-header-top-border-color);
             {{-- Same clamp as light mode so white stays legible on the fill.
                  The fill is close in lightness to --box-bg here, so the button
@@ -170,20 +151,20 @@
             --btn-theme-border: hsl(from var(--btn-theme-base) h s calc(l + 18));
             --btn-theme-hover-text-color:  var(--nav-primary-text-color);
             --btn-theme-hover: hsl(from var(--btn-theme-base) h s calc(l - 8));
-            --btn-neutral-bg: #2c2d31;
-            --btn-neutral-border: #4a4a52;
-            --btn-neutral-fg: #f2f4f6;
-            --btn-neutral-active-bg: #33343a;
+            --btn-neutral-bg: #2c2c2c;
+            --btn-neutral-border: #4a4a4a;
+            --btn-neutral-fg: #f2f2f2;
+            --btn-neutral-active-bg: #343434;
             --callout-bg-color: var(--box-header-top-border-color);
             --callout-left-border: #323131;
-            --chrome-active-bg: #26272b;
-            --chrome-bg: #1a1b1e;
-            --chrome-border-color: #3a3a3e;
-            --chrome-fg: #f2f4f6;
-            --chrome-fg-muted: #b4b9c0;
-            --chrome-hover-bg: #26272b;
+            --chrome-active-bg: #262626;
+            --chrome-bg: #1a1a1a;
+            --chrome-border-color: #3a3a3a;
+            --chrome-fg: #f2f2f2;
+            --chrome-fg-muted: #b6b6b6;
+            --chrome-hover-bg: #262626;
             --chrome-shadow: 0 6px 18px rgba(0, 0, 0, .55);
-            --color-bg: #1a1b1e;
+            --color-bg: #1a1a1a;
             --header-color: #ffffff;
             --input-group-bg: hsl(from var(--box-bg) h s calc(l + 10));
             --input-group-fg: hsl(from var(--input-group-bg) h s calc(l + 50));
@@ -479,11 +460,12 @@
         }
 
         {{-- The pressed filter needs to be distinguishable from hover, and
-             from its unpressed neighbours in the same group. --}}
+             from its unpressed neighbours in the same group: a filled pill
+             with a hairline ring — no underline bars anywhere. --}}
         .btn-default.active,
         .btn-default:active
         {
-            box-shadow: inset 0 -3px 0 var(--main-theme-color);
+            box-shadow: inset 0 0 0 1px var(--btn-neutral-border);
             font-weight: 600;
         }
 
@@ -545,6 +527,55 @@
         .box-header.with-border {
             border-bottom: var(--box-header-bottom-border);
         }
+
+        {{-- AdminLTE small-boxes (contracts dashboard, reports hub, fleet
+             health) painted the whole tile in a status colour. They are ecu
+             cards now: quiet surface, hairline edge, the colour carried by
+             the headline number and the watermark icon. Accents are scoped
+             to .small-box so bg-* keeps its meaning on labels and calendar
+             chips elsewhere. --}}
+        .small-box,
+        .small-box[class*="bg-"] {
+            background: var(--box-bg) !important;
+            color: var(--color-fg) !important;
+            border: 1px solid var(--box-header-top-border-color);
+            border-radius: 14px;
+            box-shadow: none;
+        }
+        .small-box .inner h3 {
+            color: var(--sb-accent, var(--color-fg)) !important;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        .small-box .inner p { color: var(--color-fg) !important; opacity: 0.8; }
+        .small-box .icon {
+            color: var(--sb-accent, var(--chrome-fg-muted));
+            opacity: 0.16;
+            font-size: 56px;
+        }
+        .small-box:hover .icon { font-size: 56px; }
+        .small-box > .small-box-footer,
+        .small-box > .small-box-footer:hover {
+            background: var(--table-stripe-bg-alt) !important;
+            color: var(--chrome-fg-muted) !important;
+            border-top: 1px solid var(--box-header-bottom-border-color);
+            border-radius: 0 0 14px 14px;
+        }
+        a.small-box-link { text-decoration: none; }
+        a.small-box-link .small-box { transition: transform 0.1s ease, background 0.1s ease; }
+        a.small-box-link:hover .small-box { transform: translateY(-2px); background: var(--table-stripe-bg-alt) !important; }
+        .small-box.bg-aqua,
+        .small-box.bg-teal       { --sb-accent: light-dark(#0097bc, #45cdec); }
+        .small-box.bg-blue,
+        .small-box.bg-light-blue { --sb-accent: light-dark(#0073b7, #4aa3dd); }
+        .small-box.bg-green,
+        .small-box.bg-olive      { --sb-accent: light-dark(#00a65a, #35cc86); }
+        .small-box.bg-yellow,
+        .small-box.bg-orange     { --sb-accent: light-dark(#d68910, #f0b429); }
+        .small-box.bg-red,
+        .small-box.bg-maroon     { --sb-accent: light-dark(#c9302c, #ee7060); }
+        .small-box.bg-purple     { --sb-accent: light-dark(#605ca8, #8f8ccc); }
+        .small-box.bg-navy       { --sb-accent: light-dark(#33415c, #8ba3c7); }
 
         .box-footer
         {
@@ -636,21 +667,6 @@
             background-color: var(--box-bg) !important;
             border-color: var(--box-header-top-border-color);
         }
-
-        .nav-tabs-custom > .nav-tabs > li.active
-        {
-            border-top-color: var(--main-theme-color) !important;
-            background-color: var(--box-header-top-border-color) !important;
-            border-bottom: 2px solid  var(--box-bg) !important;
-            border-right: 1px solid  var(--box-header-top-border-color) ;
-            border-top-right-radius: 3px;
-            border-top-left-radius: 3px;
-        }
-
-        .nav-tabs-custom > .nav-tabs > li:first-of-type {
-            border-left: 0;
-        }
-
 
         /**
         This fixes the weird spacing in the nav tabs if there is a badge count on the tab
@@ -863,9 +879,47 @@
         .search input.form-control {
             border-radius: 10px;
         }
-        .bootstrap-table .fixed-table-toolbar .btn-group > .btn:not(:first-child):not(:last-child) { border-radius: 0; }
-        .bootstrap-table .fixed-table-toolbar .btn-group > .btn:first-child:not(:last-child) { border-radius: 10px 0 0 10px; }
-        .bootstrap-table .fixed-table-toolbar .btn-group > .btn:last-child:not(:first-child) { border-radius: 0 10px 10px 0; }
+        {{-- No segmented capsules: every toolbar/filter button is its own
+             rounded pill with a small gap, instead of a fused strip whose
+             middle buttons lose their corners. Beats Bootstrap's
+             .btn-group > .btn + .btn { margin-left: -1px } fuse. --}}
+        .content .btn-group > .btn,
+        .bootstrap-table .fixed-table-toolbar .btn-group > .btn {
+            border-radius: 10px !important;
+        }
+        .content .btn-group > .btn + .btn,
+        .content .btn-group + .btn-group,
+        .bootstrap-table .fixed-table-toolbar .btn-group > .btn + .btn,
+        .bootstrap-table .fixed-table-toolbar .btn-group + .btn-group {
+            margin-left: 5px;
+        }
+
+        {{-- Table toolbars are quiet: the action buttons ride as neutral
+             ghosts (card surface, hairline edge, muted glyph) instead of
+             brand-coloured slabs. Semantic colours (danger on a pressed
+             delete, warning on bulk-edit) still read because those classes
+             repaint background + text below. --}}
+        .bootstrap-table .fixed-table-toolbar .btn-theme,
+        .bootstrap-table .fixed-table-toolbar .btn-tableButton,
+        #assetsToolBar .btn-theme,
+        #assetsToolBar .btn-tableButton,
+        .box-header .btn-theme.actions,
+        .toolbar .btn-theme {
+            background-color: var(--box-bg) !important;
+            background-image: none !important;
+            border: 1px solid var(--box-header-top-border-color) !important;
+            color: var(--chrome-fg-muted) !important;
+        }
+        .bootstrap-table .fixed-table-toolbar .btn-theme:hover,
+        .bootstrap-table .fixed-table-toolbar .btn-theme:focus,
+        .bootstrap-table .fixed-table-toolbar .btn-tableButton:hover,
+        .bootstrap-table .fixed-table-toolbar .btn-tableButton:focus,
+        #assetsToolBar .btn-theme:hover,
+        #assetsToolBar .btn-tableButton:hover,
+        .toolbar .btn-theme:hover {
+            background-color: var(--chrome-hover-bg) !important;
+            color: var(--chrome-fg) !important;
+        }
 
         .bootstrap-table .table > thead > tr > th {
             font-size: 11px;
@@ -916,6 +970,38 @@
             color: var(--chrome-fg) !important;
             font-weight: 600;
         }
+
+        {{-- Topbar lookup: a single rounded field with the magnifier as a
+             quiet icon button inside it. --}}
+        .topbar-search {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .topbar-search input.form-control {
+            border-radius: 999px;
+            border: 1px solid var(--chrome-border-color);
+            background: var(--chrome-active-bg);
+            padding-right: 34px;
+            width: 220px;
+            box-shadow: none;
+            transition: border-color 0.1s ease;
+        }
+        .topbar-search input.form-control:focus {
+            border-color: var(--btn-neutral-border);
+            box-shadow: none;
+        }
+        .topbar-search-btn {
+            position: absolute;
+            right: 4px;
+            border: 0;
+            background: transparent;
+            color: var(--chrome-fg-muted);
+            padding: 6px 8px;
+            border-radius: 999px;
+            line-height: 1;
+        }
+        .topbar-search-btn:hover { color: var(--chrome-fg); background: var(--chrome-hover-bg); }
 
         .navbar-nav > .notifications-menu > .dropdown-menu > li.header,
         .navbar-nav > .messages-menu > .dropdown-menu > li.header,
@@ -1157,9 +1243,15 @@
         {{--
             Brand block. overrides.less pins the wordmark and the surrounding
             .left-navblock to white, which only worked against the old coloured
-            header. On the neutral chrome it has to follow --chrome-fg, and the
-            uploaded logo image gets flattened to black in light mode and to
-            white in dark mode (see --brand-logo-filter).
+            header. On the neutral chrome it has to follow --chrome-fg.
+
+            The wordmark ships as two real assets — ecu-wordmark-light.png
+            (near-black artwork for the light chrome) and ecu-wordmark-dark.png
+            (white artwork for the dark chrome) — swapped by theme below. No
+            CSS filter tricks: filters on the uploaded logo depended on
+            light-dark(), which is a colour function and is invalid inside
+            filter:, so the fallback silently dropped and the logo vanished
+            into whichever chrome it wasn't made for.
         --}}
         .left-navblock,
         .main-header .logo,
@@ -1181,12 +1273,6 @@
             color: var(--chrome-fg) !important;
         }
 
-        img.navbar-brand-img,
-        .navbar-brand > img
-        {
-            filter: var(--brand-logo-filter);
-        }
-
         {{-- The brand is a vertically centred row, not an image with its own
              ad-hoc top padding (app.less gives it 20px up top and 10px below,
              which reads as the logo stuck to the ceiling). --}}
@@ -1200,8 +1286,20 @@
         }
         img.navbar-brand-img {
             padding: 0;
-            max-height: 30px;
+            max-height: 38px;
             width: auto;
+        }
+
+        {{-- Theme swap for the two wordmark files. The default (no
+             data-theme stamped yet) follows the OS via the media query so
+             the right file shows from the first paint; the stamped attribute
+             then wins in both directions. --}}
+        img.brand-wordmark-dark { display: none; }
+        [data-theme="dark"] img.brand-wordmark-light { display: none; }
+        [data-theme="dark"] img.brand-wordmark-dark { display: inline-block; }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) img.brand-wordmark-light { display: none; }
+            :root:not([data-theme="light"]) img.brand-wordmark-dark { display: inline-block; }
         }
 
         .datepicker.dropdown-menu,
@@ -1560,29 +1658,19 @@
                     @endunless
                     <div class="nav navbar-nav navbar-left">
                         <div class="left-navblock">
-                            @if ($snipeSettings->brand == '3')
-                                <a class="logo navbar-brand no-hover" href="{{ config('app.url') }}">
-                                    @if ($snipeSettings->logo!='')
-                                        <img class="navbar-brand-img"
-                                             src="{{ Storage::disk('public')->url($snipeSettings->logo) }}"
-                                             alt="{{ $snipeSettings->site_name }} logo">
-                                    @endif
-                                    {{ $snipeSettings->site_name }}
-                                </a>
-                            @elseif ($snipeSettings->brand == '2')
-                                <a class="logo navbar-brand no-hover" href="{{ config('app.url') }}">
-                                    @if ($snipeSettings->logo!='')
-                                        <img class="navbar-brand-img"
-                                             src="{{ Storage::disk('public')->url($snipeSettings->logo) }}"
-                                             alt="{{ $snipeSettings->site_name }} logo">
-                                    @endif
-                                    <span class="sr-only">{{ $snipeSettings->site_name }}</span>
-                                </a>
-                            @else
-                                <a class="logo navbar-brand no-hover" href="{{ config('app.url') }}">
-                                    {{ $snipeSettings->site_name }}
-                                </a>
-                            @endif
+                            {{-- The brand ships in-repo as a light/dark asset
+                                 pair rather than the settings-uploaded file:
+                                 one white and one near-black wordmark, with
+                                 CSS picking the right file per theme. --}}
+                            <a class="logo navbar-brand no-hover" href="{{ config('app.url') }}">
+                                <img class="navbar-brand-img brand-wordmark-light"
+                                     src="{{ url('img/branding/ecu-wordmark-light.png') }}"
+                                     alt="{{ $snipeSettings->site_name }} logo">
+                                <img class="navbar-brand-img brand-wordmark-dark"
+                                     src="{{ url('img/branding/ecu-wordmark-dark.png') }}"
+                                     alt="">
+                                <span class="sr-only">{{ $snipeSettings->site_name }}</span>
+                            </a>
                         </div>
                     </div>
 
@@ -1642,10 +1730,10 @@
 
                             .eu-nav > li > a { font-weight: 600; }
                             .main-header .navbar, .main-header .logo, .main-header .left-navblock {
-                                background: light-dark(#f4f4f7, #1a1b1e) !important;
-                                color: light-dark(#26272b, #e4e4e8) !important;
+                                background: light-dark(#f4f4f4, #1a1a1a) !important;
+                                color: light-dark(#262626, #e4e4e8) !important;
                             }
-                            .main-header { border-bottom: 1px solid light-dark(#e2e2e6, #3a3a3e); }
+                            .main-header { border-bottom: 1px solid light-dark(#e4e4e4, #3a3a3a); }
                             .main-footer { padding: 12px var(--eu-gutter); }
                             /* Something in the shell overflows by a few px and
                                draws a horizontal scrollbar across the footer;
@@ -1654,7 +1742,7 @@
                             body { overflow-x: clip; }
                             .main-header .navbar-nav > li > a,
                             .main-header .navbar-custom-menu .dropdown-toggle {
-                                color: light-dark(#26272b, #e4e4e8) !important;
+                                color: light-dark(#262626, #e4e4e8) !important;
                             }
                             .main-header .left-navblock { width: auto !important; min-width: 0 !important; }
                             /* The avatar block reads as a leftover without the
@@ -1730,14 +1818,14 @@
                                 <li>
                                     <form class="navbar-form navbar-left form-inline" role="search" action="{{ route('findbytag/hardware') }}" method="get">
 
-                                                <div class="input-group col-xs-12" style="border: 0 !important;">
+                                                {{-- One rounded field with the magnifier riding inside it,
+                                                     instead of an input with a coloured button block welded on. --}}
+                                                <div class="topbar-search">
                                                     <label class="sr-only" for="tagSearch">
                                                         {{ trans('general.lookup_anything') }}
                                                     </label>
                                                     <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_anything') }}">
-                                                    <span class="input-group-btn">
-                                                        <button type="submit" id="topSearchButton" class="btn btn-sm btn-theme" style="padding: 7px 10px 7px 10px; "><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
-                                                    </span>
+                                                    <button type="submit" id="topSearchButton" class="topbar-search-btn"><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
                                                 </div>
 
                                         <input type="hidden" name="topsearch" value="true" id="search">
