@@ -4,6 +4,7 @@ namespace Tests\Feature\Store;
 
 use App\Mail\StoreOrderStatusMail;
 use App\Mail\StoreVendorOrderMail;
+use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Group;
@@ -434,6 +435,50 @@ class StoreFunnelTest extends TestCase
         ]);
 
         $this->assertNull(StoreOrder::orderBy('id', 'desc')->first()->program);
+    }
+
+    public function test_a_shared_cart_skips_the_assigned_machine_machinery()
+    {
+        Mail::fake();
+
+        $item = $this->shelfItem();
+
+        // A tech in the Shared Purchasers group orders three lab machines.
+        $tech = $this->endUser();
+        $group = Group::create(['name' => 'Shared Purchasers']);
+        DB::table('users_groups')->insert(['user_id' => $tech->id, 'group_id' => $group->id]);
+
+        $this->actingAs($tech)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'order_usage' => 'shared',
+            'usage_note' => 'Animation Lab B2205',
+        ]);
+
+        $order = StoreOrder::first();
+        $this->assertTrue($order->isShared());
+        $this->assertSame('Animation Lab B2205', $order->usage_note);
+        $this->assertNull($order->program);
+
+        // The provisioned asset is shared from birth: usage tag, no name.
+        $asset = Asset::where('order_number', $order->reference())->first();
+        $this->assertSame('Shared', $asset->lease_usage);
+        $this->assertEmpty($asset->name);
+
+        // Their /my journey tracker ignores the cart — it is not their
+        // machine arriving.
+        $page = $this->actingAs($tech)->get(route('my'))->assertOk();
+        $page->assertDontSee($order->reference(), false);
+
+        // Someone not in the group posting order_usage=shared falls back
+        // to a plain assigned order.
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'order_usage' => 'shared',
+            'usage_note' => 'nope',
+        ]);
+        $sneaky = StoreOrder::orderBy('id', 'desc')->first();
+        $this->assertFalse($sneaky->isShared());
+        $this->assertNull($sneaky->usage_note);
     }
 
     public function test_the_shipment_webhook_updates_status_and_notifies()

@@ -1415,29 +1415,57 @@
                     </div>
 
                     @if ($isEndUser)
-                        {{-- The whole product, for an end user: their
-                             dashboard is the brand link; these are the rest. --}}
+                        {{-- The whole product, for an end user: Assets,
+                             Forms, then Store and Orders. The last two are
+                             the second step of the faculty program, so a
+                             faculty member sees them only once their form
+                             for the renewal year is in; staff with no
+                             forms see no Forms tab at all. --}}
+                        @php
+                            $euCanUseStore = auth()->user()->canUseStore();
+                        @endphp
                         <ul class="nav navbar-nav eu-nav">
-                            <li {!! request()->is('store') ? 'class="active"' : '' !!}>
-                                <a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.store') }}</a>
-                            </li>
-                            <li {!! request()->is('store/orders*') ? 'class="active"' : '' !!}>
-                                <a href="{{ route('store.orders') }}"><i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.my_orders') }}</a>
-                            </li>
                             <li {!! request()->is('my') ? 'class="active"' : '' !!}>
-                                <a href="{{ route('my') }}"><i class="fa-solid fa-laptop fa-fw" aria-hidden="true"></i> {{ trans('general.viewassets') }}</a>
+                                <a href="{{ route('my') }}"><i class="fa-solid fa-laptop fa-fw" aria-hidden="true"></i> {{ trans('general.assets') }}</a>
                             </li>
                             @if (! empty($formsAccessible))
                                 <li {!! request()->is('forms*') ? 'class="active"' : '' !!}>
                                     <a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw" aria-hidden="true"></i> {{ trans('admin/forms/general.menu_link') }}</a>
                                 </li>
                             @endif
+                            @if ($euCanUseStore)
+                                <li {!! request()->is('store') ? 'class="active"' : '' !!}>
+                                    <a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.store') }}</a>
+                                </li>
+                                <li {!! request()->is('store/orders*') ? 'class="active"' : '' !!}>
+                                    <a href="{{ route('store.orders') }}"><i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.nav_orders') }}</a>
+                                </li>
+                            @endif
                         </ul>
                         <style>
                             /* No sidebar exists for an end user; the content
-                               takes the full width on every breakpoint. */
+                               takes the full width on every breakpoint, and
+                               the whole header sits quiet on the body
+                               background — brand colour is an accent here,
+                               not a paint bucket. */
                             .content-wrapper, .main-footer { margin-left: 0 !important; }
                             .eu-nav > li > a { padding-top: 18px; padding-bottom: 18px; font-weight: 600; }
+                            .main-header .navbar, .main-header .logo, .main-header .left-navblock {
+                                background: light-dark(#f4f4f7, #1a1b1e) !important;
+                                color: light-dark(#26272b, #e4e4e8) !important;
+                            }
+                            .main-header { border-bottom: 1px solid light-dark(#e2e2e6, #3a3a3e); }
+                            .main-header .navbar-nav > li > a,
+                            .main-header .navbar-custom-menu .dropdown-toggle {
+                                color: light-dark(#26272b, #e4e4e8) !important;
+                            }
+                            .main-header .left-navblock { width: auto !important; min-width: 0 !important; }
+                            /* The avatar block reads as a leftover without the
+                               admin chrome around it; the name is the identity. */
+                            .main-header .user-menu > a > img.user-image,
+                            .main-header .user-menu > a > svg,
+                            .main-header .user-menu > a > i { display: none !important; }
+                            .main-header .user-menu > a > .hidden-xs { display: inline !important; }
                         </style>
                     @endif
 
