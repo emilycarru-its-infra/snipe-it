@@ -38,16 +38,15 @@
 .sto-facts td { padding: 3px 0; }
 .sto-facts td:first-child { opacity: .6; width: 38%; }
 .sto-tag { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
-.sto-steps { display: flex; margin-top: 18px; }
-.sto-step { flex: 1; text-align: center; position: relative; font-size: 11px; opacity: .45; }
-.sto-step::before { content: ''; display: block; width: 14px; height: 14px; border-radius: 50%; margin: 0 auto 5px;
-    background: light-dark(#d4d4d8, #4a4a4e); position: relative; z-index: 1; }
-.sto-step::after { content: ''; position: absolute; top: 6px; left: 50%; width: 100%; height: 2px;
-    background: light-dark(#d4d4d8, #4a4a4e); }
-.sto-step:last-child::after { display: none; }
-.sto-step.done, .sto-step.now { opacity: 1; }
-.sto-step.done::before, .sto-step.done::after, .sto-step.now::before { background: #00a65a; }
-.sto-step.now { font-weight: 700; }
+/* The same chevron rail /my uses — one design language for every tracker. */
+.sto-steps { display: flex; gap: 4px; margin-top: 18px; }
+.sto-step { flex: 1; text-align: center; font-size: 11px; font-weight: 600; padding: 9px 4px 9px 12px;
+    background: light-dark(#e9e9ee, #33343a); color: light-dark(#5a5a62, #9a9aa4);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%); }
+.sto-step:first-child { clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
+.sto-step:last-child { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%); }
+.sto-step.done { background: #00a65a; color: #fff; }
+.sto-step.now { background: light-dark(#f39c12, #d68910); color: #fff; }
 .sto-order-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; flex-wrap: wrap; }
 </style>
 
@@ -79,6 +78,9 @@
         <h4 style="margin:0;">{{ $order->reference() }}</h4>
         <span class="text-muted">{{ $order->created_at->format('M j, Y') }}</span>
         <span class="label {{ $labelClass }}">{{ trans('admin/store/general.order_status_'.$status) }}</span>
+        @if ($order->isShared())
+            <span class="label label-default">{{ trans('admin/store/general.usage_shared_chip') }}@if ($order->usage_note) · {{ $order->usage_note }}@endif</span>
+        @endif
         @if ($order->status === 'pending')
             <form method="POST" action="{{ route('store.orders.cancel', $order->id) }}" style="display:inline; margin-left:auto;">
                 {{ csrf_field() }}
@@ -91,8 +93,9 @@
         <div class="sto-split">
             {{-- Left: the machine going out, or the plain statement that
                  there is none. Only on the newest order — history rows
-                 below do not re-litigate the handover. --}}
-            @if ($loop->first)
+                 below do not re-litigate the handover — and never on a
+                 shared cart, which replaces nobody's machine. --}}
+            @if ($loop->first && ! $order->isShared())
                 <div class="sto-pane sto-pane-muted">
                     <div class="sto-kicker">{{ trans('admin/store/general.status_current_machine') }}</div>
                     @if ($outgoing)

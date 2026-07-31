@@ -124,8 +124,13 @@ class StoreOrderAssetProvisioner
 
         // A single-unit line is one person's machine and carries their name,
         // which is how the fleet is named here. A multi-unit line is stock,
-        // and stock is nameless until it is handed to someone.
-        if ((int) $line->quantity === 1) {
+        // and stock is nameless until it is handed to someone. A shared
+        // order is never anyone's machine: no name, and the asset carries
+        // the Shared usage tag from birth instead of waiting for the
+        // location-assignment automations to stamp it.
+        if ($order->isShared()) {
+            $asset->lease_usage = 'Shared';
+        } elseif ((int) $line->quantity === 1) {
             $asset->name = $order->user?->present()->fullName;
         }
 

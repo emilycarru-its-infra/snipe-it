@@ -45,7 +45,9 @@
 .eud-table img { max-height: 30px; max-width: 44px; object-fit: contain; }
 .eud-lease-date { font-weight: 700; white-space: nowrap; }
 .eud-lease-sub { font-size: 11px; opacity: .6; white-space: nowrap; }
-.eud-buyout-btn { margin-top: 3px; }
+.eud-refresh summary { list-style: none; cursor: pointer; display: inline-block; }
+.eud-refresh summary::-webkit-details-marker { display: none; }
+.eud-refresh-form { margin-top: 6px; min-width: 200px; }
 .eud-profile td { padding: 4px 8px 4px 0; font-size: 13px; }
 .eud-profile td:first-child { opacity: .6; white-space: nowrap; }
 </style>
@@ -100,9 +102,10 @@
                 </div>
             @endif
 
-            {{-- Everything checked out to them, lease facts on the rows:
-                 every leased device shows its end date (the date leads, the
-                 countdown is the small print) and its buyout doorway. --}}
+            {{-- Everything checked out to them, lease facts on the rows —
+                 the date leads, the countdown is the small print — and an
+                 Actions column carrying each machine's doorway: buyout for
+                 Faculty program machines, early refresh for Staff ones. --}}
             <div class="eud-card">
                 <div class="eud-kicker">{{ trans('general.assets') }} <span class="badge">{{ $myAssets->count() }}</span></div>
                 @if ($myAssets->isEmpty())
@@ -116,9 +119,14 @@
                             <th>{{ trans('mail.serial') }}</th>
                             <th>{{ trans('general.category') }}</th>
                             <th>{{ trans('admin/store/general.dash_lease_col') }}</th>
+                            <th>{{ trans('admin/store/general.dash_actions_col') }}</th>
                         </tr></thead>
                         <tbody>
                         @foreach ($myAssets as $asset)
+                            @php
+                                $leaseEnds = $asset->leaseEndDate();
+                                $leaseActive = $leaseEnds && $leaseEnds->gte(today());
+                            @endphp
                             <tr>
                                 <td>@if ($asset->getImageUrl())<img src="{{ $asset->getImageUrl() }}" alt="">@endif</td>
                                 <td class="eud-tag">{{ $asset->asset_tag }}</td>
@@ -126,25 +134,42 @@
                                 <td class="eud-tag">{{ $asset->serial }}</td>
                                 <td>{{ $asset->model?->category?->name }}</td>
                                 <td>
-                                    @php
-                                        $leaseEnds = $asset->leaseEndDate();
-                                    @endphp
-                                    @if ($leaseEnds && $leaseEnds->gte(today()))
+                                    @if ($leaseActive)
                                         <div class="eud-lease-date">{{ $leaseEnds->format('M j, Y') }}</div>
                                         <div class="eud-lease-sub">{{ trans('admin/store/general.dash_lease_days_small', ['days' => number_format(max((int) now()->diffInDays($leaseEnds, false), 0))]) }}</div>
-                                        @if (is_numeric($asset->buyout_cost))
+                                        @if (is_numeric($asset->buyout_cost) && $asset->isFacultyCatalog())
                                             <div class="eud-lease-sub">{{ trans('admin/store/general.dash_buyout_estimate', ['cost' => \App\Helpers\Helper::formatCurrencyOutput($asset->buyout_cost)]) }}</div>
                                         @endif
+                                    @elseif ($leaseEnds)
+                                        <div class="eud-lease-sub">{{ trans('admin/store/general.dash_lease_ended', ['date' => $leaseEnds->format('M j, Y')]) }}</div>
+                                    @else
+                                        <span style="opacity:.35;">—</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if ($asset->isFacultyCatalog() && $leaseActive)
                                         @if ($requestedAt = $buyoutRequestedAt->get($asset->id))
                                             <div class="eud-lease-sub">{{ trans('admin/store/general.dash_buyout_requested', ['date' => $requestedAt->format('M j')]) }}</div>
                                         @elseif ($asset->canRequestLeaseBuyout())
-                                            <form method="POST" action="{{ route('my.request-buyout', $asset->id) }}" class="eud-buyout-btn">
+                                            <form method="POST" action="{{ route('my.request-buyout', $asset->id) }}">
                                                 {{ csrf_field() }}
                                                 <button type="submit" class="btn btn-xs btn-default">{{ trans('admin/store/general.dash_buyout_button') }}</button>
                                             </form>
                                         @endif
-                                    @elseif ($leaseEnds)
-                                        <div class="eud-lease-sub">{{ trans('admin/store/general.dash_lease_ended', ['date' => $leaseEnds->format('M j, Y')]) }}</div>
+                                    @elseif ($asset->isStaffCatalog())
+                                        @if ($requestedAt = $refreshRequestedAt->get($asset->id))
+                                            <div class="eud-lease-sub">{{ trans('admin/store/general.dash_refresh_requested', ['date' => $requestedAt->format('M j')]) }}</div>
+                                        @else
+                                            <details class="eud-refresh">
+                                                <summary class="btn btn-xs btn-default">{{ trans('admin/store/general.dash_refresh_button') }}</summary>
+                                                <form method="POST" action="{{ route('my.request-early-refresh', $asset->id) }}" class="eud-refresh-form">
+                                                    {{ csrf_field() }}
+                                                    <textarea name="note" rows="2" class="form-control input-sm" maxlength="1000"
+                                                              placeholder="{{ trans('admin/store/general.dash_refresh_note_placeholder') }}"></textarea>
+                                                    <button type="submit" class="btn btn-xs btn-primary" style="margin-top:4px;">{{ trans('admin/store/general.dash_refresh_send') }}</button>
+                                                </form>
+                                            </details>
+                                        @endif
                                     @else
                                         <span style="opacity:.35;">—</span>
                                     @endif
@@ -194,10 +219,12 @@
 
             <div class="eud-card">
                 <div class="eud-kicker">{{ trans('admin/store/general.dash_go') }}</div>
-                <p style="margin:0 0 8px;"><a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw"></i> {{ trans('admin/store/general.store') }}</a></p>
-                <p style="margin:0 0 8px;"><a href="{{ route('store.orders') }}"><i class="fa-solid fa-truck-fast fa-fw"></i> {{ trans('admin/store/general.my_orders') }}</a></p>
                 @if (! empty($formsAccessible))
-                    <p style="margin:0;"><a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw"></i> {{ trans('admin/forms/general.menu_link') }}</a></p>
+                    <p style="margin:0 0 8px;"><a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw"></i> {{ trans('admin/forms/general.menu_link') }}</a></p>
+                @endif
+                @if ($user->canUseStore())
+                    <p style="margin:0 0 8px;"><a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw"></i> {{ trans('admin/store/general.store') }}</a></p>
+                    <p style="margin:0;"><a href="{{ route('store.orders') }}"><i class="fa-solid fa-truck-fast fa-fw"></i> {{ trans('admin/store/general.my_orders') }}</a></p>
                 @endif
             </div>
         </div>

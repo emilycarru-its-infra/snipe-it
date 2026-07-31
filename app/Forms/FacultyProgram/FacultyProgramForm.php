@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -62,6 +63,17 @@ class FacultyProgramForm extends FormDefinition
             'accept_terms' => 'accepted',
         ]);
 
+        $laptops = Asset::laptopsOf($user->id);
+
+        // "I don't have a laptop" is not a claim someone holding one gets
+        // to make — the UI doesn't offer it when a machine was found, and
+        // a hand-crafted POST doesn't get to either.
+        if ($validated['buyout_decision'] === 'no_prior_laptop' && $laptops->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'buyout_decision' => trans('admin/forms/faculty-program.buyout_have_laptop'),
+            ]);
+        }
+
         // The machine this submission is about. Their pick when they made
         // one and it is genuinely theirs; the resolver's best guess
         // otherwise. Stored on the agreement so every later surface — the
@@ -69,9 +81,8 @@ class FacultyProgramForm extends FormDefinition
         // the machine they pointed at, not a re-guess.
         $returning = null;
         if ($validated['buyout_decision'] !== 'no_prior_laptop') {
-            $returning = Asset::laptopsOf($user->id)
-                ->firstWhere('id', (int) ($validated['returning_asset_id'] ?? 0))
-                ?? Asset::currentLaptopOf($user->id);
+            $returning = $laptops->firstWhere('id', (int) ($validated['returning_asset_id'] ?? 0))
+                ?? $laptops->first();
         }
 
         $now = now();
