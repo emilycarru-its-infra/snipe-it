@@ -133,6 +133,8 @@ class UsersController extends Controller
         $user->zip = $request->input('zip', null);
         $user->remote = $request->input('remote', 0);
         $user->website = $request->input('website', null);
+        $user->idp_url = $request->input('idp_url', null);
+        $user->idp_label = $request->input('idp_label', null);
         $user->created_by = auth()->id();
         $user->start_date = $request->input('start_date', null);
         $user->end_date = $request->input('end_date', null);
@@ -287,6 +289,8 @@ class UsersController extends Controller
         $user->remote = $request->input('remote', 0);
         $user->vip = $request->input('vip', 0);
         $user->website = $request->input('website', null);
+        $user->idp_url = $request->input('idp_url', null);
+        $user->idp_label = $request->input('idp_label', null);
         $user->start_date = $request->input('start_date', null);
         $user->end_date = $request->input('end_date', null);
         $user->autoassign_licenses = $request->input('autoassign_licenses', 0);
@@ -599,7 +603,7 @@ class UsersController extends Controller
                 'company',
                 'createdBy'
             )->withCount(['managesUsers as manages_users_count', 'managedLocations as manages_locations_count'])
-            ->orderBy('created_at', 'DESC')
+                ->orderBy('created_at', 'DESC')
                 ->chunk(500, function ($users) use ($handle) {
 
                     $formatter = new EscapeFormula('`');
