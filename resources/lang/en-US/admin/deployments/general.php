@@ -109,6 +109,7 @@ return [
 
     // Timeline (P2a)
     'timeline_title' => 'Timeline',
+    'waves_title' => 'Waves',
     'timeline_legend_arrival' => 'Arrival window',
     'timeline_legend_deploy' => 'Deploy window',
     'timeline_no_dates' => 'No dates set',

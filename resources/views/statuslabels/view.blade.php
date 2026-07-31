@@ -39,4 +39,14 @@
         'columns' => \App\Presenters\AssetPresenter::dataTableLayout()
     ])
 
+<script nonce="{{ csrf_token() }}">
+    // A status label page is about its asset list; the info card starts
+    // folded so the table gets the full width. The header toggle brings
+    // it back for whoever wants the metadata.
+    $(function () {
+        if (typeof collapseInfoSidePanel === 'function') {
+            collapseInfoSidePanel();
+        }
+    });
+</script>
 @stop
