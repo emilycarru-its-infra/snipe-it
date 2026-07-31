@@ -25,8 +25,8 @@
     </div>
 </div>
 
-{{-- KPI strip --}}
-<div class="row">
+{{-- KPI strip: all six on one row at equal width/height. --}}
+<div class="row tile-row-6">
     <div class="col-md-4 col-sm-6">
         <div class="small-box bg-aqua">
             <div class="inner">
