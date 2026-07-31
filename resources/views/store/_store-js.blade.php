@@ -157,6 +157,14 @@
                                 padding: 12px; font-size: 16px; font-weight: 600; }
     .st-cart-box .btn-primary:hover:not(:disabled) { background: #0077ed; }
     .st-cart-box .btn-primary:disabled { opacity: .45; }
+    /* Cart fields: one label idiom for "who is this for", the room, and
+       the note, so the three read as one stack rather than three widgets
+       borrowed from different screens. */
+    .st-usage { margin-top: 16px; }
+    .st-field-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em;
+                      text-transform: uppercase; opacity: .6; margin: 0 0 6px; }
+    #st-location-wrap { margin-top: 10px; }
+    .st-cart-box .form-control { border-radius: 10px; }
 </style>
 <script>
 (function () {

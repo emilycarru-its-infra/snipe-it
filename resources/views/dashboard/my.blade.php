@@ -205,6 +205,13 @@
                     @if ($user->department)<tr><td>{{ trans('general.department') }}</td><td>{{ $user->department->name }}</td></tr>@endif
                     @if ($user->userloc)<tr><td>{{ trans('general.location') }}</td><td>{{ $user->userloc->name }}</td></tr>@endif
                 </table>
+                {{-- This page is the front door now, but licences, accepted
+                     EULAs and consumables still live on the old tabbed
+                     profile. One link out rather than six cards nobody
+                     opens; the tabs fold in when that page is redesigned. --}}
+                <p style="margin:10px 0 0;">
+                    <a href="{{ route('view-assets') }}">{{ trans('admin/store/general.dash_full_profile') }}</a>
+                </p>
             </div>
 
             <div class="ecu-card eud-card">

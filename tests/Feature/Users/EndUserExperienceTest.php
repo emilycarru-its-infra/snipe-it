@@ -376,6 +376,21 @@ class EndUserExperienceTest extends TestCase
             ->assertSee($provisioned->asset_tag, false);
     }
 
+    public function test_my_is_the_front_door_and_keeps_a_way_through_to_the_old_profile()
+    {
+        $user = $this->faculty();
+
+        // Every "My Assets" doorway lands on /my; the tabbed profile is
+        // reachable from there for the things /my does not carry.
+        $page = $this->actingAs($user)->get(route('my'))->assertOk();
+        $page->assertSee(route('view-assets'), false);
+
+        // An admin's sidebar points at the same place, not the old page.
+        $admin = User::factory()->superuser()->create();
+        $this->actingAs($admin)->get(route('my'))->assertOk()
+            ->assertSee('href="'.route('my').'"', false);
+    }
+
     public function test_inventory_transitions_email_the_requester()
     {
         Mail::fake();

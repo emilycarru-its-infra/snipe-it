@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Group;
+use App\Models\Location;
 use App\Models\Requisition;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
@@ -448,21 +449,25 @@ class StoreFunnelTest extends TestCase
         $group = Group::create(['name' => 'Shared Purchasers']);
         DB::table('users_groups')->insert(['user_id' => $tech->id, 'group_id' => $group->id]);
 
+        $lab = Location::factory()->create(['name' => 'Animation Lab B2205']);
+
         $this->actingAs($tech)->post(route('store.orders.store'), [
             'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
             'order_usage' => 'shared',
-            'usage_note' => 'Animation Lab B2205',
+            'location_id' => $lab->id,
         ]);
 
         $order = StoreOrder::first();
         $this->assertTrue($order->isShared());
-        $this->assertSame('Animation Lab B2205', $order->usage_note);
+        $this->assertSame($lab->id, $order->location_id);
         $this->assertNull($order->program);
 
-        // The provisioned asset is shared from birth: usage tag, no name.
+        // The provisioned asset is shared from birth: usage tag, no name,
+        // and already seated in the room it was ordered for.
         $asset = Asset::where('order_number', $order->reference())->first();
         $this->assertSame('Shared', $asset->lease_usage);
         $this->assertEmpty($asset->name);
+        $this->assertSame($lab->id, $asset->rtd_location_id);
 
         // Their /my journey tracker ignores the cart — it is not their
         // machine arriving.
@@ -474,11 +479,56 @@ class StoreFunnelTest extends TestCase
         $this->actingAs($this->endUser())->post(route('store.orders.store'), [
             'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
             'order_usage' => 'shared',
-            'usage_note' => 'nope',
+            'location_id' => $lab->id,
         ]);
         $sneaky = StoreOrder::orderBy('id', 'desc')->first();
         $this->assertFalse($sneaky->isShared());
-        $this->assertNull($sneaky->usage_note);
+        $this->assertNull($sneaky->location_id);
+    }
+
+    public function test_a_shared_cart_must_name_the_space_it_is_for()
+    {
+        Mail::fake();
+
+        $item = $this->shelfItem();
+        $tech = $this->endUser();
+        $group = Group::create(['name' => 'Shared Purchasers']);
+        DB::table('users_groups')->insert(['user_id' => $tech->id, 'group_id' => $group->id]);
+
+        $this->actingAs($tech)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'order_usage' => 'shared',
+        ])->assertSessionHasErrors('location_id');
+
+        $this->assertSame(0, StoreOrder::count());
+
+        // Someone who cannot place a shared cart is never asked for a room —
+        // their order is simply their own.
+        $this->actingAs($this->endUser())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'order_usage' => 'shared',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertFalse(StoreOrder::first()->isShared());
+    }
+
+    public function test_the_cart_offers_the_space_picker_only_to_shared_purchasers()
+    {
+        Location::factory()->create(['name' => 'Animation Lab B2205']);
+        $this->shelfItem();
+
+        $tech = $this->endUser();
+        $group = Group::create(['name' => 'Shared Purchasers']);
+        DB::table('users_groups')->insert(['user_id' => $tech->id, 'group_id' => $group->id]);
+
+        $this->actingAs($tech)->get(route('store.index'))
+            ->assertOk()
+            ->assertSee('Animation Lab B2205')
+            ->assertSee('name="location_id"', false);
+
+        $this->actingAs($this->endUser())->get(route('store.index'))
+            ->assertOk()
+            ->assertDontSee('name="location_id"', false);
     }
 
     public function test_the_shipment_webhook_updates_status_and_notifies()

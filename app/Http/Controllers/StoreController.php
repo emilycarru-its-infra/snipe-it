@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Asset;
 use App\Models\CatalogItem;
+use App\Models\Location;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\UserAgreement;
@@ -13,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 /**
  * The internal store — the CDW-eStore replacement.
@@ -69,9 +71,17 @@ class StoreController extends Controller
             'specs' => $item->specList(),
         ])->values();
 
+        // Destinations for a shared cart. Rendered server-side rather than
+        // through the select2 endpoint: that one authorizes on
+        // view.selectlists, which a tech placing an order need not hold.
+        $locations = auth()->user()->canOrderShared()
+            ? Location::orderBy('name')->pluck('name', 'id')
+            : collect();
+
         return view('store.index', [
             'payload' => $payload,
             'strings' => $this->storefrontStrings(),
+            'locations' => $locations,
             'openOrderCount' => StoreOrder::where('user_id', auth()->id())
                 ->whereIn('status', ['pending', 'approved'])
                 ->count(),
@@ -138,7 +148,17 @@ class StoreController extends Controller
             'items.*.quantity' => 'required|integer|min:1|max:100',
             'notes' => 'nullable|string|max:65535',
             'order_usage' => 'nullable|string|in:assigned,shared',
-            'usage_note' => 'nullable|string|max:191',
+            // Required only for a cart that will actually be shared. Posting
+            // order_usage=shared without the standing to place one is not an
+            // error to correct — it is quietly an assigned order — so it must
+            // not demand a room first.
+            'location_id' => [
+                'nullable',
+                'integer',
+                'exists:locations,id',
+                Rule::requiredIf(fn () => $request->input('order_usage') === 'shared'
+                    && auth()->user()->canOrderShared()),
+            ],
         ]);
 
         // A shared cart — a lab, classroom or team space — only from someone
@@ -159,7 +179,7 @@ class StoreController extends Controller
                 'status' => 'pending',
                 'program' => $isFaculty ? 'faculty' : null,
                 'order_usage' => $shared ? 'shared' : 'assigned',
-                'usage_note' => $shared ? ($validated['usage_note'] ?? null) : null,
+                'location_id' => $shared ? ($validated['location_id'] ?? null) : null,
                 'notes' => $validated['notes'] ?? null,
             ]);
 

@@ -56,7 +56,7 @@
                             <span class="label label-primary" style="margin-left:4px;">{{ trans('admin/store/general.faculty_program') }}</span>
                         @endif
                         @if ($order->isShared())
-                            <span class="label label-info" style="margin-left:4px;">{{ trans('admin/store/general.usage_shared_chip') }}@if ($order->usage_note) · {{ $order->usage_note }}@endif</span>
+                            <span class="label label-info" style="margin-left:4px;">{{ trans('admin/store/general.usage_shared_chip') }}@if ($order->location) · {{ $order->location->name }}@endif</span>
                         @endif
                         @if ($order->vendor_sent_at)
                             <span class="label label-success" style="margin-left:4px;">{{ trans('admin/store/general.vendor_sent', ['when' => $order->vendor_sent_at->format('M j')]) }}</span>

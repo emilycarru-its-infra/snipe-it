@@ -48,6 +48,14 @@
 
         :root {
             color-scheme: light dark;
+            {{-- The wordmark's flatten filter, defaulted here rather than
+                 only inside the two [data-theme] blocks. Those depend on the
+                 toggle script having run; if it has not, the var resolves to
+                 nothing, `filter: var(--brand-logo-filter)` is dropped as
+                 invalid, and dark artwork disappears into the dark chrome.
+                 light-dark() needs no script, so the logo is right from the
+                 first paint and the theme blocks below simply pin it. --}}
+            --brand-logo-filter: light-dark(brightness(0), brightness(0) invert(1));
             --btn-theme-hover-text-color: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l - 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
             --btn-theme-hover: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l - 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
             --btn-theme-text-color: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l + 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
@@ -1453,12 +1461,41 @@
                                background — brand colour is an accent here,
                                not a paint bucket. */
                             .content-wrapper, .main-footer { margin-left: 0 !important; }
+
+                            /* One gutter for the whole product. The header row
+                               and the page below it are laid out from the same
+                               token, so the wordmark and the first card sit on
+                               one line instead of two arbitrary ones — the
+                               header still carried the sidebar's margin, which
+                               pushed the brand a sidebar-width inboard of
+                               content that had already been pulled flush. */
+                            :root { --eu-gutter: 28px; }
+                            .main-header .navbar { margin-left: 0 !important; padding-left: var(--eu-gutter); padding-right: 12px; }
+                            .main-header .navbar-brand { padding-left: 0 !important; }
+                            /* !important only to beat the base template's
+                               inline padding-top:0 on .content, which exists
+                               to sit flush under an admin page header this
+                               layout does not render. */
+                            .content-wrapper > .content { padding: 18px var(--eu-gutter) 32px !important; }
+                            .content-wrapper > .content-header { padding: 14px var(--eu-gutter) 0; }
+                            .imp-banner > div[class^="col-"] { padding-left: var(--eu-gutter) !important; }
+                            @media (max-width: 767px) { :root { --eu-gutter: 16px; } }
+
                             .eu-nav > li > a { padding-top: 18px; padding-bottom: 18px; font-weight: 600; }
                             .main-header .navbar, .main-header .logo, .main-header .left-navblock {
                                 background: light-dark(#f4f4f7, #1a1b1e) !important;
                                 color: light-dark(#26272b, #e4e4e8) !important;
                             }
                             .main-header { border-bottom: 1px solid light-dark(#e2e2e6, #3a3a3e); }
+                            /* The footer is the same quiet band as the header
+                               rather than a grey slab bolted to the bottom of
+                               a page that has nothing else grey on it. */
+                            .main-footer {
+                                background: light-dark(#f4f4f7, #1a1b1e);
+                                border-top: 1px solid light-dark(#e2e2e6, #3a3a3e);
+                                color: light-dark(#6a6a72, #8a8a94);
+                                padding: 12px var(--eu-gutter);
+                            }
                             .main-header .navbar-nav > li > a,
                             .main-header .navbar-custom-menu .dropdown-toggle {
                                 color: light-dark(#26272b, #e4e4e8) !important;
@@ -1649,8 +1686,8 @@
                                              see the equipment issued to them.
                                              With it off, the only route to your
                                              own laptop was knowing the URL. --}}
-                                        <li {!! (request()->is('account/view-assets') ? ' class="active"' : '') !!}>
-                                            <a href="{{ route('view-assets') }}">
+                                        <li {!! (request()->is('my') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('my') }}">
                                                 <x-icon type="checkmark" class="fa-fw" />
                                                 {{ trans('general.viewassets') }}
                                             </a>
@@ -2176,8 +2213,8 @@
                              someone whose entire sidebar is Store and this,
                              burying "where is my laptop" behind an avatar menu
                              is not a findable answer. --}}
-                        <li {{!! (request()->is('account/view-assets') ? ' class="active"' : '') !!}}>
-                            <a href="{{ route('view-assets') }}">
+                        <li {{!! (request()->is('my') ? ' class="active"' : '') !!}}>
+                            <a href="{{ route('my') }}">
                                 <x-icon type="checkmark" class="fa-fw" />
                                 <span>{{ trans('general.viewassets') }}</span>
                             </a>
@@ -2344,7 +2381,15 @@
                      someone else's name. The exit is in the banner so it is
                      never more than one click from wherever they got to. --}}
                 @if (session()->has(\App\Http\Controllers\ImpersonateController::SESSION_KEY))
-                    <div class="row" style="margin-bottom:0;">
+                    {{-- The banner can be folded away, because the whole point
+                         of viewing as someone is to see their screen as they
+                         see it — a full-width orange bar over every page is
+                         the one thing they do not have. Folding leaves the
+                         chip: still unmissable, still one click from the exit,
+                         but out of the layout. Per tab, and never sticky
+                         across sessions, so a fresh window always warns loudly
+                         first. --}}
+                    <div class="row imp-banner" id="imp-banner" style="margin-bottom:0;">
                         <div class="col-md-12" style="margin-bottom:0; background-color:#7a3d00; color:#fff; padding:10px 20px;">
                             <form method="POST" action="{{ route('impersonate.stop') }}" style="display:inline; float:right;">
                                 {{ csrf_field() }}
@@ -2352,6 +2397,10 @@
                                     {{ trans('admin/users/general.impersonate_stop') }}
                                 </button>
                             </form>
+                            <button type="button" class="btn btn-sm btn-default imp-hide" id="imp-hide"
+                                    style="float:right; margin-right:8px;">
+                                {{ trans('admin/users/general.impersonate_banner_hide') }}
+                            </button>
                             <x-icon type="user" class="fa-2x pull-left" style="margin-right:12px;"/>
                             <strong>{{ strtoupper(trans('admin/users/general.impersonate_banner_title')) }}</strong>
                             {{ trans('admin/users/general.impersonate_banner', [
@@ -2360,6 +2409,70 @@
                             ]) }}
                         </div>
                     </div>
+
+                    <div class="imp-chip" id="imp-chip" hidden>
+                        <span class="imp-chip-dot" aria-hidden="true"></span>
+                        <span>{{ trans('admin/users/general.impersonate_chip', ['name' => auth()->user()?->present()->fullName]) }}</span>
+                        <form method="POST" action="{{ route('impersonate.stop') }}" style="display:inline;">
+                            {{ csrf_field() }}
+                            <button type="submit" class="imp-chip-stop">{{ trans('admin/users/general.impersonate_stop') }}</button>
+                        </form>
+                    </div>
+
+                    <style>
+                        .imp-chip {
+                            position: fixed;
+                            right: 16px;
+                            bottom: 16px;
+                            z-index: 1040;
+                            display: flex;
+                            align-items: center;
+                            gap: 10px;
+                            padding: 8px 12px;
+                            border-radius: 999px;
+                            background: #7a3d00;
+                            color: #fff;
+                            font-size: 12px;
+                            box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+                        }
+                        .imp-chip-dot {
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 50%;
+                            background: #ffb347;
+                        }
+                        .imp-chip-stop {
+                            border: 1px solid rgba(255, 255, 255, .5);
+                            background: transparent;
+                            color: #fff;
+                            border-radius: 999px;
+                            font-size: 11px;
+                            padding: 2px 10px;
+                        }
+                        .imp-chip-stop:hover { background: rgba(255, 255, 255, .15); }
+                    </style>
+
+                    <script nonce="{{ csrf_token() }}">
+                    (function () {
+                        var banner = document.getElementById('imp-banner');
+                        var chip = document.getElementById('imp-chip');
+                        var hide = document.getElementById('imp-hide');
+
+                        function fold() {
+                            banner.hidden = true;
+                            chip.hidden = false;
+                        }
+
+                        if (sessionStorage.getItem('impersonateBannerFolded') === '1') {
+                            fold();
+                        }
+
+                        hide.addEventListener('click', function () {
+                            sessionStorage.setItem('impersonateBannerFolded', '1');
+                            fold();
+                        });
+                    })();
+                    </script>
                 @endif
 
                 @if ($debug_in_production)
@@ -2665,21 +2778,28 @@
             /**
              * 3. Update the theme setting and button text according to current settings
              */
-            updateButton({ buttonEl: button, isDark: currentThemeSetting === "dark" });
+            // The theme itself is applied first and unconditionally. The
+            // toggle lives in a menu that not every layout renders, and
+            // when it was absent the throw took the whole page's theme
+            // down with it.
             updateThemeOnHtmlEl({ theme: currentThemeSetting });
 
             /**
              * 4. Add an event listener to toggle the theme
              */
-            button.addEventListener("click", (event) => {
-                const newTheme = currentThemeSetting === "dark" ? "light" : "dark";
+            if (button) {
+                updateButton({ buttonEl: button, isDark: currentThemeSetting === "dark" });
 
-                localStorage.setItem("theme", newTheme);
-                updateButton({ buttonEl: button, isDark: newTheme === "dark" });
-                updateThemeOnHtmlEl({ theme: newTheme });
+                button.addEventListener("click", (event) => {
+                    const newTheme = currentThemeSetting === "dark" ? "light" : "dark";
 
-                currentThemeSetting = newTheme;
-            });
+                    localStorage.setItem("theme", newTheme);
+                    updateButton({ buttonEl: button, isDark: newTheme === "dark" });
+                    updateThemeOnHtmlEl({ theme: newTheme });
+
+                    currentThemeSetting = newTheme;
+                });
+            }
 
 
 
