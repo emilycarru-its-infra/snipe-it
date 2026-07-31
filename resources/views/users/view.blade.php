@@ -179,6 +179,18 @@
                             </div>
                         @endif
 
+                        @if ($user->idp_url)
+                            <div class="usc-row">
+                                <div class="usc-label">{{ trans('admin/users/general.idp_url') }}</div>
+                                <div class="usc-value">
+                                    <a href="{{ $user->idp_url }}" target="_blank" rel="noopener">
+                                        {{ $user->idp_label ?: trans('admin/users/general.idp_label_placeholder') }}
+                                        <x-icon type="external-link" class="fa-xs"/>
+                                    </a>
+                                </div>
+                            </div>
+                        @endif
+
                         @if ($user->notes)
                             <div class="usc-row">
                                 <div class="usc-label">{{ trans('general.notes') }}</div>

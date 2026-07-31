@@ -475,6 +475,24 @@
                                   </div>
                               </div>
 
+                              <!-- Identity provider link -->
+                              <div class="form-group {{ $errors->has('idp_url') ? ' has-error' : '' }}">
+                                  <label for="idp_url" class="col-md-3 control-label">{{ trans('admin/users/general.idp_url') }}</label>
+                                  <div class="col-md-6">
+                                      <input class="form-control" type="url" name="idp_url" id="idp_url" value="{{ old('idp_url', $user->idp_url) }}" maxlength="191" placeholder="https://entra.microsoft.com/..." />
+                                      <p class="help-block">{{ trans('admin/users/general.idp_url_help') }}</p>
+                                      {!! $errors->first('idp_url', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+                                  </div>
+                              </div>
+
+                              <div class="form-group {{ $errors->has('idp_label') ? ' has-error' : '' }}">
+                                  <label for="idp_label" class="col-md-3 control-label">{{ trans('admin/users/general.idp_label') }}</label>
+                                  <div class="col-md-6">
+                                      <input class="form-control" type="text" name="idp_label" id="idp_label" value="{{ old('idp_label', $user->idp_label) }}" maxlength="191" placeholder="{{ trans('admin/users/general.idp_label_placeholder') }}" />
+                                      {!! $errors->first('idp_label', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+                                  </div>
+                              </div>
+
                               <!-- Address -->
                               <div class="form-group{{ $errors->has('address') ? ' has-error' : '' }}">
                                   <label class="col-md-3 control-label" for="address">{{ trans('general.address') }}</label>
