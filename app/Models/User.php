@@ -122,7 +122,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         'password' => 'required|min:8',
         'locale' => 'max:10|nullable',
         'website' => 'url|nullable|max:191',
-        'idp_url' => 'url|nullable|max:191',
+        'idp_url' => 'url:http,https|nullable|max:191',
         'idp_label' => 'nullable|string|max:191',
         'manager_id' => 'nullable|exists:users,id|cant_manage_self',
         'location_id' => 'exists:locations,id|nullable|fmcs_location',

@@ -179,7 +179,7 @@
                             </div>
                         @endif
 
-                        @if ($user->idp_url)
+                        @if ($user->idp_url && \Illuminate\Support\Str::startsWith($user->idp_url, ['http://', 'https://']))
                             <div class="usc-row">
                                 <div class="usc-label">{{ trans('admin/users/general.idp_url') }}</div>
                                 <div class="usc-value">
