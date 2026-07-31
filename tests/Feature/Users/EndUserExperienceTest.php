@@ -246,7 +246,10 @@ class EndUserExperienceTest extends TestCase
     {
         Mail::fake();
 
-        $user = $this->faculty();
+        // Not program-eligible: an eligible member's buyout goes through the
+        // faculty-program form instead, so their dashboard hides the button
+        // (asserted at the bottom of this test).
+        $user = User::factory()->create(['activated' => 1, 'first_name' => 'Frida']);
         $lessor = Supplier::factory()->create(['email' => 'leasing@lessor.example']);
         $laptop = $this->laptopFor($user, [
             'ownership_type' => 'Leased',
@@ -278,6 +281,18 @@ class EndUserExperienceTest extends TestCase
         $other = User::factory()->create(['activated' => 1]);
         $this->actingAs($other)->post(route('my.request-buyout', $laptop->id))
             ->assertForbidden();
+
+        // A program-eligible member does not get the button at all — their
+        // buyout decision lives inside the faculty-program form.
+        $eligible = $this->faculty();
+        $laptop2 = $this->laptopFor($eligible, [
+            'ownership_type' => 'Leased',
+            'lease_end_date' => now()->addMonths(18)->format('Y-m-d'),
+            'lessor_id' => $lessor->id,
+        ]);
+        $this->tagCatalog($laptop2, 'Faculty');
+        $this->actingAs($eligible)->get(route('my'))->assertOk()
+            ->assertDontSee('Request a buyout', false);
     }
 
     public function test_the_actions_split_by_catalog_faculty_buyout_staff_refresh()
@@ -380,10 +395,10 @@ class EndUserExperienceTest extends TestCase
     {
         $user = $this->faculty();
 
-        // Every "My Assets" doorway lands on /my; the tabbed profile is
-        // reachable from there for the things /my does not carry.
-        $page = $this->actingAs($user)->get(route('my'))->assertOk();
-        $page->assertSee(route('view-assets'), false);
+        // Every "My Assets" doorway lands on /my — the old tabbed profile
+        // now redirects there rather than existing beside it.
+        $this->actingAs($user)->get(route('my'))->assertOk();
+        $this->actingAs($user)->get(route('view-assets'))->assertRedirect(route('my'));
 
         // An admin's sidebar points at the same place, not the old page.
         $admin = User::factory()->superuser()->create();
