@@ -475,6 +475,18 @@
 
         /** End handling the responsive tab UI on view detail pages **/
 
+        // One-time hygiene: searches used to be persisted (see cookiesEnabled
+        // below), so long-lived stored search terms may still be sitting in
+        // localStorage silently filtering tables. Sweep them on every load —
+        // cheap, and it also covers anything written by older sessions.
+        try {
+            for (var lsKey in localStorage) {
+                if (lsKey.endsWith('.bs.table.searchText') || lsKey.endsWith('.bs.table.filterControl') || lsKey.endsWith('.bs.table.filterBy')) {
+                    localStorage.removeItem(lsKey);
+                }
+            }
+        } catch (e) { /* storage unavailable */ }
+
         $('.snipe-table').bootstrapTable('destroy').each(function () {
 
             data_export_options = $(this).attr('data-export-options');
@@ -547,6 +559,19 @@
                 cookie: true,
                 cookieExpire: '2y',
                 cookieStorage: '{{ config('session.bs_table_storage') }}',
+                // Persist layout preferences only. The extension's default
+                // list also remembers searchText and filter state — and since
+                // many tables share the 'defaultListingTable' cookie id, a
+                // search typed on one page silently filtered every other
+                // list page for two years. A search is a moment, not a
+                // preference: it lives for the page view only.
+                cookiesEnabled: [
+                    'bs.table.sortOrder',
+                    'bs.table.sortName',
+                    'bs.table.pageList',
+                    'bs.table.columns',
+                    'bs.table.hiddenColumns',
+                ],
                 iconsPrefix: 'fa',
                 maintainSelected: data_with_default('maintain-selected', true),
                 minimumCountColumns: data_with_default('minimum-count-columns', 2),

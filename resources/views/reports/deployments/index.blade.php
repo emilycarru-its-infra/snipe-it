@@ -14,6 +14,7 @@
 @stop
 
 @section('content')
+<div class="row"><div class="col-md-12">
 
 {{-- Filters --}}
 <div class="row">
@@ -206,6 +207,9 @@
 
 {{-- Waves table --}}
 <div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.waves_title') }}</h3>
+    </div>
     <div class="box-body table-responsive no-padding">
         <table class="table table-hover table-striped">
             <thead>
@@ -268,4 +272,5 @@
     donut('deployModelChart', @json($widgets['model']['chart']));
 })();
 </script>
+</div></div>
 @stop

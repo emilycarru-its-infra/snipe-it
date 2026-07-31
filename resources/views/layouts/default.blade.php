@@ -2,6 +2,22 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ Helper::determineLanguageDirection() }}" data-theme="light">
 <head>
     <meta charset="utf-8">
+    {{-- Stamp the real theme before any CSS loads. The attribute above is
+         only a no-JS default; leaving it as "light" until the toggle script
+         at the end of <body> ran meant dark-mode users got a light first
+         paint and anything keyed on [data-theme="dark"] (the wordmark swap,
+         the chrome tokens) was wrong until then. --}}
+    <script nonce="{{ csrf_token() }}">
+        (function () {
+            try {
+                var stored = localStorage.getItem("theme");
+                var theme = stored !== null
+                    ? stored
+                    : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+                document.documentElement.setAttribute("data-theme", theme);
+            } catch (e) { /* leave the no-JS default */ }
+        })();
+    </script>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>
         @section('title')
@@ -955,12 +971,128 @@
             color: var(--color-fg) !important;
         }
 
+        {{-- The chrome band is taller than AdminLTE's 50px so the wordmark
+             can carry real size. Everything that assumed 50px keys off the
+             one variable: brand row, pill margins, sticky offsets. --}}
+        :root { --header-h: 68px; }
+        .main-header .navbar,
+        .main-header .navbar-static-top {
+            min-height: var(--header-h);
+        }
+        .main-header { max-height: none; }
+        .main-header .sidebar-toggle {
+            height: var(--header-h);
+            display: flex;
+            align-items: center;
+        }
+        .main-header .navbar-custom-menu .navbar-nav > li > .dropdown-menu { margin-top: 0; }
+
+        {{-- Sticky chrome: the header rides along on scroll and the sidebar
+             is pinned below it with its own scrollbar, so a long table never
+             takes the navigation away. Desktop only — small screens keep the
+             stacked flow. --}}
+        @media (min-width: 768px) {
+            .main-header {
+                position: sticky;
+                top: 0;
+                z-index: 1030;
+            }
+            .main-sidebar {
+                position: fixed;
+                top: var(--header-h);
+                bottom: 0;
+                min-height: 0;
+                height: auto;
+                padding-top: 10px;
+                overflow-y: auto;
+                z-index: 900;
+            }
+            {{-- The table toolbar (search + actions) sticks just under the
+                 header on list pages, so the controls stay reachable at
+                 row 400. --}}
+            .bootstrap-table .fixed-table-toolbar {
+                position: sticky;
+                top: var(--header-h);
+                z-index: 90;
+                background: var(--box-bg);
+            }
+        }
+
+        {{-- Sidebar at 150px instead of AdminLTE's 230px — the labels fit
+             at 13px and the content gets the room back. --}}
+        @media (min-width: 768px) {
+            .main-sidebar { width: 150px; }
+            .content-wrapper, .main-footer { margin-left: 150px; }
+            .sidebar-collapse .content-wrapper, .sidebar-collapse .main-footer { margin-left: 0; }
+            .main-header .navbar { margin-left: 150px !important; }
+            .sidebar-mini.sidebar-collapse .main-header .navbar { margin-left: 50px !important; }
+        }
+        {{-- The brand must never inherit AdminLTE's 230x50 clipped logo
+             box — the wordmark is wider than that at full size. --}}
+        a.logo.navbar-brand,
+        .main-header .logo {
+            width: auto !important;
+            max-width: none;
+            height: var(--header-h);
+            line-height: var(--header-h);
+            overflow: visible;
+        }
+        .main-header .left-navblock { max-width: none !important; width: auto !important; min-width: 0 !important; }
+        @media (max-width: 767px) {
+            .main-sidebar { padding-top: var(--header-h); }
+        }
+        .sidebar-menu > li > a { font-size: 13px; padding: 9px 5px 9px 12px; }
+        .sidebar-menu .treeview-menu > li > a { font-size: 13px; }
+        .sidebar-menu .treeview-menu { padding-left: 6px; }
+
+        {{-- Sidebar polish: no brand rails, no coloured status icons — the
+             nav is quiet chrome, colour belongs to content. --}}
+        .sidebar-menu > li > a,
+        .sidebar-menu > li.active > a,
+        .sidebar-menu .treeview-menu > li > a,
+        .sidebar-menu .treeview-menu > li.active > a {
+            border-left: 0 !important;
+        }
+        .sidebar-menu .text-danger,
+        .sidebar-menu .text-warning,
+        .sidebar-menu .text-success,
+        .sidebar-menu .text-info,
+        .sidebar-menu .text-grey {
+            color: var(--sidenav-text-nohover-color) !important;
+        }
+
+        {{-- Six equal tiles on one row (reports hub, contracts dashboard,
+             transactions): flex instead of Bootstrap 3's 12-col grid, with
+             every card stretched to the tallest. Below 992px they fall back
+             to the col-sm-6 two-up layout. --}}
+        @media (min-width: 992px) {
+            .tile-row-6 { display: flex; flex-wrap: nowrap; }
+            .tile-row-6 > div[class*="col-"] {
+                {{-- flex-basis 0 splits the row equally among however many
+                     tiles the viewer's permissions produce. --}}
+                flex: 1 1 0;
+                max-width: none;
+                display: flex;
+                flex-direction: column;
+            }
+            .tile-row-6 > div[class*="col-"] > .small-box,
+            .tile-row-6 a.small-box-link {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+            }
+            .tile-row-6 a.small-box-link > .small-box {
+                flex: 1;
+                margin-bottom: 15px;
+            }
+        }
+
         {{-- Topbar items are pills: a rounded hover surface floating in the
              band, instead of full-height blocks with a brand rail underlining
-             the active one. The margin+padding sum keeps the 50px header. --}}
+             the active one. The margin+padding sum keeps the header height. --}}
         .main-header .navbar-nav > li > a {
             border-radius: 999px;
-            margin: 8px 3px;
+            margin: calc((var(--header-h) - 34px) / 2) 3px;
             padding: 7px 13px !important;
             line-height: 20px;
         }
@@ -1280,13 +1412,13 @@
             display: inline-flex;
             align-items: center;
             gap: 12px;
-            height: 50px;
+            height: var(--header-h);
             padding-top: 0;
             padding-bottom: 0;
         }
         img.navbar-brand-img {
             padding: 0;
-            max-height: 38px;
+            max-height: 56px;
             width: auto;
         }
 
@@ -2464,23 +2596,9 @@
                             </a>
                         </li>
 
-                        {{-- The internal store — visible to every signed-in user. --}}
-                        <li {{!! (request()->is('store*') ? ' class="active"' : '') !!}}>
-                            <a href="{{ route('store.index') }}">
-                                <i class="fa-solid fa-store fa-fw" aria-hidden="true"></i>
-                                <span>{{ trans('admin/store/general.store') }}</span>
-                            </a>
-                        </li>
-
-                        {{-- Where your order is. The status page is the link
-                             emails carry, so it belongs one click from
-                             anywhere — not behind the store page's button. --}}
-                        <li {{!! (request()->is('store/orders*') ? ' class="active"' : '') !!}}>
-                            <a href="{{ route('store.orders') }}">
-                                <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
-                                <span>{{ trans('admin/store/general.my_orders') }}</span>
-                            </a>
-                        </li>
+                        {{-- Store and My Orders live under Procurement in the
+                             admin sidebar; end users reach them from the eu
+                             topbar, so top-level entries here were noise. --}}
 
                         {{-- Procurement: operational purchasing data. --}}
                         @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class))
@@ -2514,6 +2632,18 @@
                                             </a>
                                         </li>
                                     @endif
+                                    {{-- Store and My Orders moved here from the
+                                         sidebar top level. --}}
+                                    <li {!! (request()->is('store') ? ' class="active"' : '') !!}>
+                                        <a href="{{ route('store.index') }}">
+                                            {{ trans('admin/store/general.store') }}
+                                        </a>
+                                    </li>
+                                    <li {!! (request()->is('store/orders*') ? ' class="active"' : '') !!}>
+                                        <a href="{{ route('store.orders') }}">
+                                            {{ trans('admin/store/general.my_orders') }}
+                                        </a>
+                                    </li>
                                     @can('view', \App\Models\Order::class)
                                         <li {{!! (request()->is('requisitions*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('requisitions.index') }}">
