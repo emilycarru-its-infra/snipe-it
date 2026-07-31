@@ -71,7 +71,7 @@ class CatalogItemsController extends Controller
             'source' => 'nullable|string|max:191',
             'show_in_store' => 'nullable|boolean',
             'store_sort' => 'nullable|integer|min:0|max:65535',
-            'image' => 'nullable|image|max:4096',
+            'image' => 'nullable|mimes:jpg,jpeg,png,gif,webp|max:4096',
         ]);
 
         $item = new CatalogItem;
@@ -124,7 +124,7 @@ class CatalogItemsController extends Controller
             'show_in_store' => 'sometimes|boolean',
             'store_sort' => 'sometimes|integer|min:0|max:65535',
             'model_id' => 'sometimes|nullable|integer|exists:models,id',
-            'image' => 'sometimes|image|max:4096',
+            'image' => 'sometimes|mimes:jpg,jpeg,png,gif,webp|max:4096',
             'vendor_sku' => 'sometimes|nullable|string|max:191',
             'mfr_part_number' => 'sometimes|nullable|string|max:191',
             'warranty_months' => 'sometimes|nullable|integer|min:0|max:120',
