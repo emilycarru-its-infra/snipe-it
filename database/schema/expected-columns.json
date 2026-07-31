@@ -160,6 +160,7 @@
         "updated_at"
     ],
     "catalog_items": [
+        "bundle_url",
         "category",
         "chip",
         "color",
@@ -197,7 +198,8 @@
         "supplier_id",
         "unit_cost",
         "updated_at",
-        "vendor_sku"
+        "vendor_sku",
+        "warranty_months"
     ],
     "categories": [
         "alert_on_response",
@@ -1405,13 +1407,22 @@
     ],
     "store_orders": [
         "arrived_at",
+        "confirmed_at",
         "created_at",
         "decided_at",
         "decided_by",
         "decision_notes",
+        "funding_account",
         "id",
+        "lease_schedule",
+        "location_id",
         "notes",
+        "order_usage",
         "program",
+        "quote_expires_at",
+        "quote_number",
+        "quote_received_at",
+        "quote_total",
         "requisition_id",
         "shipped_at",
         "status",
