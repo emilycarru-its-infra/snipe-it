@@ -46,6 +46,8 @@ class StoreOrder extends Model
         'user_id',
         'status',
         'program',
+        'order_usage',
+        'usage_note',
         'funding_account',
         'lease_schedule',
         'notes',
@@ -216,6 +218,18 @@ class StoreOrder extends Model
         return $this->quote_expires_at !== null
             && $this->confirmed_at === null
             && $this->quote_expires_at->isPast();
+    }
+
+    /**
+     * A shared-usage order — a cart for a lab, classroom or team space
+     * rather than the requester's own machine. Shared orders skip the
+     * whole assigned-machine machinery: no outgoing laptop, no -LE
+     * rename, no journey tracker takeover, and the provisioned assets
+     * carry Usage=Shared with no person's name on them.
+     */
+    public function isShared(): bool
+    {
+        return $this->order_usage === 'shared';
     }
 
     /** Part of the faculty laptop program's intake-and-agreement flow? */

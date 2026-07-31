@@ -9,6 +9,8 @@ use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
 use App\Presenters\Presentable;
 use App\Presenters\UserPresenter;
+use App\Services\FormAccess;
+use Carbon\Carbon;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Auth\Passwords\CanResetPassword;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
@@ -544,6 +546,76 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         }
 
         return true;
+    }
+
+    /**
+     * A Faculty Laptop Program member — someone eligible for the
+     * faculty-program intake form. Group-driven (Regular Faculty via the
+     * form-eligibility table), which is the same fact the Forms platform
+     * itself runs on, so the store gate and the form gate can never
+     * disagree about who is faculty.
+     */
+    public function isFacultyProgramMember(): bool
+    {
+        return FormAccess::canSubmit($this, 'faculty-program');
+    }
+
+    /**
+     * Whether this person has a program form on file for the fiscal year
+     * their renewal falls under — the fiscal year (Apr–Mar) containing
+     * their laptop's lease end, or the current one when no lease end is
+     * known. The Store is the second step of the program; without this
+     * form there is nothing to order against.
+     */
+    public function hasProgramFormForRenewalYear(): bool
+    {
+        $renewalAnchor = Asset::currentLaptopOf($this->id)?->leaseEndDate() ?? now();
+
+        // Fiscal years run Apr 1 – Mar 31; a January renewal belongs to the
+        // FY that started the previous April.
+        $fyYear = $renewalAnchor->month >= 4 ? $renewalAnchor->year : $renewalAnchor->year - 1;
+        $fyStart = Carbon::create($fyYear, 4, 1)->startOfDay();
+        $fyEnd = $fyStart->copy()->addYear();
+
+        return UserAgreement::where('user_id', $this->id)
+            ->where('agreement_type', 'pickup')
+            ->where('lifecycle_stage', '!=', 'cancelled')
+            ->whereBetween('created_at', [$fyStart, $fyEnd])
+            ->exists();
+    }
+
+    /**
+     * Whether the Store (and the orders that come out of it) is open to
+     * this person right now. Admin-ish accounts always can; a faculty
+     * member must have applied to the program for the renewal year first;
+     * everyone else (staff, shared purchasers) walks straight in.
+     */
+    public function canUseStore(): bool
+    {
+        if (! $this->isEndUser()) {
+            return true;
+        }
+
+        if ($this->isFacultyProgramMember()) {
+            return $this->hasProgramFormForRenewalYear();
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether this person may place shared-usage orders — carts for labs,
+     * classrooms and team spaces rather than their own assigned machine.
+     * Group-driven by name, like Regular Faculty: membership in "Shared
+     * Purchasers" is synced/managed in one place and read here.
+     */
+    public function canOrderShared(): bool
+    {
+        if ($this->isSuperUser() || $this->hasAccess('orders.view')) {
+            return true;
+        }
+
+        return $this->groups()->where('name', 'Shared Purchasers')->exists();
     }
 
     public function hasAccess($section)
