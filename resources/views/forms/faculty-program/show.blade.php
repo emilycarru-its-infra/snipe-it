@@ -168,12 +168,18 @@
                         <span class="fp-ctl"></span>
                         <span class="fp-opt-text">{{ trans('admin/forms/faculty-program.buyout_no') }}</span>
                     </label>
-                    <label class="fp-opt {{ old('buyout_decision', $priorAsset ? null : 'no_prior_laptop') === 'no_prior_laptop' ? 'fp-selected' : '' }}">
-                        <input type="radio" name="buyout_decision" value="no_prior_laptop"
-                               {{ old('buyout_decision', $priorAsset ? null : 'no_prior_laptop') === 'no_prior_laptop' ? 'checked' : '' }}>
-                        <span class="fp-ctl"></span>
-                        <span class="fp-opt-text">{{ trans('admin/forms/faculty-program.buyout_no_prior_laptop') }}</span>
-                    </label>
+                    {{-- "I don't have a laptop" is only an option when the
+                         system genuinely found none — when we can see the
+                         machine in their hands, the question is keep or
+                         return, not whether it exists. --}}
+                    @unless ($priorAsset)
+                        <label class="fp-opt {{ old('buyout_decision', 'no_prior_laptop') === 'no_prior_laptop' ? 'fp-selected' : '' }}">
+                            <input type="radio" name="buyout_decision" value="no_prior_laptop"
+                                   {{ old('buyout_decision', 'no_prior_laptop') === 'no_prior_laptop' ? 'checked' : '' }}>
+                            <span class="fp-ctl"></span>
+                            <span class="fp-opt-text">{{ trans('admin/forms/faculty-program.buyout_no_prior_laptop') }}</span>
+                        </label>
+                    @endunless
                     @if ($errors->has('buyout_decision'))
                         <p class="fp-error">{{ $errors->first('buyout_decision') }}</p>
                     @endif
@@ -261,7 +267,7 @@
             <div class="fp-kicker">{{ trans('admin/forms/faculty-program.terms_kicker') }}</div>
             <h2>{{ trans('admin/forms/faculty-program.section_terms') }}</h2>
             <p class="fp-muted">{{ trans('admin/forms/faculty-program.terms_intro') }}</p>
-            <div class="fp-terms">
+            <div class="fp-terms" id="fp-terms-box">
                 <h3>{{ trans('admin/forms/faculty-program.terms_heading') }}</h3>
 
                 <h4>{{ trans('admin/forms/faculty-program.terms_return_title') }}</h4>
@@ -300,10 +306,12 @@
                 <h4>{{ trans('admin/forms/faculty-program.terms_top_up_title') }}</h4>
                 <p style="margin-bottom:0;">{{ trans('admin/forms/faculty-program.terms_top_up_body') }}</p>
             </div>
-            <label class="fp-opt {{ old('accept_terms') ? 'fp-selected' : '' }}" style="margin-top:12px;">
+            <label class="fp-opt {{ old('accept_terms') ? 'fp-selected' : '' }}" id="fp-accept" style="margin-top:12px;">
                 <input type="checkbox" name="accept_terms" value="1" {{ old('accept_terms') ? 'checked' : '' }} required>
                 <span class="fp-ctl"></span>
-                <span class="fp-opt-text"><strong>{{ trans('admin/forms/faculty-program.terms_accept') }}</strong></span>
+                <span class="fp-opt-text"><strong>{{ trans('admin/forms/faculty-program.terms_accept') }}</strong>
+                    <span class="fp-muted fp-scroll-hint" style="display:block;">{{ trans('admin/forms/faculty-program.terms_scroll_hint') }}</span>
+                </span>
             </label>
             @if ($errors->has('accept_terms'))
                 <p class="fp-error">{{ $errors->first('accept_terms') }}</p>
@@ -333,6 +341,38 @@ document.querySelectorAll('.fp-opt input').forEach(function (input) {
         });
     });
 });
+
+// The terms must actually be read — or at least travelled: the accept
+// checkbox stays disabled until the terms box has been scrolled to its
+// end. A box that doesn't overflow unlocks immediately. Re-checked on
+// resize because reflowing can create or remove the overflow.
+(function () {
+    var box = document.getElementById('fp-terms-box');
+    var accept = document.querySelector('#fp-accept input');
+    var hint = document.querySelector('#fp-accept .fp-scroll-hint');
+    if (!box || !accept) return;
+
+    var unlocked = accept.checked;
+    function update() {
+        if (unlocked) return;
+        var atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+        if (atEnd) {
+            unlocked = true;
+            accept.disabled = false;
+            accept.closest('.fp-opt').style.opacity = '';
+            if (hint) hint.style.display = 'none';
+        }
+    }
+    if (!unlocked) {
+        accept.disabled = true;
+        accept.closest('.fp-opt').style.opacity = '.55';
+        box.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', update);
+        update();
+    } else if (hint) {
+        hint.style.display = 'none';
+    }
+})();
 
 // Picking a different machine re-fills the buyout tag/serial fields, so the
 // paperwork always names the laptop the card selection points at.

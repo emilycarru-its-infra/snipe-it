@@ -36,6 +36,10 @@ class StoreController extends Controller
      */
     public function index(Request $request)
     {
+        if ($redirect = $this->storeGate()) {
+            return $redirect;
+        }
+
         $items = CatalogItem::with('model.manufacturer')
             ->inStore()
             ->orderBy('store_sort')
@@ -124,24 +128,38 @@ class StoreController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        if ($redirect = $this->storeGate()) {
+            return $redirect;
+        }
+
         $validated = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.catalog_item_id' => 'required|integer|exists:catalog_items,id',
             'items.*.quantity' => 'required|integer|min:1|max:100',
             'notes' => 'nullable|string|max:65535',
+            'order_usage' => 'nullable|string|in:assigned,shared',
+            'usage_note' => 'nullable|string|max:191',
         ]);
 
+        // A shared cart — a lab, classroom or team space — only from someone
+        // cleared to place them; everyone else's orders are for themselves.
+        $shared = ($validated['order_usage'] ?? 'assigned') === 'shared'
+            && auth()->user()->canOrderShared();
+
         // Orders from faculty ride the faculty laptop program — its
-        // intake and agreement flow picks them up from the queue.
-        $isFaculty = auth()->user()->groups()
+        // intake and agreement flow picks them up from the queue. A shared
+        // cart never does, whoever placed it.
+        $isFaculty = ! $shared && auth()->user()->groups()
             ->where('permission_groups.name', 'like', '%faculty%')
             ->exists();
 
-        $order = DB::transaction(function () use ($validated, $isFaculty) {
+        $order = DB::transaction(function () use ($validated, $isFaculty, $shared) {
             $order = StoreOrder::create([
                 'user_id' => auth()->id(),
                 'status' => 'pending',
                 'program' => $isFaculty ? 'faculty' : null,
+                'order_usage' => $shared ? 'shared' : 'assigned',
+                'usage_note' => $shared ? ($validated['usage_note'] ?? null) : null,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -192,11 +210,30 @@ class StoreController extends Controller
     }
 
     /**
+     * The program gate. A faculty member's store journey starts at the
+     * intake form — until one is on file for the renewal year, the store
+     * (and ordering) redirects them there instead of 403ing into a wall.
+     */
+    private function storeGate(): ?RedirectResponse
+    {
+        if (auth()->user()->canUseStore()) {
+            return null;
+        }
+
+        return redirect()->route('forms.show', 'faculty-program')
+            ->with('info', trans('admin/store/general.store_needs_form'));
+    }
+
+    /**
      * The requester's own orders, newest first, with where each one sits
      * in the pipeline.
      */
     public function orders(StoreOrderAssetProvisioner $provisioner)
     {
+        if ($redirect = $this->storeGate()) {
+            return $redirect;
+        }
+
         $orders = StoreOrder::with('items.catalogItem', 'requisition.purchaseOrder')
             ->where('user_id', auth()->id())
             ->orderByDesc('created_at')

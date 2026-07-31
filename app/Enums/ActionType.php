@@ -21,6 +21,7 @@ enum ActionType: string
     case Audit = 'audit';
     case NoteAdded = 'note added';
     case BuyoutRequested = 'buyout requested';
+    case EarlyRefreshRequested = 'early refresh requested';
 
     // Users
     case TwoFactorReset = '2FA reset';

@@ -3,17 +3,20 @@
 namespace Tests\Feature\Users;
 
 use App\Mail\AssetBuyoutRequestMail;
+use App\Mail\AssetEarlyRefreshRequestMail;
 use App\Mail\StoreOrderStatusMail;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Category;
+use App\Models\CustomField;
 use App\Models\FormEligibility;
 use App\Models\Group;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\UserAgreement;
 use App\Services\FormAccess;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -24,6 +27,12 @@ use Tests\TestCase;
  */
 class EndUserExperienceTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Asset::flushCatalogColumn();
+    }
+
     private function faculty(): User
     {
         $group = Group::factory()->create(['name' => 'Regular Faculty', 'permissions' => json_encode([])]);
@@ -34,6 +43,29 @@ class EndUserExperienceTest extends TestCase
         $user->groups()->attach($group->id);
 
         return $user;
+    }
+
+    /** A faculty member whose program application for this renewal year is in. */
+    private function applied(User $user): User
+    {
+        UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+            'payment_method' => 'pay_in_full',
+            'terms_accepted_at' => now(),
+        ]);
+
+        return $user;
+    }
+
+    /** Stamp an asset's Catalog custom field (creating the field on first use). */
+    private function tagCatalog(Asset $asset, string $value): void
+    {
+        $field = CustomField::where('name', 'Catalog')->first()
+            ?? CustomField::factory()->create(['name' => 'Catalog']);
+        Asset::flushCatalogColumn();
+        $asset->forceFill([$field->db_column => $value])->saveQuietly();
     }
 
     private function laptopFor(User $user, array $overrides = []): Asset
@@ -62,19 +94,54 @@ class EndUserExperienceTest extends TestCase
 
     public function test_the_top_bar_is_the_whole_navigation_for_an_end_user()
     {
-        $page = $this->actingAs($this->faculty())->get(route('store.index'))->assertOk();
+        $user = $this->applied($this->faculty());
+        $page = $this->actingAs($user)->get(route('store.index'))->assertOk();
 
         // The four destinations, in the navbar…
         $page->assertSee('eu-nav', false);
         foreach ([route('store.index'), route('store.orders'), route('my'), route('forms.index')] as $url) {
             $page->assertSee($url, false);
         }
-        $page->assertSee('My Assets', false);
 
         // …and no sidebar element at all. (The stylesheet still names the
         // class; the assertion is about the markup.)
         $page->assertDontSee('<aside class="main-sidebar"', false);
         $page->assertDontSee('data-toggle="push-menu"', false);
+    }
+
+    public function test_faculty_without_a_form_get_no_store_until_they_apply()
+    {
+        $user = $this->faculty();
+
+        // No application on file: the store and its tabs are a doorway to
+        // the form, not a wall.
+        $this->actingAs($user)->get(route('store.index'))
+            ->assertRedirect(route('forms.show', 'faculty-program'));
+        $this->actingAs($user)->get(route('store.orders'))
+            ->assertRedirect(route('forms.show', 'faculty-program'));
+        $this->actingAs($user)->get(route('my'))->assertOk()
+            ->assertDontSee(route('store.index'), false);
+
+        // Ordering is gated the same way — no order appears.
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => 1, 'quantity' => 1]],
+        ])->assertRedirect(route('forms.show', 'faculty-program'));
+        $this->assertSame(0, StoreOrder::count());
+
+        // Application in: the store opens.
+        $this->applied($user);
+        $this->actingAs($user)->get(route('store.index'))->assertOk();
+    }
+
+    public function test_staff_without_forms_see_no_forms_tab_but_keep_the_store()
+    {
+        // An end user in no eligible group: no Forms anywhere, Store open.
+        $user = User::factory()->create(['activated' => 1]);
+
+        $page = $this->actingAs($user)->get(route('my'))->assertOk();
+        $page->assertDontSee(route('forms.index'), false);
+        $page->assertSee(route('store.index'), false);
+        $this->actingAs($user)->get(route('store.index'))->assertOk();
     }
 
     public function test_an_admin_keeps_the_sidebar_and_gets_no_end_user_bar()
@@ -118,11 +185,12 @@ class EndUserExperienceTest extends TestCase
     {
         $user = $this->faculty();
         $end = now()->addYears(2);
-        $this->laptopFor($user, [
+        $laptop = $this->laptopFor($user, [
             'asset_tag' => 'A004242',
             'lease_end_date' => $end->format('Y-m-d'),
             'buyout_cost' => 640,
         ]);
+        $this->tagCatalog($laptop, 'Faculty');
 
         // Two years out: no renewal prompt, no tracker — the lease answer
         // rides on the asset row itself, date first, countdown small.
@@ -185,6 +253,7 @@ class EndUserExperienceTest extends TestCase
             'lease_end_date' => now()->addMonths(18)->format('Y-m-d'),
             'lessor_id' => $lessor->id,
         ]);
+        $this->tagCatalog($laptop, 'Faculty');
 
         // The button is on their dashboard, and it sends the same lessor
         // email an admin's button sends.
@@ -211,6 +280,59 @@ class EndUserExperienceTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_the_actions_split_by_catalog_faculty_buyout_staff_refresh()
+    {
+        Mail::fake();
+
+        $user = $this->faculty();
+        $lessor = Supplier::factory()->create(['email' => 'leasing@lessor.example']);
+
+        // A Staff-catalog machine: refresh doorway, never the buyout one —
+        // even on an active lease with a lessor email.
+        $staffMachine = $this->laptopFor($user, [
+            'ownership_type' => 'Leased',
+            'lease_end_date' => now()->addMonths(18)->format('Y-m-d'),
+            'lessor_id' => $lessor->id,
+        ]);
+        $this->tagCatalog($staffMachine, 'Staff');
+
+        $page = $this->actingAs($user)->get(route('my'))->assertOk();
+        $page->assertSee('Request early refresh', false);
+        $page->assertDontSee('Request a buyout', false);
+
+        // The refresh request mails the device team with the note, CC the
+        // requester, and cools down.
+        $this->actingAs($user)->post(route('my.request-early-refresh', $staffMachine->id), [
+            'note' => 'Battery drains within the hour.',
+        ])->assertRedirect(route('my'));
+        Mail::assertSent(AssetEarlyRefreshRequestMail::class,
+            fn ($mail) => $mail->hasTo('devicesadmins@ecuad.ca')
+                && $mail->hasCc($user->email)
+                && $mail->note === 'Battery drains within the hour.');
+
+        $this->actingAs($user)->post(route('my.request-early-refresh', $staffMachine->id))
+            ->assertSessionHas('error');
+        Mail::assertSentCount(1);
+        $this->actingAs($user)->get(route('my'))->assertOk()
+            ->assertSee('Refresh requested', false);
+
+        // A buyout POST against a staff machine is refused outright.
+        $this->actingAs($user)->post(route('my.request-buyout', $staffMachine->id))
+            ->assertSessionHas('error');
+        Mail::assertNotSent(AssetBuyoutRequestMail::class);
+
+        // And a refresh POST against a Faculty machine is refused too.
+        $facultyMachine = Asset::factory()->create([
+            'model_id' => $staffMachine->model_id,
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'last_checkout' => now()->subYears(2),
+        ]);
+        $this->tagCatalog($facultyMachine, 'Faculty');
+        $this->actingAs($user)->post(route('my.request-early-refresh', $facultyMachine->id))
+            ->assertSessionHas('error');
+    }
+
     public function test_the_dashboard_opens_the_door_at_renewal_time()
     {
         $user = $this->faculty();
@@ -224,7 +346,7 @@ class EndUserExperienceTest extends TestCase
 
     public function test_the_tracker_walks_the_seven_steps()
     {
-        $user = $this->faculty();
+        $user = $this->applied($this->faculty());
         $model = AssetModel::factory()->create();
         $item = CatalogItem::create([
             'name' => 'MacBook Air | 13" | M5', 'family' => 'MacBook Air', 'category' => 'Laptops',
@@ -258,7 +380,7 @@ class EndUserExperienceTest extends TestCase
     {
         Mail::fake();
 
-        $user = $this->faculty();
+        $user = $this->applied($this->faculty());
         $model = AssetModel::factory()->create();
         $item = CatalogItem::create([
             'name' => 'MacBook Air | 13" | M5', 'family' => 'MacBook Air', 'category' => 'Laptops',

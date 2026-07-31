@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Watson\Validating\ValidatingTrait;
 
@@ -47,7 +48,7 @@ use Watson\Validating\ValidatingTrait;
  * @property string|null $lease_usage
  * @property string|null $lease_area
  * @property string|null $lease_book_value
- * @property \Carbon\Carbon|null $last_checkout
+ * @property Carbon|null $last_checkout
  *
  * @version v1.0
  */
@@ -1199,6 +1200,49 @@ class Asset extends Depreciable
     public static function currentLaptopOf(?int $userId): ?self
     {
         return self::laptopsOf($userId)->first();
+    }
+
+    /**
+     * The device's Catalog tag — which program the machine belongs to
+     * (Faculty, Staff, Curriculum, Kiosk, Provisioning…), kept as a custom
+     * field and populated by the inventory automations. Resolved by field
+     * name at runtime because the `_snipeit_catalog_<id>` column suffix is
+     * an environment fact, not a code fact.
+     */
+    public function catalogTag(): ?string
+    {
+        if (! self::$catalogColumnResolved) {
+            $resolved = CustomField::where('name', 'Catalog')->first()?->db_column;
+            self::$catalogColumn = ($resolved && Schema::hasColumn('assets', $resolved))
+                ? $resolved
+                : null;
+            self::$catalogColumnResolved = true;
+        }
+
+        return self::$catalogColumn ? ($this->{self::$catalogColumn} ?: null) : null;
+    }
+
+    private static ?string $catalogColumn = null;
+
+    private static bool $catalogColumnResolved = false;
+
+    /** Reset the memoized Catalog column — tests re-create the field per case. */
+    public static function flushCatalogColumn(): void
+    {
+        self::$catalogColumn = null;
+        self::$catalogColumnResolved = false;
+    }
+
+    /** A Faculty Laptop Program machine — the only kind a lease buyout applies to. */
+    public function isFacultyCatalog(): bool
+    {
+        return strcasecmp(trim((string) $this->catalogTag()), 'Faculty') === 0;
+    }
+
+    /** A staff machine — the kind an early-refresh request applies to. */
+    public function isStaffCatalog(): bool
+    {
+        return strcasecmp(trim((string) $this->catalogTag()), 'Staff') === 0;
     }
 
     /**

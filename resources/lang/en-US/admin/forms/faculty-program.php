@@ -21,8 +21,8 @@ return [
     'intro' => 'Use this form to confirm your participation in the current Faculty Laptop Program cycle. Once submitted, you will be redirected to the CDW eStore to place your laptop order. Our team is notified automatically.',
     'not_eligible' => 'This form is open to members of the Regular Faculty group. If you believe you should have access, please contact IT.',
 
-    'section_choose_model' => 'Choosing your model',
-    'choose_model_intro' => 'We have a brand new eStore for you to sign in to and place your order. Go through a regular checkout like any store — your order will run through the approvals on our end and be processed. Models are pre-selected with many configuration and upgrade options.',
+    'section_choose_model' => 'Where you\'ll choose your laptop',
+    'choose_model_intro' => 'You don\'t pick the laptop on this form. As soon as you apply, our own Store opens — that\'s where you\'ll choose and configure your new laptop, checkout-style. Your order then runs through the approvals on our end and is processed. Models are pre-selected with many configuration and upgrade options:',
     'choose_model_help_label' => 'Information about models that might be of help:',
     'choose_model_air_13' => '13.6" MacBook Air will meet most people\'s needs — an incredible laptop at no extra cost to you.',
     'choose_model_air_15' => '15.3" MacBook Air is the same computer as the 13.6" Air with a bigger screen and little weight difference (2.7 lbs vs. 3.3 lbs).',
@@ -49,6 +49,8 @@ return [
     'buyout_yes' => 'Yes, I want to keep and buy out my laptop and pay the remaining end-of-lease costs',
     'buyout_no' => 'No, I don\'t want to keep my laptop and will return it by Sept 15th to B1116, B1115, or Media Resources',
     'buyout_no_prior_laptop' => 'No, I don\'t have a laptop to return',
+    'buyout_have_laptop' => 'Our records show a laptop checked out to you — choose whether you\'re keeping or returning it.',
+    'terms_scroll_hint' => 'Read to the end of the terms to continue.',
     'buyout_prior_asset' => 'Detected prior laptop',
     'buyout_cost' => 'Estimated lease-end buyout cost',
     'buyout_asset_tag' => 'Asset tag',
@@ -96,7 +98,7 @@ return [
 
     'terms_accept' => 'I have read and accept the Faculty Laptop Program terms.',
 
-    'submit' => 'Submit commitment',
+    'submit' => 'Apply for Program',
     'existing_warning' => 'You already have an open commitment for this cycle. Submitting again will create an additional record — only do this if you need to update your previous answers (the IT team will follow up).',
 
     'success_title' => 'Commitment recorded — now choose your laptop',

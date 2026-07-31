@@ -59,6 +59,33 @@
                     <p class="st-cart-disclaimer">{{ trans('admin/store/general.approx_disclaimer') }}</p>
                 </div>
 
+                {{-- Shared carts: techs and area managers ordering for a
+                     lab, classroom or team space rather than themselves.
+                     Only rendered for people cleared to place them. --}}
+                @if (auth()->user()->canOrderShared())
+                    <div class="form-group" style="margin-top:12px;">
+                        <label style="font-weight:600;">{{ trans('admin/store/general.usage_label') }}</label>
+                        <label class="radio" style="margin:2px 0;">
+                            <input type="radio" name="order_usage" value="assigned" checked>
+                            {{ trans('admin/store/general.usage_assigned') }}
+                        </label>
+                        <label class="radio" style="margin:2px 0;">
+                            <input type="radio" name="order_usage" value="shared">
+                            {{ trans('admin/store/general.usage_shared') }}
+                        </label>
+                        <input type="text" name="usage_note" id="st-usage-note" class="form-control input-sm" maxlength="191"
+                               placeholder="{{ trans('admin/store/general.usage_note_placeholder') }}" style="display:none; margin-top:4px;">
+                    </div>
+                    <script>
+                    document.querySelectorAll('input[name="order_usage"]').forEach(function (input) {
+                        input.addEventListener('change', function () {
+                            document.getElementById('st-usage-note').style.display =
+                                document.querySelector('input[name="order_usage"]:checked').value === 'shared' ? '' : 'none';
+                        });
+                    });
+                    </script>
+                @endif
+
                 <div class="form-group" style="margin-top:12px;">
                     <label for="st-notes">{{ trans('admin/store/general.order_note_label') }}</label>
                     <textarea name="notes" id="st-notes" rows="3" class="form-control"
