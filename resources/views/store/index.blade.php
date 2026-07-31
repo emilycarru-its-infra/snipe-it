@@ -63,27 +63,35 @@
                      lab, classroom or team space rather than themselves.
                      Only rendered for people cleared to place them. --}}
                 @if (auth()->user()->canOrderShared())
-                    <div class="form-group" style="margin-top:12px;">
-                        <label style="font-weight:600;">{{ trans('admin/store/general.usage_label') }}</label>
-                        <label class="radio" style="margin:2px 0;">
-                            <input type="radio" name="order_usage" value="assigned" checked>
-                            {{ trans('admin/store/general.usage_assigned') }}
-                        </label>
-                        <label class="radio" style="margin:2px 0;">
-                            <input type="radio" name="order_usage" value="shared">
-                            {{ trans('admin/store/general.usage_shared') }}
-                        </label>
-                        <input type="text" name="usage_note" id="st-usage-note" class="form-control input-sm" maxlength="191"
-                               placeholder="{{ trans('admin/store/general.usage_note_placeholder') }}" style="display:none; margin-top:4px;">
+                    <div class="form-group st-usage" id="st-usage">
+                        <label class="st-field-label">{{ trans('admin/store/general.usage_label') }}</label>
+                        @foreach (['assigned', 'shared'] as $usage)
+                            <label class="ecu-opt ecu-opt-sm {{ old('order_usage', 'assigned') === $usage ? 'ecu-selected' : '' }}">
+                                <input type="radio" name="order_usage" value="{{ $usage }}"
+                                       {{ old('order_usage', 'assigned') === $usage ? 'checked' : '' }}>
+                                <span class="ecu-ctl"></span>
+                                <span class="ecu-opt-text">{{ trans('admin/store/general.usage_'.$usage) }}</span>
+                            </label>
+                        @endforeach
+
+                        {{-- Where the machines land. A shared order has no
+                             person to check out to, so the space is the
+                             destination — the same Location the checkout
+                             screen asks for, picked from the same list. --}}
+                        <div id="st-location-wrap" hidden>
+                            <label class="st-field-label" for="st-location">{{ trans('admin/store/general.usage_location_label') }}</label>
+                            <select name="location_id" id="st-location" class="form-control"
+                                    data-placeholder="{{ trans('general.select_location') }}">
+                                <option value="">{{ trans('general.select_location') }}</option>
+                                @foreach ($locations as $id => $name)
+                                    <option value="{{ $id }}" {{ (int) old('location_id') === (int) $id ? 'selected' : '' }}>{{ $name }}</option>
+                                @endforeach
+                            </select>
+                            @if ($errors->has('location_id'))
+                                <p class="ecu-error">{{ $errors->first('location_id') }}</p>
+                            @endif
+                        </div>
                     </div>
-                    <script>
-                    document.querySelectorAll('input[name="order_usage"]').forEach(function (input) {
-                        input.addEventListener('change', function () {
-                            document.getElementById('st-usage-note').style.display =
-                                document.querySelector('input[name="order_usage"]:checked').value === 'shared' ? '' : 'none';
-                        });
-                    });
-                    </script>
                 @endif
 
                 <div class="form-group" style="margin-top:12px;">
@@ -106,5 +114,60 @@
 <script type="application/json" id="st-strings">@json($strings)</script>
 
 @include('store._store-js')
+
+<script nonce="{{ csrf_token() }}">
+(function () {
+    var usage = document.getElementById('st-usage');
+    if (! usage) {
+        return;
+    }
+
+    var wrap = document.getElementById('st-location-wrap');
+    var select = document.getElementById('st-location');
+    var radios = usage.querySelectorAll('input[name="order_usage"]');
+
+    function isShared() {
+        return usage.querySelector('input[name="order_usage"]:checked').value === 'shared';
+    }
+
+    function sync() {
+        wrap.hidden = ! isShared();
+        radios.forEach(function (radio) {
+            radio.closest('.ecu-opt').classList.toggle('ecu-selected', radio.checked);
+        });
+    }
+
+    radios.forEach(function (radio) { radio.addEventListener('change', sync); });
+    sync();
+
+    // Guarded here rather than with the `required` attribute: select2 hides
+    // the real select, and the browser refuses to submit — silently, with
+    // no bubble it can place — when a hidden control is required. The cart
+    // is client-side state, so bouncing off the server would lose it.
+    document.getElementById('st-form').addEventListener('submit', function (e) {
+        if (! isShared() || select.value) {
+            return;
+        }
+        e.preventDefault();
+        var warning = document.getElementById('st-location-error');
+        if (! warning) {
+            warning = document.createElement('p');
+            warning.id = 'st-location-error';
+            warning.className = 'ecu-error';
+            warning.textContent = @json(trans('admin/store/general.usage_location_required'));
+            wrap.appendChild(warning);
+        }
+        // select2 hides the real control, so focus its stand-in when one exists.
+        (document.querySelector('#st-location-wrap .select2-selection') || select).focus();
+    });
+
+    // Several hundred rooms is past the point a native select is usable.
+    // select2 is already on the page for the admin forms; if it ever is
+    // not, the plain select still works.
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery('#st-location').select2({ width: '100%' });
+    }
+})();
+</script>
 
 @stop

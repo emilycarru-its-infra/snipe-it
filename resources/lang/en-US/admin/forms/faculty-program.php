@@ -19,7 +19,7 @@ return [
     'success_crumb' => 'Commitment recorded',
 
     'intro' => 'Use this form to confirm your participation in the current Faculty Laptop Program cycle. Once submitted, you will be redirected to the CDW eStore to place your laptop order. Our team is notified automatically.',
-    'not_eligible' => 'This form is open to members of the Regular Faculty group. If you believe you should have access, please contact IT.',
+    'not_eligible' => 'This form is open to members of the Regular Faculty group. If you believe you should have access, please contact ITS.',
 
     'section_choose_model' => 'Where you\'ll choose your laptop',
     'choose_model_intro' => 'You don\'t pick the laptop on this form. As soon as you apply, our own Store opens — that\'s where you\'ll choose and configure your new laptop, checkout-style. Your order then runs through the approvals on our end and is processed. Models are pre-selected with many configuration and upgrade options:',
@@ -58,7 +58,7 @@ return [
     'buyout_no_match' => 'No assigned laptop found on your account. If you do have one, type the asset tag below.',
 
     'section_notes' => '4. Do you have any questions we can help answer regarding your choice or any other detail?',
-    'notes_help' => 'Optional. The IT team will read every response.',
+    'notes_help' => 'Optional. We read every response.',
 
     'section_terms' => '5. Program terms',
     'terms_intro' => 'Please read and accept the Faculty Laptop Program terms below.',
@@ -99,10 +99,10 @@ return [
     'terms_accept' => 'I have read and accept the Faculty Laptop Program terms.',
 
     'submit' => 'Apply for Program',
-    'existing_warning' => 'You already have an open commitment for this cycle. Submitting again will create an additional record — only do this if you need to update your previous answers (the IT team will follow up).',
+    'existing_warning' => 'You already have an open commitment for this cycle. Submitting again will create an additional record — only do this if you need to update your previous answers (we will follow up).',
 
     'success_title' => 'Commitment recorded — now choose your laptop',
-    'success_body' => 'Your commitment has been recorded and the IT team has been notified. The next step is to choose your laptop in the store and send the order request. IT reviews it, orders it, and when it ships your asset appears in your account here automatically.',
+    'success_body' => 'Your commitment has been recorded and ITS has been notified. The next step is to choose your laptop in the store and send the order request. We review it, order it, and when it ships your asset appears in your account here automatically.',
     'success_button' => 'Choose your laptop',
     'success_back' => 'Back to my account',
 
