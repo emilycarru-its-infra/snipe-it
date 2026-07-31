@@ -60,9 +60,9 @@
             --btn-theme-hover: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l - 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
             --btn-theme-text-color: {{ $nav_link_color ?? 'light-dark(hsl(from var(--main-theme-color) h s calc(l + 10)),hsl(from var(--main-theme-color) h s calc(l - 10)))' }};
             --color-fg: light-dark(#373636, #ffffff);
-            --main-footer-bg-color: light-dark(#ffffff,#3d4144);
-            --main-footer-text-color: light-dark(#605e5e, #d2d6de);
-            --main-footer-top-border-color: light-dark(#d2d6de,#605e5e);
+            --main-footer-bg-color: light-dark(#f4f4f7,#1a1b1e);
+            --main-footer-text-color: light-dark(#6a6a72, #8a8a94);
+            --main-footer-top-border-color: light-dark(#e2e2e6,#3a3a3e);
             --main-theme-color: {{ $snipeSettings->header_color ?? '#3c8dbc' }};
             --nav-hover-text-color: {{ $nav_link_color ?? 'hsl(from var(--main-theme-color) h s calc(l - 10))' }};
             --nav-primary-text-color: {{ $nav_link_color ?? '#ffffff' }};
@@ -111,7 +111,7 @@
                  upload is needed. Single-colour wordmarks only. --}}
             --brand-logo-filter: brightness(0);
             --box-bg: #ffffff;
-            --box-header-bottom-border-color: #f4f4f4;
+            --box-header-bottom-border-color: #f0f0f3;
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
             --box-header-top-border-color: #d2d6de;
             --box-header-top-border: 3px solid var(--box-header-top-border-color);
@@ -133,13 +133,13 @@
             --callout-bg-color: var(--box-header-bottom-border-color);
             --callout-left-border: var(--box-header-top-border-color);
             --chrome-active-bg: #ffffff;
-            --chrome-bg: #ecf0f5;
-            --chrome-border-color: #d3dae3;
+            --chrome-bg: #f4f4f7;
+            --chrome-border-color: #e2e2e6;
             --chrome-fg: #2f3237;
             --chrome-fg-muted: #5b616b;
-            --chrome-hover-bg: #dfe5ee;
+            --chrome-hover-bg: #e9e9ee;
             --chrome-shadow: 0 6px 16px rgba(0, 0, 0, .16);
-            --color-bg: #ecf0f5;
+            --color-bg: #f4f4f7;
             --header-color: #000000;
             --input-group-bg: hsl(from var(--box-bg) h s calc(l - 5));
             --input-group-fg: hsl(from var(--input-group-bg) h s calc(l - 50));
@@ -158,10 +158,10 @@
                  so dark artwork reverses out of the dark chrome instead of
                  disappearing into it. --}}
             --brand-logo-filter: brightness(0) invert(1);
-            --box-bg: #3d4144;
-            --box-header-bottom-border-color: #605e5e;
+            --box-bg: #1f2023;
+            --box-header-bottom-border-color: #2c2d31;
             --box-header-bottom-border: 1px solid var(--box-header-bottom-border-color);
-            --box-header-top-border-color: #605e5e;
+            --box-header-top-border-color: #3a3a3e;
             --box-header-top-border: 3px solid var(--box-header-top-border-color);
             {{-- Same clamp as light mode so white stays legible on the fill.
                  The fill is close in lightness to --box-bg here, so the button
@@ -170,20 +170,20 @@
             --btn-theme-border: hsl(from var(--btn-theme-base) h s calc(l + 18));
             --btn-theme-hover-text-color:  var(--nav-primary-text-color);
             --btn-theme-hover: hsl(from var(--btn-theme-base) h s calc(l - 8));
-            --btn-neutral-bg: #4a4e52;
-            --btn-neutral-border: #62676c;
+            --btn-neutral-bg: #2c2d31;
+            --btn-neutral-border: #4a4a52;
             --btn-neutral-fg: #f2f4f6;
-            --btn-neutral-active-bg: #5c6165;
+            --btn-neutral-active-bg: #33343a;
             --callout-bg-color: var(--box-header-top-border-color);
             --callout-left-border: #323131;
-            --chrome-active-bg: #3d4144;
-            --chrome-bg: #222222;
-            --chrome-border-color: #3a3d40;
+            --chrome-active-bg: #26272b;
+            --chrome-bg: #1a1b1e;
+            --chrome-border-color: #3a3a3e;
             --chrome-fg: #f2f4f6;
             --chrome-fg-muted: #b4b9c0;
-            --chrome-hover-bg: #2e3134;
+            --chrome-hover-bg: #26272b;
             --chrome-shadow: 0 6px 18px rgba(0, 0, 0, .55);
-            --color-bg: #222222;
+            --color-bg: #1a1b1e;
             --header-color: #ffffff;
             --input-group-bg: hsl(from var(--box-bg) h s calc(l + 10));
             --input-group-fg: hsl(from var(--input-group-bg) h s calc(l + 50));
@@ -528,12 +528,16 @@
             border-right-color: var(--box-header-top-border-color) !important;
         }
 
-        .box {
-            border-top: 3px solid;
-        }
-
-        .box.box-default {
-            border-top:  var(--box-header-top-border);
+        {{-- The box is the ecu card now: one hairline and a radius, in
+             place of AdminLTE's coloured 3px top accent and drop shadow.
+             No overflow clip — table action dropdowns escape the box, and
+             the corners share the box background so nothing visibly pokes. --}}
+        .box,
+        .box.box-default,
+        .nav-tabs-custom {
+            border: 1px solid var(--box-header-top-border-color);
+            border-radius: 14px;
+            box-shadow: none;
         }
 
 
@@ -803,11 +807,18 @@
             color: var(--color-fg) !important;
         }
 
-        {{-- Selected topbar section: a raised surface plus a brand rail along
-             the bottom edge, instead of a darker patch of the header colour. --}}
+        {{-- Topbar items are pills: a rounded hover surface floating in the
+             band, instead of full-height blocks with a brand rail underlining
+             the active one. The margin+padding sum keeps the 50px header. --}}
+        .main-header .navbar-nav > li > a {
+            border-radius: 999px;
+            margin: 8px 3px;
+            padding: 7px 13px !important;
+            line-height: 20px;
+        }
         .main-header .navbar .nav>.active>a {
             background-color: var(--chrome-active-bg) !important;
-            box-shadow: inset 0 -3px 0 var(--main-theme-color);
+            box-shadow: inset 0 0 0 1px var(--chrome-border-color);
             color: var(--chrome-fg) !important;
             font-weight: 600;
         }
@@ -1080,6 +1091,23 @@
         .navbar-brand > img
         {
             filter: var(--brand-logo-filter);
+        }
+
+        {{-- The brand is a vertically centred row, not an image with its own
+             ad-hoc top padding (app.less gives it 20px up top and 10px below,
+             which reads as the logo stuck to the ceiling). --}}
+        a.logo.navbar-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            height: 50px;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        img.navbar-brand-img {
+            padding: 0;
+            max-height: 30px;
+            width: auto;
         }
 
         .datepicker.dropdown-menu,
@@ -1478,24 +1506,20 @@
                                layout does not render. */
                             .content-wrapper > .content { padding: 18px var(--eu-gutter) 32px !important; }
                             .content-wrapper > .content-header { padding: 14px var(--eu-gutter) 0; }
-                            .imp-banner > div[class^="col-"] { padding-left: var(--eu-gutter) !important; }
                             @media (max-width: 767px) { :root { --eu-gutter: 16px; } }
 
-                            .eu-nav > li > a { padding-top: 18px; padding-bottom: 18px; font-weight: 600; }
+                            .eu-nav > li > a { font-weight: 600; }
                             .main-header .navbar, .main-header .logo, .main-header .left-navblock {
                                 background: light-dark(#f4f4f7, #1a1b1e) !important;
                                 color: light-dark(#26272b, #e4e4e8) !important;
                             }
                             .main-header { border-bottom: 1px solid light-dark(#e2e2e6, #3a3a3e); }
-                            /* The footer is the same quiet band as the header
-                               rather than a grey slab bolted to the bottom of
-                               a page that has nothing else grey on it. */
-                            .main-footer {
-                                background: light-dark(#f4f4f7, #1a1b1e);
-                                border-top: 1px solid light-dark(#e2e2e6, #3a3a3e);
-                                color: light-dark(#6a6a72, #8a8a94);
-                                padding: 12px var(--eu-gutter);
-                            }
+                            .main-footer { padding: 12px var(--eu-gutter); }
+                            /* Something in the shell overflows by a few px and
+                               draws a horizontal scrollbar across the footer;
+                               nothing in this layout scrolls sideways on
+                               purpose, so clip instead of letting it. */
+                            body { overflow-x: clip; }
                             .main-header .navbar-nav > li > a,
                             .main-header .navbar-custom-menu .dropdown-toggle {
                                 color: light-dark(#26272b, #e4e4e8) !important;
@@ -2381,36 +2405,12 @@
                      someone else's name. The exit is in the banner so it is
                      never more than one click from wherever they got to. --}}
                 @if (session()->has(\App\Http\Controllers\ImpersonateController::SESSION_KEY))
-                    {{-- The banner can be folded away, because the whole point
-                         of viewing as someone is to see their screen as they
-                         see it — a full-width orange bar over every page is
-                         the one thing they do not have. Folding leaves the
-                         chip: still unmissable, still one click from the exit,
-                         but out of the layout. Per tab, and never sticky
-                         across sessions, so a fresh window always warns loudly
-                         first. --}}
-                    <div class="row imp-banner" id="imp-banner" style="margin-bottom:0;">
-                        <div class="col-md-12" style="margin-bottom:0; background-color:#7a3d00; color:#fff; padding:10px 20px;">
-                            <form method="POST" action="{{ route('impersonate.stop') }}" style="display:inline; float:right;">
-                                {{ csrf_field() }}
-                                <button type="submit" class="btn btn-sm btn-default">
-                                    {{ trans('admin/users/general.impersonate_stop') }}
-                                </button>
-                            </form>
-                            <button type="button" class="btn btn-sm btn-default imp-hide" id="imp-hide"
-                                    style="float:right; margin-right:8px;">
-                                {{ trans('admin/users/general.impersonate_banner_hide') }}
-                            </button>
-                            <x-icon type="user" class="fa-2x pull-left" style="margin-right:12px;"/>
-                            <strong>{{ strtoupper(trans('admin/users/general.impersonate_banner_title')) }}</strong>
-                            {{ trans('admin/users/general.impersonate_banner', [
-                                'name' => auth()->user()?->present()->fullName,
-                                'email' => auth()->user()?->email ?: trans('general.na'),
-                            ]) }}
-                        </div>
-                    </div>
-
-                    <div class="imp-chip" id="imp-chip" hidden>
+                    {{-- Viewing as someone is one floating badge, not a banner:
+                         the point is seeing their screen as they see it, and a
+                         full-width bar over every page is the one thing they do
+                         not have. Yellow, bottom corner, over nothing anyone
+                         interacts with, exit one click away. --}}
+                    <div class="imp-chip">
                         <span class="imp-chip-dot" aria-hidden="true"></span>
                         <span>{{ trans('admin/users/general.impersonate_chip', ['name' => auth()->user()?->present()->fullName]) }}</span>
                         <form method="POST" action="{{ route('impersonate.stop') }}" style="display:inline;">
@@ -2422,57 +2422,37 @@
                     <style>
                         .imp-chip {
                             position: fixed;
-                            right: 16px;
-                            bottom: 16px;
-                            z-index: 1040;
+                            right: 20px;
+                            bottom: 20px;
+                            z-index: 2050;
                             display: flex;
                             align-items: center;
                             gap: 10px;
-                            padding: 8px 12px;
+                            padding: 9px 12px;
                             border-radius: 999px;
-                            background: #7a3d00;
-                            color: #fff;
-                            font-size: 12px;
+                            background: #f0b429;
+                            color: #241a02;
+                            font-size: 12.5px;
+                            font-weight: 600;
                             box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
                         }
                         .imp-chip-dot {
                             width: 8px;
                             height: 8px;
                             border-radius: 50%;
-                            background: #ffb347;
+                            background: #8a6400;
                         }
                         .imp-chip-stop {
-                            border: 1px solid rgba(255, 255, 255, .5);
+                            border: 1px solid rgba(36, 26, 2, .45);
                             background: transparent;
-                            color: #fff;
+                            color: #241a02;
                             border-radius: 999px;
-                            font-size: 11px;
-                            padding: 2px 10px;
+                            font-size: 11.5px;
+                            font-weight: 600;
+                            padding: 3px 10px;
                         }
-                        .imp-chip-stop:hover { background: rgba(255, 255, 255, .15); }
+                        .imp-chip-stop:hover { background: rgba(36, 26, 2, .12); }
                     </style>
-
-                    <script nonce="{{ csrf_token() }}">
-                    (function () {
-                        var banner = document.getElementById('imp-banner');
-                        var chip = document.getElementById('imp-chip');
-                        var hide = document.getElementById('imp-hide');
-
-                        function fold() {
-                            banner.hidden = true;
-                            chip.hidden = false;
-                        }
-
-                        if (sessionStorage.getItem('impersonateBannerFolded') === '1') {
-                            fold();
-                        }
-
-                        hide.addEventListener('click', function () {
-                            sessionStorage.setItem('impersonateBannerFolded', '1');
-                            fold();
-                        });
-                    })();
-                    </script>
                 @endif
 
                 @if ($debug_in_production)
