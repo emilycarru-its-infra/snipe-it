@@ -164,13 +164,13 @@ class ImpersonateTest extends TestCase
         $this->actingAs($admin)->get(route('users.show', $otherAdmin->id))->assertOk()
             ->assertDontSee('View as this user', false);
 
-        // While borrowed, the banner and its exit ride every page. Checked on
+        // While borrowed, the badge and its exit ride every page. Checked on
         // the store rather than the dashboard, because a faculty user is
         // redirected away from the dashboard — which is the sort of thing
         // view-as exists to reveal.
         $this->actingAs($admin)->post(route('users.impersonate', $target->id));
         $this->get(route('store.index'))->assertOk()
-            ->assertSee('VIEWING AS ANOTHER USER', false)
+            ->assertSee('Viewing as', false)
             ->assertSee('Stop viewing as', false);
     }
 
