@@ -31,6 +31,9 @@
 .eud-hello { font-size: 28px; font-weight: 700; margin: 18px 0 4px; }
 .eud-sub { opacity: .65; margin: 0 0 22px; }
 .eud-card { padding: 20px 24px; margin-bottom: 16px; }
+/* The signature-needed card carries a quiet amber edge so it reads as
+   the one actionable card without shouting. */
+.eud-accept-card { border-color: color-mix(in srgb, #f0b429 55%, transparent); }
 .eud-wrap .ecu-kicker { margin-bottom: 10px; }
 .eud-order-line { font-size: 15px; margin: 0 0 10px; }
 .eud-wrap .ecu-rail { margin: 6px 0 4px; }
@@ -97,6 +100,27 @@
                 </div>
             @endif
 
+            {{-- Anything waiting on their signature comes first — it is
+                 the one thing on this page someone else is waiting for. --}}
+            @if ($pendingAcceptances->isNotEmpty())
+                <div class="ecu-card eud-card eud-accept-card">
+                    <div class="ecu-kicker">{{ trans('general.accept_items') }} <span class="badge">{{ $pendingAcceptances->count() }}</span></div>
+                    <table class="ecu-table">
+                        <tbody>
+                        @foreach ($pendingAcceptances as $acceptance)
+                            <tr>
+                                <td>{{ $acceptance->checkoutable?->present()->name ?? $acceptance->checkoutable?->name }}</td>
+                                <td>{{ class_basename($acceptance->checkoutable_type) }}</td>
+                                <td style="text-align:right;">
+                                    <a href="{{ route('account.accept.item', $acceptance) }}" class="btn btn-xs btn-primary">{{ trans('general.accept_decline') }}</a>
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+
             {{-- Everything checked out to them, lease facts on the rows —
                  the date leads, the countdown is the small print — and an
                  Actions column carrying each machine's doorway: buyout for
@@ -142,7 +166,7 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if ($asset->isFacultyCatalog() && $leaseActive)
+                                    @if ($asset->isFacultyCatalog() && $leaseActive && ! $isFacultyProgramMember)
                                         @if ($requestedAt = $buyoutRequestedAt->get($asset->id))
                                             <div class="eud-lease-sub">{{ trans('admin/store/general.dash_buyout_requested', ['date' => $requestedAt->format('M j')]) }}</div>
                                         @elseif ($asset->canRequestLeaseBuyout())
@@ -195,6 +219,25 @@
                 @endif
             @endforeach
 
+            @if ($myEulas->isNotEmpty())
+                <div class="ecu-card eud-card">
+                    <div class="ecu-kicker">{{ trans('general.eula') }} <span class="badge">{{ $myEulas->count() }}</span></div>
+                    <table class="ecu-table">
+                        <tbody>
+                        @foreach ($myEulas as $eula)
+                            <tr>
+                                <td>{{ $eula->item?->name }}</td>
+                                <td>{{ \App\Helpers\Helper::getFormattedDateObject($eula->created_at, 'date', false) }}</td>
+                                <td style="text-align:right;">
+                                    <a href="{{ route('profile.storedeula.download', ['filename' => $eula->filename]) }}">{{ trans('general.download') }}</a>
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+
         </div>
 
         {{-- The profile, as a quiet column — they know who they are, but IT
@@ -210,25 +253,18 @@
                     @if ($user->department)<tr><td>{{ trans('general.department') }}</td><td>{{ $user->department->name }}</td></tr>@endif
                     @if ($user->userloc)<tr><td>{{ trans('general.location') }}</td><td>{{ $user->userloc->name }}</td></tr>@endif
                 </table>
-                {{-- This page is the front door now, but licences, accepted
-                     EULAs and consumables still live on the old tabbed
-                     profile. One link out rather than six cards nobody
-                     opens; the tabs fold in when that page is redesigned. --}}
-                <p style="margin:10px 0 0;">
-                    <a href="{{ route('view-assets') }}">{{ trans('admin/store/general.dash_full_profile') }}</a>
-                </p>
+                {{-- Everything the old tabbed profile held now lives on
+                     this page, so the only links out are the two actions. --}}
+                @can('self.profile')
+                    <p style="margin:10px 0 0;">
+                        <a href="{{ route('profile') }}">{{ trans('general.editprofile') }}</a>
+                        @if (! $user->ldap_import)
+                            &middot; <a href="{{ route('account.password.index') }}">{{ trans('general.changepassword') }}</a>
+                        @endif
+                    </p>
+                @endcan
             </div>
 
-            <div class="ecu-card eud-card">
-                <div class="ecu-kicker">{{ trans('admin/store/general.dash_go') }}</div>
-                @if (! empty($formsAccessible))
-                    <p style="margin:0 0 8px;"><a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw"></i> {{ trans('admin/forms/general.menu_link') }}</a></p>
-                @endif
-                @if ($user->canUseStore())
-                    <p style="margin:0 0 8px;"><a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw"></i> {{ trans('admin/store/general.store') }}</a></p>
-                    <p style="margin:0;"><a href="{{ route('store.orders') }}"><i class="fa-solid fa-truck-fast fa-fw"></i> {{ trans('admin/store/general.my_orders') }}</a></p>
-                @endif
-            </div>
         </div>
     </div>
 

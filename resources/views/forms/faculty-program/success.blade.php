@@ -28,7 +28,7 @@
                 </div>
 
                 <div style="margin-top:20px; text-align:center;">
-                    <a href="{{ route('view-assets') }}" class="text-muted">
+                    <a href="{{ route('my') }}" class="text-muted">
                         {{ trans('admin/forms/faculty-program.success_back') }}
                     </a>
                 </div>
