@@ -361,8 +361,8 @@ class EndUserExperienceTest extends TestCase
         // Order placed: form and order done, processing is now.
         $page = $this->actingAs($user)->get(route('my'))->assertOk();
         $page->assertSee('Ready for pick up', false);
-        $page->assertSee('eud-chev done', false);
-        $page->assertSee('eud-chev now', false);
+        $page->assertSee('ecu-chev done', false);
+        $page->assertSee('ecu-chev now', false);
 
         // The asset moves through inventory: the tail steps light up.
         $order = StoreOrder::first();

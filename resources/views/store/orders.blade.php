@@ -27,27 +27,18 @@
 @section('content')
 
 <style>
+/* Layout only — card skins, kickers, tags and the chevron rail come from
+   the shared ECU design layer (public/css/ecu-ui.css). */
 .sto-split { display: flex; gap: 18px; flex-wrap: wrap; }
-.sto-pane { flex: 1 1 340px; border: 1px solid light-dark(#e2e2e6, #3a3a3e); border-radius: 14px; padding: 20px; background: light-dark(#fff, #1f2023); }
-.sto-pane-muted { background: light-dark(#fafafc, #212226); }
-.sto-kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .55; margin-bottom: 6px; }
+.sto-pane { flex: 1 1 340px; padding: 20px; }
 .sto-name { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
 .sto-sub { font-size: 13px; opacity: .7; margin: 0; }
 .sto-img { max-height: 120px; max-width: 100%; object-fit: contain; display: block; margin: 12px auto; }
 .sto-facts { margin-top: 12px; font-size: 13px; width: 100%; }
 .sto-facts td { padding: 3px 0; }
 .sto-facts td:first-child { opacity: .6; width: 38%; }
-.sto-tag { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
-/* The same chevron rail /my uses — one design language for every tracker. */
-.sto-steps { display: flex; gap: 4px; margin-top: 18px; }
-.sto-step { flex: 1; text-align: center; font-size: 11px; font-weight: 600; padding: 9px 4px 9px 12px;
-    background: light-dark(#e9e9ee, #33343a); color: light-dark(#5a5a62, #9a9aa4);
-    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%); }
-.sto-step:first-child { clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
-.sto-step:last-child { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%); }
-.sto-step.done { background: #00a65a; color: #fff; }
-.sto-step.now { background: light-dark(#f39c12, #d68910); color: #fff; }
 .sto-order-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; flex-wrap: wrap; }
+.sto-steps { margin-top: 18px; }
 </style>
 
 <div class="row"><div class="col-md-11 col-lg-10">
@@ -96,8 +87,8 @@
                  below do not re-litigate the handover — and never on a
                  shared cart, which replaces nobody's machine. --}}
             @if ($loop->first && ! $order->isShared())
-                <div class="sto-pane sto-pane-muted">
-                    <div class="sto-kicker">{{ trans('admin/store/general.status_current_machine') }}</div>
+                <div class="ecu-card ecu-card-muted sto-pane">
+                    <div class="ecu-kicker">{{ trans('admin/store/general.status_current_machine') }}</div>
                     @if ($outgoing)
                         <p class="sto-name">{{ $outgoing->name ?: ($outgoing->model->name ?? '') }}</p>
                         <p class="sto-sub">{{ $outgoing->model->name ?? '' }}</p>
@@ -106,10 +97,10 @@
                         @endif
                         <table class="sto-facts">
                             <tr><td>{{ trans('admin/store/general.status_new_tag') }}</td>
-                                <td class="sto-tag">{{ $outgoing->asset_tag }}</td></tr>
+                                <td class="ecu-tag">{{ $outgoing->asset_tag }}</td></tr>
                             @if ($outgoing->serial)
                                 <tr><td>{{ trans('admin/store/general.status_serial') }}</td>
-                                    <td class="sto-tag">{{ $outgoing->serial }}</td></tr>
+                                    <td class="ecu-tag">{{ $outgoing->serial }}</td></tr>
                             @endif
                         </table>
                         <p class="sto-sub" style="margin-top:12px;">{{ trans('admin/store/general.status_current_le') }}</p>
@@ -126,8 +117,8 @@
             @endif
 
             {{-- Right: the incoming machine, its tag, and where it is. --}}
-            <div class="sto-pane">
-                <div class="sto-kicker">{{ trans('admin/store/general.status_new_machine') }}</div>
+            <div class="ecu-card sto-pane">
+                <div class="ecu-kicker">{{ trans('admin/store/general.status_new_machine') }}</div>
                 @foreach ($deviceItems as $line)
                     <p class="sto-name" @if(!$loop->first) style="margin-top:14px;" @endif>{{ $line->catalogItem->family ?: $line->description }}</p>
                     <p class="sto-sub">{{ $line->description }}@if ($line->quantity > 1) &nbsp;×{{ $line->quantity }}@endif</p>
@@ -140,10 +131,10 @@
                     <table class="sto-facts">
                         @foreach ($assets as $asset)
                             <tr><td>{{ trans('admin/store/general.status_new_tag') }}</td>
-                                <td class="sto-tag">{{ $asset->asset_tag }}</td></tr>
+                                <td class="ecu-tag">{{ $asset->asset_tag }}</td></tr>
                             @if ($asset->serial)
                                 <tr><td>{{ trans('admin/store/general.status_serial') }}</td>
-                                    <td class="sto-tag">{{ $asset->serial }}</td></tr>
+                                    <td class="ecu-tag">{{ $asset->serial }}</td></tr>
                             @endif
                         @endforeach
                     </table>
@@ -155,14 +146,14 @@
                 @if ($order->tracking_number)
                     <p class="sto-sub" style="margin-top:10px;">
                         {{ trans('admin/store/general.order_tracking') }}
-                        <span class="sto-tag">{{ $order->tracking_number }}</span>
+                        <span class="ecu-tag">{{ $order->tracking_number }}</span>
                     </p>
                 @endif
 
                 @if ($stepIndex !== null)
-                    <div class="sto-steps">
+                    <div class="ecu-rail ecu-rail-sm sto-steps">
                         @foreach ($steps as $i => $step)
-                            <div class="sto-step {{ $i < $stepIndex ? 'done' : ($i === $stepIndex ? 'now' : '') }}">
+                            <div class="ecu-chev {{ $i < $stepIndex ? 'done' : ($i === $stepIndex ? 'now' : '') }}">
                                 {{ trans('admin/store/general.status_step_'.$step) }}
                             </div>
                         @endforeach
