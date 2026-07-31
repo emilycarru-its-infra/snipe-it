@@ -14,11 +14,11 @@
  */
 
 :root {
-    --ecu-border: light-dark(#e2e2e6, #3a3a3e);
-    --ecu-card-bg: light-dark(#ffffff, #1f2023);
-    --ecu-card-bg-muted: light-dark(#fafafc, #212226);
-    --ecu-row-border: light-dark(#f0f0f3, #2c2d31);
-    --ecu-chev-bg: light-dark(#e9e9ee, #33343a);
+    --ecu-border: light-dark(#e4e4e4, #3a3a3a);
+    --ecu-card-bg: light-dark(#ffffff, #1f1f1f);
+    --ecu-card-bg-muted: light-dark(#fafafa, #212121);
+    --ecu-row-border: light-dark(#f0f0f0, #2c2c2c);
+    --ecu-chev-bg: light-dark(#eaeaea, #343434);
     --ecu-chev-fg: light-dark(#5a5a62, #9a9aa4);
     --ecu-ok: #00a65a;
     --ecu-now: light-dark(#f39c12, #d68910);
@@ -108,9 +108,9 @@
     cursor: pointer;
     font-weight: 400;
     transition: border-color .12s ease;
-    background: light-dark(#fafafc, #26272b);
+    background: light-dark(#fafafa, #262626);
 }
-.ecu-opt:hover { border-color: light-dark(#9a9aa2, #6a6a72); }
+.ecu-opt:hover { border-color: light-dark(#9a9aa2, #6a6a6a); }
 .ecu-opt.ecu-selected { border-color: var(--ecu-ok); box-shadow: 0 0 0 1px var(--ecu-ok) inset; }
 .ecu-opt input { position: absolute; opacity: 0; pointer-events: none; }
 .ecu-ctl {
@@ -119,7 +119,7 @@
     width: 20px;
     margin-top: 1px;
     border: 2px solid light-dark(#9a9aa2, #7a7a82);
-    background: light-dark(#fff, #1a1b1e);
+    background: light-dark(#fff, #1a1a1a);
     position: relative;
 }
 .ecu-opt input[type="radio"] + .ecu-ctl { border-radius: 50%; }
