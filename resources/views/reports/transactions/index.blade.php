@@ -32,7 +32,7 @@
 @else
 
 {{-- ── Status cards ─────────────────────────────────────────────────── --}}
-<div class="row">
+<div class="row tile-row-6">
     @foreach ($cards as $card)
         <div class="col-md-4 col-sm-6">
             <div class="small-box bg-{{ $card['tone'] }}">

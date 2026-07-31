@@ -189,7 +189,10 @@
         font-style: italic;
     }
 
-    .toner-grid-row { padding: 0 4px 28px; }
+    {{-- .row's -15px gutters made the grid overhang the cards below it;
+         zero the margins so the toner cards line up with the consumables
+         table card's edges. --}}
+    .toner-grid-row { margin: 0; padding: 0 0 28px; }
 
     .toner-grid {
         display: grid;
