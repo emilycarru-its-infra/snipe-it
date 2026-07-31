@@ -452,7 +452,7 @@ class ProcurementController extends Controller
             'show_in_store' => 'nullable|boolean',
             'store_sort' => 'nullable|integer',
             'model_id' => 'nullable|integer|exists:models,id',
-            'image' => 'nullable|image|max:4096',
+            'image' => 'nullable|mimes:jpg,jpeg,png,gif,webp|max:4096',
             'vendor_sku' => 'nullable|string|max:191',
             'mfr_part_number' => 'nullable|string|max:191',
             'warranty_months' => 'nullable|integer|min:0|max:120',
