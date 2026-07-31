@@ -1213,8 +1213,46 @@
         .popover.help-popover .popover-header
         {
             background-color: var(--box-bg) !important;
-            /*color: var(--color-fg) !important;*/
             color: var(--color-fg) !important;
+        }
+
+        {{-- Modals are cards too (#3957): same radius and hairline as
+             every other raised surface, headers and footers separated by
+             the same quiet border, no Bootstrap 3 hard shadow box. --}}
+        .modal-content {
+            border: 1px solid var(--box-header-top-border-color);
+            border-radius: 14px;
+            box-shadow: var(--chrome-shadow);
+        }
+        .modal-header {
+            border-bottom: var(--box-header-bottom-border);
+        }
+        .modal-footer {
+            border-top: var(--box-header-bottom-border);
+        }
+        .datepicker.dropdown-menu,
+        .popover.help-popover {
+            border: 1px solid var(--box-header-top-border-color);
+            border-radius: 12px;
+        }
+        .well {
+            border-radius: 12px;
+            box-shadow: none;
+        }
+        .callout {
+            border-radius: 12px;
+        }
+        .alert {
+            border-radius: 12px;
+        }
+        .nav-pills > li > a {
+            border-radius: 999px;
+        }
+        .label {
+            border-radius: 6px;
+        }
+        .progress {
+            border-radius: 999px;
         }
 
         /** this handles the arrows for the datepicker widget **/
