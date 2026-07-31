@@ -191,7 +191,10 @@ class FacultyVisibilityTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString(route('view-assets'), $sidebar,
+        // The doorway now leads to /my — the front door — not the old
+        // tabbed profile; what matters is that it exists at all with
+        // profile editing off.
+        $this->assertStringContainsString(route('my'), $sidebar,
             'own-assets link is missing when profile editing is off');
     }
 }

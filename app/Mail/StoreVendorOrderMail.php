@@ -44,8 +44,14 @@ class StoreVendorOrderMail extends BaseMailable
             trans('mail.store_vendor_order_subject', ['references' => $this->references()])
         );
 
+        // Only name an explicit sender when one is configured — with
+        // MAIL_FROM_ADDR unset (the test environments), Address(null)
+        // throws, and the transport's default from is the right answer
+        // anyway.
+        $from = config('mail.from.address');
+
         return new Envelope(
-            from: new Address(config('mail.from.address'), config('mail.from.name')),
+            from: $from ? new Address($from, config('mail.from.name')) : null,
             subject: ($this->test ? trans('mail.store_vendor_order_test_prefix').' ' : '').$subject,
         );
     }

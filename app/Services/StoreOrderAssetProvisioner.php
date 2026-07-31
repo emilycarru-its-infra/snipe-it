@@ -130,6 +130,12 @@ class StoreOrderAssetProvisioner
         // location-assignment automations to stamp it.
         if ($order->isShared()) {
             $asset->lease_usage = 'Shared';
+            // The space the order was placed for is the machine's home,
+            // set now so the device is findable in the room before anyone
+            // has touched it. rtd_location_id is the default location
+            // Snipe returns an asset to on check-in.
+            $asset->rtd_location_id = $order->location_id;
+            $asset->location_id = $order->location_id;
         } elseif ((int) $line->quantity === 1) {
             $asset->name = $order->user?->present()->fullName;
         }

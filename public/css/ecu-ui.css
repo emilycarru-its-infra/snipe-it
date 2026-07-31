@@ -148,4 +148,17 @@
     outline-offset: 2px;
 }
 .ecu-opt-text { line-height: 1.45; }
+
+/* Compact option rows for narrow columns — the store cart, side panels.
+ * Same control, tighter box; the dot shrinks with the row so it never
+ * outgrows the label beside it. */
+.ecu-opt-sm {
+    align-items: center;
+    gap: 10px;
+    padding: 9px 11px;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+.ecu-opt-sm .ecu-ctl { flex: 0 0 16px; height: 16px; width: 16px; margin-top: 0; }
+.ecu-opt-sm input[type="radio"]:checked + .ecu-ctl::after { inset: 3px; }
 .ecu-error { color: var(--ecu-danger); font-size: 12px; margin: 4px 0 0; }
