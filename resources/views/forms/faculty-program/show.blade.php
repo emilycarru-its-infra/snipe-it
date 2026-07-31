@@ -51,8 +51,8 @@
 .fp-inline-fields label { display: block; font-size: 12px; opacity: .65; margin-bottom: 3px; font-weight: 600; }
 .fp-inline-fields input { font-family: ui-monospace, Menlo, monospace; }
 
-.fp-terms { max-height: 320px; overflow-y: auto; border: 1px solid light-dark(#e2e2e6, #3a3a3e);
-    border-radius: 10px; padding: 14px 18px; background: light-dark(#fafafc, #191a1d); font-size: 13px; }
+.fp-terms { max-height: 320px; overflow-y: auto; border: 1px solid light-dark(#e4e4e4, #3a3a3a);
+    border-radius: 10px; padding: 14px 18px; background: light-dark(#fafafa, #191a1d); font-size: 13px; }
 .fp-terms h4 { font-size: 14px; margin: 14px 0 6px; }
 .fp-terms h3 { font-size: 16px; margin: 0 0 10px; }
 
