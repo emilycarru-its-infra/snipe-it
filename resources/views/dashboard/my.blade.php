@@ -20,29 +20,19 @@
 <style>
 /* The layout's page-title strip would say the obvious over its own greeting. */
 .content-header { display: none; }
+/* Layout only — the component skins (cards, kickers, chevrons, tags, quiet
+   tables) come from the shared ECU design layer (public/css/ecu-ui.css). */
 .eud-wrap { max-width: 1100px; }
 .eud-cols { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
 .eud-main { flex: 1 1 620px; min-width: 0; }
 .eud-side { flex: 0 1 280px; }
 .eud-hello { font-size: 24px; font-weight: 700; margin: 14px 0 2px; }
 .eud-sub { opacity: .65; margin: 0 0 18px; }
-.eud-card { border: 1px solid light-dark(#e2e2e6, #3a3a3e); border-radius: 14px;
-    background: light-dark(#fff, #1f2023); padding: 18px 20px; margin-bottom: 14px; }
-.eud-kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .55; margin-bottom: 8px; }
+.eud-card { padding: 18px 20px; margin-bottom: 14px; }
+.eud-wrap .ecu-kicker { margin-bottom: 8px; }
 .eud-order-line { font-size: 15px; margin: 0 0 10px; }
-.eud-rail { display: flex; gap: 4px; margin: 6px 0 4px; }
-.eud-chev { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 12px 6px 12px 14px;
-    background: light-dark(#e9e9ee, #33343a); color: light-dark(#5a5a62, #9a9aa4);
-    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%); }
-.eud-chev:first-child { clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%); }
-.eud-chev:last-child { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%); }
-.eud-chev.done { background: #00a65a; color: #fff; }
-.eud-chev.now { background: light-dark(#f39c12, #d68910); color: #fff; }
-.eud-tag { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
-.eud-table { width: 100%; font-size: 13px; }
-.eud-table th { opacity: .55; font-weight: 600; font-size: 11px; text-transform: uppercase; text-align: left; padding: 4px 10px 4px 0; }
-.eud-table td { padding: 6px 10px 6px 0; border-top: 1px solid light-dark(#f0f0f3, #2c2d31); vertical-align: middle; }
-.eud-table img { max-height: 30px; max-width: 44px; object-fit: contain; }
+.eud-wrap .ecu-rail { margin: 6px 0 4px; }
+.eud-wrap .ecu-table img { max-height: 30px; max-width: 44px; object-fit: contain; }
 .eud-lease-date { font-weight: 700; white-space: nowrap; }
 .eud-lease-sub { font-size: 11px; opacity: .6; white-space: nowrap; }
 .eud-refresh summary { list-style: none; cursor: pointer; display: inline-block; }
@@ -63,20 +53,20 @@
             {{-- The journey, while one is under way — named, so it is clear
                  which order and which machine the chevrons are about. --}}
             @if ($steps)
-                <div class="eud-card">
-                    <div class="eud-kicker">
+                <div class="ecu-card eud-card">
+                    <div class="ecu-kicker">
                         {{ trans('admin/store/general.dash_journey') }}
                         @if ($order) · {{ $order->reference() }} @endif
                     </div>
                     @if ($orderSummary || $incoming)
                         <p class="eud-order-line">
                             @if ($orderSummary)<strong>{{ $orderSummary }}</strong>@endif
-                            @if ($incoming) <span class="eud-tag" style="margin-left:6px;">{{ $incoming->asset_tag }}</span> @endif
+                            @if ($incoming) <span class="ecu-tag" style="margin-left:6px;">{{ $incoming->asset_tag }}</span> @endif
                         </p>
                     @endif
-                    <div class="eud-rail">
+                    <div class="ecu-rail">
                         @foreach ($steps as $step)
-                            <div class="eud-chev {{ $step['state'] }}">{{ trans('admin/store/general.dash_step_'.$step['key']) }}</div>
+                            <div class="ecu-chev {{ $step['state'] }}">{{ trans('admin/store/general.dash_step_'.$step['key']) }}</div>
                         @endforeach
                     </div>
                     @if ($journeyComplete)
@@ -92,8 +82,8 @@
 
             {{-- Renewal season, before anything has been started. --}}
             @if ($renewalDue)
-                <div class="eud-card" style="border-color:#f39c12;">
-                    <div class="eud-kicker">{{ trans('admin/store/general.dash_renewal_kicker') }}</div>
+                <div class="ecu-card eud-card" style="border-color:#f39c12;">
+                    <div class="ecu-kicker">{{ trans('admin/store/general.dash_renewal_kicker') }}</div>
                     <p style="margin:0 0 12px;">{{ trans('admin/store/general.dash_renewal_body', ['date' => $leaseEnd->format('F j, Y')]) }}</p>
                     <a href="{{ route('forms.show', 'faculty-program') }}" class="btn btn-warning btn-lg">
                         {{ trans('admin/store/general.dash_renewal_button') }}
@@ -106,12 +96,12 @@
                  the date leads, the countdown is the small print — and an
                  Actions column carrying each machine's doorway: buyout for
                  Faculty program machines, early refresh for Staff ones. --}}
-            <div class="eud-card">
-                <div class="eud-kicker">{{ trans('general.assets') }} <span class="badge">{{ $myAssets->count() }}</span></div>
+            <div class="ecu-card eud-card">
+                <div class="ecu-kicker">{{ trans('general.assets') }} <span class="badge">{{ $myAssets->count() }}</span></div>
                 @if ($myAssets->isEmpty())
                     <p class="eud-sub" style="margin:0;">{{ trans('admin/store/general.dash_no_laptop') }}</p>
                 @else
-                    <table class="eud-table">
+                    <table class="ecu-table">
                         <thead><tr>
                             <th></th>
                             <th>{{ trans('mail.asset_tag') }}</th>
@@ -129,9 +119,9 @@
                             @endphp
                             <tr>
                                 <td>@if ($asset->getImageUrl())<img src="{{ $asset->getImageUrl() }}" alt="">@endif</td>
-                                <td class="eud-tag">{{ $asset->asset_tag }}</td>
+                                <td class="ecu-tag">{{ $asset->asset_tag }}</td>
                                 <td>{{ $asset->model?->name }}</td>
-                                <td class="eud-tag">{{ $asset->serial }}</td>
+                                <td class="ecu-tag">{{ $asset->serial }}</td>
                                 <td>{{ $asset->model?->category?->name }}</td>
                                 <td>
                                     @if ($leaseActive)
@@ -187,9 +177,9 @@
                 'general.consumables' => $myConsumables,
             ] as $labelKey => $rows)
                 @if ($rows->isNotEmpty())
-                    <div class="eud-card">
-                        <div class="eud-kicker">{{ trans($labelKey) }} <span class="badge">{{ $rows->count() }}</span></div>
-                        <table class="eud-table">
+                    <div class="ecu-card eud-card">
+                        <div class="ecu-kicker">{{ trans($labelKey) }} <span class="badge">{{ $rows->count() }}</span></div>
+                        <table class="ecu-table">
                             <tbody>
                             @foreach ($rows as $row)
                                 <tr><td>{{ $row->name }}</td></tr>
@@ -205,8 +195,8 @@
         {{-- The profile, as a quiet column — they know who they are, but IT
              will ask "what does it say your location is". No avatar. --}}
         <div class="eud-side">
-            <div class="eud-card">
-                <div class="eud-kicker">{{ trans('general.profile') }}</div>
+            <div class="ecu-card eud-card">
+                <div class="ecu-kicker">{{ trans('general.profile') }}</div>
                 <table class="eud-profile">
                     <tr><td>{{ trans('general.name') }}</td><td>{{ $user->present()->fullName }}</td></tr>
                     @if ($user->jobtitle)<tr><td>{{ trans('admin/users/table.title') }}</td><td>{{ $user->jobtitle }}</td></tr>@endif
@@ -217,8 +207,8 @@
                 </table>
             </div>
 
-            <div class="eud-card">
-                <div class="eud-kicker">{{ trans('admin/store/general.dash_go') }}</div>
+            <div class="ecu-card eud-card">
+                <div class="ecu-kicker">{{ trans('admin/store/general.dash_go') }}</div>
                 @if (! empty($formsAccessible))
                     <p style="margin:0 0 8px;"><a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw"></i> {{ trans('admin/forms/general.menu_link') }}</a></p>
                 @endif

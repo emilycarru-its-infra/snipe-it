@@ -18,8 +18,9 @@
 
 <style>
 .ord-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
-.ord-card { border: 1px solid light-dark(#e2e2e6, #3a3a3e); border-radius: 10px; margin-bottom: 8px;
-    background: light-dark(#fff, #1f2023); }
+/* Card skin and tags come from the shared ECU design layer; the accordion
+   keeps its tighter radius and spacing locally. */
+.ord-card { border-radius: 10px; margin-bottom: 8px; }
 .ord-card > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; gap: 14px;
     align-items: baseline; flex-wrap: wrap; }
 .ord-card > summary::-webkit-details-marker { display: none; }
@@ -36,7 +37,7 @@
 .ord-alloc-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0;
     border-top: 1px solid light-dark(#eee3cc, #3a3427); }
 .ord-alloc-row:first-of-type { border-top: 0; }
-.ord-tag { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
+
 </style>
 
 @if ($arrivals->isNotEmpty())
@@ -48,9 +49,9 @@
         @foreach ($arrivals as $arrival)
             @php $candidates = $waiting->where('model_id', $arrival->model_id); @endphp
             <div class="ord-alloc-row">
-                <span class="ord-tag">{{ $arrival->asset_tag }}</span>
+                <span class="ecu-tag">{{ $arrival->asset_tag }}</span>
                 <span>{{ $arrival->model->name ?? '' }}</span>
-                <span class="ord-tag ord-meta">{{ $arrival->serial }}</span>
+                <span class="ecu-tag ord-meta">{{ $arrival->serial }}</span>
                 @if ($arrival->order_number)
                     <span class="ord-meta">{{ trans('admin/orders/general.allocation_from_order') }} {{ $arrival->order_number }}</span>
                 @endif
@@ -112,7 +113,7 @@
                        'partially_received' => 'label-warning', 'received' => 'label-success',
                        'cancelled' => 'label-default'][$order->status] ?? 'label-default';
     @endphp
-    <details class="ord-card">
+    <details class="ecu-card ord-card">
         <summary>
             <span class="ord-num">{{ $order->order_number }}</span>
             <span class="label {{ $labelClass }}">{{ trans('admin/orders/general.status_'.$order->status) }}</span>
@@ -154,7 +155,7 @@
             @if ($order->shipments->isNotEmpty() || $order->invoices->isNotEmpty())
                 <p class="ord-meta" style="margin:8px 0 0;">
                     @foreach ($order->shipments as $shipment)
-                        {{ trans('admin/orders/general.shipment') }} <span class="ord-tag">{{ $shipment->tracking_number }}</span>@if(!$loop->last) · @endif
+                        {{ trans('admin/orders/general.shipment') }} <span class="ecu-tag">{{ $shipment->tracking_number }}</span>@if(!$loop->last) · @endif
                     @endforeach
                     @if ($order->shipments->isNotEmpty() && $order->invoices->isNotEmpty()) &nbsp;|&nbsp; @endif
                     @foreach ($order->invoices as $invoice)

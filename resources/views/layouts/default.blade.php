@@ -34,6 +34,10 @@
 
     {{-- stylesheets --}}
     <link rel="stylesheet" href="{{ url(mix('css/dist/all.css')) }}">
+    {{-- The ECU design layer: tokens + shared components (cards, kickers,
+         chevron rails, control kit). Static and unbundled on purpose — it
+         carries no build step, and the mtime query busts caches on deploy. --}}
+    <link rel="stylesheet" href="{{ url(asset('css/ecu-ui.css')) }}?v={{ @filemtime(public_path('css/ecu-ui.css')) }}">
 
     {{-- page level css --}}
     @stack('css')
