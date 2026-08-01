@@ -602,7 +602,11 @@
                 undefinedText: '',
                 pageList: ['10', '20', '30', '50', '100', '150', '200'{!! ((config('app.max_results') > 200) ? ",'500'" : '') !!}{!! ((config('app.max_results') > 500) ? ",'".config('app.max_results')."'" : '') !!}],
                 pageSize: {{  (($snipeSettings->per_page!='') && ($snipeSettings->per_page > 0)) ? $snipeSettings->per_page : 20 }},
-                paginationVAlign: 'both',
+                // 'both' rendered a second "Showing X of Y" + page-size
+                // block ABOVE the table, stacking the toolbar area three
+                // rows tall. The toolbar is one row now; paging lives at
+                // the bottom where it reads naturally.
+                paginationVAlign: 'bottom',
                 queryParams: function (params) {
                     var newParams = {};
                     for (var i in params) {
