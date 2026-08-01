@@ -1968,6 +1968,10 @@
                                 color: light-dark(#262626, #e4e4e8) !important;
                             }
                             .main-header { border-bottom: 1px solid light-dark(#e4e4e4, #3a3a3a); }
+                            /* The navbar carried its own hairline right above
+                               the header's — a double line. One edge, on the
+                               header. */
+                            .main-header .navbar { border-bottom: 0 !important; }
                             .main-footer { padding: 12px var(--eu-gutter); }
                             /* Something in the shell overflows by a few px and
                                draws a horizontal scrollbar across the footer;
