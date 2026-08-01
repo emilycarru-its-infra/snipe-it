@@ -1930,8 +1930,14 @@
                             /* On wide screens the header contents track the
                                centred 1200px content column instead of
                                hugging the far left edge. The header band
-                               itself still paints edge to edge. */
-                            .main-header .navbar {
+                               itself still paints edge to edge. The body
+                               carries sidebar-mini/sidebar-collapse even for
+                               end users, and the admin chrome pins the navbar
+                               margin under those classes at higher
+                               specificity — so this override matches them. */
+                            .main-header .navbar,
+                            .sidebar-mini .main-header .navbar,
+                            .sidebar-mini.sidebar-collapse .main-header .navbar {
                                 max-width: calc(1200px + 2 * var(--eu-gutter));
                                 margin-left: auto !important;
                                 margin-right: auto !important;
@@ -1942,7 +1948,18 @@
                                to sit flush under an admin page header this
                                layout does not render. */
                             .content-wrapper > .content { padding: 18px var(--eu-gutter) 32px !important; }
-                            .content-wrapper > .content-header { padding: 14px var(--eu-gutter) 0; }
+                            {{-- End users never see breadcrumbs: the topbar
+                                 already says where they are, and Home > Forms
+                                 > ... is admin furniture. Every eu page also
+                                 tracks the same centred 1200px column the
+                                 header uses, so forms and the store line up
+                                 with /my instead of hugging the left edge. --}}
+                            .content-wrapper > .content-header { display: none; }
+                            .content-wrapper > .content {
+                                max-width: calc(1200px + 2 * var(--eu-gutter));
+                                margin-left: auto;
+                                margin-right: auto;
+                            }
                             @media (max-width: 767px) { :root { --eu-gutter: 16px; } }
 
                             .eu-nav > li > a { font-weight: 600; }
