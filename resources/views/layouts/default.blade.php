@@ -544,6 +544,13 @@
             border-bottom: var(--box-header-bottom-border);
         }
 
+        {{-- A full-bleed table inside a rounded box pokes its square
+             corners past the radius; clip the body edge. --}}
+        .box > .box-body.no-padding {
+            overflow: hidden;
+            border-radius: 0 0 14px 14px;
+        }
+
         {{-- AdminLTE small-boxes (contracts dashboard, reports hub, fleet
              health) painted the whole tile in a status colour. They are ecu
              cards now: quiet surface, hairline edge, the colour carried by
@@ -975,6 +982,36 @@
              can carry real size. Everything that assumed 50px keys off the
              one variable: brand row, pill margins, sticky offsets. --}}
         :root { --header-h: 68px; }
+
+        {{-- The header is one flex row and never wraps. The wordmark scales
+             with the viewport, and below that the quick-nav items drop out
+             one by one (username text first, then Contracts, Consumables,
+             Procurement, Users, Assets) instead of stacking a second row. --}}
+        .main-header .navbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            min-width: 0;
+        }
+        .main-header .navbar > * { flex-shrink: 0; }
+        .main-header .navbar > .navbar-left { flex-shrink: 1; min-width: 0; }
+        .main-header .navbar .navbar-custom-menu { margin-left: auto; float: none; }
+        .main-header .navbar .navbar-custom-menu > .navbar-nav {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            float: none;
+        }
+        .main-header .navbar-form { margin: 0; padding: 0; border: 0; box-shadow: none; }
+        img.navbar-brand-img { max-width: clamp(200px, 30vw, 470px); height: auto; object-fit: contain; }
+        @media (max-width: 1500px) {
+            .main-header .user-menu > a > .hidden-xs { display: none !important; }
+        }
+        @media (max-width: 1380px) { .main-header li.topnav-contracts { display: none; } }
+        @media (max-width: 1270px) { .main-header li.topnav-consumables { display: none; } }
+        @media (max-width: 1160px) { .main-header li.topnav-procurement { display: none; } }
+        @media (max-width: 1050px) { .main-header li.topnav-users { display: none; } }
+        @media (max-width: 950px)  { .main-header li.topnav-assets { display: none; } }
         .main-header .navbar,
         .main-header .navbar-static-top {
             min-height: var(--header-h);
@@ -988,9 +1025,18 @@
         .main-header .navbar-custom-menu .navbar-nav > li > .dropdown-menu { margin-top: 0; }
 
         {{-- Sticky chrome: the header rides along on scroll and the sidebar
-             is pinned below it with its own scrollbar, so a long table never
-             takes the navigation away. Desktop only — small screens keep the
-             stacked flow. --}}
+             is pinned below it, so a long table never takes the navigation
+             away. Desktop only — small screens keep the stacked flow.
+
+             body and .wrapper ship from AdminLTE as overflow:auto scroll
+             containers, which silently retargets every position:sticky
+             descendant at them instead of the viewport — the header looked
+             sticky and then rode away with the wrapper. clip-x/visible-y
+             keeps stray horizontal overflow contained WITHOUT creating a
+             scrollport, so sticky means the viewport again. --}}
+        body, .wrapper {
+            overflow: clip visible !important;
+        }
         @media (min-width: 768px) {
             .main-header {
                 position: sticky;
@@ -1007,6 +1053,11 @@
                 overflow-y: auto;
                 z-index: 900;
             }
+            {{-- Collapsed to the icon rail, the flyout labels render as
+                 absolutely-positioned panels hanging outside the 50px rail;
+                 any overflow clipping cuts them off (and their clipped left
+                 rail was the stray floating line beside the sidebar). --}}
+            .sidebar-collapse .main-sidebar { overflow: visible; }
             {{-- The table toolbar (search + actions) sticks just under the
                  header on list pages, so the controls stay reachable at
                  row 400. --}}
@@ -1015,6 +1066,25 @@
                 top: var(--header-h);
                 z-index: 90;
                 background: var(--box-bg);
+            }
+            .bootstrap-table .fixed-table-toolbar {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 6px;
+                padding: 4px 0 8px;
+            }
+            .bootstrap-table .fixed-table-toolbar::before,
+            .bootstrap-table .fixed-table-toolbar::after { display: none; }
+            .bootstrap-table .fixed-table-toolbar .bs-bars {
+                flex: 1 1 auto;
+                min-width: 0;
+                float: none !important;
+            }
+            .bootstrap-table .fixed-table-toolbar .search,
+            .bootstrap-table .fixed-table-toolbar .columns {
+                float: none !important;
+                margin: 0;
             }
         }
 
@@ -1053,11 +1123,11 @@
         .sidebar-menu .treeview-menu > li.active > a {
             border-left: 0 !important;
         }
-        .sidebar-menu .text-danger,
-        .sidebar-menu .text-warning,
-        .sidebar-menu .text-success,
-        .sidebar-menu .text-info,
-        .sidebar-menu .text-grey {
+        #users-sidenav-option .text-danger,
+        #users-sidenav-option .text-warning,
+        #users-sidenav-option .text-success,
+        #users-sidenav-option .text-info,
+        #users-sidenav-option .text-grey {
             color: var(--sidenav-text-nohover-color) !important;
         }
 
@@ -1475,6 +1545,18 @@
         .alert {
             border-radius: 12px;
         }
+        {{-- Informational flashes are a note, not a siren: quiet card
+             surface with the message in body text, instead of the solid
+             cyan slab. Success/warning/danger keep their colour — those
+             report outcomes. --}}
+        .alert.alert-info {
+            background: var(--table-stripe-bg-alt) !important;
+            border: 1px solid var(--box-header-top-border-color) !important;
+            color: var(--color-fg) !important;
+        }
+        .alert.alert-info a,
+        .alert.alert-info .alert-link { color: var(--link-color); }
+        .alert.alert-info .close { color: var(--chrome-fg-muted); opacity: .7; text-shadow: none; }
         .nav-pills > li > a {
             border-radius: 999px;
         }
@@ -1860,8 +1942,14 @@
                             /* On wide screens the header contents track the
                                centred 1200px content column instead of
                                hugging the far left edge. The header band
-                               itself still paints edge to edge. */
-                            .main-header .navbar {
+                               itself still paints edge to edge. The body
+                               carries sidebar-mini/sidebar-collapse even for
+                               end users, and the admin chrome pins the navbar
+                               margin under those classes at higher
+                               specificity — so this override matches them. */
+                            .main-header .navbar,
+                            .sidebar-mini .main-header .navbar,
+                            .sidebar-mini.sidebar-collapse .main-header .navbar {
                                 max-width: calc(1200px + 2 * var(--eu-gutter));
                                 margin-left: auto !important;
                                 margin-right: auto !important;
@@ -1872,7 +1960,18 @@
                                to sit flush under an admin page header this
                                layout does not render. */
                             .content-wrapper > .content { padding: 18px var(--eu-gutter) 32px !important; }
-                            .content-wrapper > .content-header { padding: 14px var(--eu-gutter) 0; }
+                            {{-- End users never see breadcrumbs: the topbar
+                                 already says where they are, and Home > Forms
+                                 > ... is admin furniture. Every eu page also
+                                 tracks the same centred 1200px column the
+                                 header uses, so forms and the store line up
+                                 with /my instead of hugging the left edge. --}}
+                            .content-wrapper > .content-header { display: none; }
+                            .content-wrapper > .content {
+                                max-width: calc(1200px + 2 * var(--eu-gutter));
+                                margin-left: auto;
+                                margin-right: auto;
+                            }
                             @media (max-width: 767px) { :root { --eu-gutter: 16px; } }
 
                             .eu-nav > li > a { font-weight: 600; }
@@ -1881,6 +1980,10 @@
                                 color: light-dark(#262626, #e4e4e8) !important;
                             }
                             .main-header { border-bottom: 1px solid light-dark(#e4e4e4, #3a3a3a); }
+                            /* The navbar carried its own hairline right above
+                               the header's — a double line. One edge, on the
+                               header. */
+                            .main-header .navbar { border-bottom: 0 !important; }
                             .main-footer { padding: 12px var(--eu-gutter); }
                             /* Something in the shell overflows by a few px and
                                draws a horizontal scrollbar across the footer;
@@ -1917,7 +2020,7 @@
                             </li>
 
                             @can('index', \App\Models\Asset::class)
-                                <li aria-hidden="true"{!! (request()->is('hardware*') ? ' class="active"' : '') !!}>
+                                <li aria-hidden="true" class="topnav-assets{!! (request()->is('hardware*') ? ' active' : '') !!}">
                                     <a href="{{ url('hardware') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=1" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.assets') }}">
                                         <x-icon type="assets" class="fa-fw" />
                                         <span class="topbar-nav-label">{{ trans('general.assets') }}</span>
@@ -1928,7 +2031,7 @@
                                  a daily destination, not something to go
                                  hunting for in a sidebar treeview. --}}
                             @can('view', \App\Models\Order::class)
-                                <li aria-hidden="true"{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' class="active"' : '') !!}>
+                                <li aria-hidden="true" class="topnav-procurement{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
                                     <a href="{{ route('procurement.index') }}" tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.procurement') }}">
                                         <x-icon type="procurement" class="fa-fw" />
                                         <span class="topbar-nav-label">{{ trans('general.procurement') }}</span>
@@ -1936,7 +2039,7 @@
                                 </li>
                             @endcan
                             @can('view', \App\Models\Contract::class)
-                                <li aria-hidden="true"{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' class="active"' : '') !!}>
+                                <li aria-hidden="true" class="topnav-contracts{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' active' : '') !!}">
                                     <a href="{{ route('contracts.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=2" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/contracts/general.contracts') }}">
                                         <x-icon type="contracts" class="fa-fw" />
                                         <span class="topbar-nav-label">{{ trans('admin/contracts/general.contracts') }}</span>
@@ -1944,7 +2047,7 @@
                                 </li>
                             @endcan
                             @can('index', \App\Models\Consumable::class)
-                                <li aria-hidden="true"{!! (request()->is('consumables*') ? ' class="active"' : '') !!}>
+                                <li aria-hidden="true" class="topnav-consumables{!! (request()->is('consumables*') ? ' active' : '') !!}">
                                     <a href="{{ url('consumables') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=3" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.consumables') }}">
                                         <x-icon type="consumables" class="fa-fw" />
                                         <span class="topbar-nav-label">{{ trans('general.consumables') }}</span>
@@ -1953,7 +2056,7 @@
                             @endcan
 
                             @can('index', \App\Models\User::class)
-                                <li aria-hidden="true"{!! (request()->is('users*') ? ' class="active"' : '') !!}>
+                                <li aria-hidden="true" class="topnav-users{!! (request()->is('users*') ? ' active' : '') !!}">
                                     <a href="{{ route('users.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=4" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.users') }}">
                                         <x-icon type="users" class="fa-fw" />
                                         <span class="topbar-nav-label">{{ trans('general.users') }}</span>
