@@ -39,6 +39,8 @@ class FacultyProgramForm extends FormDefinition
         // is what the order's handover page shows as "the old one".
         $laptops = Asset::laptopsOf($user->id);
 
+        $existingPickup = $this->existingPickup($user);
+
         return view('forms.faculty-program.show', [
             'user' => $user,
             'laptops' => $laptops,
@@ -46,7 +48,12 @@ class FacultyProgramForm extends FormDefinition
             'buyoutCosts' => $laptops->mapWithKeys(fn (Asset $laptop) => [
                 $laptop->id => $this->buyoutCostFor($laptop),
             ]),
-            'existingPickup' => $this->existingPickup($user),
+            'existingPickup' => $existingPickup,
+            'existingPurchase' => $this->existingPurchase($user),
+            // Editing stops once the paperwork leaves the quoted stage: a
+            // sent or signed agreement is a document someone acted on, and
+            // silently rewriting it would falsify what they signed.
+            'editable' => $existingPickup === null || $existingPickup->lifecycle_stage === 'quoted',
         ]);
     }
 
@@ -87,7 +94,19 @@ class FacultyProgramForm extends FormDefinition
 
         $now = now();
 
-        $pickup = UserAgreement::create([
+        // One application per cycle. A repeat submission edits the open
+        // agreement in place — never a second record — and once the
+        // paperwork moves past quoted (sent for signature or beyond),
+        // answers freeze: rewriting a document someone signed would
+        // falsify it, so those changes go through us instead.
+        $existingPickup = $this->existingPickup($user);
+        if ($existingPickup && $existingPickup->lifecycle_stage !== 'quoted') {
+            return redirect()
+                ->route('forms.show', ['slug' => $this->slug()])
+                ->with('error', trans('admin/forms/faculty-program.locked_error'));
+        }
+
+        $pickupValues = [
             'agreement_type' => 'pickup',
             'user_id' => $user->id,
             'asset_id' => $returning?->id,
@@ -95,11 +114,20 @@ class FacultyProgramForm extends FormDefinition
             'payment_method' => $validated['payment_method'],
             'terms_accepted_at' => $now,
             'notes' => $validated['notes'] ?? null,
-        ]);
+        ];
+
+        if ($existingPickup) {
+            $existingPickup->update($pickupValues);
+            $pickup = $existingPickup;
+        } else {
+            $pickup = UserAgreement::create($pickupValues);
+        }
+
+        $existingPurchase = $this->existingPurchase($user);
 
         $buyout = null;
         if ($validated['buyout_decision'] === 'yes') {
-            $buyout = UserAgreement::create([
+            $buyoutValues = [
                 'agreement_type' => 'purchase',
                 'user_id' => $user->id,
                 'asset_id' => $returning?->id,
@@ -109,13 +137,35 @@ class FacultyProgramForm extends FormDefinition
                 'old_asset_tag' => $validated['buyout_asset_tag'] ?? $returning?->asset_tag,
                 'old_serial' => $validated['buyout_serial'] ?? $returning?->serial,
                 'notes' => $validated['notes'] ?? null,
-            ]);
+            ];
+
+            if ($existingPurchase && $existingPurchase->lifecycle_stage === 'quoted') {
+                $existingPurchase->update($buyoutValues);
+                $buyout = $existingPurchase;
+            } else {
+                $buyout = UserAgreement::create($buyoutValues);
+            }
+        } elseif ($existingPurchase && $existingPurchase->lifecycle_stage === 'quoted') {
+            // They changed their mind about keeping the old machine — the
+            // quoted buyout is off, not orphaned.
+            $existingPurchase->update(['lifecycle_stage' => 'cancelled']);
+        }
+
+        // Changed answers change the paperwork: any pre-rendered unsigned
+        // PDF is re-rendered now so the next surface that serves it (the
+        // signature email, the profile download) reflects what they just
+        // said — a payment-method flip alters the repayment section.
+        foreach ([$pickup, $buyout] as $agreement) {
+            if ($agreement && $agreement->pdf_path) {
+                $agreement->storeUnsignedPdf();
+            }
         }
 
         return redirect()
             ->route('forms.success', ['slug' => $this->slug()])
             ->with('pickup_id', $pickup->id)
-            ->with('buyout_id', $buyout?->id);
+            ->with('buyout_id', $buyout?->id)
+            ->with('updated', (bool) $existingPickup);
     }
 
     public function success(User $user): View
@@ -170,6 +220,15 @@ class FacultyProgramForm extends FormDefinition
     {
         /** @var UserAgreement $submission */
         return $submission->user_id;
+    }
+
+    private function existingPurchase(User $user): ?UserAgreement
+    {
+        return UserAgreement::where('user_id', $user->id)
+            ->where('agreement_type', 'purchase')
+            ->whereIn('lifecycle_stage', ['quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment'])
+            ->latest('created_at')
+            ->first();
     }
 
     private function existingPickup(User $user): ?UserAgreement
