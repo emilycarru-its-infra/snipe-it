@@ -100,6 +100,10 @@ return [
 
     'submit' => 'Apply for Program',
     'existing_warning' => 'You already have an open commitment for this cycle. Submitting again will create an additional record — only do this if you need to update your previous answers (we will follow up).',
+    'existing_editing' => 'You applied on :date. Your answers are below — change anything and save, and we will update your paperwork to match.',
+    'existing_locked' => 'Your application is being processed and can no longer be edited here. If something needs to change, reply to your confirmation email or contact the Service Desk.',
+    'locked_error' => 'Your application has moved into processing and can no longer be edited here. Contact us and we will make the change.',
+    'update' => 'Update application',
 
     'success_title' => 'Commitment recorded — now choose your laptop',
     'success_body' => 'Your commitment has been recorded and ITS has been notified. The next step is to choose your laptop in the store and send the order request. We review it, order it, and when it ships your asset appears in your account here automatically.',

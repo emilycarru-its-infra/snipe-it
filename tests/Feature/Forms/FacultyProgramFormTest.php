@@ -102,6 +102,125 @@ class FacultyProgramFormTest extends TestCase
         $this->assertNotNull($buyout->terms_accepted_at);
     }
 
+    public function test_resubmitting_edits_the_open_application_instead_of_duplicating(): void
+    {
+        $user = $this->facultyUser();
+
+        $payload = [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no_prior_laptop',
+            'notes' => 'first answers',
+            'accept_terms' => '1',
+        ];
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), $payload);
+
+        // Change of heart: installments instead of paying in full. The open
+        // agreement is updated in place — never a second record.
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), array_merge($payload, [
+            'payment_method' => 'payroll_deduction',
+            'notes' => 'switched to installments',
+        ]))->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $agreements = UserAgreement::where('user_id', $user->id)->get();
+        $this->assertCount(1, $agreements);
+        $this->assertSame('payroll_deduction', $agreements->first()->payment_method);
+        $this->assertSame('switched to installments', $agreements->first()->notes);
+
+        // The form now shows their answers, framed as an edit.
+        $this->actingAs($user)->get(route('forms.show', 'faculty-program'))
+            ->assertOk()
+            ->assertSee('Update application', false)
+            ->assertDontSee('create an additional record', false);
+    }
+
+    public function test_dropping_the_buyout_cancels_the_quoted_purchase(): void
+    {
+        $user = $this->facultyUser();
+
+        $payload = [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'yes',
+            'buyout_asset_tag' => 'ECI-12345',
+            'buyout_serial' => 'XYZ987',
+            'accept_terms' => '1',
+        ];
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), $payload);
+        $this->assertCount(2, UserAgreement::where('user_id', $user->id)->get());
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), array_merge($payload, [
+            'buyout_decision' => 'no_prior_laptop',
+        ]));
+
+        $purchase = UserAgreement::where('user_id', $user->id)->where('agreement_type', 'purchase')->first();
+        $this->assertSame('cancelled', $purchase->lifecycle_stage);
+
+        // And back on: the cancelled record stays cancelled, a fresh quoted
+        // purchase takes its place.
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), $payload);
+        $purchases = UserAgreement::where('user_id', $user->id)->where('agreement_type', 'purchase')->get();
+        $this->assertCount(2, $purchases);
+        $this->assertSame(['cancelled', 'quoted'], $purchases->pluck('lifecycle_stage')->sort()->values()->all());
+    }
+
+    public function test_editing_regenerates_a_prerendered_pdf(): void
+    {
+        $user = $this->facultyUser();
+
+        // The PDF renderer needs an asset on the agreement, so this
+        // faculty member has a machine and keeps it out of the buyout.
+        $category = Category::factory()->create(['name' => 'Laptop']);
+        $model = AssetModel::factory()->create(['category_id' => $category->id]);
+        Asset::factory()->create([
+            'model_id' => $model->id, 'assigned_to' => $user->id,
+            'assigned_type' => User::class, 'asset_tag' => 'A00PDF',
+        ]);
+
+        $payload = [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no',
+            'accept_terms' => '1',
+        ];
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), $payload);
+
+        $pickup = UserAgreement::where('user_id', $user->id)->first();
+        $path = $pickup->storeUnsignedPdf();
+        $this->assertNotNull($path);
+        $before = $pickup->fresh()->pdf_generated_at;
+
+        $this->travel(1)->minutes();
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), array_merge($payload, [
+            'payment_method' => 'payroll_deduction',
+        ]));
+
+        $after = $pickup->fresh()->pdf_generated_at;
+        $this->assertTrue($after->gt($before), 'expected the unsigned PDF to be re-rendered after the edit');
+    }
+
+    public function test_processing_applications_can_no_longer_be_edited(): void
+    {
+        $user = $this->facultyUser();
+
+        $payload = [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no_prior_laptop',
+            'accept_terms' => '1',
+        ];
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), $payload);
+
+        UserAgreement::where('user_id', $user->id)->update(['lifecycle_stage' => 'agreement_sent']);
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), array_merge($payload, [
+            'payment_method' => 'payroll_deduction',
+        ]))->assertRedirect(route('forms.show', 'faculty-program'));
+
+        $this->assertSame('pay_in_full', UserAgreement::where('user_id', $user->id)->first()->payment_method);
+    }
+
     public function test_the_form_lists_every_laptop_and_stores_the_pick(): void
     {
         $user = $this->facultyUser();
