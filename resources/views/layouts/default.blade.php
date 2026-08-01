@@ -1545,6 +1545,18 @@
         .alert {
             border-radius: 12px;
         }
+        {{-- Informational flashes are a note, not a siren: quiet card
+             surface with the message in body text, instead of the solid
+             cyan slab. Success/warning/danger keep their colour — those
+             report outcomes. --}}
+        .alert.alert-info {
+            background: var(--table-stripe-bg-alt) !important;
+            border: 1px solid var(--box-header-top-border-color) !important;
+            color: var(--color-fg) !important;
+        }
+        .alert.alert-info a,
+        .alert.alert-info .alert-link { color: var(--link-color); }
+        .alert.alert-info .close { color: var(--chrome-fg-muted); opacity: .7; text-shadow: none; }
         .nav-pills > li > a {
             border-radius: 999px;
         }

@@ -18,7 +18,7 @@ return [
     'submission_pdf_signed' => 'Signed PDF',
     'success_crumb' => 'Commitment recorded',
 
-    'intro' => 'Use this form to confirm your participation in the current Faculty Laptop Program cycle. Once submitted, you will be redirected to the CDW eStore to place your laptop order. Our team is notified automatically.',
+    'intro' => 'Use this form to confirm your participation in the current Faculty Laptop Program cycle. Once submitted, our Store opens for you to choose and configure your new laptop. Our team is notified automatically.',
     'not_eligible' => 'This form is open to members of the Regular Faculty group. If you believe you should have access, please contact ITS.',
 
     'section_choose_model' => 'Where you\'ll choose your laptop',
