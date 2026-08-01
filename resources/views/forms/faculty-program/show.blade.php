@@ -68,15 +68,35 @@
     <h1 style="margin-top:0;">{{ trans('admin/forms/faculty-program.title') }}</h1>
     <p class="fp-lead">{{ trans('admin/forms/faculty-program.intro') }}</p>
 
-    @if ($existingPickup)
-        <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
-            {{ trans('admin/forms/faculty-program.existing_warning') }}
+    @php
+        // Prefill from the open application when there is one, so a
+        // returning visit shows their answers instead of a blank form.
+        $prefillPayment = old('payment_method', $existingPickup?->payment_method);
+        $prefillBuyout = old('buyout_decision', $existingPickup
+            ? ($existingPurchase && $existingPurchase->lifecycle_stage !== 'cancelled'
+                ? 'yes'
+                : ($laptops->isEmpty() ? 'no_prior_laptop' : 'no'))
+            : ($laptops->isEmpty() ? 'no_prior_laptop' : null));
+        $prefillNotes = old('notes', $existingPickup?->notes);
+        $prefillTag = old('buyout_asset_tag', $existingPurchase?->old_asset_tag ?? $priorAsset?->asset_tag);
+        $prefillSerial = old('buyout_serial', $existingPurchase?->old_serial ?? $priorAsset?->serial);
+    @endphp
+
+    @if ($existingPickup && $editable)
+        <div class="alert alert-info">
+            <i class="fas fa-pen" aria-hidden="true"></i>
+            {{ trans('admin/forms/faculty-program.existing_editing', ['date' => $existingPickup->created_at?->format('M j, Y')]) }}
+        </div>
+    @elseif ($existingPickup)
+        <div class="alert alert-info">
+            <i class="fas fa-lock" aria-hidden="true"></i>
+            {{ trans('admin/forms/faculty-program.existing_locked') }}
         </div>
     @endif
 
     <form method="POST" action="{{ route('forms.submit', 'faculty-program') }}" autocomplete="off">
         @csrf
+        <fieldset {{ $editable ? '' : 'disabled' }} style="border:0; margin:0; padding:0; min-width:0;">
 
         {{-- The trade-in: their current laptop, or the statement that this
              is their first. The keep-or-return decision lives on the card
@@ -145,13 +165,13 @@
                         <p class="fp-muted" style="margin-top:0;">{{ trans('admin/forms/faculty-program.tradein_none_sub') }}</p>
                     @endif
 
-                    <label class="ecu-opt {{ old('buyout_decision') === 'yes' ? 'ecu-selected' : '' }}">
-                        <input type="radio" name="buyout_decision" value="yes" {{ old('buyout_decision') === 'yes' ? 'checked' : '' }} required>
+                    <label class="ecu-opt {{ $prefillBuyout === 'yes' ? 'ecu-selected' : '' }}">
+                        <input type="radio" name="buyout_decision" value="yes" {{ $prefillBuyout === 'yes' ? 'checked' : '' }} required>
                         <span class="ecu-ctl"></span>
                         <span class="ecu-opt-text">{{ trans('admin/forms/faculty-program.buyout_yes') }}</span>
                     </label>
-                    <label class="ecu-opt {{ old('buyout_decision') === 'no' ? 'ecu-selected' : '' }}">
-                        <input type="radio" name="buyout_decision" value="no" {{ old('buyout_decision') === 'no' ? 'checked' : '' }}>
+                    <label class="ecu-opt {{ $prefillBuyout === 'no' ? 'ecu-selected' : '' }}">
+                        <input type="radio" name="buyout_decision" value="no" {{ $prefillBuyout === 'no' ? 'checked' : '' }}>
                         <span class="ecu-ctl"></span>
                         <span class="ecu-opt-text">{{ trans('admin/forms/faculty-program.buyout_no') }}</span>
                     </label>
@@ -160,9 +180,9 @@
                          machine in their hands, the question is keep or
                          return, not whether it exists. --}}
                     @unless ($priorAsset)
-                        <label class="ecu-opt {{ old('buyout_decision', 'no_prior_laptop') === 'no_prior_laptop' ? 'ecu-selected' : '' }}">
+                        <label class="ecu-opt {{ ($prefillBuyout ?? 'no_prior_laptop') === 'no_prior_laptop' ? 'ecu-selected' : '' }}">
                             <input type="radio" name="buyout_decision" value="no_prior_laptop"
-                                   {{ old('buyout_decision', 'no_prior_laptop') === 'no_prior_laptop' ? 'checked' : '' }}>
+                                   {{ ($prefillBuyout ?? 'no_prior_laptop') === 'no_prior_laptop' ? 'checked' : '' }}>
                             <span class="ecu-ctl"></span>
                             <span class="ecu-opt-text">{{ trans('admin/forms/faculty-program.buyout_no_prior_laptop') }}</span>
                         </label>
@@ -175,12 +195,12 @@
                         <div>
                             <label for="buyout_asset_tag">{{ trans('admin/forms/faculty-program.buyout_asset_tag') }}</label>
                             <input type="text" id="buyout_asset_tag" name="buyout_asset_tag" class="form-control input-sm" maxlength="191"
-                                   value="{{ old('buyout_asset_tag', $priorAsset?->asset_tag) }}">
+                                   value="{{ $prefillTag }}">
                         </div>
                         <div>
                             <label for="buyout_serial">{{ trans('admin/forms/faculty-program.buyout_serial') }}</label>
                             <input type="text" id="buyout_serial" name="buyout_serial" class="form-control input-sm" maxlength="191"
-                                   value="{{ old('buyout_serial', $priorAsset?->serial) }}">
+                                   value="{{ $prefillSerial }}">
                         </div>
                     </div>
                     @if (! $priorAsset)
@@ -211,8 +231,8 @@
             </p>
 
             <p>{!! trans('admin/forms/faculty-program.top_up_help_html') !!}</p>
-            <label class="ecu-opt {{ old('acknowledge_top_up') ? 'ecu-selected' : '' }}">
-                <input type="checkbox" name="acknowledge_top_up" value="1" {{ old('acknowledge_top_up') ? 'checked' : '' }} required>
+            <label class="ecu-opt {{ old('acknowledge_top_up', (bool) $existingPickup) ? 'ecu-selected' : '' }}">
+                <input type="checkbox" name="acknowledge_top_up" value="1" {{ old('acknowledge_top_up', (bool) $existingPickup) ? 'checked' : '' }} required>
                 <span class="ecu-ctl"></span>
                 <span class="ecu-opt-text"><strong>{{ trans('admin/forms/faculty-program.top_up_acknowledge') }}</strong></span>
             </label>
@@ -226,13 +246,13 @@
             <div class="ecu-kicker">{{ trans('admin/forms/faculty-program.payment_kicker') }}</div>
             <h2>{{ trans('admin/forms/faculty-program.section_payment') }}</h2>
             <p class="fp-muted">{{ trans('admin/forms/faculty-program.payment_help') }}</p>
-            <label class="ecu-opt {{ old('payment_method') === 'pay_in_full' ? 'ecu-selected' : '' }}">
-                <input type="radio" name="payment_method" value="pay_in_full" {{ old('payment_method') === 'pay_in_full' ? 'checked' : '' }} required>
+            <label class="ecu-opt {{ $prefillPayment === 'pay_in_full' ? 'ecu-selected' : '' }}">
+                <input type="radio" name="payment_method" value="pay_in_full" {{ $prefillPayment === 'pay_in_full' ? 'checked' : '' }} required>
                 <span class="ecu-ctl"></span>
                 <span class="ecu-opt-text">{{ trans('admin/forms/faculty-program.payment_pay_in_full') }}</span>
             </label>
-            <label class="ecu-opt {{ old('payment_method') === 'payroll_deduction' ? 'ecu-selected' : '' }}">
-                <input type="radio" name="payment_method" value="payroll_deduction" {{ old('payment_method') === 'payroll_deduction' ? 'checked' : '' }}>
+            <label class="ecu-opt {{ $prefillPayment === 'payroll_deduction' ? 'ecu-selected' : '' }}">
+                <input type="radio" name="payment_method" value="payroll_deduction" {{ $prefillPayment === 'payroll_deduction' ? 'checked' : '' }}>
                 <span class="ecu-ctl"></span>
                 <span class="ecu-opt-text">{{ trans('admin/forms/faculty-program.payment_payroll_deduction') }}</span>
             </label>
@@ -246,7 +266,7 @@
             <div class="ecu-kicker">{{ trans('admin/forms/faculty-program.notes_kicker') }}</div>
             <h2>{{ trans('admin/forms/faculty-program.section_notes') }}</h2>
             <p class="fp-muted">{{ trans('admin/forms/faculty-program.notes_help') }}</p>
-            <textarea name="notes" class="form-control" rows="3" maxlength="65535">{{ old('notes') }}</textarea>
+            <textarea name="notes" class="form-control" rows="3" maxlength="65535">{{ $prefillNotes }}</textarea>
         </div>
 
         {{-- Terms, then the one signature-like act on this page. --}}
@@ -293,8 +313,8 @@
                 <h4>{{ trans('admin/forms/faculty-program.terms_top_up_title') }}</h4>
                 <p style="margin-bottom:0;">{{ trans('admin/forms/faculty-program.terms_top_up_body') }}</p>
             </div>
-            <label class="ecu-opt {{ old('accept_terms') ? 'ecu-selected' : '' }}" id="fp-accept" style="margin-top:12px;">
-                <input type="checkbox" name="accept_terms" value="1" {{ old('accept_terms') ? 'checked' : '' }} required>
+            <label class="ecu-opt {{ old('accept_terms', (bool) $existingPickup) ? 'ecu-selected' : '' }}" id="fp-accept" style="margin-top:12px;">
+                <input type="checkbox" name="accept_terms" value="1" {{ old('accept_terms', (bool) $existingPickup) ? 'checked' : '' }} required>
                 <span class="ecu-ctl"></span>
                 <span class="ecu-opt-text"><strong>{{ trans('admin/forms/faculty-program.terms_accept') }}</strong>
                     <span class="fp-muted fp-scroll-hint" style="display:block;">{{ trans('admin/forms/faculty-program.terms_scroll_hint') }}</span>
@@ -305,12 +325,15 @@
             @endif
         </div>
 
-        <div class="fp-submit">
-            <button type="submit" class="btn btn-primary btn-lg">
-                {{ trans('admin/forms/faculty-program.submit') }}
-                <i class="fas fa-arrow-right" aria-hidden="true"></i>
-            </button>
-        </div>
+        @if ($editable)
+            <div class="fp-submit">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    {{ $existingPickup ? trans('admin/forms/faculty-program.update') : trans('admin/forms/faculty-program.submit') }}
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </button>
+            </div>
+        @endif
+        </fieldset>
     </form>
 
 </div>
