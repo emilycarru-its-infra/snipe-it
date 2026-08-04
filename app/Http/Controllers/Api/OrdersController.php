@@ -132,6 +132,13 @@ class OrdersController extends Controller
             'items.*.shipped_date' => 'nullable|date',
         ]);
 
+        // Adjustment invoices move PO committed/remaining directly, which is
+        // budget management, not order entry — gate them on the same
+        // permission as budget allocations rather than orders.create alone.
+        if (in_array($data['invoice']['invoice_type'] ?? null, ['buyout', 'credit', 'termination'], true)) {
+            $this->authorize('budget_allocations.manage');
+        }
+
         // Link to a purchase order only when one already exists under that
         // number — finance owns PO creation and budgets, so the webhook
         // never creates a budgetless PO that would skew the spend reports.
