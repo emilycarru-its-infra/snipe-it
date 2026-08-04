@@ -131,15 +131,18 @@ class LeaseDocumentParser
         $lines = [];
 
         foreach (preg_split('/\R/', $text) as $line) {
+            // Serial is either a real serial or N\/A — soft-cost lines like
+            // rack kits are financed on the schedule without a serial and
+            // must still count toward the rental total.
             if (preg_match(
-                '/^(\d+) (.+?) ([A-Z0-9]{8,18}) (New|Used) ([\d,]+\.\d{2}) (\d{1,2}\/\d{1,2}\/\d{4})\s*$/',
+                '/^(\d+) (.+?) ([A-Z0-9]{8,18}|N\/A) (New|Used) ([\d,]+\.\d{2}) (\d{1,2}\/\d{1,2}\/\d{4})\s*$/',
                 trim($line),
                 $m
             )) {
                 $lines[] = [
                     'qty' => (int) $m[1],
                     'description' => trim($m[2]),
-                    'serial' => strtoupper($m[3]),
+                    'serial' => $m[3] === 'N/A' ? null : strtoupper($m[3]),
                     'condition' => $m[4],
                     'yearly_rental' => $this->money($m[5]),
                     'commencement' => $this->date($m[6]),
@@ -349,7 +352,11 @@ class LeaseDocumentParser
             }
 
             $serial = strtoupper(trim((string) ($row[$columns['serial'] ?? -1] ?? '')));
-            if ($serial === '' || ! preg_match('/^[A-Z0-9]{6,18}$/', $serial)) {
+            if ($serial === 'N/A') {
+                // Unserialized financed line (soft costs, rack kits) — keep
+                // the money, drop the serial.
+                $serial = null;
+            } elseif ($serial === '' || ! preg_match('/^[A-Z0-9]{6,18}$/', $serial)) {
                 continue;
             }
 
