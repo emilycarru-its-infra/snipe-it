@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Asset;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Committed spend computed from the ASSET source of truth: each device's
@@ -16,6 +17,12 @@ use Carbon\Carbon;
  * orders have no asset, so they fall to the Orders model rather than
  * inflating committed. Shared by the procurement dashboard and the budget
  * carry-forward so both read the same number.
+ *
+ * Not every dollar that drains a PO buys a device: lease buyouts and
+ * terminations commit money with no new asset row, and credits hand money
+ * back. Those live as order_invoices typed buyout / termination / credit,
+ * and are folded into the same per-PO map — signs forced so adjustments
+ * always add and credits always subtract, however the subtotal was keyed.
  */
 class AssetCommitted
 {
@@ -45,6 +52,38 @@ class AssetCommitted
             }
             $warranty = self::parseMoney($asset->{$warrantyColumn});
             $map[$po] = ($map[$po] ?? 0.0) + (float) $asset->purchase_cost + $warranty;
+        }
+
+        foreach (self::invoiceAdjustmentsByPo($fy) as $po => $amount) {
+            $map[$po] = round(($map[$po] ?? 0.0) + $amount, 2);
+        }
+
+        return $map;
+    }
+
+    /**
+     * Net buyout / termination / credit invoice amounts keyed by PO number,
+     * FY-scoped by invoice_date to mirror the purchase_date scoping of the
+     * asset side.
+     */
+    public static function invoiceAdjustmentsByPo(?string $fy = null): array
+    {
+        $query = DB::table('order_invoices')
+            ->join('purchase_orders', 'purchase_orders.id', '=', 'order_invoices.purchase_order_id')
+            ->whereIn('order_invoices.invoice_type', ['buyout', 'termination', 'credit']);
+
+        if ($range = self::fiscalYearRange($fy)) {
+            $query->whereBetween('order_invoices.invoice_date', $range);
+        }
+
+        $map = [];
+        foreach ($query->get(['purchase_orders.po_number', 'order_invoices.invoice_type', 'order_invoices.subtotal']) as $row) {
+            $amount = abs((float) $row->subtotal);
+            if ($row->invoice_type === 'credit') {
+                $amount = -$amount;
+            }
+            $po = trim((string) $row->po_number);
+            $map[$po] = ($map[$po] ?? 0.0) + $amount;
         }
 
         return $map;

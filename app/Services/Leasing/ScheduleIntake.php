@@ -250,10 +250,11 @@ class ScheduleIntake
             ->pluck('name')
             ->map(fn ($name) => (int) substr($name, strrpos($name, '#') + 1))
             ->max() + 1;
+        $numbered = sprintf('%s #%02d', $series, $next);
 
         return new Contract([
-            'contract_number' => $series.' #'.$next,
-            'name' => $series.' #'.$next,
+            'contract_number' => $numbered,
+            'name' => $numbered,
             'theme' => self::THEME,
             'product' => $parsed['schedule_ref'],
             'fiscal_year' => $fiscalYear,
