@@ -12,6 +12,7 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -115,7 +116,12 @@ class OrdersController extends Controller
             'invoice.tax_pst' => 'nullable|numeric',
             'invoice.shipping' => 'nullable|numeric',
             'invoice.total' => 'nullable|numeric',
-            'items' => 'required|array|min:1',
+            'invoice.invoice_type' => 'nullable|in:standard,credit,termination,buyout',
+            'invoice.contract_reference' => 'nullable|string|max:191',
+            // Financial adjustments (buyouts, terminations, credits) commit
+            // or return money without shipping a device, so they carry no
+            // asset line items.
+            'items' => 'required_unless:invoice.invoice_type,buyout,credit,termination|array|min:1',
             'items.*.asset_id' => 'required|integer|exists:assets,id',
             'items.*.description' => 'nullable|string|max:65535',
             'items.*.quantity' => 'nullable|integer|min:1',
@@ -152,7 +158,7 @@ class OrdersController extends Controller
             // works without a manual edit. Only fill when empty — never
             // override a value finance has already set.
             if (empty($order->fiscal_year) && ! empty($order->order_date)) {
-                $order->fiscal_year = Helper::currentFiscalYear(\Carbon\Carbon::parse($order->order_date));
+                $order->fiscal_year = Helper::currentFiscalYear(Carbon::parse($order->order_date));
             }
 
             $order->save();
@@ -169,11 +175,13 @@ class OrdersController extends Controller
                         'tax_pst' => $data['invoice']['tax_pst'] ?? 0,
                         'shipping' => $data['invoice']['shipping'] ?? 0,
                         'total' => $data['invoice']['total'] ?? 0,
+                        'invoice_type' => $data['invoice']['invoice_type'] ?? 'standard',
+                        'contract_reference' => $data['invoice']['contract_reference'] ?? null,
                     ]
                 );
             }
 
-            foreach ($data['items'] as $line) {
+            foreach ($data['items'] ?? [] as $line) {
                 // A tracking number identifies a shipment; lines that share
                 // one collapse onto the same OrderShipment.
                 $shipmentId = empty($line['tracking_number']) ? null : OrderShipment::updateOrCreate(

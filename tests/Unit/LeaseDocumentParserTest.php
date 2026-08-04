@@ -109,6 +109,31 @@ class LeaseDocumentParserTest extends TestCase
         $this->assertSame(60, $parsed['term_months']);
     }
 
+    public function test_unserialized_financed_lines_are_kept_without_a_serial()
+    {
+        $text = implode("\n", [
+            'CERTIFICATE OF ACCEPTANCE',
+            'Equipment Schedule Number 004, dated as of April 09, 2026 to Master Lease',
+            'Number 900123 dated June 11, 2025',
+            'YEARLY RENTAL AMOUNT $1,004.92 CAD',
+            '1 LAPTOP 14" X1 TESTSER001 New 906.87 4/27/2026',
+            '1 RACK MOUNT KIT N/A New 98.05 5/7/2026',
+        ]);
+
+        $parsed = $this->parser()->parsePdfText($text);
+
+        $this->assertCount(2, $parsed['lines']);
+        $this->assertNull($parsed['lines'][1]['serial']);
+        $this->assertSame(98.05, $parsed['lines'][1]['yearly_rental']);
+        // With the unserialized line counted, the per-line sum matches the
+        // stated yearly rental.
+        $this->assertEqualsWithDelta(
+            $parsed['yearly_rental'],
+            array_sum(array_column($parsed['lines'], 'yearly_rental')),
+            0.001
+        );
+    }
+
     public function test_unrecognized_text_is_rejected()
     {
         $parsed = $this->parser()->parsePdfText('An unrelated memo about printers.');

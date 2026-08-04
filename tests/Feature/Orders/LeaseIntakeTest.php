@@ -100,7 +100,7 @@ class LeaseIntakeTest extends TestCase
         $this->assertSame('finalized', $result['action']);
 
         $contract = $result['contract'];
-        $this->assertSame('Devices Leases FY26-27 #1', $contract->name);
+        $this->assertSame('Devices Leases FY26-27 #01', $contract->name);
         $this->assertSame('900123-003', $contract->schedule_number);
         $this->assertSame('2026-07-01', $contract->start_date->toDateString());
         $this->assertSame('2030-06-30', $contract->end_date->toDateString());
@@ -149,7 +149,7 @@ class LeaseIntakeTest extends TestCase
 
         $result = $this->intake()->apply($this->acceptance(), $this->document());
 
-        $this->assertSame('Devices Leases FY26-27 #8', $result['contract']->name);
+        $this->assertSame('Devices Leases FY26-27 #08', $result['contract']->name);
     }
 
     public function test_refinalizing_updates_rather_than_duplicates()
