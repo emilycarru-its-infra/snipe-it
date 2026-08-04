@@ -134,6 +134,9 @@
                 </x-tabs.pane>
 
                 <x-tabs.pane name="leases">
+                    <div class="box-body">
+                        @include('partials.lease-document-drop')
+                    </div>
                     <x-table
                         name="leasedecision"
                         fixed_right_number="1"
