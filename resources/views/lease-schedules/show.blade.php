@@ -33,6 +33,10 @@
                     <dd>{{ $schedule->signed_at ? $schedule->signed_at->format('Y-m-d H:i') : '—' }}</dd>
                     <dt>{{ trans('admin/lease-schedules/general.signed_by') }}</dt>
                     <dd>{{ $schedule->signer?->full_name ?? '—' }}</dd>
+                    @if ($schedule->contract)
+                        <dt>{{ trans('admin/contracts/general.contract') }}</dt>
+                        <dd>{{ $schedule->contract->name }}{{ $schedule->contract->total_cost ? ' — $'.number_format((float) $schedule->contract->total_cost, 2) : '' }}</dd>
+                    @endif
                     @if ($schedule->annexure_a_path)
                         <dt>{{ trans('admin/lease-schedules/general.annexure_a_path') }}</dt>
                         <dd><code>{{ $schedule->annexure_a_path }}</code></dd>
@@ -62,6 +66,8 @@
         </div>
 
         @include('partials.object-documents', ['object' => $schedule, 'object_type' => 'lease-schedules'])
+
+        @include('partials.lease-document-drop')
     </div>
 </div>
 @stop
