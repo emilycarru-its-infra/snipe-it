@@ -95,6 +95,12 @@ class LeaseSchedule extends SnipeModel
         return $this->belongsTo(User::class, 'signed_by')->withTrashed();
     }
 
+    /** The contract this schedule became when it was finalized. */
+    public function contract()
+    {
+        return $this->belongsTo(Contract::class);
+    }
+
     /**
      * Display name used by Searchable — no `name` column on this table,
      * so fall back to the schedule reference.
