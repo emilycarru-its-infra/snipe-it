@@ -70,6 +70,10 @@ class AssetCommitted
     {
         $query = DB::table('order_invoices')
             ->join('purchase_orders', 'purchase_orders.id', '=', 'order_invoices.purchase_order_id')
+            // A dateless adjustment would count in unscoped totals (budget
+            // carry-forward) while appearing in no fiscal-year view — fail
+            // closed instead: it counts nowhere until it carries a date.
+            ->whereNotNull('order_invoices.invoice_date')
             ->whereIn('order_invoices.invoice_type', ['buyout', 'termination', 'credit']);
 
         if ($range = self::fiscalYearRange($fy)) {

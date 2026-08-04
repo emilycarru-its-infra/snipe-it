@@ -67,6 +67,15 @@ class PoUsageAdjustmentsTest extends TestCase
         $this->assertEqualsWithDelta(3000.00, AssetCommitted::byPo()['P0090001'] ?? 0, 0.01);
     }
 
+    public function test_a_dateless_adjustment_counts_nowhere()
+    {
+        $po = $this->po();
+        $this->invoice($po, 'buyout', 1000.00)->update(['invoice_date' => null]);
+
+        $this->assertArrayNotHasKey('P0090001', AssetCommitted::byPo());
+        $this->assertArrayNotHasKey('P0090001', AssetCommitted::byPo('FY2025-26'));
+    }
+
     public function test_untyped_invoices_do_not_touch_committed()
     {
         $po = $this->po();
