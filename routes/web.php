@@ -31,6 +31,7 @@ use App\Http\Controllers\GroupsController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\LabelsController;
 use App\Http\Controllers\LeaseDecisionsController;
+use App\Http\Controllers\LeaseDocumentsController;
 use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LicenseModelsController;
 use App\Http\Controllers\ManufacturersController;
@@ -493,6 +494,13 @@ Route::group(['middleware' => 'auth'], function () {
     /*
     * Lease Schedules
     */
+    // Lease document intake: drop a lessor document, preview the parsed
+    // fields, then commit through the shared intake service.
+    Route::post('lease-documents/parse', [LeaseDocumentsController::class, 'parse'])
+        ->name('lease-documents.parse');
+    Route::post('lease-documents/commit', [LeaseDocumentsController::class, 'commit'])
+        ->name('lease-documents.commit');
+
     Route::resource('lease-schedules', LeaseSchedulesController::class);
     Route::post('lease-schedules/{leaseSchedule}/mark-signed', [LeaseSchedulesController::class, 'markSigned'])
         ->name('lease-schedules.mark-signed');

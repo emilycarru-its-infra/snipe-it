@@ -1244,6 +1244,15 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         [Api\CsiController::class, 'snapshot']
     )->name('api.csi.snapshot');
 
+    /**
+     * Lease document intake — POST a signed schedule agreement, certificate
+     * of acceptance, or Exhibit A draft; parse-only by default, commit=1
+     * writes schedules/contracts through the shared intake service.
+     */
+    Route::post('lease-documents',
+        [Api\LeaseDocumentsController::class, 'store']
+    )->name('api.lease-documents.store');
+
     Route::resource('orders',
         Api\OrdersController::class,
         ['names' => [
