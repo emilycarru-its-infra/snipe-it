@@ -11,6 +11,13 @@
     .disp-tab-content { padding-top: 4px; }
     .disp-contract-meta { margin-bottom: 8px; }
     .disp-table th, .disp-table td { vertical-align: middle !important; font-size: 12.5px; }
+    /* Column rhythm: dates and money hug their content instead of the
+       Decommissioned column swallowing half the table, and Buyout Cost
+       keeps clear air before Use. */
+    .disp-table th, .disp-table td { white-space: nowrap; }
+    .disp-table td:nth-child(4), .disp-table th:nth-child(4) { width: 1%; }
+    .disp-table td:nth-child(5), .disp-table th:nth-child(5) { width: 1%; text-align: right; padding-right: 28px !important; }
+    .disp-table .disp-note-cell { white-space: normal; }
     .disp-note-cell { min-width: 180px; }
     .disp-note-edit { margin-left: 6px; color: #999; }
     .disp-note-edit:hover { color: #3c8dbc; }
@@ -20,8 +27,8 @@
     .disp-search-group { width: 280px; }
     .disp-search-clear { cursor: pointer; }
     .disp-search-status { font-size: 12px; }
-    tr.disp-match > td { background-color: #fcf8e3 !important; }
-    tr.disp-match.disp-match-primary > td { background-color: #faf2cc !important; box-shadow: inset 3px 0 0 #f0ad4e; }
+    tr.disp-match > td { background-color: light-dark(#fcf8e3, rgba(240, 173, 78, .18)) !important; }
+    tr.disp-match.disp-match-primary > td { background-color: light-dark(#faf2cc, rgba(240, 173, 78, .30)) !important; box-shadow: inset 3px 0 0 #f0ad4e; }
 </style>
 <script>
 (function () {
