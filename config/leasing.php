@@ -38,18 +38,4 @@ return [
         env('CCA_BUYOUT_RECIPIENTS', 'aasghar@ccafinancial.com')
     ),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Early-refresh requests
-    |--------------------------------------------------------------------------
-    |
-    | A staff member with something wrong on their machine can ask for an
-    | early refresh from their own dashboard. Unlike a buyout this is an
-    | internal conversation — the request goes to the device team, not a
-    | lessor. Comma-separated; overridable in Settings → Emails.
-    |
-    */
-
-    'early_refresh_recipients' => env('EARLY_REFRESH_RECIPIENTS', 'devicesadmins@ecuad.ca'),
-
 ];

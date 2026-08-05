@@ -133,8 +133,6 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('my', [DashboardController::class, 'my'])->name('my');
     Route::post('my/assets/{asset}/request-buyout', [DashboardController::class, 'myRequestBuyout'])
         ->name('my.request-buyout');
-    Route::post('my/assets/{asset}/request-early-refresh', [DashboardController::class, 'myRequestEarlyRefresh'])
-        ->name('my.request-early-refresh');
     Route::get('orders/{order}/export', [OrdersController::class, 'export'])->name('orders.export');
     Route::post('orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('orders.cancel');
     Route::post('orders/{order}/reopen', [OrdersController::class, 'reopen'])->name('orders.reopen');
@@ -1157,6 +1155,9 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('leases-financial', [ProcurementReportsController::class, 'leasesFinancial'])
             ->name('reports.procurement.leases-financial')
             ->breadcrumbs($crumb('reports.procurement.leases-financial', 'report_leases_financial'));
+        Route::get('lease-data-health', [ProcurementReportsController::class, 'leaseDataHealth'])
+            ->name('reports.procurement.lease-data-health')
+            ->breadcrumbs($crumb('reports.procurement.lease-data-health', 'report_lease_data_health'));
         Route::get('schedule-reconciliation', [ProcurementReportsController::class, 'csiSchedule'])
             ->name('reports.procurement.csi-schedule')
             ->breadcrumbs($crumb('reports.procurement.csi-schedule', 'report_csi_schedule'));

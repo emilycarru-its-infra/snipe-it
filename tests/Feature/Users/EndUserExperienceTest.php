@@ -3,7 +3,6 @@
 namespace Tests\Feature\Users;
 
 use App\Mail\AssetBuyoutRequestMail;
-use App\Mail\AssetEarlyRefreshRequestMail;
 use App\Mail\StoreOrderStatusMail;
 use App\Models\Asset;
 use App\Models\AssetModel;
@@ -299,7 +298,7 @@ class EndUserExperienceTest extends TestCase
     {
         Mail::fake();
 
-        $user = $this->faculty();
+        $user = User::factory()->create(['activated' => 1, 'first_name' => 'Stan']);
         $lessor = Supplier::factory()->create(['email' => 'leasing@lessor.example']);
 
         // A Staff-catalog machine: refresh doorway, never the buyout one —
@@ -313,30 +312,50 @@ class EndUserExperienceTest extends TestCase
 
         $page = $this->actingAs($user)->get(route('my'))->assertOk();
         $page->assertSee('Request early refresh', false);
+        $page->assertSee(route('store.index', ['refresh' => $staffMachine->id]), false);
         $page->assertDontSee('Request a buyout', false);
 
-        // The refresh request mails the device team with the note, CC the
-        // requester, and cools down.
-        $this->actingAs($user)->post(route('my.request-early-refresh', $staffMachine->id), [
-            'note' => 'Battery drains within the hour.',
-        ])->assertRedirect(route('my'));
-        Mail::assertSent(AssetEarlyRefreshRequestMail::class,
-            fn ($mail) => $mail->hasTo('devicesadmins@ecuad.ca')
-                && $mail->hasCc($user->email)
-                && $mail->note === 'Battery drains within the hour.');
+        // The doorway lands in the store with the machine named and the GL
+        // question asked; a colleague's asset id resolves to no context.
+        $store = $this->actingAs($user)->get(route('store.index', ['refresh' => $staffMachine->id]))->assertOk();
+        $store->assertSee('Early refresh of your', false);
+        $store->assertSee('GL Code', false);
 
-        $this->actingAs($user)->post(route('my.request-early-refresh', $staffMachine->id))
-            ->assertSessionHas('error');
-        Mail::assertSentCount(1);
+        $colleague = User::factory()->create(['activated' => 1]);
+        $colleagueMachine = $this->laptopFor($colleague);
+        $this->tagCatalog($colleagueMachine, 'Staff');
+        $this->actingAs($user)->get(route('store.index', ['refresh' => $colleagueMachine->id]))
+            ->assertOk()
+            ->assertDontSee('Early refresh of your', false);
+
+        // Placing the order records the machine and the GL code, and /my
+        // swaps the button for the requested note while the order is open.
+        $item = CatalogItem::create([
+            'name' => 'MacBook Air | 13" | M5', 'family' => 'MacBook Air', 'category' => 'Laptops',
+            'product_type' => 'standard', 'vendor_sku' => '9094662', 'unit_cost' => 2100,
+            'price_type' => 'quoted', 'show_in_store' => true, 'model_id' => $staffMachine->model_id,
+        ]);
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'refresh_asset_id' => $staffMachine->id,
+            'gl_code' => '12-345-6789',
+        ])->assertRedirect(route('store.orders'));
+
+        $order = StoreOrder::orderByDesc('id')->first();
+        $this->assertSame($staffMachine->id, (int) $order->refresh_asset_id);
+        $this->assertSame('12-345-6789', $order->gl_code);
+
         $this->actingAs($user)->get(route('my'))->assertOk()
-            ->assertSee('Refresh requested', false);
+            ->assertSee('Refresh requested', false)
+            ->assertDontSee(route('store.index', ['refresh' => $staffMachine->id]), false);
 
         // A buyout POST against a staff machine is refused outright.
         $this->actingAs($user)->post(route('my.request-buyout', $staffMachine->id))
             ->assertSessionHas('error');
         Mail::assertNotSent(AssetBuyoutRequestMail::class);
 
-        // And a refresh POST against a Faculty machine is refused too.
+        // A Faculty machine never engages the refresh context: the posted
+        // id and GL code are quietly dropped, not stored.
         $facultyMachine = Asset::factory()->create([
             'model_id' => $staffMachine->model_id,
             'assigned_to' => $user->id,
@@ -344,8 +363,15 @@ class EndUserExperienceTest extends TestCase
             'last_checkout' => now()->subYears(2),
         ]);
         $this->tagCatalog($facultyMachine, 'Faculty');
-        $this->actingAs($user)->post(route('my.request-early-refresh', $facultyMachine->id))
-            ->assertSessionHas('error');
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'refresh_asset_id' => $facultyMachine->id,
+            'gl_code' => '99-999-9999',
+        ])->assertRedirect(route('store.orders'));
+
+        $second = StoreOrder::orderByDesc('id')->first();
+        $this->assertNull($second->refresh_asset_id);
+        $this->assertNull($second->gl_code);
     }
 
     public function test_the_dashboard_opens_the_door_at_renewal_time()
