@@ -45,8 +45,18 @@ class CatalogImportController extends Controller
 
         // Read straight off the upload's temp path — the price list is
         // reference data we re-derive on every import, so there is nothing
-        // worth keeping the original file around for.
-        $result = $importer->importFile($file->getRealPath(), [
+        // worth keeping the original file around for. The temp path has no
+        // extension, so a CSV upload would fall into the XLSX reader and
+        // die on "not a zip archive" — give the reader a correctly-named
+        // link to route by.
+        $path = $file->getRealPath();
+        if (strtolower($file->getClientOriginalExtension()) !== strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            $typed = $path.'.'.strtolower($file->getClientOriginalExtension() ?: 'csv');
+            copy($path, $typed);
+            $path = $typed;
+        }
+
+        $result = $importer->importFile($path, [
             'supplier' => $validated['supplier'] ?? null,
             'supplier_id' => $validated['supplier_id'] ?? null,
             'source' => $validated['source'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),

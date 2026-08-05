@@ -243,6 +243,21 @@
                                         $bySlug['other'] = ['group' => null, 'fields' => $grouped['other']];
                                     }
                                 }
+                                // The Procurement card carries the native purchase and lease
+                                // fields (PO, lease contract, ownership, rent, buyout …), so it
+                                // must render even when the fieldset has no custom fields left
+                                // in that group — since the F2 migration dropped the lease
+                                // custom-field twins, most fieldsets don't.
+                                if (! isset($bySlug['procurement'])) {
+                                    $procurementGroup = \App\Models\FieldGroup::where('slug', 'procurement')->first()
+                                        ?? new \App\Models\FieldGroup([
+                                            'slug' => 'procurement',
+                                            'name' => trans('general.procurement'),
+                                            'icon' => 'fas fa-file-invoice-dollar',
+                                            'color' => '#8e44ad',
+                                        ]);
+                                    $bySlug['procurement'] = ['group' => $procurementGroup, 'fields' => []];
+                                }
                                 // Editable FK option list for the inline Location select.
                                 $locationOptions = \App\Models\Location::orderBy('name')->pluck('name', 'id');
                             @endphp
@@ -861,6 +876,9 @@
             .asset-detail-2col { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; width: 100%; }
             .asset-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
             .asset-col-left  { flex: 1 1 36%; }
+            /* An empty column (no fieldset on the model) must not reserve
+               its share of the row and push the populated column aside. */
+            .asset-col:empty { display: none; }
             .asset-col-right { flex: 1 1 58%; }
             .asset-detail-2col .asset-card { margin: 0; }
             /* Costs | Activity share the bottom of the right column, 50/50. */
