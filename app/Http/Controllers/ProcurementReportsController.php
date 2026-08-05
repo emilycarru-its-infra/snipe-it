@@ -8,6 +8,7 @@ use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\Contract;
 use App\Models\CustomField;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
@@ -626,7 +627,7 @@ class ProcurementReportsController extends Controller
 
         return $this->render(
             $request,
-            'csi-schedule-reconciliation-report',
+            'schedule-reconciliation-report',
             trans('admin/purchase-orders/general.report_csi_schedule'),
             'reports.procurement.csi-schedule',
             $this->csiScheduleReport($this->resolveFiscalYear($request)),
@@ -648,15 +649,34 @@ class ProcurementReportsController extends Controller
 
         return $this->render(
             $request,
-            'csi-reconciliation-report',
+            'lease-reconciliation-report',
             trans('admin/purchase-orders/general.report_csi_reconciliation'),
             'reports.procurement.csi-reconciliation',
-            $this->csiReconciliationReport()
+            $this->csiReconciliationReport($this->resolveFiscalYear($request))
         );
     }
 
-    private function csiReconciliationReport(): array
+    private function csiReconciliationReport(?string $fy = null): array
     {
+        // Scope by the schedule's commencement fiscal year, read from the
+        // contract register (schedule_number -> fiscal_year). Rows whose
+        // schedule the register doesn't know stay visible in every view —
+        // an unmapped schedule is itself a reconciliation finding.
+        $registerFy = Contract::whereNotNull('schedule_number')
+            ->pluck('fiscal_year', 'schedule_number')
+            ->map(function ($value) {
+                return preg_replace_callback('/^FY(\d{2})-(\d{2})$/', fn ($m) => sprintf('FY20%s-%s', $m[1], $m[2]), (string) $value);
+            });
+        $rowFy = function (array $row) use ($registerFy): ?string {
+            foreach ([$row['csi_schedule'] ?? null, $row['snipe_schedule'] ?? null] as $ref) {
+                if ($ref && $registerFy->has($ref)) {
+                    return $registerFy->get($ref);
+                }
+            }
+
+            return null;
+        };
+
         $t = fn ($k) => trans('admin/purchase-orders/general.'.$k);
 
         $columns = [
@@ -669,6 +689,12 @@ class ProcurementReportsController extends Controller
         $tally = ['match' => 0, 'schedule_mismatch' => 0, 'missing_in_snipe' => 0, 'extra_in_snipe' => 0];
 
         foreach ((new CsiReconciliation)->assetDiff() as $row) {
+            if ($fy !== null) {
+                $scheduleFy = $rowFy($row);
+                if ($scheduleFy !== null && $scheduleFy !== $fy) {
+                    continue;
+                }
+            }
             $tally[$row['status']] = ($tally[$row['status']] ?? 0) + 1;
             $records[] = [
                 'class' => $row['status'] === 'match' ? '' : 'danger',
@@ -707,7 +733,7 @@ class ProcurementReportsController extends Controller
 
         return $this->render(
             $request,
-            'csi-arrivals-report',
+            'incoming-lease-assets-report',
             trans('admin/purchase-orders/general.report_csi_arrivals'),
             'reports.procurement.csi-arrivals',
             $this->csiArrivalsReport()
