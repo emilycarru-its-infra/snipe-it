@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Asset;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentType;
@@ -10,6 +11,7 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\RefreshForecast;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -308,15 +310,25 @@ class DeploymentsController extends Controller
 
         $deploymentWave->load([
             'type', 'owner', 'location', 'storageLocation', 'purchaseOrder',
-            'items.stage', 'items.asset', 'items.replacesAsset', 'items.model',
+            'items.stage', 'items.asset', 'items.replacesAsset', 'items.model.refreshCatalogItem',
             'items.assignedUser', 'items.assignedTech',
             'items.orderItem.order', 'items.orderItem.shipment',
         ]);
 
         $timeline = new DeploymentTimeline;
 
+        // Projected replacement spend: the comparable current model's live
+        // catalog price per item, falling back to the replaced device's
+        // purchase cost when the model has no refresh mapping.
+        $projected = $deploymentWave->items->map(function ($item) {
+            $catalog = $item->model?->refreshCatalogItem;
+
+            return $catalog?->effectiveCost() ?? (float) ($item->replacesAsset->purchase_cost ?? 0);
+        });
+
         return view('deployment-waves.show', [
             'wave' => $deploymentWave,
+            'projectedTotal' => (float) $projected->sum(),
             'stages' => DeploymentStage::active()->ordered()->get(),
             'arrivals' => $timeline->arrivals($deploymentWave),
             'timeline' => $timeline,
@@ -472,7 +484,7 @@ class DeploymentsController extends Controller
                 continue;
             }
 
-            $asset = \App\Models\Asset::find($assetId);
+            $asset = Asset::find($assetId);
             if (! $asset) {
                 continue;
             }
@@ -495,7 +507,7 @@ class DeploymentsController extends Controller
     /** Default FY label for a new wave (current ECU fiscal year). */
     private function defaultFiscalYear(): string
     {
-        $now = \Carbon\Carbon::now();
+        $now = Carbon::now();
         $startYear = $now->month >= 4 ? $now->year : $now->year - 1;
 
         return sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);

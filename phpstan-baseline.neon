@@ -3103,12 +3103,6 @@ parameters:
 			path: app/Http/Controllers/DeploymentItemsController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$items\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/DeploymentsController.php
-
-		-
 			message: '#^Relation ''asset'' is not found in App\\Models\\DeploymentItem model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -12113,12 +12107,6 @@ parameters:
 			identifier: nullCoalesce.offset
 			count: 1
 			path: app/Services/AnnexureParser.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DeploymentWave\:\:\$items\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Deployments/DeploymentTimeline.php
 
 		-
 			message: '#^Relation ''user'' is not found in App\\Models\\StaffBlackout model\.$#'

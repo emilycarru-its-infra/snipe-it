@@ -230,6 +230,16 @@
                 </a>
             </p>
 
+            @if ($comparable)
+                <p>
+                    {{ trans('admin/forms/faculty-program.comparable_intro', ['old' => $priorAsset?->model?->name]) }}
+                    <strong>{{ $comparable->name }}</strong>
+                    @if ($comparable->effectiveCost() > 0)
+                        {{ trans('admin/forms/faculty-program.comparable_price', ['price' => number_format($comparable->effectiveCost(), 2)]) }}
+                    @endif
+                </p>
+            @endif
+
             <p>{!! trans('admin/forms/faculty-program.top_up_help_html') !!}</p>
             <label class="ecu-opt {{ old('acknowledge_top_up', (bool) $existingPickup) ? 'ecu-selected' : '' }}">
                 <input type="checkbox" name="acknowledge_top_up" value="1" {{ old('acknowledge_top_up', (bool) $existingPickup) ? 'checked' : '' }} required>

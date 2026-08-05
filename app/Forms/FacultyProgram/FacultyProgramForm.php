@@ -41,10 +41,16 @@ class FacultyProgramForm extends FormDefinition
 
         $existingPickup = $this->existingPickup($user);
 
+        $priorAsset = $laptops->first();
+
         return view('forms.faculty-program.show', [
             'user' => $user,
             'laptops' => $laptops,
-            'priorAsset' => $laptops->first(),
+            'priorAsset' => $priorAsset,
+            // "Based on your last model, the new comparable is …" — the
+            // store catalog item mapped on the old laptop's model, priced
+            // live from the catalog.
+            'comparable' => $priorAsset?->model?->refreshCatalogItem,
             'buyoutCosts' => $laptops->mapWithKeys(fn (Asset $laptop) => [
                 $laptop->id => $this->buyoutCostFor($laptop),
             ]),

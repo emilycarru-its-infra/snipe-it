@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'refresh_catalog_item' => 'Comparable Replacement',
+    'refresh_catalog_item_none' => 'No mapping — projections fall back to original cost',
+    'refresh_catalog_item_help' => 'The store catalog item that replaces a device of this model at refresh. Refresh projections and the Faculty Laptop Program use its live catalog price.',
     'about_models_title' => 'About Asset Models',
     'about_models_text' => 'Asset Models are a way to group identical assets. "MBP 2013", "IPhone 6s", etc.',
     'deleted' => 'This model has been deleted.',

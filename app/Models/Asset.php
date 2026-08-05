@@ -1246,6 +1246,19 @@ class Asset extends Depreciable
     }
 
     /**
+     * Projected cost to replace this device with its comparable current
+     * model, priced live from the store catalog via the model's
+     * refresh mapping. Null when unmapped — callers fall back to
+     * purchase_cost (the old device's price) and should say so.
+     */
+    public function replacementCostEstimate(): ?float
+    {
+        $item = $this->model?->refreshCatalogItem;
+
+        return $item ? $item->effectiveCost() : null;
+    }
+
+    /**
      * Every laptop in a person's hands, most recently checked out first —
      * the intake form lists these when someone holds more than one so they
      * can say which machine is actually being returned.

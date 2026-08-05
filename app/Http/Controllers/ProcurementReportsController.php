@@ -9,10 +9,9 @@ use App\Models\BudgetAllocation;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\CustomField;
-use App\Models\Manufacturer;
-use App\Models\UserAgreement;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
+use App\Models\Manufacturer;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -20,15 +19,21 @@ use App\Models\PurchaseOrder;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\UserAgreement;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
 use App\Services\ProcurementPipeline;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use League\Csv\EscapeFormula;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -194,7 +199,7 @@ class ProcurementReportsController extends Controller
             ->map(fn ($group) => (float) $group->sum('total'));
 
         // Assets reaching end-of-life within the next year.
-        $eolAssets = Asset::whereNotNull('asset_eol_date')
+        $eolAssets = Asset::with('model.refreshCatalogItem')->whereNotNull('asset_eol_date')
             ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
             ->get();
 
@@ -270,7 +275,9 @@ class ProcurementReportsController extends Controller
                 ->count(),
             'invoiceCount' => $this->scopeInvoiceToFiscalYear(OrderInvoice::query(), $selectedFy)->count(),
             'eolCount' => $eolAssets->count(),
-            'eolEstimate' => (float) $eolAssets->sum('purchase_cost'),
+            'eolEstimate' => (float) $eolAssets->sum(
+                fn ($asset) => $asset->replacementCostEstimate() ?? (float) $asset->purchase_cost
+            ),
             'leaseExpiryTotal' => $leaseExpiryTotal,
             'leaseExpiryCount' => $leaseExpiryCount,
             'leaseEndSchedules' => $leaseEndSchedules,
@@ -533,7 +540,7 @@ class ProcurementReportsController extends Controller
             ->pluck('replaces_asset_id')
             ->all();
 
-        $assets = Asset::with('model')
+        $assets = Asset::with('model.refreshCatalogItem')
             ->whereIn('id', $validated['assets'])
             ->whereNotIn('id', $alreadyPlanned)
             ->get();
@@ -564,7 +571,9 @@ class ProcurementReportsController extends Controller
                     'model' => $asset->model?->name ?: trans('general.na'),
                 ]),
                 'quantity' => 1,
-                'unit_cost' => $asset->purchase_cost,
+                // Quote the replacement at today's catalog price, not the
+                // old device's cost — the plan is for the new machine.
+                'unit_cost' => $asset->replacementCostEstimate() ?? $asset->purchase_cost,
             ]);
         }
 
@@ -825,10 +834,10 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        $typeFilter  = $request->query('agreement_type');
+        $typeFilter = $request->query('agreement_type');
         $stageFilter = $request->query('stage');
-        $fy          = $this->resolveFiscalYear($request);
-        $report      = $this->userAgreementLedgerReport($typeFilter, $stageFilter, $fy);
+        $fy = $this->resolveFiscalYear($request);
+        $report = $this->userAgreementLedgerReport($typeFilter, $stageFilter, $fy);
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('user-agreement-ledger', $report);
@@ -841,32 +850,32 @@ class ProcurementReportsController extends Controller
         // FY scopes by the agreement's origination (created_at) — when the
         // top-up / buyout entered the program.
         $agreements = $this->scopeDateToFiscalYear(
-            \App\Models\UserAgreement::with('user', 'asset')
+            UserAgreement::with('user', 'asset')
                 ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
                     'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
                     'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed', 'cancelled',
                 ]))
                 ->orderBy('updated_at', 'desc')
-                ->when($typeFilter && in_array($typeFilter, \App\Models\UserAgreement::AGREEMENT_TYPES, true),
+                ->when($typeFilter && in_array($typeFilter, UserAgreement::AGREEMENT_TYPES, true),
                     fn ($q) => $q->where('agreement_type', $typeFilter))
-                ->when($stageFilter && in_array($stageFilter, \App\Models\UserAgreement::LIFECYCLE_STAGES, true),
+                ->when($stageFilter && in_array($stageFilter, UserAgreement::LIFECYCLE_STAGES, true),
                     fn ($q) => $q->where('lifecycle_stage', $stageFilter)),
             $fy,
             'created_at'
         )->get();
 
         return view('reports.procurement.user-agreement-ledger', [
-            'reportTitle'    => trans('admin/purchase-orders/general.report_user_agreement_ledger'),
-            'agreements'     => $agreements,
-            'typeFilter'     => $typeFilter,
-            'stageFilter'    => $stageFilter,
-            'selectedFy'     => $fy,
+            'reportTitle' => trans('admin/purchase-orders/general.report_user_agreement_ledger'),
+            'agreements' => $agreements,
+            'typeFilter' => $typeFilter,
+            'stageFilter' => $stageFilter,
+            'selectedFy' => $fy,
             'allFiscalYears' => $this->availableFiscalYears(),
-            'downloadUrl'    => route('reports.procurement.user-agreement-ledger', array_filter([
-                'format'         => 'csv',
+            'downloadUrl' => route('reports.procurement.user-agreement-ledger', array_filter([
+                'format' => 'csv',
                 'agreement_type' => $typeFilter,
-                'stage'          => $stageFilter,
-                'fiscal_year'    => $request->query('fiscal_year', $fy),
+                'stage' => $stageFilter,
+                'fiscal_year' => $request->query('fiscal_year', $fy),
             ], fn ($v) => $v !== null && $v !== '')),
         ]);
     }
@@ -1039,7 +1048,7 @@ class ProcurementReportsController extends Controller
         }
 
         $data = $this->dispositionGridData();
-        $canEdit = auth()->user()?->can('create', \App\Models\Order::class) ?? false;
+        $canEdit = auth()->user()?->can('create', Order::class) ?? false;
 
         $viewData = [
             'contracts' => $data['contracts'],
@@ -1069,7 +1078,7 @@ class ProcurementReportsController extends Controller
      */
     public function updateDispositionNote(Request $request)
     {
-        $this->authorize('create', \App\Models\Order::class);
+        $this->authorize('create', Order::class);
 
         $validated = $request->validate([
             'asset_id' => 'required|integer|exists:assets,id',
@@ -1105,7 +1114,7 @@ class ProcurementReportsController extends Controller
      */
     public function updateReportNote(Request $request)
     {
-        $this->authorize('create', \App\Models\Order::class);
+        $this->authorize('create', Order::class);
 
         $validated = $request->validate([
             'model' => 'required|string|in:lease_decision',
@@ -1602,6 +1611,7 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.forecast_purchase_date'),
             trans('admin/purchase-orders/general.forecast_eol_date'),
             trans('admin/purchase-orders/general.forecast_estimate'),
+            trans('admin/purchase-orders/general.forecast_estimate_basis'),
             trans('admin/purchase-orders/general.forecast_status'),
             trans('general.supplier'),
         ];
@@ -1612,7 +1622,7 @@ class ProcurementReportsController extends Controller
         // matching the ANDed predicates, so a subset of an active lease can
         // be slotted in for an early refresh well before its EOL date.
         $range = $this->fiscalYearRange($fy);
-        $assets = Asset::with('model', 'supplier', 'status')
+        $assets = Asset::with('model.refreshCatalogItem', 'supplier', 'status')
             ->when($criteria === [], fn ($query) => $query
                 ->whereNotNull('asset_eol_date')
                 ->when($range, fn ($q) => $q->whereBetween('asset_eol_date', $range))
@@ -1636,7 +1646,16 @@ class ProcurementReportsController extends Controller
         $totalEstimate = 0.0;
 
         foreach ($assets as $asset) {
-            $totalEstimate += (float) $asset->purchase_cost;
+            // Projection: the comparable current model's live catalog price
+            // when the model is mapped; the old device's purchase cost only
+            // as a labelled fallback.
+            $catalogItem = $asset->model?->refreshCatalogItem;
+            $projected = $asset->replacementCostEstimate() ?? (float) $asset->purchase_cost;
+            $basis = $catalogItem
+                ? trans('admin/purchase-orders/general.forecast_basis_catalog', ['name' => $catalogItem->name])
+                : trans('admin/purchase-orders/general.forecast_basis_original');
+
+            $totalEstimate += $projected;
             $planned = in_array($asset->id, $plannedAssetIds, true);
             $records[] = [
                 'class' => $planned ? 'success' : '',
@@ -1649,7 +1668,8 @@ class ProcurementReportsController extends Controller
                     (string) $asset->serial,
                     $this->dateString($asset->purchase_date),
                     $this->dateString($asset->asset_eol_date),
-                    $this->money($asset->purchase_cost),
+                    $this->money($projected),
+                    $basis,
                     (string) $asset->status?->name,
                     (string) $asset->supplier?->name,
                 ],
@@ -1659,7 +1679,7 @@ class ProcurementReportsController extends Controller
         $footer = [
             trans('admin/orders/general.total'), '', '', '', '', '',
             $this->money($totalEstimate),
-            '', '',
+            '', '', '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
@@ -1858,6 +1878,7 @@ class ProcurementReportsController extends Controller
         }
 
         ksort($byFy);
+
         return $byFy;
     }
 
@@ -2923,6 +2944,7 @@ class ProcurementReportsController extends Controller
         foreach ($this->groupedLeaseAssets($fy) as $group) {
             if (! empty($group['ownership_counts']['Lease to Own'])) {
                 $leaseToOwnContracts[$group['contract_id']] = true;
+
                 continue;
             }
             if ($group['buyout_cost_total'] <= 0) {
@@ -3370,26 +3392,26 @@ class ProcurementReportsController extends Controller
      * the on-screen tab; the contract id is the sheet name, so it is dropped
      * from the columns.
      */
-    private function dispositionGridXlsx(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    private function dispositionGridXlsx(): BinaryFileResponse
     {
         $contracts = $this->dispositionGridData()['contracts'];
         $header = $this->dispositionGridColumns(false);
 
         $tmp = tempnam(sys_get_temp_dir(), 'lease-disposition-');
-        $writer = new \OpenSpout\Writer\XLSX\Writer;
+        $writer = new Writer;
         $writer->openToFile($tmp);
 
         if (empty($contracts)) {
             $writer->getCurrentSheet()->setName('Lease Disposition');
-            $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues($header));
+            $writer->addRow(Row::fromValues($header));
         } else {
             $usedNames = [];
             foreach (array_values($contracts) as $i => $contract) {
                 $sheet = $i === 0 ? $writer->getCurrentSheet() : $writer->addNewSheetAndMakeItCurrent();
                 $sheet->setName($this->uniqueSheetName($contract['contract_id'], $usedNames));
-                $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues($header));
+                $writer->addRow(Row::fromValues($header));
                 foreach ($contract['assets'] as $row) {
-                    $writer->addRow(\OpenSpout\Common\Entity\Row::fromValues(
+                    $writer->addRow(Row::fromValues(
                         $this->dispositionGridRow($contract['contract_id'], $row, false)
                     ));
                 }
@@ -3834,7 +3856,7 @@ class ProcurementReportsController extends Controller
             return $this->embedTable($report);
         }
 
-        $canEditNotes = auth()->user()?->can('create', \App\Models\Order::class) ?? false;
+        $canEditNotes = auth()->user()?->can('create', Order::class) ?? false;
 
         // When the report honours the fiscal-year scope, keep it on the
         // download link and feed the inline FY selector so the dashboard's
@@ -3869,9 +3891,9 @@ class ProcurementReportsController extends Controller
     {
         return view('reports/procurement/_report-table', [
             'columns' => $report['columns'],
-            'rows'    => $report['records'],
-            'footer'  => $report['footer'] ?? null,
-            'canEditNotes' => auth()->user()?->can('create', \App\Models\Order::class) ?? false,
+            'rows' => $report['records'],
+            'footer' => $report['footer'] ?? null,
+            'canEditNotes' => auth()->user()?->can('create', Order::class) ?? false,
         ]);
     }
 
@@ -3938,7 +3960,7 @@ class ProcurementReportsController extends Controller
      * sorted. Drawn from real purchase orders and planned (forecast)
      * orders — the same pool the dashboard FY selector offers.
      */
-    private function availableFiscalYears(): \Illuminate\Support\Collection
+    private function availableFiscalYears(): Collection
     {
         // Orders (not just POs / planned forecasts) carry their own FY, and a
         // blanket PO's orders can sit in a later year than the PO itself —
@@ -3962,7 +3984,7 @@ class ProcurementReportsController extends Controller
      * End Date values on assets — so a planning year is selectable before
      * any spend is booked into it.
      */
-    private function leaseEndFiscalYears(): \Illuminate\Support\Collection
+    private function leaseEndFiscalYears(): Collection
     {
         $endDateColumn = $this->leaseFieldColumns()['lease_end_date'];
         if (! $endDateColumn) {
@@ -4030,7 +4052,7 @@ class ProcurementReportsController extends Controller
      * scope before the reader picks one. Falls back to the latest available
      * FY, then null (all-years) when there's no procurement data at all.
      */
-    private function defaultFiscalYear(\Illuminate\Support\Collection $available): ?string
+    private function defaultFiscalYear(Collection $available): ?string
     {
         foreach ($available->sortDesc()->values() as $fy) {
             // Asset-sourced committed (equipment + warranty) is the same figure
@@ -4114,8 +4136,8 @@ class ProcurementReportsController extends Controller
         }
 
         return [
-            \Carbon\Carbon::create($startYear, 4, 1)->startOfDay(),
-            \Carbon\Carbon::create($startYear + 1, 3, 31)->endOfDay(),
+            Carbon::create($startYear, 4, 1)->startOfDay(),
+            Carbon::create($startYear + 1, 3, 31)->endOfDay(),
         ];
     }
 
