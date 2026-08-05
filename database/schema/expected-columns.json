@@ -776,6 +776,7 @@
     ],
     "lease_schedules": [
         "annexure_a_path",
+        "contract_id",
         "created_at",
         "created_by",
         "deleted_at",
@@ -951,6 +952,7 @@
         "model_number",
         "name",
         "notes",
+        "refresh_catalog_item_id",
         "requestable",
         "require_serial",
         "updated_at"
@@ -1413,6 +1415,7 @@
         "decided_by",
         "decision_notes",
         "funding_account",
+        "gl_code",
         "id",
         "lease_schedule",
         "location_id",
@@ -1423,6 +1426,7 @@
         "quote_number",
         "quote_received_at",
         "quote_total",
+        "refresh_asset_id",
         "requisition_id",
         "shipped_at",
         "status",
