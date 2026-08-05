@@ -3435,13 +3435,31 @@
 
             function collapseInfoSidePanel() {
                 $('.side-box').removeClass('expanded').hide();
-                $('.main-panel').removeClass('col-md-9').addClass('col-md-12');
+                // Pages that render the sidebar after the main panel use
+                // push/pull to swap the visual order; a collapsed panel must
+                // shed the push or it sits 25% off-centre with its right
+                // edge past the viewport.
+                $('.main-panel').each(function () {
+                    var $panel = $(this);
+                    if ($panel.data('was-pushed') === undefined) {
+                        $panel.data('was-pushed', $panel.hasClass('col-md-push-3'));
+                    }
+                    $panel.removeClass('col-md-9 col-md-push-3').addClass('col-md-12');
+                });
+                $('.main-panel').siblings('.col-md-pull-9').addClass('hidden');
                 $("#expand-info-panel-button").addClass('fa-square-caret-left').removeClass('fa-square-caret-right');
             }
 
             function expandInfoSidePanel() {
                 $('.side-box').fadeIn("fast").addClass('expanded');
-                $('.main-panel').removeClass('col-md-12').addClass('col-md-9');
+                $('.main-panel').each(function () {
+                    var $panel = $(this);
+                    $panel.removeClass('col-md-12').addClass('col-md-9');
+                    if ($panel.data('was-pushed')) {
+                        $panel.addClass('col-md-push-3');
+                    }
+                });
+                $('.main-panel').siblings('.col-md-pull-9').removeClass('hidden');
                 $("#expand-info-panel-button").addClass('fa-square-caret-right').removeClass('fa-square-caret-left');
             }
 

@@ -36,8 +36,11 @@
 .fp-tradein-machine { flex: 0 1 250px; text-align: center; }
 .fp-tradein-machine img { max-height: 110px; max-width: 100%; object-fit: contain; margin: 8px auto; display: block; }
 .fp-tradein-choice { flex: 1 1 320px; }
-.fp-machines { flex: 0 1 290px; }
-.fp-machine img { max-height: 44px; max-width: 64px; object-fit: contain; }
+.fp-machines { flex: 1 1 340px; max-width: 520px; }
+/* The machine-picker cards carry full-size product renders; keep the
+   image — it is how people recognise their machine — but bounded, like
+   the single-laptop hero shot, not at the render's natural size. */
+.fp-machines .ecu-opt img { max-height: 96px; max-width: 150px; object-fit: contain; flex: 0 0 auto; margin-left: auto; }
 .fp-machine-facts { font-size: 12px; opacity: .7; }
 
 .fp-facts { font-size: 13px; margin: 8px auto 0; display: inline-block; text-align: left; }
