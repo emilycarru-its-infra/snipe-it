@@ -152,6 +152,8 @@
     .st-cart-subtotal { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700;
                         padding: 12px 0 4px; border-top: 1px solid light-dark(#e8e8ed, #3f3f42); }
     .st-cart-disclaimer { font-size: 11.5px; color: light-dark(#86868b, #a1a1a6); margin: 4px 0 0; }
+    .st-refresh-context { font-size: 12.5px; color: light-dark(#6e6e73, #a1a1a6); margin: -4px 0 12px;
+        padding: 8px 10px; border-radius: 10px; background: light-dark(#f5f5f7, #3a3a3c); }
     .st-cart-empty { font-size: 13px; }
     .st-cart-box .btn-primary { background: var(--st-accent); border: none; border-radius: 12px;
                                 padding: 12px; font-size: 16px; font-weight: 600; }

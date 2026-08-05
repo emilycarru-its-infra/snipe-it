@@ -82,6 +82,7 @@ class StoreController extends Controller
             'payload' => $payload,
             'strings' => $this->storefrontStrings(),
             'locations' => $locations,
+            'refreshAsset' => $this->refreshAssetFor($request->query('refresh')),
             'openOrderCount' => StoreOrder::where('user_id', auth()->id())
                 ->whereIn('status', ['pending', 'approved'])
                 ->count(),
@@ -132,6 +133,27 @@ class StoreController extends Controller
     }
 
     /**
+     * The machine an early-refresh visit is about. Trusted only when the
+     * asset is checked out to the visitor themselves and carries the Staff
+     * catalog tag — anything else (a guessed id, a Faculty machine, a
+     * colleague's laptop) resolves to no context rather than an error.
+     */
+    private function refreshAssetFor(mixed $assetId): ?Asset
+    {
+        if (! is_numeric($assetId)) {
+            return null;
+        }
+
+        $asset = Asset::with('model')->find((int) $assetId);
+
+        $mine = $asset
+            && (int) $asset->assigned_to === (int) auth()->id()
+            && $asset->assigned_type === \App\Models\User::class;
+
+        return ($mine && $asset->isStaffCatalog()) ? $asset : null;
+    }
+
+    /**
      * Place an order: the cart posted as line items. Quantities and prices
      * are re-read from the catalog server-side — the client only names the
      * items and quantities, it never sets a price.
@@ -147,6 +169,8 @@ class StoreController extends Controller
             'items.*.catalog_item_id' => 'required|integer|exists:catalog_items,id',
             'items.*.quantity' => 'required|integer|min:1|max:100',
             'notes' => 'nullable|string|max:65535',
+            'refresh_asset_id' => 'nullable|integer',
+            'gl_code' => 'nullable|string|max:64',
             'order_usage' => 'nullable|string|in:assigned,shared',
             // Required only for a cart that will actually be shared. Posting
             // order_usage=shared without the standing to place one is not an
@@ -173,13 +197,22 @@ class StoreController extends Controller
             ->where('permission_groups.name', 'like', '%faculty%')
             ->exists();
 
-        $order = DB::transaction(function () use ($validated, $isFaculty, $shared) {
+        // An early-refresh order remembers which machine it replaces. The
+        // posted id goes through the same guard as the page load — never a
+        // shared cart, only their own Staff-catalog machine — and the GL
+        // code only means anything in that context.
+        $refreshAsset = $shared ? null : $this->refreshAssetFor($validated['refresh_asset_id'] ?? null);
+        $glCode = $refreshAsset ? trim((string) ($validated['gl_code'] ?? '')) : '';
+
+        $order = DB::transaction(function () use ($validated, $isFaculty, $shared, $refreshAsset, $glCode) {
             $order = StoreOrder::create([
                 'user_id' => auth()->id(),
                 'status' => 'pending',
                 'program' => $isFaculty ? 'faculty' : null,
                 'order_usage' => $shared ? 'shared' : 'assigned',
                 'location_id' => $shared ? ($validated['location_id'] ?? null) : null,
+                'refresh_asset_id' => $refreshAsset?->id,
+                'gl_code' => $glCode !== '' ? $glCode : null,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -254,7 +287,7 @@ class StoreController extends Controller
             return $redirect;
         }
 
-        $orders = StoreOrder::with('items.catalogItem', 'requisition.purchaseOrder')
+        $orders = StoreOrder::with('items.catalogItem', 'requisition.purchaseOrder', 'refreshAsset')
             ->where('user_id', auth()->id())
             ->orderByDesc('created_at')
             ->paginate(25);
@@ -268,12 +301,18 @@ class StoreController extends Controller
 
         // The machine being replaced, and what the intake form said should
         // happen to it. An open purchase-type agreement means they chose the
-        // buyout; otherwise it goes back at handover.
+        // buyout; otherwise it goes back at handover. An early-refresh order
+        // already names its machine, and the pane's story changes with it —
+        // the lease has not ended, the machine is being swapped early.
         $outgoing = null;
         $buyout = false;
+        $earlyRefresh = false;
 
-        if ($orders->getCollection()->contains(fn (StoreOrder $order) => $order->isOpen() || $order->status === 'ordered')) {
-            $outgoing = $provisioner->outgoingMachine(new StoreOrder(['user_id' => auth()->id()]));
+        $openOrder = $orders->getCollection()->first(fn (StoreOrder $order) => $order->isOpen() || $order->status === 'ordered');
+        if ($openOrder) {
+            $earlyRefresh = (bool) $openOrder->refreshAsset;
+            $outgoing = $openOrder->refreshAsset
+                ?? $provisioner->outgoingMachine(new StoreOrder(['user_id' => auth()->id()]));
             $buyout = UserAgreement::where('user_id', auth()->id())
                 ->where('agreement_type', 'purchase')
                 ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
@@ -285,6 +324,7 @@ class StoreController extends Controller
             'assetsByReference' => $assetsByReference,
             'outgoing' => $outgoing,
             'buyout' => $buyout,
+            'earlyRefresh' => $earlyRefresh,
         ]);
     }
 

@@ -43,9 +43,6 @@
 .eud-wrap .ecu-table img { max-height: 40px; max-width: 56px; object-fit: contain; }
 .eud-lease-date { font-weight: 700; white-space: nowrap; }
 .eud-lease-sub { font-size: 11px; opacity: .6; white-space: nowrap; }
-.eud-refresh summary { list-style: none; cursor: pointer; display: inline-block; }
-.eud-refresh summary::-webkit-details-marker { display: none; }
-.eud-refresh-form { margin-top: 6px; min-width: 200px; }
 .eud-profile td { padding: 5px 10px 5px 0; font-size: 13.5px; }
 .eud-profile td:first-child { opacity: .6; white-space: nowrap; }
 </style>
@@ -179,15 +176,11 @@
                                         @if ($requestedAt = $refreshRequestedAt->get($asset->id))
                                             <div class="eud-lease-sub">{{ trans('admin/store/general.dash_refresh_requested', ['date' => $requestedAt->format('M j')]) }}</div>
                                         @else
-                                            <details class="eud-refresh">
-                                                <summary class="btn btn-xs btn-default">{{ trans('admin/store/general.dash_refresh_button') }}</summary>
-                                                <form method="POST" action="{{ route('my.request-early-refresh', $asset->id) }}" class="eud-refresh-form">
-                                                    {{ csrf_field() }}
-                                                    <textarea name="note" rows="2" class="form-control input-sm" maxlength="1000"
-                                                              placeholder="{{ trans('admin/store/general.dash_refresh_note_placeholder') }}"></textarea>
-                                                    <button type="submit" class="btn btn-xs btn-primary" style="margin-top:4px;">{{ trans('admin/store/general.dash_refresh_send') }}</button>
-                                                </form>
-                                            </details>
+                                            {{-- Straight into the store carrying which machine this
+                                                 is about — the order it produces is the request. --}}
+                                            <a href="{{ route('store.index', ['refresh' => $asset->id]) }}" class="btn btn-xs btn-default">
+                                                {{ trans('admin/store/general.dash_refresh_button') }}
+                                            </a>
                                         @endif
                                     @else
                                         <span style="opacity:.35;">—</span>

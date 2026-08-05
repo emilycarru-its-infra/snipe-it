@@ -72,6 +72,9 @@
         @if ($order->isShared())
             <span class="label label-default">{{ trans('admin/store/general.usage_shared_chip') }}@if ($order->location) · {{ $order->location->name }}@endif</span>
         @endif
+        @if ($order->refreshAsset)
+            <span class="label label-default">{{ trans('admin/store/general.queue_early_refresh', ['tag' => $order->refreshAsset->asset_tag]) }}</span>
+        @endif
         @if ($order->status === 'pending')
             <form method="POST" action="{{ route('store.orders.cancel', $order->id) }}" style="display:inline; margin-left:auto;">
                 {{ csrf_field() }}
@@ -103,7 +106,9 @@
                                     <td class="ecu-tag">{{ $outgoing->serial }}</td></tr>
                             @endif
                         </table>
-                        <p class="sto-sub" style="margin-top:12px;">{{ trans('admin/store/general.status_current_le') }}</p>
+                        <p class="sto-sub" style="margin-top:12px;">{{ $earlyRefresh
+                            ? trans('admin/store/general.status_current_refresh')
+                            : trans('admin/store/general.status_current_le') }}</p>
                         <p class="sto-sub" style="margin-top:6px;">
                             <strong>{{ $buyout
                                 ? trans('admin/store/general.status_current_buyout')

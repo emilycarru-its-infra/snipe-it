@@ -288,15 +288,6 @@ class EmailRegistry
                 'configurable_cc' => true,
                 'factory' => fn (EmailSampleData $s) => new AssetBuyoutRequestMail($s->asset(), $s->admin()),
             ],
-            [
-                'key' => 'request.early_refresh',
-                'category' => 'requests',
-                'label' => 'Early refresh request',
-                'description' => 'Sent to the device team when a staff member clicks "Request early refresh" on their own dashboard because something is up with their machine. Recipients set here replace the config default (devicesadmins); the requester is always CC\'d.',
-                'merge_vars' => ['asset' => 'The machine (asset.asset_tag, asset.serial)', 'requester' => 'Who asked (requester.display_name)', 'note' => 'What they said is wrong'],
-                'configurable_recipients' => true,
-                'factory' => fn (EmailSampleData $s) => new AssetEarlyRefreshRequestMail($s->asset(), $s->admin(), 'Battery drains within the hour.'),
-            ],
 
             // ---- Account & user (notification-channel; preview-only) ----
             // ---- Store & procurement ----
