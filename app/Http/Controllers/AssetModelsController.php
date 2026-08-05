@@ -154,9 +154,12 @@ class AssetModelsController extends Controller
     {
         $this->authorize('update', AssetModel::class);
 
+        // Set before handleImages(): its return type is the SnipeModel base,
+        // and static analysis only knows this column on AssetModel.
+        $model->refresh_catalog_item_id = $request->input('refresh_catalog_item_id') ?: null;
+
         $model = $request->handleImages($model);
         $model->depreciation_id = $request->input('depreciation_id');
-        $model->refresh_catalog_item_id = $request->input('refresh_catalog_item_id') ?: null;
         $model->eol = $request->input('eol');
         $model->name = $request->input('name');
         $model->model_number = $request->input('model_number');
