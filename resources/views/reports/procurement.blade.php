@@ -341,7 +341,14 @@
        tables get the width back. The content column flexes to fill the rest. */
     .proc-reports-row .proc-nav-col { flex: 0 0 14%; max-width: 14%; padding-left: 15px; padding-right: 15px; }
     .proc-reports-row .proc-content-col { flex: 1 1 0%; max-width: 86%; padding-left: 15px; padding-right: 15px; }
-    .proc-report-nav { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+    {{-- Pin below the sticky header (round 9) — top: 16px slid the box's
+         head underneath it, clipping the first entries and over-scrolling. --}}
+    .proc-report-nav {
+        position: sticky;
+        top: calc(var(--header-h, 68px) + 12px);
+        max-height: calc(100vh - var(--header-h, 68px) - 24px);
+        overflow-y: auto;
+    }
     .proc-report-navlist > li > a { padding: 6px 10px; font-size: 12.5px; border-radius: 0; }
     .proc-report-navlist > li.active > a,
     .proc-report-navlist > li.active > a:hover { background-color: #3c8dbc; color: #fff; }
