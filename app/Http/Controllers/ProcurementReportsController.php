@@ -1826,15 +1826,26 @@ class ProcurementReportsController extends Controller
      * say, May 2026 lands in FY2026-27. An April-March end date belongs to
      * FY{Y-1}-{Y}; April onward to FY{Y}-{Y+1}.
      */
-    private function fiscalYearFromEndDate(?string $endDateStr): ?string
+    private function fiscalYearFromEndDate($endDateStr): ?string
     {
         if (empty($endDateStr)) {
             return null;
         }
 
+        // Native lease_end_date is a Carbon date since the F2 migration;
+        // its string form carries a time (Y-m-d H:i:s) that fails every
+        // format below, which silently zeroed the lease-end pre-approval.
+        if ($endDateStr instanceof \DateTimeInterface) {
+            $month = (int) $endDateStr->format('m');
+            $year = (int) $endDateStr->format('Y');
+            $start = $month >= 4 ? $year : $year - 1;
+
+            return sprintf('FY%d-%02d', $start, ($start + 1) % 100);
+        }
+
         $endDate = null;
         foreach (['Y-m-d', 'm/d/Y', 'Y/m/d', 'd/m/Y'] as $format) {
-            $endDate = \DateTime::createFromFormat($format, $endDateStr);
+            $endDate = \DateTime::createFromFormat($format, trim((string) $endDateStr));
             if ($endDate !== false) {
                 break;
             }
@@ -1911,8 +1922,10 @@ class ProcurementReportsController extends Controller
         }
 
         $assets = Asset::with('model', 'status', 'lessor')
+            // lease_end_date is a native DATE since the F2 migration —
+            // an empty-string guard compares a date to '' and matches
+            // nothing, which silently emptied every lease-end view.
             ->whereNotNull($endDateColumn)
-            ->where($endDateColumn, '!=', '')
             ->whereNotNull($contractIdColumn)
             ->where($contractIdColumn, '!=', '')
             ->get();
@@ -3992,7 +4005,6 @@ class ProcurementReportsController extends Controller
         }
 
         return Asset::whereNotNull($endDateColumn)
-            ->where($endDateColumn, '!=', '')
             ->distinct()
             ->pluck($endDateColumn)
             ->map(fn ($date) => $this->fiscalYearFromEndDate($date))

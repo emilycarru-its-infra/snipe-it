@@ -2952,7 +2952,7 @@
                                             <li class="breadcrumb-item">
                                                 <a href="{{ $crumbs->url() }}">
                                                     @if ($loop->first)
-                                                        <x-icon type="home" />
+                                                        <x-icon type="dashboard" />
                                                     @else
                                                         {{ $crumbs->title() }}
                                                     @endif
