@@ -307,7 +307,8 @@ return [
     // Pipeline view — the chevron rail and device board on the dashboard.
     'pipeline_title' => ':fy pipeline',
     'pipeline_title_all' => 'Pipeline — all fiscal years',
-    'pipeline_board_title' => 'Device pipeline',
+    'pipeline_board_title' => 'Orders Pipeline',
+    'pipeline_board_filter' => 'Filter cards…',
     'pipeline_board_hint' => 'Each card sits in exactly one stage — click a card for line items and links',
     'stage_budgeting' => 'Budgeting',
     'stage_ordering' => 'Ordering',

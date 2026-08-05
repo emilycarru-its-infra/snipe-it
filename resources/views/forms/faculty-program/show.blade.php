@@ -233,15 +233,32 @@
                 </a>
             </p>
 
-            @if ($comparable)
-                <p>
-                    {{ trans('admin/forms/faculty-program.comparable_intro', ['old' => $priorAsset?->model?->name]) }}
-                    <strong>{{ $comparable->name }}</strong>
-                    @if ($comparable->effectiveCost() > 0)
-                        {{ trans('admin/forms/faculty-program.comparable_price', ['price' => number_format($comparable->effectiveCost(), 2)]) }}
-                    @endif
-                </p>
-            @endif
+            <p id="fp-comparable" @if (! $comparable) style="display:none;" @endif>
+                <span id="fp-comparable-intro">{{ $comparable ? trans('admin/forms/faculty-program.comparable_intro', ['old' => $priorAsset?->model?->name]) : '' }}</span>
+                <strong id="fp-comparable-name">{{ $comparable?->name }}</strong>
+                <span id="fp-comparable-price">{{ $comparable && $comparable->effectiveCost() > 0 ? trans('admin/forms/faculty-program.comparable_price', ['price' => number_format($comparable->effectiveCost(), 2)]) : '' }}</span>
+            </p>
+            <script nonce="{{ csrf_token() }}">
+                // The suggestion follows the machine picked in section 1.
+                (function () {
+                    var map = @json($comparables);
+                    var intro = @json(trans('admin/forms/faculty-program.comparable_intro', ['old' => '__OLD__']));
+                    var priceTpl = @json(trans('admin/forms/faculty-program.comparable_price', ['price' => '__PRICE__']));
+                    document.querySelectorAll('input[name="returning_asset_id"]').forEach(function (radio) {
+                        radio.addEventListener('change', function () {
+                            var c = map[radio.value];
+                            var wrap = document.getElementById('fp-comparable');
+                            if (! c) { wrap.style.display = 'none'; return; }
+                            wrap.style.display = '';
+                            document.getElementById('fp-comparable-intro').textContent = intro.replace('__OLD__', c.old || '');
+                            document.getElementById('fp-comparable-name').textContent = c.name;
+                            document.getElementById('fp-comparable-price').textContent = c.cost > 0
+                                ? priceTpl.replace('__PRICE__', Number(c.cost).toLocaleString('en-CA', {minimumFractionDigits: 2}))
+                                : '';
+                        });
+                    });
+                })();
+            </script>
 
             <p>{!! trans('admin/forms/faculty-program.top_up_help_html') !!}</p>
             <label class="ecu-opt {{ old('acknowledge_top_up', (bool) $existingPickup) ? 'ecu-selected' : '' }}">

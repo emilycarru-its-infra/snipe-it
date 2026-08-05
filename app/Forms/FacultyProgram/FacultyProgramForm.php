@@ -47,6 +47,18 @@ class FacultyProgramForm extends FormDefinition
             'user' => $user,
             'laptops' => $laptops,
             'priorAsset' => $priorAsset,
+            // Per-laptop comparables so the suggestion follows whichever
+            // machine they say this renewal is about.
+            'comparables' => $laptops->mapWithKeys(function (Asset $laptop) {
+                $model = $laptop->model;
+                $item = $model?->refreshCatalogItem;
+
+                return [$laptop->id => $item ? [
+                    'old' => $model->name,
+                    'name' => $item->name,
+                    'cost' => $item->effectiveCost(),
+                ] : null];
+            }),
             // "Based on your last model, the new comparable is …" — the
             // store catalog item mapped on the old laptop's model, priced
             // live from the catalog.
