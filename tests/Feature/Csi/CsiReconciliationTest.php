@@ -43,6 +43,18 @@ class CsiReconciliationTest extends TestCase
         $response->assertOk()->assertSee('NEWYEAR1')->assertDontSee('OLDYEAR1');
     }
 
+    public function test_unserialized_feed_lines_are_informational_not_missing()
+    {
+        CsiAsset::create(['serial' => 'N/A', 'lease_number' => '301452', 'schedule_name' => '301452-008', 'model' => 'Z2 G1A MINI RAIL RACK KIT']);
+
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.csi-reconciliation'));
+
+        $response->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.csi_recon_unserialized'))
+            ->assertSee('0 '.trans('admin/purchase-orders/general.csi_recon_missing_in_snipe'));
+    }
+
     public function test_arrivals_report_renders()
     {
         CsiInprocessAsset::create(['serial' => 'ARRX', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'MacBook']);

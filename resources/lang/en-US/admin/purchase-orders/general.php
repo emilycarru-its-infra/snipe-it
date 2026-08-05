@@ -121,6 +121,7 @@ return [
     'csi_recon_match' => 'Match',
     'csi_recon_schedule_mismatch' => 'Schedule mismatch',
     'csi_recon_missing_in_snipe' => 'Missing in Inventory',
+    'csi_recon_unserialized' => 'Unserialized line (no serial to match)',
     'csi_recon_missing' => 'Missing',
     'csi_recon_extra_in_snipe' => 'Not on lease feed',
     'csi_recon_in_process' => 'In process (arriving)',
