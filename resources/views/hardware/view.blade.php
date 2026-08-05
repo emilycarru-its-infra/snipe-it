@@ -125,7 +125,7 @@
                              category, model, model no.) on top, then the values we read
                              first and touch most — name / tag / serial (inline-editable). -->
                         <x-page-column class="col-md-12">
-                            <div class="box box-solid" style="margin-bottom: 12px;">
+                            <div class="box box-solid asset-card asset-identity-box" style="margin-bottom: 12px;">
                                 <div class="box-body">
                                     @php $modelOptions = \App\Models\AssetModel::orderBy('name')->pluck('name', 'id'); @endphp
                                     {{-- Name (primary), tag and serial sit together in one
@@ -869,14 +869,17 @@
             /* Top catalog strip — secondary to name/tag/serial: smaller values. */
             .asset-identity-top { gap: 4px 32px; }
             .asset-identity-top .asset-identity-subvalue { font-size: 14px; font-weight: 600; line-height: 1.4; }
-            .asset-identity-divider { margin: 10px 0; border-top: 1px solid #ececec; }
+            .asset-identity-divider { margin: 10px 0; border-top: 1px solid light-dark(#ececec, rgba(255, 255, 255, .1)); }
 
             /* Two-column detail layout: 40% left (Inventory/Specs/Networking),
                60% right (Procurement/Identifiers, then Costs|Activity). Cards
                stack within each column; the wider right column gives the long
                procurement/identifier values room so labels never overlap. */
             /* The grid tracks the identity strip's width — cards stay a
-               readable column, not a full-bleed sprawl. */
+               readable column, not a full-bleed sprawl. The identity box caps
+               to the same width so its right edge lines up with the
+               Procurement card below it. */
+            .asset-identity-box { max-width: 1000px; }
             .asset-detail-2col { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; width: 100%; max-width: 1000px; }
             .asset-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
             .asset-col-left  { flex: 1 1 44%; }
@@ -918,16 +921,30 @@
             .asset-card-body::before,
             .asset-card-body::after { content: none; display: none; }
             .asset-card-row { display: contents; }
-            .asset-card-lbl { font-weight: 600; padding: 6px 14px 6px 0; border-bottom: 1px solid #f1f1f1; white-space: nowrap; font-size: 13px; }
+            .asset-card-lbl { font-weight: 600; padding: 6px 14px 6px 0; border-bottom: 1px solid light-dark(#f1f1f1, rgba(255, 255, 255, .08)); white-space: nowrap; font-size: 13px; }
             /* One row per fact, always: long values ellipsize rather than
                wrap; the full value is still there for copy/inline edit. */
-            .asset-card-val { min-width: 0; padding: 6px 0; border-bottom: 1px solid #f1f1f1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+            .asset-card-val { min-width: 0; padding: 6px 0; border-bottom: 1px solid light-dark(#f1f1f1, rgba(255, 255, 255, .08)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
             .asset-card-row:last-child .asset-card-lbl,
             .asset-card-row:last-child .asset-card-val { border-bottom: none; }
 
             /* Sidebar rows (status / checkout / audit / metadata) — consistent
-               breathing room and light dividers. */
-            .asset-side-box .list-group-item { padding: 10px 14px; border-color: #f1f1f1 !important; }
+               breathing room and explicit dividers (list-group-unbordered
+               strips them, which left the list reading as an unruled blob). */
+            .asset-side-box .list-group-item {
+                padding: 10px 14px;
+                border-top: 0 !important;
+                border-bottom: 1px solid light-dark(#f1f1f1, rgba(255, 255, 255, .08)) !important;
+            }
+            .asset-side-box .list-group-item:last-child { border-bottom: 0 !important; }
+            .asset-side-box .list-group { margin-bottom: 0; }
+
+            /* Narrow sidebar: the action buttons wrap instead of running off
+               the box edge, and nothing inside forces horizontal overflow. */
+            .asset-side-box .box-header .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+            .asset-side-box .box-header .row form { margin: 0; }
+            .asset-side-box { min-width: 0; }
+            .asset-side-box .box-body { overflow-wrap: break-word; }
 
             /* Phone: the tab strip's absolute-stack collapse trick paints
                every icon on top of the active tab (transparent tab

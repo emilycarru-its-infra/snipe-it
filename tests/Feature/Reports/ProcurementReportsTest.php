@@ -1078,4 +1078,91 @@ class ProcurementReportsTest extends TestCase
 
         $this->assertEquals([], $user->fresh()->hidden_procurement_reports);
     }
+
+    public function test_disposition_grid_deep_links_a_contract_and_scopes_downloads()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20200101',
+            'Lease End Date' => '2026-01-31',
+        ], ['serial' => 'FIRSTLEASE1']);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20300101',
+            'Lease End Date' => '2027-01-31',
+        ], ['serial' => 'SECONDLEASE1']);
+
+        // ?contract= preselects that lease's pane (the first contract would
+        // otherwise win) and stamps the scoped download links.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['contract' => 'ECI20300101']))
+            ->assertOk()
+            ->assertSee('data-contract="ECI20300101" selected', false)
+            ->assertSee('contract=ECI20300101', false);
+
+        // The scoped CSV carries only the selected contract's serials.
+        $csv = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['format' => 'csv', 'contract' => 'ECI20300101']));
+        $csv->assertOk();
+        $this->assertStringContainsString('SECONDLEASE1', $csv->streamedContent());
+        $this->assertStringNotContainsString('FIRSTLEASE1', $csv->streamedContent());
+
+        // An unscoped export still flattens every contract.
+        $all = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['format' => 'csv']));
+        $this->assertStringContainsString('FIRSTLEASE1', $all->streamedContent());
+        $this->assertStringContainsString('SECONDLEASE1', $all->streamedContent());
+    }
+
+    public function test_disposition_grid_update_endpoint_bulk_edits_lifecycle_fields()
+    {
+        $first = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221201'], ['serial' => 'BULKEDIT1']);
+        $second = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221201'], ['serial' => 'BULKEDIT2']);
+        $untouched = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221201'], ['serial' => 'BULKEDIT3']);
+        $archived = Statuslabel::factory()->archived()->create();
+
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.disposition-grid.update'), [
+                'asset_ids' => [$first->id, $second->id],
+                'status_id' => $archived->id,
+                'decommission_date' => '2026-08-01',
+                'buyout_cost' => '150.25',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'success', 'updated' => 2]);
+
+        foreach ([$first, $second] as $asset) {
+            $fresh = $asset->fresh();
+            $this->assertEquals($archived->id, $fresh->status_id);
+            $this->assertEquals('2026-08-01', (string) $fresh->decommission_date);
+            $this->assertEquals(150.25, (float) $fresh->buyout_cost);
+        }
+
+        // A device outside the selection is untouched…
+        $this->assertNotEquals($archived->id, $untouched->fresh()->status_id);
+
+        // …an omitted field stays put, and an emptied field clears.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.disposition-grid.update'), [
+                'asset_ids' => [$first->id],
+                'decommission_date' => '',
+                'buyout_cost' => '',
+            ])
+            ->assertOk();
+
+        $fresh = $first->fresh();
+        $this->assertEquals($archived->id, $fresh->status_id);
+        $this->assertEmpty($fresh->decommission_date);
+        $this->assertEmpty($fresh->buyout_cost);
+    }
+
+    public function test_disposition_grid_update_endpoint_requires_asset_update_permission()
+    {
+        $asset = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221201'], ['serial' => 'NOEDIT1']);
+
+        $this->actingAs(User::factory()->create())
+            ->post(route('reports.procurement.disposition-grid.update'), [
+                'asset_ids' => [$asset->id],
+                'decommission_date' => '2026-08-01',
+            ])
+            ->assertForbidden();
+    }
 }
