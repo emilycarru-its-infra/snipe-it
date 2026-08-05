@@ -1106,23 +1106,40 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        // CSV hand-off flattens every contract's serials into one table;
+        // ?contract=<lease id> deep-links one contract: it preselects the
+        // pane and scopes the downloads to that lease only.
+        $contract = trim((string) $request->query('contract'));
+
+        // CSV hand-off flattens the scoped contracts' serials into one table;
         // XLSX mirrors the workbook with one sheet per contract.
         if ($request->query('format') === 'csv') {
-            return $this->streamReportCsv('lease-disposition', $this->dispositionGridCsv());
+            return $this->streamReportCsv(
+                'lease-disposition'.($contract !== '' ? '-'.$contract : ''),
+                $this->dispositionGridCsv($contract ?: null)
+            );
         }
         if ($request->query('format') === 'xlsx') {
-            return $this->dispositionGridXlsx();
+            return $this->dispositionGridXlsx($contract ?: null);
         }
 
         $data = $this->dispositionGridData();
         $canEdit = auth()->user()?->can('create', Order::class) ?? false;
+        $canEditAssets = auth()->user()?->can('update', Asset::class) ?? false;
+
+        // Resolve the deep-linked contract to a pane (default: first pane) so
+        // the picker, panes and download links all agree on the selection.
+        $selectedContract = collect($data['contracts'])->pluck('contract_id')
+            ->first(fn ($id) => strcasecmp($id, $contract) === 0)
+            ?? ($data['contracts'][0]['contract_id'] ?? '');
 
         $viewData = [
             'contracts' => $data['contracts'],
             'canEdit' => $canEdit,
-            'downloadUrl' => route('reports.procurement.disposition-grid', ['format' => 'csv']),
-            'downloadXlsxUrl' => route('reports.procurement.disposition-grid', ['format' => 'xlsx']),
+            'canEditAssets' => $canEditAssets,
+            'selectedContract' => $selectedContract,
+            'statusOptions' => $canEditAssets ? Statuslabel::orderBy('name')->pluck('name', 'id') : collect(),
+            'downloadUrl' => route('reports.procurement.disposition-grid', array_filter(['format' => 'csv', 'contract' => $selectedContract])),
+            'downloadXlsxUrl' => route('reports.procurement.disposition-grid', array_filter(['format' => 'xlsx', 'contract' => $selectedContract])),
         ];
 
         // Embed mode (dashboard inline) returns just the tabbed grid;
@@ -1173,6 +1190,45 @@ class ProcurementReportsController extends Controller
         $note->save();
 
         return response()->json(['status' => 'success', 'notes' => (string) $note->notes]);
+    }
+
+    /**
+     * Inline / bulk save of the lifecycle fields the Disposition Grid reads:
+     * the device status (which drives the derived disposition), the
+     * Decommissioned Date and the Buyout Cost. Accepts one or many asset ids
+     * so a single pencil edit and a multi-select bulk apply share the same
+     * path. A field left out of the request is untouched; a field sent empty
+     * is cleared (status excepted — a device always has a status).
+     */
+    public function updateDispositionAssets(Request $request)
+    {
+        $this->authorize('update', Asset::class);
+
+        $validated = $request->validate([
+            'asset_ids' => 'required|array|min:1',
+            'asset_ids.*' => 'integer|exists:assets,id',
+            'status_id' => 'sometimes|nullable|integer|exists:status_labels,id',
+            'decommission_date' => 'sometimes|nullable|date',
+            'buyout_cost' => 'sometimes|nullable|numeric|min:0',
+        ]);
+
+        $assets = Asset::whereIn('id', $validated['asset_ids'])->get();
+        foreach ($assets as $asset) {
+            if ($request->filled('status_id')) {
+                $asset->status_id = (int) $validated['status_id'];
+            }
+            if ($request->has('decommission_date')) {
+                $asset->decommission_date = $validated['decommission_date'] ?: null;
+            }
+            if ($request->has('buyout_cost')) {
+                $asset->buyout_cost = $validated['buyout_cost'] !== null && $validated['buyout_cost'] !== ''
+                    ? $validated['buyout_cost']
+                    : null;
+            }
+            $asset->save();
+        }
+
+        return response()->json(['status' => 'success', 'updated' => $assets->count()]);
     }
 
     /**
@@ -3496,8 +3552,10 @@ class ProcurementReportsController extends Controller
                 'asset_tag' => (string) $asset->asset_tag,
                 'serial' => (string) $asset->serial,
                 'status' => (string) $asset->status?->name,
+                'status_id' => $asset->status_id,
                 'status_type' => $asset->status?->getStatuslabelType(),
                 'archived' => $isArchived,
+                'buyout_cost_raw' => $buyoutCost,
                 'decommissioned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
                 'use' => $cols['usage'] ? $this->useLabel($asset->{$cols['usage']}) : '',
                 'ownership' => $ownership,
@@ -3522,12 +3580,12 @@ class ProcurementReportsController extends Controller
      * Flatten the disposition grid to a single CSV table (one row per
      * serial across every contract) for the download / hand-off path.
      */
-    private function dispositionGridCsv(): array
+    private function dispositionGridCsv(?string $onlyContract = null): array
     {
         $columns = $this->dispositionGridColumns();
 
         $records = [];
-        foreach ($this->dispositionGridData()['contracts'] as $contract) {
+        foreach ($this->scopedDispositionContracts($onlyContract) as $contract) {
             foreach ($contract['assets'] as $row) {
                 $records[] = ['class' => '', 'cells' => $this->dispositionGridRow($contract['contract_id'], $row)];
             }
@@ -3588,9 +3646,9 @@ class ProcurementReportsController extends Controller
      * the on-screen tab; the contract id is the sheet name, so it is dropped
      * from the columns.
      */
-    private function dispositionGridXlsx(): BinaryFileResponse
+    private function dispositionGridXlsx(?string $onlyContract = null): BinaryFileResponse
     {
-        $contracts = $this->dispositionGridData()['contracts'];
+        $contracts = $this->scopedDispositionContracts($onlyContract);
         $header = $this->dispositionGridColumns(false);
 
         $tmp = tempnam(sys_get_temp_dir(), 'lease-disposition-');
@@ -3616,9 +3674,31 @@ class ProcurementReportsController extends Controller
 
         $writer->close();
 
-        return response()->download($tmp, 'lease-disposition-'.date('Y-m-d').'.xlsx', [
+        $name = 'lease-disposition-'.($onlyContract !== null ? $onlyContract.'-' : '').date('Y-m-d').'.xlsx';
+
+        return response()->download($tmp, $name, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * The disposition contracts, optionally narrowed to one lease id (the
+     * active pane) so the downloads carry only the contract on screen.
+     * An unknown id falls back to the full set rather than an empty export.
+     */
+    private function scopedDispositionContracts(?string $onlyContract): array
+    {
+        $contracts = $this->dispositionGridData()['contracts'];
+        if ($onlyContract === null) {
+            return $contracts;
+        }
+
+        $scoped = array_values(array_filter(
+            $contracts,
+            fn ($c) => strcasecmp($c['contract_id'], $onlyContract) === 0
+        ));
+
+        return $scoped !== [] ? $scoped : $contracts;
     }
 
     /**
