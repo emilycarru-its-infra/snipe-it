@@ -11,6 +11,7 @@ use App\Models\CustomField;
 use App\Models\SnipeModel;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -77,6 +78,7 @@ class AssetModelsController extends Controller
 
         $model->eol = $request->input('eol');
         $model->depreciation_id = $request->input('depreciation_id');
+        $model->refresh_catalog_item_id = $request->input('refresh_catalog_item_id') ?: null;
         $model->name = $request->input('name');
         $model->model_number = $request->input('model_number');
         $model->model_identifier = $request->input('model_identifier');
@@ -154,6 +156,7 @@ class AssetModelsController extends Controller
 
         $model = $request->handleImages($model);
         $model->depreciation_id = $request->input('depreciation_id');
+        $model->refresh_catalog_item_id = $request->input('refresh_catalog_item_id') ?: null;
         $model->eol = $request->input('eol');
         $model->name = $request->input('name');
         $model->model_number = $request->input('model_number');
@@ -515,7 +518,7 @@ class AssetModelsController extends Controller
      * method writes display_order so the next page render reflects the new
      * positions.
      */
-    public function reorder(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    public function reorder(Request $request): JsonResponse
     {
         $this->authorize('update', AssetModel::class);
 
