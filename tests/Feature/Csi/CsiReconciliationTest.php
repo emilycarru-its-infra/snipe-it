@@ -3,10 +3,12 @@
 namespace Tests\Feature\Csi;
 
 use App\Models\Asset;
+use App\Models\Contract;
 use App\Models\CsiAsset;
 use App\Models\CsiInprocessAsset;
 use App\Models\CsiInvoice;
 use App\Models\CsiSchedule;
+use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Services\CsiReconciliation;
 use Tests\TestCase;
@@ -23,6 +25,22 @@ class CsiReconciliationTest extends TestCase
             ->assertOk()
             ->assertSee('GHOSTX')
             ->assertSee(trans('admin/purchase-orders/general.csi_recon_missing_in_snipe'));
+    }
+
+    public function test_reconciliation_report_scopes_to_the_schedule_commencement_fiscal_year()
+    {
+        // Make FY2026-27 an available scope (resolveFiscalYear validates
+        // against FYs that actually carry activity).
+        PurchaseOrder::factory()->create(['fiscal_year' => 'FY2026-27']);
+        Contract::factory()->create(['schedule_number' => '301452-003', 'fiscal_year' => 'FY25-26']);
+        Contract::factory()->create(['schedule_number' => '301452-007', 'fiscal_year' => 'FY26-27']);
+        CsiAsset::create(['serial' => 'OLDYEAR1', 'lease_number' => '301452', 'schedule_name' => '301452-003', 'model' => 'iMac']);
+        CsiAsset::create(['serial' => 'NEWYEAR1', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'MacBook']);
+
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.csi-reconciliation', ['fiscal_year' => 'FY2026-27']));
+
+        $response->assertOk()->assertSee('NEWYEAR1')->assertDontSee('OLDYEAR1');
     }
 
     public function test_arrivals_report_renders()
