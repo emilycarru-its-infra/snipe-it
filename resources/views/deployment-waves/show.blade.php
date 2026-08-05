@@ -88,6 +88,13 @@
 <div class="box box-default">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.board_title') }} — {{ $wave->items->count() }} {{ trans('admin/deployments/general.device') }}(s)</h3>
+        @if (($projectedTotal ?? 0) > 0)
+            <div class="box-tools pull-right">
+                <span class="label label-info" title="{{ trans('admin/deployments/general.projected_cost_help') }}">
+                    {{ trans('admin/deployments/general.projected_cost_total', ['total' => number_format($projectedTotal, 2)]) }}
+                </span>
+            </div>
+        @endif
     </div>
     <div class="box-body table-responsive no-padding">
         <table class="table table-hover table-striped">
@@ -97,6 +104,7 @@
                     <th>{{ trans('admin/deployments/general.device') }}</th>
                     <th>{{ trans('admin/deployments/general.replaces') }}</th>
                     <th>{{ trans('admin/deployments/general.model') }}</th>
+                    <th>{{ trans('admin/deployments/general.projected_replacement') }}</th>
                     <th>{{ trans('admin/deployments/general.recipient') }}</th>
                     <th>{{ trans('admin/deployments/general.tech') }}</th>
                     <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
@@ -130,6 +138,15 @@
                         @else — @endif
                     </td>
                     <td>{{ $item->model?->name ?: '—' }}</td>
+                    <td>
+                        @php($catalog = $item->model?->refreshCatalogItem)
+                        @if ($catalog)
+                            <span title="{{ $catalog->name }}">${{ number_format($catalog->effectiveCost(), 2) }}</span>
+                            @if ($catalog->isEstimate())<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
+                        @elseif ($item->replacesAsset?->purchase_cost)
+                            <span class="text-muted" title="{{ trans('admin/purchase-orders/general.forecast_basis_original') }}">${{ number_format((float) $item->replacesAsset->purchase_cost, 2) }}</span>
+                        @else — @endif
+                    </td>
                     <td>@if ($item->assignedUser)<a href="{{ route('users.show', $item->assignedUser) }}">{{ $item->assignedUser->full_name }}</a>@else — @endif</td>
                     <td>{{ $item->assignedTech?->full_name ?: '—' }}</td>
                     <td>
@@ -151,7 +168,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="9" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr>
+                <tr><td colspan="10" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr>
             @endforelse
             </tbody>
         </table>

@@ -13,6 +13,12 @@ use Watson\Validating\ValidatingTrait;
  * to its procurement line (orderItem). model_id holds the planned
  * replacement model before the asset is created. Tracks recipient,
  * assigned tech, target/actual deploy dates and staging location.
+ *
+ * @property-read AssetModel|null $model
+ * @property-read Asset|null $asset
+ * @property-read Asset|null $replacesAsset
+ * @property-read OrderItem|null $orderItem
+ * @property-read DeploymentStage|null $stage
  */
 class DeploymentItem extends SnipeModel
 {

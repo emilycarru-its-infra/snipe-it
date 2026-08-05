@@ -34,6 +34,8 @@ return [
 
     'section_top_up' => '1. Top-up costs — University covers the full cost of the base-model laptop',
     'top_up_help_html' => 'The fully subsidized model option &mdash; no cost to you &mdash; is the <strong>MacBook Air | 13" | M4 | 16GB | 1TB | 4 year AppleCare+ at C$2,383.11</strong>.',
+    'comparable_intro' => 'Based on your last model (:old), the new comparable is',
+    'comparable_price' => 'at C$:price.',
     'top_up_acknowledge' => 'I understand that any model above the base-line subsidized option will be invoiced by the university.',
 
     'section_payment' => '2. How would you like to pay the top-up charge (if not the base option)?',
