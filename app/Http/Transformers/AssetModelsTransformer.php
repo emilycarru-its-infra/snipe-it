@@ -56,6 +56,12 @@ class AssetModelsTransformer
                 'id' => (int) $assetmodel->depreciation->id,
                 'name' => e($assetmodel->depreciation->name),
             ] : null,
+
+            'refresh_catalog_item' => ($assetmodel->refreshCatalogItem) ? [
+                'id' => (int) $assetmodel->refreshCatalogItem->id,
+                'name' => e($assetmodel->refreshCatalogItem->name),
+                'cost' => $assetmodel->refreshCatalogItem->effectiveCost(),
+            ] : null,
             'assets_count' => (int) $assetmodel->assets_count,
             'assets_assigned_count' => (int) $assetmodel->assets_assigned_count,
             'assets_archived_count' => (int) $assetmodel->assets_archived_count,

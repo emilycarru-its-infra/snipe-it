@@ -15,6 +15,24 @@
 @include ('partials.forms.edit.model_number')
 @include ('partials.forms.edit.model_identifier')
 @include ('partials.forms.edit.depreciation')
+
+<!-- comparable replacement: the store catalog item this model refreshes to -->
+<div class="form-group{{ $errors->has('refresh_catalog_item_id') ? ' has-error' : '' }}">
+    <label for="refresh_catalog_item_id" class="col-md-3 control-label">{{ trans('admin/models/general.refresh_catalog_item') }}</label>
+    <div class="col-md-7">
+        <select class="form-control" name="refresh_catalog_item_id" id="refresh_catalog_item_id" aria-label="refresh_catalog_item_id">
+            <option value="">{{ trans('admin/models/general.refresh_catalog_item_none') }}</option>
+            @foreach (\App\Models\CatalogItem::where('is_active', true)->orderBy('category')->orderBy('name')->get() as $catalogItem)
+                <option value="{{ $catalogItem->id }}" @selected(old('refresh_catalog_item_id', $item->refresh_catalog_item_id) == $catalogItem->id)>
+                    {{ $catalogItem->category ? $catalogItem->category.' — ' : '' }}{{ $catalogItem->name }} (${{ number_format($catalogItem->effectiveCost(), 2) }})
+                </option>
+            @endforeach
+        </select>
+        <p class="help-block">{{ trans('admin/models/general.refresh_catalog_item_help') }}</p>
+        {!! $errors->first('refresh_catalog_item_id', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+    </div>
+</div>
+
 @include ('partials.forms.edit.minimum_quantity')
 
 <!-- require serial boolean -->

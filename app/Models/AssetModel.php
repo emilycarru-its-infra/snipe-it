@@ -21,6 +21,8 @@ use Watson\Validating\ValidatingTrait;
  * Model for Asset Models. Asset Models contain higher level
  * attributes that are common among the same type of asset.
  *
+ * @property-read CatalogItem|null $refreshCatalogItem
+ *
  * @version v1.0
  */
 class AssetModel extends SnipeModel
@@ -56,6 +58,7 @@ class AssetModel extends SnipeModel
         'category_id' => 'required|integer|exists:categories,id',
         'manufacturer_id' => 'integer|exists:manufacturers,id|nullable',
         'eol' => 'integer:min:0|max:240|nullable',
+        'refresh_catalog_item_id' => 'integer|exists:catalog_items,id|nullable',
     ];
 
     /**
@@ -66,6 +69,7 @@ class AssetModel extends SnipeModel
     protected $fillable = [
         'category_id',
         'depreciation_id',
+        'refresh_catalog_item_id',
         'eol',
         'fieldset_id',
         'image',
@@ -207,6 +211,15 @@ class AssetModel extends SnipeModel
     public function depreciation()
     {
         return $this->belongsTo(Depreciation::class, 'depreciation_id');
+    }
+
+    /**
+     * The store catalog item that replaces a device of this model at
+     * refresh — the comparable current model, priced from the catalog.
+     */
+    public function refreshCatalogItem()
+    {
+        return $this->belongsTo(CatalogItem::class, 'refresh_catalog_item_id');
     }
 
     /**

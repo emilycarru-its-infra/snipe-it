@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Watson\Validating\ValidatingTrait;
@@ -16,6 +17,8 @@ use Watson\Validating\ValidatingTrait;
  * and a PurchaseOrder (the bridge to /reports/procurement). The devices
  * are deployment_items; wave_state is the high-level rollup over their
  * per-device stages.
+ *
+ * @property-read Collection<int, DeploymentItem> $items
  */
 class DeploymentWave extends SnipeModel
 {
