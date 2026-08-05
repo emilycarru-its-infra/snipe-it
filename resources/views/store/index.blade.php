@@ -48,6 +48,17 @@
 
             <div class="st-cart-box" id="st-cart-box">
                 <h3 class="st-cart-title">{{ trans('admin/store/general.your_order') }}</h3>
+
+                {{-- Arrived via "Request early refresh" on /my: the order is
+                     about a specific machine, so the cart says which one and
+                     the submission carries it. --}}
+                @if ($refreshAsset)
+                    <p class="st-refresh-context">
+                        {{ trans('admin/store/general.refresh_context', ['model' => $refreshAsset->model?->name ?: trans('general.asset')]) }}
+                        <span class="ecu-tag">{{ $refreshAsset->asset_tag }}</span>
+                    </p>
+                    <input type="hidden" name="refresh_asset_id" value="{{ $refreshAsset->id }}">
+                @endif
                 <div id="st-cart"></div>
                 <p class="text-muted st-cart-empty" id="st-cart-empty">{{ trans('admin/store/general.cart_empty') }}</p>
 
@@ -91,6 +102,18 @@
                                 <p class="ecu-error">{{ $errors->first('location_id') }}</p>
                             @endif
                         </div>
+                    </div>
+                @endif
+
+                {{-- Only asked on an early-refresh visit: an off-cycle
+                     replacement may be funded by the requester's own
+                     department rather than the device budget, and the GL
+                     code is how procurement charges it there. --}}
+                @if ($refreshAsset)
+                    <div class="form-group" style="margin-top:12px;">
+                        <label for="st-gl-code">{{ trans('admin/store/general.gl_code_label') }}</label>
+                        <input type="text" name="gl_code" id="st-gl-code" class="form-control" maxlength="64"
+                               placeholder="{{ trans('admin/store/general.gl_code_placeholder') }}">
                     </div>
                 @endif
 

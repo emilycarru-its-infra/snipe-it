@@ -96,7 +96,7 @@ class ProcurementController extends Controller
             $status = 'pending';
         }
 
-        $orders = StoreOrder::with('items.catalogItem.supplier', 'user.department', 'decidedBy', 'requisition.purchaseOrder')
+        $orders = StoreOrder::with('items.catalogItem.supplier', 'user.department', 'decidedBy', 'requisition.purchaseOrder', 'refreshAsset')
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->orderBy('created_at')
             ->paginate(50)

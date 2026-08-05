@@ -17,11 +17,9 @@ use App\Models\StoreOrder;
 use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\AssetBuyoutRequester;
-use App\Services\AssetEarlyRefreshRequester;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -468,10 +466,10 @@ class DashboardController extends Controller
                 $asset->asset_tag,
             ])->values();
 
-        // Which rows already have a request cooling down, so the buttons
-        // become quiet "requested" notes instead of re-mailing anyone.
-        // Buyout applies to actively leased Faculty machines; early refresh
-        // to Staff machines.
+        // Which rows already have a request under way, so the buttons become
+        // quiet "requested" notes. Buyout requests cool down on the activity
+        // log; an early refresh is a store order carrying refresh_asset_id,
+        // so its note holds exactly as long as that order stays open.
         $buyoutRequester = app(AssetBuyoutRequester::class);
         $buyoutRequestedAt = $myAssets
             ->filter(fn (Asset $asset) => $asset->leaseEndDate()?->gte(today()) && $asset->isFacultyCatalog())
@@ -479,11 +477,13 @@ class DashboardController extends Controller
                 $asset->id => optional($buyoutRequester->pendingRequest($asset))->created_at,
             ]);
 
-        $refreshRequester = app(AssetEarlyRefreshRequester::class);
-        $refreshRequestedAt = $myAssets
-            ->filter(fn (Asset $asset) => $asset->isStaffCatalog())
-            ->mapWithKeys(fn (Asset $asset) => [
-                $asset->id => optional($refreshRequester->pendingRequest($asset))->created_at,
+        $refreshRequestedAt = StoreOrder::where('user_id', $user->id)
+            ->whereNotNull('refresh_asset_id')
+            ->whereIn('status', ['pending', 'approved', 'ordered'])
+            ->orderBy('created_at')
+            ->get(['refresh_asset_id', 'created_at'])
+            ->mapWithKeys(fn (StoreOrder $refreshOrder) => [
+                (int) $refreshOrder->refresh_asset_id => $refreshOrder->created_at,
             ]);
 
         $agreement = UserAgreement::where('user_id', $user->id)
@@ -594,32 +594,6 @@ class DashboardController extends Controller
         }
 
         return redirect()->route('my')->with('success', trans('general.request_buyout_success'));
-    }
-
-    /**
-     * "Request early refresh" from a staff member's own dashboard —
-     * something is up with their machine and they want the device team on
-     * it before the natural refresh. Same self-service scope as the buyout
-     * button: only an asset checked out to you, and the requester service
-     * enforces the staff-catalog rule and the repeat throttle.
-     */
-    public function myRequestEarlyRefresh(Request $request, Asset $asset): RedirectResponse
-    {
-        abort_unless(
-            (int) $asset->assigned_to === (int) auth()->id()
-                && $asset->assigned_type === User::class,
-            403
-        );
-
-        $note = (string) $request->input('note', '');
-        $error = app(AssetEarlyRefreshRequester::class)
-            ->send($asset, auth()->user(), $note !== '' ? mb_substr($note, 0, 1000) : null);
-
-        if ($error) {
-            return redirect()->route('my')->with('error', trans($error));
-        }
-
-        return redirect()->route('my')->with('success', trans('general.request_early_refresh_success'));
     }
 
     /**
