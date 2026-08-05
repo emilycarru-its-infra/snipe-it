@@ -1157,15 +1157,19 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('leases-financial', [ProcurementReportsController::class, 'leasesFinancial'])
             ->name('reports.procurement.leases-financial')
             ->breadcrumbs($crumb('reports.procurement.leases-financial', 'report_leases_financial'));
-        Route::get('csi-schedule', [ProcurementReportsController::class, 'csiSchedule'])
+        Route::get('schedule-reconciliation', [ProcurementReportsController::class, 'csiSchedule'])
             ->name('reports.procurement.csi-schedule')
             ->breadcrumbs($crumb('reports.procurement.csi-schedule', 'report_csi_schedule'));
-        Route::get('csi-reconciliation', [ProcurementReportsController::class, 'csiReconciliation'])
+        Route::get('lease-reconciliation', [ProcurementReportsController::class, 'csiReconciliation'])
             ->name('reports.procurement.csi-reconciliation')
             ->breadcrumbs($crumb('reports.procurement.csi-reconciliation', 'report_csi_reconciliation'));
-        Route::get('csi-arrivals', [ProcurementReportsController::class, 'csiArrivals'])
+        Route::get('incoming-lease-assets', [ProcurementReportsController::class, 'csiArrivals'])
             ->name('reports.procurement.csi-arrivals')
             ->breadcrumbs($crumb('reports.procurement.csi-arrivals', 'report_csi_arrivals'));
+        // Legacy vendor-named paths — permanent redirects to the neutral slugs.
+        Route::redirect('csi-schedule', 'schedule-reconciliation', 301);
+        Route::redirect('csi-reconciliation', 'lease-reconciliation', 301);
+        Route::redirect('csi-arrivals', 'incoming-lease-assets', 301);
         Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
             ->name('reports.procurement.invoice-approval')
             ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
