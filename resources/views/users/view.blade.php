@@ -10,21 +10,6 @@
     {{-- View-as. Superuser-only and never offered for another superuser or a
          deactivated account, so the button is absent rather than present and
          refusing. --}}
-    @if (auth()->user()?->isSuperUser()
-        && ! $user->isSuperUser()
-        && $user->id !== auth()->id()
-        && $user->activated
-        && $user->deleted_at === null
-        && ! session()->has(\App\Http\Controllers\ImpersonateController::SESSION_KEY))
-        <form method="POST" action="{{ route('users.impersonate', $user->id) }}" style="display:inline;">
-            {{ csrf_field() }}
-            <button type="submit" class="btn btn-sm btn-warning"
-                    title="{{ trans('admin/users/general.impersonate_hint') }}">
-                <x-icon type="user"/>
-                {{ trans('admin/users/general.impersonate') }}
-            </button>
-        </form>
-    @endif
 @endsection
 
 {{-- Page content.
@@ -108,6 +93,26 @@
                                 </button>
                             </form>
                         @endcan
+
+                        {{-- View-as. Superuser-only and never offered for another
+                             superuser or a deactivated account, so the button is
+                             absent rather than present and refusing. Full-text,
+                             warning-yellow: this one changes who you are. --}}
+                        @if (auth()->user()?->isSuperUser()
+                            && ! $user->isSuperUser()
+                            && $user->id !== auth()->id()
+                            && $user->activated
+                            && $user->deleted_at === null
+                            && ! session()->has(\App\Http\Controllers\ImpersonateController::SESSION_KEY))
+                            <form method="POST" action="{{ route('users.impersonate', $user->id) }}" style="display:inline;">
+                                {{ csrf_field() }}
+                                <button type="submit" class="btn btn-sm btn-warning usc-impersonate hidden-print"
+                                        title="{{ trans('admin/users/general.impersonate_hint') }}">
+                                    <x-icon type="user"/>
+                                    {{ trans('admin/users/general.impersonate') }}
+                                </button>
+                            </form>
+                        @endif
                     </div>
 
                     <h2 class="usc-name">{{ $user->first_name }} {{ $user->last_name }}</h2>
@@ -722,6 +727,17 @@
     }
     .user-side-card .usc-actions .btn.btn-danger:hover {
         background: color-mix(in srgb, var(--text-danger) 12%, transparent) !important;
+    }
+    /* View-as keeps its warning colour inside the neutralized toolbar —
+       this button changes who you are, it should not look routine. */
+    .user-side-card .usc-actions .btn.usc-impersonate {
+        background: #f39c12 !important;
+        border-color: #f39c12 !important;
+        color: #fff !important;
+    }
+    .user-side-card .usc-actions .btn.usc-impersonate:hover {
+        background: #e08e0b !important;
+        color: #fff !important;
     }
     .usc-name { font-size: 20px; font-weight: 700; margin: 0 0 2px; }
     .usc-jobtitle { color: var(--chrome-fg-muted); margin-bottom: 14px; }

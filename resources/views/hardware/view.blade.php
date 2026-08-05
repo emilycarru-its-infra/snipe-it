@@ -7,7 +7,6 @@
 @stop
 
 @section('header_right')
-    <x-button.info-panel-toggle hide-on-xs/>
 @endsection
 
 {{-- Page content --}}
@@ -52,7 +51,7 @@
             </div>
         @endif
 
-        <x-page-column class="col-md-9 col-md-push-3 main-panel">
+        <x-page-column class="col-md-9 col-md-push-3">
 
             <x-tabs>
                 <x-slot:tabnav>
@@ -129,6 +128,31 @@
                             <div class="box box-solid" style="margin-bottom: 12px;">
                                 <div class="box-body">
                                     @php $modelOptions = \App\Models\AssetModel::orderBy('name')->pluck('name', 'id'); @endphp
+                                    {{-- Name (primary), tag and serial sit together in one
+                                         left-aligned row — snug, not pushed to the far right. --}}
+                                    <div class="asset-identity-header">
+                                        <div class="asset-identity-field asset-identity-name">
+                                            <div class="asset-identity-label">{{ trans('general.name') }}</div>
+                                            <div class="asset-identity-value">
+                                                <x-inline-core-field :asset="$asset" column="name" copy_what="asset_name_hdr"/>
+                                            </div>
+                                        </div>
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.asset_tag') }}</div>
+                                            <div class="asset-identity-value">
+                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
+                                            </div>
+                                        </div>
+                                        <div class="asset-identity-field">
+                                            <div class="asset-identity-label">{{ trans('general.serial_number') }}</div>
+                                            <div class="asset-identity-value asset-identity-mono">
+                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false"/>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <hr class="asset-identity-divider">
+
                                     {{-- Top strip: the model catalog facts — super central. Model
                                          is inline-editable; manufacturer/category/model-no derive
                                          from the chosen model and follow it. --}}
@@ -167,30 +191,6 @@
                                         @endif
                                     </div>
 
-                                    <hr class="asset-identity-divider">
-
-                                    {{-- Name (primary), tag and serial sit together in one
-                                         left-aligned row — snug, not pushed to the far right. --}}
-                                    <div class="asset-identity-header">
-                                        <div class="asset-identity-field asset-identity-name">
-                                            <div class="asset-identity-label">{{ trans('general.name') }}</div>
-                                            <div class="asset-identity-value">
-                                                <x-inline-core-field :asset="$asset" column="name" copy_what="asset_name_hdr"/>
-                                            </div>
-                                        </div>
-                                        <div class="asset-identity-field">
-                                            <div class="asset-identity-label">{{ trans('general.asset_tag') }}</div>
-                                            <div class="asset-identity-value">
-                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
-                                            </div>
-                                        </div>
-                                        <div class="asset-identity-field">
-                                            <div class="asset-identity-label">{{ trans('general.serial_number') }}</div>
-                                            <div class="asset-identity-value asset-identity-mono">
-                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false"/>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </x-page-column>
@@ -302,60 +302,7 @@
                                         @endisset
                                     @endforeach
 
-                                    <div class="asset-subrow">
-                                        <div class="box box-default asset-card">
-                                            <div class="box-header with-border">
-                                                <h3 class="box-title asset-card-title"><i class="fas fa-coins" style="color:#27ae60;" aria-hidden="true"></i> {{ trans('general.detail_card_costs') }}</h3>
-                                            </div>
-                                            <div class="box-body">
-                                                <div class="well-display">
-                                                    <x-data-row icon_type="money" :label="trans('general.purchase_cost')" align="right">
-                                                        {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="maintenances" :label="trans('general.maintenances')" align="right">
-                                                        {{ Helper::formatCurrencyOutput($total_maintenance_cost) }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="accessories" :label="trans('general.accessories')" align="right">
-                                                        {{ Helper::formatCurrencyOutput($total_accessory_cost) }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="licenses" :label="trans('general.licenses')" align="right">
-                                                        {{ Helper::formatCurrencyOutput($total_license_cost) }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="components" :label="trans('general.components')" align="right">
-                                                        {{ Helper::formatCurrencyOutput($total_component_cost) }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="assets" :label="trans('general.assets')" align="right">
-                                                        {{ Helper::formatCurrencyOutput($total_asset_cost) }}
-                                                    </x-data-row>
-                                                    <x-data-row :label="trans('general.total_cost')" align="right" style="border-top: 1px solid var(--box-header-top-border-color) !important;">
-                                                        {{ Helper::formatCurrencyOutput($total_cost_for_asset) }}
-                                                    </x-data-row>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="box box-default asset-card">
-                                            <div class="box-header with-border">
-                                                <h3 class="box-title asset-card-title"><i class="fas fa-wave-square" style="color:#2980b9;" aria-hidden="true"></i> {{ trans('general.detail_card_activity') }}</h3>
-                                            </div>
-                                            <div class="box-body">
-                                                <div class="well-display">
-                                                    <x-data-row icon_type="maintenances" label="Active Maintenances" align="right">
-                                                        {{ $asset->maintenances->whereNull('completion_date')->count() }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="checkout" :label="trans('general.checkouts_count')" align="right">
-                                                        {{ ($asset->checkouts) ? (int) $asset->checkouts->count() : '0' }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="checkin" :label="trans('general.checkins_count')" align="right">
-                                                        {{ ($asset->checkins) ? (int) $asset->checkins->count() : '0' }}
-                                                    </x-data-row>
-                                                    <x-data-row icon_type="request" :label="trans('general.user_requests_count')" align="right">
-                                                        {{ ($asset->userRequests) ? (int) $asset->userRequests->count() : '0' }}
-                                                    </x-data-row>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    
                                 </div>
                             </div>
                             {{-- ./ asset-detail-2col --}}
@@ -580,7 +527,7 @@
                  (not a separate box on top): status + checkout dates in before_list,
                  then the audit / default-location / decommission / last-note rows that
                  moved out of the removed Details card render at the top of the list. --}}
-            <x-box class="side-box expanded">
+            <x-box class="asset-side-box">
                 <x-info-panel :infoPanelObj="$asset" img_path="{{ app('assets_upload_url') }}">
                     <x-slot:buttons>
                         {{-- Tiered action toolbar: labeled primary actions inline, everything
@@ -743,7 +690,7 @@
             {{-- Lifecycle: EOL / depreciation / warranty progress — a special box
                  of its own, above Metadata. --}}
             @if(($asset->purchase_date && $asset->asset_eol_date) || $asset->depreciated_date() || $asset->warranty_expires)
-                <div class="box box-default side-box">
+                <div class="box box-default asset-side-box">
                     <div class="box-header with-border">
                         <h3 class="box-title asset-card-title"><i class="fas fa-hourglass-half" style="color:#c0392b;" aria-hidden="true"></i> {{ trans('general.detail_card_lifecycle') }}</h3>
                     </div>
@@ -771,7 +718,7 @@
 
             {{-- Metadata: low-signal flags + provenance, styled like the group
                  cards (label/value rows with inset dividers). --}}
-            <div class="box box-default side-box asset-card">
+            <div class="box box-default asset-side-box asset-card">
                 <div class="box-header with-border">
                     <h3 class="box-title asset-card-title"><i class="fas fa-database" style="color:#7f8c8d;" aria-hidden="true"></i> {{ trans('general.metadata') }}</h3>
                 </div>
@@ -808,6 +755,61 @@
                     @endif
                 </div>
             </div>
+
+            <div class="asset-sidebar-stats">
+                                        <div class="box box-default asset-side-box asset-card">
+                                            <div class="box-header with-border">
+                                                <h3 class="box-title asset-card-title"><i class="fas fa-coins" style="color:#27ae60;" aria-hidden="true"></i> {{ trans('general.detail_card_costs') }}</h3>
+                                            </div>
+                                            <div class="box-body">
+                                                <div class="well-display">
+                                                    <x-data-row icon_type="money" :label="trans('general.purchase_cost')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="maintenances" :label="trans('general.maintenances')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_maintenance_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="accessories" :label="trans('general.accessories')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_accessory_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="licenses" :label="trans('general.licenses')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_license_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="components" :label="trans('general.components')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_component_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="assets" :label="trans('general.assets')" align="right">
+                                                        {{ Helper::formatCurrencyOutput($total_asset_cost) }}
+                                                    </x-data-row>
+                                                    <x-data-row :label="trans('general.total_cost')" align="right" style="border-top: 1px solid var(--box-header-top-border-color) !important;">
+                                                        {{ Helper::formatCurrencyOutput($total_cost_for_asset) }}
+                                                    </x-data-row>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="box box-default asset-side-box asset-card">
+                                            <div class="box-header with-border">
+                                                <h3 class="box-title asset-card-title"><i class="fas fa-wave-square" style="color:#2980b9;" aria-hidden="true"></i> {{ trans('general.detail_card_activity') }}</h3>
+                                            </div>
+                                            <div class="box-body">
+                                                <div class="well-display">
+                                                    <x-data-row icon_type="maintenances" label="Active Maintenances" align="right">
+                                                        {{ $asset->maintenances->whereNull('completion_date')->count() }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="checkout" :label="trans('general.checkouts_count')" align="right">
+                                                        {{ ($asset->checkouts) ? (int) $asset->checkouts->count() : '0' }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="checkin" :label="trans('general.checkins_count')" align="right">
+                                                        {{ ($asset->checkins) ? (int) $asset->checkins->count() : '0' }}
+                                                    </x-data-row>
+                                                    <x-data-row icon_type="request" :label="trans('general.user_requests_count')" align="right">
+                                                        {{ ($asset->userRequests) ? (int) $asset->userRequests->count() : '0' }}
+                                                    </x-data-row>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
             {{-- QR code — just the code, no box/thumbnail frame. --}}
             @if (($snipeSettings->qr_code=='1') || $snipeSettings->label2_2d_type!='none')
@@ -873,23 +875,29 @@
                60% right (Procurement/Identifiers, then Costs|Activity). Cards
                stack within each column; the wider right column gives the long
                procurement/identifier values room so labels never overlap. */
-            .asset-detail-2col { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; width: 100%; }
-            .asset-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-            .asset-col-left  { flex: 1 1 36%; }
+            /* The grid tracks the identity strip's width — cards stay a
+               readable column, not a full-bleed sprawl. */
+            .asset-detail-2col { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; width: 100%; max-width: 1000px; }
+            .asset-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+            .asset-col-left  { flex: 1 1 44%; }
             /* An empty column (no fieldset on the model) must not reserve
                its share of the row and push the populated column aside. */
             .asset-col:empty { display: none; }
-            .asset-col-right { flex: 1 1 58%; }
+            .asset-col-right { flex: 1 1 50%; }
             .asset-detail-2col .asset-card { margin: 0; }
-            /* Costs | Activity share the bottom of the right column, 50/50. */
-            .asset-subrow { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
-            .asset-subrow > .asset-card { flex: 1 1 45%; min-width: 0; margin: 0; }
             @media (max-width: 991px) {
                 .asset-col-left, .asset-col-right { flex: 1 1 100%; }
             }
 
-            /* Cards: drop the coloured top border (kept the coloured header icon). */
-            .asset-card { border-top: none !important; }
+            /* Cards read as closed shapes: a full hairline, same weight on
+               every edge (the coloured header icon carries the accent). */
+            .asset-card, .asset-side-box {
+                border: 1px solid var(--box-header-top-border-color, #e4e4e4) !important;
+                border-radius: 10px;
+            }
+            /* Device hero image: the picture is the frame — no thumbnail
+               border/padding around it. */
+            .asset-side-box .img-thumbnail { border: 0; padding: 0; background: transparent; box-shadow: none; }
             .asset-card-title { font-size: 15px; font-weight: 600; }
             .asset-card-title i { margin-right: 6px; }
 
@@ -910,14 +918,29 @@
             .asset-card-body::before,
             .asset-card-body::after { content: none; display: none; }
             .asset-card-row { display: contents; }
-            .asset-card-lbl { font-weight: 600; padding: 8px 18px 8px 0; border-bottom: 1px solid #f1f1f1; }
-            .asset-card-val { min-width: 0; padding: 8px 0; border-bottom: 1px solid #f1f1f1; word-break: break-word; }
+            .asset-card-lbl { font-weight: 600; padding: 6px 14px 6px 0; border-bottom: 1px solid #f1f1f1; white-space: nowrap; font-size: 13px; }
+            /* One row per fact, always: long values ellipsize rather than
+               wrap; the full value is still there for copy/inline edit. */
+            .asset-card-val { min-width: 0; padding: 6px 0; border-bottom: 1px solid #f1f1f1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
             .asset-card-row:last-child .asset-card-lbl,
             .asset-card-row:last-child .asset-card-val { border-bottom: none; }
 
             /* Sidebar rows (status / checkout / audit / metadata) — consistent
                breathing room and light dividers. */
-            .side-box .list-group-item { padding: 10px 14px; border-color: #f1f1f1 !important; }
+            .asset-side-box .list-group-item { padding: 10px 14px; border-color: #f1f1f1 !important; }
+
+            /* Phone: the tab strip's absolute-stack collapse trick paints
+               every icon on top of the active tab (transparent tab
+               backgrounds since round 9). Hide inactive tabs unless the
+               menu is open — same toggle JS, sane rendering. */
+            @media (max-width: 767px) {
+                .nav-tabs-dropdown > li > a { position: static !important; width: auto; height: auto; }
+                .nav-tabs-dropdown:not(.open) > li:not(.active) { display: none !important; }
+                .nav-tabs-dropdown.open > li { display: block !important; }
+                .asset-identity-header { flex-wrap: wrap; row-gap: 8px; }
+                .asset-detail-2col { max-width: 100%; }
+                .asset-card-val { white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word; }
+            }
         </style>
     @endpush
 
