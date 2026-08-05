@@ -1975,7 +1975,11 @@
                             @media (max-width: 767px) { :root { --eu-gutter: 16px; } }
 
                             .eu-nav > li > a { font-weight: 600; }
-                            .main-header .navbar, .main-header .logo, .main-header .left-navblock {
+                            {{-- One surface for the whole header band. The
+                                 navbar is a centred 1200px strip inside the
+                                 full-bleed .main-header; painting only the
+                                 strip left two-tone banding in dark mode. --}}
+                            .main-header, .main-header .navbar, .main-header .logo, .main-header .left-navblock {
                                 background: light-dark(#f4f4f4, #1a1a1a) !important;
                                 color: light-dark(#262626, #e4e4e8) !important;
                             }

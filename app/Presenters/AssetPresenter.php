@@ -212,6 +212,84 @@ class AssetPresenter extends Presenter
                 'visible' => false,
                 'title' => trans('admin/hardware/form.eol_date'),
                 'formatter' => 'dateDisplayFormatter',
+            ],
+            // Native lease / purchasing columns (F2 migration) — hidden by
+            // default, offered in the column picker where their custom-field
+            // twins used to appear.
+            [
+                'field' => 'lease_contract_id',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.lease_contract_id'),
+            ], [
+                'field' => 'lease_contract_name',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.lease_contract_name'),
+            ], [
+                'field' => 'ownership_type',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.ownership_type'),
+            ], [
+                'field' => 'lease_end_date',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.lease_end_date'),
+                'formatter' => 'dateDisplayFormatter',
+            ], [
+                'field' => 'lease_rent',
+                'searchable' => false,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.lease_rent'),
+            ], [
+                'field' => 'buyout_cost',
+                'searchable' => false,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.buyout_cost'),
+            ], [
+                'field' => 'po_number',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.po_number'),
+            ], [
+                'field' => 'invoice_number',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.invoice_number'),
+            ], [
+                'field' => 'warranty_soft_cost',
+                'searchable' => false,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.warranty_soft_cost'),
+            ], [
+                'field' => 'decommission_date',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.decommission_date'),
+                'formatter' => 'dateDisplayFormatter',
+            ], [
+                'field' => 'lease_usage',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.lease_usage'),
+            ], [
+                'field' => 'lease_area',
+                'searchable' => true,
+                'sortable' => true,
+                'visible' => false,
+                'title' => trans('general.lease_area'),
             ], [
                 'field' => 'warranty_months',
                 'searchable' => true,

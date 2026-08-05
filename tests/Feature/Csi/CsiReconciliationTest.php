@@ -51,7 +51,7 @@ class CsiReconciliationTest extends TestCase
             ->get(route('reports.procurement.csi-reconciliation'));
 
         $response->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.csi_recon_unserialized'))
+            ->assertSee(trans('admin/purchase-orders/general.csi_recon_unserialized_fold', ['count' => 1]))
             ->assertSee('0 '.trans('admin/purchase-orders/general.csi_recon_missing_in_snipe'));
     }
 

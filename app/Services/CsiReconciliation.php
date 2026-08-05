@@ -47,7 +47,7 @@ class CsiReconciliation
     private function snipeBySerial(): array
     {
         $map = [];
-        foreach (Asset::with('status', 'model')->whereNotNull('serial')->get() as $asset) {
+        foreach (Asset::with('status', 'model', 'location')->whereNotNull('serial')->get() as $asset) {
             $k = self::key($asset->serial);
             if ($k !== '') {
                 $map[$k] = $asset;
@@ -85,8 +85,12 @@ class CsiReconciliation
                     'csi_schedule' => $csi->schedule_name,
                     'model' => $csi->model,
                     'status' => 'unserialized',
+                    'asset_id' => null,
                     'snipe_tag' => null,
+                    'snipe_model' => null,
                     'snipe_status' => null,
+                    'snipe_assigned' => null,
+                    'snipe_location' => null,
                     'snipe_schedule' => null,
                 ];
 
@@ -106,8 +110,12 @@ class CsiReconciliation
                 'csi_schedule' => $csi->schedule_name,
                 'model' => $csi->model,
                 'status' => $status,
+                'asset_id' => $asset?->id,
                 'snipe_tag' => $asset?->asset_tag,
+                'snipe_model' => $asset?->model?->name,
                 'snipe_status' => $asset?->status?->name,
+                'snipe_assigned' => $asset?->assignedTo?->present()->fullName ?? $asset?->assignedTo?->name,
+                'snipe_location' => $asset?->location?->name,
                 'snipe_schedule' => $snipeRef,
             ];
         }
@@ -120,8 +128,12 @@ class CsiReconciliation
                     'csi_schedule' => null,
                     'model' => $asset->model?->name,
                     'status' => 'extra_in_snipe',
+                    'asset_id' => $asset->id,
                     'snipe_tag' => $asset->asset_tag,
+                    'snipe_model' => $asset->model?->name,
                     'snipe_status' => $asset->status?->name,
+                    'snipe_assigned' => $asset->assignedTo?->present()->fullName ?? $asset->assignedTo?->name,
+                    'snipe_location' => $asset->location?->name,
                     'snipe_schedule' => $ref,
                 ];
             }
