@@ -51,7 +51,7 @@
                         &middot; <span class="label label-default">{{ trans('admin/purchase-orders/general.disposition_retained') }}</span>
                     @endif
                 </p>
-                <div class="table-responsive">
+                <div class="table-responsive rpt-table-scroll">
                     <table class="table table-striped table-condensed disp-table">
                         <thead>
                             <tr>

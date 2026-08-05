@@ -104,7 +104,7 @@
                             </button>
                         </div>
                     @endif
-                    <div class="table-responsive">
+                    <div class="table-responsive rpt-table-scroll">
                         <table class="table table-striped">
                             <thead>
                                 <tr>

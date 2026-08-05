@@ -1557,6 +1557,33 @@
         .alert.alert-info a,
         .alert.alert-info .alert-link { color: var(--link-color); }
         .alert.alert-info .close { color: var(--chrome-fg-muted); opacity: .7; text-shadow: none; }
+        {{-- Bootstrap contextual table rows ship hard-coded light tints
+             (#fcf8e3 etc.); with the dark theme's near-white text they are
+             unreadable. Re-tint every table's contextual rows from the
+             accent colours at low alpha so the theme text colour carries. --}}
+        [data-theme="dark"] .table > tbody > tr.warning > td,
+        [data-theme="dark"] .table > tbody > tr > td.warning { background-color: rgba(240, 173, 78, .18) !important; color: var(--color-fg) !important; }
+        [data-theme="dark"] .table > tbody > tr.info > td,
+        [data-theme="dark"] .table > tbody > tr > td.info { background-color: rgba(60, 141, 188, .22) !important; color: var(--color-fg) !important; }
+        [data-theme="dark"] .table > tbody > tr.success > td,
+        [data-theme="dark"] .table > tbody > tr > td.success { background-color: rgba(0, 166, 90, .18) !important; color: var(--color-fg) !important; }
+        [data-theme="dark"] .table > tbody > tr.danger > td,
+        [data-theme="dark"] .table > tbody > tr > td.danger { background-color: rgba(221, 75, 57, .26) !important; color: var(--color-fg) !important; }
+        [data-theme="dark"] .table > tbody > tr.active > td { background-color: rgba(255, 255, 255, .06) !important; color: var(--color-fg) !important; }
+        {{-- Frozen report-table headings: any .rpt-table-scroll wrapper
+             scrolls internally with its header row pinned. Short tables
+             simply never scroll. --}}
+        .rpt-table-scroll {
+            max-height: calc(100vh - var(--header-h, 68px) - 190px);
+            overflow: auto;
+        }
+        .rpt-table-scroll table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: var(--box-bg, #fff);
+            box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);
+        }
         .nav-pills > li > a {
             border-radius: 999px;
         }
