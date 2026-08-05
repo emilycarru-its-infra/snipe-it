@@ -78,7 +78,6 @@
     </div>
 </div>
 
-@include('reports.procurement._pipeline')
 @if (count($leaseEndSchedules))
 <div class="row">
     <div class="col-md-12">
@@ -109,6 +108,19 @@
                     .lease-end-table td:nth-child(6) { white-space: normal; min-width: 280px; }
                     .lease-end-table th:nth-child(8), .lease-end-table td:nth-child(8) { min-width: 260px; }
                     .lease-end-table .rpt-note-input { width: 100%; box-sizing: border-box; }
+                    /* The retained note is the plan, not a footnote: full
+                       foreground colour, readable size, a left accent bar. */
+                    .lease-end-retained-note {
+                        display: block;
+                        margin-top: 6px;
+                        padding: 6px 10px;
+                        font-size: 13px;
+                        color: var(--color-fg, #262626);
+                        background: light-dark(rgba(60, 141, 188, .08), rgba(60, 141, 188, .16));
+                        border-left: 3px solid #3c8dbc;
+                        border-radius: 0 6px 6px 0;
+                        max-width: 560px;
+                    }
                 </style>
                 <div class="table-responsive">
                     <table class="table table-striped lease-end-table" style="margin-bottom:0;">
@@ -150,7 +162,9 @@
                                     <td>
                                         @if ($schedule['is_lease_to_own'])
                                             <span class="label label-default">{{ trans('admin/purchase-orders/general.lease_end_retained') }}</span>
-                                            <span class="text-muted" style="display:block; font-size:12px;">
+                                            {{-- The budget consequence is the decision — say it like one,
+                                                 not like a footnote. --}}
+                                            <span class="lease-end-retained-note">
                                                 {{ trans('admin/purchase-orders/general.lease_end_retained_help') }}
                                             </span>
                                         @elseif ($schedule['decision'])
@@ -197,6 +211,9 @@
     </div>
 </div>
 @endif
+
+@include('reports.procurement._pipeline')
+
 
 @php
     $hiddenReports = (array) (auth()->user()?->hidden_procurement_reports ?? []);
@@ -349,7 +366,13 @@
         max-height: calc(100vh - var(--header-h, 68px) - 24px);
         overflow-y: auto;
     }
-    .proc-report-navlist > li > a { padding: 6px 10px; font-size: 12.5px; border-radius: 0; }
+    {{-- AdminLTE's .box .nav-stacked ships hard-coded light values
+         (#f4f4f4 row borders, #444 links) — white hairlines and near-black
+         text in dark mode. Key both on the theme tokens. --}}
+    .proc-report-navlist > li { border-bottom: 1px solid var(--box-header-bottom-border-color, #f4f4f4) !important; }
+    .proc-report-navlist > li:last-child { border-bottom: 0 !important; }
+    .proc-report-navlist > li > a { padding: 6px 10px; font-size: 12.5px; border-radius: 0; color: var(--color-fg, #444) !important; }
+    .proc-report-navlist > li.active > a { color: #fff !important; }
     .proc-report-navlist > li.active > a,
     .proc-report-navlist > li.active > a:hover { background-color: #3c8dbc; color: #fff; }
     @media (max-width: 991px) {

@@ -9,20 +9,11 @@
 {{-- Page content --}}
 
 @section('content')
-
-
-
-<div class="row">
-  <div class="col-md-8 col-md-offset-2">
-
-    <div style="padding-top: 200px">
-      <img src="{{ config('app.url') }}/img/sad-panda.png" style="width: 200px; height: 200px;" class="pull-left">
-            <div class="error-content">
-              <h2><x-icon type="warning" class="text-yellow" /> 403 Forbidden.</h2>
-              <p>
-                {!! trans('general.sad_panda', ['link' => config('app.url')]) !!}
-              </p>
-
-    </div>
-</div>
+    @include('errors._error-page', [
+        'code' => '403',
+        'headline' => trans('general.error_403_headline'),
+        'message' => trans('general.error_403_message'),
+        'action_url' => config('app.url'),
+        'action_label' => trans('general.error_back_to_dashboard'),
+    ])
 @stop
