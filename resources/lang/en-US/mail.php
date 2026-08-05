@@ -146,11 +146,6 @@ return [
     'asset_buyout_request_intro' => 'Hello :lessor team, we would like to request a buyout quote for the following leased device:',
     'asset_buyout_request_body' => 'Please provide the current buyout cost for this device, including any applicable taxes and fees. Note that the buyout is being considered regardless of the device\'s current physical condition. Reply to all on this email and our team will follow up. Thank you.',
     'asset_buyout_request_signoff' => 'Requested by :name, Emily Carr University — Device Services.',
-    'early_refresh_request_subject' => 'Early refresh request — :name, Asset :asset_tag',
-    'early_refresh_request_heading' => 'Early refresh request',
-    'early_refresh_request_intro' => ':name is asking for an early refresh of their machine:',
-    'early_refresh_request_note_label' => 'What they say is wrong with it:',
-    'early_refresh_request_body' => 'They are CC\'d on this email — reply to all to pick up the conversation.',
 
     // Store order lifecycle (requester-facing)
     'store_order_greeting' => 'Hi :name,',

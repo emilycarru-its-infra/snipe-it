@@ -48,8 +48,10 @@ class StoreOrder extends Model
         'program',
         'order_usage',
         'location_id',
+        'refresh_asset_id',
         'funding_account',
         'lease_schedule',
+        'gl_code',
         'notes',
         'decision_notes',
         'decided_by',
@@ -111,6 +113,18 @@ class StoreOrder extends Model
     public function location()
     {
         return $this->belongsTo(Location::class, 'location_id');
+    }
+
+    /**
+     * The machine this order refreshes early — set when a staff member
+     * arrives at the store through the "Request early refresh" doorway on
+     * /my, so the queue knows which device the request is about.
+     *
+     * @return BelongsTo<Asset, $this>
+     */
+    public function refreshAsset()
+    {
+        return $this->belongsTo(Asset::class, 'refresh_asset_id');
     }
 
     /**

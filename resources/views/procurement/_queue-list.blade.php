@@ -58,6 +58,14 @@
                         @if ($order->isShared())
                             <span class="label label-info" style="margin-left:4px;">{{ trans('admin/store/general.usage_shared_chip') }}@if ($order->location) · {{ $order->location->name }}@endif</span>
                         @endif
+                        @if ($order->refreshAsset)
+                            <a href="{{ route('hardware.show', $order->refreshAsset->id) }}" class="label label-warning" style="margin-left:4px;">
+                                {{ trans('admin/store/general.queue_early_refresh', ['tag' => $order->refreshAsset->asset_tag]) }}
+                            </a>
+                        @endif
+                        @if ($order->gl_code)
+                            <span class="label label-default" style="margin-left:4px;">{{ trans('admin/store/general.queue_gl_code', ['code' => $order->gl_code]) }}</span>
+                        @endif
                         @if ($order->vendor_sent_at)
                             <span class="label label-success" style="margin-left:4px;">{{ trans('admin/store/general.vendor_sent', ['when' => $order->vendor_sent_at->format('M j')]) }}</span>
                         @endif
@@ -116,6 +124,9 @@
                             </table>
                             @if ($order->notes)
                                 <p class="text-muted" style="margin:8px 0 0;"><em>{{ $order->notes }}</em></p>
+                            @endif
+                            @if ($order->refreshAsset && ! $order->gl_code && $order->status === 'pending')
+                                <p class="text-muted" style="margin:8px 0 0; font-size:12px;">{{ trans('admin/store/general.queue_no_gl_code') }}</p>
                             @endif
                         </div>
                         <div class="col-md-5">

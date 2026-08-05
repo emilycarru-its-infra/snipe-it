@@ -70,7 +70,14 @@
 .ecu-rail { display: flex; gap: 4px; }
 .ecu-chev {
     --ecu-chev-notch: 14px;
-    flex: 1;
+    /* Basis auto, not 0: the longest label ("Ready for pick up") takes the
+       width it needs instead of wrapping while its six neighbours sit in
+       equal-width chevrons with air to spare. Flexed content stays centred
+       both ways so a wrap on narrow screens still reads deliberate. */
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     font-size: 12px;
     font-weight: 600;

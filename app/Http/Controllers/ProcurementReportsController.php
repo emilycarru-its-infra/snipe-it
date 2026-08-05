@@ -621,6 +621,27 @@ class ProcurementReportsController extends Controller
         );
     }
 
+    /**
+     * Lease Data Health: every leased device whose record is missing
+     * something the end-user dashboard or the buyout flow silently depends
+     * on. A lease with no end date counts as "active" everywhere, a Faculty
+     * machine with no lessor email has a buyout button that cannot send,
+     * and a stale buyout figure keeps printing after the lease ends — this
+     * report is where those gaps stop being invisible.
+     */
+    public function leaseDataHealth(Request $request)
+    {
+        $this->authorize('reports.procurement.view');
+
+        return $this->render(
+            $request,
+            'lease-data-health-report',
+            trans('admin/purchase-orders/general.report_lease_data_health'),
+            'reports.procurement.lease-data-health',
+            $this->leaseDataHealthReport()
+        );
+    }
+
     public function csiSchedule(Request $request)
     {
         $this->authorize('reports.procurement.view');
@@ -2219,6 +2240,121 @@ class ProcurementReportsController extends Controller
      * to TDX: provider, end date, fiscal year, active/buyout/archived
      * counts, dominant model and ownership type.
      */
+    /**
+     * One row per leased asset with a data gap, worst problems first.
+     * Checks mirror what the record is actually used for:
+     *
+     *   - no lease end date        → treated as an active lease forever, and
+     *                                the /my row shows no date at all
+     *   - unknown / missing        → invisible to every per-contract report
+     *     contract reference         and to the reconciliation
+     *   - no lessor email          → the buyout request has nowhere to send
+     *   - Faculty with no buyout   → /my shows no estimate to the person
+     *     cost                       deciding whether to buy out
+     *   - buyout cost after the    → a dead figure that keeps printing on
+     *     lease ended                /my and in exports
+     *   - no catalog tag while     → neither the buyout nor the refresh
+     *     deployed                   doorway renders for the assigned person
+     *
+     * Archived devices only appear for the stale-buyout check — their other
+     * gaps are history, not work.
+     */
+    private function leaseDataHealthReport(): array
+    {
+        $columns = [
+            trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.detail_serial'),
+            trans('admin/purchase-orders/general.detail_model'),
+            trans('general.assignee'),
+            trans('general.catalog'),
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.health_problems'),
+        ];
+
+        $knownContracts = Contract::whereNotNull('schedule_number')
+            ->pluck('schedule_number')
+            ->map(fn ($number) => strtoupper(trim((string) $number)))
+            ->flip();
+
+        $assets = Asset::with('model', 'status', 'lessor')
+            ->where('ownership_type', 'like', '%lease%')
+            ->get();
+
+        $records = [];
+        $problemCount = 0;
+
+        foreach ($assets as $asset) {
+            $end = $asset->leaseEndDate();
+            $active = $end === null || $end->gte(today());
+            $archived = (int) ($asset->status->archived ?? 0) === 1;
+            $contractRef = strtoupper(trim((string) $asset->lease_contract_id));
+
+            $problems = [];
+
+            if (! $archived) {
+                if (! $asset->lease_end_date) {
+                    $problems[] = ['danger', trans('admin/purchase-orders/general.health_no_end_date')];
+                }
+                if ($contractRef === '') {
+                    $problems[] = ['danger', trans('admin/purchase-orders/general.health_no_contract')];
+                } elseif (! isset($knownContracts[$contractRef])) {
+                    $problems[] = ['warning', trans('admin/purchase-orders/general.health_unknown_contract')];
+                }
+                if ($active && (! $asset->lessor || ! filled($asset->lessor->email))) {
+                    $problems[] = ['danger', trans('admin/purchase-orders/general.health_no_lessor_email')];
+                }
+                if ($active && $asset->isFacultyCatalog() && ! is_numeric($asset->buyout_cost)) {
+                    $problems[] = ['warning', trans('admin/purchase-orders/general.health_no_buyout_cost')];
+                }
+                if ($active && $asset->assigned_type === User::class
+                    && trim((string) $asset->catalogTag()) === '') {
+                    $problems[] = ['warning', trans('admin/purchase-orders/general.health_no_catalog_tag')];
+                }
+            }
+
+            if (! $active && is_numeric($asset->buyout_cost) && ! $asset->decommission_date) {
+                $problems[] = ['warning', trans('admin/purchase-orders/general.health_stale_buyout')];
+            }
+
+            if (empty($problems)) {
+                continue;
+            }
+
+            $problemCount += count($problems);
+            $worst = collect($problems)->pluck(0)->contains('danger') ? 'danger' : 'warning';
+
+            $records[] = [
+                'class' => $worst,
+                'cells' => [
+                    $asset->asset_tag,
+                    (string) $asset->serial,
+                    (string) $asset->model?->name,
+                    $asset->assignedTo?->present()->fullName ?? '',
+                    (string) $asset->catalogTag(),
+                    (string) $asset->lease_contract_id,
+                    $this->dateString($asset->lease_end_date),
+                    collect($problems)->pluck(1)->implode('; '),
+                ],
+            ];
+        }
+
+        // Danger rows first so the report leads with what is broken, not
+        // merely untidy; ties keep contract order for scannability.
+        usort($records, fn ($a, $b) => [$a['class'] === 'danger' ? 0 : 1, $a['cells'][5], $a['cells'][0]]
+            <=> [$b['class'] === 'danger' ? 0 : 1, $b['cells'][5], $b['cells'][0]]);
+
+        $footer = [
+            trans('admin/purchase-orders/general.health_footer', [
+                'assets' => count($records),
+                'problems' => $problemCount,
+                'leased' => $assets->count(),
+            ]), '', '', '', '', '', '', '',
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
     private function leasesOperationalReport(?string $fy = null): array
     {
         $columns = [
