@@ -686,7 +686,7 @@ class ProcurementReportsController extends Controller
         ];
 
         $records = [];
-        $tally = ['match' => 0, 'schedule_mismatch' => 0, 'missing_in_snipe' => 0, 'extra_in_snipe' => 0];
+        $tally = ['match' => 0, 'schedule_mismatch' => 0, 'missing_in_snipe' => 0, 'extra_in_snipe' => 0, 'unserialized' => 0];
 
         foreach ((new CsiReconciliation)->assetDiff() as $row) {
             if ($fy !== null) {
@@ -697,7 +697,7 @@ class ProcurementReportsController extends Controller
             }
             $tally[$row['status']] = ($tally[$row['status']] ?? 0) + 1;
             $records[] = [
-                'class' => $row['status'] === 'match' ? '' : 'danger',
+                'class' => in_array($row['status'], ['match', 'unserialized'], true) ? '' : 'danger',
                 'cells' => [
                     $t('csi_recon_'.$row['status']),
                     $row['serial'],

@@ -75,6 +75,24 @@ class CsiReconciliation
             $csiSerials[$k] = true;
             $asset = $snipeBySerial[$k] ?? null;
 
+            // Unserialized financed lines (rack kits, soft-cost rows) come
+            // through the lessor feed with "N/A" — there is no serial to
+            // join on, so "missing" would be a false alarm. Surface them
+            // as their own informational status instead.
+            if ($k === '' || $k === 'N/A') {
+                $rows[] = [
+                    'serial' => $csi->serial,
+                    'csi_schedule' => $csi->schedule_name,
+                    'model' => $csi->model,
+                    'status' => 'unserialized',
+                    'snipe_tag' => null,
+                    'snipe_status' => null,
+                    'snipe_schedule' => null,
+                ];
+
+                continue;
+            }
+
             if (! $asset) {
                 $status = 'missing_in_snipe';
                 $snipeRef = null;
