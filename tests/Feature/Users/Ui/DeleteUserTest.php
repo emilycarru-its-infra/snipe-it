@@ -67,7 +67,7 @@ class DeleteUserTest extends TestCase
         $response = $this->followingRedirects()->actingAs($userFromA)
             ->delete(route('users.destroy', ['user' => $userFromB->id]))
             ->assertStatus(403);
-        $this->followRedirects($response)->assertSee('sad-panda.png');
+        $this->followRedirects($response)->assertSee(trans('general.error_403_headline'));
 
         $userFromB->refresh();
         $this->assertNull($userFromB->deleted_at);
@@ -76,7 +76,7 @@ class DeleteUserTest extends TestCase
             ->delete(route('users.destroy', ['user' => $userFromA->id]))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
-        $this->followRedirects($response)->assertSee('sad-panda.png');
+        $this->followRedirects($response)->assertSee(trans('general.error_403_headline'));
 
         $userFromA->refresh();
         $this->assertNull($userFromA->deleted_at);

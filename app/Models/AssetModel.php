@@ -21,6 +21,7 @@ use Watson\Validating\ValidatingTrait;
  * Model for Asset Models. Asset Models contain higher level
  * attributes that are common among the same type of asset.
  *
+ * @property int|null $refresh_catalog_item_id
  * @property-read CatalogItem|null $refreshCatalogItem
  *
  * @version v1.0
