@@ -19,9 +19,31 @@
         .rpt-report-table tfoot > tr > th {
             border-top: 3px double rgba(60, 141, 188, 0.7);
         }
+        /* Frozen headings: the table scrolls inside its own viewport-sized
+           region and the header row stays pinned. Sticky-in-page doesn't
+           survive the .table-responsive scroll container, so the region
+           itself is the scroller. Short tables simply don't scroll. */
+        .rpt-table-scroll {
+            max-height: calc(100vh - var(--header-h, 68px) - 190px);
+            overflow: auto;
+        }
+        .rpt-report-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: var(--box-bg, #fff);
+            box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);
+        }
+        /* Bootstrap contextual rows ship hard-coded light tints; in dark
+           mode they put near-white text on cream. Re-tint from the accent
+           colours at low alpha so the theme's own text colour stays. */
+        [data-theme="dark"] .rpt-report-table > tbody > tr.warning > td { background-color: rgba(240, 173, 78, .18) !important; }
+        [data-theme="dark"] .rpt-report-table > tbody > tr.info > td { background-color: rgba(60, 141, 188, .22) !important; }
+        [data-theme="dark"] .rpt-report-table > tbody > tr.success > td { background-color: rgba(0, 166, 90, .18) !important; }
+        [data-theme="dark"] .rpt-report-table > tbody > tr.danger > td { background-color: rgba(221, 75, 57, .26) !important; }
     </style>
 @endonce
-<div class="table-responsive">
+<div class="table-responsive rpt-table-scroll">
     <table class="table table-striped rpt-report-table">
         <thead>
             <tr>

@@ -140,6 +140,19 @@
 </div>
 
 <style>
+    /* Frozen headings: same internal-scroll pattern as the shared report
+       table — the region scrolls, the header row stays. */
+    .table-responsive {
+        max-height: calc(100vh - var(--header-h, 68px) - 220px);
+        overflow: auto;
+    }
+    .table-responsive thead th {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: var(--box-bg, #fff);
+        box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);
+    }
     .recon-fold > summary { cursor: pointer; list-style: none; }
     .recon-fold > summary::-webkit-details-marker { display: none; }
     .recon-fold > summary .box-title::after {
