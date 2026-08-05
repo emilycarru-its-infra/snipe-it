@@ -647,13 +647,26 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        return $this->render(
-            $request,
-            'lease-reconciliation-report',
-            trans('admin/purchase-orders/general.report_csi_reconciliation'),
-            'reports.procurement.csi-reconciliation',
-            $this->csiReconciliationReport($this->resolveFiscalYear($request))
-        );
+        $fy = $this->resolveFiscalYear($request);
+        $report = $this->csiReconciliationReport($fy);
+
+        // CSV and dashboard embeds keep the flat table; the page itself has
+        // a purpose-built view — discrepancies first, matches folded away.
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv('lease-reconciliation-report', $report);
+        }
+        if ($request->boolean('embed')) {
+            return $this->embedTable($report);
+        }
+
+        return view('reports.procurement.lease-reconciliation', [
+            'reportTitle' => trans('admin/purchase-orders/general.report_csi_reconciliation'),
+            'grouped' => $report['grouped'],
+            'summary' => $report['footer'][0],
+            'selectedFy' => $fy,
+            'fiscalYears' => $this->availableFiscalYears(),
+            'downloadUrl' => route('reports.procurement.csi-reconciliation', array_filter(['format' => 'csv', 'fiscal_year' => $fy])),
+        ]);
     }
 
     private function csiReconciliationReport(?string $fy = null): array
@@ -683,7 +696,9 @@ class ProcurementReportsController extends Controller
             $t('csi_recon_status'), $t('csi_recon_serial'), $t('csi_recon_model'),
             $t('csi_recon_csi_schedule'), $t('csi_recon_snipe_schedule'),
             $t('csi_recon_snipe_tag'), $t('csi_recon_snipe_status'),
+            $t('csi_recon_snipe_assigned'), $t('csi_recon_snipe_location'),
         ];
+        $grouped = ['discrepancies' => [], 'matches' => [], 'unserialized' => []];
 
         $records = [];
         $tally = ['match' => 0, 'schedule_mismatch' => 0, 'missing_in_snipe' => 0, 'extra_in_snipe' => 0, 'unserialized' => 0];
@@ -696,6 +711,9 @@ class ProcurementReportsController extends Controller
                 }
             }
             $tally[$row['status']] = ($tally[$row['status']] ?? 0) + 1;
+            $bucket = $row['status'] === 'match' ? 'matches'
+                : ($row['status'] === 'unserialized' ? 'unserialized' : 'discrepancies');
+            $grouped[$bucket][] = $row;
             $records[] = [
                 'class' => in_array($row['status'], ['match', 'unserialized'], true) ? '' : 'danger',
                 'cells' => [
@@ -706,6 +724,8 @@ class ProcurementReportsController extends Controller
                     $row['snipe_schedule'],
                     $row['snipe_tag'],
                     $row['snipe_status'],
+                    $row['snipe_assigned'] ?? null,
+                    $row['snipe_location'] ?? null,
                 ],
             ];
         }
@@ -718,7 +738,8 @@ class ProcurementReportsController extends Controller
         return [
             'columns' => $columns,
             'records' => $records,
-            'footer' => [$summary, '', '', '', '', '', ''],
+            'grouped' => $grouped,
+            'footer' => [$summary, '', '', '', '', '', '', '', ''],
         ];
     }
 
