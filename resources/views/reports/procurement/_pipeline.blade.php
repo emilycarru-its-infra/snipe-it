@@ -251,6 +251,12 @@
                 <span class="text-muted" style="font-size:12px; margin-left:10px;">
                     {{ trans('admin/purchase-orders/general.pipeline_board_hint') }}
                 </span>
+                <div class="box-tools pull-right">
+                    <input type="search" id="pp-board-filter" class="form-control input-sm"
+                           placeholder="{{ trans('admin/purchase-orders/general.pipeline_board_filter') }}"
+                           style="width: 220px; display: inline-block;"
+                           aria-label="{{ trans('admin/purchase-orders/general.pipeline_board_filter') }}">
+                </div>
             </div>
             <div class="box-body">
                 <div class="pp-board-scroll">
@@ -570,6 +576,19 @@
 </div>
 
 <script nonce="{{ csrf_token() }}">
+    // Board filter: hide cards whose text doesn't match; columns keep
+    // their headers so the stage rail stays readable while filtering.
+    (function () {
+        var input = document.getElementById('pp-board-filter');
+        if (! input) { return; }
+        input.addEventListener('input', function () {
+            var term = input.value.trim().toLowerCase();
+            document.querySelectorAll('.pp-board .pp-card:not(.pp-empty)').forEach(function (card) {
+                card.style.display = (term === '' || card.textContent.toLowerCase().indexOf(term) !== -1) ? '' : 'none';
+            });
+        });
+    })();
+
     // Card lightbox: clone the card's hidden content block into the shared
     // Bootstrap modal. Report cards (data-pp-embed) fetch the report's
     // embed table into the modal instead — same mechanism the inline
