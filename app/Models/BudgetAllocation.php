@@ -15,6 +15,9 @@ use Watson\Validating\ValidatingTrait;
  *   - 'forecast'      — seeded from upcoming lease renewals / EOL forecast
  *   - 'supplemental'  — admin-side top-up announced during the year
  *   - 'adjustment'    — manual correction (often negative) explaining a fix
+ *   - 'ministry_capital' — funding injected from ministry capital, outside
+ *                       the pre-allocated pot; booked when an externally
+ *                       funded order enters the pipeline
  *   - 'carry_forward' — a manual override of the live carry-forward the
  *                       dashboard computes from the prior FY's unused PO
  *                       budget (posting one suppresses the live figure)
@@ -33,7 +36,7 @@ class BudgetAllocation extends Model
 {
     use HasFactory, SoftDeletes, ValidatingTrait, Searchable;
 
-    public const SOURCES = ['forecast', 'supplemental', 'adjustment', 'carry_forward', 'lease_preapproval'];
+    public const SOURCES = ['forecast', 'supplemental', 'adjustment', 'carry_forward', 'lease_preapproval', 'ministry_capital'];
 
     protected $table = 'budget_allocations';
 
@@ -56,7 +59,7 @@ class BudgetAllocation extends Model
         'fiscal_year'    => 'required|string|max:16',
         'area'           => 'nullable|string|max:191',
         'amount'         => 'required|numeric',
-        'source'         => 'required|in:forecast,supplemental,adjustment,carry_forward,lease_preapproval',
+        'source'         => 'required|in:forecast,supplemental,adjustment,carry_forward,lease_preapproval,ministry_capital',
         'description'    => 'nullable|string|max:2000',
         'effective_date' => 'nullable|date',
     ];
