@@ -202,7 +202,9 @@ class StoreController extends Controller
         // shared cart, only their own Staff-catalog machine — and the GL
         // code only means anything in that context.
         $refreshAsset = $shared ? null : $this->refreshAssetFor($validated['refresh_asset_id'] ?? null);
-        $glCode = $refreshAsset ? trim((string) ($validated['gl_code'] ?? '')) : '';
+        // The GL code is open to every order, not just early refreshes — any
+        // store purchase can be department-funded.
+        $glCode = trim((string) ($validated['gl_code'] ?? ''));
 
         $order = DB::transaction(function () use ($validated, $isFaculty, $shared, $refreshAsset, $glCode) {
             $order = StoreOrder::create([
