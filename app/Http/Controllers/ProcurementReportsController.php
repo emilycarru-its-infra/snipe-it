@@ -2106,6 +2106,7 @@ class ProcurementReportsController extends Controller
 
             if (! isset($schedules[$contractId])) {
                 $decision = $decisions[$contractId] ?? null;
+                $planNote = $planNotes[$contractId] ?? null;
                 $schedules[$contractId] = [
                     'contract_id' => $contractId,
                     'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
@@ -2116,7 +2117,7 @@ class ProcurementReportsController extends Controller
                     'model_counts' => [],
                     'ownership_counts' => [],
                     'decision' => $decision,
-                    'plan_note' => (string) (($planNotes[$contractId] ?? null)?->notes ?? ''),
+                    'plan_note' => $planNote ? (string) $planNote->notes : '',
                     'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
                     'is_lease_to_own' => false,
                 ];
