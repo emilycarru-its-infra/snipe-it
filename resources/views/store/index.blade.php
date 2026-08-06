@@ -105,17 +105,15 @@
                     </div>
                 @endif
 
-                {{-- Only asked on an early-refresh visit: an off-cycle
-                     replacement may be funded by the requester's own
-                     department rather than the device budget, and the GL
-                     code is how procurement charges it there. --}}
-                @if ($refreshAsset)
-                    <div class="form-group" style="margin-top:12px;">
-                        <label for="st-gl-code">{{ trans('admin/store/general.gl_code_label') }}</label>
-                        <input type="text" name="gl_code" id="st-gl-code" class="form-control" maxlength="64"
-                               placeholder="{{ trans('admin/store/general.gl_code_placeholder') }}">
-                    </div>
-                @endif
+                {{-- Asked on every order: any store purchase can be funded by
+                     the requester's own department rather than the device
+                     budget, and the GL code is how procurement charges it
+                     there. Optional — blank means the device budget pays. --}}
+                <div class="form-group" style="margin-top:12px;">
+                    <label for="st-gl-code">{{ trans('admin/store/general.gl_code_label') }}</label>
+                    <input type="text" name="gl_code" id="st-gl-code" class="form-control" maxlength="64"
+                           placeholder="{{ trans('admin/store/general.gl_code_placeholder') }}">
+                </div>
 
                 <div class="form-group" style="margin-top:12px;">
                     <label for="st-notes">{{ trans('admin/store/general.order_note_label') }}</label>
