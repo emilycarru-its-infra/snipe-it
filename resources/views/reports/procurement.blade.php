@@ -15,8 +15,11 @@
             <h1 class="box-title" style="font-size:22px; margin:0; display:inline-block; vertical-align:middle;">
                 {{ trans('admin/purchase-orders/general.dashboard_title') }}
             </h1>
+            {{-- Switching FY reloads the page; stash the scroll position so
+                 the reader lands back where they were, not at the top. --}}
             <form method="get" style="display:inline-block; margin-left:15px; vertical-align:middle;">
-                <select name="fiscal_year" class="form-control input-sm" style="display:inline-block; width:auto;" onchange="this.form.submit()">
+                <select name="fiscal_year" class="form-control input-sm" style="display:inline-block; width:auto;"
+                        onchange="sessionStorage.setItem('procDashScroll', String(window.scrollY)); this.form.submit()">
                     <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
                     @foreach ($allFiscalYears as $fy)
                         <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
@@ -409,6 +412,17 @@
 @stop
 
 @section('moar_scripts')
+<script nonce="{{ csrf_token() }}">
+    // Land back where the reader was after an FY switch (the select stashes
+    // scrollY before submitting). Instant jump — the page-level smooth
+    // scroll-behavior would animate from the top otherwise.
+    (function () {
+        var saved = sessionStorage.getItem('procDashScroll');
+        if (saved === null) { return; }
+        sessionStorage.removeItem('procDashScroll');
+        window.scrollTo({ top: parseInt(saved, 10) || 0, behavior: 'instant' });
+    })();
+</script>
 <script src="{{ url(mix('js/dist/Chart.min.js')) }}"></script>
 <script nonce="{{ csrf_token() }}">
     (function () {

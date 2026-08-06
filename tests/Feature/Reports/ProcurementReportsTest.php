@@ -1156,6 +1156,23 @@ class ProcurementReportsTest extends TestCase
         $report->assertOk()->assertDontSee('Revised plan.');
     }
 
+    public function test_prefixed_cca_contract_ids_stay_recognised()
+    {
+        // The 4130- lessor-account prefix (2026-08 rename) must keep CCA
+        // schedules inside every lease rollup — the validity check once
+        // required a bare ECI prefix, which silently dropped them all.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => '4130-ECI20240801-1',
+            'Lease End Date' => '2028-08-01',
+        ], ['serial' => 'PREFIXED1']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid'))
+            ->assertOk()
+            ->assertSee('4130-ECI20240801-1')
+            ->assertSee('PREFIXED1');
+    }
+
     public function test_disposition_grid_deep_links_a_contract_and_scopes_downloads()
     {
         $this->seedLeaseAsset([
