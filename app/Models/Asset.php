@@ -268,6 +268,18 @@ class Asset extends Depreciable
         'last_checkin',
         'last_checkout',
         'asset_eol_date',
+        'lease_contract_id',
+        'lease_contract_name',
+        'lease_end_date',
+        'lease_rent',
+        'buyout_cost',
+        'ownership_type',
+        'lease_usage',
+        'lease_area',
+        'lease_book_value',
+        'po_number',
+        'decommission_date',
+        'warranty_soft_cost',
     ];
 
     /**
@@ -285,6 +297,7 @@ class Asset extends Depreciable
         'category' => ['name'],
         'manufacturer' => ['name'],
         'assigned_to' => ['name'],
+        'lessor' => ['name'],
     ];
 
     /**
