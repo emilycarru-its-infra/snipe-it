@@ -5,7 +5,11 @@
      rendered server-side or lazy-injected via innerHTML. --}}
 <style>
     .rpt-note-cell { min-width: 160px; }
-    .rpt-note-edit { margin-left: 6px; color: #999; }
+    /* Pencils appear on hover only — of the row when the cell sits in a
+       table, of the note block itself for the standalone plan notes. */
+    .rpt-note-edit { margin-left: 6px; color: #999; visibility: hidden; }
+    tr:hover .rpt-note-edit,
+    .rpt-note-cell:hover .rpt-note-edit { visibility: visible; }
     .rpt-note-edit:hover { color: #3c8dbc; }
     .rpt-note-input { width: 100%; }
 </style>
