@@ -107,6 +107,24 @@
 
     @include ('partials.forms.edit.notes')
     @include ('partials.forms.edit.location-select', ['translated_name' => trans('admin/hardware/form.default_location'), 'fieldname' => 'rtd_location_id', 'help_text' => trans('general.rtd_location_help')])
+
+    {{-- Lease taxonomy — native columns since the F2 migration.
+         Their old listbox custom fields left the fieldsets, which
+         silently dropped them from this form; they edit here as
+         the dropdowns they always were. --}}
+    @foreach ([
+        ['ownership_type', trans('general.ownership_type'), array_combine(\App\Models\Asset::OWNERSHIP_TYPES, \App\Models\Asset::OWNERSHIP_TYPES)],
+        ['lease_usage', trans('general.lease_usage'), array_combine(\App\Models\Asset::LEASE_USAGES, \App\Models\Asset::LEASE_USAGES)],
+        ['lease_area', trans('general.lease_area'), \App\Models\Asset::leaseAreaOptions()],
+    ] as [$taxField, $taxLabel, $taxOptions])
+        <div class="form-group{{ $errors->has($taxField) ? ' has-error' : '' }}">
+            <label for="{{ $taxField }}" class="col-md-3 control-label">{{ $taxLabel }}</label>
+            <div class="col-md-7 col-sm-12">
+                <select class="form-control" name="{{ $taxField }}" id="{{ $taxField }}">
+                    <option value="">—</option>
+                    @foreach ($taxOptions as $optVal => $optLabel)
+                        <option value="{{ $optVal }}" @selected(old($taxField, $item->{$taxField}) === $optVal)>{{ $optLabel }}</option>
+                    @endforeach
     @include ('partials.forms.edit.requestable', ['requestable_text' => trans('admin/hardware/general.requestable')])
 
 
@@ -187,6 +205,12 @@
                 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/hardware/form.eol_date'),'fieldname' => 'asset_eol_date'])
                 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
                 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.lessor'), 'fieldname' => 'lessor_id', 'hide_new' => 'true'])
+
+                            </select>
+                            {!! $errors->first($taxField, '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+                        </div>
+                    </div>
+                @endforeach
 
                 @php
                     $currency_type = null;

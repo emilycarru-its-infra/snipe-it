@@ -388,6 +388,31 @@ class Asset extends Depreciable
      * Custom fields have their own inline-edit path on the model fieldset;
      * this only covers the handful of native fields people touch most.
      */
+    /**
+     * The closed vocabularies of the native lease taxonomy columns (the F2
+     * migration's replacements for the old listbox custom fields). Ownership
+     * and usage are fixed; the Area list is whatever the fleet already uses —
+     * offering existing values keeps the inline editor a dropdown without
+     * losing any historical label, and stops new spelling variants.
+     */
+    public const OWNERSHIP_TYPES = ['Purchased', 'Lease to Return', 'Lease to Own'];
+
+    public const LEASE_USAGES = ['Shared', 'Assigned'];
+
+    /** @return array<string, string> value => label, sorted, for selects */
+    public static function leaseAreaOptions(): array
+    {
+        $values = static::query()
+            ->whereNotNull('lease_area')
+            ->where('lease_area', '!=', '')
+            ->distinct()
+            ->orderBy('lease_area')
+            ->pluck('lease_area')
+            ->all();
+
+        return array_combine($values, $values) ?: [];
+    }
+
     public static function inlineEditableCoreFields(): array
     {
         return [
@@ -412,11 +437,11 @@ class Asset extends Depreciable
             // the procurement/inventory detail cards.
             'lease_contract_id' => 'text',
             'lease_contract_name' => 'text',
-            'ownership_type' => 'text',
+            'ownership_type' => 'select',
             'po_number' => 'text',
             'invoice_number' => 'text',
-            'lease_usage' => 'text',
-            'lease_area' => 'text',
+            'lease_usage' => 'select',
+            'lease_area' => 'select',
             'lease_end_date' => 'date',
             'lease_rent' => 'text',
             'buyout_cost' => 'text',

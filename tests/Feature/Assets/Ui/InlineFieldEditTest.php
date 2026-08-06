@@ -126,4 +126,69 @@ class InlineFieldEditTest extends TestCase
 
         $this->assertNull($asset->fresh()->{$field->db_column});
     }
+
+    public function test_lease_taxonomy_columns_edit_as_contained_dropdowns()
+    {
+        // Seed one asset carrying an existing Area value so the option list
+        // (distinct fleet values) contains it.
+        \App\Models\Asset::factory()->create(['lease_area' => 'Research']);
+        $asset = \App\Models\Asset::factory()->create();
+        $user = User::factory()->editAssets()->create();
+
+        // A known Area value saves…
+        $this->actingAs($user)
+            ->patch(route('hardware.corefield.update', $asset), ['field' => 'lease_area', 'value' => 'Research'])
+            ->assertSessionHas('success');
+        $this->assertEquals('Research', $asset->fresh()->lease_area);
+
+        // …an invented one is rejected, exactly like an off-list listbox value.
+        $this->actingAs($user)
+            ->patch(route('hardware.corefield.update', $asset), ['field' => 'lease_area', 'value' => 'MadeUpDept'])
+            ->assertSessionHas('error');
+        $this->assertEquals('Research', $asset->fresh()->lease_area);
+
+        // Ownership and usage follow their fixed vocabularies.
+        $this->actingAs($user)
+            ->patch(route('hardware.corefield.update', $asset), ['field' => 'ownership_type', 'value' => 'Lease to Return'])
+            ->assertSessionHas('success');
+        $this->actingAs($user)
+            ->patch(route('hardware.corefield.update', $asset), ['field' => 'lease_usage', 'value' => 'Rented'])
+            ->assertSessionHas('error');
+        $fresh = $asset->fresh();
+        $this->assertEquals('Lease to Return', $fresh->ownership_type);
+        $this->assertNull($fresh->lease_usage);
+    }
+
+    public function test_edit_form_carries_the_lease_taxonomy_dropdowns()
+    {
+        \App\Models\Asset::factory()->create(['lease_area' => 'Library']);
+        $asset = \App\Models\Asset::factory()->create(['lease_area' => 'Library', 'lease_usage' => 'Shared']);
+        $user = User::factory()->editAssets()->create();
+
+        // The form renders all three selects with the fleet's options.
+        $this->actingAs($user)
+            ->get(route('hardware.edit', $asset))
+            ->assertOk()
+            ->assertSee('name="lease_area"', false)
+            ->assertSee('name="lease_usage"', false)
+            ->assertSee('name="ownership_type"', false)
+            ->assertSee('Library');
+
+        // Submitting the full form persists the taxonomy values.
+        $this->actingAs($user)
+            ->put(route('hardware.update', $asset), [
+                'asset_tags' => [1 => $asset->asset_tag],
+                'model_id' => $asset->model_id,
+                'status_id' => $asset->status_id,
+                'lease_area' => 'Library',
+                'lease_usage' => 'Assigned',
+                'ownership_type' => 'Purchased',
+            ])
+            ->assertStatus(302);
+
+        $fresh = $asset->fresh();
+        $this->assertEquals('Library', $fresh->lease_area);
+        $this->assertEquals('Assigned', $fresh->lease_usage);
+        $this->assertEquals('Purchased', $fresh->ownership_type);
+    }
 }
