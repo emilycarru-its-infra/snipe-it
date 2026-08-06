@@ -355,7 +355,8 @@ class EndUserExperienceTest extends TestCase
         Mail::assertNotSent(AssetBuyoutRequestMail::class);
 
         // A Faculty machine never engages the refresh context: the posted
-        // id and GL code are quietly dropped, not stored.
+        // id is quietly dropped. The GL code persists regardless — any
+        // order can be department-funded, refresh or not.
         $facultyMachine = Asset::factory()->create([
             'model_id' => $staffMachine->model_id,
             'assigned_to' => $user->id,
@@ -371,7 +372,20 @@ class EndUserExperienceTest extends TestCase
 
         $second = StoreOrder::orderByDesc('id')->first();
         $this->assertNull($second->refresh_asset_id);
-        $this->assertNull($second->gl_code);
+        $this->assertSame('99-999-9999', $second->gl_code);
+
+        // And a plain store order — no refresh context at all — carries a
+        // GL code too: the field shows on every order.
+        $this->actingAs($user)->get(route('store.index'))
+            ->assertOk()
+            ->assertSee('name="gl_code"', false);
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'gl_code' => '11-222-3333',
+        ])->assertRedirect(route('store.orders'));
+        $third = StoreOrder::orderByDesc('id')->first();
+        $this->assertNull($third->refresh_asset_id);
+        $this->assertSame('11-222-3333', $third->gl_code);
     }
 
     public function test_the_dashboard_opens_the_door_at_renewal_time()
