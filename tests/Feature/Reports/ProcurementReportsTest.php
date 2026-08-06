@@ -1108,6 +1108,32 @@ class ProcurementReportsTest extends TestCase
             ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 999.00) < 0.01);
     }
 
+    public function test_ministry_capital_allocation_posts_and_joins_the_approved_budget()
+    {
+        // The store endpoint accepts the new source…
+        $this->actingAs($this->superuser())
+            ->post(route('budget_allocations.store'), [
+                'fiscal_year' => 'FY2026-27',
+                'amount' => 107783.40,
+                'source' => 'ministry_capital',
+                'description' => 'Ministry capital — MacBook Air cart order (CDW quote)',
+            ])
+            ->assertRedirect(route('reports.procurement', ['fiscal_year' => 'FY2026-27']));
+
+        $this->assertDatabaseHas('budget_allocations', [
+            'fiscal_year' => 'FY2026-27',
+            'source' => 'ministry_capital',
+        ]);
+
+        // …and the injection joins Approved Budget like any other allocation,
+        // so the externally funded order's committed spend nets out.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 107783.40) < 0.01)
+            ->assertSee(trans('admin/budget-allocations/general.source_ministry_capital'));
+    }
+
     public function test_lease_plan_note_creates_a_note_only_row_that_stays_out_of_decisions()
     {
         $this->seedLeaseAsset([
