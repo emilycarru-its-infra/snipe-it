@@ -225,6 +225,17 @@ class ProcurementReportsController extends Controller
             ? (int) ($leaseExpiryByFy[$selectedFy]['count'] ?? 0)
             : (int) array_sum(array_column($leaseExpiryByFy, 'count'));
 
+        // The lease-end pre-approval joins the approved pot automatically:
+        // every schedule ending in the FY was funded at signing, so the new
+        // year's budget starts from the replacement estimate plus any carry —
+        // no manual allocation needed. A posted 'lease_preapproval'
+        // allocation overrides the live figure (same pattern as
+        // carry_forward), so a finance-adjusted number wins over the derived
+        // one.
+        if (! $allocations->contains(fn ($a) => $a->source === 'lease_preapproval')) {
+            $totalBudget += $leaseExpiryTotal;
+        }
+
         $fiscalYears = array_keys($committedByFy + $plannedByFy + $leaseExpiryByFy);
         sort($fiscalYears);
 
@@ -237,7 +248,10 @@ class ProcurementReportsController extends Controller
             $selectedFy
         )->count();
 
-        $pendingDecisionCount = LeaseDecision::whereNull('asset_id')->where('status', 'pending')->count();
+        $pendingDecisionCount = LeaseDecision::whereNull('asset_id')
+            ->whereNotNull('decision_type')
+            ->where('status', 'pending')
+            ->count();
 
         // User agreements waiting for a signature — the assets team's chase
         // list. Stuck in 'quoted' or 'agreement_sent' is the failure
@@ -1128,8 +1142,12 @@ class ProcurementReportsController extends Controller
 
         // Resolve the deep-linked contract to a pane (default: first pane) so
         // the picker, panes and download links all agree on the selection.
-        $selectedContract = collect($data['contracts'])->pluck('contract_id')
-            ->first(fn ($id) => strcasecmp($id, $contract) === 0)
+        // Exact match first, then substring — so a link minted before a
+        // schedule id was renamed (e.g. the 4130- lessor prefix) still lands
+        // on the right lease.
+        $contractIds = collect($data['contracts'])->pluck('contract_id');
+        $selectedContract = $contractIds->first(fn ($id) => strcasecmp($id, $contract) === 0)
+            ?? ($contract !== '' ? $contractIds->first(fn ($id) => stripos($id, $contract) !== false) : null)
             ?? ($data['contracts'][0]['contract_id'] ?? '');
 
         $viewData = [
@@ -1241,17 +1259,30 @@ class ProcurementReportsController extends Controller
         $this->authorize('create', Order::class);
 
         $validated = $request->validate([
-            'model' => 'required|string|in:lease_decision',
-            'id' => 'required|integer',
+            'model' => 'required|string|in:lease_decision,lease_plan_note',
+            'id' => 'required_if:model,lease_decision|nullable|integer',
+            'contract_reference' => 'required_if:model,lease_plan_note|nullable|string|max:191',
             'notes' => 'nullable|string|max:65535',
         ]);
 
+        // lease_plan_note is the contract-level free-text plan on a schedule
+        // with no logged decision (or a retained lease-to-own) — a
+        // note-only LeaseDecision row (no asset, no decision_type), created
+        // on first edit.
         $model = match ($validated['model']) {
             'lease_decision' => LeaseDecision::findOrFail($validated['id']),
+            'lease_plan_note' => LeaseDecision::firstOrNew([
+                'contract_reference' => $validated['contract_reference'],
+                'asset_id' => null,
+                'decision_type' => null,
+            ]),
             default => abort(422),
         };
 
         $model->notes = $validated['notes'] ?? '';
+        if (! $model->exists) {
+            $model->created_by = auth()->id();
+        }
         $model->save();
 
         return response()->json(['status' => 'success', 'notes' => (string) $model->notes]);
@@ -2055,6 +2086,7 @@ class ProcurementReportsController extends Controller
             ->get();
 
         $decisions = $this->leaseDecisionsByContract();
+        $planNotes = $this->leasePlanNotesByContract();
 
         $schedules = [];
         foreach ($assets as $asset) {
@@ -2080,6 +2112,7 @@ class ProcurementReportsController extends Controller
                     'model_counts' => [],
                     'ownership_counts' => [],
                     'decision' => $decision,
+                    'plan_note' => (string) (($planNotes[$contractId] ?? null)?->notes ?? ''),
                     'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
                     'is_lease_to_own' => false,
                 ];
@@ -2147,9 +2180,30 @@ class ProcurementReportsController extends Controller
      */
     private function leaseDecisionsByContract(): array
     {
+        // Note-only rows (decision_type null) carry a plan note for a
+        // contract without a logged decision — they are not decisions and
+        // must not flip a schedule's badge, so they're excluded here and
+        // read separately by leasePlanNotesByContract().
         return LeaseDecision::whereNull('asset_id')
+            ->whereNotNull('decision_type')
             ->where('status', '!=', 'cancelled')
             ->orderBy('decision_date')
+            ->get()
+            ->keyBy('contract_reference')
+            ->all();
+    }
+
+    /**
+     * Contract-level plan notes: LeaseDecision rows with no asset and no
+     * decision type. They hold the free-text plan a schedule row shows (and
+     * edits inline) before any buyout / return / extension is logged, and
+     * the per-row note on retained (lease-to-own) schedules.
+     */
+    private function leasePlanNotesByContract(): array
+    {
+        return LeaseDecision::whereNull('asset_id')
+            ->whereNull('decision_type')
+            ->orderBy('id')
             ->get()
             ->keyBy('contract_reference')
             ->all();
@@ -2917,6 +2971,7 @@ class ProcurementReportsController extends Controller
 
         $query = LeaseDecision::query()
             ->whereNull('asset_id')
+            ->whereNotNull('decision_type')
             ->orderByRaw(...$this->fieldOrder('status', ['pending', 'approved', 'completed', 'cancelled']))
             ->orderBy('decision_date');
 
@@ -3524,6 +3579,7 @@ class ProcurementReportsController extends Controller
             if (! isset($contracts[$contractId])) {
                 $contracts[$contractId] = [
                     'contract_id' => $contractId,
+                    'contract_name' => $cols['contract_name'] ? trim((string) $asset->{$cols['contract_name']}) : '',
                     'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
                     'lease_end_date' => $cols['lease_end_date'] ? (string) $asset->{$cols['lease_end_date']} : '',
                     'is_lease_to_own' => false,
@@ -3693,10 +3749,18 @@ class ProcurementReportsController extends Controller
             return $contracts;
         }
 
+        // Same forgiving resolution as the page: exact id first, then
+        // substring, so pre-rename links keep exporting the right lease.
         $scoped = array_values(array_filter(
             $contracts,
             fn ($c) => strcasecmp($c['contract_id'], $onlyContract) === 0
         ));
+        if ($scoped === []) {
+            $scoped = array_values(array_filter(
+                $contracts,
+                fn ($c) => stripos($c['contract_id'], $onlyContract) !== false
+            ));
+        }
 
         return $scoped !== [] ? $scoped : $contracts;
     }

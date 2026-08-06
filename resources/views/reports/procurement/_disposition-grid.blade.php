@@ -25,7 +25,7 @@
     {{-- Serial search (from #244): jumps the dropdown to the matching contract
          and highlights the row. --}}
     <div class="disp-search-bar">
-        <div class="input-group input-group-sm disp-search-group">
+        <div class="input-group input-group-sm disp-search-group disp-search-empty">
             <span class="input-group-addon"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
             <input type="text" class="form-control disp-search" autocomplete="off" spellcheck="false"
                    placeholder="{{ trans('admin/purchase-orders/general.disposition_search_serial') }}">
@@ -38,7 +38,7 @@
         <select id="disp-contract-select" class="form-control input-sm disp-contract-select">
             @foreach ($contracts as $i => $c)
                 <option value="disp-pane-{{ $i }}" data-contract="{{ $c['contract_id'] }}" {{ $c['contract_id'] === $selectedContract ? 'selected' : '' }}>
-                    {{ $c['contract_id'] }} — {{ $c['active_count'] }}/{{ count($c['assets']) }}{{ ! empty($c['provider']) ? ' · '.$c['provider'] : '' }}
+                    {{ ! empty($c['contract_name']) ? $c['contract_name'].' — ' : '' }}{{ $c['contract_id'] }} — {{ $c['active_count'] }}/{{ count($c['assets']) }}{{ ! empty($c['provider']) ? ' · '.$c['provider'] : '' }}
                 </option>
             @endforeach
         </select>
@@ -71,7 +71,11 @@
             @php $paneId = 'disp-pane-'.$i; @endphp
             <div class="tab-pane {{ $c['contract_id'] === $selectedContract ? 'active' : '' }}" id="{{ $paneId }}" role="tabpanel">
                 <p class="text-muted disp-contract-meta">
-                    <strong>{{ $c['provider'] }}</strong>
+                    @if (! empty($c['contract_name']))
+                        <strong>{{ $c['contract_name'] }}</strong> &middot; {{ $c['contract_id'] }} &middot; {{ $c['provider'] }}
+                    @else
+                        <strong>{{ $c['provider'] }}</strong>
+                    @endif
                     @if (! empty($c['lease_end_date']))
                         &middot; {{ trans('admin/purchase-orders/general.disposition_contract_ends', ['date' => $c['lease_end_date']]) }}
                     @endif

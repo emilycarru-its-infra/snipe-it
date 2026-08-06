@@ -225,6 +225,9 @@ class ProcurementPipeline
     private static function returnLanes(): array
     {
         $decisions = LeaseDecision::whereIn('status', ['pending', 'approved', 'completed'])
+            // Note-only rows (no decision_type) carry a schedule's plan note,
+            // not a return/buyout call — they don't belong in the lanes.
+            ->whereNotNull('decision_type')
             ->orderByDesc('decision_date')
             ->get();
 

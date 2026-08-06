@@ -1079,6 +1079,83 @@ class ProcurementReportsTest extends TestCase
         $this->assertEquals([], $user->fresh()->hidden_procurement_reports);
     }
 
+    public function test_pipeline_budget_auto_includes_lease_end_preapproval()
+    {
+        // A schedule ending inside FY2026-27 (Apr–Mar): its original value
+        // is pre-approved and must join the approved budget automatically.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20220901',
+            'Lease End Date' => '2026-09-01',
+        ], ['serial' => 'PREAPPROVE1', 'purchase_cost' => 1500.50]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 1500.50) < 0.01);
+
+        // A posted lease_preapproval allocation overrides the live figure.
+        \App\Models\BudgetAllocation::create([
+            'fiscal_year' => 'FY2026-27',
+            'amount' => 999.00,
+            'source' => 'lease_preapproval',
+            'description' => 'Finance-adjusted pre-approval',
+            'created_by' => $this->superuser()->id,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 999.00) < 0.01);
+    }
+
+    public function test_lease_plan_note_creates_a_note_only_row_that_stays_out_of_decisions()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20230701',
+            'Lease End Date' => '2027-06-30',
+        ], ['serial' => 'PLANNOTE1']);
+
+        // First edit creates the note-only row (no asset, no decision type)…
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.note'), [
+                'model' => 'lease_plan_note',
+                'contract_reference' => 'ECI20230701',
+                'notes' => 'Budget redirected to the Faculty Laptop program.',
+            ])
+            ->assertOk()
+            ->assertJson(['status' => 'success']);
+
+        $this->assertDatabaseHas('lease_decisions', [
+            'contract_reference' => 'ECI20230701',
+            'asset_id' => null,
+            'decision_type' => null,
+            'notes' => 'Budget redirected to the Faculty Laptop program.',
+        ]);
+
+        // …a second edit updates the same row instead of stacking new ones.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.note'), [
+                'model' => 'lease_plan_note',
+                'contract_reference' => 'ECI20230701',
+                'notes' => 'Revised plan.',
+            ])
+            ->assertOk();
+        $this->assertEquals(1, LeaseDecision::where('contract_reference', 'ECI20230701')->count());
+
+        // The note renders on the schedule row, but the note-only row never
+        // shows up as a logged decision (the badge stays "Refresh").
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2027-28']))
+            ->assertOk()
+            ->assertSee('Revised plan.')
+            ->assertSee(trans('admin/purchase-orders/general.lease_end_refresh_planned'));
+
+        // And the Lease Decisions report skips it.
+        $report = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.lease-decisions'));
+        $report->assertOk()->assertDontSee('Revised plan.');
+    }
+
     public function test_disposition_grid_deep_links_a_contract_and_scopes_downloads()
     {
         $this->seedLeaseAsset([
@@ -1097,6 +1174,13 @@ class ProcurementReportsTest extends TestCase
             ->assertOk()
             ->assertSee('data-contract="ECI20300101" selected', false)
             ->assertSee('contract=ECI20300101', false);
+
+        // A substring still resolves — links minted before a schedule id
+        // rename (e.g. the 4130- lessor prefix) keep working.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.disposition-grid', ['contract' => '20300101']))
+            ->assertOk()
+            ->assertSee('data-contract="ECI20300101" selected', false);
 
         // The scoped CSV carries only the selected contract's serials.
         $csv = $this->actingAs($this->superuser())

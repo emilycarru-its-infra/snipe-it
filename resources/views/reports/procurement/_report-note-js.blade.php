@@ -21,7 +21,8 @@
         var body = new URLSearchParams();
         body.append('_token', CSRF);
         body.append('model', cell.dataset.model);
-        body.append('id', cell.dataset.id);
+        if (cell.dataset.id) { body.append('id', cell.dataset.id); }
+        if (cell.dataset.contract) { body.append('contract_reference', cell.dataset.contract); }
         body.append('notes', value);
         return fetch(URL, {
             method: 'POST',

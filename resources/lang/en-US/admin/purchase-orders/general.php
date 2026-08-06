@@ -346,7 +346,7 @@ return [
     'pipeline_note_planned' => ':amount planned',
     'pipeline_note_remaining' => ':amount remaining',
     'pipeline_note_eol' => ':count EOL devices (:cost)',
-    'pipeline_note_lease_preapproval' => ':cost lease-end pre-approval · :count devices',
+    'pipeline_note_lease_preapproval' => 'incl. :cost lease-end pre-approval · :count devices',
     'pipeline_note_committed' => 'committed',
     'pipeline_note_pos' => ':count POs',
     'pipeline_note_open_orders' => ':count open orders',
