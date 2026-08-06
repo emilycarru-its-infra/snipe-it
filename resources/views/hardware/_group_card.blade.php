@@ -73,7 +73,8 @@
             <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ trans('general.ownership_type') }}</div>
                 <div class="asset-card-val">
-                    <x-inline-core-field :asset="$asset" column="ownership_type" element="text"
+                    <x-inline-core-field :asset="$asset" column="ownership_type" element="select"
+                        :options="array_combine(\App\Models\Asset::OWNERSHIP_TYPES, \App\Models\Asset::OWNERSHIP_TYPES)"
                         :link="filled($asset->ownership_type) ? route('hardware.index', ['ownership_type' => $asset->ownership_type]) : null">{{ $asset->ownership_type }}</x-inline-core-field>
                 </div>
             </div>
@@ -147,17 +148,23 @@
                     <x-inline-core-field :asset="$asset" column="rtd_location_id" element="select" :options="$locationOptions" copy_what="rtd-loc-{{ $asset->id }}">{!! $asset->defaultLoc?->present()->nameUrl !!}</x-inline-core-field>
                 </div>
             </div>
-            {{-- Usage / Area — native lease columns (F2 migration), always shown. --}}
+            {{-- Usage / Area — native lease columns (F2 migration), always
+                 shown. Both are closed taxonomies, so they edit as dropdowns
+                 (the old listbox custom fields' behaviour), never free text. --}}
+            @php
+                $usageOptions = array_combine(\App\Models\Asset::LEASE_USAGES, \App\Models\Asset::LEASE_USAGES);
+                $areaOptions = \App\Models\Asset::leaseAreaOptions();
+            @endphp
             <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ trans('general.lease_usage') }}</div>
                 <div class="asset-card-val">
-                    <x-inline-core-field :asset="$asset" column="lease_usage" element="text">{{ $asset->lease_usage }}</x-inline-core-field>
+                    <x-inline-core-field :asset="$asset" column="lease_usage" element="select" :options="$usageOptions">{{ $asset->lease_usage }}</x-inline-core-field>
                 </div>
             </div>
             <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ trans('general.lease_area') }}</div>
                 <div class="asset-card-val">
-                    <x-inline-core-field :asset="$asset" column="lease_area" element="text">{{ $asset->lease_area }}</x-inline-core-field>
+                    <x-inline-core-field :asset="$asset" column="lease_area" element="select" :options="$areaOptions">{{ $asset->lease_area }}</x-inline-core-field>
                 </div>
             </div>
         @endif
