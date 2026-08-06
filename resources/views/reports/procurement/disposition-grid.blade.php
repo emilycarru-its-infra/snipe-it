@@ -6,14 +6,11 @@
 @stop
 
 @section('header_right')
-    <a href="{{ $downloadXlsxUrl }}" class="btn btn-sm btn-default">
+    <a href="{{ $downloadXlsxUrl }}" class="btn btn-sm btn-default disp-download">
         <x-icon type="download" /> {{ trans('admin/purchase-orders/general.disposition_download_xlsx') }}
     </a>
-    <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default">
+    <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default disp-download">
         <x-icon type="download" /> {{ trans('admin/purchase-orders/general.disposition_download_csv') }}
-    </a>
-    <a href="{{ route('reports.procurement') }}" class="btn btn-sm btn-default">
-        {{ trans('admin/purchase-orders/general.reports') }}
     </a>
 @stop
 
@@ -26,10 +23,14 @@
                 @include('reports.procurement._disposition-grid', [
                     'contracts' => $contracts,
                     'canEdit' => $canEdit,
+                    'canEditAssets' => $canEditAssets,
+                    'selectedContract' => $selectedContract,
+                    'statusOptions' => $statusOptions,
                 ])
             </div>
         </div>
     </div>
 </div>
 @include('reports.procurement._disposition-grid-js')
+@include('reports.procurement._report-sticky-js')
 @stop

@@ -167,14 +167,19 @@
         border-bottom: 1px solid var(--box-header-top-border-color);
         color: var(--color-fg);
     }
-    .email-cms-item { color: var(--color-fg) !important; }
+    .email-cms-item { color: var(--color-fg) !important; border-radius: 4px !important; }
     .email-cms-item small.text-muted { color: var(--text-help) !important; }
+    /* Selected email: a quiet tint + left accent bar, not a solid pill —
+       the row stays readable and the list keeps its rhythm. */
     .nav-pills > li.active > .email-cms-item {
-        background-color: var(--main-theme-color, #2563eb) !important;
+        background-color: color-mix(in srgb, var(--main-theme-color, #2563eb) 10%, var(--box-bg, #fff)) !important;
+        box-shadow: inset 3px 0 0 var(--main-theme-color, #2563eb);
     }
-    .nav-pills > li.active > .email-cms-item,
+    .nav-pills > li.active > .email-cms-item {
+        color: var(--color-fg) !important;
+    }
     .nav-pills > li.active > .email-cms-item small.text-muted {
-        color: #fff !important;
+        color: var(--text-help) !important;
     }
     /* Keep the preview iframe readable whichever theme the email adopts.
        !important overrides the element's inline background:#fff so dark mode applies. */

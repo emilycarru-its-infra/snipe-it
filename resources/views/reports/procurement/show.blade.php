@@ -30,9 +30,6 @@
     <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default">
         <x-icon type="download" /> {{ trans('general.download') }}
     </a>
-    <a href="{{ route('reports.procurement') }}" class="btn btn-sm btn-default">
-        {{ trans('admin/purchase-orders/general.reports') }}
-    </a>
 @stop
 
 {{-- Page content --}}
@@ -52,4 +49,5 @@
     </div>
 </div>
 @include('reports.procurement._report-note-js')
+@include('reports.procurement._report-sticky-js')
 @stop

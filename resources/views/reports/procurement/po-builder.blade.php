@@ -11,9 +11,6 @@
     <a href="{{ route('requisitions.index') }}" class="btn btn-sm btn-default">
         {{ trans('admin/purchase-orders/general.requisitions') }}
     </a>
-    <a href="{{ route('reports.procurement') }}" class="btn btn-sm btn-default">
-        {{ trans('admin/purchase-orders/general.reports') }}
-    </a>
 @stop
 
 {{-- Page content --}}

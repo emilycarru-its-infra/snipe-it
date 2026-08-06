@@ -33,7 +33,7 @@ class BudgetAllocation extends Model
 {
     use HasFactory, SoftDeletes, ValidatingTrait, Searchable;
 
-    public const SOURCES = ['forecast', 'supplemental', 'adjustment', 'carry_forward'];
+    public const SOURCES = ['forecast', 'supplemental', 'adjustment', 'carry_forward', 'lease_preapproval'];
 
     protected $table = 'budget_allocations';
 
@@ -56,7 +56,7 @@ class BudgetAllocation extends Model
         'fiscal_year'    => 'required|string|max:16',
         'area'           => 'nullable|string|max:191',
         'amount'         => 'required|numeric',
-        'source'         => 'required|in:forecast,supplemental,adjustment,carry_forward',
+        'source'         => 'required|in:forecast,supplemental,adjustment,carry_forward,lease_preapproval',
         'description'    => 'nullable|string|max:2000',
         'effective_date' => 'nullable|date',
     ];

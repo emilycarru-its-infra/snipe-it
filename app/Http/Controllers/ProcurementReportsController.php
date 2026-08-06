@@ -225,6 +225,17 @@ class ProcurementReportsController extends Controller
             ? (int) ($leaseExpiryByFy[$selectedFy]['count'] ?? 0)
             : (int) array_sum(array_column($leaseExpiryByFy, 'count'));
 
+        // The lease-end pre-approval joins the approved pot automatically:
+        // every schedule ending in the FY was funded at signing, so the new
+        // year's budget starts from the replacement estimate plus any carry —
+        // no manual allocation needed. A posted 'lease_preapproval'
+        // allocation overrides the live figure (same pattern as
+        // carry_forward), so a finance-adjusted number wins over the derived
+        // one.
+        if (! $allocations->contains(fn ($a) => $a->source === 'lease_preapproval')) {
+            $totalBudget += $leaseExpiryTotal;
+        }
+
         $fiscalYears = array_keys($committedByFy + $plannedByFy + $leaseExpiryByFy);
         sort($fiscalYears);
 
@@ -237,7 +248,10 @@ class ProcurementReportsController extends Controller
             $selectedFy
         )->count();
 
-        $pendingDecisionCount = LeaseDecision::whereNull('asset_id')->where('status', 'pending')->count();
+        $pendingDecisionCount = LeaseDecision::whereNull('asset_id')
+            ->whereNotNull('decision_type')
+            ->where('status', 'pending')
+            ->count();
 
         // User agreements waiting for a signature — the assets team's chase
         // list. Stuck in 'quoted' or 'agreement_sent' is the failure
@@ -1106,23 +1120,44 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        // CSV hand-off flattens every contract's serials into one table;
+        // ?contract=<lease id> deep-links one contract: it preselects the
+        // pane and scopes the downloads to that lease only.
+        $contract = trim((string) $request->query('contract'));
+
+        // CSV hand-off flattens the scoped contracts' serials into one table;
         // XLSX mirrors the workbook with one sheet per contract.
         if ($request->query('format') === 'csv') {
-            return $this->streamReportCsv('lease-disposition', $this->dispositionGridCsv());
+            return $this->streamReportCsv(
+                'lease-disposition'.($contract !== '' ? '-'.$contract : ''),
+                $this->dispositionGridCsv($contract ?: null)
+            );
         }
         if ($request->query('format') === 'xlsx') {
-            return $this->dispositionGridXlsx();
+            return $this->dispositionGridXlsx($contract ?: null);
         }
 
         $data = $this->dispositionGridData();
         $canEdit = auth()->user()?->can('create', Order::class) ?? false;
+        $canEditAssets = auth()->user()?->can('update', Asset::class) ?? false;
+
+        // Resolve the deep-linked contract to a pane (default: first pane) so
+        // the picker, panes and download links all agree on the selection.
+        // Exact match first, then substring — so a link minted before a
+        // schedule id was renamed (e.g. the 4130- lessor prefix) still lands
+        // on the right lease.
+        $contractIds = collect($data['contracts'])->pluck('contract_id');
+        $selectedContract = $contractIds->first(fn ($id) => strcasecmp($id, $contract) === 0)
+            ?? ($contract !== '' ? $contractIds->first(fn ($id) => stripos($id, $contract) !== false) : null)
+            ?? ($data['contracts'][0]['contract_id'] ?? '');
 
         $viewData = [
             'contracts' => $data['contracts'],
             'canEdit' => $canEdit,
-            'downloadUrl' => route('reports.procurement.disposition-grid', ['format' => 'csv']),
-            'downloadXlsxUrl' => route('reports.procurement.disposition-grid', ['format' => 'xlsx']),
+            'canEditAssets' => $canEditAssets,
+            'selectedContract' => $selectedContract,
+            'statusOptions' => $canEditAssets ? Statuslabel::orderBy('name')->pluck('name', 'id') : collect(),
+            'downloadUrl' => route('reports.procurement.disposition-grid', array_filter(['format' => 'csv', 'contract' => $selectedContract])),
+            'downloadXlsxUrl' => route('reports.procurement.disposition-grid', array_filter(['format' => 'xlsx', 'contract' => $selectedContract])),
         ];
 
         // Embed mode (dashboard inline) returns just the tabbed grid;
@@ -1176,6 +1211,45 @@ class ProcurementReportsController extends Controller
     }
 
     /**
+     * Inline / bulk save of the lifecycle fields the Disposition Grid reads:
+     * the device status (which drives the derived disposition), the
+     * Decommissioned Date and the Buyout Cost. Accepts one or many asset ids
+     * so a single pencil edit and a multi-select bulk apply share the same
+     * path. A field left out of the request is untouched; a field sent empty
+     * is cleared (status excepted — a device always has a status).
+     */
+    public function updateDispositionAssets(Request $request)
+    {
+        $this->authorize('update', Asset::class);
+
+        $validated = $request->validate([
+            'asset_ids' => 'required|array|min:1',
+            'asset_ids.*' => 'integer|exists:assets,id',
+            'status_id' => 'sometimes|nullable|integer|exists:status_labels,id',
+            'decommission_date' => 'sometimes|nullable|date',
+            'buyout_cost' => 'sometimes|nullable|numeric|min:0',
+        ]);
+
+        $assets = Asset::whereIn('id', $validated['asset_ids'])->get();
+        foreach ($assets as $asset) {
+            if ($request->filled('status_id')) {
+                $asset->status_id = (int) $validated['status_id'];
+            }
+            if ($request->has('decommission_date')) {
+                $asset->decommission_date = $validated['decommission_date'] ?: null;
+            }
+            if ($request->has('buyout_cost')) {
+                $asset->buyout_cost = $validated['buyout_cost'] !== null && $validated['buyout_cost'] !== ''
+                    ? $validated['buyout_cost']
+                    : null;
+            }
+            $asset->save();
+        }
+
+        return response()->json(['status' => 'success', 'updated' => $assets->count()]);
+    }
+
+    /**
      * Inline save of a note on a report row. Generic so any procurement
      * report table can expose an editable (pencil) note cell — the model is
      * whitelisted and the only field touched is `notes`.
@@ -1185,17 +1259,30 @@ class ProcurementReportsController extends Controller
         $this->authorize('create', Order::class);
 
         $validated = $request->validate([
-            'model' => 'required|string|in:lease_decision',
-            'id' => 'required|integer',
+            'model' => 'required|string|in:lease_decision,lease_plan_note',
+            'id' => 'required_if:model,lease_decision|nullable|integer',
+            'contract_reference' => 'required_if:model,lease_plan_note|nullable|string|max:191',
             'notes' => 'nullable|string|max:65535',
         ]);
 
+        // lease_plan_note is the contract-level free-text plan on a schedule
+        // with no logged decision (or a retained lease-to-own) — a
+        // note-only LeaseDecision row (no asset, no decision_type), created
+        // on first edit.
         $model = match ($validated['model']) {
             'lease_decision' => LeaseDecision::findOrFail($validated['id']),
+            'lease_plan_note' => LeaseDecision::firstOrNew([
+                'contract_reference' => $validated['contract_reference'],
+                'asset_id' => null,
+                'decision_type' => null,
+            ]),
             default => abort(422),
         };
 
         $model->notes = $validated['notes'] ?? '';
+        if (! $model->exists) {
+            $model->created_by = auth()->id();
+        }
         $model->save();
 
         return response()->json(['status' => 'success', 'notes' => (string) $model->notes]);
@@ -1836,7 +1923,11 @@ class ProcurementReportsController extends Controller
             return false;
         }
 
-        return str_starts_with($contractId, 'ECI') || str_starts_with($contractId, '301452-');
+        // CCA Financial schedules: bare ECI* historically, 4130-ECI* since
+        // the lessor-account prefix landed (2026-08). CSI Leasing: 301452-*.
+        return str_starts_with($contractId, 'ECI')
+            || str_starts_with($contractId, '4130-ECI')
+            || str_starts_with($contractId, '301452-');
     }
 
     /**
@@ -1999,6 +2090,7 @@ class ProcurementReportsController extends Controller
             ->get();
 
         $decisions = $this->leaseDecisionsByContract();
+        $planNotes = $this->leasePlanNotesByContract();
 
         $schedules = [];
         foreach ($assets as $asset) {
@@ -2014,6 +2106,7 @@ class ProcurementReportsController extends Controller
 
             if (! isset($schedules[$contractId])) {
                 $decision = $decisions[$contractId] ?? null;
+                $planNote = $planNotes[$contractId] ?? null;
                 $schedules[$contractId] = [
                     'contract_id' => $contractId,
                     'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
@@ -2024,6 +2117,7 @@ class ProcurementReportsController extends Controller
                     'model_counts' => [],
                     'ownership_counts' => [],
                     'decision' => $decision,
+                    'plan_note' => $planNote ? (string) $planNote->notes : '',
                     'refresh_planned' => $decision === null || $decision->decision_type === 'replace',
                     'is_lease_to_own' => false,
                 ];
@@ -2091,9 +2185,30 @@ class ProcurementReportsController extends Controller
      */
     private function leaseDecisionsByContract(): array
     {
+        // Note-only rows (decision_type null) carry a plan note for a
+        // contract without a logged decision — they are not decisions and
+        // must not flip a schedule's badge, so they're excluded here and
+        // read separately by leasePlanNotesByContract().
         return LeaseDecision::whereNull('asset_id')
+            ->whereNotNull('decision_type')
             ->where('status', '!=', 'cancelled')
             ->orderBy('decision_date')
+            ->get()
+            ->keyBy('contract_reference')
+            ->all();
+    }
+
+    /**
+     * Contract-level plan notes: LeaseDecision rows with no asset and no
+     * decision type. They hold the free-text plan a schedule row shows (and
+     * edits inline) before any buyout / return / extension is logged, and
+     * the per-row note on retained (lease-to-own) schedules.
+     */
+    private function leasePlanNotesByContract(): array
+    {
+        return LeaseDecision::whereNull('asset_id')
+            ->whereNull('decision_type')
+            ->orderBy('id')
             ->get()
             ->keyBy('contract_reference')
             ->all();
@@ -2861,6 +2976,7 @@ class ProcurementReportsController extends Controller
 
         $query = LeaseDecision::query()
             ->whereNull('asset_id')
+            ->whereNotNull('decision_type')
             ->orderByRaw(...$this->fieldOrder('status', ['pending', 'approved', 'completed', 'cancelled']))
             ->orderBy('decision_date');
 
@@ -3468,6 +3584,7 @@ class ProcurementReportsController extends Controller
             if (! isset($contracts[$contractId])) {
                 $contracts[$contractId] = [
                     'contract_id' => $contractId,
+                    'contract_name' => $cols['contract_name'] ? trim((string) $asset->{$cols['contract_name']}) : '',
                     'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
                     'lease_end_date' => $cols['lease_end_date'] ? (string) $asset->{$cols['lease_end_date']} : '',
                     'is_lease_to_own' => false,
@@ -3496,8 +3613,10 @@ class ProcurementReportsController extends Controller
                 'asset_tag' => (string) $asset->asset_tag,
                 'serial' => (string) $asset->serial,
                 'status' => (string) $asset->status?->name,
+                'status_id' => $asset->status_id,
                 'status_type' => $asset->status?->getStatuslabelType(),
                 'archived' => $isArchived,
+                'buyout_cost_raw' => $buyoutCost,
                 'decommissioned_date' => $cols['decommission_date'] ? $this->dateString($asset->{$cols['decommission_date']}) : '',
                 'use' => $cols['usage'] ? $this->useLabel($asset->{$cols['usage']}) : '',
                 'ownership' => $ownership,
@@ -3522,12 +3641,12 @@ class ProcurementReportsController extends Controller
      * Flatten the disposition grid to a single CSV table (one row per
      * serial across every contract) for the download / hand-off path.
      */
-    private function dispositionGridCsv(): array
+    private function dispositionGridCsv(?string $onlyContract = null): array
     {
         $columns = $this->dispositionGridColumns();
 
         $records = [];
-        foreach ($this->dispositionGridData()['contracts'] as $contract) {
+        foreach ($this->scopedDispositionContracts($onlyContract) as $contract) {
             foreach ($contract['assets'] as $row) {
                 $records[] = ['class' => '', 'cells' => $this->dispositionGridRow($contract['contract_id'], $row)];
             }
@@ -3588,9 +3707,9 @@ class ProcurementReportsController extends Controller
      * the on-screen tab; the contract id is the sheet name, so it is dropped
      * from the columns.
      */
-    private function dispositionGridXlsx(): BinaryFileResponse
+    private function dispositionGridXlsx(?string $onlyContract = null): BinaryFileResponse
     {
-        $contracts = $this->dispositionGridData()['contracts'];
+        $contracts = $this->scopedDispositionContracts($onlyContract);
         $header = $this->dispositionGridColumns(false);
 
         $tmp = tempnam(sys_get_temp_dir(), 'lease-disposition-');
@@ -3616,9 +3735,39 @@ class ProcurementReportsController extends Controller
 
         $writer->close();
 
-        return response()->download($tmp, 'lease-disposition-'.date('Y-m-d').'.xlsx', [
+        $name = 'lease-disposition-'.($onlyContract !== null ? $onlyContract.'-' : '').date('Y-m-d').'.xlsx';
+
+        return response()->download($tmp, $name, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * The disposition contracts, optionally narrowed to one lease id (the
+     * active pane) so the downloads carry only the contract on screen.
+     * An unknown id falls back to the full set rather than an empty export.
+     */
+    private function scopedDispositionContracts(?string $onlyContract): array
+    {
+        $contracts = $this->dispositionGridData()['contracts'];
+        if ($onlyContract === null) {
+            return $contracts;
+        }
+
+        // Same forgiving resolution as the page: exact id first, then
+        // substring, so pre-rename links keep exporting the right lease.
+        $scoped = array_values(array_filter(
+            $contracts,
+            fn ($c) => strcasecmp($c['contract_id'], $onlyContract) === 0
+        ));
+        if ($scoped === []) {
+            $scoped = array_values(array_filter(
+                $contracts,
+                fn ($c) => stripos($c['contract_id'], $onlyContract) !== false
+            ));
+        }
+
+        return $scoped !== [] ? $scoped : $contracts;
     }
 
     /**

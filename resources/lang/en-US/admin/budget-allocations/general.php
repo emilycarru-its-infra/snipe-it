@@ -19,6 +19,7 @@ return [
     'source_supplemental'  => 'Supplemental',
     'source_adjustment'    => 'Adjustment',
     'source_carry_forward' => 'Carry-forward',
+    'source_lease_preapproval' => 'Lease-end pre-approval',
     'effective_date'       => 'Effective date',
     'live'                 => 'Live',
     'carry_forward_live_desc' => 'Carried forward from :source, computed live — PO budgets :budgets, committed against them :committed. Updates as committed data is corrected; post a manual carry-forward allocation to override.',
