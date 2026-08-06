@@ -460,6 +460,18 @@ class AssetsController extends Controller
         }
         $asset->supplier_id = $request->input('supplier_id', null);
         $asset->lessor_id = $request->input('lessor_id', null);
+        // Lease taxonomy selects on the edit form. Only known options land
+        // (blank clears) — the same containment the inline editor enforces.
+        foreach ([
+            'ownership_type' => Asset::OWNERSHIP_TYPES,
+            'lease_usage' => Asset::LEASE_USAGES,
+            'lease_area' => array_keys(Asset::leaseAreaOptions()),
+        ] as $taxonomyColumn => $allowed) {
+            if ($request->has($taxonomyColumn)) {
+                $submitted = (string) $request->input($taxonomyColumn, '');
+                $asset->{$taxonomyColumn} = in_array($submitted, $allowed, true) ? $submitted : null;
+            }
+        }
         $asset->expected_checkin = $request->input('expected_checkin', null);
         $asset->requestable = $request->input('requestable', 0);
         $asset->rtd_location_id = $request->input('rtd_location_id', null);
@@ -614,6 +626,21 @@ class AssetsController extends Controller
         // Date columns must be a valid date (or blank).
         if (Asset::inlineEditableCoreFields()[$column] === 'date') {
             $request->validate(['value' => ['nullable', 'date']]);
+        }
+
+        // Taxonomy selects: the value must be one of the column's known
+        // options (blank clears) — same containment the listbox custom
+        // fields enforce, so a crafted request can't mint a new variant.
+        $optionLists = [
+            'ownership_type' => array_combine(Asset::OWNERSHIP_TYPES, Asset::OWNERSHIP_TYPES),
+            'lease_usage' => array_combine(Asset::LEASE_USAGES, Asset::LEASE_USAGES),
+            'lease_area' => Asset::leaseAreaOptions(),
+        ];
+        if (array_key_exists($column, $optionLists)
+            && $value !== '' && $value !== null
+            && ! array_key_exists((string) $value, $optionLists[$column])) {
+            return redirect()->route('hardware.show', $asset->id)
+                ->with('error', trans('admin/hardware/message.update.error'));
         }
 
         $asset->{$column} = ($value === '') ? null : $value;

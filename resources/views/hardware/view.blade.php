@@ -839,10 +839,17 @@
             $(function () {
                 function showForm(target) {
                     $('#' + target + '-display').hide();
-                    $('#' + target + '-form').show().find('input[name="value"], textarea[name="value"], select[name="value"]').first().focus();
+                    var $form = $('#' + target + '-form');
+                    // The value cells clip + ellipsize for one-line rows; an
+                    // open editor must be allowed to wrap and overflow so its
+                    // save/cancel buttons are never cut off at the card edge.
+                    $form.closest('.asset-card-val').addClass('inline-editing');
+                    $form.show().find('input[name="value"], textarea[name="value"], select[name="value"]').first().focus();
                 }
                 function hideForm(target) {
-                    $('#' + target + '-form').hide();
+                    var $form = $('#' + target + '-form');
+                    $form.hide();
+                    $form.closest('.asset-card-val').removeClass('inline-editing');
                     $('#' + target + '-display').show();
                 }
                 $(document).on('click', '.js-inline-edit-toggle', function (e) {
@@ -927,6 +934,26 @@
             .asset-card-val { min-width: 0; padding: 6px 0; border-bottom: 1px solid light-dark(#f1f1f1, rgba(255, 255, 255, .08)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
             .asset-card-row:last-child .asset-card-lbl,
             .asset-card-row:last-child .asset-card-val { border-bottom: none; }
+            /* A cell with an open inline editor drops the one-line clip so
+               the input and its save/cancel buttons wrap inside the card
+               instead of being cut off at its edge. */
+            .asset-card-val.inline-editing {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+            }
+            .asset-card-val.inline-editing .js-inline-edit-form {
+                display: flex !important;
+                flex-wrap: wrap;
+                gap: 6px;
+                align-items: center;
+                padding: 4px 0;
+            }
+            .asset-card-val.inline-editing .js-inline-edit-form .form-control {
+                min-width: 0 !important;
+                flex: 1 1 160px;
+                max-width: 100%;
+            }
 
             /* Sidebar rows (status / checkout / audit / metadata) — consistent
                breathing room and explicit dividers (list-group-unbordered
