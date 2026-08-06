@@ -12,14 +12,16 @@
     .disp-contract-meta { margin-bottom: 8px; }
     .disp-table th, .disp-table td { vertical-align: middle !important; font-size: 12.5px; }
     /* Column rhythm: dates and money hug their content instead of the
-       Decommissioned column swallowing half the table, and Buyout Cost
-       keeps clear air before Use. */
+       Decommissioned column swallowing half the table. Class-based — the
+       optional checkbox column shifts every nth-child index. */
     .disp-table th, .disp-table td { white-space: nowrap; }
-    .disp-table td:nth-child(4), .disp-table th:nth-child(4) { width: 1%; }
-    .disp-table td:nth-child(5), .disp-table th:nth-child(5) { width: 1%; text-align: right; padding-right: 28px !important; }
+    .disp-table .disp-col-date, .disp-table .disp-col-cost { width: 1%; }
+    .disp-table .disp-col-cost { padding-right: 28px !important; }
     .disp-table .disp-note-cell { white-space: normal; }
     .disp-note-cell { min-width: 180px; }
-    .disp-note-edit { margin-left: 6px; color: #999; }
+    /* Note pencil appears on row hover only, like the lifecycle cells. */
+    .disp-note-edit { margin-left: 6px; color: #999; visibility: hidden; }
+    .disp-table tr:hover .disp-note-edit { visibility: visible; }
     .disp-note-edit:hover { color: #3c8dbc; }
     .disp-note-input { width: 100%; }
     /* Serial search */
@@ -28,10 +30,12 @@
     .disp-search-clear { cursor: pointer; }
     .disp-search-status { font-size: 12px; }
     /* With the clear addon hidden (empty search) the input is the visual end
-       of the group — round its right corners so the box doesn't look cut. */
+       of the group — round its right corners so the box doesn't look cut.
+       !important: Bootstrap's .input-group .form-control:not(:first-child)
+       :not(:last-child) zeroes the radius at higher specificity. */
     .disp-search-group.disp-search-empty .disp-search {
-        border-top-right-radius: 4px;
-        border-bottom-right-radius: 4px;
+        border-top-right-radius: 4px !important;
+        border-bottom-right-radius: 4px !important;
     }
     /* Bulk apply bar + row checkboxes */
     .disp-bulk-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }

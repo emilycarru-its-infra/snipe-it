@@ -19,25 +19,10 @@
         .rpt-report-table tfoot > tr > th {
             border-top: 3px double rgba(60, 141, 188, 0.7);
         }
-        /* Frozen headings: the table scrolls inside its own viewport-sized
-           region and the header row stays pinned. Sticky-in-page doesn't
-           survive the .table-responsive scroll container, so the region
-           itself is the scroller. Short tables simply don't scroll. */
-        .rpt-table-scroll {
-            max-height: calc(100vh - var(--header-h, 68px) - 190px);
-            overflow: auto;
-        }
-        .rpt-report-table thead th {
-            position: sticky;
-            /* --rpt-sticky-top is set live by _report-sticky-js: 0 while the
-               region top is on screen, growing to the exact overlap once it
-               slides under the fixed app header — so the pinned row never
-               hides behind the toolbar. */
-            top: var(--rpt-sticky-top, 0px);
-            z-index: 5;
-            background: var(--box-bg, #fff);
-            box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);
-        }
+        {{-- Frozen-heading rules live in _report-sticky-js (included by the
+             dashboard, the report show page and the disposition grid page) —
+             this partial also arrives via innerHTML embeds, where page-level
+             concerns like the .wrapper overflow lift don't belong. --}}
         /* Bootstrap contextual rows ship hard-coded light tints; in dark
            mode they put near-white text on cream. Re-tint from the accent
            colours at low alpha so the theme's own text colour stays. */

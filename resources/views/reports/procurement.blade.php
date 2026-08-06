@@ -339,9 +339,12 @@
                             <i class="fa fa-minus" aria-hidden="true"></i>
                         </button>
                     </div>
+                    {{-- The description lives in the sticky header so the
+                         report's name AND subtitle stay pinned while its
+                         rows scroll under them. --}}
+                    <p class="text-muted proc-report-desc">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</p>
                 </div>
                 <div class="box-body">
-                    <p class="text-muted">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</p>
                     <div class="proc-report-body" data-embed-url="{{ $reportLink($report['route'], ['embed' => 1]) }}">
                         <div class="text-center text-muted" style="padding:18px;">
                             <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
@@ -385,6 +388,16 @@
     .proc-report-navlist > li.active > a { color: #fff !important; }
     .proc-report-navlist > li.active > a,
     .proc-report-navlist > li.active > a:hover { background-color: #3c8dbc; color: #fff; }
+    /* Each report box pins its header — name, tools AND subtitle — just
+       below the app bar while its rows scroll under it; the table's thead
+       pins directly beneath (offset measured live by _report-sticky-js). */
+    .proc-report-box > .box-header {
+        position: sticky;
+        top: var(--header-h, 68px);
+        z-index: 8;
+        background: var(--box-bg, #fff);
+    }
+    .proc-report-desc { margin: 8px 0 0; font-size: 12.5px; clear: both; }
     @media (max-width: 991px) {
         .proc-reports-row { display: block; }
         .proc-reports-row .proc-content-col { max-width: 100%; }

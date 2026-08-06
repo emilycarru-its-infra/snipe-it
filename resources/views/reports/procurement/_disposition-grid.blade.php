@@ -44,28 +44,6 @@
         </select>
     </div>
 
-    @if ($canEditAssets)
-        {{-- Bulk apply bar: acts on the checked rows of the active pane. A
-             field left blank stays unchanged on the selected devices. --}}
-        <div class="disp-bulk-bar">
-            <select class="form-control input-sm disp-bulk-status">
-                <option value="">{{ trans('admin/purchase-orders/general.disposition_bulk_keep_status') }}</option>
-                @foreach ($statusOptions as $statusId => $statusName)
-                    <option value="{{ $statusId }}">{{ $statusName }}</option>
-                @endforeach
-            </select>
-            <input type="date" class="form-control input-sm disp-bulk-date"
-                   title="{{ trans('admin/purchase-orders/general.disposition_decommissioned_date') }}">
-            <input type="number" step="0.01" min="0" class="form-control input-sm disp-bulk-cost"
-                   placeholder="{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}">
-            <button type="button" class="btn btn-sm btn-primary disp-bulk-apply" disabled>
-                {{ trans('admin/purchase-orders/general.disposition_bulk_apply') }}
-            </button>
-            <span class="disp-bulk-count text-muted" aria-live="polite"></span>
-            <span class="disp-bulk-hint text-muted">{{ trans('admin/purchase-orders/general.disposition_bulk_hint') }}</span>
-        </div>
-    @endif
-
     <div class="tab-content disp-tab-content">
         @foreach ($contracts as $i => $c)
             @php $paneId = 'disp-pane-'.$i; @endphp
@@ -94,8 +72,8 @@
                                 <th>{{ trans('admin/purchase-orders/general.detail_serial') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_asset_tag') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.disposition_action') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.disposition_decommissioned_date') }}</th>
-                                <th class="text-right">{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}</th>
+                                <th class="disp-col-date">{{ trans('admin/purchase-orders/general.disposition_decommissioned_date') }}</th>
+                                <th class="disp-col-cost">{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.disposition_use') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_ownership') }}</th>
                                 <th>{{ trans('general.category') }}</th>
@@ -128,13 +106,13 @@
                                             <a href="#" class="disp-cell-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_value') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
                                         @endif
                                     </td>
-                                    <td class="{{ $editAttrs }}" data-field="decommission_date">
+                                    <td class="disp-col-date {{ $editAttrs }}" data-field="decommission_date">
                                         <span class="disp-cell-value">{{ $a['decommissioned_date'] }}</span>
                                         @if ($canEditAssets)
                                             <a href="#" class="disp-cell-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_value') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
                                         @endif
                                     </td>
-                                    <td class="text-right {{ $editAttrs }}" data-field="buyout_cost">
+                                    <td class="disp-col-cost {{ $editAttrs }}" data-field="buyout_cost">
                                         <span class="disp-cell-value">{{ $a['buyout_cost'] }}</span>
                                         @if ($canEditAssets)
                                             <a href="#" class="disp-cell-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_value') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
@@ -160,5 +138,27 @@
             </div>
         @endforeach
     </div>
+
+    @if ($canEditAssets)
+        {{-- Bulk apply bar: acts on the checked rows of the active pane. A
+             field left blank stays unchanged on the selected devices. --}}
+        <div class="disp-bulk-bar">
+            <select class="form-control input-sm disp-bulk-status">
+                <option value="">{{ trans('admin/purchase-orders/general.disposition_bulk_keep_status') }}</option>
+                @foreach ($statusOptions as $statusId => $statusName)
+                    <option value="{{ $statusId }}">{{ $statusName }}</option>
+                @endforeach
+            </select>
+            <input type="date" class="form-control input-sm disp-bulk-date"
+                   title="{{ trans('admin/purchase-orders/general.disposition_decommissioned_date') }}">
+            <input type="number" step="0.01" min="0" class="form-control input-sm disp-bulk-cost"
+                   placeholder="{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}">
+            <button type="button" class="btn btn-sm btn-primary disp-bulk-apply" disabled>
+                {{ trans('admin/purchase-orders/general.disposition_bulk_apply') }}
+            </button>
+            <span class="disp-bulk-count text-muted" aria-live="polite"></span>
+            <span class="disp-bulk-hint text-muted">{{ trans('admin/purchase-orders/general.disposition_bulk_hint') }}</span>
+        </div>
+    @endif
 @endif
 </div>
