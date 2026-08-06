@@ -49,4 +49,5 @@
     </div>
 </div>
 @include('reports.procurement._report-note-js')
+@include('reports.procurement._report-sticky-js')
 @stop

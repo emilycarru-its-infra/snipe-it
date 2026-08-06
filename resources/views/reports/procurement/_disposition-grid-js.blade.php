@@ -27,6 +27,12 @@
     .disp-search-group { width: 280px; }
     .disp-search-clear { cursor: pointer; }
     .disp-search-status { font-size: 12px; }
+    /* With the clear addon hidden (empty search) the input is the visual end
+       of the group — round its right corners so the box doesn't look cut. */
+    .disp-search-group.disp-search-empty .disp-search {
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+    }
     /* Bulk apply bar + row checkboxes */
     .disp-bulk-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
     .disp-bulk-bar .disp-bulk-status { width: auto; max-width: 220px; }
@@ -185,6 +191,8 @@
 
         rows.forEach(function (r) { r.classList.remove('disp-match', 'disp-match-primary'); });
         if (clear) { clear.style.display = q ? '' : 'none'; }
+        var group = grid.querySelector('.disp-search-group');
+        if (group) { group.classList.toggle('disp-search-empty', ! q); }
         if (! q) { if (status) { status.textContent = ''; } return; }
 
         var matches = [];

@@ -23,6 +23,16 @@
                     @endforeach
                 </select>
             </form>
+            {{-- The PO Builder and Requisitions are working tools, not
+                 reports — they live up here, not in the report list. --}}
+            <div class="pull-right hidden-print">
+                <a href="{{ route('purchase-orders.builder', ['fiscal_year' => $selectedFy ?? 'all']) }}" class="btn btn-sm btn-default">
+                    {{ trans('admin/purchase-orders/general.report_po_builder') }}
+                </a>
+                <a href="{{ route('requisitions.index') }}" class="btn btn-sm btn-default">
+                    {{ trans('admin/purchase-orders/general.requisitions') }}
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -163,9 +173,13 @@
                                         @if ($schedule['is_lease_to_own'])
                                             <span class="label label-default">{{ trans('admin/purchase-orders/general.lease_end_retained') }}</span>
                                             {{-- The budget consequence is the decision — say it like one,
-                                                 not like a footnote. --}}
-                                            <span class="lease-end-retained-note">
-                                                {{ trans('admin/purchase-orders/general.lease_end_retained_help') }}
+                                                 not like a footnote. A per-row plan note overrides the
+                                                 generic retained text and is editable in place. --}}
+                                            <span class="lease-end-retained-note rpt-note-cell" data-model="lease_plan_note" data-contract="{{ $schedule['contract_id'] }}">
+                                                <span class="rpt-note-text">{{ $schedule['plan_note'] !== '' ? $schedule['plan_note'] : trans('admin/purchase-orders/general.lease_end_retained_help') }}</span>
+                                                @can('create', \App\Models\Order::class)
+                                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
+                                                @endcan
                                             </span>
                                         @elseif ($schedule['decision'])
                                             <span class="label {{ $schedule['refresh_planned'] ? 'label-primary' : 'label-warning' }}">
@@ -187,6 +201,12 @@
                                             </span>
                                         @else
                                             <span class="label label-success">{{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}</span>
+                                            <span class="rpt-note-cell" data-model="lease_plan_note" data-contract="{{ $schedule['contract_id'] }}" style="display:block; font-size:12px;">
+                                                <span class="rpt-note-text text-muted">{{ $schedule['plan_note'] }}</span>
+                                                @can('create', \App\Models\Order::class)
+                                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
+                                                @endcan
+                                            </span>
                                         @endif
                                     </td>
                                 </tr>
@@ -226,7 +246,6 @@
 
     // One list drives both the sticky jump-nav and the inline tables.
     $procReports = collect([
-        ['route' => 'purchase-orders.builder', 'name' => 'report_po_builder', 'desc' => 'report_po_builder_desc', 'stage' => 'ordering'],
         ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'budgeting'],
@@ -300,11 +319,9 @@
                         <a href="{{ $reportLink($report['route']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.view') }}">
                             <x-icon type="reports" />
                         </a>
-                        @if ($report['route'] !== 'purchase-orders.builder')
-                            <a href="{{ $reportLink($report['route'], ['format' => 'csv']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_csv') }}">
-                                <x-icon type="download" />
-                            </a>
-                        @endif
+                        <a href="{{ $reportLink($report['route'], ['format' => 'csv']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_csv') }}">
+                            <x-icon type="download" />
+                        </a>
                         @if ($report['route'] === 'reports.procurement.disposition-grid')
                             <a href="{{ $reportLink($report['route'], ['format' => 'xlsx']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_xlsx') }}">
                                 <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
@@ -322,22 +339,11 @@
                 </div>
                 <div class="box-body">
                     <p class="text-muted">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</p>
-                    @if ($report['route'] === 'purchase-orders.builder')
-                        {{-- The builder is an interactive form, not a table, so it
-                             gets an entry point here rather than an inline embed. --}}
-                        <a href="{{ $reportLink($report['route']) }}" class="btn btn-primary">
-                            {{ trans('admin/purchase-orders/general.report_po_builder') }}
-                        </a>
-                        <a href="{{ route('requisitions.index') }}" class="btn btn-default">
-                            {{ trans('admin/purchase-orders/general.requisitions') }}
-                        </a>
-                    @else
-                        <div class="proc-report-body" data-embed-url="{{ $reportLink($report['route'], ['embed' => 1]) }}">
-                            <div class="text-center text-muted" style="padding:18px;">
-                                <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
-                            </div>
+                    <div class="proc-report-body" data-embed-url="{{ $reportLink($report['route'], ['embed' => 1]) }}">
+                        <div class="text-center text-muted" style="padding:18px;">
+                            <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
                         </div>
-                    @endif
+                    </div>
                 </div>
             </div>
         @endforeach
@@ -621,4 +627,5 @@
 @include('reports.procurement._disposition-grid-js')
 {{-- And the inline-editable note cells in the other report tables. --}}
 @include('reports.procurement._report-note-js')
+@include('reports.procurement._report-sticky-js')
 @stop

@@ -29,7 +29,11 @@
         }
         .rpt-report-table thead th {
             position: sticky;
-            top: 0;
+            /* --rpt-sticky-top is set live by _report-sticky-js: 0 while the
+               region top is on screen, growing to the exact overlap once it
+               slides under the fixed app header — so the pinned row never
+               hides behind the toolbar. */
+            top: var(--rpt-sticky-top, 0px);
             z-index: 5;
             background: var(--box-bg, #fff);
             box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);

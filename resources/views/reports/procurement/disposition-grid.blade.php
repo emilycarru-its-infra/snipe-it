@@ -32,4 +32,5 @@
     </div>
 </div>
 @include('reports.procurement._disposition-grid-js')
+@include('reports.procurement._report-sticky-js')
 @stop
