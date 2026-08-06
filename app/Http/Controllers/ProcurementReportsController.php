@@ -1923,7 +1923,11 @@ class ProcurementReportsController extends Controller
             return false;
         }
 
-        return str_starts_with($contractId, 'ECI') || str_starts_with($contractId, '100000-');
+        // CCA Financial schedules: bare ECI* historically, 4130-ECI* since
+        // the lessor-account prefix landed (2026-08). CSI Leasing: 100000-*.
+        return str_starts_with($contractId, 'ECI')
+            || str_starts_with($contractId, '4130-ECI')
+            || str_starts_with($contractId, '100000-');
     }
 
     /**
