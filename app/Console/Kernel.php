@@ -44,6 +44,12 @@ class Kernel extends ConsoleKernel
         // leases pick up their lessor without a code change or manual step.
         $schedule->command('snipeit:backfill-lessors', ['--write' => true])->dailyAt('03:15');
 
+        // Nightly lease-name mirror from the contracts register. The asset-side
+        // name is derived data with no writer of its own, so it had drifted off
+        // every leased asset; running it nightly means renaming a contract
+        // propagates instead of leaving the fleet on a stale name.
+        $schedule->command('snipeit:sync-lease-names', ['--write' => true])->dailyAt('03:25');
+
         // Weekly catalog refresh from Apple's Canadian store: retail
         // prices land as estimates (quotes always outrank them) and spec
         // columns are corrected from Apple's own configuration data.
