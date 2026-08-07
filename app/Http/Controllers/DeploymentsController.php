@@ -66,10 +66,8 @@ class DeploymentsController extends Controller
 
         $wavesQuery = DeploymentWave::query()
             ->with(['type', 'owner', 'location'])
-            ->withCount('items');
-        if ($fy) {
-            $wavesQuery->where('fiscal_year', $fy);
-        }
+            ->withCount('items')
+            ->where('fiscal_year', $fy);
         if ($typeFilter) {
             $wavesQuery->where('deployment_type_id', (int) $typeFilter);
         }
@@ -104,7 +102,7 @@ class DeploymentsController extends Controller
             'waves' => $waves,
             'types' => $types,
             'stages' => $stages,
-            'fiscalYears' => $fiscalYears ?: [$fy],
+            'fiscalYears' => $fiscalYears,
             'fy' => $fy,
             'typeFilter' => $typeFilter,
             'stageFilter' => $stageFilter,
@@ -116,7 +114,7 @@ class DeploymentsController extends Controller
             // shows that whole year's expected lease-end / EOL devices right
             // on the board, so next year's rollout can be planned before a
             // single wave exists.
-            'forecastAssets' => $fy ? $forecast->forFiscalYear($fy) : collect(),
+            'forecastAssets' => $forecast->forFiscalYear($fy),
             'legacyFleet' => $this->legacyFleet(),
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'stage' => $stageFilter, 'format' => 'csv']),
         ]);
