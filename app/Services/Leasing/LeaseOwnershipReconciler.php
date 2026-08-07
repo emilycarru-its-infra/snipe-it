@@ -26,8 +26,27 @@ use Illuminate\Support\Facades\DB;
  */
 class LeaseOwnershipReconciler
 {
-    /** Statuses that assert the unit has come off the lease and stayed with us. */
-    public const OFF_LEASE_STATUSES = ['Active (Buyouts)', 'Active (Legacy)', 'Purchased'];
+    /**
+     * The one status that asserts ECU bought the unit out of its lease.
+     *
+     * Its own note is unambiguous — "Assets bought out of their leases that are
+     * still in use and aging" — and it is only ever set after a lease ends and
+     * the buyout is decided, so it maps exactly onto `ownership_type` becoming
+     * Purchased.
+     *
+     * Two neighbours deliberately excluded, both on the strength of their notes:
+     *
+     *   - "Active (Legacy)" — "past their end of life date without replacement
+     *     due to buyouts or inability to replace". A replacement-planning
+     *     marker that applies equally to kit bought outright and kit leased
+     *     years ago, so it says nothing about ownership. 73 of its 85 assets
+     *     carry no lease at all.
+     *   - "Purchased" — "purchased by faculty". The Faculty Program, not an ECU
+     *     buyout. The unit has left the lease, so the lease still closes (the
+     *     status is archived and LeaseClosure handles it there), but ECU does
+     *     not own it and claiming Purchased ownership would say we do.
+     */
+    public const OFF_LEASE_STATUSES = ['Active (Buyouts)'];
 
     private const OWNERSHIP_PURCHASED = 'Purchased';
 

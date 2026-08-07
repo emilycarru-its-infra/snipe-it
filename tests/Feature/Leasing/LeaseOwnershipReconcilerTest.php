@@ -36,7 +36,7 @@ class LeaseOwnershipReconcilerTest extends TestCase
 
     public function test_preview_reports_without_writing()
     {
-        $asset = $this->leasedAsset('Active (Legacy)', 'Lease to Return');
+        $asset = $this->leasedAsset('Active (Buyouts)', 'Lease to Return');
 
         $report = app(LeaseOwnershipReconciler::class)->run(false);
 
@@ -58,11 +58,34 @@ class LeaseOwnershipReconcilerTest extends TestCase
 
     public function test_an_unleased_asset_is_left_alone()
     {
-        // "Active (Legacy)" is mostly not a lease status — 73 of its 85 assets
-        // carry no lease at all — so it must not be read as one here.
-        $status = Statuslabel::factory()->rtd()->create(['name' => 'Active (Legacy)']);
+        $status = Statuslabel::factory()->rtd()->create(['name' => 'Active (Buyouts)']);
         $asset = Asset::factory()->create(['status_id' => $status->id]);
         Asset::query()->whereKey($asset->id)->update(['ownership_type' => 'Lease to Return']);
+
+        $report = app(LeaseOwnershipReconciler::class)->run(true);
+
+        $this->assertSame(0, $report['candidates']);
+        $this->assertSame('Lease to Return', $asset->fresh()->ownership_type);
+    }
+
+    public function test_a_legacy_device_is_not_treated_as_a_buyout()
+    {
+        // Its note defines it as "past their end of life date without
+        // replacement" — a replacement-planning marker that applies to bought
+        // and leased kit alike, so it says nothing about ownership.
+        $asset = $this->leasedAsset('Active (Legacy)', 'Lease to Return');
+
+        $report = app(LeaseOwnershipReconciler::class)->run(true);
+
+        $this->assertSame(0, $report['candidates']);
+        $this->assertSame('Lease to Return', $asset->fresh()->ownership_type);
+    }
+
+    public function test_a_faculty_purchase_does_not_claim_ecu_ownership()
+    {
+        // "Purchased" means purchased by faculty. The unit has left the lease,
+        // but ECU does not own it, so ownership must not be rewritten.
+        $asset = $this->leasedAsset('Purchased', 'Lease to Return');
 
         $report = app(LeaseOwnershipReconciler::class)->run(true);
 
