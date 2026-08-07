@@ -52,12 +52,15 @@ class DeploymentsController extends Controller
         // future years (a single 2036 EOL date put FY2036-37 in the picker)
         // while the board can never have anything to show there.
         $currentStartYear = now()->month >= 4 ? now()->year : now()->year - 1;
+        $currentFy = sprintf('FY%d-%02d', $currentStartYear, ($currentStartYear + 1) % 100);
         $window = collect(range($currentStartYear - 3, $currentStartYear + 3))
             ->map(fn ($y) => sprintf('FY%d-%02d', $y, ($y + 1) % 100));
         $waveFys = DeploymentWave::query()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')->all();
         $fiscalYears = $window->merge($waveFys)->unique()->sortDesc()->values()->all();
 
-        $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: ($fiscalYears[0] ?? null);
+        // No explicit choice opens on the current FY — never the far end of
+        // the planning window.
+        $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: $currentFy;
         $typeFilter = $request->query('deployment_type');
         $stageFilter = $request->query('stage');
 

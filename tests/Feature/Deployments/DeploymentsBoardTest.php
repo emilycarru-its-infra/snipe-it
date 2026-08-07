@@ -61,15 +61,16 @@ class DeploymentsBoardTest extends TestCase
     public function test_decommissioned_devices_leave_collecting_and_count_as_archived()
     {
         $processing = Statuslabel::factory()->pending()->create(['name' => 'Processing (Donation)']);
-        // No purchase date, so the device cannot also surface on the
-        // lease-end/EOL look-ahead list — this test is about the lane.
-        Asset::factory()->create([
+        $gone = Asset::factory()->create([
             'asset_tag' => 'DECOM-GONE',
             'status_id' => $processing->id,
             'decommission_date' => now()->format('Y-m-d'),
-            'purchase_date' => null,
-            'asset_eol_date' => null,
         ]);
+        // Strip the factory-computed EOL via the query builder (the factory's
+        // afterMaking overwrites any override, and the observer recomputes on
+        // model saves) so the device cannot also surface on the lease-end/EOL
+        // look-ahead list — this test is about the lane.
+        Asset::query()->whereKey($gone->id)->update(['purchase_date' => null, 'asset_eol_date' => null]);
 
         // A stamped decommission date means the device left our management —
         // it must not linger on the collecting table.
@@ -84,7 +85,10 @@ class DeploymentsBoardTest extends TestCase
     public function test_fy_selector_is_a_bounded_window_not_every_stray_device_date()
     {
         // A single far-future EOL date used to put its FY in the picker.
-        Asset::factory()->create(['asset_eol_date' => '2036-06-30']);
+        // Set via the query builder — the factory recomputes EOL from the
+        // purchase date, silently discarding a create() override.
+        $stray = Asset::factory()->create();
+        Asset::query()->whereKey($stray->id)->update(['asset_eol_date' => '2036-06-30']);
 
         $content = $this->actingAs($this->superuser())
             ->get(route('reports.deployments'))
@@ -104,10 +108,13 @@ class DeploymentsBoardTest extends TestCase
         $startYear = (now()->month >= 4 ? now()->year : now()->year - 1) + 1;
         $nextFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
 
-        // A device whose lease ends in that FY, not yet on any wave.
-        Asset::factory()->create([
-            'asset_tag' => 'PLAN-2728',
+        // A device whose lease ends in that FY, not yet on any wave. The
+        // lease end goes in via the query builder so the factory's computed
+        // EOL (which lands in a different FY) can't muddy the reason.
+        $planned = Asset::factory()->create(['asset_tag' => 'PLAN-2728']);
+        Asset::query()->whereKey($planned->id)->update([
             'lease_end_date' => sprintf('%d-06-30', $startYear),
+            'asset_eol_date' => null,
         ]);
 
         $this->actingAs($this->superuser())
