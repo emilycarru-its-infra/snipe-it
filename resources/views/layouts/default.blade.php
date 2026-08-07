@@ -2381,6 +2381,11 @@
                                                 {{ trans('admin/purchase-orders/general.reports') }}
                                             </a>
                                         </li>
+                                        <li {{!! (request()->is('reports/lessor-breakdown*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.lessor-breakdown') }}">
+                                                {{ trans('admin/purchase-orders/general.report_lessor_breakdown') }}
+                                            </a>
+                                        </li>
                                     @endcan
                                     @can('reports.contracts.view')
                                         <li {{!! (request()->is('reports/contracts*') ? ' class="active"' : '') !!}}>

@@ -1101,6 +1101,15 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         'unaccepted_assets/{deleted?}', [ReportsController::class, 'postAssetAcceptanceReport'])
         ->name('reports/export/unaccepted_assets');
 
+    // Lessor Breakdown sits at the reports root, not under procurement:
+    // it is a whole-portfolio snapshot (never FY-scoped) with its own
+    // charts page, listed alongside the other report dashboards.
+    Route::get('lessor-breakdown', [ProcurementReportsController::class, 'lessorBreakdown'])
+        ->name('reports.lessor-breakdown')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/purchase-orders/general.report_lessor_breakdown'), route('reports.lessor-breakdown')));
+
     Route::prefix('procurement')->group(function () {
         // Each procurement report's breadcrumb chains off the procurement
         // landing — same Home > Reports > Procurement Reports > <Title> shape.
@@ -1206,9 +1215,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
             ->name('reports.procurement.credit-ledger')
             ->breadcrumbs($crumb('reports.procurement.credit-ledger', 'report_credit_ledger'));
-        Route::get('lessor-breakdown', [ProcurementReportsController::class, 'lessorBreakdown'])
-            ->name('reports.procurement.lessor-breakdown')
-            ->breadcrumbs($crumb('reports.procurement.lessor-breakdown', 'report_lessor_breakdown'));
+        // Moved to the reports root — old links and bookmarks keep working.
+        Route::redirect('lessor-breakdown', '/reports/lessor-breakdown', 301);
         Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
             ->name('reports.procurement.pst-applicability')
             ->breadcrumbs($crumb('reports.procurement.pst-applicability', 'report_pst_applicability'));
