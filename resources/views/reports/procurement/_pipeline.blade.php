@@ -40,21 +40,22 @@
                 $t('pipeline_note_open_orders', ['count' => count($pipeline['open']) + $pipeline['openMore']]),
             ],
         ],
-        'processing' => [
-            'big' => (string) $pipeline['stagedItemCount'],
-            'notes' => [
-                $t('pipeline_note_staged'),
-                $t('pipeline_note_returns_prep', ['count' => count($pipeline['returns']['prep']['cards']) + $pipeline['returns']['prep']['more']]),
-            ],
-        ],
+        // Processing and Deploying are one stage: the physical span from
+        // "boxes received" to "device in place / in hand". The detail —
+        // waves, provisioning, rooms, scheduling — lives on the Deployments
+        // board, which this chevron links to. Orders sit here until the
+        // deployment side confirms the hand-off.
         'deploying' => [
-            'big' => (string) $pipeline['deploying']['total'],
+            'big' => (string) ($pipeline['stagedItemCount'] + $pipeline['deploying']['total']),
             'notes' => array_values(array_filter([
-                $t('pipeline_note_agreements'),
+                $pipeline['stagedItemCount'] ? $t('pipeline_note_staged_count', ['count' => $pipeline['stagedItemCount']]) : null,
+                $pipeline['deploying']['total'] ? $t('pipeline_note_agreements_count', ['count' => $pipeline['deploying']['total']]) : null,
                 $pipeline['deploying']['quoted'] ? $t('pipeline_agreements_quoted', ['count' => $pipeline['deploying']['quoted']]) : null,
                 $pipeline['deploying']['sent'] ? $t('pipeline_agreements_sent', ['count' => $pipeline['deploying']['sent']]) : null,
                 $pipeline['deploying']['signed'] ? $t('pipeline_agreements_signed', ['count' => $pipeline['deploying']['signed']]) : null,
+                $t('pipeline_note_returns_prep', ['count' => count($pipeline['returns']['prep']['cards']) + $pipeline['returns']['prep']['more']]),
             ])),
+            'link' => route('reports.deployments'),
         ],
         'reconciling' => [
             'big' => $fmt($totalInvoiced),
@@ -81,6 +82,8 @@
     .proc-pipe {
         --pp-budgeting: light-dark(#8a63d2, #9877e0);
         --pp-ordering: light-dark(#1f5f99, #2e6fa8);
+        /* Processing merged into Deploying; the teal now colors only the
+           returns lane (the reverse pipeline) below the board. */
         --pp-processing: light-dark(#1f9e8e, #25a392);
         --pp-deploying: light-dark(#c8860a, #c08512);
         --pp-reconciling: light-dark(#b05c9e, #bc64a8);
@@ -114,6 +117,11 @@
     .pp-chev .pp-stage { font-size: 12.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--pp-c); }
     .pp-chev .pp-big { font-size: 22px; font-weight: 700; margin: 6px 0 4px; font-variant-numeric: tabular-nums; color: var(--pp-ink); }
     .pp-chev .pp-note { font-size: 12.5px; color: var(--pp-ink2); margin-top: 2px; line-height: 1.4; }
+    /* The chevron doubles as a filter toggle; the golink is the one part
+       of it that navigates instead (the JS handler skips anchor clicks). */
+    .pp-chev .pp-golink { display: block; color: var(--pp-c); font-weight: 600; text-decoration: none; }
+    .pp-chev .pp-golink:hover, .pp-chev .pp-golink:focus { text-decoration: underline; }
+    .pp-chev.active .pp-golink, .pp-chev.selected .pp-golink { color: #fff; }
     .pp-chev.active .pp-stage, .pp-chev.active .pp-big,
     .pp-chev.selected .pp-stage, .pp-chev.selected .pp-big { color: #fff; }
     .pp-chev.active .pp-note, .pp-chev.selected .pp-note { color: rgba(255,255,255,.85); }
@@ -227,6 +235,12 @@
                                 @foreach ($stage['notes'] as $note)
                                     <div class="pp-note">{{ $note }}</div>
                                 @endforeach
+                                @if ($stage['link'] ?? false)
+                                    <a class="pp-note pp-golink" href="{{ $stage['link'] }}">
+                                        {{ trans('admin/purchase-orders/general.pipeline_open_deployments') }}
+                                        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                                    </a>
+                                @endif
                                 @if ($stage['gate'] ?? false)
                                     <div class="pp-gate">
                                         <i class="fa-solid fa-lock" aria-hidden="true"></i>
@@ -319,13 +333,16 @@
                             @endif
                         </div>
 
-                        {{-- Processing --}}
-                        <div class="pp-col" style="--pp-c: var(--pp-processing)">
-                            <div class="pp-col-head" data-pp-stage="processing" tabindex="0" role="button" aria-pressed="false">
-                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_processing') }}</span>
-                                <span class="pp-count">{{ $pipeline['stagedItemCount'] }}</span>
+                        {{-- Deploying — the merged physical stage: received
+                             orders (device lines in staging) plus checkout
+                             in flight. Deep detail lives on the Deployments
+                             board. --}}
+                        <div class="pp-col" style="--pp-c: var(--pp-deploying)">
+                            <div class="pp-col-head" data-pp-stage="deploying" tabindex="0" role="button" aria-pressed="false">
+                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_deploying') }}</span>
+                                <span class="pp-count">{{ $pipeline['stagedItemCount'] + $pipeline['deploying']['total'] }}</span>
                             </div>
-                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_processing_def') }}</div>
+                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_deploying_def') }}</div>
                             @forelse ($pipeline['processing'] as $card)
                                 <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
                                     <div class="pp-t">{{ $card['order_number'] }}</div>
@@ -339,20 +356,13 @@
                                     </div>
                                 </div>
                             @empty
-                                <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
+                                @if ($pipeline['deploying']['total'] === 0)
+                                    <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
+                                @endif
                             @endforelse
                             @if ($pipeline['processingMore'])
                                 <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['processingMore']]) }}</div>
                             @endif
-                        </div>
-
-                        {{-- Deploying --}}
-                        <div class="pp-col" style="--pp-c: var(--pp-deploying)">
-                            <div class="pp-col-head" data-pp-stage="deploying" tabindex="0" role="button" aria-pressed="false">
-                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_deploying') }}</span>
-                                <span class="pp-count">{{ $pipeline['deploying']['total'] }}</span>
-                            </div>
-                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_deploying_def') }}</div>
                             @if ($pipeline['deploying']['total'] > 0)
                                 <div class="pp-card" tabindex="0" role="button"
                                      data-pp-embed="{{ $facultyLedgerEmbed }}"
@@ -372,8 +382,6 @@
                                         @endif
                                     </div>
                                 </div>
-                            @else
-                                <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
                             @endif
                         </div>
 
@@ -471,7 +479,7 @@
 {{-- ═══ Lightbox content: one hidden block per card, cloned into the shared
      Bootstrap modal on click. Self-contained — no extra requests. ═══ --}}
 <div class="hidden" id="pp-modal-store">
-    @foreach ([['budgeting', $pipeline['planned'], 'planned'], ['ordering', $pipeline['open'], 'order'], ['processing', $pipeline['processing'], 'order'], ['completed', $pipeline['completed'], 'order']] as [$stageKey, $cards, $prefix])
+    @foreach ([['budgeting', $pipeline['planned'], 'planned'], ['ordering', $pipeline['open'], 'order'], ['deploying', $pipeline['processing'], 'order'], ['completed', $pipeline['completed'], 'order']] as [$stageKey, $cards, $prefix])
         @foreach ($cards as $card)
             <div data-pp-content="{{ $prefix }}-{{ $card['id'] }}" data-pp-color="var(--pp-{{ $stageKey }})" data-pp-title="{{ $card['order_number'] }}">
                 <div class="pp-facts">
@@ -682,7 +690,12 @@
         }
 
         document.querySelectorAll('[data-pp-stage]').forEach(function (el) {
-            el.addEventListener('click', function () { apply(el.dataset.ppStage); });
+            el.addEventListener('click', function (e) {
+                // Links inside a chevron (the Deployments golink) navigate;
+                // they must not also toggle the stage filter.
+                if (e.target.closest('a')) { return; }
+                apply(el.dataset.ppStage);
+            });
             el.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apply(el.dataset.ppStage); }
             });
