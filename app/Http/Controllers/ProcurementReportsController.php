@@ -3294,7 +3294,7 @@ class ProcurementReportsController extends Controller
             // when it has both, else the 48/60-month convention.
             $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
             $termMonths = $isLeaseToOwn ? 60 : 48;
-            if ($term?->start_date && $term?->end_date) {
+            if ($term?->start_date && $term->end_date) {
                 $days = (int) (new \DateTime($term->start_date->format('Y-m-d')))
                     ->diff(new \DateTime($term->end_date->format('Y-m-d')))->format('%r%a');
                 $termMonths = max(1, (int) round($days / 30.44));
@@ -3338,7 +3338,7 @@ class ProcurementReportsController extends Controller
                 && $this->assetsWithRent($group['assets']) === count($group['assets']);
             $monthlyCost = $rentIsComplete
                 ? $group['monthly_rent_total']
-                : ($termMonths > 0 ? $group['total_cost'] / $termMonths : 0.0);
+                : $group['total_cost'] / $termMonths;
 
             $records[] = [
                 'class' => $months > 12 ? 'danger' : ($months > 0 ? 'warning' : ''),
