@@ -149,12 +149,39 @@ class CsiReconciliation
      */
     public function inProcessArrivals(): array
     {
-        $contractColumn = $this->leaseContractColumn();
         $snipeBySerial = $this->snipeBySerial();
+
+        // Devices already on the accepted feed are no longer "incoming":
+        // acceptance onto a schedule ends the arrival, but the in-process
+        // feed keeps carrying the device, so without this filter every
+        // accepted device lingers on the arrivals view forever (and the
+        // report duplicates the accepted-asset reconciliation). Serialized
+        // lines drop by serial; unserialized financed lines (rack kits,
+        // soft-cost rows) have no serial to join on, so they drop once the
+        // same schedule + model appears on the accepted feed.
+        $acceptedSerials = [];
+        $acceptedUnserialized = [];
+        foreach (CsiAsset::all() as $accepted) {
+            $k = self::key($accepted->serial);
+            if ($k !== '' && $k !== 'N/A') {
+                $acceptedSerials[$k] = true;
+            } else {
+                $acceptedUnserialized[$accepted->schedule_name.'|'.self::key($accepted->model)] = true;
+            }
+        }
 
         $rows = [];
         foreach (CsiInprocessAsset::all() as $csi) {
-            $asset = $snipeBySerial[self::key($csi->serial)] ?? null;
+            $k = self::key($csi->serial);
+            if ($k !== '' && $k !== 'N/A') {
+                if (isset($acceptedSerials[$k])) {
+                    continue;
+                }
+            } elseif (isset($acceptedUnserialized[$csi->schedule_name.'|'.self::key($csi->model)])) {
+                continue;
+            }
+
+            $asset = $snipeBySerial[$k] ?? null;
             $rows[] = [
                 'serial' => $csi->serial,
                 'csi_schedule' => $csi->schedule_name,
