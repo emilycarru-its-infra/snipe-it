@@ -2388,16 +2388,14 @@
                                     <x-icon type="angle-left" class="pull-right"/>
                                 </a>
 
+                                {{-- One word per entry — the treeview mirrors
+                                     the hub cards, and "Reports" is already
+                                     the section heading. --}}
                                 <ul class="treeview-menu">
                                     @can('reports.procurement.view')
                                         <li {{!! (request()->is('reports/procurement*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.procurement') }}">
-                                                {{ trans('admin/purchase-orders/general.reports') }}
-                                            </a>
-                                        </li>
-                                        <li {{!! (request()->is('reports/lessor-breakdown*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('reports.lessor-breakdown') }}">
-                                                {{ trans('admin/purchase-orders/general.report_lessor_breakdown') }}
+                                                {{ trans('general.procurement') }}
                                             </a>
                                         </li>
                                     @endcan
@@ -2411,28 +2409,28 @@
                                     @can('reports.contracts.view')
                                         <li {{!! (request()->is('reports/contracts*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.contracts') }}">
-                                                {{ trans('admin/contracts/general.reports') }}
+                                                {{ trans('admin/contracts/general.contracts') }}
                                             </a>
                                         </li>
                                     @endcan
                                     @can('reports.transactions.view')
                                         <li {{!! (request()->is('reports/transactions*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.transactions.index') }}">
-                                                {{ trans('admin/reports/transactions.dashboard_title') }}
+                                                {{ trans('admin/reports/general.hub_tile_transactions') }}
                                             </a>
                                         </li>
                                     @endcan
                                     @can('view', App\Models\Asset::class)
                                         <li {{!! (request()->is('reports/printing*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.printing') }}">
-                                                {{ trans('admin/reports/printing.dashboard_title') }}
+                                                {{ trans('admin/reports/general.nav_printers') }}
                                             </a>
                                         </li>
                                     @endcan
                                     @can('view', App\Models\Order::class)
                                         <li {{!! (request()->is('reports/exhibit*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.exhibit') }}">
-                                                {{ trans('admin/exhibit-projects/general.dashboard_title') }}
+                                                {{ trans('admin/reports/general.hub_tile_exhibit') }}
                                             </a>
                                         </li>
                                     @endcan
