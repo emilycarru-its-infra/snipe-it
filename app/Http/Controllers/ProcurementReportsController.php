@@ -4580,35 +4580,14 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Scope a query over OrderInvoice to a fiscal year by the FY of its
-     * booking order — the actual transaction, not the parent PO (a blanket
-     * purchase order spans fiscal years, e.g. P0025420 carries schedules
-     * 003-006 in FY2025-26 and 007-008 in FY2026-27, so attribution has to
-     * follow the order) — but fall back to the invoice's own invoice_date
-     * when the order carries no fiscal_year. CDW-ingested orders don't always
-     * get a fiscal_year
-     * stamped (the webhook used to leave it null), so without the fallback
-     * those invoices — e.g. the leased CDW iPads on a CSI schedule — would
-     * vanish from the Invoiced tile and the approval queue even though they
-     * have a real invoice_date. A null FY is a no-op (all-years).
+     * Scope a query over OrderInvoice to a fiscal year — see
+     * OrderInvoice::scopeForFiscalYear for the rule and why it lives on the
+     * model. Kept as a thin pass-through so the report builders below read the
+     * same as the rest of their FY scoping.
      */
     private function scopeInvoiceToFiscalYear($query, ?string $fy)
     {
-        if (! $fy) {
-            return $query;
-        }
-
-        $range = $this->fiscalYearRange($fy);
-
-        return $query->where(function ($q) use ($fy, $range) {
-            $q->whereHas('order', fn ($o) => $o->where('fiscal_year', $fy));
-
-            if ($range) {
-                $q->orWhere(fn ($alt) => $alt
-                    ->whereDoesntHave('order', fn ($o) => $o->whereNotNull('fiscal_year')->where('fiscal_year', '!=', ''))
-                    ->whereBetween('invoice_date', $range));
-            }
-        });
+        return $query->forFiscalYear($fy);
     }
 
     /**

@@ -181,14 +181,16 @@ class ProcurementPipeline
     }
 
     /**
-     * Invoices awaiting approval — the reconciling column. FY attribution
-     * follows the order each invoice sits on, same as the dashboard's
-     * invoiced totals.
+     * Invoices awaiting approval — the reconciling column. FY attribution goes
+     * through OrderInvoice::scopeForFiscalYear so this column and the chevron
+     * above it apply the same rule; they previously did not, and an invoice on
+     * an order with no fiscal_year was counted in the header while its card was
+     * dropped from the column.
      */
     private static function pendingInvoiceCards(?string $fy): array
     {
         $invoices = OrderInvoice::where('approval_status', 'pending')
-            ->when($fy, fn ($q) => $q->whereHas('order', fn ($o) => $o->where('fiscal_year', $fy)))
+            ->forFiscalYear($fy)
             ->with('order')
             ->orderBy('invoice_date')
             ->get();
