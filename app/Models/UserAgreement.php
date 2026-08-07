@@ -23,6 +23,7 @@ use Watson\Validating\ValidatingTrait;
  * (or closed_buyout, for purchases).
  *
  * @property Asset|null $asset
+ * @property User|null $user
  */
 class UserAgreement extends SnipeModel
 {
@@ -419,7 +420,7 @@ class UserAgreement extends SnipeModel
         // try/catch so a flaky SMTP run can't roll back the stage
         // transition — that's a higher-cost recovery than a missed email.
         try {
-            if ($this->user && $this->user->email) {
+            if ($this->user->email) {
                 Mail::to($this->user->email)->send(new UserAgreementSignatureRequestMail($this));
             }
         } catch (\Throwable $e) {
