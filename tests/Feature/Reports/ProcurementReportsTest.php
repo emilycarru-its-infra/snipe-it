@@ -872,12 +872,45 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('INV-REGULAR-1');
     }
 
-    public function test_lessor_breakdown_report_renders()
+    public function test_lessor_breakdown_report_renders_at_the_reports_root_with_charts()
     {
-        $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.lessor-breakdown'))
+        $response = $this->actingAs($this->superuser())
+            ->get(route('reports.lessor-breakdown'))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'));
+            ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'))
+            ->assertSee(trans('admin/purchase-orders/general.lessor_chart_cost'))
+            ->assertSee('lessorOwnershipChart');
+
+        // The old procurement URL keeps working via redirect.
+        $this->actingAs($this->superuser())
+            ->get('/reports/procurement/lessor-breakdown')
+            ->assertRedirect('/reports/lessor-breakdown');
+    }
+
+    public function test_procurement_dashboard_leads_with_the_new_report_order_and_drops_lessor_breakdown()
+    {
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->getContent();
+
+        // The jump-nav (and the inline boxes, driven by the same list) start
+        // with the agreed order: PO Budget & Spend, Capital Spend, Buyout
+        // Register, Extension Watch, Invoice Reconciliation, ...
+        $positions = array_map(
+            fn ($anchor) => strpos($content, 'data-target-report="proc-'.$anchor.'"'),
+            ['report_po_budget', 'report_capital', 'report_aro_register', 'report_extension_watch', 'report_invoices'],
+        );
+        $this->assertNotContains(false, $positions);
+        $sorted = $positions;
+        sort($sorted);
+        $this->assertSame($sorted, $positions);
+
+        // Lessor Breakdown left the procurement list for the reports root.
+        $this->assertStringNotContainsString('proc-report_lessor_breakdown', $content);
+
+        // The register dropped the ARO initialism.
+        $this->assertSame('Buyout Register', trans('admin/purchase-orders/general.report_aro_register'));
     }
 
     public function test_reports_read_provider_from_the_lessor_field()
@@ -904,7 +937,7 @@ class ProcurementReportsTest extends TestCase
         // Even with a fiscal year that holds none of this asset's data, the
         // lessor breakdown is a global snapshot and still shows the portfolio.
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.lessor-breakdown', ['fiscal_year' => 'FY2099-00']))
+            ->get(route('reports.lessor-breakdown', ['fiscal_year' => 'FY2099-00']))
             ->assertOk()
             ->assertSee('CCA Financial')
             ->assertDontSee('Macquarie');

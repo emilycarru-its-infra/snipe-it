@@ -18,5 +18,5 @@ return [
     'status_approved' => 'Approved',
     'status_completed' => 'Completed',
     'status_cancelled' => 'Cancelled',
-    'help_intro' => 'Track buyouts, returns, extensions and replacements against expiring leases so the reasoning lives in one place instead of email threads. Each entry carries a cost impact and approval status; finance reads this view through the ARO / Buyout Register and Extension Watch reports.',
+    'help_intro' => 'Track buyouts, returns, extensions and replacements against expiring leases so the reasoning lives in one place instead of email threads. Each entry carries a cost impact and approval status; finance reads this view through the Buyout Register and Extension Watch reports.',
 ];

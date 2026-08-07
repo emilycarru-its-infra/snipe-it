@@ -1309,16 +1309,22 @@ class ProcurementReportsController extends Controller
         $this->authorize('reports.procurement.view');
 
         // Lessor Breakdown is a global portfolio snapshot — never FY-scoped.
-        return $this->render(
-            $request,
-            'lessor-breakdown-report',
-            trans('admin/purchase-orders/general.report_lessor_breakdown'),
-            'reports.procurement.lessor-breakdown',
-            $this->lessorBreakdownReport(null),
-            '',
-            [],
-            false
-        );
+        // It lives at the reports root with its own charts page rather than
+        // inside the procurement dashboard's report list.
+        $report = $this->lessorBreakdownReport(null);
+
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv('lessor-breakdown-report', $report);
+        }
+
+        return view('reports.lessor-breakdown', [
+            'reportTitle' => trans('admin/purchase-orders/general.report_lessor_breakdown'),
+            'columns' => $report['columns'],
+            'rows' => $report['records'],
+            'footer' => $report['footer'],
+            'chart' => $report['chart'],
+            'downloadUrl' => route('reports.lessor-breakdown', ['format' => 'csv']),
+        ]);
     }
 
     public function pstApplicability(Request $request)
@@ -3970,7 +3976,29 @@ class ProcurementReportsController extends Controller
             '',
         ];
 
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+        // Raw (unformatted) per-lessor series for the charts on the
+        // standalone page. Ownership is one series per ownership type so
+        // the mix renders as a stacked bar across lessors.
+        $ownershipTypes = [];
+        foreach ($byLessor as $data) {
+            $ownershipTypes = array_unique(array_merge($ownershipTypes, array_keys($data['ownership'])));
+        }
+        sort($ownershipTypes);
+
+        $chart = [
+            'labels' => array_keys($byLessor),
+            'cost' => array_map(fn ($d) => round($d['cost'], 2), array_values($byLessor)),
+            'rent' => array_map(fn ($d) => round($d['rent'], 2), array_values($byLessor)),
+            'assets' => array_column(array_values($byLessor), 'assets'),
+            'active' => array_column(array_values($byLessor), 'active'),
+            'buyout' => array_column(array_values($byLessor), 'buyout'),
+            'ownership' => array_map(fn ($type) => [
+                'label' => $type,
+                'data' => array_map(fn ($d) => (int) ($d['ownership'][$type] ?? 0), array_values($byLessor)),
+            ], $ownershipTypes),
+        ];
+
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'chart' => $chart];
     }
 
     /**

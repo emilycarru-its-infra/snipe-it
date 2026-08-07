@@ -90,6 +90,21 @@ class CsiReconciliationTest extends TestCase
         $this->assertStringNotContainsString('serial=ARRIN', $response->getContent());
     }
 
+    public function test_embedded_reconciliation_summary_footer_spans_the_table()
+    {
+        CsiAsset::create(['serial' => 'GHOSTY', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'iPad']);
+
+        // The tally summary lives in footer column 0; merged across the row
+        // it no longer participates in the Status column's auto-layout width
+        // (which used to balloon to half the table on the dashboard embed).
+        $content = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.csi-reconciliation', ['embed' => 1]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('colspan="9"', $content);
+    }
+
     private function leaseColumn(): string
     {
         // Reads are on the native column as of the F2·2 cutover.
@@ -159,6 +174,36 @@ class CsiReconciliationTest extends TestCase
         $arrivals = collect((new CsiReconciliation)->inProcessArrivals());
         $this->assertTrue($arrivals->firstWhere('serial', 'ARR1')['in_snipe']);
         $this->assertFalse($arrivals->firstWhere('serial', 'ARR2')['in_snipe']);
+    }
+
+    public function test_in_process_arrivals_drop_devices_already_accepted()
+    {
+        // Accepted onto a schedule — the in-process feed still carries the
+        // device, but it is no longer "incoming".
+        CsiAsset::create(['serial' => 'DONE1', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'MacBook']);
+        CsiInprocessAsset::create(['serial' => 'DONE1', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'MacBook']);
+
+        // Still genuinely in flight.
+        CsiInprocessAsset::create(['serial' => 'FLIGHT1', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'MacBook']);
+
+        // Unserialized financed lines have no serial to join on; they drop
+        // once the same schedule + model shows on the accepted feed. (The
+        // in-process mirror keys on serial, so at most one N/A row exists.)
+        CsiAsset::create(['serial' => 'N/A', 'lease_number' => '301452', 'schedule_name' => '301452-008', 'model' => 'RACK KIT']);
+        $unserialized = CsiInprocessAsset::create(['serial' => 'N/A', 'lease_number' => '301452', 'schedule_name' => '301452-008', 'model' => 'RACK KIT']);
+
+        $arrivals = collect((new CsiReconciliation)->inProcessArrivals());
+
+        $this->assertNull($arrivals->firstWhere('serial', 'DONE1'));
+        $this->assertNotNull($arrivals->firstWhere('serial', 'FLIGHT1'));
+        $this->assertCount(0, $arrivals->where('serial', 'N/A'));
+
+        // A later unserialized line on a schedule the accepted feed doesn't
+        // list yet is still genuinely incoming.
+        $unserialized->update(['schedule_name' => '301452-009']);
+        $arrivals = collect((new CsiReconciliation)->inProcessArrivals());
+        $this->assertCount(1, $arrivals->where('serial', 'N/A'));
+        $this->assertEquals('301452-009', $arrivals->firstWhere('serial', 'N/A')['csi_schedule']);
     }
 
     public function test_schedule_summary_counts_csi_vs_snipe()
