@@ -226,6 +226,44 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('ECI20220901');
     }
 
+    public function test_csi_schedule_warranty_falls_back_to_the_asset_column()
+    {
+        $active = Statuslabel::factory()->rtd()->create();
+
+        // The real CSI schedules carry warranty on the asset (warranty_soft_cost)
+        // while the matching order_items.warranty_cost is 0 — reading the order
+        // item alone reported $0.00 warranty on every line and understated
+        // FY2025-26 by $30,051.28 against Leases (Financial) over the same assets.
+        $asset = Asset::factory()->create([
+            'asset_tag' => 'CSI-WARR-1',
+            'status_id' => $active->id,
+            'purchase_cost' => 2453.00,
+            'purchase_date' => '2025-06-01',
+        ]);
+        Asset::query()->whereKey($asset->id)->update([
+            'lease_contract_id' => '301452-003',
+            'warranty_soft_cost' => '232.50',
+        ]);
+
+        $order = Order::factory()->create(['order_number' => 'PMCN-WARR-1', 'fiscal_year' => 'FY2025-26']);
+        OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+            'description' => 'iMac lease line',
+            'quantity' => 1,
+            'unit_cost' => 2453.00,
+            'warranty_cost' => 0.00,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.csi-schedule', ['fiscal_year' => 'FY2025-26']))
+            ->assertOk()
+            ->assertSee('301452-003')
+            ->assertSee('$232.50')     // unit warranty, off the asset column
+            ->assertSee('$2,685.50');  // line total = equipment + warranty
+    }
+
     public function test_report_tables_open_assets_and_users_in_the_lightbox()
     {
         $asset = Asset::factory()->create(['asset_tag' => 'LIGHTBOX-1']);
