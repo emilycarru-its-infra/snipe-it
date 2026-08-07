@@ -30,7 +30,24 @@ use App\Models\Asset;
  */
 class LeaseClosure
 {
-    /** Ownership value meaning the unit was bought out of the lease. */
+    /**
+     * Statuses meaning the unit came off the lease and stayed with us — the
+     * device is still in service (or archived as ours), but the lessor has no
+     * further claim on it.
+     *
+     * Status is the signal, not `ownership_type`. The two disagree in practice
+     * because status is what gets set operationally and ownership is not kept
+     * up: production carries a unit at "Active (Buyouts)" whose ownership still
+     * reads "Lease to Return", and eleven more at status "Purchased" with the
+     * same stale ownership. Reading ownership alone missed all of them.
+     */
+    private const RETAINED_STATUSES = [
+        'Active (Buyouts)',
+        'Active (Legacy)',
+        'Purchased',
+    ];
+
+    /** Ownership value meaning the unit was bought out — corroborating only. */
     private const OWNERSHIP_PURCHASED = 'Purchased';
 
     /**
@@ -49,18 +66,22 @@ class LeaseClosure
 
             $isArchived = (bool) $asset->status?->archived;
             $hasDecommission = ! empty($asset->decommission_date);
-            $isBoughtOut = trim((string) $asset->ownership_type) === self::OWNERSHIP_PURCHASED;
+            $isBoughtOut = in_array(trim((string) $asset->status?->name), self::RETAINED_STATUSES, true)
+                || trim((string) $asset->ownership_type) === self::OWNERSHIP_PURCHASED;
 
-            if ($hasDecommission && $isArchived) {
+            // Retention wins over the returned test: a bought-out unit can also
+            // carry a decommission date once it is eventually retired, and it
+            // left the lease by purchase, not by going back.
+            if ($isBoughtOut) {
                 $closed++;
-                $returned++;
+                $boughtOut++;
 
                 continue;
             }
 
-            if ($isBoughtOut) {
+            if ($hasDecommission && $isArchived) {
                 $closed++;
-                $boughtOut++;
+                $returned++;
 
                 continue;
             }

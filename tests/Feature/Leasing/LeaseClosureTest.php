@@ -42,11 +42,37 @@ class LeaseClosureTest extends TestCase
         $this->assertSame(0, $state['open']);
     }
 
-    public function test_a_bought_out_device_also_closes_its_side_of_the_lease()
+    public function test_a_buyout_status_closes_the_lease_even_when_ownership_is_stale()
     {
-        // Buying the unit out ends the lease obligation even though the asset
-        // stays on the books and deployable.
-        $deployable = Statuslabel::factory()->rtd()->create();
+        // Status is the signal that gets set operationally; ownership_type is
+        // not kept up. Production carries a unit at "Active (Buyouts)" whose
+        // ownership still reads "Lease to Return" — reading ownership alone
+        // left it open and held its whole lease open with it.
+        $buyout = Statuslabel::factory()->rtd()->create(['name' => 'Active (Buyouts)']);
+        $state = app(LeaseClosure::class)->summarise([
+            $this->asset($buyout, null, 'Lease to Return'),
+        ]);
+
+        $this->assertTrue($state['is_closed']);
+        $this->assertSame(1, $state['bought_out']);
+    }
+
+    public function test_a_retained_legacy_device_closes_the_lease()
+    {
+        $legacy = Statuslabel::factory()->rtd()->create(['name' => 'Active (Legacy)']);
+        $state = app(LeaseClosure::class)->summarise([
+            $this->asset($legacy, null, 'Lease to Return'),
+        ]);
+
+        $this->assertTrue($state['is_closed']);
+        $this->assertSame(1, $state['bought_out']);
+    }
+
+    public function test_a_purchased_ownership_still_closes_when_no_status_says_so()
+    {
+        // Kept as a corroborating signal for records where only ownership was
+        // updated.
+        $deployable = Statuslabel::factory()->rtd()->create(['name' => 'Active']);
         $state = app(LeaseClosure::class)->summarise([
             $this->asset($deployable, null, 'Purchased'),
         ]);
