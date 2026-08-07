@@ -9,6 +9,7 @@ use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
 use App\Models\Location;
 use App\Models\Order;
+use App\Models\Statuslabel;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\RefreshForecast;
@@ -45,10 +46,16 @@ class DeploymentsController extends Controller
         $types = DeploymentType::active()->ordered()->get();
         $stages = DeploymentStage::active()->ordered()->get();
 
-        // FY options = forecast-derived FYs unioned with FYs already on waves.
+        // FY options: a bounded planning window (three years either side of
+        // the current FY) plus any FY that actually carries waves. Deriving
+        // the list from every asset EOL/lease-end date offered stray far
+        // future years (a single 2036 EOL date put FY2036-37 in the picker)
+        // while the board can never have anything to show there.
+        $currentStartYear = now()->month >= 4 ? now()->year : now()->year - 1;
+        $window = collect(range($currentStartYear - 3, $currentStartYear + 3))
+            ->map(fn ($y) => sprintf('FY%d-%02d', $y, ($y + 1) % 100));
         $waveFys = DeploymentWave::query()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')->all();
-        $fiscalYears = collect($forecast->availableFiscalYears())->merge($waveFys)->unique()->values();
-        $fiscalYears = $fiscalYears->sortDesc()->values()->all();
+        $fiscalYears = $window->merge($waveFys)->unique()->sortDesc()->values()->all();
 
         $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: ($fiscalYears[0] ?? null);
         $typeFilter = $request->query('deployment_type');
@@ -102,9 +109,51 @@ class DeploymentsController extends Controller
             'widgets' => $this->buildWidgets($items, $stages, $types),
             'timeline' => (new DeploymentTimeline)->build($waves),
             'decommission' => (new DecommissionLane)->build($fy),
-            'forecastCount' => $fy ? $forecast->forFiscalYear($fy)->count() : 0,
+            // The full look-ahead list, not just a count: picking a future FY
+            // shows that whole year's expected lease-end / EOL devices right
+            // on the board, so next year's rollout can be planned before a
+            // single wave exists.
+            'forecastAssets' => $fy ? $forecast->forFiscalYear($fy) : collect(),
+            'legacyFleet' => $this->legacyFleet(),
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'stage' => $stageFilter, 'format' => 'csv']),
         ]);
+    }
+
+    /**
+     * The unfunded aging fleet: devices parked on the 'Active (Legacy)'
+     * status — still in daily use, but with no planned replacement and no
+     * funding in sight. Leases carry their own pre-approved replacement
+     * money from signing; these devices have none, which is exactly what
+     * an exec reading this board needs to see next to the funded waves.
+     */
+    private function legacyFleet(): array
+    {
+        $statusIds = Statuslabel::where('name', 'like', 'Active (Legacy)%')->pluck('id');
+        if ($statusIds->isEmpty()) {
+            return ['count' => 0];
+        }
+
+        $assets = Asset::whereIn('status_id', $statusIds->all())
+            ->with('model')
+            ->get();
+
+        $ages = $assets
+            ->filter(fn ($asset) => $asset->purchase_date)
+            ->map(fn ($asset) => $asset->purchase_date->diffInYears(now()));
+
+        $byModel = $assets
+            ->groupBy(fn ($asset) => $asset->model?->name ?: trans('general.na'))
+            ->map->count()
+            ->sortDesc()
+            ->take(6);
+
+        return [
+            'count' => $assets->count(),
+            'avg_age_years' => $ages->isEmpty() ? null : round($ages->avg(), 1),
+            'oldest_year' => $assets->min(fn ($asset) => $asset->purchase_date?->format('Y')),
+            'by_model' => $byModel->map(fn ($count, $name) => ['model' => $name, 'count' => $count])->values()->all(),
+            'status_ids' => $statusIds->all(),
+        ];
     }
 
     /**
