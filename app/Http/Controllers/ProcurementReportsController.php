@@ -770,6 +770,18 @@ class ProcurementReportsController extends Controller
             .$tally['missing_in_snipe'].' '.$t('csi_recon_missing_in_snipe').' · '
             .$tally['extra_in_snipe'].' '.$t('csi_recon_extra_in_snipe');
 
+        // The tally carries five buckets and the summary listed four, so an
+        // unserialized line was counted and never shown — FY2026-27 rendered
+        // 18 rows under a footer accounting for 17. Append it only when there
+        // is one: it is a genuine finding (a schedule line with no serial to
+        // match on), not a status every reconciliation needs to report.
+        if ($tally['unserialized'] > 0) {
+            $summary .= ' · '.trans(
+                'admin/purchase-orders/general.csi_recon_unserialized_fold',
+                ['count' => $tally['unserialized']]
+            );
+        }
+
         return [
             'columns' => $columns,
             'records' => $records,
@@ -2677,6 +2689,8 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.lease_received'),
         ];
 
+        $warrantyColumn = $this->leaseFieldColumns()['warranty_cost'] ?? null;
+
         // Restrict to CSI schedules — ECI* contracts have their own
         // CCA Financial reconciliation and don't fit the schedule layout.
         $groups = array_filter(
@@ -2730,8 +2744,18 @@ class ProcurementReportsController extends Controller
                 $byModel[$modelName]['qty']++;
                 $byModel[$modelName]['equipment_total'] += (float) $asset->purchase_cost;
 
+                // Warranty comes off the asset first and only falls back to the
+                // order item — the same precedence leasesFinancialReport() uses.
+                // Reading order_items alone reported $0.00 warranty on every CSI
+                // line: the schedule assets all carry warranty_soft_cost while
+                // their order_items.warranty_cost is 0, so schedule 003 showed
+                // its equipment total ($264,254.83) as the whole line and the
+                // two reports disagreed by $30,051.28 over the same assets.
+                $assetWarranty = $warrantyColumn ? $this->parseMoney($asset->{$warrantyColumn}) : 0.0;
+                $itemWarranty = (float) $orderItemsByAsset->get($asset->id, collect())->sum('warranty_cost');
+                $byModel[$modelName]['warranty_total'] += $assetWarranty > 0 ? $assetWarranty : $itemWarranty;
+
                 foreach ($orderItemsByAsset->get($asset->id, collect()) as $item) {
-                    $byModel[$modelName]['warranty_total'] += (float) $item->warranty_cost;
                     if ($poNum = $item->order?->purchaseOrder?->po_number) {
                         $byModel[$modelName]['pos'][$poNum] = true;
                     }
