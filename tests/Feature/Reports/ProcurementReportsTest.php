@@ -490,27 +490,77 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_extension_watch'));
     }
 
-    public function test_extension_watch_only_lists_leases_past_their_original_term()
+    public function test_extension_watch_covers_the_decision_window_around_the_lease_end()
     {
-        // Bought in 2018 → 48-month term ended 2022, still recorded running
-        // to 2024 — a genuine holdover.
+        // Lapsed two months ago with the device still out — a live holdover.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20180101',
-            'Lease End Date' => '2024-01-01',
-        ], ['asset_tag' => 'EXT-OLD', 'purchase_date' => '2018-01-01']);
+            'Lease Contract ID' => 'ECI20220201',
+            'Lease End Date' => now()->subMonths(2)->format('Y-m-d'),
+        ], ['asset_tag' => 'EXT-LAPSED', 'purchase_date' => '2022-02-01']);
 
-        // Bought in 2025 ending 2031 — the original term has not elapsed, so
-        // it is not an extension however far out its end date sits.
+        // Ends next month — needs a renew/return/buy decision now.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20220901',
+            'Lease End Date' => now()->addMonth()->format('Y-m-d'),
+        ], ['asset_tag' => 'EXT-ENDING', 'purchase_date' => '2022-09-01']);
+
+        // Years of term left. Previously listed because a 48-month guess off
+        // the purchase date had "elapsed", though the lease runs to 2031.
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI20250101',
             'Lease End Date' => '2031-01-01',
         ], ['asset_tag' => 'EXT-FUTURE', 'purchase_date' => '2025-01-01']);
 
+        // Ended years ago with a device never checked in. A records gap for
+        // Lease Data Health, not a lease still being negotiated — carrying it
+        // here is what made the report unreadable.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20180101',
+            'Lease End Date' => '2024-01-01',
+        ], ['asset_tag' => 'EXT-ANCIENT', 'purchase_date' => '2018-01-01']);
+
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.extension-watch'))
             ->assertOk()
-            ->assertSee('ECI20180101')
-            ->assertDontSee('ECI20250101');
+            ->assertSee('ECI20220201')
+            ->assertSee('ECI20220901')
+            ->assertDontSee('ECI20250101')
+            ->assertDontSee('ECI20180101');
+    }
+
+    public function test_extension_watch_drops_a_lease_whose_devices_all_went_back()
+    {
+        // A decommission date plus an archived return status completes the
+        // lease lifecycle. ECI20210601A was 23 of 23 in exactly this state and
+        // still rendered as the report's worst row, at 25 months extended.
+        $returned = Statuslabel::factory()->archived()->create();
+        $asset = Asset::factory()->create(['status_id' => $returned->id, 'purchase_date' => '2021-06-01']);
+        Asset::query()->whereKey($asset->id)->update([
+            'lease_contract_id' => 'ECI20210601A',
+            'lease_end_date' => now()->subMonths(2)->format('Y-m-d'),
+            'decommission_date' => now()->subMonths(2)->format('Y-m-d'),
+            'ownership_type' => 'Lease to Return',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.extension-watch'))
+            ->assertOk()
+            ->assertDontSee('ECI20210601A');
+    }
+
+    public function test_extension_watch_lists_the_devices_still_on_a_lease()
+    {
+        // The point of the report is knowing which units to chase.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20220201',
+            'Lease End Date' => now()->subMonths(2)->format('Y-m-d'),
+        ], ['asset_tag' => 'EXT-DETAIL-1', 'serial' => 'EXTDETAILSERIAL1', 'purchase_date' => '2022-02-01']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.extension-watch'))
+            ->assertOk()
+            ->assertSee('EXT-DETAIL-1')
+            ->assertSee('EXTDETAILSERIAL1');
     }
 
     public function test_aro_register_report_renders()
