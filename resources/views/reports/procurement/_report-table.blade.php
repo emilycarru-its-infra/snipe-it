@@ -76,10 +76,27 @@
         @endforelse
         </tbody>
         @if (! empty($footer))
+            @php
+                // Merge trailing empty footer cells into the last value cell
+                // as a colspan. A long summary line in column 0 (e.g. the
+                // Lease Reconciliation tally) would otherwise participate in
+                // that column's auto-layout width and balloon it to half the
+                // table; totals rows keep their per-column alignment because
+                // only the cells AFTER the last value are merged.
+                $footerCells = array_values($footer);
+                $lastValueIdx = count($footerCells) - 1;
+                while ($lastValueIdx > 0 && ($footerCells[$lastValueIdx] === '' || $footerCells[$lastValueIdx] === null)) {
+                    $lastValueIdx--;
+                }
+            @endphp
             <tfoot>
                 <tr>
-                    @foreach ($footer as $cell)
-                        <th>{{ $cell }}</th>
+                    @foreach ($footerCells as $fi => $cell)
+                        @if ($fi < $lastValueIdx)
+                            <th>{{ $cell }}</th>
+                        @elseif ($fi === $lastValueIdx)
+                            <th colspan="{{ count($footerCells) - $lastValueIdx }}">{{ $cell }}</th>
+                        @endif
                     @endforeach
                 </tr>
             </tfoot>
