@@ -54,6 +54,13 @@ class ProcurementReportsController extends Controller
      * schedule inside this window needs a renew/return/buy decision now, so it
      * belongs on the watchlist before it lapses into holdover.
      */
+    /**
+     * The status marking a device as funded for replacement this fiscal year,
+     * as opposed to "Active (Legacy)", which marks one that wants replacing but
+     * has no plan or money behind it.
+     */
+    private const STATUS_FUNDED_REPLACEMENT = 'Active (Replace)';
+
     private const EXTENSION_LOOKAHEAD_MONTHS = 3;
 
     /**
@@ -1797,12 +1804,35 @@ class ProcurementReportsController extends Controller
         // supplied — drops the EOL window entirely and lists every device
         // matching the ANDed predicates, so a subset of an active lease can
         // be slotted in for an early refresh well before its EOL date.
+        // "Active (Replace)" is a funded decision, not a prediction: its own
+        // note reads "identified for replacement in this fiscal year's capital
+        // that are not in an active lease". It therefore belongs on the
+        // forecast whatever its EOL date says — that is the whole point of
+        // someone having set it. Its sibling "Active (Legacy)" is deliberately
+        // not included: that marks kit that is aging and wants replacing but
+        // has no plan or money behind it, so putting it here would inflate a
+        // funded forecast with a wishlist.
+        //
+        // The status carries no fiscal year of its own and reads "this" year,
+        // so it joins the current year's forecast and the all-years view, never
+        // a historical one.
+        $currentFy = $this->normalizeFy(
+            (now()->month >= 4 ? now()->year : now()->year - 1).'-'.substr((string) ((now()->month >= 4 ? now()->year : now()->year - 1) + 1), -2)
+        );
+        $includeFunded = $fy === null || $fy === $currentFy;
+
         $range = $this->fiscalYearRange($fy);
         $assets = Asset::with('model.refreshCatalogItem', 'supplier', 'status')
             ->when($criteria === [], fn ($query) => $query
-                ->whereNotNull('asset_eol_date')
-                ->when($range, fn ($q) => $q->whereBetween('asset_eol_date', $range))
-                ->when(! $range, fn ($q) => $q->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])))
+                ->where(fn ($outer) => $outer
+                    ->where(fn ($eol) => $eol
+                        ->whereNotNull('asset_eol_date')
+                        ->when($range, fn ($q) => $q->whereBetween('asset_eol_date', $range))
+                        ->when(! $range, fn ($q) => $q->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])))
+                    ->when($includeFunded, fn ($q) => $q->orWhereHas(
+                        'status',
+                        fn ($s) => $s->where('name', self::STATUS_FUNDED_REPLACEMENT)
+                    ))))
             ->when($criteria !== [], function ($query) use ($criteria) {
                 foreach ($criteria as $criterion) {
                     $this->applyForecastCriterion($query, $criterion['field'], $criterion['value']);
