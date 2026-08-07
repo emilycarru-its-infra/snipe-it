@@ -81,7 +81,7 @@
 
         <form method="POST" action="{{ route('reports.procurement.forecast.plan') }}">
             {{ csrf_field() }}
-            <div class="box box-default">
+            <div class="box box-default rpt-report-box">
                 <div class="box-body">
                     @if ($canCreate)
                         <p>{{ trans('admin/purchase-orders/general.forecast_intro') }}</p>
@@ -102,7 +102,7 @@
                         </div>
                     @endif
                     <div class="table-responsive rpt-table-scroll">
-                        <table class="table table-striped">
+                        <table class="table table-striped rpt-report-table">
                             <thead>
                                 <tr>
                                     @if ($canCreate)
@@ -125,8 +125,12 @@
                                             @endif
                                         </td>
                                     @endif
-                                    @foreach ($row['cells'] as $cell)
-                                        <td>{{ $cell }}</td>
+                                    @foreach ($row['cells'] as $ci => $cell)
+                                        @if ($cell !== '' && $cell !== null && isset($row['links'][$ci]))
+                                            <td><a href="{{ $row['links'][$ci] }}" class="js-lightbox">{{ $cell }}</a></td>
+                                        @else
+                                            <td>{{ $cell }}</td>
+                                        @endif
                                     @endforeach
                                 </tr>
                             @empty
@@ -152,6 +156,7 @@
         </form>
     </div>
 </div>
+@include('reports.procurement._report-sticky-js')
 @stop
 
 @section('moar_scripts')

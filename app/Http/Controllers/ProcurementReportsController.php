@@ -1816,6 +1816,11 @@ class ProcurementReportsController extends Controller
                 'class' => $planned ? 'success' : '',
                 'asset_id' => $asset->id,
                 'planned' => $planned,
+                'links' => [
+                    0 => route('hardware.show', $asset->id),
+                    1 => route('hardware.show', $asset->id),
+                    3 => route('hardware.show', $asset->id),
+                ],
                 'cells' => [
                     (string) $asset->asset_tag,
                     (string) $asset->name,
@@ -2654,6 +2659,7 @@ class ProcurementReportsController extends Controller
     private function csiScheduleReport(?string $fy = null): array
     {
         $columns = [
+            trans('general.lessor'),
             trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.forecast_model'),
             trans('admin/purchase-orders/general.lease_qty'),
@@ -2687,6 +2693,16 @@ class ProcurementReportsController extends Controller
         $totalLine = 0.0;
 
         foreach ($groups as $group) {
+            // The schedule's lessor, read from its assets (they all carry
+            // the same lessor; first non-empty wins).
+            $lessorName = '';
+            foreach ($group['assets'] as $asset) {
+                if ($asset->lessor?->name) {
+                    $lessorName = (string) $asset->lessor->name;
+                    break;
+                }
+            }
+
             // Bucket the assets in this schedule by model name so each
             // line is "Qty × Model" rather than one row per device.
             $byModel = [];
@@ -2739,6 +2755,7 @@ class ProcurementReportsController extends Controller
                 $records[] = [
                     'class' => '',
                     'cells' => [
+                        $lessorName,
                         $group['contract_id'],
                         $modelName,
                         $qty,
@@ -2758,6 +2775,7 @@ class ProcurementReportsController extends Controller
             $records[] = [
                 'class' => 'info rpt-subtotal',
                 'cells' => [
+                    '',
                     $group['contract_id'].' '.trans('admin/orders/general.total'),
                     '', $scheduleQty, '', '',
                     $this->money($scheduleLine),
@@ -2770,7 +2788,7 @@ class ProcurementReportsController extends Controller
         }
 
         $footer = [
-            trans('admin/orders/general.total'), '', $totalQty, '', '',
+            trans('admin/orders/general.total'), '', '', $totalQty, '', '',
             $this->money($totalLine),
             '', '', '',
         ];
@@ -2934,6 +2952,11 @@ class ProcurementReportsController extends Controller
 
             $records[] = [
                 'class' => '',
+                'links' => array_filter([
+                    1 => $agreement->user ? route('users.show', $agreement->user->id) : null,
+                    2 => $agreement->asset ? route('hardware.show', $agreement->asset->id) : null,
+                    3 => $agreement->asset ? route('hardware.show', $agreement->asset->id) : null,
+                ]),
                 'cells' => [
                     trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type),
                     (string) ($agreement->user?->full_name ?? '—'),
@@ -3387,6 +3410,12 @@ class ProcurementReportsController extends Controller
 
             $records[] = [
                 'class' => $isReturned ? 'text-muted' : '',
+                'links' => array_filter([
+                    0 => route('hardware.show', $asset->id),
+                    1 => route('hardware.show', $asset->id),
+                    6 => $asset->assignedTo instanceof \App\Models\User
+                        ? route('users.show', $asset->assignedTo->id) : null,
+                ]),
                 'cells' => [
                     (string) $asset->asset_tag,
                     (string) $asset->serial,

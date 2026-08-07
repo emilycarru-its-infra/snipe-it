@@ -10,6 +10,13 @@
      carry this. --}}
 <style>
     .wrapper, .content-wrapper { overflow: visible !important; }
+    /* The rounded .box deliberately doesn't clip children (dropdowns must
+       escape elsewhere), so any child with an opaque background touching an
+       edge — the sticky box-header, a pinned thead, full-bleed rows —
+       overdraws the 14px corner radius. Report cards hold only buttons and
+       body-mounted tooltips, so they can clip. overflow:clip is not a
+       scroll container, so position:sticky keeps tracking the page. */
+    .proc-report-box, .rpt-report-box { overflow: clip; }
     @media (max-width: 991px) {
         .rpt-table-scroll {
             max-height: calc(100vh - var(--header-h, 68px) - 190px);
