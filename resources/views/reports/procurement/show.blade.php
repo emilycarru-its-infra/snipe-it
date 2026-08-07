@@ -36,7 +36,7 @@
 @section('content')
 <div class="row">
     <div class="col-md-12">
-        <div class="box box-default">
+        <div class="box box-default rpt-report-box">
             <div class="box-body">
                 @include('reports.procurement._report-table', [
                     'columns' => $columns,
