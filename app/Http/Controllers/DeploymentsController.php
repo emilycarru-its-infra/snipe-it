@@ -9,6 +9,7 @@ use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
 use App\Models\Location;
 use App\Models\Order;
+use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\RefreshForecast;
 use Carbon\Carbon;
@@ -66,17 +67,28 @@ class DeploymentsController extends Controller
 
         // Items in scope (the FY's waves), for the widgets.
         $waveIds = $waves->pluck('id')->all();
-        $itemsQuery = DeploymentItem::query()
+        $allItems = DeploymentItem::query()
             ->with(['stage', 'wave.type', 'model'])
-            ->whereIn('wave_id', $waveIds ?: [0]);
-        if ($stageFilter) {
-            $itemsQuery->where('stage_id', (int) $stageFilter);
-        }
-        $items = $itemsQuery->get();
+            ->whereIn('wave_id', $waveIds ?: [0])
+            ->get();
+        $items = $stageFilter
+            ? $allItems->where('stage_id', (int) $stageFilter)->values()
+            : $allItems;
 
         if ($request->query('format') === 'csv') {
             return $this->streamWavesCsv($waves, $fy);
         }
+
+        // The stage rail always shows the whole funnel — it IS the stage
+        // filter (a chevron click narrows the widgets below), so its counts
+        // never narrow with the selection.
+        $stageRail = $stages->map(fn ($stage) => [
+            'id' => $stage->id,
+            'name' => $stage->name,
+            'color' => $stage->color ?: '#bdc3c7',
+            'is_terminal' => (bool) $stage->is_terminal,
+            'count' => $allItems->where('stage_id', $stage->id)->count(),
+        ])->values()->all();
 
         return view('reports.deployments.index', [
             'waves' => $waves,
@@ -86,8 +98,10 @@ class DeploymentsController extends Controller
             'fy' => $fy,
             'typeFilter' => $typeFilter,
             'stageFilter' => $stageFilter,
+            'stageRail' => $stageRail,
             'widgets' => $this->buildWidgets($items, $stages, $types),
             'timeline' => (new DeploymentTimeline)->build($waves),
+            'decommission' => (new DecommissionLane)->build($fy),
             'forecastCount' => $fy ? $forecast->forFiscalYear($fy)->count() : 0,
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'stage' => $stageFilter, 'format' => 'csv']),
         ]);

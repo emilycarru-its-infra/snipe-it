@@ -41,6 +41,20 @@ class ProcurementPipelineTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.pipeline_returns_title'));
     }
 
+    public function test_processing_and_deploying_are_one_stage_linking_to_the_deployments_board()
+    {
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.stage_deploying'))
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_open_deployments'))
+            ->assertSee(route('reports.deployments'))
+            ->getContent();
+
+        // The old separate Processing stage is gone from the rail and board.
+        $this->assertStringNotContainsString('data-pp-stage="processing"', $content);
+    }
+
     public function test_pending_invoice_appears_on_reconciling_column()
     {
         $order = Order::factory()->create(['order_number' => 'ORD-PIPE-INV', 'is_planned' => false]);

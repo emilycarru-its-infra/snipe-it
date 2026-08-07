@@ -164,4 +164,29 @@ return [
     'timeline_blackouts_label' => 'Staff OOO',
     'timeline_collision_tooltip' => 'Deploy window overlaps staff time off',
     'timeline_collision_callout' => ':count wave(s) overlap staff time off',
+
+    // Stage rail — the per-device funnel across the filtered waves.
+    'rail_title' => 'Device Flow',
+    'rail_hint' => 'Every tracked device sits in one stage — click a stage to narrow the boards below.',
+    'rail_devices' => 'devices',
+
+    // Decommissioning lane — the reverse flow (lease returns, donations,
+    // recycling).
+    'decom_title' => 'Decommissioning — Outgoing Devices',
+    'decom_hint' => 'The reverse flow: devices leaving the fleet — lease returns, donations, recycling.',
+    'decom_collecting' => 'Collecting',
+    'decom_collecting_note' => 'on a Processing status — being gathered, wiped, packed',
+    'decom_decommissioned' => 'Decommissioned',
+    'decom_decommissioned_note' => 'decommission date stamped — returned / donated / recycled',
+    'decom_archived' => 'Archived',
+    'decom_archived_note' => 'parked on an archived status',
+    'decom_locations' => 'Holding locations',
+    'decom_none' => 'Nothing is in decommissioning right now.',
+    'decom_open_disposition' => 'Disposition Grid',
+    'decom_more' => '+ :count more — the Disposition Grid has the full list.',
+    'decom_col_asset' => 'Asset Tag',
+    'decom_col_model' => 'Model',
+    'decom_col_status' => 'Status',
+    'decom_col_location' => 'Location',
+    'decom_col_lease_end' => 'Lease End',
 ];

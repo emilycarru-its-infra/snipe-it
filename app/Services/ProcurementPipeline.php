@@ -12,14 +12,18 @@ use Illuminate\Support\Collection;
 /**
  * Stage data for the procurement pipeline view on the dashboard.
  *
- * The pipeline reads the FY as six stages — budgeting, ordering,
- * processing, deploying, reconciling, completed — and places every
- * order/device in exactly one, derived from fields that already exist:
+ * The pipeline reads the FY as five stages — budgeting, ordering,
+ * deploying, reconciling, completed — and places every order/device in
+ * exactly one, derived from fields that already exist:
  *
  *   budgeting   planned orders (is_planned), no PO attached yet
  *   ordering    actual orders carrying a PO, nothing received
- *   processing  received line items whose assets are not yet checked out
- *   deploying   user agreements in flight (quoted → signed)
+ *   deploying   the whole physical span: received line items whose assets
+ *               are not yet checked out (the build() 'processing' keys)
+ *               plus user agreements in flight (quoted → signed). The
+ *               per-device detail lives on the Deployments board; an
+ *               order stays here until that side confirms the device is
+ *               in place or in hand.
  *   reconciling invoices pending approval — deployed but money trail open
  *   completed   received orders with every invoice approved and every
  *               asset checked out
@@ -268,8 +272,7 @@ class ProcurementPipeline
         return match (true) {
             in_array($now->month, [2, 3, 4, 5], true) => 'budgeting',
             in_array($now->month, [6, 7], true) => 'ordering',
-            in_array($now->month, [8, 9], true) => 'processing',
-            in_array($now->month, [10, 11], true) => 'deploying',
+            in_array($now->month, [8, 9, 10, 11], true) => 'deploying',
             default => 'reconciling',
         };
     }
