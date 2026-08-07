@@ -24,6 +24,7 @@ use App\Models\UserAgreement;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
+use App\Services\Leasing\LeaseClosure;
 use App\Services\ProcurementPipeline;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -48,6 +49,20 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ProcurementReportsController extends Controller
 {
+    /**
+     * How far ahead of its end date a lease joins the Extension Watch. A
+     * schedule inside this window needs a renew/return/buy decision now, so it
+     * belongs on the watchlist before it lapses into holdover.
+     */
+    private const EXTENSION_LOOKAHEAD_MONTHS = 3;
+
+    /**
+     * How long after its end date a lease stays on the Extension Watch. Past
+     * this the holdover is no longer a live negotiation and any device still
+     * showing open is a records gap for Lease Data Health to carry instead.
+     */
+    private const EXTENSION_LOOKBACK_MONTHS = 6;
+
     /**
      * Procurement dashboard: budget/spend summary cards, charts and links
      * to the individual reports.
@@ -3165,17 +3180,36 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.lease_end_date'),
             trans('admin/purchase-orders/general.extension_months'),
             trans('admin/purchase-orders/general.lease_assets'),
-            trans('admin/purchase-orders/general.lease_active'),
+            trans('admin/purchase-orders/general.extension_still_open'),
             trans('admin/purchase-orders/general.extension_monthly_cost'),
         ];
 
         $records = [];
+        $closure = app(LeaseClosure::class);
+
+        // Contractual term dates, keyed by schedule. The register knows what a
+        // lease actually runs for; guessing 48/60 months off the first purchase
+        // flagged ECI20221101 (a real 2022-11-01 -> 2027-12-01 term) as extended
+        // when it has years left.
+        $terms = Contract::whereNotNull('schedule_number')
+            ->where('schedule_number', '!=', '')
+            ->get(['schedule_number', 'start_date', 'end_date'])
+            ->keyBy('schedule_number');
 
         foreach ($this->groupedLeaseAssets($fy) as $group) {
-            // Use the earliest asset purchase_date in the group as the
-            // proxy for the lease start. ECI contracts are 4-year rentals
-            // (term = 48 months); 301452 schedules split between 4-year
-            // returns and 5-year lease-to-own — see the ownership counts.
+            $state = $closure->summarise($group['assets']);
+
+            // A lease whose every device has gone back or been bought out is
+            // finished — there is nothing left to extend, chase or pay for.
+            // Without this a schedule returned in full two years ago accrued
+            // "months extended" forever; ECI20210601A, 23 of 23 returned with
+            // decommission dates, was the worst-looking row on the report.
+            if ($state['is_closed']) {
+                continue;
+            }
+
+            $term = $terms->get($group['contract_id']);
+
             $earliestPurchase = null;
             foreach ($group['assets'] as $asset) {
                 if ($asset->purchase_date) {
@@ -3202,53 +3236,116 @@ class ProcurementReportsController extends Controller
                 continue;
             }
 
+            // Term length, for amortising the cost. The register's own dates
+            // when it has both, else the 48/60-month convention.
             $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
             $termMonths = $isLeaseToOwn ? 60 : 48;
-            $originalEnd = (clone $earliestPurchase)->modify("+{$termMonths} months");
+            if ($term?->start_date && $term?->end_date) {
+                $days = (int) (new \DateTime($term->start_date->format('Y-m-d')))
+                    ->diff(new \DateTime($term->end_date->format('Y-m-d')))->format('%r%a');
+                $termMonths = max(1, (int) round($days / 30.44));
+            }
 
-            // Only a genuine holdover counts: the original term must already
-            // have elapsed. A lease whose original term still has time left is
-            // not an extension, however far out its recorded end date is —
-            // this drops far-future schedules that merely have an end date a
-            // month or two past their computed term end.
-            if ($originalEnd >= $now) {
+            // The watch is driven by the lease end date carried on the devices,
+            // not by a term computed from the first purchase. That guess had
+            // flagged ECI20221101 — a genuine 2022-11-01 to 2027-12-01 term —
+            // as extended, while the register's own end date can disagree with
+            // the devices outright: ECI20220201 reads 2027-10-01 on the
+            // contract and 2026-04-01 on all 26 assets. The device date is what
+            // the fleet is actually being held against, so it governs here and
+            // the disagreement is surfaced rather than silently resolved.
+            $monthsPastEnd = (($now->format('Y') - $leaseEnd->format('Y')) * 12)
+                + ((int) $now->format('m') - (int) $leaseEnd->format('m'));
+
+            // The watch covers the decision window either side of the end date:
+            // ending soon enough to need renew/return/buy called now, or lapsed
+            // recently enough to still be a live negotiation. A lease years past
+            // its end with a few devices never checked in is not a lease
+            // decision any more, it is a records problem — those belong on Lease
+            // Data Health, not here, and mixing them made this report unreadable.
+            if ($monthsPastEnd < -self::EXTENSION_LOOKAHEAD_MONTHS
+                || $monthsPastEnd > self::EXTENSION_LOOKBACK_MONTHS) {
                 continue;
             }
 
-            // Months extended = original-term-end → today (the lease is still
-            // running), so the figure grows as the holdover drags on rather
-            // than reflecting a not-yet-reached recorded end date.
-            $extendedTo = $leaseEnd > $now ? $now : $leaseEnd;
-            $months = (($extendedTo->format('Y') - $originalEnd->format('Y')) * 12)
-                + ((int) $extendedTo->format('m') - (int) $originalEnd->format('m'));
+            $months = max(0, $monthsPastEnd);
+            $originalEnd = $term?->end_date
+                ? new \DateTime($term->end_date->format('Y-m-d'))
+                : (clone $earliestPurchase)->modify("+{$termMonths} months");
+            $datesDisagree = $term?->end_date
+                && $term->end_date->format('Y-m-d') !== $leaseEnd->format('Y-m-d');
 
-            if ($months <= 0) {
-                continue;
-            }
-
-            // Prefer the real Lease Rent sum when available — the fall-back
-            // amortises the total contract cost across the original term,
-            // which is only an estimate.
-            $monthlyCost = $group['monthly_rent_total'] > 0
+            // Lease Rent is only usable when every unit carries one: summing a
+            // handful of populated values reported the whole contract's rent
+            // from a fraction of it — ECI20200301 read $24,929.70/month for ten
+            // devices off six values. Otherwise amortise the contract over its
+            // term, and say which basis was used rather than implying precision.
+            $rentIsComplete = $group['monthly_rent_total'] > 0
+                && $this->assetsWithRent($group['assets']) === count($group['assets']);
+            $monthlyCost = $rentIsComplete
                 ? $group['monthly_rent_total']
                 : ($termMonths > 0 ? $group['total_cost'] / $termMonths : 0.0);
 
             $records[] = [
-                'class' => $months > 12 ? 'danger' : 'warning',
+                'class' => $months > 12 ? 'danger' : ($months > 0 ? 'warning' : ''),
                 'cells' => [
                     $group['contract_id'],
                     $group['provider'],
-                    $originalEnd->format('Y-m-d'),
+                    $originalEnd->format('Y-m-d')
+                        .($datesDisagree ? ' '.trans('admin/purchase-orders/general.extension_date_conflict') : ''),
                     $leaseEnd->format('Y-m-d'),
                     $months,
                     count($group['assets']),
-                    $group['active'],
-                    $this->money($monthlyCost),
+                    $state['open'],
+                    $this->money($monthlyCost)
+                        .($rentIsComplete ? '' : ' '.trans('admin/purchase-orders/general.extension_cost_estimated')),
                 ],
             ];
+
+            // One row per still-open device, so a contract can be traced to the
+            // units to actually chase. Closed units are omitted: they are the
+            // part of the lease already dealt with.
+            foreach ($state['open_assets'] as $asset) {
+                $records[] = [
+                    'class' => 'lease-extension-detail',
+                    'cells' => [
+                        '',
+                        $asset->asset_tag,
+                        $asset->serial,
+                        $asset->model?->name ?: trans('general.na'),
+                        $this->describeAssignedTo($asset->assigned_to ? $asset->assignedTo : null),
+                        $asset->status?->name,
+                        trim((string) $asset->ownership_type),
+                        $this->dateString($asset->decommission_date),
+                    ],
+                ];
+            }
         }
 
         return ['columns' => $columns, 'records' => $records];
+    }
+
+    /**
+     * How many of these assets carry a Lease Rent value — the test for whether
+     * a summed rent figure describes the whole contract or only part of it.
+     *
+     * @param  iterable<\App\Models\Asset>  $assets
+     */
+    private function assetsWithRent(iterable $assets): int
+    {
+        $column = $this->leaseFieldColumns()['lease_rent'];
+        if (! $column) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ($assets as $asset) {
+            if ($this->parseMoney($asset->{$column}) > 0) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**
