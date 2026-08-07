@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -61,6 +62,68 @@ class OrderInvoice extends Model
         'approved_at' => 'datetime',
         'is_final_invoice' => 'boolean',
     ];
+
+    /**
+     * Scope invoices to a fiscal year.
+     *
+     * Attribution follows the booking order — a blanket purchase order spans
+     * fiscal years, so the order is the transaction, not the parent PO — but
+     * falls back to the invoice's own `invoice_date` when that order carries
+     * no `fiscal_year`. CDW-ingested orders don't always get one stamped (the
+     * webhook used to leave it null), and without the fallback those invoices
+     * vanish from any year-scoped view despite having a real invoice date.
+     *
+     * This lives on the model because the rule had drifted between callers:
+     * the procurement dashboard applied the fallback and the pipeline's
+     * reconciling column did not, so a year could report "$33,880.19 invoiced
+     * · 2 invoices pending approval" in the chevron above a column reading
+     * "Nothing here yet". One definition, one behaviour.
+     *
+     * A null fiscal year is a no-op (all years).
+     */
+    public function scopeForFiscalYear($query, ?string $fy)
+    {
+        if ($fy === null || trim($fy) === '' || strtolower(trim($fy)) === 'all') {
+            return $query;
+        }
+
+        $range = self::fiscalYearRange($fy);
+
+        return $query->where(function ($q) use ($fy, $range) {
+            $q->whereHas('order', fn ($o) => $o->where('fiscal_year', $fy));
+
+            if ($range) {
+                $q->orWhere(fn ($alt) => $alt
+                    ->whereDoesntHave('order', fn ($o) => $o->whereNotNull('fiscal_year')->where('fiscal_year', '!=', ''))
+                    ->whereBetween('invoice_date', $range));
+            }
+        });
+    }
+
+    /**
+     * The [start, end] bounds of a fiscal year. ECU fiscal years run April to
+     * March, so FY2025-26 spans 2025-04-01 to 2026-03-31. Accepts both the
+     * four-digit `FY2025-26` and two-digit `FY25-26` forms.
+     *
+     * @return array{0: Carbon, 1: Carbon}|null
+     */
+    private static function fiscalYearRange(string $fy): ?array
+    {
+        $fy = trim($fy);
+
+        if (preg_match('/(\d{4})\s*-\s*\d{2}$/', $fy, $m)) {
+            $start = (int) $m[1];
+        } elseif (preg_match('/(\d{2})\s*-\s*\d{2}$/', $fy, $m)) {
+            $start = 2000 + (int) $m[1];
+        } else {
+            return null;
+        }
+
+        return [
+            Carbon::create($start, 4, 1)->startOfDay(),
+            Carbon::create($start + 1, 3, 31)->endOfDay(),
+        ];
+    }
 
     /**
      * @return BelongsTo<Order, $this>
