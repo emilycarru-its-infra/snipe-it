@@ -9,9 +9,11 @@ use Illuminate\Routing\Route;
 use Tests\TestCase;
 
 /**
- * The Settings → Emails preview is shown in a same-origin iframe, so its
- * response must be framable by us (SAMEORIGIN) while every other route keeps
- * the default X-Frame-Options: DENY. The feature suite disables SecurityHeaders
+ * Same-origin framing is a designed feature — the Settings → Emails hub
+ * previews mail in an iframe and the record lightbox frames /hardware and
+ * /users pages — so every route answers X-Frame-Options: SAMEORIGIN. That
+ * still refuses all cross-origin framing, which is the clickjacking
+ * boundary that matters. The feature suite disables SecurityHeaders
  * globally, so we exercise the middleware directly here.
  */
 class SecurityHeadersFramingTest extends TestCase
@@ -34,8 +36,17 @@ class SecurityHeadersFramingTest extends TestCase
         $this->assertSame('SAMEORIGIN', $this->frameOptionForRoute('settings.emails.preview'));
     }
 
-    public function test_other_routes_stay_deny(): void
+    public function test_record_routes_are_framable_by_the_lightbox(): void
     {
-        $this->assertSame('DENY', $this->frameOptionForRoute('settings.index'));
+        $this->assertSame('SAMEORIGIN', $this->frameOptionForRoute('hardware.show'));
+        $this->assertSame('SAMEORIGIN', $this->frameOptionForRoute('users.show'));
+    }
+
+    public function test_routes_are_never_framable_cross_origin(): void
+    {
+        // SAMEORIGIN everywhere: our pages may frame our pages; no other
+        // origin may frame anything.
+        $this->assertSame('SAMEORIGIN', $this->frameOptionForRoute('settings.index'));
+        $this->assertSame('SAMEORIGIN', $this->frameOptionForRoute(null));
     }
 }

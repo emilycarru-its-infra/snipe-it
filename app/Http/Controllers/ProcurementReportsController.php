@@ -2478,9 +2478,9 @@ class ProcurementReportsController extends Controller
     private function leasesOperationalReport(?string $fy = null): array
     {
         $columns = [
+            trans('admin/purchase-orders/general.lease_provider'),
             trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.lease_contract_name'),
-            trans('admin/purchase-orders/general.lease_provider'),
             trans('admin/purchase-orders/general.lease_end_date'),
             trans('admin/purchase-orders/general.lease_fy_ending'),
             trans('admin/purchase-orders/general.lease_assets'),
@@ -2505,9 +2505,9 @@ class ProcurementReportsController extends Controller
                 // commitment we still need to manage.
                 'class' => $group['active'] === 0 ? 'text-muted' : '',
                 'cells' => [
+                    $group['provider'],
                     $group['contract_id'],
                     (string) $group['contract_name'],
-                    $group['provider'],
                     $this->dateString($group['lease_end_date']),
                     (string) $this->fiscalYearFromEndDate($group['lease_end_date']),
                     count($group['assets']),
@@ -2537,8 +2537,8 @@ class ProcurementReportsController extends Controller
     private function leasesFinancialReport(?string $fy = null): array
     {
         $columns = [
-            trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.lease_provider'),
+            trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.lease_end_date'),
             trans('admin/purchase-orders/general.lease_fy_ending'),
             trans('admin/purchase-orders/general.lease_assets'),
@@ -2623,8 +2623,8 @@ class ProcurementReportsController extends Controller
             $records[] = [
                 'class' => '',
                 'cells' => [
-                    $group['contract_id'],
                     $group['provider'],
+                    $group['contract_id'],
                     $this->dateString($group['lease_end_date']),
                     (string) $this->fiscalYearFromEndDate($group['lease_end_date']),
                     count($group['assets']),
