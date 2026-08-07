@@ -184,6 +184,11 @@ return [
     'decom_none' => 'Nothing is in decommissioning right now.',
     'decom_open_disposition' => 'Disposition Grid',
     'decom_more' => '+ :count more — the Disposition Grid has the full list.',
+    // Unfunded legacy fleet callout.
+    'legacy_title' => 'Legacy fleet — :count devices with no funded replacement',
+    'legacy_note' => 'Devices on Active (Legacy): still in daily use, average age :age years, oldest from :oldest. Unlike the leased fleet, no replacement money was pre-approved for these — they age until funding is found.',
+    'legacy_view_devices' => 'View devices',
+
     'decom_col_asset' => 'Asset Tag',
     'decom_col_model' => 'Model',
     'decom_col_status' => 'Status',

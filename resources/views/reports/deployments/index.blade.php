@@ -97,15 +97,81 @@
     </div>
 </div>
 
-{{-- Forecast summary callout --}}
-@if ($forecastCount > 0)
-<div class="row">
-    <div class="col-md-12">
-        <div class="callout callout-info" style="margin-bottom:15px;">
-            <i class="fas fa-calendar-alt"></i>
-            {{ trans('admin/deployments/general.forecast_summary', ['count' => $forecastCount, 'fy' => $fy]) }}
-            — <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}">{{ trans('admin/deployments/general.add_from_forecast') }}</a>
+{{-- Lease-end / EOL look-ahead: the full candidate list for the selected
+     FY, so picking a future year (say FY2027-28) shows every device
+     expected to come due — the planning list exists before any wave does.
+     The forecast picker is one click away to pull them onto a wave. --}}
+@if ($forecastAssets->count() > 0)
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">
+            {{ trans('admin/deployments/general.forecast_summary', ['count' => $forecastAssets->count(), 'fy' => $fy]) }}
+        </h3>
+        <div class="box-tools pull-right">
+            <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}
+            </a>
         </div>
+    </div>
+    <div class="box-body no-padding" style="max-height:420px; overflow:auto;">
+        <table class="table table-hover table-striped table-condensed" style="margin-bottom:0;">
+            <thead>
+                <tr>
+                    <th>{{ trans('admin/deployments/general.device') }}</th>
+                    <th>{{ trans('admin/deployments/general.model') }}</th>
+                    <th>{{ trans('admin/deployments/general.refresh_reason') }}</th>
+                    <th>{{ trans('admin/deployments/general.source_date') }}</th>
+                    <th>{{ trans('general.status') }}</th>
+                    <th>{{ trans('admin/deployments/general.location') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            @php($reasonLabel = ['eol' => trans('admin/deployments/general.reason_eol'), 'lease' => trans('admin/deployments/general.reason_lease'), 'both' => trans('admin/deployments/general.reason_both')])
+            @foreach ($forecastAssets as $asset)
+                <tr>
+                    <td><a href="{{ route('hardware.show', $asset) }}" class="js-lightbox">{{ $asset->name ?: $asset->asset_tag ?: ('#'.$asset->id) }}</a></td>
+                    <td>{{ $asset->model?->name ?: '—' }}</td>
+                    <td><span class="label label-default">{{ $reasonLabel[$asset->refresh_reason] ?? $asset->refresh_reason }}</span></td>
+                    <td>{{ $asset->source_date ?: '—' }}</td>
+                    <td>{{ $asset->status?->name ?: '—' }}</td>
+                    <td>{{ $asset->location?->name ?: '—' }}</td>
+                </tr>
+            @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
+{{-- The unfunded counterweight to the look-ahead above: leases carry
+     pre-approved replacement money from signing, but the Active (Legacy)
+     fleet is aging in daily use with no replacement plan or funding in
+     sight. Exec readers should see both stories side by side. --}}
+@if (($legacyFleet['count'] ?? 0) > 0)
+<div class="box box-default" style="border-left:4px solid #dd4b39;">
+    <div class="box-header with-border">
+        <h3 class="box-title">
+            <i class="fas fa-hourglass-half text-red" aria-hidden="true"></i>
+            {{ trans('admin/deployments/general.legacy_title', ['count' => $legacyFleet['count']]) }}
+        </h3>
+        <div class="box-tools pull-right">
+            <a href="{{ url('hardware') }}?status_id={{ $legacyFleet['status_ids'][0] }}" class="btn btn-sm btn-default">
+                {{ trans('admin/deployments/general.legacy_view_devices') }}
+            </a>
+        </div>
+    </div>
+    <div class="box-body">
+        <p style="margin:0 0 8px;">
+            {{ trans('admin/deployments/general.legacy_note', [
+                'age' => $legacyFleet['avg_age_years'] ?? '—',
+                'oldest' => $legacyFleet['oldest_year'] ?? '—',
+            ]) }}
+        </p>
+        @foreach ($legacyFleet['by_model'] as $row)
+            <span class="label" style="background-color:#dd4b39; color:#fff; display:inline-block; margin:0 4px 4px 0;">
+                {{ $row['model'] }} · {{ $row['count'] }}
+            </span>
+        @endforeach
     </div>
 </div>
 @endif

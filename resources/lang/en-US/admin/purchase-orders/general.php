@@ -246,6 +246,8 @@ return [
     'lessor_chart_rent' => 'Est. Monthly Cost by Lessor',
     'lessor_chart_devices' => 'Devices by Lessor',
     'lessor_chart_ownership' => 'Ownership Mix by Lessor',
+    'lessor_chart_annual_rent' => 'Annual Rent',
+    'lessor_chart_annual_rent_help' => 'Leasing cost per fiscal year across every lease — rent where every device carries one, amortised cost otherwise.',
     'report_pst_applicability' => 'PST Applicability',
     'report_pst_applicability_desc' => 'Per-contract PST exposure: Curriculum-tagged assets are exempt under BC\'s school-supplies rule, Admin-tagged are taxable at 7%.',
     'disposition_action' => 'Disposition',

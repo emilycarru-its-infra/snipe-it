@@ -1342,23 +1342,24 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('reports.procurement.view');
 
-        // Lessor Breakdown is a global portfolio snapshot — never FY-scoped.
-        // It lives at the reports root with its own charts page rather than
-        // inside the procurement dashboard's report list.
-        $report = $this->lessorBreakdownReport(null);
-
+        // The breakdown renders as a section of the /reports hub, not a
+        // standalone page. This route survives for the CSV export and for
+        // old bookmarks, which land on the hub section.
         if ($request->query('format') === 'csv') {
-            return $this->streamReportCsv('lessor-breakdown-report', $report);
+            return $this->streamReportCsv('lessor-breakdown-report', $this->lessorBreakdownReport(null));
         }
 
-        return view('reports.lessor-breakdown', [
-            'reportTitle' => trans('admin/purchase-orders/general.report_lessor_breakdown'),
-            'columns' => $report['columns'],
-            'rows' => $report['records'],
-            'footer' => $report['footer'],
-            'chart' => $report['chart'],
-            'downloadUrl' => route('reports.lessor-breakdown', ['format' => 'csv']),
-        ]);
+        return redirect(route('reports.index').'#lessor-breakdown');
+    }
+
+    /**
+     * The lessor breakdown dataset for the /reports hub section. Public so
+     * ReportsController can assemble the hub page; the portfolio snapshot is
+     * never FY-scoped.
+     */
+    public function lessorBreakdownData(): array
+    {
+        return $this->lessorBreakdownReport(null);
     }
 
     public function pstApplicability(Request $request)
@@ -4127,9 +4128,9 @@ class ProcurementReportsController extends Controller
             '',
         ];
 
-        // Raw (unformatted) per-lessor series for the charts on the
-        // standalone page. Ownership is one series per ownership type so
-        // the mix renders as a stacked bar across lessors.
+        // Raw (unformatted) per-lessor series for the hub-section charts.
+        // Ownership is one series per ownership type so the mix renders as
+        // a stacked bar across lessors.
         $ownershipTypes = [];
         foreach ($byLessor as $data) {
             $ownershipTypes = array_unique(array_merge($ownershipTypes, array_keys($data['ownership'])));
@@ -4147,9 +4148,89 @@ class ProcurementReportsController extends Controller
                 'label' => $type,
                 'data' => array_map(fn ($d) => (int) ($d['ownership'][$type] ?? 0), array_values($byLessor)),
             ], $ownershipTypes),
+            'annualRent' => $this->annualLeaseRentByFy(),
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'chart' => $chart];
+    }
+
+    /**
+     * Annual leasing cost per fiscal year, across every lease. Each contract
+     * contributes its monthly basis for the months of its term that fall in
+     * each FY: the summed Lease Rent when every device carries one, else the
+     * contract's total cost amortised over the 48/60-month convention — the
+     * same basis rule the Extension Watch applies, and the label says which
+     * precision to expect. The window is bounded around the current FY so a
+     * stray far-future device date cannot stretch the axis for a decade.
+     */
+    private function annualLeaseRentByFy(): array
+    {
+        $currentStartYear = (int) (now()->month >= 4 ? now()->year : now()->year - 1);
+        $fyOf = function (\DateTimeInterface $date) {
+            $y = (int) $date->format('Y');
+            $startYear = (int) $date->format('n') >= 4 ? $y : $y - 1;
+
+            return sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+        };
+
+        $byFy = [];
+        foreach ($this->groupedLeaseAssets(null) as $group) {
+            $start = null;
+            foreach ($group['assets'] as $asset) {
+                if ($asset->purchase_date) {
+                    $purchase = $asset->purchase_date instanceof \DateTimeInterface
+                        ? \Carbon\Carbon::instance(new \DateTime($asset->purchase_date->format('Y-m-d')))
+                        : \Carbon\Carbon::parse((string) $asset->purchase_date);
+                    if ($start === null || $purchase->lessThan($start)) {
+                        $start = $purchase;
+                    }
+                }
+            }
+            if ($start === null) {
+                continue;
+            }
+
+            $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
+            $termMonths = $isLeaseToOwn ? 60 : 48;
+
+            $end = null;
+            if (! empty($group['lease_end_date'])) {
+                foreach (['Y-m-d', 'm/d/Y'] as $fmt) {
+                    $parsed = \DateTime::createFromFormat($fmt, $group['lease_end_date']);
+                    if ($parsed !== false) {
+                        $end = \Carbon\Carbon::instance($parsed);
+                        break;
+                    }
+                }
+            }
+            $end ??= $start->copy()->addMonths($termMonths);
+            if ($end->lessThanOrEqualTo($start)) {
+                continue;
+            }
+
+            $rentIsComplete = $group['monthly_rent_total'] > 0
+                && $this->assetsWithRent($group['assets']) === count($group['assets']);
+            $actualTermMonths = max(1, (int) round($start->diffInDays($end) / 30.44));
+            $monthly = $rentIsComplete
+                ? (float) $group['monthly_rent_total']
+                : (float) $group['total_cost'] / $actualTermMonths;
+
+            for ($month = $start->copy()->startOfMonth(); $month->lessThan($end); $month->addMonth()) {
+                $startYear = (int) ($month->month >= 4 ? $month->year : $month->year - 1);
+                if ($startYear < $currentStartYear - 6 || $startYear > $currentStartYear + 6) {
+                    continue;
+                }
+                $fy = $fyOf($month);
+                $byFy[$fy] = ($byFy[$fy] ?? 0.0) + $monthly;
+            }
+        }
+
+        ksort($byFy);
+
+        return [
+            'labels' => array_keys($byFy),
+            'data' => array_map(fn ($v) => round($v, 2), array_values($byFy)),
+        ];
     }
 
     /**

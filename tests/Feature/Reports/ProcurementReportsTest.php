@@ -960,16 +960,28 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('INV-REGULAR-1');
     }
 
-    public function test_lessor_breakdown_report_renders_at_the_reports_root_with_charts()
+    public function test_lessor_breakdown_is_a_section_of_the_reports_hub_with_annual_rent()
     {
-        $response = $this->actingAs($this->superuser())
-            ->get(route('reports.lessor-breakdown'))
+        // The hub renders the section: charts (Annual Rent leading) + table.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.index'))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'))
+            ->assertSee('id="lessor-breakdown"', false)
+            ->assertSee(trans('admin/purchase-orders/general.lessor_chart_annual_rent'))
             ->assertSee(trans('admin/purchase-orders/general.lessor_chart_cost'))
-            ->assertSee('lessorOwnershipChart');
+            ->assertSee('chart-lessor-ownership');
 
-        // The old procurement URL keeps working via redirect.
+        // The standalone URL now lands on the hub section; the CSV export
+        // and the old procurement URL both keep working.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.lessor-breakdown'))
+            ->assertRedirect(route('reports.index').'#lessor-breakdown');
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.lessor-breakdown', ['format' => 'csv']))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=utf-8');
+
         $this->actingAs($this->superuser())
             ->get('/reports/procurement/lessor-breakdown')
             ->assertRedirect('/reports/lessor-breakdown');
@@ -1022,10 +1034,10 @@ class ProcurementReportsTest extends TestCase
             'Lease Contract ID' => 'ECI20221201',
         ], ['asset_tag' => 'LESSOR-1', 'purchase_date' => '2022-12-01']);
 
-        // Even with a fiscal year that holds none of this asset's data, the
-        // lessor breakdown is a global snapshot and still shows the portfolio.
+        // The breakdown is a global snapshot: whatever FY the hub reader
+        // arrives from, the portfolio still shows in full.
         $this->actingAs($this->superuser())
-            ->get(route('reports.lessor-breakdown', ['fiscal_year' => 'FY2099-00']))
+            ->get(route('reports.index', ['fiscal_year' => 'FY2099-00']))
             ->assertOk()
             ->assertSee('CCA Financial')
             ->assertDontSee('Macquarie');
