@@ -44,6 +44,12 @@ class Kernel extends ConsoleKernel
         // leases pick up their lessor without a code change or manual step.
         $schedule->command('snipeit:backfill-lessors', ['--write' => true])->dailyAt('03:15');
 
+        // Nightly ownership reconcile. Buyouts are still recorded by setting a
+        // status out of long habit, and ownership_type is what the lease
+        // reports read, so this keeps the two in step until those statuses are
+        // retired — after which it is simply a no-op.
+        $schedule->command('snipeit:reconcile-lease-ownership', ['--write' => true])->dailyAt('03:20');
+
         // Nightly lease-name mirror from the contracts register. The asset-side
         // name is derived data with no writer of its own, so it had drifted off
         // every leased asset; running it nightly means renaming a contract
