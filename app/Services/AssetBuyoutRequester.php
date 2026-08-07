@@ -16,8 +16,9 @@ use Illuminate\Support\Facades\Mail;
  * email the "Request Buyout" button fires, whether an admin clicks it on the
  * asset detail page or the assigned person clicks it on their own /my page.
  *
- * Addressing: To the lessor's contact email plus any extra recipients from
- * Settings → Emails; Cc the device team list, the assigned end user, and
+ * Addressing: To the lessor's contact email plus that same lessor's own extra
+ * lease contacts — never another lessor's, since the body names the contract
+ * and the device; Cc the device team list, the assigned end user, and
  * whoever asked. Every send is logged to the asset's activity timeline, and
  * that log is also the throttle — one request per asset per 30 days, so a
  * lessor's rep is never mailed twice about the same machine because someone
@@ -59,15 +60,16 @@ class AssetBuyoutRequester
             return 'general.request_buyout_already_requested';
         }
 
-        // To: the lessor's contact email plus any extra recipients configured in
-        // Settings → Emails for the buyout email (a Supplier record only holds a
-        // single email, but e.g. CCA Financial fields a second rep). The CMS
-        // Recipients override wins; the config value is the seeded default.
-        $extraRecipients = EmailTemplate::recipientsFor(
-            'request.asset_buyout',
-            config('leasing.buyout_request_extra_recipients')
-        );
-        $to = array_values(array_unique(array_filter(array_merge([$asset->lessor->email], $extraRecipients))));
+        // To: this lessor and only this lessor. A Supplier record holds a single
+        // contact email, but a lessor may field more than one rep (CCA Financial
+        // has a second), so `lease_emails` on that same Supplier carries the
+        // rest. It is deliberately per-lessor: the body names the contract
+        // number, asset tag and serial, so a global extra-recipient list would
+        // hand one lessor another lessor's lease facts.
+        $to = array_values(array_unique(array_filter(array_merge(
+            [$asset->lessor->email],
+            $asset->lessor->leaseEmailList()
+        ))));
 
         // Cc: the team list (CMS CC override wins, else the comma-separated
         // config default), the assigned end user (only when the asset is checked

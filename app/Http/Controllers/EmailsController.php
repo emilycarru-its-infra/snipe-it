@@ -151,8 +151,9 @@ class EmailsController extends Controller
     public function save(Request $request): RedirectResponse
     {
         $key = (string) $request->input('key');
+        $entry = EmailRegistry::find($key);
 
-        if (! EmailRegistry::find($key)) {
+        if (! $entry) {
             return redirect()->route('settings.emails.index')
                 ->with('error', trans('admin/settings/general.emails_preview_missing'));
         }
@@ -179,8 +180,21 @@ class EmailsController extends Controller
         // Recipients / CC arrive as arrays from the multi-select pickers, or a
         // CSV string from the legacy text field / API. Normalise both to a
         // clean, de-duplicated list where every entry is a valid email.
+        // An email that doesn't declare configurable_recipients renders no
+        // Recipients picker, so an incoming list is stale or forged — either
+        // way it isn't stored. This is what keeps the buyout request honest:
+        // its To is derived from the asset's own lessor, and a stored global
+        // list is what once put a second lessor on another lessor's quote.
+        $recipientsConfigurable = (bool) ($entry['configurable_recipients'] ?? false);
+
         $lists = [];
         foreach (['recipients', 'cc'] as $field) {
+            if ($field === 'recipients' && ! $recipientsConfigurable) {
+                $lists[$field] = null;
+
+                continue;
+            }
+
             $input = $request->input($field, []);
             if (is_string($input)) {
                 $input = explode(',', $input);
