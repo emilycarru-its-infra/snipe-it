@@ -66,13 +66,13 @@ class SecurityHeaders
         // an override that exists.
 
         if (config('app.allow_iframing') == false) {
-            // The Settings → Emails hub embeds each email preview in a
-            // same-origin iframe so its styles stay isolated from the admin
-            // chrome. DENY would block that frame (the browser shows a blank
-            // "content blocked" box), so allow this one route to be framed by
-            // us via SAMEORIGIN while keeping DENY everywhere else.
-            $frame_option = $request->routeIs('settings.emails.preview') ? 'SAMEORIGIN' : 'DENY';
-            $response->headers->set('X-Frame-Options', $frame_option);
+            // Same-origin framing is a designed feature: the Settings →
+            // Emails hub previews each email in an iframe, and the record
+            // lightbox frames /hardware and /users pages from the report
+            // tables. SAMEORIGIN still refuses every cross-origin frame, so
+            // the clickjacking posture is unchanged — only our own pages
+            // may embed our pages.
+            $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         }
 
         // This defaults to false to maintain backwards compatibility for
