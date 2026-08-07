@@ -792,6 +792,18 @@ class ProcurementReportsController extends Controller
             .$tally['missing_in_snipe'].' '.$t('csi_recon_missing_in_snipe').' · '
             .$tally['extra_in_snipe'].' '.$t('csi_recon_extra_in_snipe');
 
+        // The tally carries five buckets and the summary listed four, so an
+        // unserialized line was counted and never shown — FY2026-27 rendered
+        // 18 rows under a footer accounting for 17. Append it only when there
+        // is one: it is a genuine finding (a schedule line with no serial to
+        // match on), not a status every reconciliation needs to report.
+        if ($tally['unserialized'] > 0) {
+            $summary .= ' · '.trans(
+                'admin/purchase-orders/general.csi_recon_unserialized_fold',
+                ['count' => $tally['unserialized']]
+            );
+        }
+
         return [
             'columns' => $columns,
             'records' => $records,
@@ -2722,6 +2734,8 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.lease_received'),
         ];
 
+        $warrantyColumn = $this->leaseFieldColumns()['warranty_cost'] ?? null;
+
         // Restrict to CSI schedules — ECI* contracts have their own
         // CCA Financial reconciliation and don't fit the schedule layout.
         $groups = array_filter(
@@ -2775,8 +2789,18 @@ class ProcurementReportsController extends Controller
                 $byModel[$modelName]['qty']++;
                 $byModel[$modelName]['equipment_total'] += (float) $asset->purchase_cost;
 
+                // Warranty comes off the asset first and only falls back to the
+                // order item — the same precedence leasesFinancialReport() uses.
+                // Reading order_items alone reported $0.00 warranty on every CSI
+                // line: the schedule assets all carry warranty_soft_cost while
+                // their order_items.warranty_cost is 0, so schedule 003 showed
+                // its equipment total ($264,254.83) as the whole line and the
+                // two reports disagreed by $30,051.28 over the same assets.
+                $assetWarranty = $warrantyColumn ? $this->parseMoney($asset->{$warrantyColumn}) : 0.0;
+                $itemWarranty = (float) $orderItemsByAsset->get($asset->id, collect())->sum('warranty_cost');
+                $byModel[$modelName]['warranty_total'] += $assetWarranty > 0 ? $assetWarranty : $itemWarranty;
+
                 foreach ($orderItemsByAsset->get($asset->id, collect()) as $item) {
-                    $byModel[$modelName]['warranty_total'] += (float) $item->warranty_cost;
                     if ($poNum = $item->order?->purchaseOrder?->po_number) {
                         $byModel[$modelName]['pos'][$poNum] = true;
                     }
@@ -4683,35 +4707,14 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Scope a query over OrderInvoice to a fiscal year by the FY of its
-     * booking order — the actual transaction, not the parent PO (a blanket
-     * purchase order spans fiscal years, e.g. P0025420 carries schedules
-     * 003-006 in FY2025-26 and 007-008 in FY2026-27, so attribution has to
-     * follow the order) — but fall back to the invoice's own invoice_date
-     * when the order carries no fiscal_year. CDW-ingested orders don't always
-     * get a fiscal_year
-     * stamped (the webhook used to leave it null), so without the fallback
-     * those invoices — e.g. the leased CDW iPads on a CSI schedule — would
-     * vanish from the Invoiced tile and the approval queue even though they
-     * have a real invoice_date. A null FY is a no-op (all-years).
+     * Scope a query over OrderInvoice to a fiscal year — see
+     * OrderInvoice::scopeForFiscalYear for the rule and why it lives on the
+     * model. Kept as a thin pass-through so the report builders below read the
+     * same as the rest of their FY scoping.
      */
     private function scopeInvoiceToFiscalYear($query, ?string $fy)
     {
-        if (! $fy) {
-            return $query;
-        }
-
-        $range = $this->fiscalYearRange($fy);
-
-        return $query->where(function ($q) use ($fy, $range) {
-            $q->whereHas('order', fn ($o) => $o->where('fiscal_year', $fy));
-
-            if ($range) {
-                $q->orWhere(fn ($alt) => $alt
-                    ->whereDoesntHave('order', fn ($o) => $o->whereNotNull('fiscal_year')->where('fiscal_year', '!=', ''))
-                    ->whereBetween('invoice_date', $range));
-            }
-        });
+        return $query->forFiscalYear($fy);
     }
 
     /**

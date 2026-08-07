@@ -1449,6 +1449,7 @@
         "fax",
         "id",
         "image",
+        "lease_emails",
         "name",
         "notes",
         "order_emails",
