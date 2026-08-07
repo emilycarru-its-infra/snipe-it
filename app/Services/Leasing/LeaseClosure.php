@@ -31,23 +31,19 @@ use App\Models\Asset;
 class LeaseClosure
 {
     /**
-     * Statuses meaning the unit came off the lease and stayed with us — the
-     * device is still in service (or archived as ours), but the lessor has no
-     * further claim on it.
+     * Ownership value meaning the unit came off the lease and stayed with us —
+     * still in service, or archived as ours, but the lessor has no further
+     * claim on it.
      *
-     * Status is the signal, not `ownership_type`. The two disagree in practice
-     * because status is what gets set operationally and ownership is not kept
-     * up: production carries a unit at "Active (Buyouts)" whose ownership still
-     * reads "Lease to Return", and eleven more at status "Purchased" with the
-     * same stale ownership. Reading ownership alone missed all of them.
+     * This is the only signal read here. Buyouts used to be recorded by
+     * inventing statuses ("Active (Buyouts)", "Active (Legacy)") for want of a
+     * better lever, which overloaded one field with two unrelated questions and
+     * drifted out of step with ownership. "Active (Legacy)" is not even
+     * lease-specific — 73 of its 85 assets are not leased — so reading it as a
+     * lease signal was wrong in the general case. The 2026_08_07_170000
+     * migration reconciles the 23 units whose status was ahead of their
+     * ownership, leaving `ownership_type` complete and authoritative.
      */
-    private const RETAINED_STATUSES = [
-        'Active (Buyouts)',
-        'Active (Legacy)',
-        'Purchased',
-    ];
-
-    /** Ownership value meaning the unit was bought out — corroborating only. */
     private const OWNERSHIP_PURCHASED = 'Purchased';
 
     /**
@@ -66,8 +62,7 @@ class LeaseClosure
 
             $isArchived = (bool) $asset->status?->archived;
             $hasDecommission = ! empty($asset->decommission_date);
-            $isBoughtOut = in_array(trim((string) $asset->status?->name), self::RETAINED_STATUSES, true)
-                || trim((string) $asset->ownership_type) === self::OWNERSHIP_PURCHASED;
+            $isBoughtOut = trim((string) $asset->ownership_type) === self::OWNERSHIP_PURCHASED;
 
             // Retention wins over the returned test: a bought-out unit can also
             // carry a decommission date once it is eventually retired, and it
