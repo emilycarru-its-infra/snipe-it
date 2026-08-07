@@ -985,8 +985,9 @@
 
         {{-- The header is one flex row and never wraps. The wordmark scales
              with the viewport, and below that the quick-nav items drop out
-             one by one (username text first, then Contracts, Consumables,
-             Procurement, Users, Assets) instead of stacking a second row. --}}
+             one by one (username text first, then Deployments, Contracts,
+             Consumables, Procurement, Users, Assets) instead of stacking a
+             second row. --}}
         .main-header .navbar {
             display: flex;
             align-items: center;
@@ -1007,6 +1008,7 @@
         @media (max-width: 1500px) {
             .main-header .user-menu > a > .hidden-xs { display: none !important; }
         }
+        @media (max-width: 1490px) { .main-header li.topnav-deployments { display: none; } }
         @media (max-width: 1380px) { .main-header li.topnav-contracts { display: none; } }
         @media (max-width: 1270px) { .main-header li.topnav-consumables { display: none; } }
         @media (max-width: 1160px) { .main-header li.topnav-procurement { display: none; } }
@@ -2096,6 +2098,18 @@
                                     </a>
                                 </li>
                             @endcan
+                            {{-- Deployments sits between Assets and Procurement:
+                                 procurement is the money side of a refresh,
+                                 deployments is the physical side — arrivals,
+                                 provisioning, placement, decommissioning. --}}
+                            @can('view', \App\Models\Order::class)
+                                <li aria-hidden="true" class="topnav-deployments{!! ((request()->is('reports/deployments*') || request()->is('deployments*') || request()->is('deployment-waves*') || request()->is('deployment-config*') || request()->is('deployment-blackouts*')) ? ' active' : '') !!}">
+                                    <a href="{{ route('reports.deployments') }}" tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/deployments/general.dashboard_title') }}">
+                                        <x-icon type="deployments" class="fa-fw" />
+                                        <span class="topbar-nav-label">{{ trans('admin/deployments/general.dashboard_title') }}</span>
+                                    </a>
+                                </li>
+                            @endcan
                             {{-- Procurement earns a top-level slot: the hub is
                                  a daily destination, not something to go
                                  hunting for in a sidebar treeview. --}}
@@ -2384,6 +2398,13 @@
                                         <li {{!! (request()->is('reports/lessor-breakdown*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.lessor-breakdown') }}">
                                                 {{ trans('admin/purchase-orders/general.report_lessor_breakdown') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\Order::class)
+                                        <li {{!! (request()->is('reports/deployments*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('reports.deployments') }}">
+                                                {{ trans('admin/deployments/general.dashboard_title') }}
                                             </a>
                                         </li>
                                     @endcan
