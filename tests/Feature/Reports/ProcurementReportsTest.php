@@ -226,6 +226,57 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('ECI20220901');
     }
 
+    public function test_report_tables_open_assets_and_users_in_the_lightbox()
+    {
+        $asset = Asset::factory()->create(['asset_tag' => 'LIGHTBOX-1']);
+        Asset::query()->whereKey($asset->id)
+            ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
+        $superuser = $this->superuser();
+
+        // The forecast table links the asset cells into the lightbox…
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.forecast'))
+            ->assertOk()
+            ->assertSee('js-lightbox')
+            ->assertSee(route('hardware.show', $asset->id), false)
+            // …and the layout carries the lightbox host + framed hook.
+            ->assertSee('id="app-lightbox"', false)
+            ->assertSee('html.framed', false);
+
+        // The links map is render-time only — exports carry clean cells.
+        $csv = $this->actingAs($superuser)
+            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+        $csv->assertOk();
+        $this->assertStringNotContainsString('js-lightbox', $csv->streamedContent());
+        $this->assertStringNotContainsString('href', $csv->streamedContent());
+    }
+
+    public function test_csi_schedule_report_leads_with_the_lessor_column()
+    {
+        $active = Statuslabel::factory()->rtd()->create();
+        $lessor = \App\Models\Supplier::factory()->create(['name' => 'CSI Leasing Canada']);
+
+        $asset = Asset::factory()->create(['asset_tag' => 'CSI-LESSOR-1', 'status_id' => $active->id]);
+        Asset::query()->whereKey($asset->id)
+            ->update(['lease_contract_id' => '301452-004', 'lessor_id' => $lessor->id]);
+
+        $superuser = $this->superuser();
+
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement.csi-schedule'))
+            ->assertOk()
+            ->assertSee(trans('general.lessor'))
+            ->assertSee('CSI Leasing Canada');
+
+        // Column A of the export is the lessor.
+        $csv = $this->actingAs($superuser)
+            ->get(route('reports.procurement.csi-schedule', ['format' => 'csv']));
+        $csv->assertOk();
+        $lines = explode("\n", trim($csv->streamedContent()));
+        $this->assertStringStartsWith(trans('general.lessor'), ltrim($lines[0], "\xEF\xBB\xBF"));
+        $this->assertStringContainsString('CSI Leasing Canada', $csv->streamedContent());
+    }
+
     public function test_invoice_approval_queue_renders_pending_invoices_with_variance()
     {
         $order = Order::factory()->create(['order_number' => 'PMCN-AP-1']);

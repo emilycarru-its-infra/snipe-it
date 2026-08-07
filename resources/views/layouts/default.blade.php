@@ -1570,20 +1570,13 @@
         [data-theme="dark"] .table > tbody > tr.danger > td,
         [data-theme="dark"] .table > tbody > tr > td.danger { background-color: rgba(221, 75, 57, .26) !important; color: var(--color-fg) !important; }
         [data-theme="dark"] .table > tbody > tr.active > td { background-color: rgba(255, 255, 255, .06) !important; color: var(--color-fg) !important; }
-        {{-- Frozen report-table headings: any .rpt-table-scroll wrapper
-             scrolls internally with its header row pinned. Short tables
-             simply never scroll. --}}
-        .rpt-table-scroll {
-            max-height: calc(100vh - var(--header-h, 68px) - 190px);
-            overflow: auto;
-        }
-        .rpt-table-scroll table thead th {
-            position: sticky;
-            top: 0;
-            z-index: 5;
-            background: var(--box-bg, #fff);
-            box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);
-        }
+        {{-- Frozen report-table headings live in
+             reports/procurement/_report-sticky-js — page-level sticky, no
+             inner scroll region. The old rules here (max-height + overflow
+             + top:0) fought that system: the max-height kept constraining
+             the box while the overflow clip was lifted, so long tables
+             bled under the cards below, and the higher-specificity top:0
+             pinned theads behind the app bar. Single owner now. --}}
         .nav-pills > li > a {
             border-radius: 999px;
         }
@@ -1870,7 +1863,52 @@
     <script src="{{ url(asset('js/html5shiv.js')) }}" nonce="{{ csrf_token() }}"></script>
     <script src="{{ url(asset('js/respond.js')) }}" nonce="{{ csrf_token() }}"></script>
 
+    {{-- Lightbox embedding: when a page loads inside the record lightbox's
+         iframe, drop the app chrome so only the record shows. Class lands
+         before first paint to avoid a header flash; the sticky offsets key
+         off --header-h, so zeroing it keeps pinned headers correct with no
+         app bar above them. In-frame navigation keeps the class because
+         every page in the frame runs this same check. --}}
+    <script nonce="{{ csrf_token() }}">
+        if (window.self !== window.top) { document.documentElement.classList.add('framed'); }
+    </script>
+    <style nonce="{{ csrf_token() }}">
+        html.framed { --header-h: 0px; }
+        html.framed .main-header,
+        html.framed .main-sidebar { display: none !important; }
+        html.framed .content-wrapper { margin-left: 0 !important; }
+        html.framed .wrapper { padding-top: 0 !important; }
 
+        #app-lightbox { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; }
+        #app-lightbox[hidden] { display: none; }
+        #app-lightbox .lightbox-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); }
+        #app-lightbox .lightbox-panel {
+            position: relative;
+            width: min(1500px, 95vw);
+            height: 92vh;
+            background: var(--body-bg, #fff);
+            border: 1px solid var(--box-header-top-border-color, #d2d6de);
+            border-radius: 14px;
+            overflow: clip;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+        }
+        #app-lightbox iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--body-bg, #fff); }
+        #app-lightbox .lightbox-close {
+            position: absolute; top: 10px; right: 10px; z-index: 2;
+            width: 32px; height: 32px; border-radius: 999px; border: 0;
+            background: var(--box-bg, #fff); color: var(--color-fg, #444);
+            border: 1px solid var(--box-header-top-border-color, #d2d6de);
+            font-size: 16px; line-height: 1; cursor: pointer;
+        }
+        #app-lightbox .lightbox-open-full {
+            position: absolute; top: 10px; right: 50px; z-index: 2;
+            width: 32px; height: 32px; border-radius: 999px;
+            background: var(--box-bg, #fff); color: var(--color-fg, #444) !important;
+            border: 1px solid var(--box-header-top-border-color, #d2d6de);
+            font-size: 13px; display: flex; align-items: center; justify-content: center;
+        }
+        body.lightbox-open { overflow: hidden; }
+    </style>
 </head>
 
     <body class="sidebar-mini{{ (session('menu_state')!='open') ? ' sidebar-mini sidebar-collapse' : ''  }}">
@@ -3628,6 +3666,55 @@
                 $("#tagSearch").focus();
             </script>
         @endif
+
+        {{-- Record lightbox: report tables mark asset/user links with
+             .js-lightbox; a plain left-click opens the record here instead
+             of navigating away. Modified clicks (cmd/ctrl/shift, middle)
+             keep their normal open-in-tab meaning, and the framed page
+             hides its own chrome via the html.framed hook above. --}}
+        <div id="app-lightbox" hidden>
+            <div class="lightbox-backdrop"></div>
+            <div class="lightbox-panel" role="dialog" aria-modal="true">
+                <a href="#" target="_blank" rel="noopener" class="lightbox-open-full" title="{{ trans('general.view') }}">
+                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                </a>
+                <button type="button" class="lightbox-close" aria-label="{{ trans('button.cancel') }}">&times;</button>
+                <iframe src="about:blank" title="{{ trans('general.view') }}"></iframe>
+            </div>
+        </div>
+        <script nonce="{{ csrf_token() }}">
+        (function () {
+            var box = document.getElementById('app-lightbox');
+            if (!box || window.self !== window.top) { return; }
+            var frame = box.querySelector('iframe');
+            var full = box.querySelector('.lightbox-open-full');
+
+            function open(url) {
+                frame.src = url;
+                full.href = url;
+                box.hidden = false;
+                document.body.classList.add('lightbox-open');
+            }
+            function close() {
+                box.hidden = true;
+                frame.src = 'about:blank';
+                document.body.classList.remove('lightbox-open');
+            }
+
+            document.addEventListener('click', function (e) {
+                var link = e.target.closest ? e.target.closest('a.js-lightbox') : null;
+                if (!link) { return; }
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) { return; }
+                e.preventDefault();
+                open(link.href);
+            });
+            box.querySelector('.lightbox-backdrop').addEventListener('click', close);
+            box.querySelector('.lightbox-close').addEventListener('click', close);
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !box.hidden) { close(); }
+            });
+        })();
+        </script>
 
         </body>
 </html>

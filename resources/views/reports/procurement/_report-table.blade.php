@@ -59,6 +59,11 @@
                                 <i class="fa-solid fa-plus" aria-hidden="true"></i> {{ $row['action']['label'] }}
                             </a>
                         </td>
+                    @elseif ($cell !== '' && $cell !== null && isset($row['links'][$ci]))
+                        {{-- Cells naming an individual asset or user open the
+                             record in the lightbox. The links map is
+                             render-time only, so CSV/XLSX exports stay clean. --}}
+                        <td><a href="{{ $row['links'][$ci] }}" class="js-lightbox">{{ $cell }}</a></td>
                     @else
                         <td>{{ $cell }}</td>
                     @endif

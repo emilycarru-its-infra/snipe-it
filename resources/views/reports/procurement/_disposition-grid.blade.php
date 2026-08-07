@@ -89,7 +89,7 @@
                                     @if ($canEditAssets)
                                         <td class="disp-check-col"><input type="checkbox" class="disp-row-check"></td>
                                     @endif
-                                    <td><a href="{{ route('hardware.show', $a['asset_id']) }}">{{ $a['serial'] }}</a></td>
+                                    <td><a href="{{ route('hardware.show', $a['asset_id']) }}" class="js-lightbox">{{ $a['serial'] }}</a></td>
                                     <td>{{ $a['asset_tag'] }}</td>
                                     @php
                                         $statusClass = match ($a['status_type'] ?? null) {
