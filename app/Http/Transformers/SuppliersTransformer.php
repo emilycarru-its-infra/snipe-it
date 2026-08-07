@@ -43,6 +43,11 @@ class SuppliersTransformer
                 // absent from the payload, the only way to check it was to
                 // attempt a send and read the error.
                 'order_emails' => e($supplier->order_emails),
+                // Extra reps for this lessor's lease correspondence — the buyout
+                // quote request's To beyond `email`. Per-supplier by design, so
+                // exposing it is how you confirm a lessor's second rep is set on
+                // the right lessor.
+                'lease_emails' => e($supplier->lease_emails),
                 'contact' => e($supplier->contact),
                 'assets_count' => (int) $supplier->assets_count,
                 'accessories_count' => (int) $supplier->accessories_count,

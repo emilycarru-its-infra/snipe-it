@@ -66,6 +66,8 @@ class SuppliersController extends Controller
         $supplier->phone = request('phone');
         $supplier->fax = request('fax');
         $supplier->email = request('email');
+        $supplier->order_emails = request('order_emails');
+        $supplier->lease_emails = request('lease_emails');
         $supplier->tag_color = $request->input('tag_color');
         $supplier->notes = request('notes');
         $supplier->url = $supplier->addhttp(request('url'));
@@ -112,6 +114,8 @@ class SuppliersController extends Controller
         $supplier->phone = request('phone');
         $supplier->fax = request('fax');
         $supplier->email = request('email');
+        $supplier->order_emails = request('order_emails');
+        $supplier->lease_emails = request('lease_emails');
         $supplier->url = $supplier->addhttp(request('url'));
         $supplier->tag_color = $request->input('tag_color');
         $supplier->notes = request('notes');

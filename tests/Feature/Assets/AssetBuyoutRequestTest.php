@@ -162,14 +162,15 @@ class AssetBuyoutRequestTest extends TestCase
         Mail::assertNothingSent();
     }
 
-    public function test_buyout_to_includes_lessor_email_plus_configured_default_recipients(): void
+    public function test_buyout_to_includes_the_lessors_own_extra_lease_contacts(): void
     {
         Mail::fake();
-        // The seeded default (config/leasing.php buyout_request_extra_recipients)
-        // is added on top of the lessor's own email — CCA Financial's second rep.
-        config(['leasing.buyout_request_extra_recipients' => 'aasghar@ccafinancial.com']);
 
+        // A lessor fielding a second rep lists them in lease_emails on its own
+        // Supplier record — CCA Financial's case.
         $lessor = $this->lessorWithEmail();
+        $lessor->update(['lease_emails' => 'secondrep@csileasing.example, thirdrep@csileasing.example']);
+
         $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
 
@@ -179,17 +180,47 @@ class AssetBuyoutRequestTest extends TestCase
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor) {
             return $mail->hasTo($lessor->email)
-                && $mail->hasTo('aasghar@ccafinancial.com');
+                && $mail->hasTo('secondrep@csileasing.example')
+                && $mail->hasTo('thirdrep@csileasing.example');
         });
     }
 
-    public function test_buyout_recipients_can_be_overridden_in_the_email_cms(): void
+    public function test_buyout_never_addresses_a_different_lessors_contacts(): void
     {
         Mail::fake();
-        config(['leasing.buyout_request_extra_recipients' => 'aasghar@ccafinancial.com']);
 
-        // An admin sets Recipients for the buyout email in Settings → Emails; the
-        // CMS override replaces the config default (the lessor email is still To'd).
+        // Two lessors, each with their own reps. A request against one lessor's
+        // asset names that lessor's contract, tag and serial, so the other
+        // lessor must not appear anywhere on the message.
+        $csi = $this->lessorWithEmail();
+        $csi->update(['lease_emails' => 'csirep2@csileasing.example']);
+
+        $cca = Supplier::firstWhere('name', 'CCA Financial') ?? Supplier::factory()->create(['name' => 'CCA Financial']);
+        $cca->update(['email' => 'rep@ccafinancial.example', 'lease_emails' => 'aasghar@ccafinancial.example']);
+
+        $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
+        $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $csi);
+
+        $this->actingAs($admin)
+            ->post(route('asset.buyout.request', $asset->id))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($csi) {
+            return $mail->hasTo($csi->email)
+                && $mail->hasTo('csirep2@csileasing.example')
+                && ! $mail->hasTo('rep@ccafinancial.example')
+                && ! $mail->hasTo('aasghar@ccafinancial.example')
+                && ! $mail->hasCc('rep@ccafinancial.example')
+                && ! $mail->hasCc('aasghar@ccafinancial.example');
+        });
+    }
+
+    public function test_a_stale_cms_recipients_override_cannot_add_addresses(): void
+    {
+        Mail::fake();
+
+        // Recipients are no longer configurable for this email. A row left over
+        // from when they were must not resurrect the global To list.
         \App\Models\EmailTemplate::updateOrCreate(
             ['key' => 'request.asset_buyout'],
             ['recipients' => 'newrep@ccafinancial.example, extra@ccafinancial.example']
@@ -205,9 +236,8 @@ class AssetBuyoutRequestTest extends TestCase
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor) {
             return $mail->hasTo($lessor->email)
-                && $mail->hasTo('newrep@ccafinancial.example')
-                && $mail->hasTo('extra@ccafinancial.example')
-                && ! $mail->hasTo('aasghar@ccafinancial.com');
+                && ! $mail->hasTo('newrep@ccafinancial.example')
+                && ! $mail->hasTo('extra@ccafinancial.example');
         });
     }
 

@@ -35,6 +35,27 @@
 @include ('partials.forms.edit.fax')
 @include ('partials.forms.edit.email')
 
+{{-- Extra addresses this supplier is reached at, beyond the single account
+     contact above. Kept apart per purpose so a lessor's buyout request can
+     never pick up an address belonging to a different lessor or to ordering. --}}
+<div class="form-group {{ $errors->has('order_emails') ? ' has-error' : '' }}">
+    <label for="order_emails" class="col-md-3 control-label">{{ trans('admin/suppliers/table.order_emails') }}</label>
+    <div class="col-md-7">
+        <input class="form-control" name="order_emails" type="text" id="order_emails" value="{{ old('order_emails', $item->order_emails) }}" maxlength="191">
+        <p class="help-block">{{ trans('admin/suppliers/table.order_emails_help') }}</p>
+        {!! $errors->first('order_emails', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
+
+<div class="form-group {{ $errors->has('lease_emails') ? ' has-error' : '' }}">
+    <label for="lease_emails" class="col-md-3 control-label">{{ trans('admin/suppliers/table.lease_emails') }}</label>
+    <div class="col-md-7">
+        <input class="form-control" name="lease_emails" type="text" id="lease_emails" value="{{ old('lease_emails', $item->lease_emails) }}" maxlength="191">
+        <p class="help-block">{{ trans('admin/suppliers/table.lease_emails_help') }}</p>
+        {!! $errors->first('lease_emails', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
+
 <div class="form-group {{ $errors->has('url') ? ' has-error' : '' }}">
     <label for="url" class="col-md-3 control-label">{{ trans('general.url') }}</label>
     <div class="col-md-7">

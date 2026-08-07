@@ -33,6 +33,7 @@ class Supplier extends SnipeModel
         'notes' => 'max:191|nullable', // Default string length is 191 characters..
         'email' => 'email|max:150|nullable',
         'order_emails' => 'string|max:191|nullable',
+        'lease_emails' => 'string|max:191|nullable',
         'address' => 'max:250|nullable',
         'address2' => 'max:250|nullable',
         'city' => 'max:191|nullable',
@@ -75,7 +76,26 @@ class Supplier extends SnipeModel
      *
      * @var array
      */
-    protected $fillable = ['name', 'colleague_vendor_id', 'order_emails', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
+    protected $fillable = ['name', 'colleague_vendor_id', 'order_emails', 'lease_emails', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
+
+    /**
+     * Extra addresses for lease correspondence with this lessor — the buyout
+     * quote request is the one email that uses them. `email` holds the single
+     * account contact; a lessor fielding a second rep (CCA Financial does) puts
+     * the rest here, comma-separated. Scoped to the supplier on purpose: a
+     * buyout request names the contract, asset tag and serial, so it may only
+     * ever be addressed to the lessor that holds that lease.
+     *
+     * @return array<int, string>
+     */
+    public function leaseEmailList(): array
+    {
+        return collect(explode(',', (string) $this->lease_emails))
+            ->map(fn ($email) => trim($email))
+            ->filter()
+            ->values()
+            ->all();
+    }
 
     public function isDeletable()
     {

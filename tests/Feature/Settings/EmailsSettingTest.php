@@ -188,6 +188,26 @@ class EmailsSettingTest extends TestCase
         );
     }
 
+    public function test_recipients_are_not_stored_for_an_email_that_derives_its_own_to(): void
+    {
+        // The buyout request addresses the asset's own lessor. It offers no
+        // Recipients picker, and a posted list is dropped rather than becoming
+        // a global To that reaches every lessor.
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => 'request.asset_buyout',
+                'recipients' => 'rep@othersupplier.example',
+                'cc' => 'devicesadmins@ecuad.ca',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('email_templates', [
+            'key' => 'request.asset_buyout',
+            'recipients' => null,
+            'cc' => 'devicesadmins@ecuad.ca',
+        ]);
+    }
+
     public function test_recipients_resolver_falls_back_to_global_list_when_unset(): void
     {
         $this->assertSame(
