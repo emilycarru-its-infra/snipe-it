@@ -39,7 +39,7 @@ return [
     'hub_tile_exhibit'           => 'Exhibits',
     'hub_tile_exhibit_help'      => 'Grad Show & exhibit equipment tracking — requests, loans, sign-off.',
     'hub_tile_deployments'       => 'Deployments',
-    'hub_tile_deployments_help'  => 'Operational equipment-refresh planning — waves, stages, lease-end auto-collect.',
+    'hub_tile_deployments_help'  => 'Physical rollouts and decommissioning — waves, stages, scheduling, lease-end auto-collect.',
     'hub_section_dashboards'     => 'Dashboards',
     'hub_section_reports'        => 'Standard reports',
     'hub_chart_fleet_refresh'    => 'Fleet refresh — assets reaching end-of-life',

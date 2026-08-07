@@ -21,21 +21,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Extra buyout recipients (added on top of the lessor's own email)
+    | Extra buyout recipients live on the lessor, not here
     |--------------------------------------------------------------------------
     |
-    | A Supplier record carries a single contact email, but some lessors field
-    | more than one rep who must be on every buyout request (CCA Financial has a
-    | second rep, Ali Asghar). This is the seeded default; admins override it in
-    | Settings → Emails → "Lease buyout request" (the CMS Recipients field wins
-    | when set). Comma-separated. `CCA_BUYOUT_RECIPIENTS` is kept as a legacy
-    | env alias.
+    | A lessor fielding more than one rep (CCA Financial has a second) lists the
+    | extras in `lease_emails` on that Supplier record — Suppliers → edit. There
+    | is deliberately no global equivalent: a buyout request names the contract
+    | number, asset tag and serial, so one existed only long enough to address a
+    | CSI Leasing request to CCA Financial as well.
     |
     */
-
-    'buyout_request_extra_recipients' => env(
-        'BUYOUT_REQUEST_EXTRA_RECIPIENTS',
-        env('CCA_BUYOUT_RECIPIENTS', 'aasghar@ccafinancial.com')
-    ),
 
 ];

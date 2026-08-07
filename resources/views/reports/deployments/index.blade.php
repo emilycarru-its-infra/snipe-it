@@ -50,6 +50,53 @@
     </div>
 </div>
 
+{{-- Device-flow chevron rail: the whole funnel at a glance, one chevron
+     per catalog stage (Planned → … → Deployed). Clicking a chevron applies
+     the same ?stage= filter as the select above; the terminal stage renders
+     in its own colour even at zero so "nothing deployed yet" is visible.
+     Geometry mirrors the procurement pipeline rail. --}}
+<style>
+    .dp-rail-scroll { overflow-x: auto; margin-bottom: 15px; }
+    .dp-rail { display: flex; min-width: 900px; padding: 2px 0; }
+    .dp-chev {
+        flex: 1 1 0; position: relative; padding: 10px 16px 12px 30px;
+        clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
+        margin-right: -11px;
+        text-decoration: none;
+        background: color-mix(in srgb, var(--dp-c) 10%, var(--box-bg, #fff));
+    }
+    .dp-chev:first-child {
+        clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+        padding-left: 18px;
+    }
+    .dp-chev:hover, .dp-chev:focus { text-decoration: none; background: color-mix(in srgb, var(--dp-c) 20%, var(--box-bg, #fff)); }
+    .dp-chev.selected { background: var(--dp-c); }
+    .dp-chev .dp-stage { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dp-c); }
+    .dp-chev .dp-big { font-size: 20px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--color-fg, #333); }
+    .dp-chev.selected .dp-stage, .dp-chev.selected .dp-big { color: #fff; }
+</style>
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.rail_title') }}</h3>
+        <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.rail_hint') }}</span>
+    </div>
+    <div class="box-body">
+        <div class="dp-rail-scroll">
+            <div class="dp-rail">
+                @foreach ($stageRail as $rs)
+                    @php($selected = (string) $stageFilter === (string) $rs['id'])
+                    <a class="dp-chev {{ $selected ? 'selected' : '' }}"
+                       style="--dp-c: {{ $rs['color'] }}"
+                       href="{{ route('reports.deployments', array_filter(['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'stage' => $selected ? null : $rs['id']])) }}">
+                        <div class="dp-stage">{{ $rs['name'] }}</div>
+                        <div class="dp-big">{{ $rs['count'] }}</div>
+                    </a>
+                @endforeach
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Forecast summary callout --}}
 @if ($forecastCount > 0)
 <div class="row">
@@ -249,6 +296,101 @@
             @endforelse
             </tbody>
         </table>
+    </div>
+</div>
+
+{{-- Decommissioning — the reverse flow. Derived entirely from fields the
+     devices already carry: Processing* status = collecting, decommission
+     date = out the door, archived status = terminal. Deep per-device work
+     happens on the Disposition Grid; this lane is the operational rollup —
+     what is being gathered, and which rooms the pickup has to visit. --}}
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.decom_title') }}</h3>
+        <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.decom_hint') }}</span>
+        <div class="box-tools pull-right">
+            <a href="{{ route('reports.procurement.disposition-grid') }}" class="btn btn-sm btn-default">
+                {{ trans('admin/deployments/general.decom_open_disposition') }}
+            </a>
+        </div>
+    </div>
+    <div class="box-body">
+        <div class="dp-rail-scroll">
+            <div class="dp-rail" style="min-width:640px;">
+                @php($decomStages = [
+                    ['label' => trans('admin/deployments/general.decom_collecting'), 'note' => trans('admin/deployments/general.decom_collecting_note'), 'count' => $decommission['collectingCount'], 'color' => '#1f9e8e'],
+                    ['label' => trans('admin/deployments/general.decom_decommissioned'), 'note' => trans('admin/deployments/general.decom_decommissioned_note'), 'count' => $decommission['decommissionedCount'], 'color' => '#c8860a'],
+                    ['label' => trans('admin/deployments/general.decom_archived'), 'note' => trans('admin/deployments/general.decom_archived_note'), 'count' => $decommission['archivedCount'], 'color' => '#95a5a6'],
+                ])
+                @foreach ($decomStages as $ds)
+                    <div class="dp-chev" style="--dp-c: {{ $ds['color'] }}; cursor:default;">
+                        <div class="dp-stage">{{ $ds['label'] }}</div>
+                        <div class="dp-big">{{ $ds['count'] }}</div>
+                        <div class="text-muted" style="font-size:11.5px; line-height:1.35; margin-top:2px;">{{ $ds['note'] }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        @if ($decommission['collectingCount'] === 0)
+            <p class="text-muted" style="margin:10px 0 0;">{{ trans('admin/deployments/general.decom_none') }}</p>
+        @else
+            <div class="row" style="margin-top:15px;">
+                <div class="col-md-8">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-condensed" style="margin-bottom:0;">
+                            <thead>
+                                <tr>
+                                    <th>{{ trans('admin/deployments/general.decom_col_asset') }}</th>
+                                    <th>{{ trans('admin/deployments/general.decom_col_model') }}</th>
+                                    <th>{{ trans('admin/deployments/general.decom_col_status') }}</th>
+                                    <th>{{ trans('admin/deployments/general.decom_col_location') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
+                                    <th>{{ trans('admin/deployments/general.decom_col_lease_end') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($decommission['collectingRows'] as $row)
+                                    <tr>
+                                        <td><a href="{{ route('hardware.show', $row['id']) }}" class="js-lightbox">{{ $row['asset_tag'] }}</a></td>
+                                        <td>{{ $row['model'] ?: '—' }}</td>
+                                        <td>{{ $row['status'] ?: '—' }}</td>
+                                        <td>{{ $row['location'] ?: '—' }}</td>
+                                        <td>{{ $row['lessor'] ?: '—' }}</td>
+                                        <td>{{ $row['lease_end_date'] ?: '—' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if ($decommission['collectingMore'] > 0)
+                        <p class="text-muted" style="font-size:12px; margin:8px 0 0;">
+                            {{ trans('admin/deployments/general.decom_more', ['count' => $decommission['collectingMore']]) }}
+                        </p>
+                    @endif
+                </div>
+                <div class="col-md-4">
+                    <h5 style="margin-top:0; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
+                    <table class="table table-condensed" style="margin-bottom:10px;">
+                        <tbody>
+                            @foreach ($decommission['byLocation'] as $loc)
+                                <tr>
+                                    <td>{{ $loc['location'] }}</td>
+                                    <td class="text-right"><strong>{{ $loc['count'] }}</strong></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    @foreach ($decommission['statuses'] as $status)
+                        @if ($status['count'] > 0)
+                            <span class="label" style="background-color:#1f9e8e; color:#fff; display:inline-block; margin:0 4px 4px 0;">
+                                {{ $status['name'] }} · {{ $status['count'] }}
+                            </span>
+                        @endif
+                    @endforeach
+                </div>
+            </div>
+        @endif
     </div>
 </div>
 
