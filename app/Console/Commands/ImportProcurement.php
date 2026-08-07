@@ -32,8 +32,8 @@ class ImportProcurement extends Command
 
     protected $description = 'Import purchase orders, order-to-PO links, planned orders and invoices from procurement CSV exports.';
 
-    /** GST is 5% and PST is 7% in BC, so combined tax splits 5:7. */
-    private const GST_SHARE = 5 / 12;
+    /** BC GST rate. PST is 7%, but only on what is not exempt. */
+    private const GST_RATE = 0.05;
 
     /** Invoice number => purchase order number, learned from the reconciliation CSV. */
     private array $invoicePoMap = [];
@@ -253,14 +253,16 @@ class ImportProcurement extends Command
 
                 if (! $dryRun) {
                     $tax = $this->money($first['Invoice Sales Tax'] ?? '0');
+                    $subtotal = $this->money($first['Invoice SubTotal'] ?? '0');
+                    [$gst, $pst] = $this->splitTax($subtotal, $tax);
                     $invoice = OrderInvoice::create([
                         'order_id' => $order->id,
                         'purchase_order_id' => $poId,
                         'invoice_number' => $number,
                         'invoice_date' => $this->date($first['Invoice Date'] ?? ''),
-                        'subtotal' => $this->money($first['Invoice SubTotal'] ?? '0'),
-                        'tax_gst' => round($tax * self::GST_SHARE, 2),
-                        'tax_pst' => round($tax * (1 - self::GST_SHARE), 2),
+                        'subtotal' => $subtotal,
+                        'tax_gst' => $gst,
+                        'tax_pst' => $pst,
                         'shipping' => $this->money($first['Invoice Shipping Cost'] ?? '0'),
                         'total' => $this->money($first['Invoice Total'] ?? '0'),
                     ]);
@@ -426,6 +428,34 @@ class ImportProcurement extends Command
     private function money($value): float
     {
         return (float) str_replace(['$', ',', '"', ' '], '', (string) $value);
+    }
+
+    /**
+     * Split a CDW combined sales-tax figure into GST and PST.
+     *
+     * CDW exports one "Invoice Sales Tax" column, so the split has to be
+     * derived. GST applies to everything at 5%; PST is 7% only on what is
+     * not exempt, and the CSI curriculum lease invoices are PST-exempt
+     * outright ("CURRICULUM (NON PST)" on the CDW billing profile). Taking
+     * GST as 5% of the subtotal and leaving the remainder as PST therefore
+     * lands both cases from the same rule: a 5% invoice yields no PST, a
+     * 12% invoice yields 5% + 7%.
+     *
+     * The previous rule split every invoice 5:7 on the assumption both taxes
+     * always applied, which manufactured $12,317.66 of PST across 34 GST-only
+     * FY2025-26 invoices and understated GST by the same amount. The combined
+     * figure was right, so only the split — and the Tax report reading it —
+     * was ever wrong.
+     *
+     * @return array{0: float, 1: float} [gst, pst]
+     */
+    private function splitTax(float $subtotal, float $tax): array
+    {
+        // Clamp so a credit note or a zero-tax line can't push PST negative.
+        $gst = min($tax, round($subtotal * self::GST_RATE, 2));
+        $gst = max($gst, 0.0);
+
+        return [$gst, round($tax - $gst, 2)];
     }
 
     /**

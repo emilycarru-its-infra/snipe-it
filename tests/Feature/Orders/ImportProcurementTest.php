@@ -118,9 +118,34 @@ class ImportProcurementTest extends TestCase
         $this->assertNotNull($invoice);
         $this->assertEquals(2000.0, (float) $invoice->subtotal);
         $this->assertEquals(2240.0, (float) $invoice->total);
-        // BC tax 240 splits 5:7 into GST 100 / PST 140.
+        // 240 on a 2,000 subtotal is 12% — both taxes apply, so GST is the
+        // 5% share (100) and PST is the 7% remainder (140).
         $this->assertEquals(100.0, (float) $invoice->tax_gst);
         $this->assertEquals(140.0, (float) $invoice->tax_pst);
+    }
+
+    public function test_a_gst_only_invoice_records_no_pst()
+    {
+        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+
+        // The CSI curriculum lease invoices are PST-exempt outright — CDW
+        // bills them "CURRICULUM (NON PST)" and the single Sales Tax column
+        // is 5% GST alone. Splitting that 5:7 (the old rule) manufactured
+        // PST that was never charged: $12,317.66 of it across 34 FY2025-26
+        // invoices, with GST understated by the same amount.
+        $csv = $this->csv(<<<CSV
+        Order #,Invoice #,Invoice Date,Invoice SubTotal,Invoice Shipping Cost,Invoice Sales Tax,Invoice Total
+        ORD-A,CDWINV-GST,7/22/2025,"\$26,170.00",\$0.00,"\$1,308.50","\$27,478.50"
+        CSV);
+
+        $this->artisan('procurement:import', ['--invoices' => $csv])->assertExitCode(0);
+
+        $invoice = OrderInvoice::where('invoice_number', 'CDWINV-GST')->first();
+        $this->assertNotNull($invoice);
+        $this->assertEquals(1308.50, (float) $invoice->tax_gst);
+        $this->assertEquals(0.0, (float) $invoice->tax_pst);
+        // The combined figure was always right — only its split was wrong.
+        $this->assertEquals(27478.50, (float) $invoice->total);
     }
 
     public function test_invoices_for_unknown_orders_are_skipped()
