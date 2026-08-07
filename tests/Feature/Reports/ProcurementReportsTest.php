@@ -251,6 +251,29 @@ class ProcurementReportsTest extends TestCase
         $this->assertStringNotContainsString('href', $csv->streamedContent());
     }
 
+    public function test_lease_reports_lead_with_the_lessor_column()
+    {
+        $active = Statuslabel::factory()->rtd()->create();
+        $asset = Asset::factory()->create(['asset_tag' => 'LESSOR-COL-1', 'status_id' => $active->id]);
+        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '301452-004']);
+
+        $superuser = $this->superuser();
+
+        foreach (['reports.procurement.leases-operational', 'reports.procurement.leases-financial'] as $routeName) {
+            $csv = $this->actingAs($superuser)->get(route($routeName, ['format' => 'csv']));
+            $csv->assertOk();
+            $lines = explode("\n", trim($csv->streamedContent()));
+            // Column A is the lessor, labelled with the standard name.
+            $this->assertStringStartsWith(
+                trans('admin/purchase-orders/general.lease_provider'),
+                ltrim($lines[0], "\xEF\xBB\xBF"),
+                $routeName
+            );
+        }
+
+        $this->assertSame('Lessor', trans('admin/purchase-orders/general.lease_provider'));
+    }
+
     public function test_csi_schedule_report_leads_with_the_lessor_column()
     {
         $active = Statuslabel::factory()->rtd()->create();

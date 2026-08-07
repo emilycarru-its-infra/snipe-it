@@ -159,7 +159,7 @@ return [
     'report_csi_schedule_desc' => 'Per-schedule breakdown of every lessor lease: model, qty, unit equipment and warranty cost, PO and order linkage.',
     'lease_contract_id' => 'Contract ID',
     'lease_contract_name' => 'Contract Name',
-    'lease_provider' => 'Provider',
+    'lease_provider' => 'Lessor',
     'lease_end_date' => 'Lease End Date',
     'lease_fy_ending' => 'FY Ending',
     'lease_assets' => 'Assets',
