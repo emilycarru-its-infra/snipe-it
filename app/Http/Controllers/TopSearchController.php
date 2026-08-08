@@ -10,6 +10,7 @@ use App\Models\License;
 use App\Models\Location;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\Company;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -93,6 +94,20 @@ class TopSearchController extends Controller
     }
 
     /**
+     * Every other list in the app runs its query through this, and the panel
+     * must not be the one place a company boundary does not hold. It is a
+     * no-op while full multiple company support is off (and for superusers),
+     * so this costs nothing today and is correct if it is ever turned on.
+     *
+     * Contracts and suppliers carry no company_id, so there is nothing to
+     * scope them by — they stay estate-wide either way.
+     */
+    private function scoped($builder, string $table)
+    {
+        return Company::scopeCompanyables($builder, 'company_id', $table);
+    }
+
+    /**
      * Match any of the given columns. Anchored with a trailing wildcard only
      * where the column is an identifier people type from the front (a tag, a
      * serial); free text gets a contains match.
@@ -112,7 +127,7 @@ class TopSearchController extends Controller
             // Model name matters as much as the tag here: "macbook" is how
             // people look for a machine when they do not have it in hand,
             // and matching only tag/serial/name answers nothing for them.
-            $builder = Asset::query()->with('model', 'assignedTo')
+            $builder = $this->scoped(Asset::query(), 'assets')->with('model', 'assignedTo')
                 ->where(function ($q) use ($query) {
                     foreach (['asset_tag', 'serial', 'name'] as $column) {
                         $q->orWhere($column, 'LIKE', '%'.$query.'%');
@@ -139,7 +154,7 @@ class TopSearchController extends Controller
     private function users(string $query): ?array
     {
         return $this->group('index', User::class, 'users', trans('general.users'), 'users.index', function () use ($query) {
-            $builder = $this->like(User::query(), ['first_name', 'last_name', 'username', 'email', 'employee_num'], $query);
+            $builder = $this->like($this->scoped(User::query(), 'users'), ['first_name', 'last_name', 'username', 'email', 'employee_num'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderBy('last_name')->limit(self::PER_GROUP)->get()
@@ -173,7 +188,7 @@ class TopSearchController extends Controller
     private function licenses(string $query): ?array
     {
         return $this->group('view', License::class, 'licenses', trans('general.licenses'), 'licenses.index', function () use ($query) {
-            $builder = $this->like(License::query(), ['name', 'serial'], $query);
+            $builder = $this->like($this->scoped(License::query(), 'licenses'), ['name', 'serial'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderBy('name')->limit(self::PER_GROUP)->get()
@@ -190,7 +205,7 @@ class TopSearchController extends Controller
     private function accessories(string $query): ?array
     {
         return $this->group('index', Accessory::class, 'accessories', trans('general.accessories'), 'accessories.index', function () use ($query) {
-            $builder = $this->like(Accessory::query(), ['name', 'model_number'], $query);
+            $builder = $this->like($this->scoped(Accessory::query(), 'accessories'), ['name', 'model_number'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderBy('name')->limit(self::PER_GROUP)->get()
@@ -207,7 +222,7 @@ class TopSearchController extends Controller
     private function consumables(string $query): ?array
     {
         return $this->group('view', Consumable::class, 'consumables', trans('general.consumables'), 'consumables.index', function () use ($query) {
-            $builder = $this->like(Consumable::query(), ['name', 'model_number'], $query);
+            $builder = $this->like($this->scoped(Consumable::query(), 'consumables'), ['name', 'model_number'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderBy('name')->limit(self::PER_GROUP)->get()
@@ -224,7 +239,7 @@ class TopSearchController extends Controller
     private function locations(string $query): ?array
     {
         return $this->group('view', Location::class, 'locations', trans('general.locations'), 'locations.index', function () use ($query) {
-            $builder = $this->like(Location::query(), ['name', 'city'], $query);
+            $builder = $this->like($this->scoped(Location::query(), 'locations'), ['name', 'city'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderBy('name')->limit(self::PER_GROUP)->get()
