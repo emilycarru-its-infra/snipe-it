@@ -1038,7 +1038,12 @@
             .topnav-item:hover > .dropdown-menu,
             .topnav-item:focus-within > .dropdown-menu { display: block; }
         }
-        @media (min-width: 1200px) and (max-width: 1499px) {
+        {{-- Labels cost roughly 450px across six tabs. Below that headroom the
+             bar cannot seat brand + lookup + tabs + actions, and the brand
+             block — which is allowed to shrink — gets crushed and spills its
+             contents across the tabs instead of anything wrapping. Shed the
+             labels well before that point. --}}
+        @media (min-width: 1200px) and (max-width: 1399px) {
             .topnav .topbar-nav-label { display: none; }
         }
         @media (max-width: 1199px) {
@@ -1239,6 +1244,16 @@
 
         {{-- Lookup now sits inside the brand block, beside the wordmark. --}}
         .main-header .navbar .left-navblock { display: flex; align-items: center; gap: 14px; }
+        {{-- The brand block holds the wordmark and lookup at fixed sizes, so
+             it must not be treated as the bar's shock absorber: shrinking it
+             does not shrink its contents, it just lets them overflow across
+             whatever comes next. The tabs give way instead. --}}
+        @media (min-width: 1200px) {
+            .main-header .navbar > .navbar-left { flex: 0 0 auto; min-width: auto; }
+            {{-- No overflow clipping here: the menus hang out of this strip,
+                 and hiding overflow amputates them. --}}
+            .main-header .navbar > .topnav { flex: 0 1 auto; }
+        }
         {{-- The field carries a fixed width, so it must not be treated as
              shrinkable filler: as a flex item it collapsed to nothing and the
              input spilled out of its own container across the tabs. --}}
@@ -1251,10 +1266,73 @@
             flex: 0 0 auto;
         }
         .main-header .topbar-search { flex: 0 0 auto; }
+        {{-- The panel positions against this form. Without it the nearest
+             positioned ancestor is the navbar, and the panel hangs off the
+             far left of the bar instead of off the field. --}}
+        .main-header .topbar-search-form { position: relative; }
+
+        {{-- Type-ahead panel. Hangs off the field, sized to the field but
+             wider, and scrolls internally rather than growing down the page. --}}
+        .topbar-search-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            width: 380px;
+            max-width: 90vw;
+            max-height: min(60vh, 520px);
+            overflow-y: auto;
+            z-index: 1040;
+            background: var(--box-bg);
+            border: 1px solid var(--chrome-border-color);
+            border-radius: 12px;
+            box-shadow: 0 10px 34px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.55));
+            padding: 6px 0;
+            text-align: left;
+        }
+        .topbar-search-panel .tsp-group-label {
+            padding: 8px 14px 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--chrome-fg-muted);
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .topbar-search-panel .tsp-hit {
+            display: block;
+            padding: 6px 14px;
+            color: var(--color-fg);
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .topbar-search-panel .tsp-hit:hover,
+        .topbar-search-panel .tsp-hit.is-active {
+            background: var(--chrome-hover-bg);
+            color: var(--color-fg);
+            text-decoration: none;
+        }
+        .topbar-search-panel .tsp-title { font-weight: 600; }
+        .topbar-search-panel .tsp-sub {
+            display: block;
+            font-size: 12px;
+            color: var(--chrome-fg-muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .topbar-search-panel .tsp-empty,
+        .topbar-search-panel .tsp-more {
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--chrome-fg-muted);
+        }
         {{-- The wordmark was sized for a bar that held only the wordmark. It
              now shares the row with lookup and six sections. --}}
         @media (min-width: 1200px) {
-            img.navbar-brand-img { max-width: clamp(180px, 18vw, 300px); }
+            img.navbar-brand-img { max-width: clamp(150px, 14vw, 240px); }
         }
         @media (max-width: 767px) {
             .main-header .topbar-search-form { display: none; }
@@ -1288,9 +1366,14 @@
             border-radius: 10px;
             box-shadow: 0 6px 20px light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.5));
         }
+        {{-- Menu rows are full-bleed bands, not pills. The base theme rounds
+             every dropdown anchor to 8px, which leaves a scalloped notch
+             against the panel edge on hover. --}}
         .main-header .navbar .topnav-menu > li > a {
             padding: 6px 16px;
             white-space: nowrap;
+            border-radius: 0 !important;
+            margin: 0;
         }
         {{-- The gear holds the whole back office and is taller than a short
              viewport; without a bound its last entries fall off the bottom of
@@ -1312,11 +1395,27 @@
             color: var(--chrome-fg-muted);
             margin-left: 6px;
         }
-        {{-- Plus, avatar and gear are icon-sized, not word-sized. --}}
+        {{-- Plus, avatar and gear are icon-sized, not word-sized. They also
+             have to agree on a box: the avatar anchor is sized by its image
+             and the other two by their glyph, so left to themselves the three
+             sit at three different heights. --}}
         .main-header .navbar .topnav-action > a {
-            padding-left: 10px !important;
-            padding-right: 10px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 34px;
+            width: 36px;
+            padding: 0 !important;
         }
+        .main-header .navbar .topnav-action > a > .user-image {
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            object-fit: cover;
+            margin: 0;
+        }
+        .main-header .navbar .topnav-action > a > i,
+        .main-header .navbar .topnav-action > a > svg { margin: 0; }
 
         .navbar-nav > .notifications-menu > .dropdown-menu > li.header,
         .navbar-nav > .messages-menu > .dropdown-menu > li.header,
@@ -2080,6 +2179,10 @@
                                             <button type="submit" id="topSearchButton" class="topbar-search-btn"><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
                                         </div>
                                         <input type="hidden" name="topsearch" value="true" id="search">
+                                        {{-- Results drop out of the field itself. Submitting
+                                             still falls through to the old tag lookup, so the
+                                             keyboard path people already know keeps working. --}}
+                                        <div id="topSearchResults" class="topbar-search-panel" hidden role="listbox" aria-label="{{ trans('general.search') }}"></div>
                                     </form>
                                 @endcan
                             @endunless
@@ -3476,6 +3579,129 @@
         @section('moar_scripts')
         @show
 
+        @unless (auth()->check() && auth()->user()->isEndUser())
+        <script nonce="{{ csrf_token() }}">
+            // Toolbar type-ahead. The field used to submit a tag to
+            // findbytag and drop you into the full asset list to find out
+            // whether it matched; this answers across every entity you can
+            // see, in place, before you commit to a page load.
+            (function () {
+                var input = document.getElementById('tagSearch');
+                var panel = document.getElementById('topSearchResults');
+                if (!input || !panel) { return; }
+
+                var MIN_CHARS = 2;
+                var DEBOUNCE_MS = 180;
+                var endpoint = @json(route('search.suggest'));
+                var labels = {
+                    empty: @json(trans('general.no_results')),
+                    more: @json(trans('general.view_all'))
+                };
+
+                var timer = null;
+                var controller = null;
+                var activeIndex = -1;
+                var lastQuery = '';
+
+                function hits() { return panel.querySelectorAll('.tsp-hit'); }
+
+                function close() {
+                    panel.hidden = true;
+                    panel.innerHTML = '';
+                    activeIndex = -1;
+                }
+
+                function setActive(next) {
+                    var all = hits();
+                    if (!all.length) { return; }
+                    if (activeIndex >= 0 && all[activeIndex]) { all[activeIndex].classList.remove('is-active'); }
+                    activeIndex = (next + all.length) % all.length;
+                    all[activeIndex].classList.add('is-active');
+                    all[activeIndex].scrollIntoView({block: 'nearest'});
+                }
+
+                function escape(value) {
+                    return String(value == null ? '' : value)
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                function render(payload) {
+                    if (!payload.groups.length) {
+                        panel.innerHTML = '<div class="tsp-empty">' + escape(labels.empty) + '</div>';
+                        panel.hidden = false;
+                        return;
+                    }
+
+                    var html = '';
+                    payload.groups.forEach(function (group) {
+                        html += '<div class="tsp-group-label"><span>' + escape(group.label) + '</span><span>' + group.count + '</span></div>';
+                        group.items.forEach(function (item) {
+                            html += '<a class="tsp-hit" href="' + escape(item.url) + '">'
+                                 +  '<span class="tsp-title">' + escape(item.title) + '</span>'
+                                 +  (item.subtitle ? '<span class="tsp-sub">' + escape(item.subtitle) + '</span>' : '')
+                                 +  '</a>';
+                        });
+                        if (group.index_url) {
+                            html += '<a class="tsp-hit tsp-more" href="' + escape(group.index_url) + '">'
+                                 +  escape(labels.more) + ' (' + group.count + ')</a>';
+                        }
+                    });
+                    panel.innerHTML = html;
+                    panel.hidden = false;
+                    activeIndex = -1;
+                }
+
+                function run(query) {
+                    if (controller) { controller.abort(); }
+                    controller = new AbortController();
+
+                    fetch(endpoint + '?q=' + encodeURIComponent(query), {
+                        signal: controller.signal,
+                        headers: {'X-Requested-With': 'XMLHttpRequest'},
+                        credentials: 'same-origin'
+                    })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (payload) {
+                        // A slow response for a query the user has already
+                        // typed past must not overwrite a newer one.
+                        if (!payload || payload.query !== input.value.trim()) { return; }
+                        render(payload);
+                    })
+                    .catch(function () { /* aborted or offline: leave the panel as-is */ });
+                }
+
+                input.addEventListener('input', function () {
+                    var query = input.value.trim();
+                    if (query === lastQuery) { return; }
+                    lastQuery = query;
+
+                    window.clearTimeout(timer);
+                    if (query.length < MIN_CHARS) { close(); return; }
+                    timer = window.setTimeout(function () { run(query); }, DEBOUNCE_MS);
+                });
+
+                input.addEventListener('keydown', function (event) {
+                    if (panel.hidden) { return; }
+                    if (event.key === 'ArrowDown') { event.preventDefault(); setActive(activeIndex + 1); }
+                    else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(activeIndex - 1); }
+                    else if (event.key === 'Escape') { close(); }
+                    else if (event.key === 'Enter' && activeIndex >= 0) {
+                        var current = hits()[activeIndex];
+                        if (current) { event.preventDefault(); window.location = current.href; }
+                    }
+                });
+
+                input.addEventListener('focus', function () {
+                    if (input.value.trim().length >= MIN_CHARS && panel.innerHTML) { panel.hidden = false; }
+                });
+
+                document.addEventListener('click', function (event) {
+                    if (!panel.contains(event.target) && event.target !== input) { close(); }
+                });
+            })();
+        </script>
+        @endunless
 
         <script nonce="{{ csrf_token() }}">
 
