@@ -1005,15 +1005,45 @@
         }
         .main-header .navbar-form { margin: 0; padding: 0; border: 0; box-shadow: none; }
         img.navbar-brand-img { max-width: clamp(200px, 30vw, 470px); height: auto; object-fit: contain; }
-        @media (max-width: 1500px) {
-            .main-header .user-menu > a > .hidden-xs { display: none !important; }
+        {{-- The toolbar and the sidebar are the same navigation drawn twice,
+             so exactly one of them exists at any width. At 1200px and up the
+             toolbar carries the whole product and the sidebar is gone; below
+             that the sidebar takes over and the tabs hide.
+
+             Tabs never disappear one at a time any more — losing a tab now
+             loses its whole subtree with it. They shed their labels down to
+             icons first, and the handover to the sidebar happens before they
+             would have to shed anything else. --}}
+        @media (min-width: 1200px) {
+            .main-sidebar { display: none !important; }
+            {{-- AdminLTE pins these with !important at three-class
+                 specificity, so the override has to match it selector for
+                 selector or the content keeps a 50px gutter reserved for an
+                 icon rail that is no longer rendered. --}}
+            .content-wrapper,
+            .main-footer,
+            .right-side,
+            .sidebar-collapse .content-wrapper,
+            .sidebar-collapse .main-footer,
+            .sidebar-mini.sidebar-collapse .content-wrapper,
+            .sidebar-mini.sidebar-collapse .main-footer,
+            .sidebar-mini.sidebar-collapse .right-side { margin-left: 0 !important; }
+            .main-header .navbar,
+            .sidebar-mini.sidebar-collapse .main-header .navbar { margin-left: 0 !important; }
+            .main-header .sidebar-toggle { display: none !important; }
+
+            {{-- Hover opens the menu; the tab itself stays a real link, so
+                 clicking Procurement goes to Procurement rather than only
+                 unfolding a list. focus-within keeps it keyboard-reachable. --}}
+            .topnav-item:hover > .dropdown-menu,
+            .topnav-item:focus-within > .dropdown-menu { display: block; }
         }
-        @media (max-width: 1490px) { .main-header li.topnav-deployments { display: none; } }
-        @media (max-width: 1380px) { .main-header li.topnav-contracts { display: none; } }
-        @media (max-width: 1270px) { .main-header li.topnav-consumables { display: none; } }
-        @media (max-width: 1160px) { .main-header li.topnav-procurement { display: none; } }
-        @media (max-width: 1050px) { .main-header li.topnav-users { display: none; } }
-        @media (max-width: 950px)  { .main-header li.topnav-assets { display: none; } }
+        @media (min-width: 1200px) and (max-width: 1499px) {
+            .topnav .topbar-nav-label { display: none; }
+        }
+        @media (max-width: 1199px) {
+            .topnav { display: none !important; }
+        }
         .main-header .navbar,
         .main-header .navbar-static-top {
             min-height: var(--header-h);
@@ -1206,6 +1236,87 @@
             line-height: 1;
         }
         .topbar-search-btn:hover { color: var(--chrome-fg); background: var(--chrome-hover-bg); }
+
+        {{-- Lookup now sits inside the brand block, beside the wordmark. --}}
+        .main-header .navbar .left-navblock { display: flex; align-items: center; gap: 14px; }
+        {{-- The field carries a fixed width, so it must not be treated as
+             shrinkable filler: as a flex item it collapsed to nothing and the
+             input spilled out of its own container across the tabs. --}}
+        .main-header .topbar-search-form {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+            float: none;
+            flex: 0 0 auto;
+        }
+        .main-header .topbar-search { flex: 0 0 auto; }
+        {{-- The wordmark was sized for a bar that held only the wordmark. It
+             now shares the row with lookup and six sections. --}}
+        @media (min-width: 1200px) {
+            img.navbar-brand-img { max-width: clamp(180px, 18vw, 300px); }
+        }
+        @media (max-width: 767px) {
+            .main-header .topbar-search-form { display: none; }
+        }
+
+        {{-- Section tabs sit between the brand block and the right-hand
+             actions, on the same pill treatment as before. --}}
+        .main-header .navbar > .topnav {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            float: none;
+            margin: 0 0 0 18px;
+            min-width: 0;
+        }
+        .main-header .navbar > .topnav > li { float: none; }
+        {{-- A hovered tab keeps the pill lit while the menu is open, so the
+             menu reads as belonging to it. --}}
+        .topnav-item:hover > a,
+        .topnav-item:focus-within > a {
+            background-color: var(--chrome-hover-bg) !important;
+            color: var(--chrome-fg) !important;
+        }
+        {{-- The menus hang directly off the tab with no gap: a gap between
+             the pill and the panel is a dead zone that closes the menu when
+             the pointer crosses it. --}}
+        .main-header .navbar .topnav-menu {
+            margin-top: 0;
+            min-width: 210px;
+            padding: 6px 0;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.5));
+        }
+        .main-header .navbar .topnav-menu > li > a {
+            padding: 6px 16px;
+            white-space: nowrap;
+        }
+        {{-- The gear holds the whole back office and is taller than a short
+             viewport; without a bound its last entries fall off the bottom of
+             the screen with no way to reach them. --}}
+        .main-header .navbar .dropdown-menu {
+            max-height: calc(100vh - var(--header-h) - 16px);
+            overflow-y: auto;
+        }
+        .main-header .navbar .topnav-menu > li.dropdown-header {
+            padding: 8px 16px 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--chrome-fg-muted);
+        }
+        .main-header .navbar .topnav-menu .badge {
+            background: var(--chrome-active-bg);
+            color: var(--chrome-fg-muted);
+            margin-left: 6px;
+        }
+        {{-- Plus, avatar and gear are icon-sized, not word-sized. --}}
+        .main-header .navbar .topnav-action > a {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+        }
 
         .navbar-nav > .notifications-menu > .dropdown-menu > li.header,
         .navbar-nav > .messages-menu > .dropdown-menu > li.header,
@@ -1952,8 +2063,32 @@
                                      alt="">
                                 <span class="sr-only">{{ $snipeSettings->site_name }}</span>
                             </a>
+                            @unless ($isEndUser)
+                                @can('index', \App\Models\Asset::class)
+                                    {{-- Lookup rides beside the wordmark rather
+                                         than out at the far right: it is the
+                                         most-used control in the bar, and
+                                         centre-left is where the eye already is
+                                         after the logo. It belongs inside the
+                                         brand block, which is the flex row —
+                                         as a sibling it lands in a block box
+                                         and collapses to nothing. --}}
+                                    <form class="navbar-form form-inline topbar-search-form" role="search" action="{{ route('findbytag/hardware') }}" method="get">
+                                        <div class="topbar-search">
+                                            <label class="sr-only" for="tagSearch">{{ trans('general.lookup_anything') }}</label>
+                                            <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_anything') }}">
+                                            <button type="submit" id="topSearchButton" class="topbar-search-btn"><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
+                                        </div>
+                                        <input type="hidden" name="topsearch" value="true" id="search">
+                                    </form>
+                                @endcan
+                            @endunless
                         </div>
                     </div>
+
+                    @unless ($isEndUser)
+                        @include('partials.topnav')
+                    @endunless
 
                     @if ($isEndUser)
                         {{-- The whole product, for an end user: Assets,
@@ -2090,90 +2225,18 @@
 
                             </li>
 
-                            @can('index', \App\Models\Asset::class)
-                                <li aria-hidden="true" class="topnav-assets{!! (request()->is('hardware*') ? ' active' : '') !!}">
-                                    <a href="{{ url('hardware') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=1" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.assets') }}">
-                                        <x-icon type="assets" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.assets') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            {{-- Deployments sits between Assets and Procurement:
-                                 procurement is the money side of a refresh,
-                                 deployments is the physical side — arrivals,
-                                 provisioning, placement, decommissioning. --}}
-                            @can('view', \App\Models\Order::class)
-                                <li aria-hidden="true" class="topnav-deployments{!! ((request()->is('reports/deployments*') || request()->is('deployments*') || request()->is('deployment-waves*') || request()->is('deployment-config*') || request()->is('deployment-blackouts*')) ? ' active' : '') !!}">
-                                    <a href="{{ route('reports.deployments') }}" tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/deployments/general.dashboard_title') }}">
-                                        <x-icon type="deployments" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('admin/deployments/general.dashboard_title') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            {{-- Procurement earns a top-level slot: the hub is
-                                 a daily destination, not something to go
-                                 hunting for in a sidebar treeview. --}}
-                            @can('view', \App\Models\Order::class)
-                                <li aria-hidden="true" class="topnav-procurement{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
-                                    <a href="{{ route('procurement.index') }}" tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.procurement') }}">
-                                        <x-icon type="procurement" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.procurement') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('view', \App\Models\Contract::class)
-                                <li aria-hidden="true" class="topnav-contracts{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' active' : '') !!}">
-                                    <a href="{{ route('contracts.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=2" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/contracts/general.contracts') }}">
-                                        <x-icon type="contracts" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('admin/contracts/general.contracts') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('index', \App\Models\Consumable::class)
-                                <li aria-hidden="true" class="topnav-consumables{!! (request()->is('consumables*') ? ' active' : '') !!}">
-                                    <a href="{{ url('consumables') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=3" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.consumables') }}">
-                                        <x-icon type="consumables" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.consumables') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-
-                            @can('index', \App\Models\User::class)
-                                <li aria-hidden="true" class="topnav-users{!! (request()->is('users*') ? ' active' : '') !!}">
-                                    <a href="{{ route('users.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=4" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.users') }}">
-                                        <x-icon type="users" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.users') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-
-                            @can('index', \App\Models\Asset::class)
-                                <li>
-                                    <form class="navbar-form navbar-left form-inline" role="search" action="{{ route('findbytag/hardware') }}" method="get">
-
-                                                {{-- One rounded field with the magnifier riding inside it,
-                                                     instead of an input with a coloured button block welded on. --}}
-                                                <div class="topbar-search">
-                                                    <label class="sr-only" for="tagSearch">
-                                                        {{ trans('general.lookup_anything') }}
-                                                    </label>
-                                                    <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_anything') }}">
-                                                    <button type="submit" id="topSearchButton" class="topbar-search-btn"><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
-                                                </div>
-
-                                        <input type="hidden" name="topsearch" value="true" id="search">
-
-                                    </form>
-                                </li>
-                            @endcan
 
                             @can('admin')
-                                <li class="dropdown user-menu" aria-hidden="true">
-                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" tabindex="-1">
-                                        {{ trans('general.create') }}
-                                        <strong class="caret"></strong>
+                                {{-- Create is a plus, not a sentence. It is a
+                                     frequent action but not a landmark, and the
+                                     spelled-out label plus caret was competing
+                                     with the section tabs for attention. --}}
+                                <li class="dropdown topnav-action topnav-create">
+                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" title="{{ trans('general.create') }}">
+                                        <x-icon type="create" class="fa-fw" />
+                                        <span class="sr-only">{{ trans('general.create') }}</span>
                                     </a>
-                                    <ul class="dropdown-menu">
+                                    <ul class="dropdown-menu dropdown-menu-right">
                                         @can('create', \App\Models\Asset::class)
                                             <li{!! (request()->is('hardware/create') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('hardware.create') }}" tabindex="-1">
@@ -2228,28 +2291,26 @@
                                 </li>
                             @endcan
 
-                            @can('admin')
-                                <x-alert-menu />
-                            @endcan
-
-
+                            {{-- The alerts flag is gone from the chrome: it
+                                 duplicated what the dashboard already says, and
+                                 a permanent red count that nobody acts on is
+                                 noise. The alert data itself is untouched. --}}
 
                             <!-- User Account: style can be found in dropdown.less -->
                             @auth
-                                <li class="dropdown user user-menu">
+                                <li class="dropdown user user-menu topnav-action">
 
-                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                                    {{-- Avatar only. The name spelled out beside
+                                         every page cost a tab's worth of room to
+                                         tell you who you already are. --}}
+                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" title="{{ Auth::user()->display_name }}">
                                         @if (auth()->user()->present()->gravatar())
                                             <img src="{{ Auth::user()->present()->gravatar() }}" class="user-image"
                                                  alt="">
                                         @else
                                             <x-icon type="user" />
                                         @endif
-
-                                        <span class="hidden-xs">
-                                            {{ Auth::user()->display_name }}
-                                            <strong class="caret"></strong>
-                                        </span>
+                                        <span class="sr-only">{{ Auth::user()->display_name }}</span>
                                     </a>
 
 
@@ -2279,6 +2340,14 @@
                                                 </a></li>
                                         @endcan
 
+                                        @can('viewRequestable', \App\Models\Asset::class)
+                                            <li {!! (request()->is('account/requestable-assets') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('requestable-assets') }}">
+                                                    <x-icon type="requestable" class="fa-fw" />
+                                                    {{ trans('general.requestable_items') }}
+                                                </a></li>
+                                        @endcan
+
                                         @if (! empty($formsAccessible))
                                             <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('forms.index') }}">
@@ -2287,6 +2356,27 @@
                                                 </a>
                                             </li>
                                         @endif
+
+                                        {{-- The store and its orders are the same
+                                             personal surface an end user gets on
+                                             their own topbar; an admin reaches
+                                             them here rather than through the
+                                             Procurement section, which is the
+                                             buying side of the same thing. --}}
+                                        <li {!! (request()->is('store') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('store.index') }}">
+                                                <i class="fa-solid fa-store fa-fw" aria-hidden="true"></i>
+                                                {{ trans('admin/store/general.store') }}
+                                            </a>
+                                        </li>
+                                        <li {!! (request()->is('store/orders*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('store.orders') }}">
+                                                <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
+                                                {{ trans('admin/store/general.my_orders') }}
+                                            </a>
+                                        </li>
+
+                                        <li class="divider"></li>
 
                                         {{-- Accept Assets left this menu: anything
                                              waiting on a signature is the first
@@ -2343,14 +2433,161 @@
                             @endauth
 
 
-                            @can('superadmin')
-                                <li>
-                                    <a href="{{ route('settings.index') }}">
+                            {{-- The gear is the back office: the things you
+                                 configure or run periodically, rather than the
+                                 six sections you live in. Each entry keeps its
+                                 own permission — the gear itself appears for
+                                 anyone who can reach at least one of them, so
+                                 an admin who is not a superadmin still gets
+                                 bulk actions and the catalog. --}}
+                            @php
+                                // audit/checkin/checkout are policy abilities and
+                                // need the model to answer; asking for them bare
+                                // resolves to a gate that does not exist and is
+                                // silently false, which would hide the whole menu
+                                // from someone whose only claim on it is those.
+                                $canSeeBackstage = Gate::allows('superadmin')
+                                    || Gate::allows('backend.interact')
+                                    || Gate::allows('import')
+                                    || Gate::any(['audit', 'checkin', 'checkout', 'view'], \App\Models\Asset::class)
+                                    || Gate::allows('view', \App\Models\AssetModel::class)
+                                    || Gate::allows('index', \App\Models\Accessory::class);
+                            @endphp
+                            @if ($canSeeBackstage)
+                                <li class="dropdown topnav-action topnav-gear">
+                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" title="{{ trans('general.admin') }}">
                                         <x-icon type="admin-settings" />
                                         <span class="sr-only">{{ trans('general.admin') }}</span>
                                     </a>
+                                    <ul class="dropdown-menu dropdown-menu-right topnav-menu">
+                                        @can('superadmin')
+                                            <li{!! (request()->is('settings') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('settings.index') }}">{{ trans('general.settings') }}</a>
+                                            </li>
+                                        @endcan
+                                        @can('backend.interact')
+                                            @if (Gate::allows('view', App\Models\CustomField::class) || Gate::allows('view', App\Models\CustomFieldset::class))
+                                                <li{!! (request()->is('fields*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('fields.index') }}">{{ trans('admin/custom_fields/general.custom_fields') }}</a>
+                                                </li>
+                                            @endif
+                                            @can('view', \App\Models\Statuslabel::class)
+                                                <li{!! (request()->is('statuslabels') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('statuslabels.index') }}">{{ trans('general.status_labels') }}</a>
+                                                </li>
+                                            @endcan
+                                        @endcan
+                                        @can('import')
+                                            <li{!! (request()->is('import*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('imports.index') }}">{{ trans('general.import') }}</a>
+                                            </li>
+                                        @endcan
+
+                                        @canany(['audit', 'checkin', 'checkout'], \App\Models\Asset::class)
+                                            <li class="dropdown-header">{{ trans('general.nav_group_operations') }}</li>
+                                            @can('audit', \App\Models\Asset::class)
+                                                <li{!! (request()->is('hardware/audit/due') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('assets.audit.due') }}">{{ trans('general.audit_due') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('checkin', \App\Models\Asset::class)
+                                                <li{!! (request()->is('hardware/checkins/due') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('assets.checkins.due') }}">{{ trans('general.checkin_due') }}</a>
+                                                </li>
+                                                <li>
+                                                    <a href="{{ route('hardware/quickscancheckin') }}">{{ trans('general.quickscan_checkin') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('checkout', \App\Models\Asset::class)
+                                                <li>
+                                                    <a href="{{ route('hardware.bulkcheckout.show') }}">{{ trans('general.bulk_checkout') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('create', \App\Models\Asset::class)
+                                                <li{!! (request()->is('hardware/requested') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('assets.requested') }}">{{ trans('general.requested') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('audit', \App\Models\Asset::class)
+                                                <li>
+                                                    <a href="{{ route('assets.bulkaudit') }}">{{ trans('general.bulkaudit') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Asset::class)
+                                                <li{!! (request()->is('maintenances*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('maintenances.index') }}">{{ trans('general.maintenances') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('admin')
+                                                <li{!! (request()->is('hardware/history') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ url('hardware/history') }}">{{ trans('general.import-history') }}</a>
+                                                </li>
+                                            @endcan
+                                        @endcanany
+
+                                        @if (Gate::allows('view', \App\Models\AssetModel::class) || Gate::allows('view', \App\Models\Category::class) || Gate::allows('view', \App\Models\Manufacturer::class))
+                                            <li class="dropdown-header">{{ trans('general.catalog') }}</li>
+                                            @can('view', \App\Models\AssetModel::class)
+                                                <li{!! (request()->is('models*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('models.index') }}">{{ trans('general.asset_models') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Category::class)
+                                                <li{!! (request()->is('categories*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('categories.index') }}">{{ trans('general.categories') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Manufacturer::class)
+                                                <li{!! (request()->is('manufacturers*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('manufacturers.index') }}">{{ trans('general.manufacturers') }}</a>
+                                                </li>
+                                            @endcan
+                                        @endif
+
+                                        {{-- Accessories, components and kits have
+                                             no section of their own in the new
+                                             toolbar but remain live modules — and
+                                             they are still creatable from the plus
+                                             menu, so they need a way back. --}}
+                                        @if (Gate::allows('index', \App\Models\Accessory::class) || Gate::allows('view', \App\Models\Component::class) || Gate::allows('view', \App\Models\PredefinedKit::class))
+                                            <li class="dropdown-header">{{ trans('general.nav_group_supplies') }}</li>
+                                            @can('index', \App\Models\Accessory::class)
+                                                <li{!! (request()->is('accessories*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('accessories.index') }}">{{ trans('general.accessories') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Component::class)
+                                                <li{!! (request()->is('components*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('components.index') }}">{{ trans('general.components') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\PredefinedKit::class)
+                                                @if ($snipeSettings->show_predefined_kits)
+                                                    <li{!! (request()->is('kits*') ? ' class="active"' : '') !!}>
+                                                        <a href="{{ route('kits.index') }}">{{ trans('general.kits') }}</a>
+                                                    </li>
+                                                @endif
+                                            @endcan
+                                        @endif
+
+                                        @can('view', App\Models\Asset::class)
+                                            <li class="dropdown-header">{{ trans('general.reports') }}</li>
+                                            <li{!! (request()->is('reports') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.index') }}">{{ trans('general.reports') }}</a>
+                                            </li>
+                                            <li{!! (request()->is('reports/fleet-health*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.fleet-health') }}">{{ trans('admin/reports/general.fleet_health') }}</a>
+                                            </li>
+                                            <li{!! (request()->is('reports/audit*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.audit') }}">{{ trans('general.audit_report') }}</a>
+                                            </li>
+                                            <li{!! (request()->is('reports/activity*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.activity') }}">{{ trans('general.activity_report') }}</a>
+                                            </li>
+                                        @endcan
+                                    </ul>
                                 </li>
-                            @endcan
+                            @endif
                         </ul>
                     </div>
                 </nav>
