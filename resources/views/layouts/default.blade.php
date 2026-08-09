@@ -1016,20 +1016,25 @@
              would have to shed anything else. --}}
         @media (min-width: 1200px) {
             .main-sidebar { display: none !important; }
-            {{-- AdminLTE pins these with !important at three-class
-                 specificity, so the override has to match it selector for
-                 selector or the content keeps a 50px gutter reserved for an
-                 icon rail that is no longer rendered. --}}
-            .content-wrapper,
-            .main-footer,
-            .right-side,
-            .sidebar-collapse .content-wrapper,
-            .sidebar-collapse .main-footer,
-            .sidebar-mini.sidebar-collapse .content-wrapper,
-            .sidebar-mini.sidebar-collapse .main-footer,
-            .sidebar-mini.sidebar-collapse .right-side { margin-left: 0 !important; }
-            .main-header .navbar,
-            .sidebar-mini.sidebar-collapse .main-header .navbar { margin-left: 0 !important; }
+            {{-- Every one of these reserves room for a sidebar that is no
+                 longer rendered. They are pinned with !important further down
+                 this stylesheet, and an override of equal specificity loses on
+                 source order alone — which is exactly what happened: the bar
+                 kept a 50px strip of bare page down its left edge because a
+                 later `.main-header .navbar` rule won by position. Prefixing
+                 with `body` outranks them outright, so the fix no longer
+                 depends on where in the file it sits. --}}
+            body .content-wrapper,
+            body .main-footer,
+            body .right-side,
+            body.sidebar-collapse .content-wrapper,
+            body.sidebar-collapse .main-footer,
+            body.sidebar-mini.sidebar-collapse .content-wrapper,
+            body.sidebar-mini.sidebar-collapse .main-footer,
+            body.sidebar-mini.sidebar-collapse .right-side { margin-left: 0 !important; }
+            body .main-header .navbar,
+            body.sidebar-mini .main-header .navbar,
+            body.sidebar-mini.sidebar-collapse .main-header .navbar { margin-left: 0 !important; }
             .main-header .sidebar-toggle { display: none !important; }
 
             {{-- Hover opens the menu; the tab itself stays a real link, so
@@ -1043,7 +1048,7 @@
              block — which is allowed to shrink — gets crushed and spills its
              contents across the tabs instead of anything wrapping. Shed the
              labels well before that point. --}}
-        @media (min-width: 1200px) and (max-width: 1399px) {
+        @media (min-width: 1200px) and (max-width: 1499px) {
             .topnav .topbar-nav-label { display: none; }
         }
         @media (max-width: 1199px) {
@@ -1332,7 +1337,7 @@
         {{-- The wordmark was sized for a bar that held only the wordmark. It
              now shares the row with lookup and six sections. --}}
         @media (min-width: 1200px) {
-            img.navbar-brand-img { max-width: clamp(150px, 14vw, 240px); }
+            img.navbar-brand-img { max-width: clamp(210px, 20vw, 340px); }
         }
         @media (max-width: 767px) {
             .main-header .topbar-search-form { display: none; }
