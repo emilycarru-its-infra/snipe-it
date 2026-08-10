@@ -279,9 +279,46 @@
             margin-bottom: 10px;
         }
         .contracts-report-actions { white-space: nowrap; }
-        /* The report tables run wide — let them scroll inside the pane rather
-           than stretching the page. */
-        .snipetab-pane .table-responsive { overflow-x: auto; }
+
+        /* ── Frozen table headings ───────────────────────────────────────
+           position:sticky is killed by any scrolling ancestor, so the page
+           has to be the scroller: AdminLTE clips .wrapper/.content-wrapper,
+           and Bootstrap's .table-responsive ships overflow-x:auto at every
+           width. Both are lifted here, and only narrow screens fall back to
+           the table's own scroller — a wide table must not force the whole
+           page to scroll sideways. */
+        .wrapper, .content-wrapper { overflow: visible !important; }
+
+        @media (min-width: 992px) {
+            .snipetab-pane .table-responsive { overflow: visible; }
+        }
+        @media (max-width: 991px) {
+            .snipetab-pane .table-responsive {
+                overflow: auto;
+                max-height: calc(100vh - var(--header-h, 68px) - 160px);
+            }
+        }
+
+        /* The register's heads pin below the toolbar the layout already
+           sticks under the app bar; the offset is measured live in
+           stickyHeads(). The opaque background is what stops rows showing
+           through as they pass underneath. This block only ships with this
+           page, so the selectors need no extra scoping. */
+        .snipe-table thead th,
+        .snipetab-pane .table thead th {
+            position: sticky;
+            top: var(--contracts-thead-top, var(--header-h, 68px));
+            z-index: 5;
+            background: var(--box-bg, #fff);
+            box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);
+        }
+
+        /* The rounded box does not clip its children, so a pinned thead with
+           an opaque background overdraws the corner radius. clip is not a
+           scroll container, so sticky keeps tracking the page. Applied to the
+           tab container only — the register box holds the toolbar's column
+           dropdown, which has to be able to escape it. */
+        .nav-tabs-custom { overflow: clip; }
         /* Scope bar: FY picker and the filters on one line, wrapping as a
            unit on narrow viewports rather than overflowing. */
         .contracts-scopebar {
@@ -408,21 +445,25 @@
         });
     })();
 
-    // Each report's table is fetched the first time its tab is shown, not on
-    // page load — the serial register in particular is a heavy query, and
-    // opening /contracts should not pay for six reports nobody looked at.
+    // Every report loads on page open so switching tabs is instant. They go
+    // one at a time rather than seven in parallel — the serial register is a
+    // heavy query and a stampede just makes them all slower — and the tab
+    // handler stays wired to pick up anything that failed or hasn't landed
+    // by the time it is clicked.
     (function () {
-        function load(pane) {
-            var el = pane && pane.querySelector('.contracts-report-body[data-embed-url]');
-            if (! el || el.dataset.loaded) { return; }
+        function load(el) {
+            if (! el || el.dataset.loaded) { return Promise.resolve(); }
             el.dataset.loaded = '1';
 
-            fetch(el.dataset.embedUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+            return fetch(el.dataset.embedUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
                 .then(function (resp) {
                     if (! resp.ok) { throw new Error('HTTP ' + resp.status); }
                     return resp.text();
                 })
-                .then(function (html) { el.innerHTML = html; })
+                .then(function (html) {
+                    el.innerHTML = html;
+                    stickyHeads();
+                })
                 .catch(function () {
                     delete el.dataset.loaded;
                     el.innerHTML = '<p class="text-danger">' + @json(trans('general.something_went_wrong')) + '</p>';
@@ -430,18 +471,51 @@
         }
 
         $('a[data-toggle="tab"][href^="#rpt-"]').on('shown.bs.tab', function (e) {
-            load(document.querySelector(e.target.getAttribute('href')));
+            var pane = document.querySelector(e.target.getAttribute('href'));
+            load(pane && pane.querySelector('.contracts-report-body[data-embed-url]'));
         });
 
-        // The layout force-activates the first tab in an inline script that
-        // runs after this block, so wait for ready before loading whichever
-        // pane actually ended up visible.
         $(function () {
-            var active = document.querySelector('.snipetab-pane.active[id^="rpt-"]')
-                || document.querySelector('[id^="rpt-"].snipetab-pane');
-            load(active);
+            // Visible tab first so it is ready soonest, then the rest in order.
+            var active = document.querySelector('.snipetab-pane.active[id^="rpt-"]');
+            var bodies = Array.prototype.slice.call(
+                document.querySelectorAll('.contracts-report-body[data-embed-url]')
+            );
+            if (active) {
+                var first = active.querySelector('.contracts-report-body[data-embed-url]');
+                bodies = [first].concat(bodies.filter(function (b) { return b !== first; }));
+            }
+
+            bodies.reduce(function (chain, el) {
+                return chain.then(function () { return load(el); });
+            }, Promise.resolve());
         });
     })();
+
+    // Frozen table headings. The layout pins the bootstrap-table toolbar
+    // under the app bar, so a thead left unpinned lets rows scroll up
+    // underneath it — which is the strip of background that reads as a bar
+    // across the top of the table. Pin the heads too, directly below the
+    // toolbar, measuring its height live because it wraps at narrow widths.
+    function stickyHeads() {
+        var headerVar = getComputedStyle(document.documentElement).getPropertyValue('--header-h');
+        var headerH = parseInt(headerVar, 10);
+        if (isNaN(headerH)) { headerH = 68; }
+
+        document.querySelectorAll('.bootstrap-table').forEach(function (table) {
+            var toolbar = table.querySelector('.fixed-table-toolbar');
+            var offset = headerH + (toolbar ? toolbar.offsetHeight : 0);
+            table.style.setProperty('--contracts-thead-top', offset + 'px');
+        });
+
+        document.querySelectorAll('.snipetab-pane').forEach(function (pane) {
+            pane.style.setProperty('--contracts-thead-top', headerH + 'px');
+        });
+    }
+
+    window.addEventListener('resize', function () { requestAnimationFrame(stickyHeads); }, { passive: true });
+    window.addEventListener('load', stickyHeads);
+    $(function () { stickyHeads(); });
 </script>
 @endif
 @stop
