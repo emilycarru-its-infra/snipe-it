@@ -10,18 +10,21 @@
     {{-- The strip is the reports' filter toolbar, not the pipeline's footer:
          a soft tinted band with surface-filled chips reads as controls for
          what follows, while the fifth-lines keep running through it. --}}
-    {{-- One continuous width: the strip spans exactly the pipeline's and the
-         report tables' edges, in flow and while pinned alike. --}}
+    {{-- One continuous width: the strip runs border line to border line of
+         the box (over its 10px body padding), in flow and while pinned
+         alike; the inner scroll pads the 10px back so the pill fifths stay
+         on the pipeline's columns. --}}
     .pr-pills-sticky {
         position: sticky;
         top: var(--header-h, 68px);
         z-index: 30;
         background: color-mix(in srgb, var(--pp-ink, #333a40) 4%, var(--pp-surface, #fff));
         border-top: 1px solid var(--pp-line, #e4e9ee);
-        margin: 12px 0 0;
+        margin: 12px -10px 0;
         padding: 0 0 6px;
         box-shadow: 0 1px 0 var(--pp-line, #e4e9ee);
     }
+    .pr-pill-scroll { padding: 0 10px; }
     {{-- Banner heading: full-width bar naming the section without breaking
          the fifth columns running below it. --}}
     .pr-strip-banner {
