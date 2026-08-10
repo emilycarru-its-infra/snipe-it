@@ -95,11 +95,12 @@ class ContractsController extends Controller
                 'totalCost',
                 'themes',
             ),
-            // The charts and the embedded report sections are the reporting
-            // half of the page and stay behind the reports permission.
-            auth()->user()?->can('reports.contracts.view')
-                ? $this->dashboardCharts($filters)
-                : ['charts' => null],
+            // One page, one permission. The tiles, charts, reports and
+            // register are a single view of the same rows, so splitting them
+            // across `contracts.view` and a second reporting permission only
+            // produced a half-drawn page — and the figures they carry are
+            // already in the register's own columns.
+            $this->dashboardCharts($filters),
         ));
     }
 

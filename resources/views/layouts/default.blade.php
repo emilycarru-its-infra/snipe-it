@@ -2377,7 +2377,6 @@
                         @canany([
                             'reports.view',
                             'reports.procurement.view',
-                            'reports.contracts.view',
                             'reports.transactions.view',
                         ])
                             <li class="treeview{{ (request()->is('reports*') ? ' active' : '') }}">

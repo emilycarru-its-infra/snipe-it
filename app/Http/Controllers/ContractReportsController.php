@@ -17,6 +17,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * whether they're looking at purchasing or contracts.
  *
  * The dashboard half (tiles + charts) lives in ContractsController.
+ *
+ * Authorization is the plain contracts permission: these are sections of
+ * /contracts, so anyone who can open that page can open the section it
+ * embeds. They answered to a separate `reports.contracts.view` while they
+ * lived under /reports.
  */
 class ContractReportsController extends Controller
 {
@@ -24,7 +29,7 @@ class ContractReportsController extends Controller
 
     public function expiringSoon(Request $request)
     {
-        $this->authorize('reports.contracts.view');
+        $this->authorize('view', Contract::class);
 
         $days = max(1, (int) $request->query('days', 90));
         $rows = Contract::realOnly()
@@ -51,7 +56,7 @@ class ContractReportsController extends Controller
      */
     public function renewalSeries(Request $request)
     {
-        $this->authorize('reports.contracts.view');
+        $this->authorize('view', Contract::class);
 
         $series = Contract::where('is_synthesized', true)
             ->with(['children' => fn ($q) => $q->orderBy('fiscal_year')])
@@ -69,7 +74,7 @@ class ContractReportsController extends Controller
 
     public function byArea(Request $request)
     {
-        $this->authorize('reports.contracts.view');
+        $this->authorize('view', Contract::class);
 
         $rows = Contract::realOnly()
             ->selectRaw('COALESCE(theme, "—") AS theme, COUNT(*) AS n, SUM(total_cost) AS total')
@@ -93,7 +98,7 @@ class ContractReportsController extends Controller
 
     public function byProvider(Request $request)
     {
-        $this->authorize('reports.contracts.view');
+        $this->authorize('view', Contract::class);
 
         $rows = Contract::realOnly()
             ->leftJoin('suppliers', 'suppliers.id', '=', 'contracts.supplier_id')
@@ -118,7 +123,7 @@ class ContractReportsController extends Controller
 
     public function serialRegister(Request $request)
     {
-        $this->authorize('reports.contracts.view');
+        $this->authorize('view', Contract::class);
 
         $serials = ContractSerial::with('contract', 'asset')
             ->orderBy('serial')
@@ -150,7 +155,7 @@ class ContractReportsController extends Controller
 
     public function namingViolatorsReport(Request $request)
     {
-        $this->authorize('reports.contracts.view');
+        $this->authorize('view', Contract::class);
 
         $rows = $this->namingViolators()->get();
 
@@ -174,7 +179,7 @@ class ContractReportsController extends Controller
 
     public function staleReport(Request $request)
     {
-        $this->authorize('reports.contracts.view');
+        $this->authorize('view', Contract::class);
 
         $rows = $this->stale()->orderBy('tdx_modified_date')->get();
 
