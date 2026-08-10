@@ -38,7 +38,7 @@ class ProcurementPipelineTest extends TestCase
             ->assertSee('ORD-PIPE-OPEN')
             ->assertSee('PLN-PIPE-1')
             ->assertSee(trans('admin/purchase-orders/general.pipeline_needs_po'))
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_returns_title'));
+            ->assertSee(trans('admin/purchase-orders/general.returns_card_title'));
     }
 
     public function test_processing_and_deploying_are_one_stage_linking_to_the_deployments_board()
