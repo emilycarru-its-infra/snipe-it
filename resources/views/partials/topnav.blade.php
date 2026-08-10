@@ -7,7 +7,8 @@
 <ul class="nav navbar-nav topnav">
 
     @can('index', \App\Models\Asset::class)
-        <li class="dropdown topnav-item topnav-assets{!! (request()->is('hardware*') || request()->is('statuslabels/*') || request()->is('maintenances*') ? ' active' : '') !!}">
+        @if (\App\Helpers\ToolbarConfig::visible('assets'))
+    <li style="order: {{ \App\Helpers\ToolbarConfig::order('assets') }}" class="dropdown topnav-item topnav-assets{!! (request()->is('hardware*') || request()->is('statuslabels/*') || request()->is('maintenances*') ? ' active' : '') !!}">
             <a href="{{ route('hardware.index') }}" {{ $snipeSettings->shortcuts_enabled == 1 ? 'accesskey=1' : '' }}>
                 <x-icon type="assets" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('general.assets') }}</span>
@@ -55,10 +56,12 @@
                 @endcan
             </ul>
         </li>
+    @endif
     @endcan
 
-    @can('view', \App\Models\Order::class)
-        <li class="dropdown topnav-item topnav-deployments{!! ((request()->is('reports/deployments*') || request()->is('deployments*') || request()->is('deployment-waves*') || request()->is('deployment-config*') || request()->is('deployment-blackouts*')) ? ' active' : '') !!}">
+    @can('deployments.view')
+        @if (\App\Helpers\ToolbarConfig::visible('deployments'))
+    <li style="order: {{ \App\Helpers\ToolbarConfig::order('deployments') }}" class="dropdown topnav-item topnav-deployments{!! ((request()->is('reports/deployments*') || request()->is('deployments*') || request()->is('deployment-waves*') || request()->is('deployment-config*') || request()->is('deployment-blackouts*')) ? ' active' : '') !!}">
             <a href="{{ route('reports.deployments') }}">
                 <x-icon type="deployments" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('admin/deployments/general.dashboard_title') }}</span>
@@ -92,10 +95,12 @@
                 </li>
             </ul>
         </li>
+    @endif
     @endcan
 
     @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class))
-        <li class="dropdown topnav-item topnav-procurement{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
+        @if (\App\Helpers\ToolbarConfig::visible('procurement'))
+    <li style="order: {{ \App\Helpers\ToolbarConfig::order('procurement') }}" class="dropdown topnav-item topnav-procurement{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
             <a href="{{ route('procurement.index') }}">
                 <x-icon type="procurement" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('general.procurement') }}</span>
@@ -167,9 +172,11 @@
             </ul>
         </li>
     @endif
+    @endif
 
     @if (Gate::allows('view', \App\Models\Contract::class) || Gate::allows('view', \App\Models\License::class))
-        <li class="dropdown topnav-item topnav-contracts{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' active' : '') !!}">
+        @if (\App\Helpers\ToolbarConfig::visible('contracts'))
+    <li style="order: {{ \App\Helpers\ToolbarConfig::order('contracts') }}" class="dropdown topnav-item topnav-contracts{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' active' : '') !!}">
             <a href="{{ route('contracts.index') }}" {{ $snipeSettings->shortcuts_enabled == 1 ? 'accesskey=2' : '' }}>
                 <x-icon type="contracts" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('admin/contracts/general.contracts') }}</span>
@@ -199,9 +206,11 @@
             </ul>
         </li>
     @endif
+    @endif
 
     @can('view', \App\Models\Consumable::class)
-        <li class="dropdown topnav-item topnav-consumables{!! ((request()->is('consumables*') || request()->is('reports/transactions*') || request()->is('reports/printing*')) ? ' active' : '') !!}">
+        @if (\App\Helpers\ToolbarConfig::visible('consumables'))
+    <li style="order: {{ \App\Helpers\ToolbarConfig::order('consumables') }}" class="dropdown topnav-item topnav-consumables{!! ((request()->is('consumables*') || request()->is('reports/transactions*') || request()->is('reports/printing*')) ? ' active' : '') !!}">
             <a href="{{ url('consumables') }}" {{ $snipeSettings->shortcuts_enabled == 1 ? 'accesskey=3' : '' }}>
                 <x-icon type="consumables" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('general.consumables') }}</span>
@@ -221,10 +230,12 @@
                 @endcan
             </ul>
         </li>
+    @endif
     @endcan
 
     @if (Gate::allows('view', \App\Models\User::class) || Gate::allows('view', \App\Models\Department::class) || Gate::allows('view', \App\Models\Location::class) || Gate::allows('view', \App\Models\Company::class))
-        <li class="dropdown topnav-item topnav-users{!! ((request()->is('users*') || request()->is('groups*') || request()->is('departments*') || request()->is('locations*') || request()->is('companies*')) ? ' active' : '') !!}">
+        @if (\App\Helpers\ToolbarConfig::visible('users'))
+    <li style="order: {{ \App\Helpers\ToolbarConfig::order('users') }}" class="dropdown topnav-item topnav-users{!! ((request()->is('users*') || request()->is('groups*') || request()->is('departments*') || request()->is('locations*') || request()->is('companies*')) ? ' active' : '') !!}">
             <a href="{{ route('users.index') }}" {{ $snipeSettings->shortcuts_enabled == 1 ? 'accesskey=4' : '' }}>
                 <x-icon type="users" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('general.users') }}</span>
@@ -267,6 +278,7 @@
                 @endcan
             </ul>
         </li>
+    @endif
     @endif
 
 </ul>

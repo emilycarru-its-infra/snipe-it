@@ -550,6 +550,19 @@
             overflow: hidden;
             border-radius: 0 0 14px 14px;
         }
+        {{-- Scroll containers must still scroll — the radius clip above
+             otherwise swallows their overflow:auto and the table just
+             truncates at the box edge. --}}
+        .box > .box-body.no-padding.dp-scroll,
+        .box > .box-body.no-padding.fc-scroll,
+        .box > .box-body.no-padding.sticky-table {
+            overflow: auto;
+        }
+        .box > .box-body .table:last-child { margin-bottom: 0; }
+        .box > .box-body .table:last-child > tbody:last-child > tr:last-child > td,
+        .box > .box-body .table:last-child > tbody:last-child > tr:last-child > th {
+            border-bottom: 0;
+        }
 
         {{-- AdminLTE small-boxes (contracts dashboard, reports hub, fleet
              health) painted the whole tile in a status colour. They are ecu
@@ -983,6 +996,20 @@
              one variable: brand row, pill margins, sticky offsets. --}}
         :root { --header-h: 68px; }
 
+        /* Frozen table headers via explicit scroll containers: wrap a table
+           in .sticky-table (or give the wrapper the class alongside its own)
+           and the header pins to the container top while rows scroll under
+           it. Container-scoped on purpose — a page-global sticky rule
+           fights every non-scrolling table's geometry. */
+        .sticky-table { max-height: 70vh; overflow: auto; }
+        .sticky-table table > thead > tr > th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: var(--box-bg, #fff);
+            box-shadow: 0 1px 0 var(--box-border-color, #f4f4f4);
+        }
+
         {{-- The header is one flex row and never wraps. The wordmark scales
              with the viewport, and below that the quick-nav items drop out
              one by one (username text first, then Deployments, Contracts,
@@ -1078,6 +1105,7 @@
              scrollport, so sticky means the viewport again. --}}
         body, .wrapper {
             overflow: clip visible !important;
+            overflow-clip-margin: 24px;
         }
         @media (min-width: 768px) {
             .main-header {
@@ -1328,6 +1356,21 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+            .tsp-mark { background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 28%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+            #topSearchButton.tsp-busy svg, #topSearchButton.tsp-busy i { display: none; }
+            #topSearchButton.tsp-busy::after {
+                content: '';
+                display: inline-block;
+                width: 13px;
+                height: 13px;
+                border: 2px solid var(--chrome-border-color, #d5d5d5);
+                border-top-color: var(--chrome-fg-muted, #666);
+                border-radius: 50%;
+                animation: tsp-spin 0.7s linear infinite;
+                vertical-align: middle;
+            }
+            @keyframes tsp-spin { to { transform: rotate(360deg); } }
+
         .topbar-search-panel .tsp-empty,
         .topbar-search-panel .tsp-more {
             padding: 10px 14px;
@@ -1387,13 +1430,24 @@
             max-height: calc(100vh - var(--header-h) - 16px);
             overflow-y: auto;
         }
+        {{-- Section labels are signposts, not entries: no hover state, a
+             rule above to close the previous group, and pointer-events off
+             so nothing about them suggests a click. --}}
         .main-header .navbar .topnav-menu > li.dropdown-header {
-            padding: 8px 16px 4px;
-            font-size: 11px;
+            padding: 10px 16px 4px;
+            font-size: 10.5px;
             font-weight: 700;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
             color: var(--chrome-fg-muted);
+            pointer-events: none;
+            background: transparent !important;
+            border-top: 1px solid var(--chrome-border-color, #e5e5e5);
+            margin-top: 6px;
+        }
+        .main-header .navbar .topnav-menu > li.dropdown-header:first-child {
+            border-top: 0;
+            margin-top: 0;
         }
         .main-header .navbar .topnav-menu .badge {
             background: var(--chrome-active-bg);
@@ -3600,8 +3654,10 @@
                 var endpoint = @json(route('search.suggest'));
                 var labels = {
                     empty: @json(trans('general.no_results')),
-                    more: @json(trans('general.view_all'))
+                    more: @json(trans('general.view_all')),
+                    searching: @json(trans('general.top_search_searching'))
                 };
+                var button = document.getElementById('topSearchButton');
 
                 var timer = null;
                 var controller = null;
@@ -3631,6 +3687,15 @@
                         .replace(/"/g, '&quot;');
                 }
 
+                // Escape first, then wrap every occurrence of the query so
+                // the eye lands on WHY each row matched.
+                function highlight(value, query) {
+                    var safe = escape(value);
+                    if (!query) { return safe; }
+                    var pattern = escape(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    return safe.replace(new RegExp('(' + pattern + ')', 'ig'), '<mark class="tsp-mark">$1</mark>');
+                }
+
                 function render(payload) {
                     if (!payload.groups.length) {
                         panel.innerHTML = '<div class="tsp-empty">' + escape(labels.empty) + '</div>';
@@ -3643,8 +3708,8 @@
                         html += '<div class="tsp-group-label"><span>' + escape(group.label) + '</span><span>' + group.count + '</span></div>';
                         group.items.forEach(function (item) {
                             html += '<a class="tsp-hit" href="' + escape(item.url) + '">'
-                                 +  '<span class="tsp-title">' + escape(item.title) + '</span>'
-                                 +  (item.subtitle ? '<span class="tsp-sub">' + escape(item.subtitle) + '</span>' : '')
+                                 +  '<span class="tsp-title">' + highlight(item.title, payload.query) + '</span>'
+                                 +  (item.subtitle ? '<span class="tsp-sub">' + highlight(item.subtitle, payload.query) + '</span>' : '')
                                  +  '</a>';
                         });
                         if (group.index_url) {
@@ -3661,6 +3726,14 @@
                     if (controller) { controller.abort(); }
                     controller = new AbortController();
 
+                    // Something IS happening: spin the glass, and say so in
+                    // the panel when there are no earlier results on screen.
+                    if (button) { button.classList.add('tsp-busy'); }
+                    if (!panel.querySelector('.tsp-hit')) {
+                        panel.innerHTML = '<div class="tsp-empty">' + escape(labels.searching) + '</div>';
+                        panel.hidden = false;
+                    }
+
                     fetch(endpoint + '?q=' + encodeURIComponent(query), {
                         signal: controller.signal,
                         headers: {'X-Requested-With': 'XMLHttpRequest'},
@@ -3668,12 +3741,13 @@
                     })
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (payload) {
+                        if (button) { button.classList.remove('tsp-busy'); }
                         // A slow response for a query the user has already
                         // typed past must not overwrite a newer one.
                         if (!payload || payload.query !== input.value.trim()) { return; }
                         render(payload);
                     })
-                    .catch(function () { /* aborted or offline: leave the panel as-is */ });
+                    .catch(function () { if (button) { button.classList.remove('tsp-busy'); } });
                 }
 
                 input.addEventListener('input', function () {

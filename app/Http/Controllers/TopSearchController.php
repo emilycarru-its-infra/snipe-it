@@ -136,16 +136,32 @@ class TopSearchController extends Controller
                 });
             $count = (clone $builder)->count();
 
+            // Lead with the field that actually matched — "rod" hits the
+            // device name, so the name is the headline and the tag drops to
+            // the detail line, not the other way round.
             $rows = $builder->orderBy('asset_tag')->limit(self::PER_GROUP)->get()
-                ->map(fn (Asset $asset) => [
-                    'title' => $asset->asset_tag ?: ($asset->name ?: $asset->serial),
-                    'subtitle' => trim(collect([
+                ->map(function (Asset $asset) use ($query) {
+                    $fields = array_values(array_filter([
+                        $asset->asset_tag,
+                        $asset->serial,
                         $asset->name,
                         optional($asset->model)->name,
-                        $asset->serial,
-                    ])->filter()->implode(' · ')),
-                    'url' => route('hardware.show', $asset->id),
-                ])->all();
+                    ]));
+                    $matched = null;
+                    foreach ($fields as $value) {
+                        if (mb_stripos($value, $query) !== false) {
+                            $matched = $value;
+                            break;
+                        }
+                    }
+                    $title = $matched ?: ($asset->asset_tag ?: ($asset->name ?: $asset->serial));
+
+                    return [
+                        'title' => $title,
+                        'subtitle' => trim(collect($fields)->reject(fn ($value) => $value === $title)->unique()->implode(' · ')),
+                        'url' => route('hardware.show', $asset->id),
+                    ];
+                })->all();
 
             return [$rows, $count];
         });
@@ -159,7 +175,7 @@ class TopSearchController extends Controller
 
             $rows = $builder->orderBy('last_name')->limit(self::PER_GROUP)->get()
                 ->map(fn (User $user) => [
-                    'title' => $user->display_name,
+                    'title' => $user->present()->fullName,
                     'subtitle' => trim(collect([$user->username, $user->email])->filter()->implode(' · ')),
                     'url' => route('users.show', $user->id),
                 ])->all();

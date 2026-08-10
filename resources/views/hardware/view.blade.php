@@ -886,8 +886,8 @@
                readable column, not a full-bleed sprawl. The identity box caps
                to the same width so its right edge lines up with the
                Procurement card below it. */
-            .asset-identity-box { max-width: 1000px; }
-            .asset-detail-2col { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; width: 100%; max-width: 1000px; }
+            .asset-identity-box { max-width: min(1440px, 100%); }
+            .asset-detail-2col { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; width: 100%; max-width: min(1440px, 100%); }
             .asset-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
             .asset-col-left  { flex: 1 1 44%; }
             /* An empty column (no fieldset on the model) must not reserve

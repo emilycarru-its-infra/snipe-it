@@ -579,6 +579,11 @@ Route::group(['middleware' => 'auth'], function () {
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser']], function () {
 
+    Route::get('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'edit'])
+        ->name('admin.toolbar.edit');
+    Route::post('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'update'])
+        ->name('admin.toolbar.update');
+
     Route::get('settings', [SettingsController::class, 'getSettings'])
         ->name('settings.general.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
