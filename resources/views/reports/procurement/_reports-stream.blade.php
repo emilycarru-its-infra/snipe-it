@@ -10,26 +10,18 @@
     {{-- The strip is the reports' filter toolbar, not the pipeline's footer:
          a soft tinted band with surface-filled chips reads as controls for
          what follows, while the fifth-lines keep running through it. --}}
-    {{-- The strip bleeds over the box padding to its border in flow, and all
-         the way to the viewport edges while pinned (the observer sets
-         --pr-edge and the pr-stuck class); the inner scroll pads the same
-         amount back so the pill fifths never move. --}}
+    {{-- One continuous width: the strip spans exactly the pipeline's and the
+         report tables' edges, in flow and while pinned alike. --}}
     .pr-pills-sticky {
         position: sticky;
         top: var(--header-h, 68px);
         z-index: 30;
         background: color-mix(in srgb, var(--pp-ink, #333a40) 4%, var(--pp-surface, #fff));
         border-top: 1px solid var(--pp-line, #e4e9ee);
-        margin: 12px -10px 0;
+        margin: 12px 0 0;
         padding: 0 0 6px;
         box-shadow: 0 1px 0 var(--pp-line, #e4e9ee);
     }
-    .pr-pill-scroll { padding: 0 10px; }
-    .pr-pills-sticky.pr-stuck {
-        margin-left: calc(-1 * var(--pr-edge, 26px));
-        margin-right: calc(-1 * var(--pr-edge, 26px));
-    }
-    .pr-pills-sticky.pr-stuck .pr-pill-scroll { padding: 0 var(--pr-edge, 26px); }
     {{-- Banner heading: full-width bar naming the section without breaking
          the fifth columns running below it. --}}
     .pr-strip-banner {
@@ -69,7 +61,6 @@
 </style>
 <div id="pr-reports" style="margin-top:0; padding-top:0;">
 
-        <div class="pr-strip-sentinel" aria-hidden="true"></div>
         <div class="pr-pills-sticky">
             <div class="pr-strip-banner">{{ trans('general.reports') }}</div>
             @if (! empty($hiddenReports))
@@ -137,23 +128,3 @@
         </div>
 
 </div>
-<script nonce="{{ csrf_token() }}">
-    // Track when the strip pins under the app bar (sentinel just above it):
-    // while stuck it stretches to the viewport edges, so --pr-edge carries
-    // the distance from the viewport to the strip's normal left edge and the
-    // inner scroll pads it back to keep the fifths aligned.
-    (function () {
-        var strip = document.querySelector('.pr-pills-sticky');
-        var sentinel = document.querySelector('.pr-strip-sentinel');
-        if (! strip || ! sentinel || ! ('IntersectionObserver' in window)) { return; }
-        var headerH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-h'), 10) || 68;
-        function setEdge() {
-            strip.style.setProperty('--pr-edge', Math.round(strip.parentElement.getBoundingClientRect().left) + 'px');
-        }
-        setEdge();
-        window.addEventListener('resize', function () { requestAnimationFrame(setEdge); }, { passive: true });
-        new IntersectionObserver(function (entries) {
-            strip.classList.toggle('pr-stuck', ! entries[0].isIntersecting);
-        }, { rootMargin: '-' + (headerH + 1) + 'px 0px 0px 0px' }).observe(sentinel);
-    })();
-</script>
