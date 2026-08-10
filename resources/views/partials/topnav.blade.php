@@ -199,8 +199,8 @@
                 @endcan
                 @can('reports.contracts.view')
                     <li class="dropdown-header">{{ trans('general.reports') }}</li>
-                    <li{!! (request()->is('reports/contracts*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('reports.contracts') }}">{{ trans('admin/reports/general.hub_tile_contracts') }}</a>
+                    <li{!! (request()->is('contracts*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('contracts.index') }}">{{ trans('admin/reports/general.hub_tile_contracts') }}</a>
                     </li>
                 @endcan
             </ul>
