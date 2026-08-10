@@ -197,7 +197,7 @@
                         <a href="{{ route('license-models.index') }}">{{ trans('admin/licensemodels/general.sidebar_label') }}</a>
                     </li>
                 @endcan
-                @can('reports.contracts.view')
+                @can('view', \App\Models\Contract::class)
                     <li class="dropdown-header">{{ trans('general.reports') }}</li>
                     <li{!! (request()->is('contracts*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('contracts.index') }}">{{ trans('admin/reports/general.hub_tile_contracts') }}</a>
