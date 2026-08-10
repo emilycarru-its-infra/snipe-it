@@ -30,19 +30,16 @@ class ContractsController extends Controller
     {
         $this->authorize('view', Contract::class);
 
-        $allFiscalYears = Contract::whereNotNull('fiscal_year')
-            ->distinct()->orderBy('fiscal_year')->pluck('fiscal_year');
+        $allFiscalYears = $this->fiscalYearRange();
 
         // Opens on the current fiscal year, same as /procurement, and moves
-        // with the calendar rather than being pinned to a year. When the
-        // current FY holds no contracts yet (early in a year, or contracts
-        // dated by signing year), fall back to the most recent FY that has
-        // data — $allFiscalYears is ascending and FY labels sort
-        // chronologically — so it never silently opens on the all-time view.
-        // `?fiscal_year=all` is the opt-out.
+        // with the calendar rather than being pinned to a year. The range
+        // always contains the current FY, so it never silently opens on the
+        // all-time view. `?fiscal_year=all` is the opt-out.
         $rawFy = $request->query('fiscal_year');
-        $current = Helper::currentFiscalYear();
-        $defaultFy = $allFiscalYears->contains($current) ? $current : $allFiscalYears->last();
+        $currentStart = $this->fyStartYear(Helper::currentFiscalYear());
+        $defaultFy = $allFiscalYears->first(fn ($l) => $this->fyStartYear($l) === $currentStart)
+            ?? $allFiscalYears->last();
         if ($rawFy === 'all') {
             $selectedFy = null;
         } elseif ($rawFy !== null && $allFiscalYears->contains($rawFy)) {
@@ -163,6 +160,48 @@ class ContractsController extends Controller
      * asked for the renewal series rows; a series row would otherwise show up
      * as an extra contract carrying no cost.
      */
+    /**
+     * The contract register starts at FY2024-25: the picker and the FY chart
+     * run from there through next fiscal year regardless of which years hold
+     * rows yet, in whichever label format the data already uses (TDX parses
+     * short "FY24-25" labels; the app generates long "FY2024-25" ones).
+     */
+    private const FY_RANGE_FLOOR = 2024;
+
+    private function fyStartYear(?string $label): ?int
+    {
+        if ($label && preg_match('/FY\s*(\d{4}|\d{2})/i', (string) $label, $m)) {
+            $y = (int) $m[1];
+
+            return $y < 100 ? 2000 + $y : $y;
+        }
+
+        return null;
+    }
+
+    private function fyLabel(int $startYear, bool $short): string
+    {
+        $end = substr((string) ($startYear + 1), -2);
+
+        return $short
+            ? 'FY'.substr((string) $startYear, -2).'-'.$end
+            : 'FY'.$startYear.'-'.$end;
+    }
+
+    private function fiscalYearRange(): \Illuminate\Support\Collection
+    {
+        $dataYears = Contract::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year');
+        $short = $dataYears->isNotEmpty()
+            && $dataYears->every(fn ($v) => ! preg_match('/FY\s*\d{4}/i', (string) $v));
+
+        $currentStart = $this->fyStartYear(Helper::currentFiscalYear());
+        $maxData = $dataYears->map(fn ($v) => $this->fyStartYear($v))->filter()->max() ?? $currentStart;
+        $to = max($currentStart + 1, $maxData);
+
+        return collect(range(self::FY_RANGE_FLOOR, $to))
+            ->map(fn ($y) => $this->fyLabel($y, $short));
+    }
+
     private function dashboardCharts(array $filters): array
     {
         $base = function (array $except = []) use ($filters) {
@@ -171,12 +210,41 @@ class ContractsController extends Controller
             return $filters['synthesized_only'] ? $query : $query->realOnly();
         };
 
-        $spendByFy = $base(['fiscal_year'])
+        // Booked spend, bucketed by parsed start year so short and long FY
+        // labels land in the same bar, zero-filled across the whole range.
+        $bookedByYear = $base(['fiscal_year'])
             ->whereNotNull('contracts.fiscal_year')
             ->selectRaw('contracts.fiscal_year AS fy, SUM(contracts.total_cost) AS total')
             ->groupBy('fy')
-            ->orderBy('fy')
-            ->pluck('total', 'fy');
+            ->pluck('total', 'fy')
+            ->reduce(function (array $carry, $total, $fy) {
+                $year = $this->fyStartYear($fy);
+                if ($year !== null) {
+                    $carry[$year] = ($carry[$year] ?? 0) + (float) $total;
+                }
+
+                return $carry;
+            }, []);
+
+        // The forecast leg: an active contract ending in FY X is a renewal
+        // decision in FY X at today's cost, so future years show the spend
+        // current commitments already imply.
+        $renewalByYear = $base(['fiscal_year', 'expiring_days'])
+            ->where('contracts.is_active', true)
+            ->whereNotNull('contracts.end_date')
+            ->where('contracts.end_date', '>=', now())
+            ->selectRaw('CASE WHEN MONTH(contracts.end_date) >= 4 THEN YEAR(contracts.end_date) ELSE YEAR(contracts.end_date) - 1 END AS fy_start, SUM(contracts.total_cost) AS total')
+            ->groupBy('fy_start')
+            ->pluck('total', 'fy_start');
+
+        $range = $this->fiscalYearRange();
+        $currentStart = $this->fyStartYear(Helper::currentFiscalYear());
+        $spendByFy = $range->mapWithKeys(fn ($label) => [$label => (float) ($bookedByYear[$this->fyStartYear($label)] ?? 0)]);
+        $forecastByFy = $range->mapWithKeys(function ($label) use ($renewalByYear, $currentStart) {
+            $year = $this->fyStartYear($label);
+
+            return [$label => $year >= $currentStart ? (float) ($renewalByYear[$year] ?? 0) : 0.0];
+        });
 
         $countByTheme = $base(['theme'])
             ->whereNotNull('contracts.theme')
@@ -212,6 +280,7 @@ class ContractsController extends Controller
             'charts' => [
                 'fyLabels'       => $spendByFy->keys()->all(),
                 'fyValues'       => array_values($spendByFy->all()),
+                'fyForecast'     => array_values($forecastByFy->all()),
                 'providerLabels' => $spendByProvider->keys()->all(),
                 'providerValues' => array_values($spendByProvider->all()),
                 'themeLabels'    => $countByTheme->keys()->all(),

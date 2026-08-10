@@ -281,44 +281,26 @@
         .contracts-report-actions { white-space: nowrap; }
 
         /* ── Frozen table headings ───────────────────────────────────────
-           position:sticky is killed by any scrolling ancestor, so the page
-           has to be the scroller: AdminLTE clips .wrapper/.content-wrapper,
-           and Bootstrap's .table-responsive ships overflow-x:auto at every
-           width. Both are lifted here, and only narrow screens fall back to
-           the table's own scroller — a wide table must not force the whole
-           page to scroll sideways. */
-        .wrapper, .content-wrapper { overflow: visible !important; }
-
-        @media (min-width: 992px) {
-            .snipetab-pane .table-responsive { overflow: visible; }
+           The table's own body is the scroll container and the heads pin at
+           its top — no viewport math, no measuring script, and no fighting
+           AdminLTE's clipped .wrapper. Bootstrap-table already wraps the
+           register in .fixed-table-body; the report tabs get the same
+           treatment through their .table-responsive wrapper. The opaque
+           background is what stops rows showing through as they pass
+           underneath. */
+        .bootstrap-table .fixed-table-body,
+        .snipetab-pane .table-responsive {
+            overflow: auto;
+            max-height: calc(100vh - var(--header-h, 68px) - 210px);
         }
-        @media (max-width: 991px) {
-            .snipetab-pane .table-responsive {
-                overflow: auto;
-                max-height: calc(100vh - var(--header-h, 68px) - 160px);
-            }
-        }
-
-        /* The register's heads pin below the toolbar the layout already
-           sticks under the app bar; the offset is measured live in
-           stickyHeads(). The opaque background is what stops rows showing
-           through as they pass underneath. This block only ships with this
-           page, so the selectors need no extra scoping. */
         .snipe-table thead th,
         .snipetab-pane .table thead th {
             position: sticky;
-            top: var(--contracts-thead-top, var(--header-h, 68px));
+            top: 0;
             z-index: 5;
             background: var(--box-bg, #fff);
             box-shadow: 0 1px 0 var(--box-header-top-border-color, #d2d6de);
         }
-
-        /* The rounded box does not clip its children, so a pinned thead with
-           an opaque background overdraws the corner radius. clip is not a
-           scroll container, so sticky keeps tracking the page. Applied to the
-           tab container only — the register box holds the toolbar's column
-           dropdown, which has to be able to escape it. */
-        .nav-tabs-custom { overflow: clip; }
         /* Scope bar: FY picker and the filters on one line, wrapping as a
            unit on narrow viewports rather than overflowing. */
         .contracts-scopebar {
@@ -394,7 +376,8 @@
             data: {
                 labels: data.fyLabels,
                 datasets: [
-                    { label: @json(trans('admin/contracts/general.total_cost')), backgroundColor: '#3c8dbc', data: data.fyValues }
+                    { label: @json(trans('admin/contracts/general.total_cost')), backgroundColor: '#3c8dbc', data: data.fyValues },
+                    { label: @json(trans('admin/contracts/general.chart_renewal_forecast')), backgroundColor: '#f39c12', data: data.fyForecast }
                 ]
             },
             options: { responsive: true, maintainAspectRatio: false, tooltips: barTip, scales: { yAxes: [moneyAxis()] } }
@@ -462,7 +445,6 @@
                 })
                 .then(function (html) {
                     el.innerHTML = html;
-                    stickyHeads();
                 })
                 .catch(function () {
                     delete el.dataset.loaded;
@@ -492,30 +474,6 @@
         });
     })();
 
-    // Frozen table headings. The layout pins the bootstrap-table toolbar
-    // under the app bar, so a thead left unpinned lets rows scroll up
-    // underneath it — which is the strip of background that reads as a bar
-    // across the top of the table. Pin the heads too, directly below the
-    // toolbar, measuring its height live because it wraps at narrow widths.
-    function stickyHeads() {
-        var headerVar = getComputedStyle(document.documentElement).getPropertyValue('--header-h');
-        var headerH = parseInt(headerVar, 10);
-        if (isNaN(headerH)) { headerH = 68; }
-
-        document.querySelectorAll('.bootstrap-table').forEach(function (table) {
-            var toolbar = table.querySelector('.fixed-table-toolbar');
-            var offset = headerH + (toolbar ? toolbar.offsetHeight : 0);
-            table.style.setProperty('--contracts-thead-top', offset + 'px');
-        });
-
-        document.querySelectorAll('.snipetab-pane').forEach(function (pane) {
-            pane.style.setProperty('--contracts-thead-top', headerH + 'px');
-        });
-    }
-
-    window.addEventListener('resize', function () { requestAnimationFrame(stickyHeads); }, { passive: true });
-    window.addEventListener('load', stickyHeads);
-    $(function () { stickyHeads(); });
 </script>
 @endif
 @stop

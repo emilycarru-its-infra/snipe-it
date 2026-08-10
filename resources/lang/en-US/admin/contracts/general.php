@@ -49,6 +49,7 @@ return [
     // Dashboard
     'all_fiscal_years'        => 'All Fiscal Years',
     'chart_spend_by_fy'       => 'Spend by Fiscal Year',
+    'chart_renewal_forecast'  => 'Renewal forecast — active contracts ending that year',
     'chart_provider'          => 'Top providers (by spend)',
     'chart_theme'             => 'Contracts by area',
     'chart_renewals'          => 'Renewals in the next 12 months',
