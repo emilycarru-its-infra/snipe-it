@@ -75,6 +75,16 @@
                         <tr><th>{{ trans('admin/contracts/general.requisition_number') }}</th><td>{{ $contract->requisition_number ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.voucher_number') }}</th><td>{{ $contract->voucher_number ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.service_offering') }}</th><td>{{ $contract->service_offering ?? '—' }}</td></tr>
+                        <tr><th>{{ trans('admin/contracts/general.service_catalogue') }}</th><td>{{ $contract->service_catalogue ?? '—' }}</td></tr>
+                        <tr><th>{{ trans('admin/contracts/general.ssot') }}</th><td>
+                            @if ($contract->ssot === 'tdx')
+                                <span class="label label-info">{{ trans('admin/contracts/general.ssot_tdx') }}</span>
+                            @elseif ($contract->ssot === 'snipe')
+                                <span class="label label-success">{{ trans('admin/contracts/general.ssot_snipe') }}</span>
+                            @else
+                                <span class="text-muted">{{ trans('admin/contracts/general.ssot_none') }}</span>
+                            @endif
+                        </td></tr>
                         <tr><th>{{ trans('admin/contracts/general.schedule_number') }}</th><td>{{ $contract->schedule_number ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.ticket_url') }}</th><td>
                             @if ($contract->ticket_url)

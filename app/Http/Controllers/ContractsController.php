@@ -118,11 +118,17 @@ class ContractsController extends Controller
             'start_date', 'end_date', 'total_cost', 'currency',
             'description', 'comments_review', 'gl_code',
             'requisition_number', 'voucher_number', 'service_offering',
-            'ticket_url', 'schedule_number', 'notes',
+            'service_catalogue', 'ticket_url', 'schedule_number', 'notes',
         ] as $field) {
             $contract->{$field} = $request->input($field, $contract->{$field});
         }
 
         $contract->is_active = $request->boolean('is_active', $contract->is_active ?? true);
+
+        // SSOT is only ever flipped deliberately: accept the input when
+        // present, normalising '' to null (row leaves the sync entirely).
+        if ($request->has('ssot')) {
+            $contract->ssot = $request->input('ssot') ?: null;
+        }
     }
 }
