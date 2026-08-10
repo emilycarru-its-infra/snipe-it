@@ -76,7 +76,7 @@ class ProcurementReportsController extends Controller
      */
     public function index(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         // Fiscal years available across purchase orders and orders, plus the
         // resolved selection. `?fiscal_year=all` opts out; no value defaults
@@ -293,6 +293,8 @@ class ProcurementReportsController extends Controller
 
         return view('reports/procurement', [
             'pipeline' => ProcurementPipeline::build($selectedFy),
+            'legacyFleet' => \App\Services\LegacyFleet::summary(),
+            'approvers' => \App\Models\StoreApprover::with('user')->get(),
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
             'userAgreementsAwaitingSignatureCount' => $userAgreementsAwaitingSignatureCount,
@@ -332,7 +334,7 @@ class ProcurementReportsController extends Controller
 
     public function poBudget(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -348,7 +350,7 @@ class ProcurementReportsController extends Controller
 
     public function invoices(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -364,7 +366,7 @@ class ProcurementReportsController extends Controller
 
     public function capital(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         $forecast = $request->query('mode') === 'forecast';
         $fy = $this->resolveFiscalYear($request);
@@ -383,7 +385,7 @@ class ProcurementReportsController extends Controller
 
     public function refreshForecast(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         $fy = $this->resolveFiscalYear($request);
 
@@ -620,14 +622,14 @@ class ProcurementReportsController extends Controller
 
     public function receiving(Request $request): StreamedResponse
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->streamReportCsv('receiving-status-report', $this->receivingReport($this->resolveFiscalYear($request)));
     }
 
     public function leasesOperational(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -643,7 +645,7 @@ class ProcurementReportsController extends Controller
 
     public function leasesFinancial(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -667,7 +669,7 @@ class ProcurementReportsController extends Controller
      */
     public function leaseDataHealth(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -680,7 +682,7 @@ class ProcurementReportsController extends Controller
 
     public function csiSchedule(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -702,7 +704,7 @@ class ProcurementReportsController extends Controller
      */
     public function csiReconciliation(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         $fy = $this->resolveFiscalYear($request);
         $report = $this->csiReconciliationReport($fy);
@@ -819,7 +821,7 @@ class ProcurementReportsController extends Controller
      */
     public function csiArrivals(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -929,7 +931,7 @@ class ProcurementReportsController extends Controller
 
     public function invoiceApproval(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         $status = $request->query('status');
         $attestation = $request->query('attestation_type');
@@ -948,7 +950,7 @@ class ProcurementReportsController extends Controller
 
     public function userAgreementLedger(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         $typeFilter = $request->query('agreement_type');
         $stageFilter = $request->query('stage');
@@ -963,26 +965,9 @@ class ProcurementReportsController extends Controller
             return $this->embedTable($report);
         }
 
-        // FY scopes by the agreement's origination (created_at) — when the
-        // top-up / buyout entered the program.
-        $agreements = $this->scopeDateToFiscalYear(
-            UserAgreement::with('user', 'asset')
-                ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
-                    'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
-                    'deployed', 'in_repayment', 'paid_off', 'closed_buyout', 'closed', 'cancelled',
-                ]))
-                ->orderBy('updated_at', 'desc')
-                ->when($typeFilter && in_array($typeFilter, UserAgreement::AGREEMENT_TYPES, true),
-                    fn ($q) => $q->where('agreement_type', $typeFilter))
-                ->when($stageFilter && in_array($stageFilter, UserAgreement::LIFECYCLE_STAGES, true),
-                    fn ($q) => $q->where('lifecycle_stage', $stageFilter)),
-            $fy,
-            'created_at'
-        )->get();
-
         return view('reports.procurement.user-agreement-ledger', [
             'reportTitle' => trans('admin/purchase-orders/general.report_user_agreement_ledger'),
-            'agreements' => $agreements,
+            'report' => $report,
             'typeFilter' => $typeFilter,
             'stageFilter' => $stageFilter,
             'selectedFy' => $fy,
@@ -996,9 +981,60 @@ class ProcurementReportsController extends Controller
         ]);
     }
 
+    /**
+     * Lease schedules ending in the selected FY — the budgeting-time
+     * decision list, moved off the dashboard face into the Budgeting
+     * report group. Serves the full page, the tab embed, and a CSV.
+     */
+    public function leaseEndSchedulesReport(Request $request)
+    {
+        $this->authorize('procurement.view');
+
+        $selectedFy = $this->resolveFiscalYear($request);
+        $all = $this->leaseEndSchedules();
+        $leaseEndSchedules = $selectedFy
+            ? array_values(array_filter($all, fn ($s) => $s['fiscal_year'] === $selectedFy))
+            : $all;
+
+        if ($request->query('format') === 'csv') {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="lease-end-schedules-'.strtolower($selectedFy ?: 'all').'.csv"',
+            ];
+
+            return response()->stream(function () use ($leaseEndSchedules) {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, ['Contract', 'Provider', 'Ownership', 'Lease End', 'Fiscal Year', 'Devices', 'Cost']);
+                foreach ($leaseEndSchedules as $schedule) {
+                    fputcsv($out, [
+                        $schedule['contract_id'] ?? '',
+                        $schedule['provider'] ?? '',
+                        implode(' / ', array_keys($schedule['ownership_counts'] ?? [])),
+                        $schedule['lease_end_date'] ?? '',
+                        $schedule['fiscal_year'] ?? '',
+                        $schedule['count'] ?? 0,
+                        $schedule['cost'] ?? 0,
+                    ]);
+                }
+                fclose($out);
+            }, 200, $headers);
+        }
+
+        $data = [
+            'selectedFy' => $selectedFy,
+            'leaseEndSchedules' => $leaseEndSchedules,
+        ];
+
+        if ($request->boolean('embed')) {
+            return view('reports.procurement._lease-end-schedules', $data);
+        }
+
+        return view('reports.procurement.lease-end-schedules', $data);
+    }
+
     public function scheduleSigningQueue(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1019,7 +1055,7 @@ class ProcurementReportsController extends Controller
      */
     public function updateInvoiceApproval(Request $request, OrderInvoice $invoice): RedirectResponse
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         $validated = $request->validate([
             'approval_status' => 'required|string|in:pending,approved,disputed',
@@ -1056,7 +1092,7 @@ class ProcurementReportsController extends Controller
 
     public function leaseDecisions(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1072,7 +1108,7 @@ class ProcurementReportsController extends Controller
 
     public function poDisposition(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1088,7 +1124,7 @@ class ProcurementReportsController extends Controller
 
     public function extensionWatch(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1104,7 +1140,7 @@ class ProcurementReportsController extends Controller
 
     public function aroRegister(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1120,7 +1156,7 @@ class ProcurementReportsController extends Controller
 
     public function assetLeaseDetail(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1136,7 +1172,7 @@ class ProcurementReportsController extends Controller
 
     public function poDrilldown(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1152,7 +1188,7 @@ class ProcurementReportsController extends Controller
 
     public function dispositionGrid(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         // ?contract=<lease id> deep-links one contract: it preselects the
         // pane and scopes the downloads to that lease only.
@@ -1324,7 +1360,7 @@ class ProcurementReportsController extends Controller
 
     public function creditTerminationLedger(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1340,7 +1376,7 @@ class ProcurementReportsController extends Controller
 
     public function lessorBreakdown(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         // The breakdown renders as a section of the /reports hub, not a
         // standalone page. This route survives for the CSV export and for
@@ -1364,7 +1400,7 @@ class ProcurementReportsController extends Controller
 
     public function pstApplicability(Request $request)
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->render(
             $request,
@@ -1380,7 +1416,7 @@ class ProcurementReportsController extends Controller
 
     public function tax(Request $request): StreamedResponse
     {
-        $this->authorize('reports.procurement.view');
+        $this->authorize('procurement.view');
 
         return $this->streamReportCsv('tax-summary-report', $this->taxReport($this->resolveFiscalYear($request)));
     }
@@ -2989,18 +3025,6 @@ class ProcurementReportsController extends Controller
      */
     private function userAgreementLedgerReport(?string $typeFilter = null, ?string $stageFilter = null, ?string $fy = null): array
     {
-        $columns = [
-            trans('admin/purchase-orders/general.user_agreement_type'),
-            trans('admin/purchase-orders/general.user_agreement_member'),
-            trans('admin/purchase-orders/general.detail_asset_tag'),
-            trans('admin/purchase-orders/general.detail_serial'),
-            trans('admin/user-agreements/general.originating_contract'),
-            trans('admin/purchase-orders/general.user_agreement_contract_value'),
-            trans('admin/purchase-orders/general.user_agreement_stage'),
-            trans('admin/purchase-orders/general.user_agreement_signed_at'),
-            trans('admin/purchase-orders/general.user_agreement_payroll_at'),
-        ];
-
         $query = UserAgreement::with('user', 'asset')
             ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
                 'eligible', 'quoted', 'agreement_sent', 'agreement_signed',
@@ -3019,39 +3043,85 @@ class ProcurementReportsController extends Controller
 
         $agreements = $query->get();
 
+        // The unit is the USER: one row per person, one column per
+        // agreement type they can hold, so a member's whole program
+        // position reads on a single line instead of scattering across
+        // interleaved rows.
+        $types = $agreements->pluck('agreement_type')->unique()->values()->all();
+
+        $columns = array_merge(
+            [
+                trans('admin/purchase-orders/general.user_agreement_member'),
+                trans('admin/purchase-orders/general.detail_asset_tag'),
+                trans('admin/purchase-orders/general.detail_serial'),
+                trans('admin/user-agreements/general.originating_contract'),
+                trans('admin/purchase-orders/general.user_agreement_stage'),
+            ],
+            array_map(fn ($type) => trans('admin/purchase-orders/general.user_agreement_type_value_'.$type), $types),
+            [trans('admin/orders/general.total')]
+        );
+
         $records = [];
         $totalValue = 0.0;
 
-        foreach ($agreements as $agreement) {
-            $value = $agreement->contractValue();
-            $totalValue += $value;
+        $byUser = $agreements->groupBy(fn ($agreement) => $agreement->user_id ?: ('a-'.$agreement->id));
+        foreach ($byUser as $group) {
+            $first = $group->first();
+            $asset = $group->pluck('asset')->filter()->first();
+            $userTotal = 0.0;
+
+            $typeCells = [];
+            foreach ($types as $type) {
+                $ofType = $group->where('agreement_type', $type);
+                if ($ofType->isEmpty()) {
+                    $typeCells[] = '—';
+
+                    continue;
+                }
+                $value = (float) $ofType->sum(fn ($agreement) => $agreement->contractValue());
+                $userTotal += $value;
+                $typeCells[] = $this->money($value);
+            }
+
+            $totalValue += $userTotal;
+
+            // One status pill per row — the same lifecycle pill the Faculty
+            // Program tracker uses — linking to the agreement record. Rows
+            // spanning agreements in different stages get one pill each.
+            $stages = $group->pluck('lifecycle_stage')->unique()->values();
+            $stagePills = $stages->map(fn ($stage) => [
+                'label' => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage),
+                'class' => UserAgreement::STAGE_LABEL_CLASS[$stage] ?? 'default',
+            ])->all();
 
             $records[] = [
                 'class' => '',
                 'links' => array_filter([
-                    1 => $agreement->user ? route('users.show', $agreement->user->id) : null,
-                    2 => $agreement->asset ? route('hardware.show', $agreement->asset->id) : null,
-                    3 => $agreement->asset ? route('hardware.show', $agreement->asset->id) : null,
-                ]),
-                'cells' => [
-                    trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type),
-                    (string) ($agreement->user?->full_name ?? '—'),
-                    (string) ($agreement->asset?->asset_tag ?? ''),
-                    (string) ($agreement->asset?->serial ?? ''),
-                    (string) ($agreement->lease_contract ?? ''),
-                    $this->money($value),
-                    trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage),
-                    $this->dateString($agreement->signed_at),
-                    $this->dateString($agreement->sent_to_payroll_at),
-                ],
+                    0 => $first->user ? route('users.show', $first->user->id) : null,
+                    1 => $asset ? route('hardware.show', $asset->id) : null,
+                    2 => $asset ? route('hardware.show', $asset->id) : null,
+                    4 => route('user-agreements.show', $first),
+                ], fn ($link) => $link !== null),
+                'pills' => [4 => $stagePills],
+                'cells' => array_merge(
+                    [
+                        (string) ($first->user?->full_name ?? '—'),
+                        (string) ($asset?->asset_tag ?? ''),
+                        (string) ($asset?->serial ?? ''),
+                        (string) ($group->pluck('lease_contract')->filter()->unique()->implode(', ')),
+                        $stages->map(fn ($stage) => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage))->implode(' / '),
+                    ],
+                    $typeCells,
+                    [$this->money($userTotal)]
+                ),
             ];
         }
 
-        $footer = [
-            trans('admin/orders/general.total'), '', '', '', '',
-            $this->money($totalValue),
-            '', '', '',
-        ];
+        $footer = array_merge(
+            [trans('admin/orders/general.total'), '', '', '', ''],
+            array_fill(0, count($types), ''),
+            [$this->money($totalValue)]
+        );
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
     }

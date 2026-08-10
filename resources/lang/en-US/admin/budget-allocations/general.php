@@ -8,7 +8,7 @@ return [
     'none_yet'             => 'No allocations on file yet for this fiscal year.',
     'allocation_added'     => 'Budget allocation added.',
     'allocation_removed'   => 'Budget allocation removed.',
-    'allocations'          => 'allocations',
+    'allocations'          => 'Allocations',
     'total'                => 'Total Approved Budget',
     'area'                 => 'Area',
     'area_help'            => 'Free-form: Admin, Curriculum, Faculty Program, Research, etc. Leave blank if the allocation covers all areas.',

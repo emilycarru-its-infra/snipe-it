@@ -124,6 +124,44 @@ class DeploymentsBoardTest extends TestCase
             ->assertSee('PLAN-2728');
     }
 
+    public function test_unfunded_fleet_box_lives_on_procurement_and_fleet_health_not_deployments()
+    {
+        $legacy = Statuslabel::factory()->rtd()->create(['name' => 'Active (Legacy)']);
+        Asset::factory()->create([
+            'asset_tag' => 'LEGACY-1',
+            'status_id' => $legacy->id,
+            'purchase_date' => '2016-08-01',
+        ]);
+        $buyout = Statuslabel::factory()->rtd()->create(['name' => 'Active (Buyouts)']);
+        Asset::factory()->create([
+            'asset_tag' => 'BUYOUT-1',
+            'status_id' => $buyout->id,
+            'purchase_date' => '2019-08-01',
+        ]);
+
+        $user = $this->superuser();
+
+        // Not relevant on the operational board — planning/exec scope only.
+        $this->actingAs($user)
+            ->get(route('reports.deployments'))
+            ->assertOk()
+            ->assertDontSee(trans('admin/deployments/general.legacy_box_title'));
+
+        // Both families, each sliceable.
+        $this->actingAs($user)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.legacy_box_title'))
+            ->assertSee('Active (Legacy)')
+            ->assertSee('Active (Buyouts)');
+
+        $this->actingAs($user)
+            ->get(route('reports.fleet-health'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.legacy_box_title'))
+            ->assertSee('Active (Buyouts)');
+    }
+
     public function test_procurement_order_lines_surface_on_the_flow_as_ordered_and_arrived()
     {
         $startYear = now()->month >= 4 ? now()->year : now()->year - 1;
@@ -334,6 +372,32 @@ class DeploymentsBoardTest extends TestCase
                 'stage_id' => $ordered->id,
             ])
             ->assertForbidden();
+    }
+
+    public function test_old_hub_url_redirects_and_board_carries_stage_tabbed_reports()
+    {
+        $user = $this->superuser();
+
+        $this->actingAs($user)
+            ->get('/procurement/hub')
+            ->assertRedirect(route('reports.procurement'));
+
+        $this->actingAs($user)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee('class="pr-pill-col" data-report-stage="budgeting"', false)
+            ->assertSee('id="pr-reports"', false);
+    }
+
+    public function test_read_only_procurement_viewer_gets_no_write_controls()
+    {
+        $viewer = User::factory()->create(['permissions' => '{"procurement.view":"1"}']);
+
+        $this->actingAs($viewer)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertDontSee(trans('admin/store/general.go_store_admin'))
+            ->assertDontSee('id="approversModal"', false);
     }
 
     public function test_sidebar_reports_entries_are_one_word_each()

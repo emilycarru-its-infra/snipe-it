@@ -46,7 +46,7 @@ class LeaseEndSchedulesTest extends TestCase
         $this->seedSchedule('ECI20221201', '2026-12-31', 2, 1111.11);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('ECI20221201')
             ->assertSee('CCA Financial')
@@ -70,7 +70,7 @@ class LeaseEndSchedulesTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             // The schedule shows, carrying its decision and note…
             ->assertSee('ECI20221201')
@@ -99,7 +99,7 @@ class LeaseEndSchedulesTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('ECI20220901')
             ->assertSee(trans('admin/lease-decisions/general.type_replace'))
@@ -123,12 +123,18 @@ class LeaseEndSchedulesTest extends TestCase
             'lease_end_date' => '2026-12-31',
         ]);
 
+        // The report table carries the full schedule value and the active
+        // headcount…
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee('$2,777.00');
+
+        // …and the dashboard's pre-approval chevron note counts only the
+        // two active devices.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            // The full schedule value — all three devices — drives the estimate.
-            ->assertSee('$2,777.00')
-            // …but only the two active devices are counted.
             ->assertSee('2 devices')
             ->assertDontSee('3 devices');
     }
@@ -139,7 +145,7 @@ class LeaseEndSchedulesTest extends TestCase
         $this->seedSchedule('ECI20200401', '2025-04-30', 1, 100.00);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('ECI20221201')
             ->assertDontSee('ECI20200401');
