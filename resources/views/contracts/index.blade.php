@@ -105,26 +105,53 @@
 
     <x-container>
 
+        {{-- Scope bar: the fiscal year and the filters read as one control
+             strip. No page title here — the breadcrumb above already says
+             Contracts, and repeating it just pushed the tiles down. --}}
         <div class="row">
             <div class="col-md-12">
-                <div class="box-header" style="padding-left:0;">
-                    <h1 class="box-title" style="font-size:22px; margin:0; display:inline-block; vertical-align:middle;">
-                        {{ trans('admin/contracts/general.contracts') }}
-                    </h1>
+                <div class="contracts-scopebar">
                     {{-- Switching FY reloads the page; stash the scroll position
                          so the reader lands back where they were. --}}
-                    <form method="get" style="display:inline-block; margin-left:15px; vertical-align:middle;">
+                    <form method="get" style="margin:0;">
                         @foreach ($tileFilters as $key => $value)
                             <input type="hidden" name="{{ $key }}" value="{{ $value }}">
                         @endforeach
-                        <select name="fiscal_year" class="form-control input-sm" style="display:inline-block; width:auto;"
+                        <select name="fiscal_year" class="form-control input-sm" style="width:auto;"
                                 onchange="sessionStorage.setItem('contractsScroll', String(window.scrollY)); this.form.submit()">
-                            <option value="">{{ trans('admin/contracts/general.all_fiscal_years') }}</option>
+                            <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/contracts/general.all_fiscal_years') }}</option>
                             @foreach ($allFiscalYears as $fy)
                                 <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
                             @endforeach
                         </select>
                     </form>
+
+                    @if ($themes->isNotEmpty())
+                        <span class="contracts-filter-label">{{ trans('admin/contracts/general.filter_by_theme') }}:</span>
+                        @foreach ($themes as $theme)
+                            <a href="{{ $link(['theme' => $selectedTheme === $theme->theme ? null : $theme->theme]) }}"
+                               class="btn btn-xs {{ $selectedTheme === $theme->theme ? 'btn-primary' : 'btn-default' }}">
+                                {{ $theme->theme }} <span class="badge">{{ $theme->n }}</span>
+                            </a>
+                        @endforeach
+                    @endif
+
+                    {{-- Replaces the old "Umbrellas" tile. As a count it meant
+                         little — it mixed standalone contracts in with the
+                         renewal-series rows — but as a filter it does the useful
+                         thing: collapse each series to one row. --}}
+                    <a href="{{ $link(array_merge($tileFilters, ['top_level' => $topLevelOnly ? null : 'true'])) }}"
+                       class="btn btn-xs {{ $topLevelOnly ? 'btn-primary' : 'btn-default' }}"
+                       data-tooltip="true" title="{{ trans('admin/contracts/general.filter_top_level_help') }}">
+                        <i class="fas {{ $topLevelOnly ? 'fa-check-square' : 'fa-square' }}" aria-hidden="true"></i>
+                        {{ trans('admin/contracts/general.filter_top_level') }}
+                    </a>
+
+                    @unless ($noFilter)
+                        <a href="{{ $link() }}" class="btn btn-xs btn-link">
+                            {{ trans('general.clear_filters') }}
+                        </a>
+                    @endunless
                 </div>
             </div>
         </div>
@@ -152,92 +179,47 @@
             @endforeach
         </div>
 
-        <div class="row" style="margin-bottom: 10px;">
-            <div class="col-md-12">
-                @if ($themes->isNotEmpty())
-                    <span style="margin-right: 8px; color: #666;">{{ trans('admin/contracts/general.filter_by_theme') }}:</span>
-                    @foreach ($themes as $theme)
-                        <a href="{{ $link(['theme' => $theme->theme]) }}"
-                           class="btn btn-xs {{ $selectedTheme === $theme->theme ? 'btn-primary' : 'btn-default' }}"
-                           style="margin-right: 4px; margin-bottom: 4px;">
-                            {{ $theme->theme }} <span class="badge">{{ $theme->n }}</span>
-                        </a>
-                    @endforeach
-                @endif
-                {{-- Replaces the old "Umbrellas" tile. As a count it meant
-                     little — it mixed standalone contracts in with the
-                     renewal-series rows — but as a filter it does the useful
-                     thing: collapse each series to one row. --}}
-                <a href="{{ $link(array_merge($tileFilters, ['top_level' => $topLevelOnly ? null : 'true'])) }}"
-                   class="btn btn-xs {{ $topLevelOnly ? 'btn-primary' : 'btn-default' }}"
-                   style="margin-left: 8px; margin-bottom: 4px;"
-                   data-tooltip="true" title="{{ trans('admin/contracts/general.filter_top_level_help') }}">
-                    <i class="fas {{ $topLevelOnly ? 'fa-check-square' : 'fa-square' }}" aria-hidden="true"></i>
-                    {{ trans('admin/contracts/general.filter_top_level') }}
-                </a>
-                @unless ($noFilter)
-                    <a href="{{ $link() }}" class="btn btn-xs btn-link" style="margin-bottom: 4px;">
-                        {{ trans('general.clear_filters') }}
-                    </a>
-                @endunless
-            </div>
-        </div>
 
         @if ($charts)
-            <div class="row">
-                <div class="col-md-7">
-                    <div class="box box-default">
-                        <div class="box-header with-border">
-                            <h3 class="box-title">{{ trans('admin/contracts/general.chart_spend_by_fy') }}</h3>
-                        </div>
-                        <div class="box-body">
-                            <div style="position:relative; height:300px;">
-                                <canvas id="contractsFyChart"></canvas>
+            {{-- Four across on one row. Every chart reads against the filters
+                 in the scope bar above, so a theme or an expiry window
+                 redraws these as well as the table. --}}
+            <div class="row contracts-chart-row">
+                @foreach ([
+                    ['id' => 'contractsFyChart',       'title' => 'chart_spend_by_fy'],
+                    ['id' => 'contractsProviderChart', 'title' => 'chart_provider'],
+                    ['id' => 'contractsThemeChart',    'title' => 'chart_theme'],
+                    ['id' => 'contractsRenewalChart',  'title' => 'chart_renewals'],
+                ] as $chart)
+                    <div class="col-md-3 col-sm-6">
+                        <div class="box box-default">
+                            <div class="box-header with-border">
+                                <h3 class="box-title">{{ trans('admin/contracts/general.'.$chart['title']) }}</h3>
+                            </div>
+                            <div class="box-body">
+                                <div style="position:relative; height:260px;">
+                                    <canvas id="{{ $chart['id'] }}"></canvas>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-5">
-                    <div class="box box-default">
-                        <div class="box-header with-border">
-                            <h3 class="box-title">{{ trans('admin/contracts/general.chart_provider') }}</h3>
-                        </div>
-                        <div class="box-body">
-                            <div style="position:relative; height:300px;">
-                                <canvas id="contractsProviderChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                @endforeach
             </div>
+        @endif
 
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="box box-default">
-                        <div class="box-header with-border">
-                            <h3 class="box-title">{{ trans('admin/contracts/general.chart_theme') }}</h3>
-                        </div>
-                        <div class="box-body">
-                            <div style="position:relative; height:280px;">
-                                <canvas id="contractsThemeChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="box box-default">
-                        <div class="box-header with-border">
-                            <h3 class="box-title">{{ trans('admin/contracts/general.chart_renewals') }}</h3>
-                        </div>
-                        <div class="box-body">
-                            <div style="position:relative; height:280px;">
-                                <canvas id="contractsRenewalChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        {{-- The register itself, directly under the charts: everything above
+             narrows it. --}}
+        <x-box>
+            <x-table.contracts
+                fixed_right_number="1"
+                fixed_number="1"
+                show_advanced_search="true"
+                name="contracts"
+                :route="route('api.contracts.index', $apiParams)"
+            />
+        </x-box>
 
+        @if ($charts)
             {{-- The drill-downs, rendered inline. Each is also a page of its
                  own at /contracts/<report> — the title and the view button
                  both go there — so a single report stays linkable. --}}
@@ -295,17 +277,6 @@
                 </div>
             </div>
         @endif
-
-        {{-- The register itself, last: everything above narrows it. --}}
-        <x-box>
-            <x-table.contracts
-                fixed_right_number="1"
-                fixed_number="1"
-                show_advanced_search="true"
-                name="contracts"
-                :route="route('api.contracts.index', $apiParams)"
-            />
-        </x-box>
     </x-container>
 
     <style>
@@ -344,6 +315,21 @@
             .contracts-reports-row { display: block; }
             .contracts-reports-row .contracts-content-col { max-width: 100%; }
         }
+        /* Scope bar: FY picker and the filters on one line, wrapping as a
+           unit on narrow viewports rather than overflowing. */
+        .contracts-scopebar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .contracts-filter-label { margin-left: 8px; color: var(--color-fg-muted, #666); }
+        /* Four charts across: keep the boxes equal height so the row does not
+           step when one chart's legend wraps. */
+        .contracts-chart-row { display: flex; flex-wrap: wrap; }
+        .contracts-chart-row > [class*="col-"] { display: flex; margin-bottom: 15px; }
+        .contracts-chart-row .box { width: 100%; margin-bottom: 0; }
         /* Equal-height tiles so a wrapped label never reflows the grid. */
         .contracts-tile-row { display: flex; flex-wrap: wrap; }
         .contracts-tile-row > [class*="col-"] { display: flex; margin-bottom: 15px; }
@@ -400,11 +386,20 @@
             options: { responsive: true, maintainAspectRatio: false, tooltips: pieTip }
         });
 
+        // The theme chart keeps every bar even when a theme filter is on —
+        // filtering it by its own axis would leave a single bar — so the
+        // selected one is picked out by colour instead.
         new Chart(document.getElementById('contractsThemeChart'), {
             type: 'horizontalBar',
             data: {
                 labels: data.themeLabels,
-                datasets: [{ label: @json(trans('general.count')), backgroundColor: '#00a65a', data: data.themeValues }]
+                datasets: [{
+                    label: @json(trans('general.count')),
+                    backgroundColor: data.themeLabels.map(function (t) {
+                        return (data.themeSelected && t !== data.themeSelected) ? 'rgba(0,166,90,0.35)' : '#00a65a';
+                    }),
+                    data: data.themeValues
+                }]
             },
             options: { responsive: true, maintainAspectRatio: false, scales: { xAxes: [{ ticks: { beginAtZero: true, precision: 0 } }] } }
         });

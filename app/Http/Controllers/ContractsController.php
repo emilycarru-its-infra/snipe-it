@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Helper;
 use App\Models\Contract;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
@@ -32,17 +33,38 @@ class ContractsController extends Controller
         $allFiscalYears = Contract::whereNotNull('fiscal_year')
             ->distinct()->orderBy('fiscal_year')->pluck('fiscal_year');
 
-        // Unlike the old dashboard, this page defaults to every fiscal year:
-        // it is the contract register as well as the dashboard, and opening
-        // it pre-filtered would hide most rows from anyone who came here to
-        // look a contract up. Narrowing to an FY is one click away.
+        // Opens on the current fiscal year, same as /procurement, and moves
+        // with the calendar rather than being pinned to a year. When the
+        // current FY holds no contracts yet (early in a year, or contracts
+        // dated by signing year), fall back to the most recent FY that has
+        // data — $allFiscalYears is ascending and FY labels sort
+        // chronologically — so it never silently opens on the all-time view.
+        // `?fiscal_year=all` is the opt-out.
         $rawFy = $request->query('fiscal_year');
-        $selectedFy = $allFiscalYears->contains($rawFy) ? $rawFy : null;
+        $current = Helper::currentFiscalYear();
+        $defaultFy = $allFiscalYears->contains($current) ? $current : $allFiscalYears->last();
+        if ($rawFy === 'all') {
+            $selectedFy = null;
+        } elseif ($rawFy !== null && $allFiscalYears->contains($rawFy)) {
+            $selectedFy = $rawFy;
+        } else {
+            $selectedFy = $defaultFy;
+        }
 
-        $scoped = fn () => Contract::query()->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy));
+        $filters = [
+            'fiscal_year'      => $selectedFy,
+            'is_active'        => $request->query('is_active'),
+            'theme'            => $request->query('theme'),
+            'expiring_days'    => $request->query('expiring_within_days'),
+            'top_level'        => filter_var($request->query('top_level'), FILTER_VALIDATE_BOOLEAN),
+            'synthesized_only' => filter_var($request->query('synthesized_only'), FILTER_VALIDATE_BOOLEAN),
+        ];
 
-        // Tiles are filters over the table below, so each counts exactly what
-        // clicking it leaves in the table — synthesized rows included.
+        // Tiles are mutually exclusive scopes — each link replaces the active
+        // filter rather than adding to it — so each counts under the fiscal
+        // year alone, which is exactly what clicking it leaves in the table.
+        $scoped = fn () => $this->applyFilters(Contract::query(), $filters, except: ['is_active', 'theme', 'expiring_days', 'top_level', 'synthesized_only']);
+
         $totalCount       = $scoped()->count();
         $activeCount      = $scoped()->active()->count();
         $expiring30       = $scoped()->expiringWithin(30)->count();
@@ -79,49 +101,109 @@ class ContractsController extends Controller
             // The charts and the embedded report sections are the reporting
             // half of the page and stay behind the reports permission.
             auth()->user()?->can('reports.contracts.view')
-                ? $this->dashboardCharts($selectedFy)
+                ? $this->dashboardCharts($filters)
                 : ['charts' => null],
         ));
     }
 
     /**
-     * Chart series for the dashboard half of the page. Every series counts
-     * real contracts only — a renewal series row would otherwise show up as
-     * an extra contract with no cost, theme totals included.
+     * Apply the page's filter set to a query. Everything on the page reads
+     * against the same filters — the tiles, the four charts and the register
+     * table — so a theme or an expiry window narrows the whole view, not just
+     * the rows underneath it.
+     *
+     * Columns are table-qualified because the provider chart joins suppliers.
+     *
+     * @param  array<int, string>  $except  filter keys to skip; a chart drops
+     *                                      its own grouping dimension so
+     *                                      filtering by it doesn't collapse
+     *                                      the chart to a single bar.
      */
-    private function dashboardCharts(?string $selectedFy): array
+    private function applyFilters($query, array $filters, array $except = [])
     {
-        // Spend by fiscal year is the one series that ignores the selected
-        // FY: its whole job is to put the years side by side.
-        $spendByFy = Contract::realOnly()
-            ->whereNotNull('fiscal_year')
-            ->selectRaw('fiscal_year, SUM(total_cost) AS total')
-            ->groupBy('fiscal_year')
-            ->orderBy('fiscal_year')
-            ->pluck('total', 'fiscal_year');
+        $wanted = fn (string $key) => ! in_array($key, $except, true);
 
-        $countByTheme = Contract::realOnly()
-            ->whereNotNull('theme')
-            ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy))
-            ->selectRaw('theme, COUNT(*) AS n')
+        if ($wanted('fiscal_year') && $filters['fiscal_year']) {
+            $query->where('contracts.fiscal_year', $filters['fiscal_year']);
+        }
+
+        if ($wanted('is_active') && $filters['is_active'] !== null && $filters['is_active'] !== '') {
+            $query->where('contracts.is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
+        }
+
+        if ($wanted('theme') && $filters['theme']) {
+            $query->where('contracts.theme', $filters['theme']);
+        }
+
+        if ($wanted('expiring_days') && $filters['expiring_days']) {
+            $query->expiringWithin((int) $filters['expiring_days']);
+        }
+
+        if ($wanted('top_level') && $filters['top_level']) {
+            $query->topLevel();
+        }
+
+        if ($wanted('synthesized_only') && $filters['synthesized_only']) {
+            $query->where('contracts.is_synthesized', true);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Chart series for the dashboard half of the page. Every series reads
+     * against the page's active filters, so narrowing to a theme or an expiry
+     * window redraws the charts rather than only the table underneath them.
+     *
+     * Each chart drops the one filter it groups by — spend-by-FY ignores the
+     * fiscal year, by-theme ignores the theme — because filtering a chart by
+     * its own axis collapses it to a single bar and tells you nothing.
+     *
+     * Series count real contracts only, unless the reader has explicitly
+     * asked for the renewal series rows; a series row would otherwise show up
+     * as an extra contract carrying no cost.
+     */
+    private function dashboardCharts(array $filters): array
+    {
+        $base = function (array $except = []) use ($filters) {
+            $query = $this->applyFilters(Contract::query(), $filters, $except);
+
+            return $filters['synthesized_only'] ? $query : $query->realOnly();
+        };
+
+        $spendByFy = $base(['fiscal_year'])
+            ->whereNotNull('contracts.fiscal_year')
+            ->selectRaw('contracts.fiscal_year AS fy, SUM(contracts.total_cost) AS total')
+            ->groupBy('fy')
+            ->orderBy('fy')
+            ->pluck('total', 'fy');
+
+        $countByTheme = $base(['theme'])
+            ->whereNotNull('contracts.theme')
+            ->selectRaw('contracts.theme AS theme, COUNT(*) AS n')
             ->groupBy('theme')
             ->orderByDesc('n')
             ->pluck('n', 'theme');
 
-        $spendByProvider = Contract::realOnly()
-            ->join('suppliers', 'suppliers.id', '=', 'contracts.supplier_id')
-            ->when($selectedFy, fn ($q) => $q->where('contracts.fiscal_year', $selectedFy))
-            ->selectRaw('suppliers.name AS provider, SUM(contracts.total_cost) AS total')
-            ->groupBy('suppliers.name')
+        // Left join, not inner: contracts with no supplier are common, and an
+        // inner join silently renders the whole chart empty when a fiscal
+        // year happens to hold none that are linked to one.
+        $spendByProvider = $base()
+            ->leftJoin('suppliers', 'suppliers.id', '=', 'contracts.supplier_id')
+            ->selectRaw('COALESCE(suppliers.name, "—") AS provider, SUM(contracts.total_cost) AS total')
+            ->groupBy('provider')
+            ->havingRaw('SUM(contracts.total_cost) > 0')
             ->orderByDesc('total')
             ->limit(10)
             ->pluck('total', 'provider');
 
-        $renewalCalendar = Contract::realOnly()
-            ->where('is_active', true)
-            ->whereNotNull('end_date')
-            ->whereBetween('end_date', [now()->startOfMonth(), now()->addYear()->endOfMonth()])
-            ->selectRaw("DATE_FORMAT(end_date, '%Y-%m') AS ym, COUNT(*) AS n")
+        // The expiry filter is dropped here: a 30-day window would leave this
+        // 12-month calendar with a single month in it.
+        $renewalCalendar = $base(['expiring_days'])
+            ->where('contracts.is_active', true)
+            ->whereNotNull('contracts.end_date')
+            ->whereBetween('contracts.end_date', [now()->startOfMonth(), now()->addYear()->endOfMonth()])
+            ->selectRaw("DATE_FORMAT(contracts.end_date, '%Y-%m') AS ym, COUNT(*) AS n")
             ->groupBy('ym')
             ->orderBy('ym')
             ->pluck('n', 'ym');
@@ -134,6 +216,7 @@ class ContractsController extends Controller
                 'providerValues' => array_values($spendByProvider->all()),
                 'themeLabels'    => $countByTheme->keys()->all(),
                 'themeValues'    => array_values($countByTheme->all()),
+                'themeSelected'  => $filters['theme'],
                 'renewalLabels'  => $renewalCalendar->keys()->all(),
                 'renewalValues'  => array_values($renewalCalendar->all()),
             ],
