@@ -53,17 +53,23 @@ class ContractsPageTest extends TestCase
             ->assertDontSee('value="all" selected', false);
     }
 
-    public function test_page_falls_back_to_the_latest_fiscal_year_with_data()
+    public function test_picker_spans_fy2024_25_through_next_year_and_opens_on_the_current_fy()
     {
-        // Nothing in the current FY; opening on an empty year would read as
-        // "no contracts" rather than "none this year yet".
-        Contract::factory()->create(['fiscal_year' => 'FY2023-24']);
+        // The register starts at FY2024-25: the picker runs from there
+        // through next fiscal year whether or not a year holds rows, and
+        // opens on the current FY — the zero-filled chart makes an empty
+        // year read as "none this year yet" rather than "no contracts".
         Contract::factory()->create(['fiscal_year' => 'FY2024-25']);
+
+        $current = Helper::currentFiscalYear();
+        $next = 'FY'.((int) substr($current, 2, 4) + 1).'-'.substr((string) ((int) substr($current, 2, 4) + 2), -2);
 
         $this->actingAs($this->superuser())
             ->get(route('contracts.index'))
             ->assertOk()
-            ->assertSee('value="FY2024-25" selected', false);
+            ->assertSee('value="FY2024-25"', false)
+            ->assertSee('value="'.$next.'"', false)
+            ->assertSee('value="'.$current.'" selected', false);
     }
 
     public function test_all_fiscal_years_is_the_opt_out()
