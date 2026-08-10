@@ -248,6 +248,34 @@ class AuthServiceProvider extends ServiceProvider
         }
 
         // -----------------------------------------
+        // Deployments + Procurement modules — read vs read+write.
+        // Compat fallbacks keep existing grants working: the orders
+        // permission gated the deployments board before these keys
+        // existed, and the procurement board was gated by
+        // reports.procurement.view.
+        // -----------------------------------------
+        Gate::define('deployments.view', function ($user) {
+            if ($user->hasAccess('deployments.view') || $user->hasAccess('deployments.edit') || $user->hasAccess('orders.view')) {
+                return true;
+            }
+        });
+        Gate::define('deployments.edit', function ($user) {
+            if ($user->hasAccess('deployments.edit') || $user->hasAccess('orders.edit')) {
+                return true;
+            }
+        });
+        Gate::define('procurement.view', function ($user) {
+            if ($user->hasAccess('procurement.view') || $user->hasAccess('procurement.edit') || $user->hasAccess('reports.procurement.view') || $user->hasAccess('orders.view')) {
+                return true;
+            }
+        });
+        Gate::define('procurement.edit', function ($user) {
+            if ($user->hasAccess('procurement.edit') || $user->hasAccess('orders.edit')) {
+                return true;
+            }
+        });
+
+        // -----------------------------------------
         // Activity
         // -----------------------------------------
         Gate::define('activity.view', function ($user) {

@@ -189,7 +189,7 @@ Route::group(['middleware' => 'auth'], function () {
     $procCrumb = fn (Trail $trail) => $trail->parent('home')
         ->push(trans('admin/store/general.procurement'), route('procurement.index'));
 
-    Route::get('procurement', [ProcurementController::class, 'index'])
+    Route::get('procurement/hub', [ProcurementController::class, 'index'])
         ->name('procurement.index')
         ->breadcrumbs($procCrumb);
     Route::get('procurement/queue', [ProcurementController::class, 'queue'])
@@ -436,6 +436,12 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployment-waves.export');
 
     // Per-device item rows on a wave board.
+    Route::post('deployment-items/bulk-stage', [DeploymentItemsController::class, 'bulkStage'])
+        ->name('deployment-items.bulk-stage');
+    Route::post('deployment-items/bulk-group', [DeploymentItemsController::class, 'bulkGroup'])
+        ->name('deployment-items.bulk-group');
+    Route::post('deployments/decommission/location', [DeploymentsController::class, 'setHoldingLocation'])
+        ->name('deployments.decommission.location');
     Route::post('deployment-items', [DeploymentItemsController::class, 'store'])
         ->name('deployment-items.store');
     Route::post('deployment-items/{deploymentItem}/stage', [DeploymentItemsController::class, 'updateStage'])
@@ -1110,123 +1116,7 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/purchase-orders/general.report_lessor_breakdown'), route('reports.lessor-breakdown')));
 
-    Route::prefix('procurement')->group(function () {
-        // Each procurement report's breadcrumb chains off the procurement
-        // landing — same Home > Reports > Procurement Reports > <Title> shape.
-        // A plain function, not a one-line curried arrow fn: closure
-        // serialization extracts source by start line, and two arrow fns
-        // beginning on the same line make it grab the wrong one.
-        $crumb = function (string $routeName, string $titleKey) {
-            return fn (Trail $trail) => $trail->parent('reports.procurement')
-                ->push(trans("admin/purchase-orders/general.$titleKey"), route($routeName));
-        };
-
-        Route::get('/', [ProcurementReportsController::class, 'index'])
-            ->name('reports.procurement')
-            ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-                ->push(trans('general.reports'), route('reports.index'))
-                ->push(trans('admin/purchase-orders/general.reports'), route('reports.procurement')));
-
-        Route::patch('visibility', [ProcurementReportsController::class, 'updateVisibility'])
-            ->name('reports.procurement.visibility');
-
-        Route::post('budget-allocations', [BudgetAllocationsController::class, 'store'])
-            ->name('budget_allocations.store');
-        Route::delete('budget-allocations/{budget_allocation}', [BudgetAllocationsController::class, 'destroy'])
-            ->name('budget_allocations.destroy');
-
-        // The builder moved to /purchase-orders/builder — it is an
-        // operational tool, not a report. Old links keep working.
-        Route::get('po-builder', function () {
-            return redirect()->route('purchase-orders.builder', request()->query());
-        });
-        Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
-            ->name('reports.procurement.po-budget')
-            ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
-        Route::get('invoices', [ProcurementReportsController::class, 'invoices'])
-            ->name('reports.procurement.invoices')
-            ->breadcrumbs($crumb('reports.procurement.invoices', 'report_invoices'));
-        Route::get('receiving', [ProcurementReportsController::class, 'receiving'])
-            ->name('reports.procurement.receiving');
-        Route::get('tax', [ProcurementReportsController::class, 'tax'])
-            ->name('reports.procurement.tax');
-        Route::get('capital', [ProcurementReportsController::class, 'capital'])
-            ->name('reports.procurement.capital')
-            ->breadcrumbs($crumb('reports.procurement.capital', 'report_capital'));
-        Route::get('refresh-forecast', [ProcurementReportsController::class, 'refreshForecast'])
-            ->name('reports.procurement.forecast')
-            ->breadcrumbs($crumb('reports.procurement.forecast', 'report_forecast'));
-        Route::post('refresh-forecast/planned-order', [ProcurementReportsController::class, 'createPlannedOrder'])
-            ->name('reports.procurement.forecast.plan');
-        Route::get('leases-operational', [ProcurementReportsController::class, 'leasesOperational'])
-            ->name('reports.procurement.leases-operational')
-            ->breadcrumbs($crumb('reports.procurement.leases-operational', 'report_leases_operational'));
-        Route::get('leases-financial', [ProcurementReportsController::class, 'leasesFinancial'])
-            ->name('reports.procurement.leases-financial')
-            ->breadcrumbs($crumb('reports.procurement.leases-financial', 'report_leases_financial'));
-        Route::get('lease-data-health', [ProcurementReportsController::class, 'leaseDataHealth'])
-            ->name('reports.procurement.lease-data-health')
-            ->breadcrumbs($crumb('reports.procurement.lease-data-health', 'report_lease_data_health'));
-        Route::get('schedule-reconciliation', [ProcurementReportsController::class, 'csiSchedule'])
-            ->name('reports.procurement.csi-schedule')
-            ->breadcrumbs($crumb('reports.procurement.csi-schedule', 'report_csi_schedule'));
-        Route::get('lease-reconciliation', [ProcurementReportsController::class, 'csiReconciliation'])
-            ->name('reports.procurement.csi-reconciliation')
-            ->breadcrumbs($crumb('reports.procurement.csi-reconciliation', 'report_csi_reconciliation'));
-        Route::get('incoming-lease-assets', [ProcurementReportsController::class, 'csiArrivals'])
-            ->name('reports.procurement.csi-arrivals')
-            ->breadcrumbs($crumb('reports.procurement.csi-arrivals', 'report_csi_arrivals'));
-        // Legacy vendor-named paths — permanent redirects to the neutral slugs.
-        Route::redirect('csi-schedule', 'schedule-reconciliation', 301);
-        Route::redirect('csi-reconciliation', 'lease-reconciliation', 301);
-        Route::redirect('csi-arrivals', 'incoming-lease-assets', 301);
-        Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
-            ->name('reports.procurement.invoice-approval')
-            ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
-        Route::patch('invoice-approval/{invoice}', [ProcurementReportsController::class, 'updateInvoiceApproval'])
-            ->name('reports.procurement.invoice-approval.update');
-        Route::get('lease-decisions', [ProcurementReportsController::class, 'leaseDecisions'])
-            ->name('reports.procurement.lease-decisions')
-            ->breadcrumbs($crumb('reports.procurement.lease-decisions', 'report_lease_decisions'));
-        Route::get('po-disposition', [ProcurementReportsController::class, 'poDisposition'])
-            ->name('reports.procurement.po-disposition')
-            ->breadcrumbs($crumb('reports.procurement.po-disposition', 'report_po_disposition'));
-        Route::get('extension-watch', [ProcurementReportsController::class, 'extensionWatch'])
-            ->name('reports.procurement.extension-watch')
-            ->breadcrumbs($crumb('reports.procurement.extension-watch', 'report_extension_watch'));
-        Route::get('aro-register', [ProcurementReportsController::class, 'aroRegister'])
-            ->name('reports.procurement.aro-register')
-            ->breadcrumbs($crumb('reports.procurement.aro-register', 'report_aro_register'));
-        Route::get('asset-lease-detail', [ProcurementReportsController::class, 'assetLeaseDetail'])
-            ->name('reports.procurement.asset-lease-detail')
-            ->breadcrumbs($crumb('reports.procurement.asset-lease-detail', 'report_asset_lease_detail'));
-        Route::get('po-drilldown', [ProcurementReportsController::class, 'poDrilldown'])
-            ->name('reports.procurement.po-drilldown')
-            ->breadcrumbs($crumb('reports.procurement.po-drilldown', 'report_po_drilldown'));
-        Route::get('disposition-grid', [ProcurementReportsController::class, 'dispositionGrid'])
-            ->name('reports.procurement.disposition-grid')
-            ->breadcrumbs($crumb('reports.procurement.disposition-grid', 'report_disposition_grid'));
-        Route::post('disposition-grid/note', [ProcurementReportsController::class, 'updateDispositionNote'])
-            ->name('reports.procurement.disposition-grid.note');
-        Route::post('disposition-grid/update', [ProcurementReportsController::class, 'updateDispositionAssets'])
-            ->name('reports.procurement.disposition-grid.update');
-        Route::post('note', [ProcurementReportsController::class, 'updateReportNote'])
-            ->name('reports.procurement.note');
-        Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
-            ->name('reports.procurement.credit-ledger')
-            ->breadcrumbs($crumb('reports.procurement.credit-ledger', 'report_credit_ledger'));
-        // Moved to the reports root — old links and bookmarks keep working.
-        Route::redirect('lessor-breakdown', '/reports/lessor-breakdown', 301);
-        Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
-            ->name('reports.procurement.pst-applicability')
-            ->breadcrumbs($crumb('reports.procurement.pst-applicability', 'report_pst_applicability'));
-        Route::get('user-agreement-ledger', [ProcurementReportsController::class, 'userAgreementLedger'])
-            ->name('reports.procurement.user-agreement-ledger')
-            ->breadcrumbs($crumb('reports.procurement.user-agreement-ledger', 'report_user_agreement_ledger'));
-        Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
-            ->name('reports.procurement.schedule-signing')
-            ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));
-    });
+    // The procurement board moved out to /procurement (route names kept).
 
     Route::prefix('transactions')->group(function () {
         $txCrumb = function (string $routeName, string $titleKey) {
@@ -1343,12 +1233,12 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('reports.exhibit')));
 
-    Route::get('deployments', [DeploymentsController::class, 'report'])
-        ->name('reports.deployments')
-        ->middleware('can:view,App\Models\Order')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('general.reports'), route('reports.index'))
-            ->push(trans('admin/deployments/general.dashboard_title'), route('reports.deployments')));
+    // The Deployments board moved out to /deployments (route name kept).
+    Route::get('deployments', function () {
+        $query = request()->getQueryString();
+
+        return redirect('/deployments'.($query ? '?'.$query : ''), 301);
+    });
 
     Route::get('fleet-health', [FleetHealthReportsController::class, 'index'])
         ->name('reports.fleet-health')
@@ -1357,6 +1247,151 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/reports/general.fleet_health'), route('reports.fleet-health')));
 
+});
+
+/*
+| Deployments + Procurement, elevated: first-class modules at /deployments
+| and /procurement rather than filed under /reports. Route names are
+| unchanged so every existing link keeps working; the old /reports/… URLs
+| redirect permanently. Access is read (….view) vs read+write (….edit) —
+| AuthServiceProvider carries compat fallbacks for existing grants.
+*/
+Route::group(['middleware' => ['auth']], function () {
+
+    Route::get('deployments', [DeploymentsController::class, 'report'])
+        ->name('reports.deployments')
+        ->middleware('can:deployments.view')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('admin/deployments/general.dashboard_title'), route('reports.deployments')));
+
+    // Query strings survive the hop — old bookmarked deep links carry
+    // params (?requisition=…, ?fiscal_year=…) that Route::redirect drops.
+    Route::get('reports/procurement/{path?}', function (string $path = '') {
+        $query = request()->getQueryString();
+
+        return redirect('/procurement'.($path !== '' ? '/'.$path : '').($query ? '?'.$query : ''), 301);
+    })->where('path', '.*');
+
+    Route::prefix('procurement')->group(function () {
+        // Each procurement report's breadcrumb chains off the procurement
+        // landing — same Home > Reports > Procurement Reports > <Title> shape.
+        // A plain function, not a one-line curried arrow fn: closure
+        // serialization extracts source by start line, and two arrow fns
+        // beginning on the same line make it grab the wrong one.
+        $crumb = function (string $routeName, string $titleKey) {
+            return fn (Trail $trail) => $trail->parent('reports.procurement')
+                ->push(trans("admin/purchase-orders/general.$titleKey"), route($routeName));
+        };
+
+        Route::get('/', [ProcurementReportsController::class, 'index'])
+            ->name('reports.procurement')
+            ->middleware('can:procurement.view')
+            ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+                ->push(trans('general.procurement'), route('reports.procurement')));
+
+        Route::patch('visibility', [ProcurementReportsController::class, 'updateVisibility'])
+            ->name('reports.procurement.visibility');
+
+        Route::post('budget-allocations', [BudgetAllocationsController::class, 'store'])
+            ->name('budget_allocations.store');
+        Route::delete('budget-allocations/{budget_allocation}', [BudgetAllocationsController::class, 'destroy'])
+            ->name('budget_allocations.destroy');
+
+        // The builder moved to /purchase-orders/builder — it is an
+        // operational tool, not a report. Old links keep working.
+        Route::get('po-builder', function () {
+            return redirect()->route('purchase-orders.builder', request()->query());
+        });
+        Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
+            ->name('reports.procurement.po-budget')
+            ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
+        Route::get('invoices', [ProcurementReportsController::class, 'invoices'])
+            ->name('reports.procurement.invoices')
+            ->breadcrumbs($crumb('reports.procurement.invoices', 'report_invoices'));
+        Route::get('receiving', [ProcurementReportsController::class, 'receiving'])
+            ->name('reports.procurement.receiving');
+        Route::get('tax', [ProcurementReportsController::class, 'tax'])
+            ->name('reports.procurement.tax');
+        Route::get('capital', [ProcurementReportsController::class, 'capital'])
+            ->name('reports.procurement.capital')
+            ->breadcrumbs($crumb('reports.procurement.capital', 'report_capital'));
+        Route::get('refresh-forecast', [ProcurementReportsController::class, 'refreshForecast'])
+            ->name('reports.procurement.forecast')
+            ->breadcrumbs($crumb('reports.procurement.forecast', 'report_forecast'));
+        Route::post('refresh-forecast/planned-order', [ProcurementReportsController::class, 'createPlannedOrder'])
+            ->name('reports.procurement.forecast.plan');
+        Route::get('leases-operational', [ProcurementReportsController::class, 'leasesOperational'])
+            ->name('reports.procurement.leases-operational')
+            ->breadcrumbs($crumb('reports.procurement.leases-operational', 'report_leases_operational'));
+        Route::get('leases-financial', [ProcurementReportsController::class, 'leasesFinancial'])
+            ->name('reports.procurement.leases-financial')
+            ->breadcrumbs($crumb('reports.procurement.leases-financial', 'report_leases_financial'));
+        Route::get('lease-data-health', [ProcurementReportsController::class, 'leaseDataHealth'])
+            ->name('reports.procurement.lease-data-health')
+            ->breadcrumbs($crumb('reports.procurement.lease-data-health', 'report_lease_data_health'));
+        Route::get('schedule-reconciliation', [ProcurementReportsController::class, 'csiSchedule'])
+            ->name('reports.procurement.csi-schedule')
+            ->breadcrumbs($crumb('reports.procurement.csi-schedule', 'report_csi_schedule'));
+        Route::get('lease-reconciliation', [ProcurementReportsController::class, 'csiReconciliation'])
+            ->name('reports.procurement.csi-reconciliation')
+            ->breadcrumbs($crumb('reports.procurement.csi-reconciliation', 'report_csi_reconciliation'));
+        Route::get('incoming-lease-assets', [ProcurementReportsController::class, 'csiArrivals'])
+            ->name('reports.procurement.csi-arrivals')
+            ->breadcrumbs($crumb('reports.procurement.csi-arrivals', 'report_csi_arrivals'));
+        // Legacy vendor-named paths — permanent redirects to the neutral slugs.
+        Route::redirect('csi-schedule', 'schedule-reconciliation', 301);
+        Route::redirect('csi-reconciliation', 'lease-reconciliation', 301);
+        Route::redirect('csi-arrivals', 'incoming-lease-assets', 301);
+        Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
+            ->name('reports.procurement.invoice-approval')
+            ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
+        Route::patch('invoice-approval/{invoice}', [ProcurementReportsController::class, 'updateInvoiceApproval'])
+            ->name('reports.procurement.invoice-approval.update');
+        Route::get('lease-decisions', [ProcurementReportsController::class, 'leaseDecisions'])
+            ->name('reports.procurement.lease-decisions')
+            ->breadcrumbs($crumb('reports.procurement.lease-decisions', 'report_lease_decisions'));
+        Route::get('po-disposition', [ProcurementReportsController::class, 'poDisposition'])
+            ->name('reports.procurement.po-disposition')
+            ->breadcrumbs($crumb('reports.procurement.po-disposition', 'report_po_disposition'));
+        Route::get('extension-watch', [ProcurementReportsController::class, 'extensionWatch'])
+            ->name('reports.procurement.extension-watch')
+            ->breadcrumbs($crumb('reports.procurement.extension-watch', 'report_extension_watch'));
+        Route::get('aro-register', [ProcurementReportsController::class, 'aroRegister'])
+            ->name('reports.procurement.aro-register')
+            ->breadcrumbs($crumb('reports.procurement.aro-register', 'report_aro_register'));
+        Route::get('asset-lease-detail', [ProcurementReportsController::class, 'assetLeaseDetail'])
+            ->name('reports.procurement.asset-lease-detail')
+            ->breadcrumbs($crumb('reports.procurement.asset-lease-detail', 'report_asset_lease_detail'));
+        Route::get('po-drilldown', [ProcurementReportsController::class, 'poDrilldown'])
+            ->name('reports.procurement.po-drilldown')
+            ->breadcrumbs($crumb('reports.procurement.po-drilldown', 'report_po_drilldown'));
+        Route::get('disposition-grid', [ProcurementReportsController::class, 'dispositionGrid'])
+            ->name('reports.procurement.disposition-grid')
+            ->breadcrumbs($crumb('reports.procurement.disposition-grid', 'report_disposition_grid'));
+        Route::post('disposition-grid/note', [ProcurementReportsController::class, 'updateDispositionNote'])
+            ->name('reports.procurement.disposition-grid.note');
+        Route::post('disposition-grid/update', [ProcurementReportsController::class, 'updateDispositionAssets'])
+            ->name('reports.procurement.disposition-grid.update');
+        Route::post('note', [ProcurementReportsController::class, 'updateReportNote'])
+            ->name('reports.procurement.note');
+        Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
+            ->name('reports.procurement.credit-ledger')
+            ->breadcrumbs($crumb('reports.procurement.credit-ledger', 'report_credit_ledger'));
+        // Moved to the reports root — old links and bookmarks keep working.
+        Route::redirect('lessor-breakdown', '/reports/lessor-breakdown', 301);
+        Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
+            ->name('reports.procurement.pst-applicability')
+            ->breadcrumbs($crumb('reports.procurement.pst-applicability', 'report_pst_applicability'));
+        Route::get('user-agreement-ledger', [ProcurementReportsController::class, 'userAgreementLedger'])
+            ->name('reports.procurement.user-agreement-ledger')
+            ->breadcrumbs($crumb('reports.procurement.user-agreement-ledger', 'report_user_agreement_ledger'));
+        Route::get('lease-end-schedules', [ProcurementReportsController::class, 'leaseEndSchedulesReport'])
+            ->name('reports.procurement.lease-end-schedules')
+            ->breadcrumbs($crumb('reports.procurement.lease-end-schedules', 'report_lease_end_schedules'));
+        Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
+            ->name('reports.procurement.schedule-signing')
+            ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));
+    });
 });
 
 Route::get(
