@@ -235,11 +235,12 @@ class ContractsPageTest extends TestCase
         $this->assertSame($tile, $rows);
     }
 
-    public function test_page_renders_without_the_reports_permission()
+    public function test_contracts_view_alone_opens_the_whole_page()
     {
-        // Viewing contracts and reporting on them are separate grants. Anyone
-        // with only the former gets the tiles, filters and register table;
-        // the charts and the report sections are simply absent, not a 500.
+        // One page, one permission. This used to need a second grant for the
+        // charts and reports, which nobody could hold — the ability was never
+        // defined, so the page rendered half-drawn for every non-superuser
+        // and the drill-downs 403'd.
         $viewer = User::factory()->create([
             'permissions' => json_encode(['contracts.view' => '1']),
         ]);
@@ -248,8 +249,40 @@ class ContractsPageTest extends TestCase
             ->get(route('contracts.index'))
             ->assertOk()
             ->assertSee(trans('admin/contracts/general.tile_all'))
-            ->assertDontSee('contractsFyChart', false)
-            ->assertDontSee('contracts-report-body', false);
+            ->assertSee('contractsFyChart', false)
+            ->assertSee(route('contracts.reports.serial-register', ['embed' => 1], false), false);
+
+        $this->actingAs($viewer)
+            ->get(route('contracts.reports.by-area'))
+            ->assertOk();
+    }
+
+    public function test_admins_get_the_whole_page()
+    {
+        // How every ITS group is actually configured: the `admin` permission
+        // rather than the individual module keys. SnipePermissionsPolicy
+        // honours it, so the register was always visible — but the charts
+        // hung off a gate that admin could not satisfy.
+        $admin = User::factory()->create([
+            'permissions' => json_encode(['admin' => '1']),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('contracts.index'))
+            ->assertOk()
+            ->assertSee('contractsFyChart', false);
+
+        $this->actingAs($admin)
+            ->get(route('contracts.reports.expiring-soon'))
+            ->assertOk();
+    }
+
+    public function test_contracts_stays_shut_without_the_permission()
+    {
+        $stranger = User::factory()->create(['permissions' => json_encode([])]);
+
+        $this->actingAs($stranger)->get(route('contracts.index'))->assertForbidden();
+        $this->actingAs($stranger)->get(route('contracts.reports.by-area'))->assertForbidden();
     }
 
     public function test_by_theme_redirects_to_by_area()

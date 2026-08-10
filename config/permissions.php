@@ -78,10 +78,9 @@ return [
             'permission' => 'budget_allocations.manage',
             'display' => true,
         ],
-        [
-            'permission' => 'reports.contracts.view',
-            'display' => true,
-        ],
+        // No reports.contracts.view: the contracts dashboard is /contracts
+        // itself, gated by contracts.view like the rest of that page. The key
+        // survives in old group records and is simply inert.
         [
             'permission' => 'reports.fleet-health.view',
             'display' => true,
