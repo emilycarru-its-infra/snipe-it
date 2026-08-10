@@ -103,17 +103,20 @@
 
             @can('files', $contract)
                 <x-box>
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-                        <h3 style="margin:0;">
-                            {{ trans('general.files') }}
-                            <small class="text-muted">({{ $contract->uploads()->count() }})</small>
-                        </h3>
+                    {{-- The heading comes from the files table's own
+                         table_header slot, as it does on every other view —
+                         adding a second <h3> here printed "Files" twice. --}}
+                    <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
                         <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#uploadFileModal">
                             <i class="fas fa-upload" aria-hidden="true"></i>
                             {{ trans('general.file_upload') }}
                         </button>
                     </div>
-                    <x-table.files object_type="contracts" :object="$contract"/>
+                    <x-table.files
+                        object_type="contracts"
+                        :object="$contract"
+                        :table_header="trans('general.files').' ('.$contract->uploads()->count().')'"
+                    />
                 </x-box>
             @endcan
         </x-page-column>

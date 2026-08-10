@@ -170,7 +170,7 @@ class ContractsPageTest extends TestCase
         return [
             'expiring soon'    => ['contracts.reports.expiring-soon'],
             'renewal series'   => ['contracts.reports.renewal-series'],
-            'by theme'         => ['contracts.reports.by-theme'],
+            'by area'          => ['contracts.reports.by-area'],
             'by provider'      => ['contracts.reports.by-provider'],
             'serial register'  => ['contracts.reports.serial-register'],
             'naming violators' => ['contracts.reports.naming-violators'],
@@ -196,7 +196,7 @@ class ContractsPageTest extends TestCase
             // The umbrella report kept its content and lost its name: it was
             // one of two things called "umbrella" in this module.
             'umbrellas'        => ['/reports/contracts/umbrellas', 'contracts.reports.renewal-series'],
-            'by theme'         => ['/reports/contracts/by-theme', 'contracts.reports.by-theme'],
+            'by theme'         => ['/reports/contracts/by-theme', 'contracts.reports.by-area'],
             'by provider'      => ['/reports/contracts/by-provider', 'contracts.reports.by-provider'],
             'serial register'  => ['/reports/contracts/serial-register', 'contracts.reports.serial-register'],
             'naming violators' => ['/reports/contracts/naming-violators', 'contracts.reports.naming-violators'],
@@ -244,6 +244,23 @@ class ContractsPageTest extends TestCase
             ->assertSee(trans('admin/contracts/general.tile_all'))
             ->assertDontSee('contractsFyChart', false)
             ->assertDontSee('contracts-report-body', false);
+    }
+
+    public function test_by_theme_redirects_to_by_area()
+    {
+        // "Theme" was the old name; the slug shipped before the rename.
+        $this->actingAs($this->superuser())
+            ->get('/contracts/by-theme')
+            ->assertRedirect(route('contracts.reports.by-area'));
+    }
+
+    public function test_contracts_table_has_no_dead_select_column()
+    {
+        // Contracts have no bulk actions, so a select-all column would offer
+        // a selection nothing can act on.
+        $layout = json_decode(\App\Presenters\ContractPresenter::dataTableLayout(), true);
+
+        $this->assertNotContains('checkbox', array_column($layout, 'field'));
     }
 
     public function test_report_paths_do_not_shadow_the_contract_show_route()

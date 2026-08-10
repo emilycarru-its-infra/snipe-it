@@ -156,7 +156,7 @@ class ContractsController extends Controller
      * window redraws the charts rather than only the table underneath them.
      *
      * Each chart drops the one filter it groups by — spend-by-FY ignores the
-     * fiscal year, by-theme ignores the theme — because filtering a chart by
+     * fiscal year, by-area ignores the area — because filtering a chart by
      * its own axis collapses it to a single bar and tells you nothing.
      *
      * Series count real contracts only, unless the reader has explicitly
