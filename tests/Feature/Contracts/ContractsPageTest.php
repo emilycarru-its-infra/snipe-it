@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Contracts;
 
+use App\Helpers\Helper;
 use App\Models\Contract;
 use App\Models\User;
 use Tests\TestCase;
@@ -10,8 +11,9 @@ use Tests\TestCase;
  * /contracts is one page: tiles, charts, the drill-down reports and the
  * register table. It used to be two — a dashboard at /reports/contracts and a
  * bare table here — so these cover the merge: the old URLs still resolve, the
- * page opens on every fiscal year rather than pre-filtered to one, and the
- * drill-downs answer both as standalone pages and as inline embeds.
+ * page opens on the current fiscal year the way /procurement does, the filters
+ * narrow the charts as well as the table, and the drill-downs answer both as
+ * standalone pages and as inline embeds.
  */
 class ContractsPageTest extends TestCase
 {
@@ -36,20 +38,71 @@ class ContractsPageTest extends TestCase
             ->assertSee(route('api.contracts.index', [], false), false);
     }
 
-    public function test_page_opens_on_all_fiscal_years()
+    public function test_page_opens_on_the_current_fiscal_year()
     {
-        // The old dashboard defaulted to the current FY. This page is the
-        // register too, so opening it pre-filtered would hide most rows.
+        // Matches /procurement, and moves with the calendar rather than
+        // being pinned to a year.
+        $current = Helper::currentFiscalYear();
+        Contract::factory()->create(['fiscal_year' => $current]);
+        Contract::factory()->create(['fiscal_year' => 'FY2023-24']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('contracts.index'))
+            ->assertOk()
+            ->assertSee('value="'.$current.'" selected', false)
+            ->assertDontSee('value="all" selected', false);
+    }
+
+    public function test_page_falls_back_to_the_latest_fiscal_year_with_data()
+    {
+        // Nothing in the current FY; opening on an empty year would read as
+        // "no contracts" rather than "none this year yet".
         Contract::factory()->create(['fiscal_year' => 'FY2023-24']);
         Contract::factory()->create(['fiscal_year' => 'FY2024-25']);
 
-        $response = $this->actingAs($this->superuser())
+        $this->actingAs($this->superuser())
             ->get(route('contracts.index'))
             ->assertOk()
-            ->assertDontSee('value="FY2023-24" selected', false)
-            ->assertDontSee('value="FY2024-25" selected', false);
+            ->assertSee('value="FY2024-25" selected', false);
+    }
+
+    public function test_all_fiscal_years_is_the_opt_out()
+    {
+        Contract::factory()->create(['fiscal_year' => 'FY2024-25']);
+
+        $response = $this->actingAs($this->superuser())
+            ->get(route('contracts.index', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('value="all" selected', false);
 
         $this->assertNull($response->viewData('selectedFy'));
+    }
+
+    public function test_filters_narrow_the_charts_not_only_the_table()
+    {
+        // The whole page reads against one filter set. A theme filter has to
+        // redraw the charts too, or the numbers on screen disagree.
+        Contract::factory()->create(['fiscal_year' => 'FY2024-25', 'theme' => 'InfoSec', 'total_cost' => 100]);
+        Contract::factory()->create(['fiscal_year' => 'FY2024-25', 'theme' => 'Networking', 'total_cost' => 900]);
+
+        $unfiltered = $this->actingAs($this->superuser())
+            ->get(route('contracts.index', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->viewData('charts');
+
+        $filtered = $this->actingAs($this->superuser())
+            ->get(route('contracts.index', ['fiscal_year' => 'all', 'theme' => 'InfoSec']))
+            ->assertOk()
+            ->viewData('charts');
+
+        // Spend-by-FY drops its own dimension but honours the theme filter.
+        $this->assertSame(1000.0, (float) array_sum($unfiltered['fyValues']));
+        $this->assertSame(100.0, (float) array_sum($filtered['fyValues']));
+
+        // The theme chart keeps every bar — filtering it by its own axis
+        // would leave one — and marks which is selected.
+        $this->assertCount(2, $filtered['themeLabels']);
+        $this->assertSame('InfoSec', $filtered['themeSelected']);
     }
 
     public function test_fiscal_year_scopes_the_page()
@@ -65,13 +118,16 @@ class ContractsPageTest extends TestCase
     public function test_renewal_series_tile_counts_synthesized_rows_only()
     {
         // A migration seeds a system "Unattributed" contract, itself
-        // synthesized, so both counts are measured as deltas.
-        $before = $this->actingAs($this->superuser())->get(route('contracts.index'))->assertOk();
+        // synthesized, so both counts are measured as deltas. Both reads pin
+        // fiscal_year=all: the default FY resolves against whatever years
+        // hold data, which changes as this test adds rows.
+        $all = ['fiscal_year' => 'all'];
+        $before = $this->actingAs($this->superuser())->get(route('contracts.index', $all))->assertOk();
 
         Contract::factory()->count(2)->create(['is_synthesized' => false]);
         Contract::factory()->create(['is_synthesized' => true]);
 
-        $after = $this->actingAs($this->superuser())->get(route('contracts.index'))->assertOk();
+        $after = $this->actingAs($this->superuser())->get(route('contracts.index', $all))->assertOk();
 
         $this->assertSame(3, $after->viewData('totalCount') - $before->viewData('totalCount'));
         $this->assertSame(1, $after->viewData('renewalSeriesCount') - $before->viewData('renewalSeriesCount'));
@@ -81,12 +137,13 @@ class ContractsPageTest extends TestCase
     {
         // A renewal series row is a grouping, not a contract — counting its
         // cost would double the spend of the children it groups.
-        $before = $this->actingAs($this->superuser())->get(route('contracts.index'))->assertOk();
+        $all = ['fiscal_year' => 'all'];
+        $before = $this->actingAs($this->superuser())->get(route('contracts.index', $all))->assertOk();
 
         Contract::factory()->create(['is_synthesized' => false, 'total_cost' => 100]);
         Contract::factory()->create(['is_synthesized' => true, 'total_cost' => 100]);
 
-        $after = $this->actingAs($this->superuser())->get(route('contracts.index'))->assertOk();
+        $after = $this->actingAs($this->superuser())->get(route('contracts.index', $all))->assertOk();
 
         $this->assertSame(100.0, $after->viewData('totalCost') - $before->viewData('totalCost'));
     }
@@ -160,7 +217,7 @@ class ContractsPageTest extends TestCase
         $user = $this->superuser();
 
         $tile = $this->actingAs($user)
-            ->get(route('contracts.index'))
+            ->get(route('contracts.index', ['fiscal_year' => 'all']))
             ->assertOk()
             ->viewData('renewalSeriesCount');
 
