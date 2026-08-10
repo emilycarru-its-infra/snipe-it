@@ -40,11 +40,13 @@ class ReportDashboardsSmokeTest extends TestCase
             ], false);
     }
 
-    public function test_contracts_report_renders()
+    public function test_contracts_report_redirects_to_the_merged_page()
     {
+        // The contracts dashboard was folded into /contracts; the old URL is
+        // kept alive as a redirect for bookmarks and emailed links.
         $this->actingAs($this->superuser())
             ->get(route('reports.contracts'))
-            ->assertOk();
+            ->assertRedirect(route('contracts.index'));
     }
 
     public function test_fleet_health_dashboard_renders()

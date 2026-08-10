@@ -2406,13 +2406,9 @@
                                             </a>
                                         </li>
                                     @endcan
-                                    @can('reports.contracts.view')
-                                        <li {{!! (request()->is('reports/contracts*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('reports.contracts') }}">
-                                                {{ trans('admin/contracts/general.contracts') }}
-                                            </a>
-                                        </li>
-                                    @endcan
+                                    {{-- No Contracts entry: the contracts
+                                         dashboard is /contracts itself, which
+                                         hangs under Contracts in this menu. --}}
                                     @can('reports.transactions.view')
                                         <li {{!! (request()->is('reports/transactions*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.transactions.index') }}">

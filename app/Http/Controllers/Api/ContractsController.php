@@ -34,12 +34,24 @@ class ContractsController extends Controller
             $contracts->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         }
 
-        if ($request->filled('umbrellas_only') && filter_var($request->input('umbrellas_only'), FILTER_VALIDATE_BOOLEAN)) {
-            $contracts->umbrellas();
+        // Rows with no parent: the renewal series themselves plus every
+        // standalone contract, i.e. the list with the per-year children of a
+        // series collapsed away. `umbrellas_only` is the old spelling, kept
+        // working for anything still calling the API with it.
+        if (filter_var($request->input('top_level', $request->input('umbrellas_only')), FILTER_VALIDATE_BOOLEAN)) {
+            $contracts->topLevel();
         }
 
         if ($request->filled('exclude_synthesized') && filter_var($request->input('exclude_synthesized'), FILTER_VALIDATE_BOOLEAN)) {
             $contracts->realOnly();
+        }
+
+        // The renewal series rows. Keyed off is_synthesized rather than
+        // source: the system "Unattributed" contract is synthesized but
+        // carries source=manual, so filtering on source would return one
+        // fewer row than the tile that links here counts.
+        if ($request->filled('synthesized_only') && filter_var($request->input('synthesized_only'), FILTER_VALIDATE_BOOLEAN)) {
+            $contracts->where('is_synthesized', true);
         }
 
         if ($request->filled('expiring_within_days')) {

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\Helper;
 use App\Models\Contract;
 use App\Models\ContractSerial;
 use Illuminate\Http\Request;
@@ -10,106 +9,17 @@ use League\Csv\EscapeFormula;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Contracts dashboard + sub-reports. The shape mirrors
- * ProcurementReportsController so finance/admin users get a consistent
- * "summary cards → charts → sub-report table → CSV export" workflow
- * regardless of whether they're looking at purchasing or contracts.
+ * The contract drill-down reports. Each one is a section on /contracts —
+ * fetched inline in `embed` mode — and a standalone page at
+ * /contracts/<report> so it can be linked, printed or pulled as CSV on its
+ * own. The shape mirrors ProcurementReportsController so finance/admin users
+ * get a consistent "view inline → open → download" workflow regardless of
+ * whether they're looking at purchasing or contracts.
+ *
+ * The dashboard half (tiles + charts) lives in ContractsController.
  */
 class ContractReportsController extends Controller
 {
-    public function index(Request $request)
-    {
-        $this->authorize('reports.contracts.view');
-
-        $allFiscalYears = Contract::whereNotNull('fiscal_year')
-            ->distinct()->orderBy('fiscal_year')->pluck('fiscal_year');
-
-        // Default to the current FY when no ?fiscal_year is passed so the
-        // contracts dashboard opens on this year. When the current FY holds no
-        // contracts yet (early in a fiscal year, or contracts dated by signing
-        // year), fall back to the most recent FY that actually has contracts —
-        // $allFiscalYears is ascending and FY labels sort chronologically — so
-        // the dashboard never silently opens on the all-time view. An explicit
-        // `?fiscal_year=all` is the opt-out for all-time.
-        $rawFy = $request->query('fiscal_year');
-        $current = Helper::currentFiscalYear();
-        $defaultFy = $allFiscalYears->contains($current) ? $current : $allFiscalYears->last();
-        if ($rawFy === 'all') {
-            $selectedFy = null;
-        } elseif ($rawFy !== null && $allFiscalYears->contains($rawFy)) {
-            $selectedFy = $rawFy;
-        } else {
-            $selectedFy = $defaultFy;
-        }
-
-        $base = Contract::query()
-            ->realOnly()
-            ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy));
-
-        $activeCount       = (clone $base)->where('is_active', true)->count();
-        $totalCost         = (float) (clone $base)->sum('total_cost');
-        $expiring30        = (clone $base)->expiringWithin(30)->count();
-        $expiring90        = (clone $base)->expiringWithin(90)->count();
-        $umbrellaCount     = Contract::where('is_synthesized', true)->count();
-        $serialRegister    = ContractSerial::count();
-        $namingViolators   = $this->namingViolators()->count();
-        $staleCount        = $this->stale()->count();
-
-        // Spend by fiscal year (bar). Use a single query grouped on fiscal_year.
-        $spendByFy = Contract::realOnly()
-            ->whereNotNull('fiscal_year')
-            ->selectRaw('fiscal_year, SUM(total_cost) AS total')
-            ->groupBy('fiscal_year')
-            ->orderBy('fiscal_year')
-            ->pluck('total', 'fiscal_year');
-
-        // Count by theme (stacked bar / horizontal).
-        $countByTheme = Contract::realOnly()
-            ->whereNotNull('theme')
-            ->when($selectedFy, fn ($q) => $q->where('fiscal_year', $selectedFy))
-            ->selectRaw('theme, COUNT(*) AS n')
-            ->groupBy('theme')
-            ->orderByDesc('n')
-            ->pluck('n', 'theme');
-
-        // Top providers by spend (doughnut).
-        $spendByProvider = Contract::realOnly()
-            ->join('suppliers', 'suppliers.id', '=', 'contracts.supplier_id')
-            ->when($selectedFy, fn ($q) => $q->where('contracts.fiscal_year', $selectedFy))
-            ->selectRaw('suppliers.name AS provider, SUM(contracts.total_cost) AS total')
-            ->groupBy('suppliers.name')
-            ->orderByDesc('total')
-            ->limit(10)
-            ->pluck('total', 'provider');
-
-        // Renewal calendar — count of end_date per month, current + next FY window.
-        $renewalCalendar = Contract::realOnly()
-            ->where('is_active', true)
-            ->whereNotNull('end_date')
-            ->whereBetween('end_date', [now()->startOfMonth(), now()->addYear()->endOfMonth()])
-            ->selectRaw("DATE_FORMAT(end_date, '%Y-%m') AS ym, COUNT(*) AS n")
-            ->groupBy('ym')
-            ->orderBy('ym')
-            ->pluck('n', 'ym');
-
-        return view('reports/contracts', [
-            'allFiscalYears'   => $allFiscalYears,
-            'selectedFy'       => $selectedFy,
-            'activeCount'      => $activeCount,
-            'totalCost'        => $totalCost,
-            'expiring30'       => $expiring30,
-            'expiring90'       => $expiring90,
-            'umbrellaCount'    => $umbrellaCount,
-            'serialRegister'   => $serialRegister,
-            'namingViolators'  => $namingViolators,
-            'staleCount'       => $staleCount,
-            'spendByFy'        => $spendByFy,
-            'countByTheme'     => $countByTheme,
-            'spendByProvider'  => $spendByProvider,
-            'renewalCalendar'  => $renewalCalendar,
-        ]);
-    }
-
     // ─── Sub-reports ────────────────────────────────────────────────────
 
     public function expiringSoon(Request $request)
@@ -128,27 +38,32 @@ class ContractReportsController extends Controller
             $request,
             "contracts-expiring-{$days}d",
             trans('admin/contracts/general.report_expiring_soon', ['days' => $days]),
-            'reports.contracts.expiring-soon',
+            'contracts.reports.expiring-soon',
             $this->buildExpiringReport($rows),
             extraParams: ['days' => $days]
         );
     }
 
-    public function umbrellas(Request $request)
+    /**
+     * The synthesized grouping rows: one per (theme, product) pair that has
+     * more than one fiscal-year contract, with its per-year children rolled
+     * up. Written by the tdx-to-snipe-contracts function, not by hand.
+     */
+    public function renewalSeries(Request $request)
     {
         $this->authorize('reports.contracts.view');
 
-        $umbrellas = Contract::where('is_synthesized', true)
+        $series = Contract::where('is_synthesized', true)
             ->with(['children' => fn ($q) => $q->orderBy('fiscal_year')])
             ->orderBy('theme')->orderBy('product')
             ->get();
 
         return $this->render(
             $request,
-            'contracts-umbrellas',
-            trans('admin/contracts/general.report_umbrellas'),
-            'reports.contracts.umbrellas',
-            $this->buildUmbrellaReport($umbrellas)
+            'contracts-renewal-series',
+            trans('admin/contracts/general.report_renewal_series'),
+            'contracts.reports.renewal-series',
+            $this->buildRenewalSeriesReport($series)
         );
     }
 
@@ -166,7 +81,7 @@ class ContractReportsController extends Controller
             $request,
             'contracts-by-theme',
             trans('admin/contracts/general.report_by_theme'),
-            'reports.contracts.by-theme',
+            'contracts.reports.by-theme',
             [
                 'columns' => [trans('admin/contracts/general.theme'), trans('general.count'), trans('admin/contracts/general.total_cost')],
                 'records' => $rows->map(fn ($r) => [
@@ -191,7 +106,7 @@ class ContractReportsController extends Controller
             $request,
             'contracts-by-provider',
             trans('admin/contracts/general.report_by_provider'),
-            'reports.contracts.by-provider',
+            'contracts.reports.by-provider',
             [
                 'columns' => [trans('general.supplier'), trans('general.count'), trans('admin/contracts/general.total_cost')],
                 'records' => $rows->map(fn ($r) => [
@@ -213,7 +128,7 @@ class ContractReportsController extends Controller
             $request,
             'contracts-serial-register',
             trans('admin/contracts/general.report_serial_register'),
-            'reports.contracts.serial-register',
+            'contracts.reports.serial-register',
             [
                 'columns' => [
                     trans('admin/contracts/general.serial'),
@@ -243,7 +158,7 @@ class ContractReportsController extends Controller
             $request,
             'contracts-naming-violators',
             trans('admin/contracts/general.report_naming_violators'),
-            'reports.contracts.naming-violators',
+            'contracts.reports.naming-violators',
             [
                 'columns' => [
                     trans('admin/contracts/general.tdx_id'),
@@ -267,7 +182,7 @@ class ContractReportsController extends Controller
             $request,
             'contracts-stale-in-tdx',
             trans('admin/contracts/general.report_stale'),
-            'reports.contracts.stale',
+            'contracts.reports.stale',
             [
                 'columns' => [
                     trans('admin/contracts/general.tdx_id'),
@@ -330,10 +245,10 @@ class ContractReportsController extends Controller
         ];
     }
 
-    private function buildUmbrellaReport($umbrellas): array
+    private function buildRenewalSeriesReport($series): array
     {
         $records = [];
-        foreach ($umbrellas as $u) {
+        foreach ($series as $u) {
             $records[] = [
                 'cells' => [
                     $u->theme,
@@ -349,7 +264,7 @@ class ContractReportsController extends Controller
             'columns' => [
                 trans('admin/contracts/general.theme'),
                 trans('admin/contracts/general.product'),
-                trans('admin/contracts/general.children'),
+                trans('admin/contracts/general.series_contracts'),
                 trans('admin/contracts/general.total_cost'),
                 trans('admin/contracts/general.fiscal_year'),
             ],
@@ -365,7 +280,17 @@ class ContractReportsController extends Controller
             return $this->streamReportCsv($filename, $report);
         }
 
-        return view('reports/contracts/show', [
+        // Embed mode returns the bare table for the section that /contracts
+        // lazy-loads inline; the full page keeps the layout and the header.
+        if ($request->boolean('embed')) {
+            return view('contracts/reports/_report-table', [
+                'columns' => $report['columns'],
+                'rows'    => $report['records'],
+                'footer'  => $report['footer'] ?? null,
+            ]);
+        }
+
+        return view('contracts/reports/show', [
             'reportTitle' => $title,
             'columns'     => $report['columns'],
             'rows'        => $report['records'],

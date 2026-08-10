@@ -138,7 +138,8 @@ class ReportsController extends Controller
 
     /**
      * Contracts expiring over the next N quarters, grouped by calendar quarter.
-     * Uses the real (non-synthesized) Contract scope to keep umbrella parents out.
+     * Uses the real (non-synthesized) Contract scope to keep renewal series
+     * grouping rows out.
      */
     private function contractExpirationsByQuarter(int $quarters): array
     {

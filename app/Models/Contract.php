@@ -211,7 +211,13 @@ class Contract extends Model
         return $query->where('is_active', true);
     }
 
-    public function scopeUmbrellas($query)
+    /**
+     * Contracts that aren't filed under a parent — the renewal series rows
+     * themselves plus every standalone contract. Named "umbrellas" once,
+     * which collided with the other meaning of umbrella in this module: the
+     * synthesized grouping rows, now called renewal series.
+     */
+    public function scopeTopLevel($query)
     {
         return $query->whereNull('parent_contract_id');
     }
