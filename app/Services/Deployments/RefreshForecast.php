@@ -122,7 +122,7 @@ class RefreshForecast
     /**
      * Distinct FY labels we have refresh candidates for, derived from
      * assets.asset_eol_date and (if present) the Lease End Date custom
-     * field. Sorted descending, always including the current + next FY so
+     * field. Sorted ascending (oldest first), always including the current + next FY so
      * an empty board is still usable.
      */
     public function availableFiscalYears(): array
@@ -159,7 +159,7 @@ class RefreshForecast
         }
 
         $out = array_keys($labels);
-        rsort($out);
+        sort($out);
 
         return $out;
     }
@@ -212,7 +212,23 @@ class RefreshForecast
 
         $assets = $query->orderBy('asset_eol_date')->orderBy('name')->get();
 
-        return $assets->map(function (Asset $asset) use ($start, $end, $leaseCol, $startStr, $endStr) {
+        // Tie the money side in: a lease decision recorded in procurement
+        // (per asset, or for the device's whole lease contract via
+        // lease_contract_id) changes what "due for refresh" means — e.g. a
+        // retained lease-to-own has its refresh budget redirected, so the
+        // planner must see the decision right on the candidate row.
+        $contractIds = $assets->pluck('lease_contract_id')->filter()->unique()->values()->all();
+        $decisions = \App\Models\LeaseDecision::query()
+            ->where('status', '!=', 'cancelled')
+            ->where(function ($q) use ($contractIds, $assets) {
+                $q->whereIn('contract_reference', $contractIds ?: ['-'])
+                    ->orWhereIn('asset_id', $assets->pluck('id')->all() ?: [-1]);
+            })
+            ->get();
+        $decisionByAsset = $decisions->whereNotNull('asset_id')->keyBy('asset_id');
+        $decisionByContract = $decisions->whereNull('asset_id')->keyBy('contract_reference');
+
+        return $assets->map(function (Asset $asset) use ($start, $end, $leaseCol, $startStr, $endStr, $decisionByAsset, $decisionByContract) {
             $eolIn = false;
             if ($asset->asset_eol_date) {
                 $eol = \Carbon\Carbon::parse($asset->asset_eol_date);
@@ -225,20 +241,31 @@ class RefreshForecast
                 $leaseIn = ($leaseVal >= $startStr && $leaseVal <= $endStr);
             }
 
+            $eolStr = $asset->asset_eol_date ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString() : '';
+
+            // When both dates land in the FY, the lease end wins — that's
+            // the contractual return window. The one exception: an End of
+            // Life we set EARLIER than the lease end is our own call to
+            // replace sooner (a 5-year lease whose device only serves 4),
+            // so the earlier End of Life is the operative date.
             $reason = match (true) {
-                $eolIn && $leaseIn => 'both',
+                $eolIn && $leaseIn => ($eolStr !== '' && $eolStr < $leaseVal) ? 'eol' : 'lease',
                 $leaseIn => 'lease',
                 default => 'eol',
             };
 
-            $sourceDate = match ($reason) {
-                'lease' => $leaseVal,
-                default => $asset->asset_eol_date ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString() : $leaseVal,
-            };
+            $sourceDate = $reason === 'lease' ? $leaseVal : ($eolStr ?: $leaseVal);
 
             // Transient annotations consumed by the forecast view + addFromForecast.
             $asset->refresh_reason = $reason;
             $asset->source_date = $sourceDate;
+
+            $decision = $decisionByAsset->get($asset->id)
+                ?: ($asset->lease_contract_id ? $decisionByContract->get($asset->lease_contract_id) : null);
+            $asset->lease_decision_label = $decision
+                ? trim(ucfirst((string) ($decision->decision_type ?: 'decision')).' — '.($decision->status ?: 'pending'))
+                : null;
+            $asset->lease_decision_note = $decision?->notes;
 
             return $asset;
         });

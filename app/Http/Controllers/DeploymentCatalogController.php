@@ -6,7 +6,6 @@ use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
-use App\Models\Order;
 use App\Models\Statuslabel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +14,7 @@ use Illuminate\Http\Request;
  * One small CRUD surface for the two editable deployment catalogs (wave
  * types, per-device stages), dispatched on the {catalog} route segment.
  * Stages additionally expose is_terminal + maps_to_status_id (the bridge to
- * a Snipe status_label). Authorization reuses the Order policy, mirroring
+ * a Snipe status_label). Gated by the deployments module permission, mirroring
  * the exhibit catalog controller.
  */
 class DeploymentCatalogController extends Controller
@@ -35,7 +34,7 @@ class DeploymentCatalogController extends Controller
 
     public function index(string $catalog)
     {
-        $this->authorize('view', Order::class);
+        $this->authorize('deployments.view');
         [$class, $labelKey] = $this->resolve($catalog);
 
         return view('deployment-config.index', [
@@ -47,7 +46,7 @@ class DeploymentCatalogController extends Controller
 
     public function create(string $catalog)
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
         [$class, $labelKey] = $this->resolve($catalog);
 
         return view('deployment-config.form', [
@@ -60,7 +59,7 @@ class DeploymentCatalogController extends Controller
 
     public function store(Request $request, string $catalog): RedirectResponse
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
         [$class] = $this->resolve($catalog);
 
         $item = new $class;
@@ -76,7 +75,7 @@ class DeploymentCatalogController extends Controller
 
     public function edit(string $catalog, int $id)
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
         [$class, $labelKey] = $this->resolve($catalog);
 
         return view('deployment-config.form', [
@@ -89,7 +88,7 @@ class DeploymentCatalogController extends Controller
 
     public function update(Request $request, string $catalog, int $id): RedirectResponse
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
         [$class] = $this->resolve($catalog);
 
         $item = $class::findOrFail($id);
@@ -105,7 +104,7 @@ class DeploymentCatalogController extends Controller
 
     public function destroy(string $catalog, int $id): RedirectResponse
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
         [$class] = $this->resolve($catalog);
 
         $item = $class::findOrFail($id);

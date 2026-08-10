@@ -13,7 +13,7 @@ return [
     'current_value' => 'Current Value',
     'diff' => 'Diff',
     'dl_csv' => 'Download CSV',
-    'eol' => 'EOL',
+    'eol' => 'End of Life',
     'id' => 'ID',
     'last_checkin_date' => 'Last Checkin Date',
     'location' => 'Location',
