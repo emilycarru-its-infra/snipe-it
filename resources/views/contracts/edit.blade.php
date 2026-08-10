@@ -86,6 +86,18 @@
     </div>
 </div>
 
+<div class="form-group {{ $errors->has('ssot') ? ' has-error' : '' }}">
+    <label for="ssot" class="col-md-3 control-label">{{ trans('admin/contracts/general.ssot') }}</label>
+    <div class="col-md-7">
+        <select class="form-control" name="ssot" id="ssot">
+            <option value="" @selected(old('ssot', $item->ssot) === null || old('ssot', $item->ssot) === '')>{{ trans('admin/contracts/general.ssot_none') }}</option>
+            <option value="tdx" @selected(old('ssot', $item->ssot) === 'tdx')>{{ trans('admin/contracts/general.ssot_tdx') }}</option>
+            <option value="snipe" @selected(old('ssot', $item->ssot) === 'snipe')>{{ trans('admin/contracts/general.ssot_snipe') }}</option>
+        </select>
+        <p class="help-block">{{ trans('admin/contracts/general.ssot_help') }}</p>
+    </div>
+</div>
+
 <div class="form-group {{ $errors->has('start_date') ? ' has-error' : '' }}">
     <label for="start_date" class="col-md-3 control-label">{{ trans('admin/contracts/general.start_date') }}</label>
     <div class="col-md-7">
@@ -135,6 +147,13 @@
     <label for="service_offering" class="col-md-3 control-label">{{ trans('admin/contracts/general.service_offering') }}</label>
     <div class="col-md-7">
         <input class="form-control" name="service_offering" type="text" id="service_offering" value="{{ old('service_offering', $item->service_offering) }}">
+    </div>
+</div>
+
+<div class="form-group {{ $errors->has('service_catalogue') ? ' has-error' : '' }}">
+    <label for="service_catalogue" class="col-md-3 control-label">{{ trans('admin/contracts/general.service_catalogue') }}</label>
+    <div class="col-md-7">
+        <input class="form-control" name="service_catalogue" type="text" id="service_catalogue" value="{{ old('service_catalogue', $item->service_catalogue) }}">
     </div>
 </div>
 
