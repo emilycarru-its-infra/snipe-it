@@ -147,16 +147,17 @@ class DeploymentsBoardTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // Hub cards: Procurement, then Deployments, then Contracts. The help
-        // strings are unique to the cards (the tile titles also appear in
-        // the top toolbar, in a different order).
+        // Hub cards: Procurement, then Deployments. The help strings are
+        // unique to the cards (the tile titles also appear in the top
+        // toolbar, in a different order). Contracts used to follow
+        // Deployments here; its dashboard was folded into /contracts, so it
+        // no longer has a card on this hub at all.
         $procurement = strpos($content, trans('admin/reports/general.hub_tile_procurement_help'));
         $deployments = strpos($content, trans('admin/reports/general.hub_tile_deployments_help'));
-        $contracts = strpos($content, trans('admin/reports/general.hub_tile_contracts_help'));
         $this->assertNotFalse($procurement);
         $this->assertNotFalse($deployments);
-        $this->assertNotFalse($contracts);
-        $this->assertTrue($procurement < $deployments && $deployments < $contracts);
+        $this->assertTrue($procurement < $deployments);
+        $this->assertStringNotContainsString(route('reports.contracts', [], false), $content);
 
         // Top toolbar: the entry sits between Assets and Procurement. Match
         // the li markup (class="...") — the bare names also appear earlier

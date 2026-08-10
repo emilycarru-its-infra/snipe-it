@@ -29,7 +29,7 @@
                 <h2 style="margin-top:0;">
                     {{ $contract->name }}
                     @if ($contract->is_synthesized)
-                        <small class="label label-default">{{ trans('admin/contracts/general.synthesized_umbrella') }}</small>
+                        <small class="label label-default">{{ trans('admin/contracts/general.renewal_series_row') }}</small>
                     @endif
                 </h2>
                 <p class="text-muted" style="margin-bottom:15px;">{{ $contract->contract_number }}</p>
