@@ -194,6 +194,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
 
     });
 
+    // GUI-editable toolbar — readable and writable by admins, so the
+    // chrome itself can be reshaped agentically.
+    Route::get('settings/toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'apiShow'])
+        ->name('api.settings.toolbar.show');
+    Route::put('settings/toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'apiUpdate'])
+        ->name('api.settings.toolbar.update');
+
     /**
      * Companies API routes
      */
