@@ -26,10 +26,15 @@ class DashboardAccessTest extends TestCase
 
     /**
      * @dataProvider dashboards
+     *
+     * Redirect-following keeps this true across the module elevation: the
+     * old report URLs forward to the top-level boards, and it is the final
+     * page that must open.
      */
     public function test_dashboard_opens_for_an_its_group_member(string $route)
     {
         $this->actingAs($this->itsGroupMember())
+            ->followingRedirects()
             ->get(route($route))
             ->assertOk();
     }
@@ -51,6 +56,7 @@ class DashboardAccessTest extends TestCase
         $stranger = User::factory()->create(['permissions' => json_encode([])]);
 
         $this->actingAs($stranger)
+            ->followingRedirects()
             ->get(route($route))
             ->assertForbidden();
     }
