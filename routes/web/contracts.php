@@ -28,9 +28,9 @@ Route::group(['middleware' => ['auth'], 'prefix' => 'contracts'], function () us
     Route::get('renewal-series', [ContractReportsController::class, 'renewalSeries'])
         ->name('contracts.reports.renewal-series')
         ->breadcrumbs($reportCrumb('contracts.reports.renewal-series', 'report_renewal_series_title'));
-    Route::get('by-theme', [ContractReportsController::class, 'byTheme'])
-        ->name('contracts.reports.by-theme')
-        ->breadcrumbs($reportCrumb('contracts.reports.by-theme', 'report_by_theme_title'));
+    Route::get('by-area', [ContractReportsController::class, 'byArea'])
+        ->name('contracts.reports.by-area')
+        ->breadcrumbs($reportCrumb('contracts.reports.by-area', 'report_by_area_title'));
     Route::get('by-provider', [ContractReportsController::class, 'byProvider'])
         ->name('contracts.reports.by-provider')
         ->breadcrumbs($reportCrumb('contracts.reports.by-provider', 'report_by_provider_title'));
@@ -43,6 +43,10 @@ Route::group(['middleware' => ['auth'], 'prefix' => 'contracts'], function () us
     Route::get('stale', [ContractReportsController::class, 'staleReport'])
         ->name('contracts.reports.stale')
         ->breadcrumbs($reportCrumb('contracts.reports.stale', 'report_stale_title'));
+
+    // "Theme" was the old name for what the contract number's prefix
+    // actually is — the area the contract belongs to.
+    Route::get('by-theme', fn () => redirect()->route('contracts.reports.by-area', request()->query(), 301));
 });
 
 Route::resource('contracts', ContractsController::class, [
@@ -56,7 +60,7 @@ Route::group(['middleware' => ['auth'], 'prefix' => 'reports/contracts'], functi
     $moved = [
         'expiring-soon'    => 'contracts.reports.expiring-soon',
         'umbrellas'        => 'contracts.reports.renewal-series',
-        'by-theme'         => 'contracts.reports.by-theme',
+        'by-theme'         => 'contracts.reports.by-area',
         'by-provider'      => 'contracts.reports.by-provider',
         'serial-register'  => 'contracts.reports.serial-register',
         'naming-violators' => 'contracts.reports.naming-violators',

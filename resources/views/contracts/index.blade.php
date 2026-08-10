@@ -95,7 +95,7 @@
         $reports = [
             ['route' => 'contracts.reports.expiring-soon',    'name' => 'report_expiring_soon_title',    'desc' => 'report_expiring_soon_desc',    'params' => ['days' => 90]],
             ['route' => 'contracts.reports.renewal-series',   'name' => 'report_renewal_series_title',   'desc' => 'report_renewal_series_desc',   'params' => []],
-            ['route' => 'contracts.reports.by-theme',         'name' => 'report_by_theme_title',         'desc' => 'report_by_theme_desc',         'params' => []],
+            ['route' => 'contracts.reports.by-area',          'name' => 'report_by_area_title',          'desc' => 'report_by_area_desc',          'params' => []],
             ['route' => 'contracts.reports.by-provider',      'name' => 'report_by_provider_title',      'desc' => 'report_by_provider_desc',      'params' => []],
             ['route' => 'contracts.reports.serial-register',  'name' => 'report_serial_register_title',  'desc' => 'report_serial_register_desc',  'params' => []],
             ['route' => 'contracts.reports.naming-violators', 'name' => 'report_naming_violators_title', 'desc' => 'report_naming_violators_desc', 'params' => []],
@@ -127,7 +127,7 @@
                     </form>
 
                     @if ($themes->isNotEmpty())
-                        <span class="contracts-filter-label">{{ trans('admin/contracts/general.filter_by_theme') }}:</span>
+                        <span class="contracts-filter-label">{{ trans('admin/contracts/general.filter_by_area') }}:</span>
                         @foreach ($themes as $theme)
                             <a href="{{ $link(['theme' => $selectedTheme === $theme->theme ? null : $theme->theme]) }}"
                                class="btn btn-xs {{ $selectedTheme === $theme->theme ? 'btn-primary' : 'btn-default' }}">
@@ -220,101 +220,68 @@
         </x-box>
 
         @if ($charts)
-            {{-- The drill-downs, rendered inline. Each is also a page of its
-                 own at /contracts/<report> — the title and the view button
-                 both go there — so a single report stays linkable. --}}
-            <div class="row contracts-reports-row">
-                <div class="contracts-nav-col hidden-sm hidden-xs">
-                    <div class="contracts-report-nav">
-                        <div class="box box-default" style="margin-bottom:0;">
-                            <div class="box-header with-border">
-                                <h3 class="box-title">{{ trans('admin/contracts/general.reports') }}</h3>
-                            </div>
-                            <div class="box-body no-padding">
-                                <ul class="nav nav-pills nav-stacked contracts-report-navlist">
-                                    @foreach ($reports as $report)
-                                        <li>
-                                            <a href="#rpt-{{ $report['name'] }}" data-target-report="rpt-{{ $report['name'] }}">
-                                                {{ trans('admin/contracts/general.'.$report['name']) }}
-                                            </a>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            {{-- The drill-downs, one at a time across the full width. Each is
+                 also a page of its own at /contracts/<report> — the Open
+                 button goes there — so a single report stays linkable. Only
+                 the visible tab is fetched; the rest load when first
+                 selected, so opening the page costs one query, not seven. --}}
+            <div class="row">
+                <div class="col-md-12">
+                    <h3 class="contracts-reports-heading">{{ trans('admin/contracts/general.reports') }}</h3>
+                    <x-tabs>
+                        <x-slot:tabnav>
+                            @foreach ($reports as $report)
+                                <x-tabs.nav-item
+                                    name="rpt-{{ $report['name'] }}"
+                                    label="{{ trans('admin/contracts/general.'.$report['name']) }}"
+                                    class="{{ $loop->first ? 'active' : '' }}"
+                                />
+                            @endforeach
+                        </x-slot:tabnav>
 
-                <div class="contracts-content-col col-sm-12">
-                    @foreach ($reports as $report)
-                        <div class="box box-default contracts-report-box" id="rpt-{{ $report['name'] }}" style="scroll-margin-top:64px;">
-                            <div class="box-header with-border">
-                                <h3 class="box-title">
-                                    <a href="{{ route($report['route'], $report['params']) }}">{{ trans('admin/contracts/general.'.$report['name']) }}</a>
-                                </h3>
-                                <div class="box-tools pull-right">
-                                    <a href="{{ route($report['route'], $report['params']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.view') }}">
-                                        <x-icon type="reports" />
-                                    </a>
-                                    <a href="{{ route($report['route'], array_merge($report['params'], ['format' => 'csv'])) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.download') }}">
-                                        <x-icon type="download" />
-                                    </a>
-                                    <button type="button" class="btn btn-box-tool" data-widget="collapse" data-tooltip="true" title="{{ trans('general.collapse') }}">
-                                        <i class="fa fa-minus" aria-hidden="true"></i>
-                                    </button>
-                                </div>
-                                <p class="text-muted contracts-report-desc">{{ trans('admin/contracts/general.'.$report['desc']) }}</p>
-                            </div>
-                            <div class="box-body">
-                                <div class="contracts-report-body" data-embed-url="{{ route($report['route'], array_merge($report['params'], ['embed' => 1])) }}">
-                                    <div class="text-center text-muted" style="padding:18px;">
-                                        <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
+                        <x-slot:tabpanes>
+                            @foreach ($reports as $report)
+                                <x-tabs.pane name="rpt-{{ $report['name'] }}" class="{{ $loop->first ? 'active in' : '' }}">
+                                    <div class="contracts-report-head">
+                                        <p class="text-muted" style="margin:0;">{{ trans('admin/contracts/general.'.$report['desc']) }}</p>
+                                        <span class="contracts-report-actions">
+                                            <a href="{{ route($report['route'], $report['params']) }}" class="btn btn-sm btn-default">
+                                                <x-icon type="reports" /> {{ trans('general.view') }}
+                                            </a>
+                                            <a href="{{ route($report['route'], array_merge($report['params'], ['format' => 'csv'])) }}" class="btn btn-sm btn-default">
+                                                <x-icon type="download" /> {{ trans('general.download') }}
+                                            </a>
+                                        </span>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
+                                    <div class="contracts-report-body" data-embed-url="{{ route($report['route'], array_merge($report['params'], ['embed' => 1])) }}">
+                                        <div class="text-center text-muted" style="padding:18px;">
+                                            <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
+                                        </div>
+                                    </div>
+                                </x-tabs.pane>
+                            @endforeach
+                        </x-slot:tabpanes>
+                    </x-tabs>
                 </div>
             </div>
         @endif
     </x-container>
 
     <style>
-        /* AdminLTE wraps the page in `.wrapper { overflow: hidden }`, and an
-           overflow ancestor traps position:sticky — the jump-nav would just
-           scroll away. Lift the clip on this page so sticky resolves against
-           the body scroll. */
-        .wrapper, .content-wrapper { overflow: visible !important; }
-        /* Flex row so the nav column stretches to the full height of the
-           reports column; that's what gives sticky room to stay pinned. */
-        .contracts-reports-row { display: flex; flex-wrap: wrap; }
-        .contracts-reports-row .contracts-nav-col { flex: 0 0 16%; max-width: 16%; padding-left: 15px; padding-right: 15px; }
-        .contracts-reports-row .contracts-content-col { flex: 1 1 0%; max-width: 84%; padding-left: 15px; padding-right: 15px; }
-        .contracts-report-nav {
-            position: sticky;
-            top: calc(var(--header-h, 68px) + 12px);
-            max-height: calc(100vh - var(--header-h, 68px) - 24px);
-            overflow-y: auto;
+        /* Each report's description sits left, its Open/Download buttons
+           right, above the full-width table. */
+        .contracts-report-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
         }
-        /* AdminLTE's .box .nav-stacked ships hard-coded light values (#f4f4f4
-           borders, #444 links) — white hairlines and near-black text in dark
-           mode. Key both on the theme tokens. */
-        .contracts-report-navlist > li { border-bottom: 1px solid var(--box-header-bottom-border-color, #f4f4f4) !important; }
-        .contracts-report-navlist > li:last-child { border-bottom: 0 !important; }
-        .contracts-report-navlist > li > a { padding: 6px 10px; font-size: 12.5px; border-radius: 0; color: var(--color-fg, #444) !important; }
-        .contracts-report-navlist > li.active > a,
-        .contracts-report-navlist > li.active > a:hover { background-color: #3c8dbc; color: #fff !important; }
-        .contracts-report-box > .box-header {
-            position: sticky;
-            top: var(--header-h, 68px);
-            z-index: 8;
-            background: var(--box-bg, #fff);
-        }
-        .contracts-report-desc { margin: 8px 0 0; font-size: 12.5px; clear: both; }
-        @media (max-width: 991px) {
-            .contracts-reports-row { display: block; }
-            .contracts-reports-row .contracts-content-col { max-width: 100%; }
-        }
+        .contracts-report-actions { white-space: nowrap; }
+        /* The report tables run wide — let them scroll inside the pane rather
+           than stretching the page. */
+        .snipetab-pane .table-responsive { overflow-x: auto; }
         /* Scope bar: FY picker and the filters on one line, wrapping as a
            unit on narrow viewports rather than overflowing. */
         .contracts-scopebar {
@@ -325,11 +292,33 @@
             margin-bottom: 12px;
         }
         .contracts-filter-label { margin-left: 8px; color: var(--color-fg-muted, #666); }
+        /* Bootstrap's .badge is inline-block with its own line-height, which
+           sits the count a couple of pixels below the label's baseline inside
+           a btn-xs. Centre both on a shared flex line instead. */
+        .contracts-scopebar .btn-xs {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .contracts-scopebar .btn-xs > .badge {
+            line-height: 1;
+            padding: 3px 6px;
+            position: static;
+            top: auto;
+        }
         /* Four charts across: keep the boxes equal height so the row does not
            step when one chart's legend wraps. */
         .contracts-chart-row { display: flex; flex-wrap: wrap; }
         .contracts-chart-row > [class*="col-"] { display: flex; margin-bottom: 15px; }
         .contracts-chart-row .box { width: 100%; margin-bottom: 0; }
+        /* Double the breathing room between the page's bands — tiles, charts,
+           register, reports — so each reads as its own block rather than one
+           continuous stack. */
+        .contracts-tile-row { margin-bottom: 15px; }
+        .contracts-chart-row { margin-bottom: 15px; }
+        .contracts-chart-row + .box,
+        .contracts-chart-row ~ .row { margin-top: 30px; }
+        .contracts-reports-heading { margin: 30px 0 10px; font-size: 18px; }
         /* Equal-height tiles so a wrapped label never reflows the grid. */
         .contracts-tile-row { display: flex; flex-wrap: wrap; }
         .contracts-tile-row > [class*="col-"] { display: flex; margin-bottom: 15px; }
@@ -419,17 +408,14 @@
         });
     })();
 
-    // Lazy-load each report's table inline. Loaded one at a time (rather than
-    // seven parallel queries) so the heavy ones — the serial register above
-    // all — don't stampede the server; each section fills in as it arrives.
+    // Each report's table is fetched the first time its tab is shown, not on
+    // page load — the serial register in particular is a heavy query, and
+    // opening /contracts should not pay for six reports nobody looked at.
     (function () {
-        var pending = Array.prototype.slice.call(
-            document.querySelectorAll('.contracts-report-body[data-embed-url]')
-        );
-
-        function loadNext() {
-            var el = pending.shift();
-            if (! el) { return; }
+        function load(pane) {
+            var el = pane && pane.querySelector('.contracts-report-body[data-embed-url]');
+            if (! el || el.dataset.loaded) { return; }
+            el.dataset.loaded = '1';
 
             fetch(el.dataset.embedUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
                 .then(function (resp) {
@@ -438,35 +424,23 @@
                 })
                 .then(function (html) { el.innerHTML = html; })
                 .catch(function () {
+                    delete el.dataset.loaded;
                     el.innerHTML = '<p class="text-danger">' + @json(trans('general.something_went_wrong')) + '</p>';
-                })
-                .then(loadNext);
+                });
         }
 
-        loadNext();
-    })();
-
-    // Highlight the report currently in view in the sticky jump-nav.
-    (function () {
-        var links = {};
-        document.querySelectorAll('.contracts-report-navlist a[data-target-report]').forEach(function (a) {
-            links[a.dataset.targetReport] = a.parentElement;
+        $('a[data-toggle="tab"][href^="#rpt-"]').on('shown.bs.tab', function (e) {
+            load(document.querySelector(e.target.getAttribute('href')));
         });
-        var boxes = document.querySelectorAll('.contracts-report-box');
-        if (! boxes.length || typeof IntersectionObserver === 'undefined') { return; }
 
-        var observer = new IntersectionObserver(function (entries) {
-            entries.forEach(function (entry) {
-                var li = links[entry.target.id];
-                if (! li) { return; }
-                if (entry.isIntersecting) {
-                    Object.keys(links).forEach(function (k) { links[k].classList.remove('active'); });
-                    li.classList.add('active');
-                }
-            });
-        }, { rootMargin: '-64px 0px -70% 0px' });
-
-        boxes.forEach(function (box) { observer.observe(box); });
+        // The layout force-activates the first tab in an inline script that
+        // runs after this block, so wait for ready before loading whichever
+        // pane actually ended up visible.
+        $(function () {
+            var active = document.querySelector('.snipetab-pane.active[id^="rpt-"]')
+                || document.querySelector('[id^="rpt-"].snipetab-pane');
+            load(active);
+        });
     })();
 </script>
 @endif

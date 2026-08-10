@@ -45,7 +45,7 @@ class ContractReportsController extends Controller
     }
 
     /**
-     * The synthesized grouping rows: one per (theme, product) pair that has
+     * The synthesized grouping rows: one per (area, product) pair that has
      * more than one fiscal-year contract, with its per-year children rolled
      * up. Written by the tdx-to-snipe-contracts function, not by hand.
      */
@@ -67,7 +67,7 @@ class ContractReportsController extends Controller
         );
     }
 
-    public function byTheme(Request $request)
+    public function byArea(Request $request)
     {
         $this->authorize('reports.contracts.view');
 
@@ -79,9 +79,9 @@ class ContractReportsController extends Controller
 
         return $this->render(
             $request,
-            'contracts-by-theme',
-            trans('admin/contracts/general.report_by_theme'),
-            'contracts.reports.by-theme',
+            'contracts-by-area',
+            trans('admin/contracts/general.report_by_area'),
+            'contracts.reports.by-area',
             [
                 'columns' => [trans('admin/contracts/general.theme'), trans('general.count'), trans('admin/contracts/general.total_cost')],
                 'records' => $rows->map(fn ($r) => [

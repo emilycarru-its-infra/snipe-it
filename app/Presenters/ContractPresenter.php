@@ -6,15 +6,12 @@ class ContractPresenter extends Presenter
 {
     public static function dataTableLayout()
     {
+        // No select-all checkbox column: contracts have no bulk actions —
+        // there is no contracts.bulk.* route and the table is never given a
+        // bulkactions slot — so the column only offered a selection nothing
+        // could act on.
         $layout = [
             [
-                'field' => 'checkbox',
-                'checkbox' => true,
-                'formatter' => 'checkboxEnabledFormatter',
-                'titleTooltip' => trans('general.select_all_none'),
-                'printIgnore' => true,
-                'class' => 'hidden-print',
-            ], [
                 'field' => 'id',
                 'searchable' => false,
                 'sortable' => true,
@@ -27,7 +24,7 @@ class ContractPresenter extends Presenter
                 'sortable' => true,
                 'switchable' => false,
                 'title' => trans('general.name'),
-                'formatter' => 'contractsLinkFormatter',
+                'formatter' => 'contractsLightboxFormatter',
             ], [
                 'field' => 'theme',
                 'searchable' => true,
