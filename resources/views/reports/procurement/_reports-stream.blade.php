@@ -7,11 +7,15 @@
         ->mapWithKeys(fn ($s) => [$s => $procReports->where('stage', $s)->values()]);
 @endphp
 <style>
+    {{-- The strip is the reports' filter toolbar, not the pipeline's footer:
+         a soft tinted band with surface-filled chips reads as controls for
+         what follows, while the fifth-lines keep running through it. --}}
     .pr-pills-sticky {
         position: sticky;
         top: var(--header-h, 68px);
         z-index: 30;
-        background: var(--pp-surface, #fff);
+        background: color-mix(in srgb, var(--pp-ink, #333a40) 4%, var(--pp-surface, #fff));
+        border-top: 1px solid var(--pp-line, #e4e9ee);
         padding: 0 0 6px;
         box-shadow: 0 1px 0 var(--pp-line, #e4e9ee);
     }
@@ -27,7 +31,7 @@
     .pr-pill {
         display: inline-block; padding: 2px 10px; margin: 0 4px 4px 0;
         font-size: 12px; border-radius: 999px; cursor: pointer;
-        border: 1px solid var(--pp-line, #e4e9ee); background: transparent;
+        border: 1px solid var(--pp-line, #e4e9ee); background: var(--pp-surface, #fff);
         color: var(--pp-ink2, #62707e); line-height: 1.6; text-decoration: none;
     }
     .pr-pill:hover, .pr-pill:focus { text-decoration: none; background: color-mix(in srgb, var(--pr-tab-c, #3c8dbc) 8%, transparent); color: var(--pp-ink, #333a40); }
