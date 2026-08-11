@@ -950,6 +950,32 @@ class Asset extends Depreciable
     }
 
     /**
+     * The person this asset is checked out to, or null when it is checked out to
+     * a location or another asset — or to nobody.
+     *
+     * A helper rather than a relation on purpose. The checkout target is a
+     * morphTo whose morph name is `assigned` while the relation method is
+     * `assignedTo`, so eager-loading one name and reading the other is a trap
+     * that has already blanked an assignee column in a report. This reads the
+     * loaded relation when it is there, asks once when it is not, and answers
+     * the question callers actually have: is there a person here, and who?
+     */
+    public function holderUser()
+    {
+        $target = $this->relationLoaded('assigned') ? $this->getRelation('assigned') : $this->assignedTo;
+
+        return $target instanceof User ? $target : null;
+    }
+
+    /** The location this asset is checked out to, when it is seated rather than held. */
+    public function holderLocation()
+    {
+        $target = $this->relationLoaded('assigned') ? $this->getRelation('assigned') : $this->assignedTo;
+
+        return $target instanceof Location ? $target : null;
+    }
+
+    /**
      * Gets assets assigned to this asset
      *
      * Sigh.

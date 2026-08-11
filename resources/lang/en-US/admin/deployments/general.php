@@ -54,7 +54,7 @@ return [
     'arrival_window' => 'Arrival',
     'deploy_window' => 'Deploy',
     'location' => 'Target Location',
-    'storage_location' => 'Staging / Storage Location',
+    'storage_location' => 'Staging Location',
     'owner' => 'Owner',
     'purchase_order' => 'Purchase Order',
     'color' => 'Color',
@@ -184,6 +184,65 @@ return [
     'flow_group_model' => 'Model',
     'flow_group_group' => 'Group',
     'flow_group_wave' => 'Wave',
+
+    // Announcing a wave to the people in it. These are annual emails whose
+    // wording barely changes year to year, so the form opens on a draft rather
+    // than an empty box; the merge fields are the part that used to be retyped,
+    // and mis-typed.
+    'checked_out_to' => 'Checked Out To',
+    'announce_title' => 'Email the People in This Wave',
+    'announce_help' => 'One email per person, written against their own device and lease dates. Sending it starts the wave.',
+    'announce_recipients' => 'Goes to :count people in this wave',
+    'announce_no_recipients' => 'Nobody in this wave has a device checked out to them, so there is nobody to email. Assign the devices first.',
+    'announce_template' => 'Start from',
+    'announce_template_faculty' => 'Faculty Laptop Program - annual invitation',
+    'announce_template_refresh' => 'Refresh notice - advance warning of a swap',
+    'announce_template_blank' => 'Blank',
+    'announce_subject' => 'Subject',
+    'announce_body' => 'Message',
+    'announce_body_help' => 'Markdown. These resolve per person: :fields',
+    'announce_submit' => 'Send to Everyone in the Wave',
+    'announce_test_submit' => 'Send a test to me first',
+    'announce_test_sent' => 'Test sent to :email, written against the first recipient\'s device. Nobody else was emailed and the wave was not started.',
+    'announce_sent' => 'Sent to :count people. The wave has started.',
+    'announce_partial' => 'These addresses failed and were not sent: :emails.',
+    'announce_failed' => 'The announcement could not be sent: :error',
+    'announced_at' => 'Announced',
+    'announce_already' => 'Announced :date. Sending again re-sends the same message to the same people.',
+
+    'announce_faculty_subject' => 'Faculty Laptop Program :fiscal_year - action required',
+    'announce_faculty_body' => 'Hello {{ first_name }},
+
+I am pleased to announce that Emily Carr is continuing the University sponsored Faculty Laptop Program. This program provides leased Mac laptops to regular faculty on a four-year cycle. At the end of the fourth year, faculty are eligible to request a replacement leased laptop for another four years, and return the one they have.
+
+**Action required: please respond through [this form]({{ form_url }}) to be included in this year\'s Faculty Laptop Program.**
+
+### Your current laptop
+
+Our records show you hold {{ device }}, on a lease ending {{ lease_end }}. The form asks whether you are returning it or would like to buy it at its residual value.
+
+### This year\'s laptop
+
+The base model this year is the 13-inch MacBook Air with 16GB of memory and a 1TB drive. If a different configuration suits your teaching or research better, the form is where to say so.
+
+Two groups of regular faculty are eligible: those whose current faculty laptop is at the end of its lease, and those who have never received one. You have this email because you are in one of them.
+
+### Ordering
+
+Ordering happens in our own store now — no external site and no separate sign-in. Complete the form first; the store link follows it, and your order goes through our approvals from there.
+
+If anything does not work as described, reply to this email and we will sort it out.',
+
+    'announce_refresh_subject' => ':wave - your device is scheduled for replacement',
+    'announce_refresh_body' => 'Hello {{ first_name }},
+
+Your device is part of {{ wave }}, scheduled for {{ fiscal_year }}.
+
+Our records show you hold {{ device }}, on a lease ending {{ lease_end }}. We will be in touch to arrange a time to swap it, and we will move your files and applications across as part of that.
+
+Nothing is needed from you yet — this is advance notice so the timing is not a surprise.
+
+Reply to this email if the device above is not the one you are using, or if there is a period that will not work for you.',
     'flow_group_location' => 'Location',
     'flow_selected' => ':count selected',
     'flow_move_to' => 'Move to',
