@@ -160,10 +160,17 @@ class PurchaseOrder extends SnipeModel
      */
     public function vendorOrderLines()
     {
-        return $this->requisitions()
-            ->with('items.catalogItem')
-            ->orderBy('id')
-            ->get()
+        // Through the loaded relation when there is one, so this works on a
+        // model that was never saved — the email previewer in Settings → Emails
+        // renders the order mail against sample objects with their relations set
+        // by hand, and querying by a null id would return the whole table.
+        $requisitions = $this->relationLoaded('requisitions')
+            ? $this->getRelation('requisitions')
+            : ($this->exists
+                ? $this->requisitions()->with('items.catalogItem')->orderBy('id')->get()
+                : collect());
+
+        return $requisitions
             ->flatMap(fn (Requisition $requisition) => $requisition->items)
             ->values();
     }
@@ -176,6 +183,10 @@ class PurchaseOrder extends SnipeModel
      */
     public function storeOrderRequesterEmails(): array
     {
+        if (! $this->exists) {
+            return [];
+        }
+
         return StoreOrder::query()
             ->whereIn('requisition_id', $this->requisitions()->pluck('id'))
             ->with('user')
@@ -189,13 +200,21 @@ class PurchaseOrder extends SnipeModel
     /** Comments meant for the vendor, carried up from the requisition. */
     public function printerComments(): ?string
     {
-        return $this->requisitions()->orderBy('id')->value('printer_comments');
+        if ($this->relationLoaded('requisitions')) {
+            return $this->getRelation('requisitions')->first()?->printer_comments;
+        }
+
+        return $this->exists ? $this->requisitions()->orderBy('id')->value('printer_comments') : null;
     }
 
     /** Comments that stay with us, carried up from the requisition. */
     public function internalComments(): ?string
     {
-        return $this->requisitions()->orderBy('id')->value('internal_comments');
+        if ($this->relationLoaded('requisitions')) {
+            return $this->getRelation('requisitions')->first()?->internal_comments;
+        }
+
+        return $this->exists ? $this->requisitions()->orderBy('id')->value('internal_comments') : null;
     }
 
     /**
