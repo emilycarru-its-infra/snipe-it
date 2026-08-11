@@ -8,6 +8,7 @@ return [
     'my_orders' => 'My Orders',
     'nav_orders' => 'Orders',
     'queue' => 'Order Queue',
+    'queue_read_only' => 'Approvals need the Manage Procurement permission.',
     'store_admin' => 'Storefront',
 
     // Storefront
@@ -89,6 +90,7 @@ return [
     'status_new_tag_sub' => 'Assigned the moment you ordered — the serial number arrives when it ships.',
     'status_serial' => 'Serial',
     'status_step_requested' => 'Requested',
+    'requested_by' => 'Requested by',
     'status_step_approved' => 'Approved',
     'status_step_ordered' => 'Ordered',
     'status_step_shipped' => 'Shipped',

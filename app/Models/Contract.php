@@ -66,6 +66,8 @@ class Contract extends Model
         'currency'           => 'nullable|string|size:3',
         'ticket_url'         => 'nullable|url|max:512',
         'source'             => 'nullable|in:tdx,manual,synthesized,snipe',
+        'ssot'               => 'nullable|in:tdx,snipe',
+        'service_catalogue'  => 'nullable|string|max:255',
         'admin_user_id'      => 'nullable|integer|exists:users,id',
     ];
 
@@ -92,9 +94,11 @@ class Contract extends Model
         'requisition_number',
         'voucher_number',
         'service_offering',
+        'service_catalogue',
         'ticket_url',
         'schedule_number',
         'source',
+        'ssot',
         'tdx_modified_date',
         'notes',
         'created_by',
@@ -118,6 +122,7 @@ class Contract extends Model
         'requisition_number',
         'voucher_number',
         'service_offering',
+        'service_catalogue',
         'schedule_number',
         'description',
         'comments_review',

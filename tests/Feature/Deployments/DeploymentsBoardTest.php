@@ -120,11 +120,11 @@ class DeploymentsBoardTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments', ['fiscal_year' => $nextFy]))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.forecast_summary', ['count' => 1, 'fy' => $nextFy]))
+            ->assertSee(trans('admin/deployments/general.flow_backlog_note', ['count' => 1]))
             ->assertSee('PLAN-2728');
     }
 
-    public function test_legacy_fleet_callout_surfaces_unfunded_aging_devices()
+    public function test_unfunded_fleet_box_lives_on_procurement_and_fleet_health_not_deployments()
     {
         $legacy = Statuslabel::factory()->rtd()->create(['name' => 'Active (Legacy)']);
         Asset::factory()->create([
@@ -132,41 +132,272 @@ class DeploymentsBoardTest extends TestCase
             'status_id' => $legacy->id,
             'purchase_date' => '2016-08-01',
         ]);
+        $buyout = Statuslabel::factory()->rtd()->create(['name' => 'Active (Buyouts)']);
+        Asset::factory()->create([
+            'asset_tag' => 'BUYOUT-1',
+            'status_id' => $buyout->id,
+            'purchase_date' => '2019-08-01',
+        ]);
 
-        $this->actingAs($this->superuser())
+        $user = $this->superuser();
+
+        // Not relevant on the operational board — planning/exec scope only.
+        $this->actingAs($user)
             ->get(route('reports.deployments'))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.legacy_title', ['count' => 1]))
-            ->assertSee(trans('admin/deployments/general.legacy_view_devices'));
+            ->assertDontSee(trans('admin/deployments/general.legacy_box_title'));
+
+        // Both families, each sliceable.
+        $this->actingAs($user)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.legacy_box_title'))
+            ->assertSee('Active (Legacy)')
+            ->assertSee('Active (Buyouts)');
+
+        $this->actingAs($user)
+            ->get(route('reports.fleet-health'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.legacy_box_title'))
+            ->assertSee('Active (Buyouts)');
     }
 
-    public function test_deployments_sits_second_on_the_reports_hub_and_in_the_top_toolbar()
+    public function test_procurement_order_lines_surface_on_the_flow_as_ordered_and_arrived()
     {
+        $startYear = now()->month >= 4 ? now()->year : now()->year - 1;
+        $currentFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+
+        $order = \App\Models\Order::factory()->create([
+            'status' => 'ordered',
+            'is_planned' => false,
+            'fiscal_year' => $currentFy,
+            'order_number' => 'PVTEST99',
+        ]);
+        \App\Models\OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'description' => 'Latitude 5560 Refresh Line',
+            'quantity' => 3,
+        ]);
+
         $content = $this->actingAs($this->superuser())
-            ->get(route('reports.index'))
+            ->get(route('reports.deployments'))
             ->assertOk()
             ->getContent();
 
-        // Hub cards: Procurement, then Deployments. The help strings are
-        // unique to the cards (the tile titles also appear in the top
-        // toolbar, in a different order). Contracts used to follow
-        // Deployments here; its dashboard was folded into /contracts, so it
-        // no longer has a card on this hub at all.
-        $procurement = strpos($content, trans('admin/reports/general.hub_tile_procurement_help'));
-        $deployments = strpos($content, trans('admin/reports/general.hub_tile_deployments_help'));
-        $this->assertNotFalse($procurement);
-        $this->assertNotFalse($deployments);
-        $this->assertTrue($procurement < $deployments);
-        $this->assertStringNotContainsString(route('reports.contracts', [], false), $content);
+        // The money side and the physical side are the same devices: the
+        // order line shows on the flow at Ordered, tagged with its order.
+        $this->assertStringContainsString('PVTEST99', $content);
+        $this->assertStringContainsString('Latitude 5560 Refresh Line', $content);
+        $this->assertStringContainsString(e('Latitude 5560 Refresh Line ×3'), $content);
+    }
 
-        // Top toolbar: the entry sits between Assets and Procurement. Match
-        // the li markup (class="...") — the bare names also appear earlier
-        // in the responsive drop-out CSS.
-        $assetsNav = strpos($content, 'class="topnav-assets');
-        $deployNav = strpos($content, 'class="topnav-deployments');
-        $procNav = strpos($content, 'class="topnav-procurement');
-        $this->assertNotFalse($deployNav);
-        $this->assertTrue($assetsNav < $deployNav && $deployNav < $procNav);
+    public function test_bulk_group_labels_a_cohort()
+    {
+        $wave = DeploymentWave::create(['name' => 'Cohort Wave', 'fiscal_year' => 'FY2026-27']);
+        $a = DeploymentItem::create(['wave_id' => $wave->id]);
+        $b = DeploymentItem::create(['wave_id' => $wave->id]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('deployment-items.bulk-group'), [
+                'item_ids' => [$a->id, $b->id],
+                'group_label' => 'Room D2416',
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertSame('Room D2416', $a->fresh()->group_label);
+        $this->assertSame('Room D2416', $b->fresh()->group_label);
+    }
+
+    public function test_future_fy_has_no_decommissioning_section()
+    {
+        $processing = Statuslabel::factory()->pending()->create(['name' => 'Processing (Return)']);
+        Asset::factory()->create(['asset_tag' => 'FUTURE-NOPE', 'status_id' => $processing->id]);
+
+        $startYear = (now()->month >= 4 ? now()->year : now()->year - 1) + 1;
+        $nextFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.deployments', ['fiscal_year' => $nextFy]))
+            ->assertOk()
+            ->assertDontSee(trans('admin/deployments/general.decom_title'));
+    }
+
+    public function test_past_fy_groups_outgoing_devices_into_pickups_not_current_processing()
+    {
+        $processing = Statuslabel::factory()->pending()->create(['name' => 'Processing (Return)']);
+        $collecting = Asset::factory()->create([
+            'asset_tag' => 'STILL-COLLECTING',
+            'status_id' => $processing->id,
+        ]);
+        Asset::query()->whereKey($collecting->id)->update(['purchase_date' => null, 'asset_eol_date' => null]);
+
+        $archived = Statuslabel::factory()->archived()->create(['name' => 'Archived (Returned)']);
+        $gone = Asset::factory()->create([
+            'asset_tag' => 'PICKED-UP-2024',
+            'status_id' => $archived->id,
+        ]);
+        Asset::query()->whereKey($gone->id)->update([
+            'decommission_date' => '2024-03-15',
+            'purchase_date' => null,
+            'asset_eol_date' => null,
+        ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.deployments', ['fiscal_year' => 'FY2023-24']))
+            ->assertOk()
+            ->getContent();
+
+        // The pickup register carries the run date; today's Processing
+        // devices have no business on a past year's board.
+        $this->assertStringContainsString(e(trans('admin/deployments/general.decom_pickups_title')), $content);
+        $this->assertStringContainsString('2024-03-15', $content);
+        $this->assertStringNotContainsString('STILL-COLLECTING', $content);
+        $this->assertStringNotContainsString(trans('admin/deployments/general.decom_collecting_note'), $content);
+    }
+
+    public function test_pickup_csv_streams_the_devices_of_one_run()
+    {
+        $archived = Statuslabel::factory()->archived()->create(['name' => 'Archived (Donated)']);
+        $gone = Asset::factory()->create([
+            'asset_tag' => 'CSV-PICKUP-1',
+            'status_id' => $archived->id,
+        ]);
+        Asset::query()->whereKey($gone->id)->update(['decommission_date' => '2024-03-15']);
+
+        $response = $this->actingAs($this->superuser())
+            ->get(route('reports.deployments', ['fiscal_year' => 'FY2023-24', 'decom_pickup' => '2024-03-15', 'format' => 'csv']))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=utf-8');
+
+        $this->assertStringContainsString('CSV-PICKUP-1', $response->streamedContent());
+    }
+
+    public function test_past_fy_counts_unrefreshed_devices_as_open_planned_backlog()
+    {
+        // Due in FY2023-24, still active today — never refreshed, so the
+        // plan is still open and the board says so.
+        $missed = Asset::factory()->create(['asset_tag' => 'MISSED-2324']);
+        Asset::query()->whereKey($missed->id)->update([
+            'lease_end_date' => '2023-12-01',
+            'asset_eol_date' => null,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.deployments', ['fiscal_year' => 'FY2023-24']))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.flow_backlog_note_past', ['count' => 1, 'fy' => 'FY2023-24']))
+            ->assertSee('MISSED-2324');
+    }
+
+    public function test_bulk_stage_move_gates_planned_devices_without_an_order_line()
+    {
+        $wave = DeploymentWave::create(['name' => 'Gate Wave', 'fiscal_year' => 'FY2026-27']);
+        $planned = \App\Models\DeploymentStage::where('slug', 'planned')->first();
+        $ordered = \App\Models\DeploymentStage::where('slug', 'ordered')->first();
+
+        $unlinked = DeploymentItem::create(['wave_id' => $wave->id, 'stage_id' => $planned->id]);
+        $orderItem = \App\Models\OrderItem::factory()->create();
+        $linked = DeploymentItem::create(['wave_id' => $wave->id, 'stage_id' => $planned->id, 'order_item_id' => $orderItem->id]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('deployment-items.bulk-stage'), [
+                'item_ids' => [$unlinked->id, $linked->id],
+                'stage_id' => $ordered->id,
+            ])
+            ->assertSessionHas('success', trans('admin/deployments/general.bulk_moved', ['count' => 1, 'stage' => $ordered->name]))
+            ->assertSessionHas('warning', trans('admin/deployments/general.bulk_gated', ['count' => 1]));
+
+        // Ordered is a fact from procurement: only the device on a real
+        // order line moved; the other stayed in Planned.
+        $this->assertSame($planned->id, $unlinked->fresh()->stage_id);
+        $this->assertSame($ordered->id, $linked->fresh()->stage_id);
+    }
+
+    public function test_bulk_stage_move_flips_the_asset_status_when_the_stage_maps_to_one()
+    {
+        $wave = DeploymentWave::create(['name' => 'Map Wave', 'fiscal_year' => 'FY2026-27']);
+        $arrived = \App\Models\DeploymentStage::where('slug', 'arrived')->first();
+        $inventoried = \App\Models\DeploymentStage::where('slug', 'inventoried')->first();
+
+        $target = Statuslabel::factory()->pending()->create(['name' => 'New (Inventoried)']);
+        $inventoried->update(['maps_to_status_id' => $target->id]);
+
+        $asset = Asset::factory()->create(['asset_tag' => 'BULK-FLIP']);
+        $item = DeploymentItem::create(['wave_id' => $wave->id, 'stage_id' => $arrived->id, 'asset_id' => $asset->id]);
+
+        $this->actingAs($this->superuser())
+            ->post(route('deployment-items.bulk-stage'), [
+                'item_ids' => [$item->id],
+                'stage_id' => $inventoried->id,
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertSame($inventoried->id, $item->fresh()->stage_id);
+        $this->assertSame($target->id, $asset->fresh()->status_id);
+    }
+
+    public function test_boards_live_at_top_level_urls_and_old_report_urls_redirect()
+    {
+        // Elevated modules: the route names survived, the URIs moved.
+        $this->assertSame(url('/deployments'), route('reports.deployments'));
+        $this->assertSame(url('/procurement'), route('reports.procurement'));
+
+        $user = $this->superuser();
+        $this->actingAs($user)->get('/reports/deployments')
+            ->assertStatus(301)
+            ->assertRedirect('/deployments');
+        $this->actingAs($user)->get('/reports/procurement')
+            ->assertStatus(301)
+            ->assertRedirect('/procurement');
+        $this->actingAs($user)->get('/reports/procurement/disposition-grid')
+            ->assertStatus(301)
+            ->assertRedirect('/procurement/disposition-grid');
+    }
+
+    public function test_deployments_read_only_permission_views_but_cannot_write()
+    {
+        $viewer = User::factory()->create(['permissions' => '{"deployments.view":"1"}']);
+
+        $this->actingAs($viewer)
+            ->get(route('reports.deployments'))
+            ->assertOk();
+
+        $wave = DeploymentWave::create(['name' => 'Perm Wave', 'fiscal_year' => 'FY2026-27']);
+        $item = DeploymentItem::create(['wave_id' => $wave->id]);
+        $ordered = \App\Models\DeploymentStage::where('slug', 'ordered')->first();
+
+        $this->actingAs($viewer)
+            ->post(route('deployment-items.bulk-stage'), [
+                'item_ids' => [$item->id],
+                'stage_id' => $ordered->id,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_old_hub_url_redirects_and_board_carries_stage_tabbed_reports()
+    {
+        $user = $this->superuser();
+
+        $this->actingAs($user)
+            ->get('/procurement/hub')
+            ->assertRedirect(route('reports.procurement'));
+
+        $this->actingAs($user)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee('class="pr-pill-col" data-report-stage="budgeting"', false)
+            ->assertSee('id="pr-reports"', false);
+    }
+
+    public function test_read_only_procurement_viewer_gets_no_write_controls()
+    {
+        $viewer = User::factory()->create(['permissions' => '{"procurement.view":"1"}']);
+
+        $this->actingAs($viewer)
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertDontSee(trans('admin/store/general.go_store_admin'))
+            ->assertDontSee('id="approversModal"', false);
     }
 
     public function test_sidebar_reports_entries_are_one_word_each()

@@ -59,6 +59,19 @@
                                 <i class="fa-solid fa-plus" aria-hidden="true"></i> {{ $row['action']['label'] }}
                             </a>
                         </td>
+                    @elseif (isset($row['pills'][$ci]))
+                        {{-- Status pills. Like links, the pills map is
+                             render-time only — the plain cell text still
+                             feeds CSV/XLSX exports. --}}
+                        <td>
+                            @foreach ($row['pills'][$ci] as $pill)
+                                @if (isset($row['links'][$ci]))
+                                    <a href="{{ $row['links'][$ci] }}" class="label label-{{ $pill['class'] ?? 'default' }}">{{ $pill['label'] }}</a>
+                                @else
+                                    <span class="label label-{{ $pill['class'] ?? 'default' }}">{{ $pill['label'] }}</span>
+                                @endif
+                            @endforeach
+                        </td>
                     @elseif ($cell !== '' && $cell !== null && isset($row['links'][$ci]))
                         {{-- Cells naming an individual asset or user open the
                              record in the lightbox. The links map is

@@ -40,8 +40,10 @@ class FormsIndexTest extends TestCase
             ->assertRedirect(route('forms.show', 'faculty-program'));
     }
 
-    public function test_admin_can_open_submissions_index(): void
+    public function test_admin_submissions_index_routes_to_agreement_ledger(): void
     {
+        // The faculty program's submissions list duplicated the
+        // user-agreement ledger — admins land on the canonical pivot.
         $user = User::factory()->create();
         $group = Group::factory()->create(['name' => 'ITS Engineering']);
         $user->groups()->attach($group->id);
@@ -49,7 +51,7 @@ class FormsIndexTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('forms.submissions.index', 'faculty-program'))
-            ->assertOk();
+            ->assertRedirect(route('reports.procurement.user-agreement-ledger'));
     }
 
     public function test_non_admin_blocked_from_submissions_index(): void

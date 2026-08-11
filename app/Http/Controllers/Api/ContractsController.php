@@ -24,7 +24,7 @@ class ContractsController extends Controller
             ->withCount(['children', 'licenses', 'assets', 'serials'])
             ->withSum('children as children_cost_sum', 'total_cost');
 
-        foreach (['theme', 'product', 'fiscal_year', 'type', 'workflow_status', 'supplier_id', 'gl_code', 'tdx_id', 'parent_contract_id', 'source'] as $field) {
+        foreach (['theme', 'product', 'fiscal_year', 'type', 'workflow_status', 'supplier_id', 'gl_code', 'tdx_id', 'parent_contract_id', 'source', 'ssot', 'schedule_number'] as $field) {
             if ($request->filled($field)) {
                 $contracts->where($field, '=', $request->input($field));
             }
@@ -169,20 +169,22 @@ class ContractsController extends Controller
 
         $contract = Contract::withTrashed()->where('tdx_id', $request->input('tdx_id'))->first();
 
-        // Defensive: refuse to overwrite a contract that's owned by a
-        // non-TDX source (e.g. the manual `Devices Leases FY*`
-        // records produced by snipeit:link-assets-to-contracts). The
-        // tdx_id keying above already makes a collision unlikely, but
-        // if anything ever stamps a manual contract with a tdx_id
-        // later, this short-circuit keeps the TDX sync from silently
-        // overwriting hand-curated data. We return success with a
-        // "skipped" message so the Azure Function does not flag the
-        // record as an error.
-        if ($contract && $contract->source && $contract->source !== 'tdx') {
+        // SSOT gate: refuse to overwrite a contract whose source of truth is
+        // not TDX. `ssot === 'snipe'` means the row is authored in Snipe and
+        // mirrored upstream by the Snipe->TDX push — the ingest must stand
+        // down or the two functions fight. Rows with no ssot fall back to the
+        // legacy source check so manual / synthesized rows stay protected.
+        // We return success with a "skipped" message (payload included, so
+        // the Azure Function keeps the id in its state map) rather than an
+        // error.
+        $tdxOwned = $contract
+            ? ($contract->ssot ? $contract->ssot === 'tdx' : (! $contract->source || $contract->source === 'tdx'))
+            : true;
+        if ($contract && ! $tdxOwned) {
             return response()->json(Helper::formatStandardApiResponse(
                 'success',
                 (new ContractsTransformer)->transformContract($contract->fresh(['supplier', 'parent'])),
-                trans('admin/contracts/message.upsert.skipped_non_tdx_source', ['source' => $contract->source])
+                trans('admin/contracts/message.upsert.skipped_non_tdx_source', ['source' => $contract->ssot ?: $contract->source])
             ));
         }
 
@@ -194,10 +196,14 @@ class ContractsController extends Controller
             $contract = new Contract;
             $contract->tdx_id = $request->input('tdx_id');
             $contract->source = 'tdx';
+            $contract->ssot = 'tdx';
         }
 
-        $contract->fill($request->except(['serials', 'attributes', 'license_ids', 'asset_ids', 'tdx_id']));
+        // `ssot` is deliberately excluded from fill: the flag is flipped by a
+        // human (UI or explicit PUT), never as a side effect of the ingest.
+        $contract->fill($request->except(['serials', 'attributes', 'license_ids', 'asset_ids', 'tdx_id', 'ssot']));
         $contract->source = $contract->source ?: 'tdx';
+        $contract->ssot = $contract->ssot ?: 'tdx';
 
         if (! $contract->save()) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $contract->getErrors()));

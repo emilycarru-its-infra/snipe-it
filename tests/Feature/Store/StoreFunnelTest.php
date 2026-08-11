@@ -112,8 +112,13 @@ class StoreFunnelTest extends TestCase
 
     public function test_the_old_builder_path_redirects_to_purchase_orders()
     {
+        // Two hops now: the elevated module first (query preserved), then
+        // the builder's own move to /purchase-orders.
         $this->actingAs($this->procurement())
             ->get('/reports/procurement/po-builder?requisition=7')
+            ->assertRedirect('/procurement/po-builder?requisition=7');
+        $this->actingAs($this->procurement())
+            ->get('/procurement/po-builder?requisition=7')
             ->assertRedirect(route('purchase-orders.builder', ['requisition' => 7]));
     }
 
@@ -191,7 +196,7 @@ class StoreFunnelTest extends TestCase
     {
         $user = $this->endUser();
 
-        $this->actingAs($user)->get(route('procurement.index'))->assertForbidden();
+        $this->actingAs($user)->followingRedirects()->get(route('procurement.index'))->assertForbidden();
         $this->actingAs($user)->get(route('procurement.queue'))->assertForbidden();
         $this->actingAs($user)->get(route('procurement.store-admin'))->assertForbidden();
         $this->actingAs($user)->post(route('procurement.queue.pull'), ['title' => 'x', 'orders' => [1]])->assertForbidden();

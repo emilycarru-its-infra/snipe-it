@@ -81,6 +81,49 @@
     </div>
 </div>
 
+{{-- ── Unfunded fleet (Legacy + Buyouts) ──────────────────────────── --}}
+@if (($legacyFleet['count'] ?? 0) > 0)
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">
+                    <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+                    {{ trans('admin/deployments/general.legacy_box_title') }}
+                    <span class="text-muted" style="font-weight:normal;">· {{ $legacyFleet['count'] }} · ${{ \App\Helpers\Helper::formatCurrencyOutput($legacyFleet['purchase_cost'] ?? 0) }}</span>
+                </h3>
+            </div>
+            <div class="box-body">
+                <p class="text-muted" style="margin:0 0 10px;">{{ trans('admin/deployments/general.legacy_note') }}</p>
+                <div class="row">
+                    @foreach ($legacyFleet['sections'] as $section)
+                        <div class="col-md-6">
+                            <a href="{{ url('hardware') }}?status_id={{ $section['status_ids'][0] }}" style="font-weight:700;">
+                                {{ $section['label'] }} · {{ $section['count'] }} · ${{ \App\Helpers\Helper::formatCurrencyOutput($section['purchase_cost']) }}
+                            </a>
+                            <span class="text-muted" style="font-size:12px; margin-left:6px;">
+                                {{ trans('admin/deployments/general.legacy_age_note', [
+                                    'age' => $section['avg_age_years'] ?? '—',
+                                    'oldest' => $section['oldest_year'] ?? '—',
+                                ]) }}
+                            </span>
+                            <div style="margin-top:6px;">
+                                @foreach ($section['by_model'] as $legacyRow)
+                                    <a href="{{ url('hardware') }}?status_id={{ $section['status_ids'][0] }}&model_id={{ $legacyRow['model_id'] }}"
+                                       class="label label-default" style="display:inline-block; margin:0 4px 4px 0;">
+                                        {{ $legacyRow['model'] }} · {{ $legacyRow['count'] }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- ── Audit-overdue callout ──────────────────────────────────────── --}}
 <div class="row">
     <div class="col-md-12">
