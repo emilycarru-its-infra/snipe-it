@@ -54,12 +54,12 @@ class StoreQueuePanelsTest extends TestCase
 
         // Sent: the quote panel and the not-received badge appear.
         StoreOrder::first()->update(['status' => 'ordered', 'vendor_sent_at' => now(),
-            'funding_account' => 'lease', 'lease_schedule' => '100000-009']);
+            'funding_account' => 'lease_admin', 'lease_schedule' => '100000-009']);
         $this->actingAs($staff)->get(route('procurement.queue', ['status' => 'ordered']))->assertOk()
             ->assertSee('CDW quote', false)
             ->assertSee('Confirm and place', false)
             ->assertSee('Not received', false)
-            ->assertSee('Lease · 100000-009', false);
+            ->assertSee('Lease · Admin · 100000-009', false);
 
         // Arrived: flips to Received.
         StoreOrder::first()->update(['arrived_at' => now(), 'confirmed_at' => now()]);

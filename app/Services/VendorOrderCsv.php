@@ -83,7 +83,7 @@ class VendorOrderCsv
                     (string) $line->description,
                     (string) $line->quantity,
                     (string) ($item?->warrantyLabel() ?? ''),
-                    $order->funding_account ? trans('admin/store/general.funding_'.$order->funding_account) : '',
+                    \App\Services\CdwAccounts::label($order->funding_account),
                     (string) $order->lease_schedule,
                     $item ? (string) $item->bundle_url : '',
                     (string) ($order->user?->present()->fullName ?? ''),

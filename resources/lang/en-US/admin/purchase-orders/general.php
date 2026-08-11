@@ -528,6 +528,12 @@ return [
     'promote_required_for_ordered' => 'A requisition becomes ordered by being promoted to a purchase order, not by setting its status.',
     'promoted_help' => 'This requisition is on the budget ledger. Orders and invoices are recorded against the purchase order.',
 
+    'order_lines' => 'Lines on This Order',
+    'order_lines_total' => 'Order total',
+    'order_lines_from' => 'From REQM :reqm.',
+    'order_from_po_help' => 'Orders are sent from the purchase order — it is what authorises the spending and what the vendor bills against. This requisition is the basket that produced it.',
+    'order_from_po_link' => 'Open :po to send the order',
+
     // Placing the order with the vendor.
     'vendor_send_title' => 'Send the Order to the Vendor',
     'vendor_send_help' => 'Emails the order to :supplier with the part numbers, quantities and agreed unit prices, the part list as a CSV, and everything filed against the purchase order.',
