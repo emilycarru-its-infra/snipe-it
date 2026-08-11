@@ -25,7 +25,11 @@
         </div>
     </div>
     <div class="box-body">
-        <dl class="dl-horizontal">
+        {{-- A grid rather than dl-horizontal: its fixed label column is
+             narrower than the longest label here, so "Staging Location" and
+             friends were truncating to an ellipsis and the values sat miles from
+             the words they belonged to. Labels size to content, values follow. --}}
+        <dl class="wave-meta">
             <dt>{{ trans('admin/deployments/general.fiscal_year') }}</dt>
             <dd>{{ $wave->fiscal_year ?: '—' }}</dd>
             <dt>{{ trans('admin/deployments/general.arrival_window') }}</dt>
@@ -39,12 +43,133 @@
             <dt>{{ trans('admin/deployments/general.owner') }}</dt>
             <dd>@if ($wave->owner)<a href="{{ route('users.show', $wave->owner) }}">{{ $wave->owner->full_name }}</a>@else — @endif</dd>
             <dt>{{ trans('admin/deployments/general.purchase_order') }}</dt>
-            <dd>{{ $wave->purchaseOrder?->po_number ?: '—' }}</dd>
+            <dd>@if ($wave->purchaseOrder)<a href="{{ route('purchase-orders.show', $wave->purchaseOrder) }}">{{ $wave->purchaseOrder->po_number }}</a>@else — @endif</dd>
+            @if ($wave->announced_at)
+                <dt>{{ trans('admin/deployments/general.announced_at') }}</dt>
+                <dd>{{ \App\Helpers\Helper::getFormattedDateObject($wave->announced_at, 'datetime', false) }}</dd>
+            @endif
             <dt>{{ trans('admin/deployments/general.notes') }}</dt>
             <dd>{{ $wave->notes ?: '—' }}</dd>
         </dl>
+
+        <style>
+            .wave-meta {
+                display: grid;
+                grid-template-columns: max-content minmax(0, 1fr);
+                column-gap: 18px;
+                row-gap: 4px;
+                margin: 0;
+            }
+            .wave-meta dt { text-align: left; font-weight: 700; white-space: nowrap; }
+            .wave-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+        </style>
     </div>
 </div>
+
+{{-- Telling the people in this wave, which for a program wave is what starts it.
+
+     The form opens on a template because these are annual emails whose wording
+     barely changes; the merge fields are the part that used to be retyped. A test
+     renders against the first real recipient, so what comes back shows whether
+     the fields resolve. --}}
+@php
+    $announceDefault = \App\Services\Deployments\WaveAnnouncementTemplates::defaultKeyFor($wave);
+    $announceFields = '{{ first_name }}, {{ recipient }}, {{ device }}, {{ device_model }}, {{ lease_end }}, {{ lease_end_year }}, {{ wave }}, {{ fiscal_year }}, {{ form_url }}, {{ store_url }}';
+    $announcePicked = collect($announceTemplates)->firstWhere('key', $announceDefault) ?: $announceTemplates[0];
+@endphp
+
+<div class="box {{ $wave->announced_at ? 'box-default' : 'box-primary' }}">
+    <div class="box-header with-border">
+        <h3 class="box-title"><i class="fas fa-envelope"></i> {{ trans('admin/deployments/general.announce_title') }}</h3>
+        <div class="box-tools pull-right">
+            <span class="label label-default">{{ trans('admin/deployments/general.announce_recipients', ['count' => $announceRecipients->count()]) }}</span>
+        </div>
+    </div>
+    <form method="POST" action="{{ route('deployment-waves.announce', $wave) }}">
+        {{ csrf_field() }}
+        <div class="box-body">
+            <p class="text-muted">{{ trans('admin/deployments/general.announce_help') }}</p>
+
+            @if ($wave->announced_at)
+                <p class="text-muted">
+                    {{ trans('admin/deployments/general.announce_already', ['date' => \App\Helpers\Helper::getFormattedDateObject($wave->announced_at, 'datetime', false)]) }}
+                </p>
+            @endif
+
+            @if ($announceRecipients->isEmpty())
+                <p class="text-danger">{{ trans('admin/deployments/general.announce_no_recipients') }}</p>
+            @else
+                <div class="form-group">
+                    <label for="announce-template">{{ trans('admin/deployments/general.announce_template') }}</label>
+                    <select id="announce-template" class="form-control" data-announce-templates="{{ json_encode($announceTemplates) }}">
+                        @foreach ($announceTemplates as $template)
+                            <option value="{{ $template['key'] }}" @selected($template['key'] === $announceDefault)>{{ $template['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="announce-subject">{{ trans('admin/deployments/general.announce_subject') }}</label>
+                    <input type="text" name="subject" id="announce-subject" class="form-control"
+                           value="{{ old('subject', $announcePicked['subject']) }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="announce-body">{{ trans('admin/deployments/general.announce_body') }}</label>
+                    <textarea name="body" id="announce-body" rows="16" class="form-control" style="font-family: ui-monospace, Menlo, monospace; font-size: 12px;" required>{{ old('body', $announcePicked['body']) }}</textarea>
+                    <p class="help-block">{{ trans('admin/deployments/general.announce_body_help', ['fields' => $announceFields]) }}</p>
+                </div>
+
+                <details>
+                    <summary class="text-muted">{{ trans('admin/deployments/general.announce_recipients', ['count' => $announceRecipients->count()]) }}</summary>
+                    <ul class="text-muted" style="margin-top:6px; columns: 2;">
+                        @foreach ($announceRecipients as $row)
+                            <li>{{ $row['user']->present()->fullName }} &middot; <span class="text-monospace">{{ $row['user']->email }}</span></li>
+                        @endforeach
+                    </ul>
+                </details>
+            @endif
+        </div>
+        @unless ($announceRecipients->isEmpty())
+            <div class="box-footer">
+                <button type="submit" name="test" value="1" class="btn btn-default btn-block">
+                    {{ trans('admin/deployments/general.announce_test_submit') }}
+                </button>
+                <button type="submit" class="btn btn-primary btn-block">
+                    {{ trans('admin/deployments/general.announce_submit') }}
+                </button>
+            </div>
+        @endunless
+    </form>
+</div>
+
+<script>
+// Switching template replaces the draft, but never silently over an edit: once
+// the body has been touched, the picker asks first. Losing a rewritten annual
+// letter to a stray click is worse than one confirm.
+(function () {
+    var picker = document.getElementById('announce-template');
+    var subject = document.getElementById('announce-subject');
+    var body = document.getElementById('announce-body');
+    if (! picker || ! subject || ! body) { return; }
+
+    var templates = JSON.parse(picker.dataset.announceTemplates || '[]');
+    var pristine = body.value;
+
+    picker.addEventListener('change', function () {
+        var chosen = templates.filter(function (t) { return t.key === picker.value; })[0];
+        if (! chosen) { return; }
+
+        if (body.value !== pristine && ! window.confirm({!! json_encode(trans('admin/deployments/general.announce_template')) !!} + '?')) {
+            return;
+        }
+
+        subject.value = chosen.subject;
+        body.value = chosen.body;
+        pristine = chosen.body;
+    });
+})();
+</script>
 
 {{-- Arrivals rollup (P2b) --}}
 @if ($arrivals['linked'] > 0)
@@ -101,7 +226,10 @@
             <thead>
                 <tr>
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
-                    <th>{{ trans('admin/deployments/general.device') }}</th>
+                    {{-- Who has it, not what it is: the Device column repeated
+                         the Model column, while the one thing this board is for —
+                         knowing whose machine is being swapped — was missing. --}}
+                    <th>{{ trans('admin/deployments/general.checked_out_to') }}</th>
                     <th>{{ trans('admin/deployments/general.replaces') }}</th>
                     <th>{{ trans('admin/deployments/general.model') }}</th>
                     <th>{{ trans('admin/deployments/general.projected_replacement') }}</th>
@@ -126,10 +254,20 @@
                         </form>
                     </td>
                     <td>
-                        @if ($item->asset)
-                            <a href="{{ route('hardware.show', $item->asset) }}">{{ $item->deviceLabel() }}</a>
+                        @php
+                            // The person on the device being replaced — that is
+                            // who the swap is with. Fall back to the incoming
+                            // asset's holder once one exists.
+                            $holder = $item->replacesAsset?->holderUser() ?? $item->asset?->holderUser() ?? $item->assignedUser;
+                            $holderLocation = $item->replacesAsset?->holderLocation() ?? $item->asset?->holderLocation();
+                        @endphp
+                        @if ($holder)
+                            <a href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
+                        @elseif ($holderLocation)
+                            <i class="fas fa-location-dot text-muted" aria-hidden="true"></i>
+                            <a href="{{ route('locations.show', $holderLocation) }}">{{ $holderLocation->name }}</a>
                         @else
-                            {{ $item->deviceLabel() }}
+                            <span class="text-muted">&mdash;</span>
                         @endif
                     </td>
                     <td>

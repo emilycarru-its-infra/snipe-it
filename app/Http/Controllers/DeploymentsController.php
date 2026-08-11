@@ -15,6 +15,9 @@ use App\Services\Deployments\HistoricalFlow;
 use App\Services\Deployments\RefreshForecast;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
+use App\Services\Deployments\WaveAnnouncer;
+use App\Services\Deployments\WaveAnnouncementTemplates;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -588,6 +591,67 @@ class DeploymentsController extends Controller
             ->with('success', trans('admin/deployments/general.created'));
     }
 
+    /**
+     * Tell the people in a wave that it is happening — and, by doing so, start it.
+     *
+     * For the Faculty Laptop Program this email IS the first step of the cycle:
+     * it tells faculty the year is open, which machine is on offer and where to
+     * say yes, and nothing happens until it goes out. So a real send stamps the
+     * wave and moves it off `planned`, rather than being a message somebody has
+     * to remember having sent.
+     *
+     * The body is composed here and rendered per recipient, because what each
+     * person needs to know is about their own machine — which laptop they hold
+     * and when its lease ends. A test renders against the first real recipient's
+     * facts, since a test full of invented values would not show whether the
+     * merge fields resolve, which is the thing most likely to be wrong.
+     */
+    public function announce(Request $request, DeploymentWave $deploymentWave, WaveAnnouncer $announcer): RedirectResponse
+    {
+        $this->authorize('deployments.manage');
+
+        $validated = $request->validate([
+            'subject' => 'required|string|max:191',
+            'body' => 'required|string|max:65535',
+            'test' => 'nullable|boolean',
+        ]);
+
+        $test = $request->boolean('test');
+
+        if ($announcer->recipients($deploymentWave)->isEmpty()) {
+            return redirect()->route('deployment-waves.show', $deploymentWave)
+                ->with('error', trans('admin/deployments/general.announce_no_recipients'));
+        }
+
+        try {
+            $result = $announcer->send(
+                $deploymentWave,
+                $validated['subject'],
+                $validated['body'],
+                auth()->user(),
+                $test
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Wave announcement failed for wave '.$deploymentWave->id.': '.$e->getMessage());
+
+            return redirect()->route('deployment-waves.show', $deploymentWave)
+                ->with('error', trans('admin/deployments/general.announce_failed', ['error' => $e->getMessage()]));
+        }
+
+        if ($test) {
+            return redirect()->route('deployment-waves.show', $deploymentWave)
+                ->with('success', trans('admin/deployments/general.announce_test_sent', ['email' => auth()->user()->email]));
+        }
+
+        $message = trans('admin/deployments/general.announce_sent', ['count' => $result['sent']]);
+
+        if ($result['failed'] !== []) {
+            $message .= ' '.trans('admin/deployments/general.announce_partial', ['emails' => implode(', ', $result['failed'])]);
+        }
+
+        return redirect()->route('deployment-waves.show', $deploymentWave)->with('success', $message);
+    }
+
     public function show(DeploymentWave $deploymentWave)
     {
         $this->authorize('deployments.view');
@@ -610,8 +674,14 @@ class DeploymentsController extends Controller
             return $catalog?->effectiveCost() ?? (float) ($item->replacesAsset->purchase_cost ?? 0);
         });
 
+        $announcer = new WaveAnnouncer;
+
         return view('deployment-waves.show', [
             'wave' => $deploymentWave,
+            // Who the announcement would reach, resolved from the devices rather
+            // than a list: an asset checked out to a person names that person.
+            'announceRecipients' => $announcer->recipients($deploymentWave),
+            'announceTemplates' => WaveAnnouncementTemplates::all($deploymentWave),
             'projectedTotal' => (float) $projected->sum(),
             'stages' => DeploymentStage::active()->ordered()->get(),
             'arrivals' => $timeline->arrivals($deploymentWave),

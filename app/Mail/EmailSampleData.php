@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\CheckoutAcceptance;
 use App\Models\Component;
 use App\Models\Consumable;
+use App\Models\DeploymentWave;
 use App\Models\Contract;
 use App\Models\License;
 use App\Models\LicenseSeat;
@@ -404,6 +405,46 @@ class EmailSampleData
         $order->setRelation('requisitions', collect([$requisition]));
 
         return $order;
+    }
+
+    /**
+     * A wave announcement as one recipient would receive it — the Faculty Laptop
+     * Program letter with the merge fields resolved, so the preview shows the
+     * shape of a real one rather than a template full of braces.
+     */
+    public function waveAnnouncement(): DeploymentWaveMail
+    {
+        $wave = new DeploymentWave([
+            'name' => 'Faculty Laptop Program refresh FY2026-27',
+            'fiscal_year' => 'FY2026-27',
+            'wave_state' => 'planned',
+        ]);
+        $wave->id = 2;
+
+        $asset = $this->asset();
+        $recipient = $this->recipient();
+
+        $context = [
+            'recipient' => $recipient->present()->fullName,
+            'first_name' => $recipient->first_name,
+            'wave' => $wave->name,
+            'fiscal_year' => $wave->fiscal_year,
+            'device' => 'MacBook Pro 14" (L003336)',
+            'device_model' => 'MacBook Pro (14-inch, 2021)',
+            'lease_end' => 'December 31, 2026',
+            'lease_end_year' => '2026',
+            'form_url' => route('forms.show', 'faculty-program'),
+            'store_url' => route('store.index'),
+        ];
+
+        return new DeploymentWaveMail(
+            $wave,
+            $recipient,
+            trans('admin/deployments/general.announce_faculty_subject'),
+            trans('admin/deployments/general.announce_faculty_body'),
+            collect([$asset]),
+            $context
+        );
     }
 
     /** Low-inventory rows for InventoryAlert (blade reads array keys). */
