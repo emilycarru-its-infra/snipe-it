@@ -24,6 +24,19 @@ use Watson\Validating\ValidatingTrait;
  * answers that come back. A requisition is transient — a basket to be keyed into
  * Colleague, carrying the REQM until this number exists — and after that it is a
  * tracking record. The vendor bills against this.
+ *
+ * @property-read \App\Models\Supplier|null $supplier
+ * @property string|null $funding_account
+ * @property string|null $lease_schedule
+ * @property string|null $quote_number
+ * @property string|null $quote_total
+ * @property \Illuminate\Support\Carbon|null $quote_expires_at
+ * @property \Illuminate\Support\Carbon|null $quote_confirmed_at
+ * @property \Illuminate\Support\Carbon|null $vendor_sent_at
+ * @property \Illuminate\Support\Carbon|null $vendor_changes_at
+ * @property string|null $vendor_changes_notes
+ * @property string|null $vendor_order_number
+ * @property string|null $order_cc
  */
 class PurchaseOrder extends SnipeModel
 {
