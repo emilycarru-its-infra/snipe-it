@@ -57,19 +57,8 @@
     </div>
     @endcan
 
-    @can('reports.contracts.view')
-    <div class="col-md-3 col-sm-6">
-        <a href="{{ route('reports.contracts') }}" class="small-box-link" style="text-decoration:none;">
-            <div class="small-box bg-blue">
-                <div class="inner">
-                    <h3 style="font-size:22px;">{{ trans('admin/reports/general.hub_tile_contracts') }}</h3>
-                    <p>{{ trans('admin/reports/general.hub_tile_contracts_help') }}</p>
-                </div>
-                <div class="icon"><i class="fas fa-file-contract" aria-hidden="true"></i></div>
-            </div>
-        </a>
-    </div>
-    @endcan
+    {{-- No Contracts card: the contracts dashboard and its drill-downs were
+         folded into /contracts, which owns the whole module. --}}
 
     @can('reports.transactions.view')
     <div class="col-md-3 col-sm-6">

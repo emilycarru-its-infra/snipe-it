@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
+use App\Models\Contract;
 use App\Models\CustomField;
 use App\Models\CustomFieldset;
 use App\Models\Department;
@@ -294,6 +295,27 @@ class BreadcrumbsServiceProvider extends ServiceProvider
 
         Breadcrumbs::for('groups.edit', fn (Trail $trail, Group $group) => $trail->parent('groups.index', route('groups.index'))
             ->push($group->display_name, route('groups.show', $group))
+            ->push(trans('general.update'))
+        );
+
+        /**
+         * Contracts Breadcrumbs. The drill-down reports hang off the index
+         * (see routes/web/contracts.php) — /contracts is the whole module.
+         */
+        Breadcrumbs::for('contracts.index', fn (Trail $trail) => $trail->parent('home', route('home'))
+            ->push(trans('admin/contracts/general.contracts'), route('contracts.index'))
+        );
+
+        Breadcrumbs::for('contracts.create', fn (Trail $trail) => $trail->parent('contracts.index', route('contracts.index'))
+            ->push(trans('general.create'), route('contracts.create'))
+        );
+
+        Breadcrumbs::for('contracts.show', fn (Trail $trail, Contract $contract) => $trail->parent('contracts.index', route('contracts.index'))
+            ->push($contract->name, route('contracts.show', $contract))
+        );
+
+        Breadcrumbs::for('contracts.edit', fn (Trail $trail, Contract $contract) => $trail->parent('contracts.index', route('contracts.index'))
+            ->push($contract->name, route('contracts.show', $contract))
             ->push(trans('general.update'))
         );
 

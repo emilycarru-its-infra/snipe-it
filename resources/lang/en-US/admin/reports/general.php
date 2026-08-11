@@ -30,8 +30,6 @@ return [
     'hub_intro'                  => 'Reports and dashboards across the inventory lifecycle.',
     'hub_tile_procurement'       => 'Procurement',
     'hub_tile_procurement_help'  => 'Budgets, committed spend, planned orders, lease forecasts.',
-    'hub_tile_contracts'         => 'Contracts',
-    'hub_tile_contracts_help'    => 'Active contracts by theme, provider, fiscal year, renewals.',
     'hub_tile_transactions'      => 'Transactions',
     'hub_tile_transactions_help' => 'OneCard / PaperCut / Global Payments monthly reconciliation.',
     'hub_tile_printing'          => 'Printing',
