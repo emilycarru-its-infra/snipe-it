@@ -77,6 +77,20 @@
                              record in the lightbox. The links map is
                              render-time only, so CSV/XLSX exports stay clean. --}}
                         <td><a href="{{ $row['links'][$ci] }}" class="js-lightbox">{{ $cell }}</a></td>
+                    @elseif (! empty($row['strong'][$ci]))
+                        {{-- Emphasis map: the cell that carries the row's
+                             headline fact (e.g. the lease end date being
+                             overrun). Render-time only, like links. --}}
+                        <td><strong>{{ $cell }}</strong></td>
+                    @elseif (! empty($row['multilinks'][$ci]))
+                        {{-- Cells listing several records (e.g. the vendor
+                             orders that funded a lease) — each opens in the
+                             lightbox. Render-time only, like links. --}}
+                        <td>
+                            @foreach ($row['multilinks'][$ci] as $link)
+                                <a href="{{ $link['url'] }}" class="js-lightbox">{{ $link['label'] }}</a>@if (! $loop->last), @endif
+                            @endforeach
+                        </td>
                     @else
                         <td>{{ $cell }}</td>
                     @endif

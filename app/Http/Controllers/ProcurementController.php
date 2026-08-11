@@ -50,6 +50,10 @@ class ProcurementController extends Controller
      */
     public function index(Request $request)
     {
+        // Same gate as the board this redirects to — an unauthorized visitor
+        // gets the 403 here rather than a bounce onto a page that 403s.
+        $this->authorize('procurement.view');
+
         return redirect()->route('reports.procurement', array_filter([
             'status' => $request->query('status'),
         ]));

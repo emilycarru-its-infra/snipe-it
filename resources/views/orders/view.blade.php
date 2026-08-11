@@ -46,67 +46,90 @@
                 </div>
             </div>
             <div class="box-body">
-                <table class="table table-striped">
-                    <tbody>
-                        <tr>
-                            <td style="width:25%"><strong>{{ trans('general.order_number') }}</strong></td>
-                            <td>{{ $order->order_number }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('admin/orders/general.status') }}</strong></td>
-                            <td>
-                                {{ trans('admin/orders/general.status_'.$order->status) }}
-                                @if ($totalItems > 0)
-                                    <span class="text-muted">({{ trans('admin/orders/general.received_count', ['received' => $receivedItems, 'total' => $totalItems]) }})</span>
-                                @endif
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('admin/purchase-orders/general.purchase_order') }}</strong></td>
-                            <td>
-                                @if ($order->purchaseOrder)
-                                    <a href="{{ route('purchase-orders.show', ['purchase_order' => $order->purchaseOrder->id]) }}">{{ $order->purchaseOrder->po_number }}</a>
-                                @endif
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('general.supplier') }}</strong></td>
-                            <td>{{ $order->supplier?->name }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('general.company') }}</strong></td>
-                            <td>{{ $order->company?->name }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('admin/orders/general.order_date') }}</strong></td>
-                            <td>{{ $order->order_date ? $order->order_date->format('Y-m-d') : '' }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('admin/orders/general.expected_date') }}</strong></td>
-                            <td>{{ $order->expected_date ? $order->expected_date->format('Y-m-d') : '' }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('admin/orders/general.received_date') }}</strong></td>
-                            <td>{{ $order->received_date ? $order->received_date->format('Y-m-d') : '' }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('admin/orders/general.order_cost') }}</strong></td>
-                            <td>{{ $order->order_cost !== null ? Helper::formatCurrencyOutput($order->order_cost) : '' }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('general.notes') }}</strong></td>
-                            <td>{!! $order->notes ? nl2br(e($order->notes)) : '' !!}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('general.created_by') }}</strong></td>
-                            <td>{{ $order->adminuser?->present()->fullName }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>{{ trans('general.created_at') }}</strong></td>
-                            <td>{{ Helper::getFormattedDateObject($order->created_at, 'datetime', false) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                {{-- Summary as a four-column fact grid rather than a
+                     twelve-row two-column table — the fields are short, so
+                     stacking them one per row wasted most of the panel. --}}
+                <style>
+                    .order-summary-grid {
+                        display: grid;
+                        grid-template-columns: repeat(4, minmax(0, 1fr));
+                        gap: 14px 18px;
+                        margin-bottom: 4px;
+                    }
+                    @media (max-width: 991px) { .order-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+                    @media (max-width: 480px) { .order-summary-grid { grid-template-columns: minmax(0, 1fr); } }
+                    .order-summary-grid .order-fact-label {
+                        display: block;
+                        font-size: 12px;
+                        color: var(--text-muted, #777);
+                        margin-bottom: 2px;
+                    }
+                    .order-summary-grid .order-fact-value { font-size: 14px; overflow-wrap: anywhere; }
+                    .order-summary-grid .order-fact-notes { grid-column: 1 / -1; }
+                </style>
+                <div class="order-summary-grid">
+                    <div>
+                        <span class="order-fact-label">{{ trans('general.order_number') }}</span>
+                        <span class="order-fact-value"><strong>{{ $order->order_number }}</strong></span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('admin/orders/general.status') }}</span>
+                        <span class="order-fact-value">
+                            {{ trans('admin/orders/general.status_'.$order->status) }}
+                            @if ($totalItems > 0)
+                                <span class="text-muted">({{ trans('admin/orders/general.received_count', ['received' => $receivedItems, 'total' => $totalItems]) }})</span>
+                            @endif
+                        </span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('admin/orders/general.order_cost') }}</span>
+                        <span class="order-fact-value">{{ $order->order_cost !== null ? Helper::formatCurrencyOutput($order->order_cost) : '—' }}</span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('admin/purchase-orders/general.purchase_order') }}</span>
+                        <span class="order-fact-value">
+                            @if ($order->purchaseOrder)
+                                <a href="{{ route('purchase-orders.show', ['purchase_order' => $order->purchaseOrder->id]) }}">{{ $order->purchaseOrder->po_number }}</a>
+                            @else
+                                —
+                            @endif
+                        </span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('general.supplier') }}</span>
+                        <span class="order-fact-value">{{ $order->supplier?->name ?: '—' }}</span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('general.company') }}</span>
+                        <span class="order-fact-value">{{ $order->company?->name ?: '—' }}</span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('admin/orders/general.order_date') }}</span>
+                        <span class="order-fact-value">{{ $order->order_date ? $order->order_date->format('Y-m-d') : '—' }}</span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('admin/orders/general.expected_date') }}</span>
+                        <span class="order-fact-value">{{ $order->expected_date ? $order->expected_date->format('Y-m-d') : '—' }}</span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('admin/orders/general.received_date') }}</span>
+                        <span class="order-fact-value">{{ $order->received_date ? $order->received_date->format('Y-m-d') : '—' }}</span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('general.created_by') }}</span>
+                        <span class="order-fact-value">{{ $order->adminuser?->present()->fullName ?: '—' }}</span>
+                    </div>
+                    <div>
+                        <span class="order-fact-label">{{ trans('general.created_at') }}</span>
+                        <span class="order-fact-value">{{ Helper::getFormattedDateObject($order->created_at, 'datetime', false) }}</span>
+                    </div>
+                    @if ($order->notes)
+                        <div class="order-fact-notes">
+                            <span class="order-fact-label">{{ trans('general.notes') }}</span>
+                            <span class="order-fact-value">{!! nl2br(e($order->notes)) !!}</span>
+                        </div>
+                    @endif
+                </div>
 
                 <h3 style="overflow:hidden">
                     {{ trans('admin/orders/general.line_items') }}

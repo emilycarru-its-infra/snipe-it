@@ -523,7 +523,7 @@
     @endforeach
     @foreach ([['budgeting', $pipeline['planned'], 'planned'], ['ordering', $pipeline['open'], 'order'], ['deploying', $pipeline['processing'], 'order'], ['completed', $pipeline['completed'], 'order']] as [$stageKey, $cards, $prefix])
         @foreach ($cards as $card)
-            <div data-pp-content="{{ $prefix }}-{{ $card['id'] }}" data-pp-color="var(--pp-{{ $stageKey }})" data-pp-title="{{ $card['order_number'] }}">
+            <div data-pp-content="{{ $prefix }}-{{ $card['id'] }}" data-pp-color="var(--pp-{{ $stageKey }})" data-pp-title="{{ $card['order_number'] }}" data-pp-url="{{ route('orders.show', $card['id']) }}">
                 <div class="pp-facts">
                     <span>{{ trans('general.total_cost') }}<b class="pp-money">{{ $fmt($card['total']) }}</b></span>
                     <span>{{ trans('admin/orders/general.line_items') }}<b>{{ $card['items_count'] }}</b></span>
@@ -656,6 +656,13 @@
         function openCard(key) {
             var content = store && store.querySelector('[data-pp-content="' + key + '"]');
             if (! content) { return; }
+            // Cards backed by a full record page (orders) open that page in
+            // the app lightbox — the complete order view (summary, line
+            // items, shipments, invoices), not a reduced summary.
+            if (content.dataset.ppUrl && window.appLightbox) {
+                window.appLightbox.open(content.dataset.ppUrl);
+                return;
+            }
             title.textContent = content.dataset.ppTitle;
             body.innerHTML = '';
             Array.prototype.forEach.call(content.children, function (child) {

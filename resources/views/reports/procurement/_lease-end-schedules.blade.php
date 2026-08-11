@@ -50,8 +50,8 @@
                     <table class="table table-striped lease-end-table" style="margin-bottom:0;">
                         <thead>
                             <tr>
-                                <th>{{ trans('admin/lease-decisions/general.contract_reference') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
+                                <th>{{ trans('admin/lease-decisions/general.contract_reference') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.lease_end_ownership') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.lease_end_date') }}</th>
                                 <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_devices') }}</th>
@@ -63,8 +63,8 @@
                         <tbody>
                             @foreach ($leaseEndSchedules as $schedule)
                                 <tr>
-                                    <td><strong>{{ $schedule['contract_id'] }}</strong></td>
                                     <td>{{ $schedule['provider'] }}</td>
+                                    <td><strong>{{ $schedule['contract_id'] }}</strong></td>
                                     <td>
                                         @php $ownershipMix = $schedule['ownership_counts']; @endphp
                                         @if (empty($ownershipMix))
