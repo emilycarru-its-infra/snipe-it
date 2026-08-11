@@ -35,6 +35,7 @@ class CatalogItem extends Model
     protected $table = 'catalog_items';
 
     protected $fillable = [
+        'part_numbers_verified_at',
         'supplier_id',
         'manufacturer_id',
         'model_id',
@@ -74,6 +75,10 @@ class CatalogItem extends Model
     ];
 
     protected $casts = [
+        // When the part numbers were last checked against the vendor's current
+        // list. CDW reissues EDCs even when the product has not changed, so
+        // entered-once is not the same as still-right.
+        'part_numbers_verified_at' => 'datetime',
         'unit_cost' => 'decimal:4',
         'estimated_cost' => 'decimal:4',
         'is_active' => 'boolean',

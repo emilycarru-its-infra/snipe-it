@@ -63,9 +63,9 @@ class RequisitionVendorCsv
         // Account repeats down every row rather than being stated once at the
         // top: CDW keys it per line, because a single order can in principle
         // split across accounts and their desk works a row at a time.
-        $account = $this->requisition->funding_account
-            ? trans('admin/store/general.funding_'.$this->requisition->funding_account)
-            : '';
+        // The number as well as the name: their desk matches the account to a
+        // blanket purchase order, and the number is what they match on.
+        $account = $this->requisition->fundingDescription();
 
         return $this->requisition->items->map(fn (RequisitionItem $line) => [
             $reference,
