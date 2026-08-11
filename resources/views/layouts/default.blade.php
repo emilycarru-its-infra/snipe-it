@@ -550,6 +550,19 @@
             overflow: hidden;
             border-radius: 0 0 14px 14px;
         }
+        {{-- Scroll containers must still scroll — the radius clip above
+             otherwise swallows their overflow:auto and the table just
+             truncates at the box edge. --}}
+        .box > .box-body.no-padding.dp-scroll,
+        .box > .box-body.no-padding.fc-scroll,
+        .box > .box-body.no-padding.sticky-table {
+            overflow: auto;
+        }
+        .box > .box-body .table:last-child { margin-bottom: 0; }
+        .box > .box-body .table:last-child > tbody:last-child > tr:last-child > td,
+        .box > .box-body .table:last-child > tbody:last-child > tr:last-child > th {
+            border-bottom: 0;
+        }
 
         {{-- AdminLTE small-boxes (contracts dashboard, reports hub, fleet
              health) painted the whole tile in a status colour. They are ecu
@@ -983,6 +996,20 @@
              one variable: brand row, pill margins, sticky offsets. --}}
         :root { --header-h: 68px; }
 
+        /* Frozen table headers via explicit scroll containers: wrap a table
+           in .sticky-table (or give the wrapper the class alongside its own)
+           and the header pins to the container top while rows scroll under
+           it. Container-scoped on purpose — a page-global sticky rule
+           fights every non-scrolling table's geometry. */
+        .sticky-table { max-height: 70vh; overflow: auto; }
+        .sticky-table table > thead > tr > th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: var(--box-bg, #fff);
+            box-shadow: 0 1px 0 var(--box-border-color, #f4f4f4);
+        }
+
         {{-- The header is one flex row and never wraps. The wordmark scales
              with the viewport, and below that the quick-nav items drop out
              one by one (username text first, then Deployments, Contracts,
@@ -1005,15 +1032,55 @@
         }
         .main-header .navbar-form { margin: 0; padding: 0; border: 0; box-shadow: none; }
         img.navbar-brand-img { max-width: clamp(200px, 30vw, 470px); height: auto; object-fit: contain; }
-        @media (max-width: 1500px) {
-            .main-header .user-menu > a > .hidden-xs { display: none !important; }
+        {{-- The toolbar and the sidebar are the same navigation drawn twice,
+             so exactly one of them exists at any width. At 1200px and up the
+             toolbar carries the whole product and the sidebar is gone; below
+             that the sidebar takes over and the tabs hide.
+
+             Tabs never disappear one at a time any more — losing a tab now
+             loses its whole subtree with it. They shed their labels down to
+             icons first, and the handover to the sidebar happens before they
+             would have to shed anything else. --}}
+        @media (min-width: 1200px) {
+            .main-sidebar { display: none !important; }
+            {{-- Every one of these reserves room for a sidebar that is no
+                 longer rendered. They are pinned with !important further down
+                 this stylesheet, and an override of equal specificity loses on
+                 source order alone — which is exactly what happened: the bar
+                 kept a 50px strip of bare page down its left edge because a
+                 later `.main-header .navbar` rule won by position. Prefixing
+                 with `body` outranks them outright, so the fix no longer
+                 depends on where in the file it sits. --}}
+            body .content-wrapper,
+            body .main-footer,
+            body .right-side,
+            body.sidebar-collapse .content-wrapper,
+            body.sidebar-collapse .main-footer,
+            body.sidebar-mini.sidebar-collapse .content-wrapper,
+            body.sidebar-mini.sidebar-collapse .main-footer,
+            body.sidebar-mini.sidebar-collapse .right-side { margin-left: 0 !important; }
+            body .main-header .navbar,
+            body.sidebar-mini .main-header .navbar,
+            body.sidebar-mini.sidebar-collapse .main-header .navbar { margin-left: 0 !important; }
+            .main-header .sidebar-toggle { display: none !important; }
+
+            {{-- Hover opens the menu; the tab itself stays a real link, so
+                 clicking Procurement goes to Procurement rather than only
+                 unfolding a list. focus-within keeps it keyboard-reachable. --}}
+            .topnav-item:hover > .dropdown-menu,
+            .topnav-item:focus-within > .dropdown-menu { display: block; }
         }
-        @media (max-width: 1490px) { .main-header li.topnav-deployments { display: none; } }
-        @media (max-width: 1380px) { .main-header li.topnav-contracts { display: none; } }
-        @media (max-width: 1270px) { .main-header li.topnav-consumables { display: none; } }
-        @media (max-width: 1160px) { .main-header li.topnav-procurement { display: none; } }
-        @media (max-width: 1050px) { .main-header li.topnav-users { display: none; } }
-        @media (max-width: 950px)  { .main-header li.topnav-assets { display: none; } }
+        {{-- Labels cost roughly 450px across six tabs. Below that headroom the
+             bar cannot seat brand + lookup + tabs + actions, and the brand
+             block — which is allowed to shrink — gets crushed and spills its
+             contents across the tabs instead of anything wrapping. Shed the
+             labels well before that point. --}}
+        @media (min-width: 1200px) and (max-width: 1499px) {
+            .topnav .topbar-nav-label { display: none; }
+        }
+        @media (max-width: 1199px) {
+            .topnav { display: none !important; }
+        }
         .main-header .navbar,
         .main-header .navbar-static-top {
             min-height: var(--header-h);
@@ -1038,6 +1105,7 @@
              scrollport, so sticky means the viewport again. --}}
         body, .wrapper {
             overflow: clip visible !important;
+            overflow-clip-margin: 24px;
         }
         @media (min-width: 768px) {
             .main-header {
@@ -1206,6 +1274,207 @@
             line-height: 1;
         }
         .topbar-search-btn:hover { color: var(--chrome-fg); background: var(--chrome-hover-bg); }
+
+        {{-- Lookup now sits inside the brand block, beside the wordmark. --}}
+        .main-header .navbar .left-navblock { display: flex; align-items: center; gap: 14px; }
+        {{-- The brand block holds the wordmark and lookup at fixed sizes, so
+             it must not be treated as the bar's shock absorber: shrinking it
+             does not shrink its contents, it just lets them overflow across
+             whatever comes next. The tabs give way instead. --}}
+        @media (min-width: 1200px) {
+            .main-header .navbar > .navbar-left { flex: 0 0 auto; min-width: auto; }
+            {{-- No overflow clipping here: the menus hang out of this strip,
+                 and hiding overflow amputates them. --}}
+            .main-header .navbar > .topnav { flex: 0 1 auto; }
+        }
+        {{-- The field carries a fixed width, so it must not be treated as
+             shrinkable filler: as a flex item it collapsed to nothing and the
+             input spilled out of its own container across the tabs. --}}
+        .main-header .topbar-search-form {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+            float: none;
+            flex: 0 0 auto;
+        }
+        .main-header .topbar-search { flex: 0 0 auto; }
+        {{-- The panel positions against this form. Without it the nearest
+             positioned ancestor is the navbar, and the panel hangs off the
+             far left of the bar instead of off the field. --}}
+        .main-header .topbar-search-form { position: relative; }
+
+        {{-- Type-ahead panel. Hangs off the field, sized to the field but
+             wider, and scrolls internally rather than growing down the page. --}}
+        .topbar-search-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            width: 380px;
+            max-width: 90vw;
+            max-height: min(60vh, 520px);
+            overflow-y: auto;
+            z-index: 1040;
+            background: var(--box-bg);
+            border: 1px solid var(--chrome-border-color);
+            border-radius: 12px;
+            box-shadow: 0 10px 34px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.55));
+            padding: 6px 0;
+            text-align: left;
+        }
+        .topbar-search-panel .tsp-group-label {
+            padding: 8px 14px 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--chrome-fg-muted);
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .topbar-search-panel .tsp-hit {
+            display: block;
+            padding: 6px 14px;
+            color: var(--color-fg);
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .topbar-search-panel .tsp-hit:hover,
+        .topbar-search-panel .tsp-hit.is-active {
+            background: var(--chrome-hover-bg);
+            color: var(--color-fg);
+            text-decoration: none;
+        }
+        .topbar-search-panel .tsp-title { font-weight: 600; }
+        .topbar-search-panel .tsp-sub {
+            display: block;
+            font-size: 12px;
+            color: var(--chrome-fg-muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+            .tsp-mark { background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 28%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+            #topSearchButton.tsp-busy svg, #topSearchButton.tsp-busy i { display: none; }
+            #topSearchButton.tsp-busy::after {
+                content: '';
+                display: inline-block;
+                width: 13px;
+                height: 13px;
+                border: 2px solid var(--chrome-border-color, #d5d5d5);
+                border-top-color: var(--chrome-fg-muted, #666);
+                border-radius: 50%;
+                animation: tsp-spin 0.7s linear infinite;
+                vertical-align: middle;
+            }
+            @keyframes tsp-spin { to { transform: rotate(360deg); } }
+
+        .topbar-search-panel .tsp-empty,
+        .topbar-search-panel .tsp-more {
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--chrome-fg-muted);
+        }
+        {{-- The wordmark was sized for a bar that held only the wordmark. It
+             now shares the row with lookup and six sections. --}}
+        @media (min-width: 1200px) {
+            img.navbar-brand-img { max-width: clamp(210px, 20vw, 340px); }
+        }
+        @media (max-width: 767px) {
+            .main-header .topbar-search-form { display: none; }
+        }
+
+        {{-- Section tabs sit between the brand block and the right-hand
+             actions, on the same pill treatment as before. --}}
+        .main-header .navbar > .topnav {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            float: none;
+            margin: 0 0 0 18px;
+            min-width: 0;
+        }
+        .main-header .navbar > .topnav > li { float: none; }
+        {{-- A hovered tab keeps the pill lit while the menu is open, so the
+             menu reads as belonging to it. --}}
+        .topnav-item:hover > a,
+        .topnav-item:focus-within > a {
+            background-color: var(--chrome-hover-bg) !important;
+            color: var(--chrome-fg) !important;
+        }
+        {{-- The menus hang directly off the tab with no gap: a gap between
+             the pill and the panel is a dead zone that closes the menu when
+             the pointer crosses it. --}}
+        .main-header .navbar .topnav-menu {
+            margin-top: 0;
+            min-width: 210px;
+            padding: 6px 0;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.5));
+        }
+        {{-- Menu rows are full-bleed bands, not pills. The base theme rounds
+             every dropdown anchor to 8px, which leaves a scalloped notch
+             against the panel edge on hover. --}}
+        .main-header .navbar .topnav-menu > li > a {
+            padding: 6px 16px;
+            white-space: nowrap;
+            border-radius: 0 !important;
+            margin: 0;
+        }
+        {{-- The gear holds the whole back office and is taller than a short
+             viewport; without a bound its last entries fall off the bottom of
+             the screen with no way to reach them. --}}
+        .main-header .navbar .dropdown-menu {
+            max-height: calc(100vh - var(--header-h) - 16px);
+            overflow-y: auto;
+        }
+        {{-- Section labels are signposts, not entries: no hover state, a
+             rule above to close the previous group, and pointer-events off
+             so nothing about them suggests a click. --}}
+        .main-header .navbar .topnav-menu > li.dropdown-header {
+            padding: 10px 16px 4px;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--chrome-fg-muted);
+            pointer-events: none;
+            background: transparent !important;
+            border-top: 1px solid var(--chrome-border-color, #e5e5e5);
+            margin-top: 6px;
+        }
+        .main-header .navbar .topnav-menu > li.dropdown-header:first-child {
+            border-top: 0;
+            margin-top: 0;
+        }
+        .main-header .navbar .topnav-menu .badge {
+            background: var(--chrome-active-bg);
+            color: var(--chrome-fg-muted);
+            margin-left: 6px;
+        }
+        {{-- Plus, avatar and gear are icon-sized, not word-sized. They also
+             have to agree on a box: the avatar anchor is sized by its image
+             and the other two by their glyph, so left to themselves the three
+             sit at three different heights. --}}
+        .main-header .navbar .topnav-action > a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 34px;
+            width: 36px;
+            padding: 0 !important;
+        }
+        .main-header .navbar .topnav-action > a > .user-image {
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            object-fit: cover;
+            margin: 0;
+        }
+        .main-header .navbar .topnav-action > a > i,
+        .main-header .navbar .topnav-action > a > svg { margin: 0; }
 
         .navbar-nav > .notifications-menu > .dropdown-menu > li.header,
         .navbar-nav > .messages-menu > .dropdown-menu > li.header,
@@ -1952,8 +2221,36 @@
                                      alt="">
                                 <span class="sr-only">{{ $snipeSettings->site_name }}</span>
                             </a>
+                            @unless ($isEndUser)
+                                @can('index', \App\Models\Asset::class)
+                                    {{-- Lookup rides beside the wordmark rather
+                                         than out at the far right: it is the
+                                         most-used control in the bar, and
+                                         centre-left is where the eye already is
+                                         after the logo. It belongs inside the
+                                         brand block, which is the flex row —
+                                         as a sibling it lands in a block box
+                                         and collapses to nothing. --}}
+                                    <form class="navbar-form form-inline topbar-search-form" role="search" action="{{ route('findbytag/hardware') }}" method="get">
+                                        <div class="topbar-search">
+                                            <label class="sr-only" for="tagSearch">{{ trans('general.lookup_anything') }}</label>
+                                            <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_anything') }}">
+                                            <button type="submit" id="topSearchButton" class="topbar-search-btn"><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
+                                        </div>
+                                        <input type="hidden" name="topsearch" value="true" id="search">
+                                        {{-- Results drop out of the field itself. Submitting
+                                             still falls through to the old tag lookup, so the
+                                             keyboard path people already know keeps working. --}}
+                                        <div id="topSearchResults" class="topbar-search-panel" hidden role="listbox" aria-label="{{ trans('general.search') }}"></div>
+                                    </form>
+                                @endcan
+                            @endunless
                         </div>
                     </div>
+
+                    @unless ($isEndUser)
+                        @include('partials.topnav')
+                    @endunless
 
                     @if ($isEndUser)
                         {{-- The whole product, for an end user: Assets,
@@ -2090,90 +2387,18 @@
 
                             </li>
 
-                            @can('index', \App\Models\Asset::class)
-                                <li aria-hidden="true" class="topnav-assets{!! (request()->is('hardware*') ? ' active' : '') !!}">
-                                    <a href="{{ url('hardware') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=1" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.assets') }}">
-                                        <x-icon type="assets" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.assets') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            {{-- Deployments sits between Assets and Procurement:
-                                 procurement is the money side of a refresh,
-                                 deployments is the physical side — arrivals,
-                                 provisioning, placement, decommissioning. --}}
-                            @can('view', \App\Models\Order::class)
-                                <li aria-hidden="true" class="topnav-deployments{!! ((request()->is('reports/deployments*') || request()->is('deployments*') || request()->is('deployment-waves*') || request()->is('deployment-config*') || request()->is('deployment-blackouts*')) ? ' active' : '') !!}">
-                                    <a href="{{ route('reports.deployments') }}" tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/deployments/general.dashboard_title') }}">
-                                        <x-icon type="deployments" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('admin/deployments/general.dashboard_title') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            {{-- Procurement earns a top-level slot: the hub is
-                                 a daily destination, not something to go
-                                 hunting for in a sidebar treeview. --}}
-                            @can('view', \App\Models\Order::class)
-                                <li aria-hidden="true" class="topnav-procurement{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
-                                    <a href="{{ route('procurement.index') }}" tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.procurement') }}">
-                                        <x-icon type="procurement" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.procurement') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('view', \App\Models\Contract::class)
-                                <li aria-hidden="true" class="topnav-contracts{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' active' : '') !!}">
-                                    <a href="{{ route('contracts.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=2" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('admin/contracts/general.contracts') }}">
-                                        <x-icon type="contracts" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('admin/contracts/general.contracts') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('index', \App\Models\Consumable::class)
-                                <li aria-hidden="true" class="topnav-consumables{!! (request()->is('consumables*') ? ' active' : '') !!}">
-                                    <a href="{{ url('consumables') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=3" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.consumables') }}">
-                                        <x-icon type="consumables" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.consumables') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-
-                            @can('index', \App\Models\User::class)
-                                <li aria-hidden="true" class="topnav-users{!! (request()->is('users*') ? ' active' : '') !!}">
-                                    <a href="{{ route('users.index') }}" {{$snipeSettings->shortcuts_enabled == 1 ? "accesskey=4" : ''}} tabindex="-1" data-tooltip="true" data-placement="bottom" data-title="{{ trans('general.users') }}">
-                                        <x-icon type="users" class="fa-fw" />
-                                        <span class="topbar-nav-label">{{ trans('general.users') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-
-                            @can('index', \App\Models\Asset::class)
-                                <li>
-                                    <form class="navbar-form navbar-left form-inline" role="search" action="{{ route('findbytag/hardware') }}" method="get">
-
-                                                {{-- One rounded field with the magnifier riding inside it,
-                                                     instead of an input with a coloured button block welded on. --}}
-                                                <div class="topbar-search">
-                                                    <label class="sr-only" for="tagSearch">
-                                                        {{ trans('general.lookup_anything') }}
-                                                    </label>
-                                                    <input type="text" class="form-control" id="tagSearch" name="assetTag" placeholder="{{ trans('general.lookup_anything') }}">
-                                                    <button type="submit" id="topSearchButton" class="topbar-search-btn"><x-icon type="search" class="fa-fw" /><div class="sr-only">{{ trans('general.search') }}</div></button>
-                                                </div>
-
-                                        <input type="hidden" name="topsearch" value="true" id="search">
-
-                                    </form>
-                                </li>
-                            @endcan
 
                             @can('admin')
-                                <li class="dropdown user-menu" aria-hidden="true">
-                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" tabindex="-1">
-                                        {{ trans('general.create') }}
-                                        <strong class="caret"></strong>
+                                {{-- Create is a plus, not a sentence. It is a
+                                     frequent action but not a landmark, and the
+                                     spelled-out label plus caret was competing
+                                     with the section tabs for attention. --}}
+                                <li class="dropdown topnav-action topnav-create">
+                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" title="{{ trans('general.create') }}">
+                                        <x-icon type="create" class="fa-fw" />
+                                        <span class="sr-only">{{ trans('general.create') }}</span>
                                     </a>
-                                    <ul class="dropdown-menu">
+                                    <ul class="dropdown-menu dropdown-menu-right">
                                         @can('create', \App\Models\Asset::class)
                                             <li{!! (request()->is('hardware/create') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('hardware.create') }}" tabindex="-1">
@@ -2228,28 +2453,26 @@
                                 </li>
                             @endcan
 
-                            @can('admin')
-                                <x-alert-menu />
-                            @endcan
-
-
+                            {{-- The alerts flag is gone from the chrome: it
+                                 duplicated what the dashboard already says, and
+                                 a permanent red count that nobody acts on is
+                                 noise. The alert data itself is untouched. --}}
 
                             <!-- User Account: style can be found in dropdown.less -->
                             @auth
-                                <li class="dropdown user user-menu">
+                                <li class="dropdown user user-menu topnav-action">
 
-                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                                    {{-- Avatar only. The name spelled out beside
+                                         every page cost a tab's worth of room to
+                                         tell you who you already are. --}}
+                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" title="{{ Auth::user()->display_name }}">
                                         @if (auth()->user()->present()->gravatar())
                                             <img src="{{ Auth::user()->present()->gravatar() }}" class="user-image"
                                                  alt="">
                                         @else
                                             <x-icon type="user" />
                                         @endif
-
-                                        <span class="hidden-xs">
-                                            {{ Auth::user()->display_name }}
-                                            <strong class="caret"></strong>
-                                        </span>
+                                        <span class="sr-only">{{ Auth::user()->display_name }}</span>
                                     </a>
 
 
@@ -2279,6 +2502,14 @@
                                                 </a></li>
                                         @endcan
 
+                                        @can('viewRequestable', \App\Models\Asset::class)
+                                            <li {!! (request()->is('account/requestable-assets') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('requestable-assets') }}">
+                                                    <x-icon type="requestable" class="fa-fw" />
+                                                    {{ trans('general.requestable_items') }}
+                                                </a></li>
+                                        @endcan
+
                                         @if (! empty($formsAccessible))
                                             <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('forms.index') }}">
@@ -2287,6 +2518,27 @@
                                                 </a>
                                             </li>
                                         @endif
+
+                                        {{-- The store and its orders are the same
+                                             personal surface an end user gets on
+                                             their own topbar; an admin reaches
+                                             them here rather than through the
+                                             Procurement section, which is the
+                                             buying side of the same thing. --}}
+                                        <li {!! (request()->is('store') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('store.index') }}">
+                                                <i class="fa-solid fa-store fa-fw" aria-hidden="true"></i>
+                                                {{ trans('admin/store/general.store') }}
+                                            </a>
+                                        </li>
+                                        <li {!! (request()->is('store/orders*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('store.orders') }}">
+                                                <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
+                                                {{ trans('admin/store/general.my_orders') }}
+                                            </a>
+                                        </li>
+
+                                        <li class="divider"></li>
 
                                         {{-- Accept Assets left this menu: anything
                                              waiting on a signature is the first
@@ -2343,14 +2595,161 @@
                             @endauth
 
 
-                            @can('superadmin')
-                                <li>
-                                    <a href="{{ route('settings.index') }}">
+                            {{-- The gear is the back office: the things you
+                                 configure or run periodically, rather than the
+                                 six sections you live in. Each entry keeps its
+                                 own permission — the gear itself appears for
+                                 anyone who can reach at least one of them, so
+                                 an admin who is not a superadmin still gets
+                                 bulk actions and the catalog. --}}
+                            @php
+                                // audit/checkin/checkout are policy abilities and
+                                // need the model to answer; asking for them bare
+                                // resolves to a gate that does not exist and is
+                                // silently false, which would hide the whole menu
+                                // from someone whose only claim on it is those.
+                                $canSeeBackstage = Gate::allows('superadmin')
+                                    || Gate::allows('backend.interact')
+                                    || Gate::allows('import')
+                                    || Gate::any(['audit', 'checkin', 'checkout', 'view'], \App\Models\Asset::class)
+                                    || Gate::allows('view', \App\Models\AssetModel::class)
+                                    || Gate::allows('index', \App\Models\Accessory::class);
+                            @endphp
+                            @if ($canSeeBackstage)
+                                <li class="dropdown topnav-action topnav-gear">
+                                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" title="{{ trans('general.admin') }}">
                                         <x-icon type="admin-settings" />
                                         <span class="sr-only">{{ trans('general.admin') }}</span>
                                     </a>
+                                    <ul class="dropdown-menu dropdown-menu-right topnav-menu">
+                                        @can('superadmin')
+                                            <li{!! (request()->is('settings') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('settings.index') }}">{{ trans('general.settings') }}</a>
+                                            </li>
+                                        @endcan
+                                        @can('backend.interact')
+                                            @if (Gate::allows('view', App\Models\CustomField::class) || Gate::allows('view', App\Models\CustomFieldset::class))
+                                                <li{!! (request()->is('fields*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('fields.index') }}">{{ trans('admin/custom_fields/general.custom_fields') }}</a>
+                                                </li>
+                                            @endif
+                                            @can('view', \App\Models\Statuslabel::class)
+                                                <li{!! (request()->is('statuslabels') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('statuslabels.index') }}">{{ trans('general.status_labels') }}</a>
+                                                </li>
+                                            @endcan
+                                        @endcan
+                                        @can('import')
+                                            <li{!! (request()->is('import*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('imports.index') }}">{{ trans('general.import') }}</a>
+                                            </li>
+                                        @endcan
+
+                                        @canany(['audit', 'checkin', 'checkout'], \App\Models\Asset::class)
+                                            <li class="dropdown-header">{{ trans('general.nav_group_operations') }}</li>
+                                            @can('audit', \App\Models\Asset::class)
+                                                <li{!! (request()->is('hardware/audit/due') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('assets.audit.due') }}">{{ trans('general.audit_due') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('checkin', \App\Models\Asset::class)
+                                                <li{!! (request()->is('hardware/checkins/due') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('assets.checkins.due') }}">{{ trans('general.checkin_due') }}</a>
+                                                </li>
+                                                <li>
+                                                    <a href="{{ route('hardware/quickscancheckin') }}">{{ trans('general.quickscan_checkin') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('checkout', \App\Models\Asset::class)
+                                                <li>
+                                                    <a href="{{ route('hardware.bulkcheckout.show') }}">{{ trans('general.bulk_checkout') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('create', \App\Models\Asset::class)
+                                                <li{!! (request()->is('hardware/requested') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('assets.requested') }}">{{ trans('general.requested') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('audit', \App\Models\Asset::class)
+                                                <li>
+                                                    <a href="{{ route('assets.bulkaudit') }}">{{ trans('general.bulkaudit') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Asset::class)
+                                                <li{!! (request()->is('maintenances*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('maintenances.index') }}">{{ trans('general.maintenances') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('admin')
+                                                <li{!! (request()->is('hardware/history') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ url('hardware/history') }}">{{ trans('general.import-history') }}</a>
+                                                </li>
+                                            @endcan
+                                        @endcanany
+
+                                        @if (Gate::allows('view', \App\Models\AssetModel::class) || Gate::allows('view', \App\Models\Category::class) || Gate::allows('view', \App\Models\Manufacturer::class))
+                                            <li class="dropdown-header">{{ trans('general.catalog') }}</li>
+                                            @can('view', \App\Models\AssetModel::class)
+                                                <li{!! (request()->is('models*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('models.index') }}">{{ trans('general.asset_models') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Category::class)
+                                                <li{!! (request()->is('categories*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('categories.index') }}">{{ trans('general.categories') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Manufacturer::class)
+                                                <li{!! (request()->is('manufacturers*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('manufacturers.index') }}">{{ trans('general.manufacturers') }}</a>
+                                                </li>
+                                            @endcan
+                                        @endif
+
+                                        {{-- Accessories, components and kits have
+                                             no section of their own in the new
+                                             toolbar but remain live modules — and
+                                             they are still creatable from the plus
+                                             menu, so they need a way back. --}}
+                                        @if (Gate::allows('index', \App\Models\Accessory::class) || Gate::allows('view', \App\Models\Component::class) || Gate::allows('view', \App\Models\PredefinedKit::class))
+                                            <li class="dropdown-header">{{ trans('general.nav_group_supplies') }}</li>
+                                            @can('index', \App\Models\Accessory::class)
+                                                <li{!! (request()->is('accessories*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('accessories.index') }}">{{ trans('general.accessories') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\Component::class)
+                                                <li{!! (request()->is('components*') ? ' class="active"' : '') !!}>
+                                                    <a href="{{ route('components.index') }}">{{ trans('general.components') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('view', \App\Models\PredefinedKit::class)
+                                                @if ($snipeSettings->show_predefined_kits)
+                                                    <li{!! (request()->is('kits*') ? ' class="active"' : '') !!}>
+                                                        <a href="{{ route('kits.index') }}">{{ trans('general.kits') }}</a>
+                                                    </li>
+                                                @endif
+                                            @endcan
+                                        @endif
+
+                                        @can('view', App\Models\Asset::class)
+                                            <li class="dropdown-header">{{ trans('general.reports') }}</li>
+                                            <li{!! (request()->is('reports') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.index') }}">{{ trans('general.reports') }}</a>
+                                            </li>
+                                            <li{!! (request()->is('reports/fleet-health*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.fleet-health') }}">{{ trans('admin/reports/general.fleet_health') }}</a>
+                                            </li>
+                                            <li{!! (request()->is('reports/audit*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.audit') }}">{{ trans('general.audit_report') }}</a>
+                                            </li>
+                                            <li{!! (request()->is('reports/activity*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('reports.activity') }}">{{ trans('general.activity_report') }}</a>
+                                            </li>
+                                        @endcan
+                                    </ul>
                                 </li>
-                            @endcan
+                            @endif
                         </ul>
                     </div>
                 </nav>
@@ -3239,6 +3638,149 @@
         @section('moar_scripts')
         @show
 
+        @unless (auth()->check() && auth()->user()->isEndUser())
+        <script nonce="{{ csrf_token() }}">
+            // Toolbar type-ahead. The field used to submit a tag to
+            // findbytag and drop you into the full asset list to find out
+            // whether it matched; this answers across every entity you can
+            // see, in place, before you commit to a page load.
+            (function () {
+                var input = document.getElementById('tagSearch');
+                var panel = document.getElementById('topSearchResults');
+                if (!input || !panel) { return; }
+
+                var MIN_CHARS = 2;
+                var DEBOUNCE_MS = 180;
+                var endpoint = @json(route('search.suggest'));
+                var labels = {
+                    empty: @json(trans('general.no_results')),
+                    more: @json(trans('general.view_all')),
+                    searching: @json(trans('general.top_search_searching'))
+                };
+                var button = document.getElementById('topSearchButton');
+
+                var timer = null;
+                var controller = null;
+                var activeIndex = -1;
+                var lastQuery = '';
+
+                function hits() { return panel.querySelectorAll('.tsp-hit'); }
+
+                function close() {
+                    panel.hidden = true;
+                    panel.innerHTML = '';
+                    activeIndex = -1;
+                }
+
+                function setActive(next) {
+                    var all = hits();
+                    if (!all.length) { return; }
+                    if (activeIndex >= 0 && all[activeIndex]) { all[activeIndex].classList.remove('is-active'); }
+                    activeIndex = (next + all.length) % all.length;
+                    all[activeIndex].classList.add('is-active');
+                    all[activeIndex].scrollIntoView({block: 'nearest'});
+                }
+
+                function escape(value) {
+                    return String(value == null ? '' : value)
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                // Escape first, then wrap every occurrence of the query so
+                // the eye lands on WHY each row matched.
+                function highlight(value, query) {
+                    var safe = escape(value);
+                    if (!query) { return safe; }
+                    var pattern = escape(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    return safe.replace(new RegExp('(' + pattern + ')', 'ig'), '<mark class="tsp-mark">$1</mark>');
+                }
+
+                function render(payload) {
+                    if (!payload.groups.length) {
+                        panel.innerHTML = '<div class="tsp-empty">' + escape(labels.empty) + '</div>';
+                        panel.hidden = false;
+                        return;
+                    }
+
+                    var html = '';
+                    payload.groups.forEach(function (group) {
+                        html += '<div class="tsp-group-label"><span>' + escape(group.label) + '</span><span>' + group.count + '</span></div>';
+                        group.items.forEach(function (item) {
+                            html += '<a class="tsp-hit" href="' + escape(item.url) + '">'
+                                 +  '<span class="tsp-title">' + highlight(item.title, payload.query) + '</span>'
+                                 +  (item.subtitle ? '<span class="tsp-sub">' + highlight(item.subtitle, payload.query) + '</span>' : '')
+                                 +  '</a>';
+                        });
+                        if (group.index_url) {
+                            html += '<a class="tsp-hit tsp-more" href="' + escape(group.index_url) + '">'
+                                 +  escape(labels.more) + ' (' + group.count + ')</a>';
+                        }
+                    });
+                    panel.innerHTML = html;
+                    panel.hidden = false;
+                    activeIndex = -1;
+                }
+
+                function run(query) {
+                    if (controller) { controller.abort(); }
+                    controller = new AbortController();
+
+                    // Something IS happening: spin the glass, and say so in
+                    // the panel when there are no earlier results on screen.
+                    if (button) { button.classList.add('tsp-busy'); }
+                    if (!panel.querySelector('.tsp-hit')) {
+                        panel.innerHTML = '<div class="tsp-empty">' + escape(labels.searching) + '</div>';
+                        panel.hidden = false;
+                    }
+
+                    fetch(endpoint + '?q=' + encodeURIComponent(query), {
+                        signal: controller.signal,
+                        headers: {'X-Requested-With': 'XMLHttpRequest'},
+                        credentials: 'same-origin'
+                    })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (payload) {
+                        if (button) { button.classList.remove('tsp-busy'); }
+                        // A slow response for a query the user has already
+                        // typed past must not overwrite a newer one.
+                        if (!payload || payload.query !== input.value.trim()) { return; }
+                        render(payload);
+                    })
+                    .catch(function () { if (button) { button.classList.remove('tsp-busy'); } });
+                }
+
+                input.addEventListener('input', function () {
+                    var query = input.value.trim();
+                    if (query === lastQuery) { return; }
+                    lastQuery = query;
+
+                    window.clearTimeout(timer);
+                    if (query.length < MIN_CHARS) { close(); return; }
+                    timer = window.setTimeout(function () { run(query); }, DEBOUNCE_MS);
+                });
+
+                input.addEventListener('keydown', function (event) {
+                    if (panel.hidden) { return; }
+                    if (event.key === 'ArrowDown') { event.preventDefault(); setActive(activeIndex + 1); }
+                    else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(activeIndex - 1); }
+                    else if (event.key === 'Escape') { close(); }
+                    else if (event.key === 'Enter' && activeIndex >= 0) {
+                        var current = hits()[activeIndex];
+                        if (current) { event.preventDefault(); window.location = current.href; }
+                    }
+                });
+
+                input.addEventListener('focus', function () {
+                    if (input.value.trim().length >= MIN_CHARS && panel.innerHTML) { panel.hidden = false; }
+                });
+
+                document.addEventListener('click', function (event) {
+                    if (!panel.contains(event.target) && event.target !== input) { close(); }
+                });
+            })();
+        </script>
+        @endunless
 
         <script nonce="{{ csrf_token() }}">
 
