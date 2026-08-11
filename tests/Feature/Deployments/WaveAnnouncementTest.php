@@ -70,6 +70,30 @@ class WaveAnnouncementTest extends TestCase
         $this->assertCount(2, $recipients->first()['assets']);
     }
 
+    /**
+     * The case that actually broke: a refresh wave's items carry only the device
+     * being replaced, because the new machine has not been bought yet. Reading
+     * `asset_id` alone found nobody in a wave of 21 named faculty.
+     */
+    public function test_a_planned_replacement_still_finds_the_person_on_the_old_device()
+    {
+        $wave = $this->wave();
+        $faculty = User::factory()->create(['email' => 'faculty@ecuad.ca']);
+
+        $old = Asset::factory()->create(['lease_end_date' => '2026-12-31']);
+        $old->forceFill(['assigned_to' => $faculty->id, 'assigned_type' => User::class])->saveQuietly();
+
+        // No asset_id: nothing has been ordered yet, which is the normal state of
+        // a wave at the moment it is announced.
+        DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $old->id]);
+
+        $recipients = (new WaveAnnouncer)->recipients($wave->fresh());
+
+        $this->assertCount(1, $recipients);
+        $this->assertSame('faculty@ecuad.ca', $recipients->first()['user']->email);
+        $this->assertSame($old->id, $recipients->first()['assets']->first()->id);
+    }
+
     public function test_a_test_send_goes_only_to_the_sender_and_does_not_start_the_wave()
     {
         Mail::fake();
