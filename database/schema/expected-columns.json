@@ -585,6 +585,7 @@
         "updated_at"
     ],
     "deployment_waves": [
+        "announced_at",
         "arrival_window_end",
         "arrival_window_start",
         "color",

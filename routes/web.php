@@ -429,24 +429,35 @@ Route::group(['middleware' => 'auth'], function () {
     Route::delete('deployments/blackouts/{blackout}', [StaffBlackoutsController::class, 'destroy'])
         ->name('deployments.blackouts.destroy');
 
-    Route::get('deployment-waves/create', [DeploymentsController::class, 'create'])
+    Route::get('deployments/waves/create', [DeploymentsController::class, 'create'])
         ->name('deployment-waves.create')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.create'), route('deployment-waves.create')));
-    Route::get('deployment-waves/{deploymentWave}/edit', [DeploymentsController::class, 'edit'])
+    Route::get('deployments/waves/{deploymentWave}/edit', [DeploymentsController::class, 'edit'])
         ->name('deployment-waves.edit')
         ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.update'), route('deployment-waves.edit', $deploymentWave)));
-    Route::get('deployment-waves/{deploymentWave}', [DeploymentsController::class, 'show'])
+    Route::get('deployments/waves/{deploymentWave}', [DeploymentsController::class, 'show'])
         ->name('deployment-waves.show')
         ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
             ->push($deploymentWave->name, route('deployment-waves.show', $deploymentWave)));
 
-    Route::resource('deployment-waves', DeploymentsController::class)
-        ->parameters(['deployment-waves' => 'deploymentWave'])
+    // Names stay `deployment-waves.*` so every route() call and breadcrumb in the
+    // app is untouched by the move; only the path changed.
+    Route::resource('deployments/waves', DeploymentsController::class)
+        ->parameters(['waves' => 'deploymentWave'])
+        ->names([
+            'store' => 'deployment-waves.store',
+            'update' => 'deployment-waves.update',
+            'destroy' => 'deployment-waves.destroy',
+        ])
         ->except(['index', 'create', 'edit', 'show']);
-    Route::get('deployment-waves/{deploymentWave}/export', [DeploymentsController::class, 'exportWave'])
+    Route::get('deployments/waves/{deploymentWave}/export', [DeploymentsController::class, 'exportWave'])
         ->name('deployment-waves.export');
+
+    // Announcing a wave to the people in it — and thereby starting it.
+    Route::post('deployments/waves/{deploymentWave}/announce', [DeploymentsController::class, 'announce'])
+        ->name('deployment-waves.announce');
 
     // Per-device item rows on a wave board.
     Route::post('deployment-items/bulk-stage', [DeploymentItemsController::class, 'bulkStage'])
@@ -980,6 +991,11 @@ Route::group(['middleware' => ['auth']], function () {
     }
 
     Route::redirect('reports/lessor-breakdown', '/procurement/lessor-breakdown', 301);
+
+    // A wave is part of deployments, so it lives under /deployments/waves. The
+    // old top-level path is in links already sent.
+    Route::redirect('deployment-waves', '/deployments/waves', 301);
+    Route::redirect('deployment-waves/{tail}', '/deployments/waves/{tail}', 301)->where('tail', '.*');
 
     Route::post('notes', [NotesController::class, 'store'])->name('notes.store');
 });

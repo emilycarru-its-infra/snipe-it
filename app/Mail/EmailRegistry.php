@@ -350,6 +350,14 @@ class EmailRegistry
                 'configurable_cc' => true,
             ],
             [
+                'key' => 'deployments.wave_announcement',
+                'category' => 'store',
+                'label' => 'Wave announcement (to the people in it)',
+                'description' => 'The note sent to everyone in a deployment wave — the annual Faculty Laptop Program invitation, or advance warning of a swap. Subject and body are composed per send on the wave page and rendered against each person\'s own device; this entry is here so the layout can be previewed.',
+                'merge_vars' => ['recipient' => 'The person', 'device' => 'Their device in the wave', 'lease_end' => 'When its lease ends', 'wave' => 'The wave', 'form_url' => 'The faculty program form'],
+                'factory' => fn (EmailSampleData $s) => $s->waveAnnouncement(),
+            ],
+            [
                 'key' => 'procurement.vendor_order',
                 'category' => 'store',
                 'label' => 'Vendor order (to reps)',
