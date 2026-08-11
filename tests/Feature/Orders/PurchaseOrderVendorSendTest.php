@@ -539,6 +539,28 @@ class PurchaseOrderVendorSendTest extends TestCase
     }
 
     /**
+     * Every procurement report that names a purchase order links to it. The
+     * number is the way into the work, not a label to read off a row.
+     */
+    public function test_reports_link_their_purchase_order_numbers()
+    {
+        $order = $this->purchaseOrder(['budget' => 113172.57, 'fiscal_year' => 'FY2026-27']);
+        $staff = $this->procurement();
+        $href = route('purchase-orders.show', $order, false);
+
+        // The two that list a purchase order per row with nothing else needed.
+        // Invoice reconciliation and receiving are linked the same way but need
+        // invoices and orders to have rows at all; the tax summary and receiving
+        // are downloads rather than pages.
+        foreach (['reports.procurement.po-budget', 'reports.procurement.po-disposition'] as $report) {
+            $body = $this->actingAs($staff)->get(route($report))->assertOk()->getContent();
+
+            $this->assertStringContainsString($href, $body, $report.' should link the purchase order');
+            $this->assertStringContainsString('js-lightbox', $body, $report.' should open it in the lightbox');
+        }
+    }
+
+    /**
      * The purchase order page is where an order is placed from, so it has to
      * carry the things that used to live only on the requisition: the lines, the
      * comments, and the send.

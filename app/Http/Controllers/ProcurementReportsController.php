@@ -1480,6 +1480,10 @@ class ProcurementReportsController extends Controller
 
             $records[] = [
                 'class' => $overBudget ? 'danger' : '',
+                // The purchase order is the document an order is placed from, so
+                // its number is the way into the work rather than a label to
+                // read off. Opens in the lightbox, like every other report link.
+                'links' => [0 => route('purchase-orders.show', $po)],
                 'cells' => [
                     $po->po_number,
                     (string) $po->title,
@@ -1547,6 +1551,11 @@ class ProcurementReportsController extends Controller
 
             $records[] = [
                 'class' => '',
+                'links' => array_filter([
+                    0 => $invoice->order?->purchaseOrder
+                        ? route('purchase-orders.show', $invoice->order->purchaseOrder) : null,
+                    1 => $invoice->order ? route('orders.show', $invoice->order->id) : null,
+                ]),
                 'cells' => [
                     (string) $invoice->order?->purchaseOrder?->po_number,
                     (string) $invoice->order?->order_number,
@@ -1603,6 +1612,10 @@ class ProcurementReportsController extends Controller
             $received = $order->items->whereNotNull('received_at')->count();
             $records[] = [
                 'class' => '',
+                'links' => array_filter([
+                    0 => $order->purchaseOrder ? route('purchase-orders.show', $order->purchaseOrder) : null,
+                    1 => route('orders.show', $order->id),
+                ]),
                 'cells' => [
                     (string) $order->purchaseOrder?->po_number,
                     $order->order_number,
@@ -1645,6 +1658,7 @@ class ProcurementReportsController extends Controller
             $invoices = $orders->flatMap->invoices;
             $records[] = [
                 'class' => '',
+                'links' => [0 => route('purchase-orders.show', $po)],
                 'cells' => [
                     $po->po_number,
                     (string) $po->fiscal_year,
@@ -3271,6 +3285,7 @@ class ProcurementReportsController extends Controller
 
             $records[] = [
                 'class' => $remaining < 0 ? 'danger' : ($openOrders > 0 ? 'warning' : ''),
+                'links' => [0 => route('purchase-orders.show', $po)],
                 'cells' => [
                     $po->po_number,
                     (string) $po->fiscal_year,
