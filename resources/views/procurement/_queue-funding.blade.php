@@ -16,7 +16,7 @@
         <option value="">{{ trans('admin/store/general.funding_unset') }}</option>
         @foreach ($fundingAccounts as $account)
             <option value="{{ $account }}" @selected($order->funding_account === $account)>
-                {{ trans('admin/store/general.funding_'.$account) }}
+                {{ \App\Services\CdwAccounts::label($account) }}
             </option>
         @endforeach
     </select>

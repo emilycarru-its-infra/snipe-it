@@ -244,6 +244,8 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('requisitions.promote');
     Route::post('requisitions/{requisition}/send-vendor', [RequisitionsController::class, 'sendVendor'])
         ->name('requisitions.send-vendor');
+    Route::post('requisitions/{requisition}/vendor-response', [RequisitionsController::class, 'vendorResponse'])
+        ->name('requisitions.vendor-response');
     Route::delete('requisitions/{requisition}', [RequisitionsController::class, 'destroy'])
         ->name('requisitions.destroy');
     Route::get('requisitions/{requisition}/print', [RequisitionsController::class, 'print'])

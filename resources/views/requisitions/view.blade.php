@@ -209,6 +209,19 @@
                     ->values();
                 $poDocuments = $requisition->purchaseOrder?->uploads()->pluck('filename') ?? collect();
                 $missingParts = $requisition->linesMissingPartNumbers();
+                $specialLines = $requisition->specialRequestLines();
+                $staleLines = $requisition->linesWithStalePartNumbers();
+                $accountFor = fn ($key) => \App\Services\CdwAccounts::label($key);
+                $selectedAccount = old('funding_account', $requisition->funding_account);
+                $accountSchedules = \App\Services\CdwAccounts::schedulesFor($selectedAccount, $leaseSchedules ?? []);
+                $defaultSchedule = \App\Services\CdwAccounts::defaultSchedule($selectedAccount, $leaseSchedules ?? []);
+                $needsSchedule = \App\Services\CdwAccounts::needsSchedule($selectedAccount);
+                $schedulesByAccount = collect(array_keys(\App\Services\CdwAccounts::ACCOUNTS))
+                    ->mapWithKeys(fn ($key) => [$key => [
+                        'schedules' => \App\Services\CdwAccounts::schedulesFor($key, $leaseSchedules ?? []),
+                        'default' => \App\Services\CdwAccounts::defaultSchedule($key, $leaseSchedules ?? []),
+                        'needs' => \App\Services\CdwAccounts::needsSchedule($key),
+                    ]]);
             @endphp
 
             <div class="box {{ $requisition->vendor_sent_at ? 'box-default' : 'box-primary' }}">
@@ -252,6 +265,25 @@
                              the number they place. Named here rather than only
                              refused on submit, so the fix is visible before the
                              button is pressed. --}}
+                        @if ($specialLines->isNotEmpty())
+                            {{-- Not a problem: a spec combination we have never
+                                 bought has no part numbers anywhere yet, and the
+                                 order asks the vendor to price it and issue
+                                 them. Stated so nobody reads the send as
+                                 complete when it is a question. --}}
+                            <p class="text-muted">
+                                <i class="fas fa-circle-question" aria-hidden="true"></i>
+                                {{ trans_choice('admin/purchase-orders/general.vendor_send_special_lines', $specialLines->count(), ['count' => $specialLines->count()]) }}
+                            </p>
+                        @endif
+
+                        @if ($staleLines->isNotEmpty())
+                            <p class="text-warning">
+                                <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                                {{ trans_choice('admin/purchase-orders/general.vendor_send_stale_parts', $staleLines->count(), ['count' => $staleLines->count()]) }}
+                            </p>
+                        @endif
+
                         @if ($missingParts->isNotEmpty())
                             <p class="text-danger">
                                 {{ trans_choice('admin/purchase-orders/general.vendor_send_missing_part_numbers', $missingParts->count(), ['count' => $missingParts->count()]) }}
@@ -270,22 +302,61 @@
 
                         <div class="form-group">
                             <label for="funding-account">{{ trans('admin/purchase-orders/general.vendor_send_account') }} <span class="text-danger">*</span></label>
-                            <select name="funding_account" id="funding-account" class="form-control">
+                            <select name="funding_account" id="funding-account" class="form-control"
+                                    data-schedules="{{ json_encode($schedulesByAccount) }}">
                                 <option value="">{{ trans('admin/store/general.funding_unset') }}</option>
-                                @foreach (\App\Models\StoreOrder::FUNDING_ACCOUNTS as $account)
-                                    <option value="{{ $account }}" {{ old('funding_account', $requisition->funding_account) === $account ? 'selected' : '' }}>
-                                        {{ trans('admin/store/general.funding_'.$account) }}
+                                @foreach (array_keys(\App\Services\CdwAccounts::ACCOUNTS) as $account)
+                                    <option value="{{ $account }}" {{ $selectedAccount === $account ? 'selected' : '' }}>
+                                        {{ $accountFor($account) }}
                                     </option>
                                 @endforeach
                             </select>
                             <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_account_help') }}</p>
                         </div>
 
-                        <div class="form-group">
+                        {{-- The schedule is not free-form guesswork: two open
+                             each quarter, an odd-numbered lease to return and an
+                             even-numbered lease to own, and the account decides
+                             which of the pair an order rides. So the list is
+                             narrowed to the ones this account can use and the
+                             current one is preselected. Free text only when the
+                             CSI mirror lags behind a schedule CSI has issued —
+                             which is exactly when the newest one is needed. --}}
+                        <div class="form-group" @if (! $needsSchedule) hidden @endif id="lease-schedule-group">
                             <label for="lease-schedule">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule') }}</label>
-                            <input type="text" name="lease_schedule" id="lease-schedule" class="form-control"
-                                   value="{{ old('lease_schedule', $requisition->lease_schedule) }}">
-                            <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule_help') }}</p>
+                            @if (empty($accountSchedules))
+                                <input type="text" name="lease_schedule" id="lease-schedule" class="form-control"
+                                       value="{{ old('lease_schedule', $requisition->lease_schedule) }}" placeholder="301452-000">
+                                <p class="help-block">{{ trans('admin/store/general.funding_schedule_none') }}</p>
+                            @else
+                                <select name="lease_schedule" id="lease-schedule" class="form-control">
+                                    @foreach ($accountSchedules as $schedule)
+                                        <option value="{{ $schedule }}"
+                                            {{ old('lease_schedule', $requisition->lease_schedule ?: $defaultSchedule) === $schedule ? 'selected' : '' }}>
+                                            {{ $schedule }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule_help') }}</p>
+                            @endif
+                        </div>
+
+                        {{-- Who else hears about it. Store requesters are
+                             already in here without being typed: their lines are
+                             on this requisition, and the order email is what
+                             tells them it was placed. --}}
+                        <div class="form-group">
+                            <label for="order-cc">{{ trans('admin/purchase-orders/general.vendor_send_cc') }}</label>
+                            <textarea name="order_cc" id="order-cc" rows="2" class="form-control"
+                                      placeholder="name@ecuad.ca, other@ecuad.ca">{{ old('order_cc', $requisition->order_cc) }}</textarea>
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_cc_help') }}</p>
+                            @php $resolvedCc = $requisition->orderCcAddresses(); @endphp
+                            @if (! empty($resolvedCc))
+                                <p class="help-block">
+                                    {{ trans('admin/purchase-orders/general.vendor_send_cc_resolved') }}:
+                                    <span class="text-monospace">{{ implode(', ', $resolvedCc) }}</span>
+                                </p>
+                            @endif
                         </div>
 
                         <div class="form-group">
@@ -318,7 +389,143 @@
                         </button>
                     </div>
                 </form>
+
+                <script>
+                // The schedule field follows the account, because the two are
+                // one decision: an admin laptop rides the quarter's odd-numbered
+                // lease to return, a curriculum workstation the even-numbered
+                // lease to own, and a cash purchase rides neither. Switching the
+                // account therefore swaps the offered pair rather than leaving a
+                // reference that would reach the vendor against the wrong
+                // blanket purchase order.
+                (function () {
+                    var account = document.getElementById('funding-account');
+                    var group = document.getElementById('lease-schedule-group');
+                    if (! account || ! group) { return; }
+
+                    var map = JSON.parse(account.dataset.schedules || '{}');
+
+                    account.addEventListener('change', function () {
+                        var entry = map[account.value] || { schedules: [], needs: false, default: null };
+                        group.hidden = ! entry.needs;
+
+                        var field = document.getElementById('lease-schedule');
+                        if (! field || field.tagName !== 'SELECT') { return; }
+
+                        var current = field.value;
+                        field.innerHTML = '';
+                        entry.schedules.forEach(function (schedule) {
+                            var option = document.createElement('option');
+                            option.value = schedule;
+                            option.textContent = schedule;
+                            option.selected = schedule === current || (current === '' && schedule === entry.default);
+                            field.appendChild(option);
+                        });
+                        if (! field.value && entry.default) { field.value = entry.default; }
+                    });
+                })();
+                </script>
             </div>
+
+            {{-- What comes back, which is not one step.
+
+                 CDW's rep set the loop out plainly: we send, they answer with
+                 changes, we accept those, they send the final quote, we accept
+                 that, they issue an order number. Each of those is a different
+                 person's decision on a different day, so each is recorded
+                 separately — one "ordered" flag would have this reading as
+                 placed while a substitution is still unanswered. --}}
+            @if ($requisition->vendor_sent_at)
+                <div class="box box-default">
+                    <div class="box-header with-border">
+                        <h3 class="box-title">{{ trans('admin/purchase-orders/general.vendor_response_title') }}</h3>
+                        <div class="box-tools pull-right">
+                            <span class="label label-default">
+                                {{ trans('admin/purchase-orders/general.vendor_stage_'.$requisition->vendorStage()) }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="box-body">
+                        <p class="text-muted">{{ trans('admin/purchase-orders/general.vendor_response_help') }}</p>
+
+                        <table class="table table-condensed">
+                            <tbody>
+                                <tr>
+                                    <td>{{ trans('admin/purchase-orders/general.vendor_sent_at') }}</td>
+                                    <td>{{ \App\Helpers\Helper::getFormattedDateObject($requisition->vendor_sent_at, 'datetime', false) }}</td>
+                                </tr>
+                                @if ($requisition->vendor_changes_at)
+                                    <tr>
+                                        <td>{{ trans('admin/purchase-orders/general.vendor_changes_at') }}</td>
+                                        <td>{{ \App\Helpers\Helper::getFormattedDateObject($requisition->vendor_changes_at, 'datetime', false) }}</td>
+                                    </tr>
+                                @endif
+                                @if ($requisition->quote_confirmed_at)
+                                    <tr>
+                                        <td>{{ trans('admin/purchase-orders/general.vendor_quote_confirmed_at') }}</td>
+                                        <td>{{ \App\Helpers\Helper::getFormattedDateObject($requisition->quote_confirmed_at, 'datetime', false) }}</td>
+                                    </tr>
+                                @endif
+                                @if ($requisition->vendor_order_number)
+                                    <tr>
+                                        <td>{{ trans('admin/purchase-orders/general.vendor_order_number') }}</td>
+                                        <td><x-copy-field :value="$requisition->vendor_order_number" /></td>
+                                    </tr>
+                                @endif
+                            </tbody>
+                        </table>
+
+                        @if ($requisition->vendor_changes_notes)
+                            <div class="well well-sm" style="white-space: pre-wrap;">{{ $requisition->vendor_changes_notes }}</div>
+                        @endif
+                    </div>
+
+                    @unless ($requisition->vendor_order_number)
+                        <div class="box-body" style="border-top: 1px solid var(--surface-border, #e4e9ee);">
+                            <form method="POST" action="{{ route('requisitions.vendor-response', $requisition->id) }}">
+                                {{ csrf_field() }}
+                                <input type="hidden" name="step" value="changes">
+                                <div class="form-group">
+                                    <label for="vendor-changes-notes">{{ trans('admin/purchase-orders/general.vendor_changes_notes') }}</label>
+                                    <textarea name="vendor_changes_notes" id="vendor-changes-notes" rows="3" class="form-control">{{ $requisition->vendor_changes_notes }}</textarea>
+                                    <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_changes_help') }}</p>
+                                </div>
+                                <button type="submit" class="btn btn-default btn-block">
+                                    {{ trans('admin/purchase-orders/general.vendor_changes_submit') }}
+                                </button>
+                            </form>
+                        </div>
+
+                        @unless ($requisition->quote_confirmed_at)
+                            <div class="box-body" style="border-top: 1px solid var(--surface-border, #e4e9ee);">
+                                <form method="POST" action="{{ route('requisitions.vendor-response', $requisition->id) }}">
+                                    {{ csrf_field() }}
+                                    <input type="hidden" name="step" value="confirm">
+                                    <button type="submit" class="btn btn-warning btn-block">
+                                        {{ trans('admin/purchase-orders/general.vendor_quote_confirm_submit') }}
+                                    </button>
+                                </form>
+                            </div>
+                        @endunless
+
+                        <div class="box-body" style="border-top: 1px solid var(--surface-border, #e4e9ee);">
+                            <form method="POST" action="{{ route('requisitions.vendor-response', $requisition->id) }}">
+                                {{ csrf_field() }}
+                                <input type="hidden" name="step" value="order_number">
+                                <div class="form-group">
+                                    <label for="vendor-order-number">{{ trans('admin/purchase-orders/general.vendor_order_number') }}</label>
+                                    <input type="text" name="vendor_order_number" id="vendor-order-number" class="form-control"
+                                           placeholder="PMCN361">
+                                    <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_order_number_help') }}</p>
+                                </div>
+                                <button type="submit" class="btn btn-success btn-block">
+                                    {{ trans('admin/purchase-orders/general.vendor_order_number_submit') }}
+                                </button>
+                            </form>
+                        </div>
+                    @endunless
+                </div>
+            @endif
         @elseif ($requisition->status !== 'cancelled')
             <div class="box box-warning">
                 <div class="box-header with-border">

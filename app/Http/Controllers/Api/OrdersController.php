@@ -12,6 +12,8 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
+use App\Models\StoreOrder;
+use App\Services\StoreOrderNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -221,10 +223,66 @@ class OrdersController extends Controller
         $order = Order::with('supplier', 'company', 'adminuser', 'items.item', 'items.invoice', 'invoices')
             ->findOrFail($order->id);
 
+        $this->notifyStoreRequesters($order, $data);
+
         return Helper::formatStandardApiResponse(
             'success',
             (new OrdersTransformer)->transformOrder($order),
             'Order '.$order->order_number.' ingested.'
         );
+    }
+
+    /**
+     * Tell whoever asked for this that it has shipped.
+     *
+     * A store request that was folded into a bulk requisition used to go quiet
+     * here: the shipment lands, assets are created, and the person waiting for a
+     * laptop hears nothing until it appears on a desk. The chain back to them
+     * runs through the purchase order — the vendor quotes it on the shipment,
+     * the requisition carries it, and the store orders hang off the requisition.
+     *
+     * Fire and forget, like every other store notification: a mail hiccup must
+     * not fail a webhook, because the shipment record is the truth and the email
+     * is a courtesy on top of it.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function notifyStoreRequesters(Order $order, array $data): void
+    {
+        if (! $order->purchase_order_id) {
+            return;
+        }
+
+        $serials = collect($data['items'] ?? [])
+            ->pluck('asset_id')
+            ->filter()
+            ->pipe(fn ($ids) => $ids->isEmpty() ? collect() : Asset::whereIn('id', $ids)->pluck('serial'))
+            ->filter()
+            ->values()
+            ->all();
+
+        $tracking = collect($data['items'] ?? [])->pluck('tracking_number')->filter()->first();
+
+        $storeOrders = StoreOrder::query()
+            ->whereHas('requisition', fn ($q) => $q->where('purchase_order_id', $order->purchase_order_id))
+            ->with('user')
+            ->get();
+
+        foreach ($storeOrders as $storeOrder) {
+            // Stamp the order before telling anybody, so a re-pushed webhook
+            // does not read as a second shipment.
+            $alreadyShipped = $storeOrder->shipped_at !== null;
+
+            if (! $alreadyShipped) {
+                $storeOrder->update(['shipped_at' => now(), 'tracking_number' => $tracking ?: $storeOrder->tracking_number]);
+            }
+
+            if (! $alreadyShipped) {
+                StoreOrderNotifier::requester($storeOrder, 'shipped', array_filter([
+                    'tracking' => $tracking,
+                    'serials' => $serials,
+                ]));
+            }
+        }
     }
 }
