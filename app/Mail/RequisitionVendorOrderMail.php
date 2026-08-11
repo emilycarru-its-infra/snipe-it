@@ -66,6 +66,9 @@ class RequisitionVendorOrderMail extends BaseMailable
             'reference' => $this->requisition->display_name,
             'supplier' => $this->requisition->supplier,
             'lineCount' => $this->requisition->items->count(),
+            // Called out in the body rather than left to be noticed: these are
+            // the lines the vendor has to price and issue numbers for.
+            'specialLines' => $this->requisition->specialRequestLines(),
         ]);
     }
 

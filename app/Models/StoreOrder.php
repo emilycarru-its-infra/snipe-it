@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\CdwAccounts;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -223,7 +225,11 @@ class StoreOrder extends Model
             return false;
         }
 
-        return $this->funding_account !== 'lease' || $this->lease_schedule !== null;
+        // Both lease accounts are financed by CSI, not just the one whose label
+        // is "Lease" — a curriculum order's invoice has to reach the right
+        // Exhibit A too. App\Services\CdwAccounts holds that mapping so the
+        // store funnel and the requisition send cannot disagree about it.
+        return ! CdwAccounts::needsSchedule($this->funding_account) || $this->lease_schedule !== null;
     }
 
     /** The account, and for a lease the schedule it rides. */
