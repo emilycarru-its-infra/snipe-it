@@ -43,7 +43,7 @@ return [
     'hub_section_dashboards'     => 'Dashboards',
     'hub_section_reports'        => 'Standard reports',
     'hub_chart_fleet_refresh'    => 'Fleet refresh — assets reaching end-of-life',
-    'hub_chart_fleet_refresh_help' => 'Counts assets whose computed EOL date falls in each fiscal year.',
+    'hub_chart_fleet_refresh_help' => 'Counts assets whose computed End of Life date falls in each fiscal year.',
     'hub_chart_contract_expiry'  => 'Contract expirations by quarter',
     'hub_chart_contract_expiry_help' => 'Real (non-umbrella) contracts ending within the next 24 months.',
     'bucket_past'                => 'Overdue',

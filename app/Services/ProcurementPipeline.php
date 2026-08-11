@@ -72,6 +72,47 @@ class ProcurementPipeline
             'completedCount' => $completed['cards']->count() + $completed['more'],
             'returns' => $returns,
             'activeStage' => self::activeStage($fy),
+            // Unplanned capital asks that aren't a PO yet — ministry funding
+            // and other ad-hoc requests sitting in the requisition queue.
+            'openRequisitions' => \App\Models\Requisition::whereIn('status', ['draft', 'submitted', 'requisitioned'])->count(),
+            // In-flight work that belongs ON the board, not in side tables:
+            // open requisitions as Budgeting cards (their exit gate is the
+            // PO number, same as planned orders), and store orders awaiting
+            // review as Ordering cards linking to the approval queue.
+            'requisitionCards' => \App\Models\Requisition::query()
+                ->whereIn('status', ['draft', 'submitted', 'requisitioned'])
+                ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
+                ->with('items')
+                ->orderBy('requisition_number')
+                ->get()
+                ->map(fn ($requisition) => [
+                    'id' => $requisition->id,
+                    'number' => $requisition->requisition_number ?: ('REQ-'.$requisition->id),
+                    'title' => $requisition->title,
+                    'status' => $requisition->status,
+                    'total' => $requisition->total(),
+                    'items' => $requisition->items->map(fn ($line) => [
+                        'description' => $line->description,
+                        'quantity' => (int) $line->quantity,
+                        'unit_cost' => (float) $line->unit_cost,
+                    ])->all(),
+                ])->values()->all(),
+            'storeQueue' => \App\Models\StoreOrder::query()
+                ->pending()
+                ->with(['user', 'items'])
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn ($order) => [
+                    'id' => $order->id,
+                    'number' => $order->reference(),
+                    'requester' => $order->user?->present()->fullName ?? '',
+                    'total' => (float) $order->items->sum(fn ($item) => (float) $item->unit_cost * (int) $item->quantity),
+                    'items' => $order->items->map(fn ($line) => [
+                        'description' => $line->description,
+                        'quantity' => (int) $line->quantity,
+                        'unit_cost' => (float) $line->unit_cost,
+                    ])->all(),
+                ])->values()->all(),
         ];
     }
 

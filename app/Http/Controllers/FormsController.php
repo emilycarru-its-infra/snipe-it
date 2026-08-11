@@ -64,10 +64,17 @@ class FormsController extends Controller
         return $form->success($user);
     }
 
-    public function submissionsIndex(string $slug): View
+    public function submissionsIndex(string $slug): View|RedirectResponse
     {
         $form = $this->resolveOrFail($slug);
         abort_unless(FormAccess::isAdmin(Auth::user()), 403, trans('admin/forms/general.admin_only'));
+
+        // The faculty program's submissions list duplicated the
+        // user-agreement ledger row for row — the ledger is the canonical
+        // per-user pivot, so route admins there instead.
+        if ($slug === 'faculty-program') {
+            return redirect()->route('reports.procurement.user-agreement-ledger');
+        }
 
         return $form->submissionsIndexView($form->submissionsIndexQuery());
     }

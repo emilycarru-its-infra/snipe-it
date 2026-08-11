@@ -63,6 +63,6 @@ return [
     'processing' => 'Processing... ',
     'optional_infos' => 'Optional Information',
     'order_details' => 'Order Related Information',
-    'calc_eol' => 'If nulling the EOL date, use automatic EOL calculation based on the purchase date and EOL rate.',
+    'calc_eol' => 'If nulling the End of Life date, use automatic End of Life calculation based on the purchase date and End of Life rate.',
     'gl_code' => 'GL Code',
 ];

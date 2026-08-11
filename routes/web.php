@@ -49,6 +49,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StaffBlackoutsController;
 use App\Http\Controllers\StatuslabelsController;
+use App\Http\Controllers\TopSearchController;
 use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SuppliersController;
@@ -127,6 +128,10 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
     Route::post('orders/allocate', [OrdersController::class, 'allocate'])->name('orders.allocate');
 
+    // Type-ahead behind the toolbar lookup. No breadcrumb: it answers XHR,
+    // it is never a page you land on.
+    Route::get('search/suggest', [TopSearchController::class, 'suggest'])->name('search.suggest');
+
     // The end-user one-stop: tracker, lease, and everything checked out to
     // them, at a link short enough to say out loud.
     Route::get('my', [DashboardController::class, 'my'])->name('my');
@@ -188,7 +193,7 @@ Route::group(['middleware' => 'auth'], function () {
     $procCrumb = fn (Trail $trail) => $trail->parent('home')
         ->push(trans('admin/store/general.procurement'), route('procurement.index'));
 
-    Route::get('procurement', [ProcurementController::class, 'index'])
+    Route::get('procurement/hub', [ProcurementController::class, 'index'])
         ->name('procurement.index')
         ->breadcrumbs($procCrumb);
     Route::get('procurement/queue', [ProcurementController::class, 'queue'])
@@ -435,6 +440,12 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployment-waves.export');
 
     // Per-device item rows on a wave board.
+    Route::post('deployment-items/bulk-stage', [DeploymentItemsController::class, 'bulkStage'])
+        ->name('deployment-items.bulk-stage');
+    Route::post('deployment-items/bulk-group', [DeploymentItemsController::class, 'bulkGroup'])
+        ->name('deployment-items.bulk-group');
+    Route::post('deployments/decommission/location', [DeploymentsController::class, 'setHoldingLocation'])
+        ->name('deployments.decommission.location');
     Route::post('deployment-items', [DeploymentItemsController::class, 'store'])
         ->name('deployment-items.store');
     Route::post('deployment-items/{deploymentItem}/stage', [DeploymentItemsController::class, 'updateStage'])
@@ -572,6 +583,11 @@ Route::group(['middleware' => 'auth'], function () {
 */
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser']], function () {
+
+    Route::get('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'edit'])
+        ->name('admin.toolbar.edit');
+    Route::post('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'update'])
+        ->name('admin.toolbar.update');
 
     Route::get('settings', [SettingsController::class, 'getSettings'])
         ->name('settings.general.index')
@@ -1109,6 +1125,131 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/purchase-orders/general.report_lessor_breakdown'), route('reports.lessor-breakdown')));
 
+    // The procurement board moved out to /procurement (route names kept).
+
+    Route::prefix('transactions')->group(function () {
+        $txCrumb = function (string $routeName, string $titleKey) {
+            return fn (Trail $trail) => $trail->parent('reports.transactions.index')
+                ->push(trans("admin/reports/transactions.$titleKey"), route($routeName));
+        };
+
+        Route::get('/', [TransactionsReportsController::class, 'index'])
+            ->name('reports.transactions.index')
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+                ->push(trans('general.reports'), route('reports.index'))
+                ->push(trans('admin/reports/transactions.dashboard_title'), route('reports.transactions.index')));
+
+        Route::get('reconciliations', [TransactionsReportsController::class, 'reconciliations'])
+            ->name('reports.transactions.reconciliations')
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs($txCrumb('reports.transactions.reconciliations', 'crumb_reconciliations'));
+
+        Route::get('reconciliations/{ym}', [TransactionsReportsController::class, 'show'])
+            ->name('reports.transactions.show')
+            ->middleware('can:reports.transactions.view')
+            ->where('ym', '\\d{4}-\\d{1,2}')
+            ->breadcrumbs(fn (Trail $trail, string $ym) => $trail
+                ->parent('reports.transactions.reconciliations')
+                ->push(trans('admin/reports/transactions.crumb_period', ['ym' => $ym]), route('reports.transactions.show', $ym)));
+
+        Route::get('gl-breakdown', [TransactionsReportsController::class, 'glBreakdown'])
+            ->name('reports.transactions.gl-breakdown')
+            ->middleware('can:reports.transactions.gl')
+            ->breadcrumbs($txCrumb('reports.transactions.gl-breakdown', 'crumb_gl_breakdown'));
+
+        Route::get('mail-room', [TransactionsReportsController::class, 'mailRoom'])
+            ->name('reports.transactions.mail-room')
+            ->middleware('can:reports.transactions.mailroom')
+            ->breadcrumbs($txCrumb('reports.transactions.mail-room', 'crumb_mail_room'));
+
+        Route::get('refunds', [TransactionsReportsController::class, 'refunds'])
+            ->name('reports.transactions.refunds')
+            ->middleware('can:reports.transactions.refunds')
+            ->breadcrumbs($txCrumb('reports.transactions.refunds', 'crumb_refunds'));
+
+        Route::get('self-serve', [TransactionsReportsController::class, 'selfServe'])
+            ->name('reports.transactions.self-serve')
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs($txCrumb('reports.transactions.self-serve', 'crumb_self_serve'));
+
+        Route::get('line-items', [TransactionsReportsController::class, 'lineItems'])
+            ->name('reports.transactions.line-items')
+            ->middleware('can:reports.transactions.view')
+            ->breadcrumbs($txCrumb('reports.transactions.line-items', 'crumb_line_items'));
+
+        Route::get('overrides', [TransactionsReportsController::class, 'overrides'])
+            ->name('reports.transactions.overrides')
+            ->middleware('can:reports.transactions.overrides')
+            ->breadcrumbs($txCrumb('reports.transactions.overrides', 'crumb_overrides'));
+
+        Route::post('overrides', [TransactionsReportsController::class, 'storeOverride'])
+            ->name('reports.transactions.overrides.store')
+            ->middleware('can:reports.transactions.overrides');
+
+        Route::delete('overrides/{id}', [TransactionsReportsController::class, 'deleteOverride'])
+            ->name('reports.transactions.overrides.delete')
+            ->middleware('can:reports.transactions.overrides')
+            ->whereNumber('id');
+    });
+
+    // Contracts used to have a dashboard here. It was folded into /contracts,
+    // which now carries the tiles, charts, drill-down reports and register in
+    // one page; the redirects live in routes/web/contracts.php.
+
+    Route::get('printing', [PrintingReportsController::class, 'index'])
+        ->name('reports.printing')
+        ->middleware('can:view,App\Models\Asset')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/reports/printing.dashboard_title'), route('reports.printing')));
+
+    Route::get('exhibit', [ExhibitProjectsController::class, 'report'])
+        ->name('reports.exhibit')
+        ->middleware('can:view,App\Models\Order')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('reports.exhibit')));
+
+    // The Deployments board moved out to /deployments (route name kept).
+    Route::get('deployments', function () {
+        $query = request()->getQueryString();
+
+        return redirect('/deployments'.($query ? '?'.$query : ''), 301);
+    });
+
+    Route::get('fleet-health', [FleetHealthReportsController::class, 'index'])
+        ->name('reports.fleet-health')
+        ->middleware('can:reports.fleet-health.view')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/reports/general.fleet_health'), route('reports.fleet-health')));
+
+});
+
+/*
+| Deployments + Procurement, elevated: first-class modules at /deployments
+| and /procurement rather than filed under /reports. Route names are
+| unchanged so every existing link keeps working; the old /reports/… URLs
+| redirect permanently. Access is read (….view) vs read+write (….edit) —
+| AuthServiceProvider carries compat fallbacks for existing grants.
+*/
+Route::group(['middleware' => ['auth']], function () {
+
+    Route::get('deployments', [DeploymentsController::class, 'report'])
+        ->name('reports.deployments')
+        ->middleware('can:deployments.view')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('admin/deployments/general.dashboard_title'), route('reports.deployments')));
+
+    // Query strings survive the hop — old bookmarked deep links carry
+    // params (?requisition=…, ?fiscal_year=…) that Route::redirect drops.
+    Route::get('reports/procurement/{path?}', function (string $path = '') {
+        $query = request()->getQueryString();
+
+        return redirect('/procurement'.($path !== '' ? '/'.$path : '').($query ? '?'.$query : ''), 301);
+    })->where('path', '.*');
+
     Route::prefix('procurement')->group(function () {
         // Each procurement report's breadcrumb chains off the procurement
         // landing — same Home > Reports > Procurement Reports > <Title> shape.
@@ -1122,9 +1263,9 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
 
         Route::get('/', [ProcurementReportsController::class, 'index'])
             ->name('reports.procurement')
+            ->middleware('can:procurement.view')
             ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-                ->push(trans('general.reports'), route('reports.index'))
-                ->push(trans('admin/purchase-orders/general.reports'), route('reports.procurement')));
+                ->push(trans('general.procurement'), route('reports.procurement')));
 
         Route::patch('visibility', [ProcurementReportsController::class, 'updateVisibility'])
             ->name('reports.procurement.visibility');
@@ -1222,109 +1363,13 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         Route::get('user-agreement-ledger', [ProcurementReportsController::class, 'userAgreementLedger'])
             ->name('reports.procurement.user-agreement-ledger')
             ->breadcrumbs($crumb('reports.procurement.user-agreement-ledger', 'report_user_agreement_ledger'));
+        Route::get('lease-end-schedules', [ProcurementReportsController::class, 'leaseEndSchedulesReport'])
+            ->name('reports.procurement.lease-end-schedules')
+            ->breadcrumbs($crumb('reports.procurement.lease-end-schedules', 'report_lease_end_schedules'));
         Route::get('schedule-signing', [ProcurementReportsController::class, 'scheduleSigningQueue'])
             ->name('reports.procurement.schedule-signing')
             ->breadcrumbs($crumb('reports.procurement.schedule-signing', 'report_schedule_signing'));
     });
-
-    Route::prefix('transactions')->group(function () {
-        $txCrumb = function (string $routeName, string $titleKey) {
-            return fn (Trail $trail) => $trail->parent('reports.transactions.index')
-                ->push(trans("admin/reports/transactions.$titleKey"), route($routeName));
-        };
-
-        Route::get('/', [TransactionsReportsController::class, 'index'])
-            ->name('reports.transactions.index')
-            ->middleware('can:reports.transactions.view')
-            ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-                ->push(trans('general.reports'), route('reports.index'))
-                ->push(trans('admin/reports/transactions.dashboard_title'), route('reports.transactions.index')));
-
-        Route::get('reconciliations', [TransactionsReportsController::class, 'reconciliations'])
-            ->name('reports.transactions.reconciliations')
-            ->middleware('can:reports.transactions.view')
-            ->breadcrumbs($txCrumb('reports.transactions.reconciliations', 'crumb_reconciliations'));
-
-        Route::get('reconciliations/{ym}', [TransactionsReportsController::class, 'show'])
-            ->name('reports.transactions.show')
-            ->middleware('can:reports.transactions.view')
-            ->where('ym', '\\d{4}-\\d{1,2}')
-            ->breadcrumbs(fn (Trail $trail, string $ym) => $trail
-                ->parent('reports.transactions.reconciliations')
-                ->push(trans('admin/reports/transactions.crumb_period', ['ym' => $ym]), route('reports.transactions.show', $ym)));
-
-        Route::get('gl-breakdown', [TransactionsReportsController::class, 'glBreakdown'])
-            ->name('reports.transactions.gl-breakdown')
-            ->middleware('can:reports.transactions.gl')
-            ->breadcrumbs($txCrumb('reports.transactions.gl-breakdown', 'crumb_gl_breakdown'));
-
-        Route::get('mail-room', [TransactionsReportsController::class, 'mailRoom'])
-            ->name('reports.transactions.mail-room')
-            ->middleware('can:reports.transactions.mailroom')
-            ->breadcrumbs($txCrumb('reports.transactions.mail-room', 'crumb_mail_room'));
-
-        Route::get('refunds', [TransactionsReportsController::class, 'refunds'])
-            ->name('reports.transactions.refunds')
-            ->middleware('can:reports.transactions.refunds')
-            ->breadcrumbs($txCrumb('reports.transactions.refunds', 'crumb_refunds'));
-
-        Route::get('self-serve', [TransactionsReportsController::class, 'selfServe'])
-            ->name('reports.transactions.self-serve')
-            ->middleware('can:reports.transactions.view')
-            ->breadcrumbs($txCrumb('reports.transactions.self-serve', 'crumb_self_serve'));
-
-        Route::get('line-items', [TransactionsReportsController::class, 'lineItems'])
-            ->name('reports.transactions.line-items')
-            ->middleware('can:reports.transactions.view')
-            ->breadcrumbs($txCrumb('reports.transactions.line-items', 'crumb_line_items'));
-
-        Route::get('overrides', [TransactionsReportsController::class, 'overrides'])
-            ->name('reports.transactions.overrides')
-            ->middleware('can:reports.transactions.overrides')
-            ->breadcrumbs($txCrumb('reports.transactions.overrides', 'crumb_overrides'));
-
-        Route::post('overrides', [TransactionsReportsController::class, 'storeOverride'])
-            ->name('reports.transactions.overrides.store')
-            ->middleware('can:reports.transactions.overrides');
-
-        Route::delete('overrides/{id}', [TransactionsReportsController::class, 'deleteOverride'])
-            ->name('reports.transactions.overrides.delete')
-            ->middleware('can:reports.transactions.overrides')
-            ->whereNumber('id');
-    });
-
-    // Contracts used to have a dashboard here. It was folded into /contracts,
-    // which now carries the tiles, charts, drill-down reports and register in
-    // one page; the redirects live in routes/web/contracts.php.
-
-    Route::get('printing', [PrintingReportsController::class, 'index'])
-        ->name('reports.printing')
-        ->middleware('can:view,App\Models\Asset')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('general.reports'), route('reports.index'))
-            ->push(trans('admin/reports/printing.dashboard_title'), route('reports.printing')));
-
-    Route::get('exhibit', [ExhibitProjectsController::class, 'report'])
-        ->name('reports.exhibit')
-        ->middleware('can:view,App\Models\Order')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('general.reports'), route('reports.index'))
-            ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('reports.exhibit')));
-
-    Route::get('deployments', [DeploymentsController::class, 'report'])
-        ->name('reports.deployments')
-        ->middleware('can:view,App\Models\Order')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('general.reports'), route('reports.index'))
-            ->push(trans('admin/deployments/general.dashboard_title'), route('reports.deployments')));
-
-    Route::get('fleet-health', [FleetHealthReportsController::class, 'index'])
-        ->name('reports.fleet-health')
-        ->middleware('can:reports.fleet-health.view')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('general.reports'), route('reports.index'))
-            ->push(trans('admin/reports/general.fleet_health'), route('reports.fleet-health')));
-
 });
 
 Route::get(
