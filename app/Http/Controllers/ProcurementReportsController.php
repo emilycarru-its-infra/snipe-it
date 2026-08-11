@@ -2348,7 +2348,10 @@ class ProcurementReportsController extends Controller
         // parked in the PO Number field (the 007/008 acquisitions), so the
         // latter aren't silently dropped from the lease rollups.
         $assets = $this->scopeDateToFiscalYear(
-            Asset::with('model', 'status', 'lessor')
+            // assignedTo is deliberately NOT eager loaded: the morphTo is
+            // named 'assigned', so with('assignedTo') fills the wrong
+            // relation key and $asset->assignedTo reads null on every row.
+            Asset::with('model', 'status', 'lessor', 'defaultLoc')
                 ->where(function ($q) use ($contractIdColumn, $poNumberColumn) {
                     $q->where(fn ($w) => $w->whereNotNull($contractIdColumn)->where($contractIdColumn, '!=', ''));
                     if ($poNumberColumn) {
@@ -2583,12 +2586,12 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.lease_contract_name'),
             trans('admin/purchase-orders/general.lease_end_date'),
             trans('admin/purchase-orders/general.lease_fy_ending'),
+            trans('admin/purchase-orders/general.lease_ownership'),
             trans('admin/purchase-orders/general.lease_assets'),
             trans('admin/purchase-orders/general.lease_active'),
             trans('admin/purchase-orders/general.lease_buyouts'),
             trans('admin/purchase-orders/general.lease_archived'),
             trans('admin/purchase-orders/general.lease_models'),
-            trans('admin/purchase-orders/general.lease_ownership'),
         ];
 
         $records = [];
@@ -2610,19 +2613,19 @@ class ProcurementReportsController extends Controller
                     (string) $group['contract_name'],
                     $this->dateString($group['lease_end_date']),
                     (string) $this->fiscalYearFromEndDate($group['lease_end_date']),
+                    $this->summariseCounts($group['ownership_counts']),
                     count($group['assets']),
                     $group['active'],
                     $group['buyout'],
                     $group['archived'],
                     $this->summariseCounts($group['model_counts']),
-                    $this->summariseCounts($group['ownership_counts']),
                 ],
             ];
         }
 
         $footer = [
-            trans('admin/orders/general.total'), '', '', '', '',
-            $totalAssets, $totalActive, $totalBuyout, $totalArchived, '', '',
+            trans('admin/orders/general.total'), '', '', '', '', '',
+            $totalAssets, $totalActive, $totalBuyout, $totalArchived, '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
@@ -2734,8 +2737,34 @@ class ProcurementReportsController extends Controller
                     implode(', ', array_keys($poNumbers)),
                     implode(', ', array_keys($cdwOrders)),
                 ],
+                'cdw_order_numbers' => array_keys($cdwOrders),
             ];
         }
+
+        // Vendor order numbers open the order record in the lightbox. The
+        // multilinks map is render-time only (like links), so the plain
+        // imploded cell still feeds the CSV/XLSX exports; numbers with no
+        // matching Order record stay plain text.
+        $orderIdsByNumber = Order::whereIn(
+            'order_number',
+            collect($records)->flatMap(fn ($r) => $r['cdw_order_numbers'])->unique()->values()->all()
+        )->pluck('id', 'order_number');
+
+        foreach ($records as &$record) {
+            $linked = collect($record['cdw_order_numbers'])
+                ->filter(fn ($number) => $orderIdsByNumber->has($number))
+                ->map(fn ($number) => [
+                    'label' => $number,
+                    'url' => route('orders.show', $orderIdsByNumber[$number]),
+                ])
+                ->values()
+                ->all();
+            if ($linked) {
+                $record['multilinks'] = [9 => $linked];
+            }
+            unset($record['cdw_order_numbers']);
+        }
+        unset($record);
 
         $footer = [
             trans('admin/orders/general.total'), '', '', '',
@@ -3298,15 +3327,18 @@ class ProcurementReportsController extends Controller
         $fy = null;
         $now = new \DateTime('today');
 
+        // The watch is a focused slice of the Disposition Grid: what we are
+        // behind on, and what it costs monthly to stay behind. The lease end
+        // date leads (the thing being overrun), the estimated monthly cost
+        // sits right beside it, and each still-open device row carries its
+        // checkout state so the person to chase is on the report itself.
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
-            trans('admin/purchase-orders/general.lease_provider'),
-            trans('admin/purchase-orders/general.extension_original_end'),
             trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.extension_monthly_cost'),
             trans('admin/purchase-orders/general.extension_months'),
             trans('admin/purchase-orders/general.lease_assets'),
             trans('admin/purchase-orders/general.extension_still_open'),
-            trans('admin/purchase-orders/general.extension_monthly_cost'),
         ];
 
         $records = [];
@@ -3411,38 +3443,43 @@ class ProcurementReportsController extends Controller
                 ? $group['monthly_rent_total']
                 : $group['total_cost'] / $termMonths;
 
+            // The device dates govern the watch (see above); the register's
+            // own term end still matters when it disagrees, so the conflict
+            // rides along on the contract cell instead of a dedicated
+            // Original End column.
             $records[] = [
                 'class' => $months > 12 ? 'danger' : ($months > 0 ? 'warning' : ''),
                 'cells' => [
-                    $group['contract_id'],
-                    $group['provider'],
-                    $originalEnd->format('Y-m-d')
-                        .($datesDisagree ? ' '.trans('admin/purchase-orders/general.extension_date_conflict') : ''),
+                    $group['contract_id']
+                        .($datesDisagree ? ' '.trans('admin/purchase-orders/general.extension_date_conflict_contract', ['date' => $originalEnd->format('Y-m-d')]) : ''),
                     $leaseEnd->format('Y-m-d'),
+                    $this->money($monthlyCost)
+                        .($rentIsComplete ? '' : ' '.trans('admin/purchase-orders/general.extension_cost_estimated')),
                     $months,
                     count($group['assets']),
                     $state['open'],
-                    $this->money($monthlyCost)
-                        .($rentIsComplete ? '' : ' '.trans('admin/purchase-orders/general.extension_cost_estimated')),
                 ],
+                'strong' => [1 => true],
             ];
 
-            // One row per still-open device, so a contract can be traced to the
-            // units to actually chase. Closed units are omitted: they are the
-            // part of the lease already dealt with.
+            // One row per still-open device, so a contract can be traced to
+            // the units to actually chase — serial (opens the record in the
+            // lightbox), tag, who or where it is checked out to, status and
+            // ownership type. Closed units are omitted: they are the part of
+            // the lease already dealt with.
             foreach ($state['open_assets'] as $asset) {
+                $target = $asset->assigned_to ? $asset->assignedTo : null;
                 $records[] = [
                     'class' => 'lease-extension-detail',
                     'cells' => [
                         '',
-                        $asset->asset_tag,
                         $asset->serial,
-                        $asset->model?->name ?: trans('general.na'),
-                        $this->describeAssignedTo($asset->assigned_to ? $asset->assignedTo : null),
+                        $asset->asset_tag,
+                        $this->describeAssignedTo($target) ?: (string) $asset->defaultLoc?->name,
                         $asset->status?->name,
                         trim((string) $asset->ownership_type),
-                        $this->dateString($asset->decommission_date),
                     ],
+                    'links' => [1 => route('hardware.show', $asset->id)],
                 ];
             }
         }
@@ -3495,9 +3532,11 @@ class ProcurementReportsController extends Controller
         $total = 0.0;
 
         // Lease-to-own contracts carry no retirement obligation — the
-        // equipment is simply kept at term end, no buyout/return decision is
-        // owed — so they are excluded from the register entirely (both the
-        // contractual rows below and any logged decisions further down).
+        // equipment is simply kept at term end, no return is owed and no
+        // buyout is paid — so they never contribute cost rows. They still
+        // appear, as explicit zero-cost "Retained" lines further down, so
+        // the register says the keep happened instead of silently omitting
+        // the contract.
         $leaseToOwnContracts = [];
 
         // Real per-asset Buyout Cost values aggregated per contract —
@@ -3541,10 +3580,14 @@ class ProcurementReportsController extends Controller
             ->orderBy('contract_reference')
             ->get();
 
+        $retainedDecisions = [];
         foreach ($decisions as $decision) {
-            // Skip decisions logged against a lease-to-own contract — keeping
-            // lease-to-own equipment is not a retirement obligation.
+            // A decision logged against a lease-to-own contract is the
+            // retention call, not a costed obligation — hold it for the
+            // Retained block below rather than booking it as a buyout.
             if (isset($leaseToOwnContracts[$decision->contract_reference])) {
+                $retainedDecisions[$decision->contract_reference] = $decision;
+
                 continue;
             }
             $total += (float) $decision->amount;
@@ -3561,6 +3604,33 @@ class ProcurementReportsController extends Controller
                 ],
                 'editable_note' => ['col' => 6, 'model' => 'lease_decision', 'id' => $decision->id],
             ];
+        }
+
+        // Retained lease-to-own contracts: the equipment is kept at term end,
+        // so there is no return obligation and no buyout cost — the row's job
+        // is to say that decision was made, at zero cost impact.
+        foreach (array_keys($leaseToOwnContracts) as $contractId) {
+            $decision = $retainedDecisions[$contractId] ?? null;
+            $record = [
+                'class' => '',
+                'cells' => [
+                    $contractId,
+                    $decision
+                        ? trans('admin/purchase-orders/general.aro_source_decision')
+                        : trans('admin/purchase-orders/general.aro_source_ownership'),
+                    trans('admin/purchase-orders/general.aro_action_retained'),
+                    '',
+                    $decision
+                        ? trans('admin/lease-decisions/general.status_'.$decision->status)
+                        : trans('admin/purchase-orders/general.aro_status_contractual'),
+                    $decision ? $this->dateString($decision->decision_date) : '',
+                    $decision ? (string) $decision->notes : trans('admin/purchase-orders/general.aro_retained_note'),
+                ],
+            ];
+            if ($decision) {
+                $record['editable_note'] = ['col' => 6, 'model' => 'lease_decision', 'id' => $decision->id];
+            }
+            $records[] = $record;
         }
 
         $footer = [
