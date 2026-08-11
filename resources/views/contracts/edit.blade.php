@@ -44,7 +44,7 @@
     <div class="col-md-7">
         <select class="form-control" name="parent_contract_id" id="parent_contract_id">
             <option value="">{{ trans('admin/contracts/general.no_parent') }}</option>
-            @foreach (\App\Models\Contract::umbrellas()->orderBy('name')->get() as $candidate)
+            @foreach (\App\Models\Contract::topLevel()->orderBy('name')->get() as $candidate)
                 @continue($item->id && $candidate->id === $item->id)
                 <option value="{{ $candidate->id }}" @selected(old('parent_contract_id', $item->parent_contract_id) == $candidate->id)>
                     {{ $candidate->name }}

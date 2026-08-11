@@ -1489,7 +1489,16 @@
         };
     }
 
+    // Contracts open in the record lightbox rather than navigating away —
+    // the register on /contracts sits under the dashboard, and losing the
+    // filters and charts to read one contract is a poor trade. Same
+    // behaviour as the asset links on the deployments board. Modified
+    // clicks still open a tab; the handler lives in layouts/default.
+    function contractsLightboxFormatter(value, row) {
+        if (! value) { return ''; }
 
+        return '<a href="{{ config('app.url') }}/contracts/' + row.id + '" class="js-lightbox">' + value + '</a>';
+    }
 
     // This is a special formatter that will indicate whether a user is an admin or superadmin
     function usernameRoleLinkFormatter(value, row) {

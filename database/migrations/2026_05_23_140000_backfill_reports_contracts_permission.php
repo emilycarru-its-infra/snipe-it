@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
  * should keep parity with the other report sub-permissions.
  *
  * Idempotent: re-running only adds the key when missing.
+ *
+ * Superseded: the key was retired when /reports/contracts merged into
+ * /contracts, which is gated by contracts.view alone. This migration is kept
+ * because it has run everywhere; the key it writes is now inert.
  */
 class BackfillReportsContractsPermission extends Migration
 {

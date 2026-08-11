@@ -151,6 +151,36 @@ class AuthServiceProvider extends ServiceProvider
         });
 
         /**
+         * EVERY PERMISSION IN config/permissions.php GETS A GATE
+         *
+         * A checkbox in the group editor has to mean something. Laravel denies
+         * an ability nobody defined, so any permission added to the config
+         * without a matching Gate::define was a switch that granted nothing to
+         * anyone but a superuser — silently, since it still rendered, still
+         * saved, and still read back as "1".
+         *
+         * That is exactly what happened to the contracts and fleet-health
+         * reports, the transactions reports and budget allocations: they were
+         * added after the hand-kept list that used to live here, and nobody
+         * extended it. Deriving the gates from the config instead means the
+         * next permission cannot fall into the same hole.
+         *
+         * Definitions further down override these where an ability needs more
+         * than a straight permission lookup (activity.view, for instance, also
+         * answers to admin).
+         */
+        foreach (config('permissions') as $permissionGroup) {
+            foreach ($permissionGroup as $permission) {
+                if (empty($permission['permission'])) {
+                    continue;
+                }
+
+                $key = $permission['permission'];
+                Gate::define($key, fn ($user) => $user->hasAccess($key));
+            }
+        }
+
+        /**
          * GENERAL GATES
          *
          * These control general sections of the admin. These definitions are used in our blades via @can('blah) and also
@@ -221,31 +251,9 @@ class AuthServiceProvider extends ServiceProvider
         // Each report has its own permission key, mirroring how Assets,
         // Consumables, etc. expose multiple peer permissions. `reports.view`
         // gates only the Reports landing page; the per-report keys gate the
-        // individual reports.
-        Gate::define('reports.view', function ($user) {
-            if ($user->hasAccess('reports.view')) {
-                return true;
-            }
-        });
-
-        foreach ([
-            'reports.custom.view',
-            'reports.activity.view',
-            'reports.audit.view',
-            'reports.depreciation.view',
-            'reports.licenses.view',
-            'reports.accessories.view',
-            'reports.maintenances.view',
-            'reports.unaccepted.view',
-            'reports.templates.manage',
-            'reports.procurement.view',
-        ] as $reportPermission) {
-            Gate::define($reportPermission, function ($user) use ($reportPermission) {
-                if ($user->hasAccess($reportPermission)) {
-                    return true;
-                }
-            });
-        }
+        // individual reports. All of them are defined by the config loop
+        // above — the list that used to be repeated here went stale the first
+        // time a report shipped without someone remembering to extend it.
 
         // -----------------------------------------
         // Deployments + Procurement modules — read vs read+write.

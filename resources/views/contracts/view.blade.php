@@ -29,7 +29,7 @@
                 <h2 style="margin-top:0;">
                     {{ $contract->name }}
                     @if ($contract->is_synthesized)
-                        <small class="label label-default">{{ trans('admin/contracts/general.synthesized_umbrella') }}</small>
+                        <small class="label label-default">{{ trans('admin/contracts/general.renewal_series_row') }}</small>
                     @endif
                 </h2>
                 <p class="text-muted" style="margin-bottom:15px;">{{ $contract->contract_number }}</p>
@@ -113,17 +113,20 @@
 
             @can('files', $contract)
                 <x-box>
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-                        <h3 style="margin:0;">
-                            {{ trans('general.files') }}
-                            <small class="text-muted">({{ $contract->uploads()->count() }})</small>
-                        </h3>
+                    {{-- The heading comes from the files table's own
+                         table_header slot, as it does on every other view —
+                         adding a second <h3> here printed "Files" twice. --}}
+                    <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
                         <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#uploadFileModal">
                             <i class="fas fa-upload" aria-hidden="true"></i>
                             {{ trans('general.file_upload') }}
                         </button>
                     </div>
-                    <x-table.files object_type="contracts" :object="$contract"/>
+                    <x-table.files
+                        object_type="contracts"
+                        :object="$contract"
+                        :table_header="trans('general.files').' ('.$contract->uploads()->count().')'"
+                    />
                 </x-box>
             @endcan
         </x-page-column>
