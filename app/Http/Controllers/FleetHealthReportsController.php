@@ -40,6 +40,7 @@ class FleetHealthReportsController extends Controller
             'ageHistogram'  => $ageHistogram,
             'topRepairs'    => $topRepairs,
             'auditOverdue'  => $auditOverdue,
+            'legacyFleet'   => \App\Services\LegacyFleet::summary(),
         ]);
     }
 

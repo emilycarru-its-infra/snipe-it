@@ -17,6 +17,13 @@
     // top-to-bottom inside a stage, left-to-right across the year.
     $fmt = fn ($v) => '$'.\App\Helpers\Helper::formatCurrencyOutput($v);
     $t = fn ($key, $repl = []) => trans('admin/purchase-orders/general.'.$key, $repl);
+    $cardCounts = [
+        'budgeting' => count($pipeline['planned']) + $pipeline['plannedMore'] + count($pipeline['requisitionCards'] ?? []),
+        'ordering' => count($pipeline['open']) + $pipeline['openMore'] + count($pipeline['storeQueue'] ?? []),
+        'deploying' => count($pipeline['processing']) + $pipeline['processingMore'],
+        'reconciling' => count($pipeline['pendingInvoices']) + $pipeline['pendingInvoicesMore'],
+        'completed' => $pipeline['completedCount'],
+    ];
     $stages = [
         'budgeting' => [
             'big' => $fmt($totalBudget),
@@ -26,6 +33,9 @@
                 $t('pipeline_note_remaining', ['amount' => $fmt($totalRemaining)]),
                 $t('pipeline_note_eol', ['count' => $eolCount, 'cost' => $fmt($eolEstimate)]),
                 $t('pipeline_note_lease_preapproval', ['cost' => $fmt($leaseExpiryTotal), 'count' => $leaseExpiryCount]),
+                ($pipeline['openRequisitions'] ?? 0) > 0
+                    ? $t('pipeline_note_requisitions', ['count' => $pipeline['openRequisitions']])
+                    : null,
                 ($liveCarry ?? null)
                     ? $t('card_budget_incl_carry', ['amount' => $fmt($liveCarry['unused']), 'source' => $liveCarry['source_fy']])
                     : null,
@@ -34,11 +44,14 @@
         ],
         'ordering' => [
             'big' => $fmt($totalCommitted),
-            'notes' => [
+            'notes' => array_values(array_filter([
                 $t('pipeline_note_committed'),
                 $t('pipeline_note_pos', ['count' => $poCount]),
                 $t('pipeline_note_open_orders', ['count' => count($pipeline['open']) + $pipeline['openMore']]),
-            ],
+                count($pipeline['storeQueue'] ?? []) > 0
+                    ? $t('pipeline_note_awaiting_review', ['count' => count($pipeline['storeQueue'])])
+                    : null,
+            ])),
         ],
         // Processing and Deploying are one stage: the physical span from
         // "boxes received" to "device in place / in hand". The detail —
@@ -71,6 +84,11 @@
         ],
     ];
 
+    foreach ($stages as $stageKey => $stageRow) {
+        $stages[$stageKey]['def'] = $t('pipeline_col_'.$stageKey.'_def');
+        $stages[$stageKey]['cardCount'] = $cardCounts[$stageKey] ?? 0;
+    }
+
     $facultyLedgerEmbed = route('reports.procurement.user-agreement-ledger', ['embed' => 1]);
     $facultyLedgerUrl = route('reports.procurement.user-agreement-ledger');
 @endphp
@@ -85,7 +103,7 @@
         /* Processing merged into Deploying; the teal now colors only the
            returns lane (the reverse pipeline) below the board. */
         --pp-processing: light-dark(#1f9e8e, #25a392);
-        --pp-deploying: light-dark(#c8860a, #c08512);
+        --pp-deploying: light-dark(#e39a13, #e3a72e);
         --pp-reconciling: light-dark(#b05c9e, #bc64a8);
         --pp-completed: light-dark(#4e9b52, #57a05b);
         --pp-surface: light-dark(#ffffff, #22272e);
@@ -99,32 +117,46 @@
         --pp-ok: light-dark(#3d8b41, #5cb160);
     }
     .pp-rail-scroll { overflow-x: auto; }
-    .pp-rail { display: flex; min-width: 1080px; padding: 2px 0; }
+    .pp-rail { display: flex; min-width: 1080px; padding: 2px 0 0; }
+    {{-- Chevron widths are tuned so the 5px notch gap at each junction sits
+         CENTERED on its board column boundary: everyone after the first is
+         pushed 2.5px right (first +13.5px, middles +11px, last -2.5px with
+         the 11px overlap margins), and the last box ends flush with the
+         container (no horizontal overflow). --}}
     .pp-chev {
-        flex: 1 1 0; position: relative; padding: 12px 16px 30px 30px;
+        flex: 0 0 calc(20% + 11px); position: relative; padding: 12px 16px 30px 30px;
         cursor: pointer;
         clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
         background: color-mix(in srgb, var(--pp-c) 10%, var(--pp-surface));
         margin-right: -11px;
     }
     .pp-chev:first-child {
+        flex-basis: calc(20% + 13.5px);
         clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
         padding-left: 18px;
     }
+    .pp-chev:last-child { flex-basis: calc(20% - 2.5px); margin-right: 0; }
     .pp-chev:focus-visible { outline: 2px solid var(--pp-c); outline-offset: -3px; }
-    .pp-chev.active, .pp-chev.selected { background: var(--pp-c); }
+    .pp-chev.selected { background: var(--pp-c); }
     .pp-rail.filtering .pp-chev:not(.selected) { background: color-mix(in srgb, var(--pp-c) 5%, var(--pp-surface)); opacity: .55; }
     .pp-chev .pp-stage { font-size: 12.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--pp-c); }
+    .pp-chev .pp-count {
+        font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0;
+        background: color-mix(in srgb, var(--pp-c) 16%, var(--pp-surface)); color: var(--pp-c);
+        border-radius: 9px; padding: 0 7px; margin-left: 5px; vertical-align: 1px;
+    }
+    .pp-chev.selected .pp-count { background: rgba(255,255,255,.25); color: #fff; }
+    .pp-chev .pp-def { color: var(--pp-ink3); font-size: 11px; }
     .pp-chev .pp-big { font-size: 22px; font-weight: 700; margin: 6px 0 4px; font-variant-numeric: tabular-nums; color: var(--pp-ink); }
     .pp-chev .pp-note { font-size: 12.5px; color: var(--pp-ink2); margin-top: 2px; line-height: 1.4; }
     /* The chevron doubles as a filter toggle; the golink is the one part
        of it that navigates instead (the JS handler skips anchor clicks). */
     .pp-chev .pp-golink { display: block; color: var(--pp-c); font-weight: 600; text-decoration: none; }
     .pp-chev .pp-golink:hover, .pp-chev .pp-golink:focus { text-decoration: underline; }
-    .pp-chev.active .pp-golink, .pp-chev.selected .pp-golink { color: #fff; }
-    .pp-chev.active .pp-stage, .pp-chev.active .pp-big,
+    .pp-chev.selected .pp-golink { color: #fff; }
     .pp-chev.selected .pp-stage, .pp-chev.selected .pp-big { color: #fff; }
-    .pp-chev.active .pp-note, .pp-chev.selected .pp-note { color: rgba(255,255,255,.85); }
+    .pp-chev.selected .pp-note { color: rgba(255,255,255,.85); }
+    .pp-chev.selected .pp-gate { color: #fff; }
     .pp-rail.filtering .pp-chev:not(.selected) .pp-stage { color: var(--pp-c); }
     .pp-rail.filtering .pp-chev:not(.selected) .pp-big { color: var(--pp-ink); }
     .pp-rail.filtering .pp-chev:not(.selected) .pp-note { color: var(--pp-ink2); }
@@ -134,8 +166,20 @@
     }
 
     .pp-board-scroll { overflow-x: auto; }
-    .pp-board { display: grid; grid-template-columns: repeat(6, minmax(188px, 1fr)); gap: 10px; min-width: 1080px; }
-    .pp-col { min-width: 0; }
+    .pp-board { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 0; min-width: 1080px; }
+    .pp-col { min-width: 0; padding: 10px 10px 0; position: relative; }
+    .pp-col:first-child { padding-left: 0; }
+    .pp-col:last-child { padding-right: 0; }
+    {{-- The fifth-line hangs 8px clear of the chevron bottoms instead of
+         touching them. --}}
+    .pp-col + .pp-col::before {
+        content: ""; position: absolute; top: 8px; bottom: 0; left: 0;
+        width: 1px; background: var(--pp-line); pointer-events: none;
+    }
+    {{-- Filtering never moves anything: every column keeps its fifth,
+         the other stages just empty out. --}}
+    .pp-col.pp-col-muted .pp-card,
+    .pp-col.pp-col-muted .pp-more { display: none; }
     .pp-col-head {
         border-top: 3px solid var(--pp-c); background: color-mix(in srgb, var(--pp-c) 6%, var(--pp-surface));
         border-radius: 3px; padding: 6px 9px; display: flex; align-items: baseline;
@@ -175,15 +219,6 @@
     .pp-chip-done { background: color-mix(in srgb, var(--pp-ok) 15%, var(--pp-surface)); color: var(--pp-ok); }
     .pp-more { font-size: 11px; color: var(--pp-ink2); padding: 2px; }
 
-    .pp-returns { border-top: 1px solid var(--pp-line); margin-top: 6px; padding-top: 10px; }
-    .pp-returns h4 { font-size: 12.5px; margin: 0 0 6px; color: var(--pp-ink2); font-weight: 700; }
-    .pp-ret-grid { display: grid; grid-template-columns: repeat(3, minmax(200px, 1fr)); gap: 10px; min-width: 640px; }
-    .pp-lname {
-        font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-        color: var(--pp-ink3); border-bottom: 2px solid var(--pp-line-strong); padding-bottom: 3px; margin-bottom: 6px;
-        display: flex;
-    }
-    .pp-lname .pp-lcount { margin-left: auto; font-variant-numeric: tabular-nums; }
 
     .pp-filter-note {
         font-size: 11px; color: var(--pp-ink2); padding: 6px 12px; border-bottom: 1px solid var(--pp-line);
@@ -196,7 +231,6 @@
     #pp-filter-clear-top { display: none; }
     #pp-filter-clear-top.show { display: inline-block; }
 
-    #ppModal .modal-header { border-top: 3px solid var(--pp-mc, #3c8dbc); }
     #ppModal .pp-facts { display: flex; flex-wrap: wrap; gap: 18px; font-size: 12px; color: var(--pp-ink2); margin-bottom: 10px; }
     #ppModal .pp-facts b { display: block; font-size: 14.5px; color: var(--pp-ink); font-variant-numeric: tabular-nums; }
     #ppModal .table { margin-bottom: 0; }
@@ -206,31 +240,33 @@
 <div class="row">
     <div class="col-md-12">
         <div class="box box-default proc-pipe">
-            <div class="box-header with-border">
-                <h3 class="box-title">
-                    {{ $selectedFy
-                        ? trans('admin/purchase-orders/general.pipeline_title', ['fy' => $selectedFy])
-                        : trans('admin/purchase-orders/general.pipeline_title_all') }}
-                </h3>
-                <div class="box-tools pull-right">
-                    <a href="#" id="pp-filter-clear-top" class="btn btn-default btn-xs">
+            <div class="box-header with-border" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <h3 class="box-title" style="margin:0;">{{ trans('admin/purchase-orders/general.pipeline_title_plain') }}</h3>
+                <input type="search" id="pp-board-filter" class="form-control input-sm"
+                       placeholder="{{ trans('admin/purchase-orders/general.pipeline_board_filter') }}"
+                       style="width: 200px;"
+                       aria-label="{{ trans('admin/purchase-orders/general.pipeline_board_filter') }}">
+                @can('budget_allocations.manage')
+                    <a href="#" data-toggle="modal" data-target="#budgetAllocationsModal" class="btn btn-default btn-sm">
+                        {{ trans('admin/budget-allocations/general.allocations') }}
+                    </a>
+                @endcan
+                <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
+                    <a href="#" id="pp-filter-clear-top" class="btn btn-default btn-sm">
                         {{ trans('admin/purchase-orders/general.pipeline_filter_clear_top') }}
                     </a>
-                    @can('budget_allocations.manage')
-                        <a href="#" data-toggle="modal" data-target="#budgetAllocationsModal" class="btn btn-default btn-xs">
-                            {{ trans('admin/budget-allocations/general.allocations') }}
-                        </a>
-                    @endcan
                 </div>
             </div>
             <div class="box-body">
-                <div class="pp-rail-scroll">
+                <div class="pp-board-scroll">
                     <div class="pp-rail" id="pp-rail">
                         @foreach ($stages as $key => $stage)
-                            <div class="pp-chev {{ $pipeline['activeStage'] === $key ? 'active' : '' }}"
+                            <div class="pp-chev"
                                  style="--pp-c: var(--pp-{{ $key }})"
                                  data-pp-stage="{{ $key }}" tabindex="0" role="button" aria-pressed="false">
-                                <div class="pp-stage">{{ trans('admin/purchase-orders/general.stage_'.$key) }}</div>
+                                <div class="pp-stage">{{ trans('admin/purchase-orders/general.stage_'.$key) }}
+                                    <span class="pp-count">{{ $stage['cardCount'] }}</span>
+                                </div>
                                 <div class="pp-big">{{ $stage['big'] }}</div>
                                 @foreach ($stage['notes'] as $note)
                                     <div class="pp-note">{{ $note }}</div>
@@ -241,6 +277,7 @@
                                         <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
                                     </a>
                                 @endif
+                                <div class="pp-note pp-def">{{ $stage['def'] }}</div>
                                 @if ($stage['gate'] ?? false)
                                     <div class="pp-gate">
                                         <i class="fa-solid fa-lock" aria-hidden="true"></i>
@@ -250,39 +287,13 @@
                             </div>
                         @endforeach
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-{{-- ═══ Device board ═══ --}}
-<div class="row">
-    <div class="col-md-12">
-        <div class="box box-default proc-pipe">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.pipeline_board_title') }}</h3>
-                <span class="text-muted" style="font-size:12px; margin-left:10px;">
-                    {{ trans('admin/purchase-orders/general.pipeline_board_hint') }}
-                </span>
-                <div class="box-tools pull-right">
-                    <input type="search" id="pp-board-filter" class="form-control input-sm"
-                           placeholder="{{ trans('admin/purchase-orders/general.pipeline_board_filter') }}"
-                           style="width: 220px; display: inline-block;"
-                           aria-label="{{ trans('admin/purchase-orders/general.pipeline_board_filter') }}">
-                </div>
-            </div>
-            <div class="box-body">
-                <div class="pp-board-scroll">
+                    {{-- The chevrons sit directly on top of their stage
+                         columns — same tracks, same scroller, no seam. --}}
                     <div class="pp-board">
 
                         {{-- Budgeting --}}
-                        <div class="pp-col" style="--pp-c: var(--pp-budgeting)">
-                            <div class="pp-col-head" data-pp-stage="budgeting" tabindex="0" role="button" aria-pressed="false">
-                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_budgeting') }}</span>
-                                <span class="pp-count">{{ count($pipeline['planned']) + $pipeline['plannedMore'] }}</span>
-                            </div>
-                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_budgeting_def') }}</div>
+                        <div class="pp-col" data-pp-stage="budgeting" style="--pp-c: var(--pp-budgeting)">
                             @forelse ($pipeline['planned'] as $card)
                                 <div class="pp-card" data-pp-modal="planned-{{ $card['id'] }}" tabindex="0" role="button">
                                     <div class="pp-t">{{ $card['order_number'] }}</div>
@@ -304,15 +315,28 @@
                             @if ($pipeline['plannedMore'])
                                 <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['plannedMore']]) }}</div>
                             @endif
+                            @foreach ($pipeline['requisitionCards'] ?? [] as $reqCard)
+                                <div class="pp-card" data-pp-modal="reqm-{{ $reqCard['id'] }}" tabindex="0" role="button">
+                                    <div class="pp-t">{{ $reqCard['number'] }}</div>
+                                    <div class="pp-d">{{ $reqCard['title'] ?: '—' }} · <span class="pp-money">{{ $fmt($reqCard['total']) }}</span></div>
+                                    <div class="pp-chips">
+                                        <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_reqm') }}</span>
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
 
                         {{-- Ordering --}}
-                        <div class="pp-col" style="--pp-c: var(--pp-ordering)">
-                            <div class="pp-col-head" data-pp-stage="ordering" tabindex="0" role="button" aria-pressed="false">
-                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_ordering') }}</span>
-                                <span class="pp-count">{{ count($pipeline['open']) + $pipeline['openMore'] }}</span>
-                            </div>
-                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_ordering_def') }}</div>
+                        <div class="pp-col" data-pp-stage="ordering" style="--pp-c: var(--pp-ordering)">
+                            @foreach ($pipeline['storeQueue'] ?? [] as $queueCard)
+                                <div class="pp-card" data-pp-modal="storeq-{{ $queueCard['id'] }}" tabindex="0" role="button">
+                                    <div class="pp-t">{{ $queueCard['number'] }}</div>
+                                    <div class="pp-d">{{ $queueCard['requester'] }} · <span class="pp-money">{{ $fmt($queueCard['total']) }}</span></div>
+                                    <div class="pp-chips">
+                                        <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_awaiting') }}</span>
+                                    </div>
+                                </div>
+                            @endforeach
                             @forelse ($pipeline['open'] as $card)
                                 <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
                                     <div class="pp-t">{{ $card['order_number'] }}@if ($card['supplier']) · {{ $card['supplier'] }}@endif</div>
@@ -337,12 +361,7 @@
                              orders (device lines in staging) plus checkout
                              in flight. Deep detail lives on the Deployments
                              board. --}}
-                        <div class="pp-col" style="--pp-c: var(--pp-deploying)">
-                            <div class="pp-col-head" data-pp-stage="deploying" tabindex="0" role="button" aria-pressed="false">
-                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_deploying') }}</span>
-                                <span class="pp-count">{{ $pipeline['stagedItemCount'] + $pipeline['deploying']['total'] }}</span>
-                            </div>
-                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_deploying_def') }}</div>
+                        <div class="pp-col" data-pp-stage="deploying" style="--pp-c: var(--pp-deploying)">
                             @forelse ($pipeline['processing'] as $card)
                                 <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
                                     <div class="pp-t">{{ $card['order_number'] }}</div>
@@ -386,12 +405,7 @@
                         </div>
 
                         {{-- Reconciling --}}
-                        <div class="pp-col" style="--pp-c: var(--pp-reconciling)">
-                            <div class="pp-col-head" data-pp-stage="reconciling" tabindex="0" role="button" aria-pressed="false">
-                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_reconciling') }}</span>
-                                <span class="pp-count">{{ count($pipeline['pendingInvoices']) + $pipeline['pendingInvoicesMore'] }}</span>
-                            </div>
-                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_reconciling_def') }}</div>
+                        <div class="pp-col" data-pp-stage="reconciling" style="--pp-c: var(--pp-reconciling)">
                             @forelse ($pipeline['pendingInvoices'] as $card)
                                 <div class="pp-card" data-pp-modal="invoice-{{ $card['id'] }}" tabindex="0" role="button">
                                     <div class="pp-t">{{ $card['invoice_number'] }}</div>
@@ -410,12 +424,7 @@
                         </div>
 
                         {{-- Completed --}}
-                        <div class="pp-col" style="--pp-c: var(--pp-completed)">
-                            <div class="pp-col-head" data-pp-stage="completed" tabindex="0" role="button" aria-pressed="false">
-                                <span class="pp-name">{{ trans('admin/purchase-orders/general.stage_completed') }}</span>
-                                <span class="pp-count">{{ $pipeline['completedCount'] }}</span>
-                            </div>
-                            <div class="pp-col-def">{{ trans('admin/purchase-orders/general.pipeline_col_completed_def') }}</div>
+                        <div class="pp-col" data-pp-stage="completed" style="--pp-c: var(--pp-completed)">
                             @forelse ($pipeline['completed'] as $card)
                                 <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
                                     <div class="pp-t">{{ $card['order_number'] }}</div>
@@ -439,38 +448,7 @@
                     </div>
                 </div>
 
-                {{-- Returns lane — the reverse pipeline --}}
-                <div class="pp-returns">
-                    <h4>{{ trans('admin/purchase-orders/general.pipeline_returns_title') }}</h4>
-                    <div class="pp-board-scroll">
-                        <div class="pp-ret-grid" style="--pp-c: var(--pp-processing)">
-                            @foreach (['pending', 'prep', 'closed'] as $lane)
-                                <div>
-                                    <div class="pp-lname">
-                                        {{ trans('admin/purchase-orders/general.pipeline_returns_'.$lane) }}
-                                        <span class="pp-lcount">{{ count($pipeline['returns'][$lane]['cards']) + $pipeline['returns'][$lane]['more'] }}</span>
-                                    </div>
-                                    @forelse ($pipeline['returns'][$lane]['cards'] as $row)
-                                        <a href="{{ route('reports.procurement.lease-decisions') }}" style="text-decoration:none; color:inherit;">
-                                            <div class="pp-card">
-                                                <div class="pp-t">{{ $row['contract_reference'] }}</div>
-                                                <div class="pp-d">
-                                                    {{ trans('admin/lease-decisions/general.type_'.$row['decision_type']) }}
-                                                    @if ($row['decision_date']) · {{ $row['decision_date'] }}@endif
-                                                </div>
-                                            </div>
-                                        </a>
-                                    @empty
-                                        <div class="pp-card pp-empty">—</div>
-                                    @endforelse
-                                    @if ($pipeline['returns'][$lane]['more'])
-                                        <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['returns'][$lane]['more']]) }}</div>
-                                    @endif
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
+                @include('reports.procurement._reports-stream')
             </div>
         </div>
     </div>
@@ -479,6 +457,70 @@
 {{-- ═══ Lightbox content: one hidden block per card, cloned into the shared
      Bootstrap modal on click. Self-contained — no extra requests. ═══ --}}
 <div class="hidden" id="pp-modal-store">
+    @foreach ($pipeline['requisitionCards'] ?? [] as $reqCard)
+        <div data-pp-content="reqm-{{ $reqCard['id'] }}" data-pp-color="var(--pp-budgeting)" data-pp-title="{{ $reqCard['number'] }}">
+            <div class="pp-facts">
+                <span>{{ trans('general.total_cost') }}<b class="pp-money">{{ $fmt($reqCard['total']) }}</b></span>
+                <span>{{ trans('admin/orders/general.line_items') }}<b>{{ count($reqCard['items']) }}</b></span>
+                <span>{{ trans('general.status') }}<b>{{ ucfirst($reqCard['status']) }}</b></span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>{{ trans('admin/orders/general.item') }}</th>
+                            <th class="text-right">{{ trans('general.qty') }}</th>
+                            <th class="text-right">{{ trans('admin/orders/general.unit_cost') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($reqCard['items'] as $line)
+                            <tr>
+                                <td>{{ $line['description'] ?: '—' }}</td>
+                                <td class="text-right">{{ $line['quantity'] }}</td>
+                                <td class="text-right pp-money">{{ $fmt($line['unit_cost']) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:10px;">
+                <a class="btn btn-primary btn-sm" href="{{ route('requisitions.show', $reqCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+            </div>
+        </div>
+    @endforeach
+    @foreach ($pipeline['storeQueue'] ?? [] as $queueCard)
+        <div data-pp-content="storeq-{{ $queueCard['id'] }}" data-pp-color="var(--pp-ordering)" data-pp-title="{{ $queueCard['number'] }}">
+            <div class="pp-facts">
+                <span>{{ trans('general.total_cost') }}<b class="pp-money">{{ $fmt($queueCard['total']) }}</b></span>
+                <span>{{ trans('admin/orders/general.line_items') }}<b>{{ count($queueCard['items']) }}</b></span>
+                <span>{{ trans('admin/store/general.requested_by') }}<b>{{ $queueCard['requester'] }}</b></span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>{{ trans('admin/orders/general.item') }}</th>
+                            <th class="text-right">{{ trans('general.qty') }}</th>
+                            <th class="text-right">{{ trans('admin/orders/general.unit_cost') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($queueCard['items'] as $line)
+                            <tr>
+                                <td>{{ $line['description'] ?: '—' }}</td>
+                                <td class="text-right">{{ $line['quantity'] }}</td>
+                                <td class="text-right pp-money">{{ $fmt($line['unit_cost']) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:10px;">
+                <a class="btn btn-primary btn-sm" href="{{ route('procurement.queue') }}">{{ trans('admin/purchase-orders/general.pipeline_open_queue') }}</a>
+            </div>
+        </div>
+    @endforeach
     @foreach ([['budgeting', $pipeline['planned'], 'planned'], ['ordering', $pipeline['open'], 'order'], ['deploying', $pipeline['processing'], 'order'], ['completed', $pipeline['completed'], 'order']] as [$stageKey, $cards, $prefix])
         @foreach ($cards as $card)
             <div data-pp-content="{{ $prefix }}-{{ $card['id'] }}" data-pp-color="var(--pp-{{ $stageKey }})" data-pp-title="{{ $card['order_number'] }}">
@@ -666,6 +708,11 @@
 
         function apply(stage) {
             current = (current === stage) ? null : stage;
+            window.ppCurrentStage = current;
+            // A stage change starts a fresh slice: any pill refinement from
+            // the previous stage is cleared so the whole stage shows.
+            if (window.prClearPills) { window.prClearPills(); }
+            if (window.prSyncHash) { window.prSyncHash(); }
             rail.classList.toggle('filtering', !! current);
             rail.querySelectorAll('.pp-chev').forEach(function (chev) {
                 var selected = current && chev.dataset.ppStage === current;
@@ -673,8 +720,22 @@
                 chev.setAttribute('aria-pressed', selected ? 'true' : 'false');
             });
             document.querySelectorAll('[data-report-stage]').forEach(function (el) {
+                // Pill columns hold their fifth — only their pills hide.
+                if (el.classList.contains('pr-pill-col')) {
+                    el.classList.toggle('pr-col-muted', !! current && el.dataset.reportStage !== current);
+
+                    return;
+                }
                 el.classList.toggle('hidden', !! current && el.dataset.reportStage !== current);
             });
+            // The Orders Pipeline filters in place: columns never move,
+            // non-selected stages just empty out.
+            var board = document.querySelector('.pp-board');
+            if (board) {
+                board.querySelectorAll('.pp-col').forEach(function (col) {
+                    col.classList.toggle('pp-col-muted', !! current && col.dataset.ppStage !== current);
+                });
+            }
             var clearTop = document.getElementById('pp-filter-clear-top');
             if (clearTop) { clearTop.classList.toggle('show', !! current); }
             var note = document.getElementById('pp-filter-note');
@@ -689,7 +750,7 @@
             }
         }
 
-        document.querySelectorAll('[data-pp-stage]').forEach(function (el) {
+        document.querySelectorAll('.pp-chev[data-pp-stage]').forEach(function (el) {
             el.addEventListener('click', function (e) {
                 // Links inside a chevron (the Deployments golink) navigate;
                 // they must not also toggle the stage filter.

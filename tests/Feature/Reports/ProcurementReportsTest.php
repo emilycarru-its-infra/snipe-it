@@ -982,8 +982,13 @@ class ProcurementReportsTest extends TestCase
             ->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=utf-8');
 
+        // Old URL: /reports/procurement/... hops to the elevated module
+        // first, whose own redirect lands on the hub section.
         $this->actingAs($this->superuser())
             ->get('/reports/procurement/lessor-breakdown')
+            ->assertRedirect('/procurement/lessor-breakdown');
+        $this->actingAs($this->superuser())
+            ->get('/procurement/lessor-breakdown')
             ->assertRedirect('/reports/lessor-breakdown');
     }
 
@@ -994,12 +999,12 @@ class ProcurementReportsTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // The jump-nav (and the inline boxes, driven by the same list) start
-        // with the agreed order: PO Budget & Spend, Capital Spend, Buyout
-        // Register, Extension Watch, Invoice Reconciliation, ...
+        // Reports live in stage tabs now; within the Budgeting stage the
+        // sub-tabs keep the agreed order: PO Budget & Spend first, then
+        // Capital Spend, then Extension Watch.
         $positions = array_map(
-            fn ($anchor) => strpos($content, 'data-target-report="proc-'.$anchor.'"'),
-            ['report_po_budget', 'report_capital', 'report_aro_register', 'report_extension_watch', 'report_invoices'],
+            fn ($anchor) => strpos($content, 'data-pr-report="proc-'.$anchor.'"'),
+            ['report_po_budget', 'report_lease_end_schedules', 'report_extension_watch'],
         );
         $this->assertNotContains(false, $positions);
         $sorted = $positions;
@@ -1065,7 +1070,7 @@ class ProcurementReportsTest extends TestCase
             // Pending approvals surface in the Reconciling chevron; lease
             // decisions live on the returns lane of the pipeline board.
             ->assertSee(trans('admin/purchase-orders/general.pipeline_note_invoices_pending', ['count' => 1]))
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_returns_title'));
+            ->assertSee(trans('admin/purchase-orders/general.returns_card_title'));
     }
 
     public function test_leases_financial_report_rolls_up_warranty_costs()
@@ -1378,7 +1383,7 @@ class ProcurementReportsTest extends TestCase
         // The note renders on the schedule row, but the note-only row never
         // shows up as a logged decision (the badge stays "Refresh").
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement', ['fiscal_year' => 'FY2027-28']))
+            ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2027-28']))
             ->assertOk()
             ->assertSee('Revised plan.')
             ->assertSee(trans('admin/purchase-orders/general.lease_end_refresh_planned'));

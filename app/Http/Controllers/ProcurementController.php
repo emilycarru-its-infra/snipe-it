@@ -43,40 +43,16 @@ class ProcurementController extends Controller
      * forms per order; the rest are ajax datatables that fetch when their
      * tab is opened.
      */
+    /**
+     * The hub merged into the module board: /procurement renders the
+     * pipeline, hub tiles and tabs on one page. This route survives only
+     * as a compat redirect for old links.
+     */
     public function index(Request $request)
     {
-        $this->authorize('view', Requisition::class);
-
-        $status = $request->query('status', 'pending');
-        if (! in_array($status, StoreOrder::STATUSES, true) && $status !== 'all') {
-            $status = 'pending';
-        }
-
-        return view('procurement.index', [
-            'pendingOrders' => StoreOrder::pending()->count(),
-            'approvedUnpulled' => StoreOrder::where('status', 'approved')->count(),
-            'openRequisitions' => Requisition::open()->count(),
-            'storeItemCount' => CatalogItem::inStore()->count(),
-            'catalogCount' => CatalogItem::active()->count(),
-            'estimateCount' => CatalogItem::inStore()->where(fn ($q) => $q->whereNull('unit_cost')->orWhere('price_type', 'estimate'))->count(),
-            'approvers' => StoreApprover::with('user')->get(),
-
-            // The queue tab renders the same list the dedicated page does.
-            'orders' => StoreOrder::with('items.catalogItem.supplier', 'user.department', 'decidedBy', 'requisition.purchaseOrder')
-                ->when($status !== 'all', fn ($q) => $q->where('status', $status))
-                ->orderBy('created_at')
-                ->paginate(50)
-                ->withQueryString(),
-            'selectedStatus' => $status,
-            'statuses' => StoreOrder::STATUSES,
-            'fundingAccounts' => StoreOrder::FUNDING_ACCOUNTS,
-            'leaseSchedules' => CsiSchedule::openScheduleNames(),
-
-            // Tab badges: what is countable without loading the table.
-            'purchaseOrderCount' => PurchaseOrder::count(),
-            'requisitionCount' => Requisition::count(),
-            'supplierCount' => Supplier::count(),
-        ]);
+        return redirect()->route('reports.procurement', array_filter([
+            'status' => $request->query('status'),
+        ]));
     }
 
     /**
