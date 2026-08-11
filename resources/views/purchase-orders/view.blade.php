@@ -15,7 +15,7 @@
     $overBudget = $purchaseOrder->isOverBudget();
 @endphp
 <div class="row">
-    <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1 col-sm-12 col-sm-offset-0">
+    <div class="col-md-8">
         <div class="box box-default">
             <div class="box-header with-border">
                 <h2 class="box-title"><x-icon type="order" /> {{ $purchaseOrder->po_number }}</h2>
@@ -121,6 +121,66 @@
                     </tbody>
                 </table>
 
+                @php
+                    $printerComments = $purchaseOrder->printerComments();
+                    $internalComments = $purchaseOrder->internalComments();
+                    $orderLines = $purchaseOrder->vendorOrderLines();
+                @endphp
+
+                @if ($printerComments)
+                    {{-- Typed onto the purchase order the vendor receives. Kept
+                         out of the order email itself: it is our keying note. --}}
+                    <h3>{{ trans('admin/purchase-orders/general.printer_comments') }}</h3>
+                    <div class="well well-sm" style="white-space: pre-wrap;">{{ $printerComments }}</div>
+                @endif
+
+                @if ($internalComments)
+                    <h3>{{ trans('admin/purchase-orders/general.internal_comments') }}</h3>
+                    <div class="well well-sm" style="white-space: pre-wrap; background:#fbfbfb;">{{ $internalComments }}</div>
+                @endif
+
+                @if ($orderLines->isNotEmpty())
+                    <h3>{{ trans('admin/purchase-orders/general.order_lines') }}</h3>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-condensed">
+                            <thead>
+                                <tr>
+                                    <th class="text-right">{{ trans('admin/purchase-orders/general.builder_col_qty') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.builder_col_description') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.builder_col_mfr') }}</th>
+                                    <th>{{ trans('admin/purchase-orders/general.builder_col_sku') }}</th>
+                                    <th class="text-right">{{ trans('admin/purchase-orders/general.builder_col_unit_cost') }}</th>
+                                    <th class="text-right">{{ trans('admin/purchase-orders/general.builder_col_line_total') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($orderLines as $line)
+                                    <tr>
+                                        <td class="text-right">{{ $line->quantity }} {{ $line->unit_of_measure ?: 'EA' }}</td>
+                                        <td>{{ $line->description }}</td>
+                                        <td><x-copy-field :value="$line->mfr_part_number" /></td>
+                                        <td><x-copy-field :value="$line->vendor_sku" /></td>
+                                        <td class="text-right">{{ Helper::formatCurrencyOutput($line->unit_cost) }}</td>
+                                        <td class="text-right">{{ Helper::formatCurrencyOutput($line->lineTotal()) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="5" class="text-right"><strong>{{ trans('admin/purchase-orders/general.order_lines_total') }}</strong></td>
+                                    <td class="text-right"><strong>{{ Helper::formatCurrencyOutput($purchaseOrder->vendorTotal()) }}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    @foreach ($purchaseOrder->requisitions as $requisition)
+                        <p class="text-muted">
+                            {{ trans('admin/purchase-orders/general.order_lines_from', ['reqm' => $requisition->requisition_number ?: ('REQ-'.$requisition->id)]) }}
+                            <a href="{{ route('requisitions.show', $requisition->id) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+                        </p>
+                    @endforeach
+                @endif
+
                 <h3>{{ trans('admin/purchase-orders/general.orders') }}</h3>
                 <table class="table table-striped">
                     <thead>
@@ -156,6 +216,10 @@
                 </div>{{-- /.tab-content --}}
             </div>
         </div>
+    </div>
+
+    <div class="col-md-4">
+        @include('purchase-orders._vendor-order')
     </div>
 </div>
 @stop

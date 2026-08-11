@@ -333,7 +333,7 @@ class StoreFunnelTest extends TestCase
             'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
         ]);
         $order = StoreOrder::first();
-        $order->update(['status' => 'approved', 'funding_account' => 'purchase']);
+        $order->update(['status' => 'approved', 'funding_account' => 'purchase_admin']);
 
         $this->actingAs($this->procurement())
             ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
@@ -365,7 +365,7 @@ class StoreFunnelTest extends TestCase
                 'items' => [['catalog_item_id' => $item->id, 'quantity' => $qty]],
             ]);
         }
-        StoreOrder::query()->update(['status' => 'approved', 'funding_account' => 'purchase']);
+        StoreOrder::query()->update(['status' => 'approved', 'funding_account' => 'purchase_admin']);
         $ids = StoreOrder::pluck('id')->all();
 
         $this->actingAs($this->procurement())
@@ -742,7 +742,7 @@ class StoreFunnelTest extends TestCase
         $order = StoreOrder::first();
         $order->update([
             'status' => 'approved',
-            'funding_account' => 'lease',
+            'funding_account' => 'lease_admin',
             'lease_schedule' => '301452-009',
         ]);
 
@@ -799,7 +799,7 @@ class StoreFunnelTest extends TestCase
         $this->assertSame('approved', $order->fresh()->status);
 
         // A lease with no schedule is just as unplaceable.
-        $order->update(['funding_account' => 'lease']);
+        $order->update(['funding_account' => 'lease_admin']);
         $this->actingAs($this->procurement())
             ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
             ->assertRedirect();
@@ -863,7 +863,7 @@ class StoreFunnelTest extends TestCase
             ->assertRedirect();
         $this->assertNull($order->fresh()->quote_number);
 
-        $order->update(['status' => 'approved', 'funding_account' => 'purchase']);
+        $order->update(['status' => 'approved', 'funding_account' => 'purchase_admin']);
         $this->actingAs($this->procurement())
             ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]]);
 

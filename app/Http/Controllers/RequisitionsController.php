@@ -3,22 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\Helper;
-use App\Mail\RequisitionVendorOrderMail;
 use App\Models\CatalogItem;
 use App\Models\Company;
 use App\Models\CsiSchedule;
-use App\Models\EmailTemplate;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
-use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Services\RequisitionBasket;
 use App\Services\RequisitionPromotion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use League\Csv\EscapeFormula;
 use League\Csv\Writer;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -307,194 +302,7 @@ class RequisitionsController extends Controller
             ->with('success', trans('admin/purchase-orders/general.requisition_updated'));
     }
 
-    /**
-     * Send the order to the vendor's reps, and record that we did.
-     *
-     * This is the step that used to happen in Outlook, and the only step of a
-     * requisition's life the system had no record of: an order could be sent,
-     * quoted and confirmed without a single fact about it landing anywhere.
-     *
-     * Gated on the purchase order rather than on a permission of its own,
-     * because the vendor's desk places every line against a purchase order
-     * number and will not act without one — the same reason the store funnel
-     * refuses to send a request with no funding account.
-     *
-     * A test send goes to whoever pressed the button and stamps nothing, so
-     * the layout and the attachments can be checked against a real order
-     * without the vendor seeing a rehearsal.
-     */
-    public function sendVendor(Request $request, Requisition $requisition): RedirectResponse
-    {
-        $this->authorize('update', Requisition::class);
 
-        $validated = $request->validate([
-            'quote_number' => 'nullable|string|max:191',
-            'quote_total' => 'nullable|numeric|min:0',
-            'quote_expires_at' => 'nullable|date',
-            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
-            'lease_schedule' => 'nullable|string|max:191',
-            'order_cc' => 'nullable|string|max:65535',
-            'test' => 'nullable|boolean',
-        ]);
-
-        $requisition->load('items', 'supplier', 'purchaseOrder');
-
-        // The quote and the account are recorded whether or not the send
-        // succeeds: they are facts about the order — one from the vendor, one
-        // our own decision — not side effects of emailing anybody.
-        foreach (['quote_number', 'quote_total', 'quote_expires_at', 'funding_account', 'lease_schedule', 'order_cc'] as $field) {
-            if ($request->filled($field)) {
-                $requisition->{$field} = $validated[$field];
-            }
-        }
-
-        if ($requisition->isDirty()) {
-            $requisition->save();
-        }
-
-        if (! $requisition->purchase_order_id || $requisition->status === 'cancelled' || $requisition->items->isEmpty()) {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('error', trans('admin/purchase-orders/general.vendor_send_needs_po'));
-        }
-
-        if (! $requisition->fundingResolved()) {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('error', trans($requisition->funding_account === 'lease'
-                    ? 'admin/store/general.funding_lease_needs_schedule'
-                    : 'admin/purchase-orders/general.vendor_send_needs_account'));
-        }
-
-        // Both part numbers on every line. The MFR# identifies the product
-        // and the EDC is what CDW places, so a line short of either is not an
-        // order they can fill. Named rather than counted: the fix is a catalog
-        // row somebody has to go and complete.
-        if (($missing = $requisition->linesMissingPartNumbers())->isNotEmpty()) {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('error', trans('admin/purchase-orders/general.vendor_send_needs_part_numbers', [
-                    'lines' => $missing->pluck('description')->implode(', '),
-                ]));
-        }
-
-        $test = $request->boolean('test');
-
-        if ($test) {
-            $to = [auth()->user()->email];
-            $cc = [];
-        } else {
-            $to = EmailTemplate::recipientsFor('procurement.vendor_order', $requisition->supplier?->order_emails);
-
-            // The admin lists, plus whoever asked for this through the store and
-            // anything typed into the form. A store request has a person waiting
-            // at the end of it: once their lines are folded into a bulk
-            // requisition, this is the thread that tells them it was ordered.
-            $cc = array_values(array_unique(array_merge(
-                EmailTemplate::ccFor('procurement.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca'),
-                $requisition->orderCcAddresses()
-            )));
-        }
-
-        $to = array_filter($to);
-
-        if ($to === []) {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('error', trans('admin/store/general.vendor_send_no_recipients'));
-        }
-
-        try {
-            $mail = Mail::to($to);
-            if ($cc !== []) {
-                $mail->cc($cc);
-            }
-            $mail->send(new RequisitionVendorOrderMail($requisition->fresh(['items', 'supplier', 'purchaseOrder']), $test));
-        } catch (\Throwable $e) {
-            Log::warning('Vendor order email failed for requisition '.$requisition->id.': '.$e->getMessage());
-
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('error', trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
-        }
-
-        if ($test) {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $to[0]]));
-        }
-
-        // Only a real send is a send. Stamped after the mailer returns rather
-        // than before, so a bounced transport does not leave the order looking
-        // placed.
-        $requisition->vendor_sent_at = now();
-        $requisition->save();
-
-        return redirect()->route('requisitions.show', $requisition->id)
-            ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
-    }
-
-    /**
-     * Record the vendor's answer, and our answer to it.
-     *
-     * Their rep set out the loop: we send, they come back with changes — a
-     * discontinued part, a substitution, an EDC they have reissued — we accept
-     * those, they send the final quote, we accept that, and only then do they
-     * issue an order number. Four separate facts, kept separate because each is
-     * a different person's decision on a different day, and one flag would have
-     * an order reading as placed while a question is still open.
-     *
-     * Recording changes reopens the basket, which is the point: their
-     * substitution is the thing that has to land on the lines.
-     */
-    public function vendorResponse(Request $request, Requisition $requisition): RedirectResponse
-    {
-        $this->authorize('update', Requisition::class);
-
-        $validated = $request->validate([
-            'step' => 'required|string|in:changes,confirm,order_number',
-            'vendor_changes_notes' => 'nullable|string|max:65535',
-            'quote_number' => 'nullable|string|max:191',
-            'quote_total' => 'nullable|numeric|min:0',
-            'quote_expires_at' => 'nullable|date',
-            'vendor_order_number' => 'nullable|string|max:191',
-        ]);
-
-        if ($requisition->vendor_sent_at === null) {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->with('error', trans('admin/purchase-orders/general.vendor_response_not_sent'));
-        }
-
-        foreach (['quote_number', 'quote_total', 'quote_expires_at'] as $field) {
-            if ($request->filled($field)) {
-                $requisition->{$field} = $validated[$field];
-            }
-        }
-
-        if ($validated['step'] === 'changes') {
-            $requisition->vendor_changes_at = now();
-
-            if ($request->filled('vendor_changes_notes')) {
-                $requisition->vendor_changes_notes = $validated['vendor_changes_notes'];
-            }
-
-            // A new answer from the vendor un-confirms the order: whatever we
-            // accepted before, this supersedes it.
-            $requisition->quote_confirmed_at = null;
-            $message = 'admin/purchase-orders/general.vendor_changes_recorded';
-        } elseif ($validated['step'] === 'confirm') {
-            $requisition->quote_confirmed_at = $requisition->quote_confirmed_at ?? now();
-            $message = 'admin/purchase-orders/general.vendor_quote_confirmed';
-        } else {
-            $requisition->vendor_order_number = $validated['vendor_order_number'] ?? null;
-
-            // An order number means they placed it, so the quote we were
-            // waiting on is accepted whether or not anyone pressed accept.
-            $requisition->quote_confirmed_at = $requisition->quote_confirmed_at ?? now();
-            $message = 'admin/purchase-orders/general.vendor_order_number_recorded';
-        }
-
-        if (! $requisition->save()) {
-            return redirect()->route('requisitions.show', $requisition->id)
-                ->withErrors($requisition->getErrors());
-        }
-
-        return redirect()->route('requisitions.show', $requisition->id)->with('success', trans($message));
-    }
 
     public function destroy(Requisition $requisition): RedirectResponse
     {

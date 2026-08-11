@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Requisition;
+use App\Models\PurchaseOrder;
 use App\Models\RequisitionItem;
 
 /**
@@ -25,13 +25,13 @@ use App\Models\RequisitionItem;
  */
 class RequisitionVendorCsv
 {
-    public function __construct(private Requisition $requisition) {}
+    public function __construct(private PurchaseOrder $order) {}
 
     public function filename(): string
     {
         // Named for the order, not the moment: a re-send of the same order
         // must not look like a second, different one.
-        return 'ECU-'.str_replace(['/', ' '], '-', $this->requisition->display_name).'.csv';
+        return 'ECU-'.str_replace(['/', ' '], '-', $this->order->po_number).'.csv';
     }
 
     /**
@@ -58,16 +58,16 @@ class RequisitionVendorCsv
      */
     public function rows(): array
     {
-        $reference = $this->requisition->display_name;
+        $reference = $this->order->po_number;
 
         // Account repeats down every row rather than being stated once at the
         // top: CDW keys it per line, because a single order can in principle
         // split across accounts and their desk works a row at a time.
         // The number as well as the name: their desk matches the account to a
         // blanket purchase order, and the number is what they match on.
-        $account = $this->requisition->fundingDescription();
+        $account = $this->order->fundingDescription();
 
-        return $this->requisition->items->map(fn (RequisitionItem $line) => [
+        return $this->order->vendorOrderLines()->map(fn (RequisitionItem $line) => [
             $reference,
             (string) $line->mfr_part_number,
             (string) $line->vendor_sku,
@@ -77,7 +77,7 @@ class RequisitionVendorCsv
             number_format((float) $line->unit_cost, 2, '.', ''),
             number_format($line->lineTotal(), 2, '.', ''),
             $account,
-            (string) $this->requisition->lease_schedule,
+            (string) $this->order->lease_schedule,
         ])->all();
     }
 

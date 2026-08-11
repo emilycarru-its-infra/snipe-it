@@ -8,28 +8,29 @@
 
 <p style="text-align: left; margin: 0 0 14px;">{{ trans('mail.requisition_vendor_order_intro', ['supplier' => $supplier->name ?? trans('general.supplier'), 'reference' => $reference]) }}</p>
 
-{{-- Every number in a table, nothing in a sentence. A purchaser reading this
-     is checking figures against a quote, and a figure buried in prose has to be
-     hunted for. Two-column, left-aligned, no vertical rules. --}}
+{{-- Every number in a table, nothing in a sentence: a purchaser reading this is
+     checking figures against a quote, and a figure buried in prose has to be
+     hunted for. The vendor's own quote leads, because that is the reference
+     their desk searches on before ours. --}}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; margin: 0 0 18px;">
+@if (filled($order->quote_number))
+<tr>
+<td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.requisition_vendor_order_field_quote') }}</td>
+<td style="padding: 2px 0; text-align: left; font-weight: 700;">{{ $order->quote_number }}</td>
+</tr>
+@endif
 <tr>
 <td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.requisition_vendor_order_field_po') }}</td>
 <td style="padding: 2px 0; text-align: left; font-weight: 700;">{{ $reference }}</td>
 </tr>
 <tr>
 <td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.store_vendor_csv_account') }}</td>
-<td style="padding: 2px 0; text-align: left;">{{ $requisition->fundingDescription() }}</td>
+<td style="padding: 2px 0; text-align: left;">{{ $order->fundingDescription() }}</td>
 </tr>
-@if (filled($requisition->lease_schedule))
+@if (filled($order->lease_schedule))
 <tr>
 <td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.store_vendor_csv_schedule') }}</td>
-<td style="padding: 2px 0; text-align: left;">{{ $requisition->lease_schedule }}</td>
-</tr>
-@endif
-@if (filled($requisition->quote_number))
-<tr>
-<td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.requisition_vendor_order_field_quote') }}</td>
-<td style="padding: 2px 0; text-align: left; font-weight: 700;">{{ $requisition->quote_number }}</td>
+<td style="padding: 2px 0; text-align: left;">{{ $order->lease_schedule }}</td>
 </tr>
 @endif
 </table>
@@ -54,7 +55,7 @@
 </tr>
 </thead>
 <tbody>
-@foreach ($requisition->items as $line)
+@foreach ($lines as $line)
 <tr>
 <td style="text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid #ebebee; white-space: nowrap; font-weight: 700;">{{ $line->quantity }}</td>
 <td style="text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid #ebebee;">{{ $line->description }}</td>
@@ -67,7 +68,7 @@
 <tr>
 <td colspan="4" style="text-align: left; padding: 8px 12px 0 0;"></td>
 <td style="text-align: left; padding: 8px 12px 0 0; white-space: nowrap; font-weight: 700;">{{ trans('mail.requisition_vendor_order_field_total') }}</td>
-<td style="text-align: left; padding: 8px 0 0; white-space: nowrap; font-weight: 700;">{{ \App\Helpers\Helper::formatCurrencyOutput($requisition->vendorTotal()) }}</td>
+<td style="text-align: left; padding: 8px 0 0; white-space: nowrap; font-weight: 700;">{{ \App\Helpers\Helper::formatCurrencyOutput($order->vendorTotal()) }}</td>
 </tr>
 </tbody>
 </table>
@@ -76,7 +77,7 @@
 <p style="text-align: left; margin: 0 0 14px;">{{ trans_choice('mail.requisition_vendor_order_special_lines', $specialLines->count(), ['count' => $specialLines->count()]) }}</p>
 @endif
 
-@if (! filled($requisition->quote_number))
+@if (! filled($order->quote_number))
 {{-- Unquoted orders are normal: ours are estimates by design and a few percent
      of drift consumes budget rather than invalidating the order. Say so plainly,
      so their desk quotes the current figure instead of treating our price list
@@ -84,13 +85,12 @@
 <p style="text-align: left; margin: 0 0 14px;">{{ trans('mail.requisition_vendor_order_estimate_note') }}</p>
 @endif
 
-<p style="text-align: left; margin: 0 0 14px;">{{ trans_choice('mail.requisition_vendor_order_csv_note', $lineCount, ['lines' => $lineCount]) }}</p>
-
-@if (filled($requisition->printer_comments))
-<p style="text-align: left; margin: 0 0 14px;">{{ $requisition->printer_comments }}</p>
-@endif
-
-<p style="text-align: left; margin: 0;">{{ trans('mail.requisition_vendor_order_footer') }}</p>
+{{-- The requisition's printer comments are deliberately NOT here. They are our
+     own keying notes — funding source, tax treatment, the subtotal arithmetic —
+     written for whoever types the order into Colleague, and none of it is the
+     vendor's business or their instruction. Delivery detail reaches them on the
+     attached purchase order, which is the document they act on. --}}
+<p style="text-align: left; margin: 0;">{{ trans_choice('mail.requisition_vendor_order_csv_note', $lineCount, ['lines' => $lineCount]) }}</p>
 
 </div>
 @endcomponent

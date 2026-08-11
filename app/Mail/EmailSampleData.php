@@ -359,11 +359,12 @@ class EmailSampleData
     }
 
     /**
-     * A promoted requisition, quoted and ready to place — the shape
-     * RequisitionVendorOrderMail renders. Unsaved like everything else here,
-     * so the purchase order carries a number but no documents.
+     * A purchase order with an order on it, quoted and ready to place — the
+     * shape RequisitionVendorOrderMail renders. Unsaved like everything else
+     * here, with the requisition and its lines set as relations rather than
+     * written, so the previewer never touches real data.
      */
-    public function requisition(): Requisition
+    public function purchaseOrder(): PurchaseOrder
     {
         $supplier = new Supplier(['name' => 'CDW Canada Inc']);
 
@@ -383,23 +384,26 @@ class EmailSampleData
             'title' => 'Foundation Mobile MacBook Labs',
             'status' => 'ordered',
             'requisition_number' => '0017859',
-            'fiscal_year' => '2026-27',
-            'gst_rate' => 0.05,
-            'pst_rate' => 0,
-            'quote_number' => 'PZFD093',
-            'quote_total' => 110202.15,
-            'printer_comments' => 'Deliver to B1115. PST exempt — curriculum purchase.',
+            'printer_comments' => 'Ministry capital funding. PST exempt. Deliver to B1115.',
         ]);
-        $requisition->id = 1;
-        $requisition->setRelation('supplier', $supplier);
-        $requisition->setRelation('purchaseOrder', new PurchaseOrder(['po_number' => 'P0026022']));
         $requisition->setRelation('items', collect([
             $line('Apple MacBook Air | 13" | M5 | 16GB | 1TB | Silver', '9094662', 'MDH84LL/A', 42, 2150.48),
             $line('AppleCare+ for Schools | 4 Year | 13" MacBook Air', '8154132', 'SLTC2Z/A', 42, 239.20),
             $line('LocknCharge Joey 30 Cart', '8004629', 'LNC9-10559', 2, 2236.32),
         ]));
 
-        return $requisition;
+        $order = new PurchaseOrder([
+            'po_number' => 'P0026022',
+            'title' => 'Foundation Mobile MacBook Labs - ministry capital',
+            'fiscal_year' => 'FY2026-27',
+            'funding_account' => 'purchase_curriculum',
+            'quote_number' => 'PZFD093',
+            'quote_total' => 110202.15,
+        ]);
+        $order->setRelation('supplier', $supplier);
+        $order->setRelation('requisitions', collect([$requisition]));
+
+        return $order;
     }
 
     /** Low-inventory rows for InventoryAlert (blade reads array keys). */
