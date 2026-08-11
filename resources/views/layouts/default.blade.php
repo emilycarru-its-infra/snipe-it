@@ -4267,6 +4267,11 @@
                 document.body.classList.remove('lightbox-open');
             }
 
+            // Other scripts (e.g. the procurement pipeline cards) open full
+            // record pages in this same lightbox instead of building their
+            // own reduced modals.
+            window.appLightbox = { open: open, close: close };
+
             document.addEventListener('click', function (e) {
                 var link = e.target.closest ? e.target.closest('a.js-lightbox') : null;
                 if (!link) { return; }

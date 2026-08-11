@@ -571,11 +571,13 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_aro_register'));
     }
 
-    public function test_aro_register_excludes_lease_to_own_contracts()
+    public function test_aro_register_shows_lease_to_own_as_retained_at_no_cost()
     {
-        // A lease-to-own contract with a (mistakenly) logged buyout decision —
-        // lease-to-own equipment is kept, no retirement obligation, so it must
-        // not appear in the register.
+        // A lease-to-own contract with a logged buyout decision — the
+        // equipment is kept at term end, so the register shows the retention
+        // as an explicit zero-cost Retained row: no return obligation, no
+        // buyout cost, and neither the decision amount nor the per-asset
+        // Buyout Cost field may leak into the total.
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI20221201',
             'Ownership Type' => 'Lease to Own',
@@ -585,10 +587,11 @@ class ProcurementReportsTest extends TestCase
             'contract_reference' => 'ECI20221201',
             'decision_type' => 'buyout',
             'status' => 'approved',
+            'amount' => 5000,
         ]);
 
         // A normal returnable contract with a return decision — this one is a
-        // real obligation and should show.
+        // real obligation and should show with its cost.
         LeaseDecision::factory()->create([
             'contract_reference' => 'ECI20230701',
             'decision_type' => 'return',
@@ -600,7 +603,9 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement.aro-register'))
             ->assertOk()
             ->assertSee('ECI20230701')
-            ->assertDontSee('ECI20221201');
+            ->assertSee('ECI20221201')
+            ->assertSee(trans('admin/purchase-orders/general.aro_action_retained'))
+            ->assertDontSee('$5,000.00');
     }
 
     public function test_asset_lease_detail_report_renders()
