@@ -400,6 +400,35 @@ class DeploymentsBoardTest extends TestCase
             ->assertDontSee('id="approversModal"', false);
     }
 
+    public function test_deployments_sits_second_on_the_reports_hub_and_in_the_top_toolbar()
+    {
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.index'))
+            ->assertOk()
+            ->getContent();
+
+        // Hub cards: Procurement, then Deployments. The help strings are
+        // unique to the cards (the tile titles also appear in the top
+        // toolbar, in a different order). Contracts used to follow
+        // Deployments here; its dashboard was folded into /contracts, so it
+        // no longer has a card on this hub at all.
+        $procurement = strpos($content, trans('admin/reports/general.hub_tile_procurement_help'));
+        $deployments = strpos($content, trans('admin/reports/general.hub_tile_deployments_help'));
+        $this->assertNotFalse($procurement);
+        $this->assertNotFalse($deployments);
+        $this->assertTrue($procurement < $deployments);
+        $this->assertStringNotContainsString(route('reports.contracts', [], false), $content);
+
+        // Top toolbar: the entry sits between Assets and Procurement. Match
+        // the li markup (class="...") — the bare names also appear earlier
+        // in the responsive drop-out CSS.
+        $assetsNav = strpos($content, 'topnav-item topnav-assets');
+        $deployNav = strpos($content, 'topnav-item topnav-deployments');
+        $procNav = strpos($content, 'topnav-item topnav-procurement');
+        $this->assertNotFalse($deployNav);
+        $this->assertTrue($assetsNav < $deployNav && $deployNav < $procNav);
+    }
+
     public function test_sidebar_reports_entries_are_one_word_each()
     {
         $content = $this->actingAs($this->superuser())
