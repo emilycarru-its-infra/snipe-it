@@ -223,7 +223,7 @@ return [
     'requisition_vendor_order_subject' => 'Emily Carr University — purchase order :reference:quote',
     'requisition_vendor_order_subject_quote' => ' (quote :quote)',
     'requisition_vendor_order_heading' => 'Purchase order :reference',
-    'requisition_vendor_order_intro' => 'Hello :supplier team, please place the following order for Emily Carr University of Art + Design. Every line goes against the account below and its blanket purchase order; our purchase order is attached.',
+    'requisition_vendor_order_intro' => 'Hello :supplier team, please place the following order for Emily Carr University of Art + Design.',
     'requisition_vendor_order_field_po' => 'Purchase order',
     'requisition_vendor_order_field_quote' => 'Your quote',
     'requisition_vendor_order_field_total' => 'Total',
