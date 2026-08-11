@@ -40,7 +40,13 @@ class StoreOrder extends Model
      * not a reporting label: `lease` orders go on a CSI schedule's blanket
      * purchase order, the other three on operating purchases.
      */
-    public const FUNDING_ACCOUNTS = ['lease', 'purchase', 'curriculum', 'grant'];
+    /**
+     * The four accounts, named so the pair is unambiguous: how it pays, whose
+     * budget. `App\Services\CdwAccounts` holds their numbers and which of them
+     * CSI finances. The old three-value list conflated a curriculum purchase
+     * with a curriculum lease, which are invoiced by different organisations.
+     */
+    public const FUNDING_ACCOUNTS = ['purchase_admin', 'purchase_curriculum', 'lease_admin', 'lease_curriculum'];
 
     protected $table = 'store_orders';
 
@@ -239,7 +245,10 @@ class StoreOrder extends Model
             return trans('admin/store/general.funding_unset');
         }
 
-        $label = trans('admin/store/general.funding_'.$this->funding_account);
+        // Through CdwAccounts so a legacy three-value row read from an old
+        // export still resolves to one of the four rather than a raw key.
+        $label = CdwAccounts::kindLabel($this->funding_account).' · '.CdwAccounts::scopeLabel($this->funding_account);
+        $label = trim($label, ' ·') ?: trans('admin/store/general.funding_unset');
 
         return $this->lease_schedule ? $label.' · '.$this->lease_schedule : $label;
     }

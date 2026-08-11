@@ -976,25 +976,27 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.lessor_chart_cost'))
             ->assertSee('chart-lessor-ownership');
 
-        // The standalone URL now lands on the hub section; the CSV export
-        // and the old procurement URL both keep working.
+        // It has a page of its own on procurement's path — addressable and
+        // linkable, which an anchor on the hub is not. The hub still renders
+        // the same dataset as a section.
         $this->actingAs($this->superuser())
             ->get(route('reports.lessor-breakdown'))
-            ->assertRedirect(route('reports.index').'#lessor-breakdown');
+            ->assertOk();
 
         $this->actingAs($this->superuser())
             ->get(route('reports.lessor-breakdown', ['format' => 'csv']))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=utf-8');
 
-        // Old URL: /reports/procurement/... hops to the elevated module
-        // first, whose own redirect lands on the hub section.
-        $this->actingAs($this->superuser())
-            ->get('/reports/procurement/lessor-breakdown')
-            ->assertRedirect('/procurement/lessor-breakdown');
+        // It lives with the rest of procurement now, so the elevated module's
+        // path is the destination rather than a hop, and the old reports-root
+        // URL redirects into it.
         $this->actingAs($this->superuser())
             ->get('/procurement/lessor-breakdown')
-            ->assertRedirect('/reports/lessor-breakdown');
+            ->assertOk();
+        $this->actingAs($this->superuser())
+            ->get('/reports/lessor-breakdown')
+            ->assertRedirect('/procurement/lessor-breakdown');
     }
 
     public function test_procurement_dashboard_leads_with_the_new_report_order_and_drops_lessor_breakdown()

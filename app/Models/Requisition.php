@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Services\CdwAccounts;
+use App\Models\Traits\PlacesVendorOrders;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +28,7 @@ use Watson\Validating\ValidatingTrait;
 class Requisition extends SnipeModel
 {
     use HasFactory;
+    use PlacesVendorOrders;
     use SoftDeletes;
     use ValidatingTrait;
 
@@ -76,7 +77,7 @@ class Requisition extends SnipeModel
         'quote_number' => 'nullable|string|max:191',
         'quote_total' => 'nullable|numeric|min:0',
         'quote_expires_at' => 'nullable|date',
-        'funding_account' => 'nullable|string|in:lease,purchase,curriculum,grant',
+        'funding_account' => 'nullable|string|in:purchase_admin,purchase_curriculum,lease_admin,lease_curriculum',
         'lease_schedule' => 'nullable|string|max:191',
         'vendor_order_number' => 'nullable|string|max:191',
     ];
@@ -216,60 +217,28 @@ class Requisition extends SnipeModel
         return $this->items->contains(fn (RequisitionItem $item) => $item->isEstimate());
     }
 
+
+
+
+
+
+
+
+
+
+
     /**
-     * Whether this can be sent to the vendor as an order.
+     * The lines this requisition would send: its own. The purchase order it
+     * resolves to gathers these together with any sibling requisition's.
      *
-     * Three gates, each one a round trip through the vendor's desk if it is
-     * missing:
-     *
-     *   the purchase order — the vendor places every line against a PO number
-     *   the account        — which of the four CDW accounts, and so which
-     *                        blanket PO and who gets invoiced; CDW cannot
-     *                        infer it, and a lease account also needs its CSI
-     *                        schedule so the invoice reaches the right
-     *                        Exhibit A
-     *   the part numbers   — both of them. The manufacturer's number is what
-     *                        identifies the product and CDW's own number (the
-     *                        EDC) is what they actually place; a line missing
-     *                        either cannot be ordered
-     *
-     * Estimated prices are explicitly *not* a gate. Ours are estimates by
-     * design and the returned quote is the authoritative number, so an order
-     * priced off the last price list is a normal order, not a draft.
+     * @return \Illuminate\Support\Collection<int, RequisitionItem>
      */
-    public function readyForVendor(): bool
+    public function vendorOrderLines()
     {
-        return $this->purchase_order_id !== null
-            && $this->status !== 'cancelled'
-            && $this->items->isNotEmpty()
-            && $this->fundingResolved()
-            && $this->linesMissingPartNumbers()->isEmpty();
+        return $this->items;
     }
 
     /**
-     * An account, and — when that account is billed to CSI Leasing rather than
-     * to ECU — the schedule the invoice lands on. Both lease accounts need one,
-     * not just the one called "lease": a curriculum order is financed by CSI
-     * too, and its invoice has to reach the right Exhibit A.
-     */
-    public function fundingResolved(): bool
-    {
-        if ($this->funding_account === null) {
-            return false;
-        }
-
-        return ! CdwAccounts::needsSchedule($this->funding_account) || filled($this->lease_schedule);
-    }
-
-    /**
-     * Store requests whose lines are on this requisition.
-     *
-     * The link matters for who hears about the order. A request that started in
-     * the store has a person waiting at the end of it, and once their lines are
-     * folded into a bulk requisition the thread that told them anything used to
-     * stop. They are copied on the order that goes to the vendor and told again
-     * when it ships.
-     *
      * @return HasMany<StoreOrder, $this>
      */
     public function storeOrders()
@@ -277,133 +246,12 @@ class Requisition extends SnipeModel
         return $this->hasMany(StoreOrder::class, 'requisition_id');
     }
 
-    /**
-     * Everyone who should be copied on the order: whoever asked for it through
-     * the store, plus any address procurement typed into the send form.
-     *
-     * @return array<int, string>
-     */
-    public function orderCcAddresses(): array
+    /** @return array<int, string> */
+    public function storeOrderRequesterEmails(): array
     {
-        $requesters = $this->storeOrders()->with('user')->get()
+        return $this->storeOrders()->with('user')->get()
             ->map(fn (StoreOrder $order) => $order->user?->email)
-            ->filter()
-            ->all();
-
-        return collect($requesters)
-            ->merge(self::splitAddresses($this->order_cc))
-            ->map(fn ($email) => strtolower(trim($email)))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Addresses as typed — comma, semicolon or newline separated, because
-     * people paste from wherever they copied them.
-     *
-     * @return array<int, string>
-     */
-    public static function splitAddresses(?string $addresses): array
-    {
-        return collect(preg_split('/[,;\s]+/', (string) $addresses, -1, PREG_SPLIT_NO_EMPTY))
-            ->filter(fn ($email) => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)
-            ->values()
-            ->all();
-    }
-
-    /** Just the word, for a column heading or a chip. */
-    public function fundingLabel(): string
-    {
-        return $this->funding_account
-            ? trans('admin/store/general.funding_'.$this->funding_account)
-            : trans('admin/store/general.funding_unset');
-    }
-
-    /**
-     * The account as the vendor's desk needs to read it — our word for it, the
-     * account number, and what it is for — so they can match it to the right
-     * blanket purchase order without asking.
-     */
-    public function fundingDescription(): string
-    {
-        return CdwAccounts::label($this->funding_account);
-    }
-
-    /**
-     * Catalog lines the vendor could not place: missing a part number.
-     *
-     * Both numbers are required on a catalog line and they do different jobs —
-     * the manufacturer's number says which product, CDW's own number (the EDC)
-     * is the thing they place. Taeyoung Chang, asked directly which is the must
-     * have: "Both EDC and MFR# would be ideal." So a shelf item short of either
-     * is a bug in the catalog row, and the send refuses it.
-     *
-     * Free-form lines are deliberately exempt, because two legitimate kinds of
-     * line have no part numbers to give:
-     *
-     *   charges     freight and the BC environmental handling fee appear on
-     *               CDW's own quotes with a CDW number and no manufacturer's
-     *               number, because nobody manufactures a delivery
-     *   specials    a spec combination we have never bought has no EDC and no
-     *               MFR# anywhere yet — CDW's desk prices it and issues them.
-     *               Blocking those would push exactly the awkward orders back
-     *               into email, which is the thing this replaces
-     *
-     * Returned rather than counted, because the fix is per line: a catalog row
-     * is incomplete and somebody has to go and fill it in.
-     *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
-     */
-    public function linesMissingPartNumbers()
-    {
-        return $this->items
-            ->filter(fn (RequisitionItem $item) => $item->catalog_item_id !== null
-                && (blank($item->vendor_sku) || blank($item->mfr_part_number)))
-            ->values();
-    }
-
-    /**
-     * Lines CDW has to price and number themselves: no part numbers at all.
-     *
-     * Called out in the order rather than left to be noticed, so their desk
-     * knows which lines need an EDC issuing and which are simply charges. This
-     * is the "special request" case Rod keeps open with them on purpose.
-     *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
-     */
-    public function specialRequestLines()
-    {
-        return $this->items
-            ->filter(fn (RequisitionItem $item) => $item->catalog_item_id === null
-                && blank($item->vendor_sku) && blank($item->mfr_part_number))
-            ->values();
-    }
-
-    /**
-     * Catalog lines whose part numbers have not been checked against the
-     * vendor's current list this quarter.
-     *
-     * CDW reissues EDCs and part numbers even when the product itself has not
-     * changed — and always when a custom build is repriced — so a shelf row can
-     * be quietly wrong without anybody touching it. Taeyoung's answer to that
-     * is a quarterly list from the distribution warehouses, so a row unverified
-     * for more than a quarter is the one to distrust. A warning, never a gate:
-     * a stale number is CDW's desk asking a question, not a wrong order.
-     *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
-     */
-    public function linesWithStalePartNumbers()
-    {
-        return $this->items
-            ->filter(function (RequisitionItem $item) {
-                $verified = $item->catalogItem?->part_numbers_verified_at;
-
-                return $item->catalog_item_id !== null
-                    && ($verified === null || $verified->lt(now()->subDays(self::PART_NUMBER_STALE_DAYS)));
-            })
-            ->values();
+            ->filter()->values()->all();
     }
 
     /**
@@ -435,41 +283,7 @@ class Requisition extends SnipeModel
             || $this->vendor_changes_at !== null;
     }
 
-    /**
-     * Where the order stands with the vendor, as one word.
-     *
-     * The vendor's loop is not a single "ordered" flag — their rep set it out as
-     * seven steps, and the four this side records are the ones where somebody
-     * has to decide something. Read newest-first, because the latest fact is
-     * the state:
-     *
-     *   confirmed  we accepted the final quote; they are placing it
-     *   changes    they came back with a substitution or a reissued part number
-     *   sent       with them, awaiting an answer
-     *   ready      everything needed to send, not sent
-     *
-     * An order number arriving is the end of the loop and outranks all of it.
-     */
-    public function vendorStage(): string
-    {
-        return match (true) {
-            filled($this->vendor_order_number) => 'placed',
-            $this->quote_confirmed_at !== null => 'confirmed',
-            $this->vendor_changes_at !== null => 'changes',
-            $this->vendor_sent_at !== null => 'sent',
-            $this->readyForVendor() => 'ready',
-            default => 'incomplete',
-        };
-    }
 
-    /**
-     * What the vendor's authoritative cost is, once they have quoted: their
-     * number when we have it, our own arithmetic until then.
-     */
-    public function vendorTotal(): float
-    {
-        return $this->quote_total !== null ? (float) $this->quote_total : $this->total();
-    }
 
     /**
      * The number this requisition trades under: the PO number once finance

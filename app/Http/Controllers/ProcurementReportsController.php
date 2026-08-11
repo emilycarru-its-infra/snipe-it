@@ -1379,14 +1379,21 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('procurement.view');
 
-        // The breakdown renders as a section of the /reports hub, not a
-        // standalone page. This route survives for the CSV export and for
-        // old bookmarks, which land on the hub section.
-        if ($request->query('format') === 'csv') {
-            return $this->streamReportCsv('lessor-breakdown-report', $this->lessorBreakdownReport(null));
-        }
-
-        return redirect(route('reports.index').'#lessor-breakdown');
+        // A page of its own at /procurement/lessor-breakdown rather than an
+        // anchor on the reports hub. It is procurement's view of the lease
+        // portfolio and belongs on procurement's path, addressable and
+        // linkable — an anchor cannot be either. The hub still renders the
+        // same dataset as a section, from lessorBreakdownData().
+        return $this->render(
+            $request,
+            'lessor-breakdown-report',
+            trans('admin/purchase-orders/general.report_lessor_breakdown'),
+            'reports.lessor-breakdown',
+            $this->lessorBreakdownReport(null),
+            '',
+            [],
+            true
+        );
     }
 
     /**
