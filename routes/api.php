@@ -192,7 +192,39 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ]
         )->name('api.deployments.blackouts.store');
 
+        // The full module over the API: catalogs, waves, items (with the
+        // same Planned→Ordered gate as the board), forecast candidates and
+        // the decommissioning lane — so planning can run agentically.
+        Route::get('stages', [Api\DeploymentsController::class, 'stages'])
+            ->name('api.deployments.stages');
+        Route::get('types', [Api\DeploymentsController::class, 'types'])
+            ->name('api.deployments.types');
+
+        Route::get('waves', [Api\DeploymentsController::class, 'wavesIndex'])
+            ->name('api.deployments.waves.index');
+        Route::post('waves', [Api\DeploymentsController::class, 'wavesStore'])
+            ->name('api.deployments.waves.store');
+        Route::get('waves/{wave}', [Api\DeploymentsController::class, 'wavesShow'])
+            ->name('api.deployments.waves.show');
+        Route::patch('waves/{wave}', [Api\DeploymentsController::class, 'wavesUpdate'])
+            ->name('api.deployments.waves.update');
+        Route::delete('waves/{wave}', [Api\DeploymentsController::class, 'wavesDestroy'])
+            ->name('api.deployments.waves.destroy');
+
+        Route::post('waves/{wave}/items', [Api\DeploymentsController::class, 'itemsStore'])
+            ->name('api.deployments.items.store');
+        Route::patch('items/{item}', [Api\DeploymentsController::class, 'itemsUpdate'])
+            ->name('api.deployments.items.update');
+        Route::delete('items/{item}', [Api\DeploymentsController::class, 'itemsDestroy'])
+            ->name('api.deployments.items.destroy');
+
+        Route::get('forecast', [Api\DeploymentsController::class, 'forecast'])
+            ->name('api.deployments.forecast');
+        Route::get('decommission', [Api\DeploymentsController::class, 'decommission'])
+            ->name('api.deployments.decommission');
+
     });
+
 
     /**
      * Companies API routes

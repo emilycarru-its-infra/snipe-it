@@ -4,7 +4,7 @@ return [
 
     'create' => 'Create Asset Model',
     'created_at' => 'Created at',
-    'eol' => 'EOL',
+    'eol' => 'End of Life',
     'modelnumber' => 'Model No.',
     'modelidentifier' => 'Model Identifier',
     'name' => 'Asset Model Name',
