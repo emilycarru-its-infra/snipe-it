@@ -246,7 +246,7 @@
                     </td>
                     <td>
                         @if ($row['device_url'])
-                            <a href="{{ $row['device_url'] }}" @if ($row['kind'] !== 'order') class="js-lightbox" @endif>{{ $row['device'] }}</a>
+                            <a href="{{ $row['device_url'] }}" class="js-lightbox">{{ $row['device'] }}</a>
                         @else
                             {{ $row['device'] }}
                         @endif
