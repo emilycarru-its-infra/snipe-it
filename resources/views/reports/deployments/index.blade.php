@@ -75,6 +75,15 @@
         cursor: grab;
     }
     #dp-rows tr[draggable="true"] { cursor: grab; }
+    /* Collapse chevron sits inside the group header, left of its checkbox. */
+    .dp-group-toggle {
+        background: none; border: 0; padding: 0 8px 0 0; color: inherit;
+        cursor: pointer; font-size: 11px; opacity: .75;
+    }
+    .dp-group-toggle:hover { opacity: 1; }
+    .dp-group-inner { display: flex; align-items: center; gap: 8px; }
+    .dp-group-inner .dp-group-check { margin: 0; flex: 0 0 auto; }
+    .dp-group-label { flex: 1 1 auto; }
     .dp-bulkbar { display: none; padding: 8px 10px; border-bottom: 1px solid var(--box-border-color, #f4f4f4); }
     .dp-bulkbar.active { display: block; }
     .dp-bulkbar .form-control { display: inline-block; width: auto; vertical-align: middle; }
@@ -163,6 +172,7 @@
             <span class="text-muted" style="font-size:12px; margin-right:4px;">{{ trans('admin/deployments/general.flow_group_label') }}</span>
             <span class="btn-group" id="dp-group-btns" style="vertical-align:middle;">
                 <button type="button" class="btn btn-xs btn-default active" data-group="">{{ trans('admin/deployments/general.flow_group_none') }}</button>
+                <button type="button" class="btn btn-xs btn-default" data-group="wave">{{ trans('admin/deployments/general.flow_group_wave') }}</button>
                 <button type="button" class="btn btn-xs btn-default" data-group="group">{{ trans('admin/deployments/general.flow_group_group') }}</button>
                 <button type="button" class="btn btn-xs btn-default" data-group="location">{{ trans('admin/deployments/general.flow_group_location') }}</button>
                 <button type="button" class="btn btn-xs btn-default" data-group="type">{{ trans('admin/deployments/general.flow_group_type') }}</button>
@@ -234,6 +244,7 @@
                     data-kind="{{ $row['kind'] }}"
                     data-stage="{{ $row['stage_slug'] }}"
                     data-type="{{ $row['type'] }}"
+                    data-wave="{{ $row['wave'] ?: trans('admin/deployments/general.flow_backlog_stage') }}"
                     data-model="{{ $row['model'] }}"
                     data-group="{{ $row['group'] ?: '—' }}"
                     data-location="{{ $row['location'] }}"
@@ -481,6 +492,10 @@
     var stageFilter = '';
     var stageLabel = '';
     var groupBy = '';
+    // Collapse state survives regrouping and stage filtering, keyed by
+    // dimension + group so switching Wave → Model does not carry it over.
+    var collapsedGroups = {};
+    var NO_WAVE_KEY = @json(trans('admin/deployments/general.flow_backlog_stage'));
     var titleEl = document.getElementById('dp-title');
     var titleTemplate = @json(trans('admin/deployments/general.flow_devices_title', ['count' => '__N__', 'fy' => $fy]));
     var stageSuffix = @json(trans('admin/deployments/general.flow_stage_suffix', ['stage' => '__S__']));
@@ -493,6 +508,7 @@
         rows.forEach(function (r) {
             var show = !stageFilter || r.getAttribute('data-stage') === stageFilter;
             r.style.display = show ? '' : 'none';
+            r.classList.remove('dp-collapsed');
             if (show) { visible.push(r); }
         });
 
@@ -513,7 +529,12 @@
         }
 
         if (!groupBy) {
+            // Ungrouped still sinks the unplanned tail: devices on no wave
+            // read as noise above the waves that are actually scheduled.
             rows.slice().sort(function (a, b) {
+                var aNo = a.getAttribute('data-wave') === NO_WAVE_KEY ? 1 : 0;
+                var bNo = b.getAttribute('data-wave') === NO_WAVE_KEY ? 1 : 0;
+                if (aNo !== bNo) { return aNo - bNo; }
                 return (+a.getAttribute('data-idx')) - (+b.getAttribute('data-idx'));
             }).forEach(function (r) { tbody.appendChild(r); });
             return;
@@ -526,7 +547,14 @@
             if (!groups[key]) { groups[key] = []; order.push(key); }
             groups[key].push(r);
         });
-        order.sort(function (a, b) { return groups[b].length - groups[a].length; });
+        // Biggest cohort first, except the devices on no wave at all: those
+        // are the unplanned tail, and reading them between real waves makes
+        // the plan look emptier than it is. They always sit last.
+        order.sort(function (a, b) {
+            if (a === NO_WAVE_KEY) { return 1; }
+            if (b === NO_WAVE_KEY) { return -1; }
+            return groups[b].length - groups[a].length;
+        });
         order.forEach(function (key) {
             var head = document.createElement('tr');
             head.className = 'dp-group-head';
@@ -534,15 +562,48 @@
             head.setAttribute('data-group-key', key);
             var td = document.createElement('td');
             td.colSpan = 10;
+            // One flex row: the app styles checkboxes as display:grid, which
+            // would otherwise break chevron, box and label onto three lines.
+            var inner = document.createElement('div');
+            inner.className = 'dp-group-inner';
+            td.appendChild(inner);
             var check = document.createElement('input');
             check.type = 'checkbox';
             check.className = 'dp-group-check';
-            check.style.marginRight = '8px';
-            td.appendChild(check);
-            td.appendChild(document.createTextNode(key + ' · ' + groups[key].length));
+            inner.appendChild(check);
+            // Collapse control: a wave is a unit of work, and a 160-device
+            // wave otherwise buries every other wave on the page.
+            var collapsed = collapsedGroups[groupBy + '|' + key] === true;
+            var chev = document.createElement('button');
+            chev.type = 'button';
+            chev.className = 'dp-group-toggle';
+            chev.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            chev.innerHTML = '<i class="fa-solid ' + (collapsed ? 'fa-chevron-right' : 'fa-chevron-down') + '" aria-hidden="true"></i>';
+            inner.insertBefore(chev, check);
+            var label = document.createElement('span');
+            label.className = 'dp-group-label';
+            label.textContent = key + ' · ' + groups[key].length;
+            inner.appendChild(label);
             head.appendChild(td);
             tbody.appendChild(head);
-            groups[key].forEach(function (r) { tbody.appendChild(r); });
+            groups[key].forEach(function (r) {
+                tbody.appendChild(r);
+                if (collapsed) { r.style.display = 'none'; r.classList.add('dp-collapsed'); }
+            });
+
+            chev.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var nowCollapsed = ! (collapsedGroups[groupBy + '|' + key] === true);
+                collapsedGroups[groupBy + '|' + key] = nowCollapsed;
+                chev.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
+                chev.innerHTML = '<i class="fa-solid ' + (nowCollapsed ? 'fa-chevron-right' : 'fa-chevron-down') + '" aria-hidden="true"></i>';
+                groups[key].forEach(function (r) {
+                    r.style.display = nowCollapsed ? 'none' : '';
+                    r.classList.toggle('dp-collapsed', nowCollapsed);
+                });
+                refreshBulkbar();
+            });
 
             // A group is a unit: its checkbox selects every row in it, and
             // dragging its header carries the whole cohort onto a chevron.
@@ -595,7 +656,8 @@
     function selected() {
         return rows.filter(function (r) {
             var box = r.querySelector('.dp-check');
-            return r.style.display !== 'none' && box && box.checked;
+            var hiddenByFilter = r.style.display === 'none' && ! r.classList.contains('dp-collapsed');
+            return ! hiddenByFilter && box && box.checked;
         });
     }
 

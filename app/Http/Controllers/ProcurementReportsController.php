@@ -12,6 +12,7 @@ use App\Models\Contract;
 use App\Models\CustomField;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
+use App\Models\Location;
 use App\Models\Manufacturer;
 use App\Models\Order;
 use App\Models\OrderInvoice;
@@ -3711,8 +3712,8 @@ class ProcurementReportsController extends Controller
                 'links' => array_filter([
                     0 => route('hardware.show', $asset->id),
                     1 => route('hardware.show', $asset->id),
-                    6 => $asset->assignedTo instanceof \App\Models\User
-                        ? route('users.show', $asset->assignedTo->id) : null,
+                    6 => $this->assignedTarget($asset) instanceof User
+                        ? route('users.show', $this->assignedTarget($asset)->id) : null,
                 ]),
                 'cells' => [
                     (string) $asset->asset_tag,
@@ -3721,7 +3722,7 @@ class ProcurementReportsController extends Controller
                     (string) $asset->model?->name,
                     $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
                     $cols['area'] ? (string) $asset->{$cols['area']} : '',
-                    (string) $this->describeAssignedTo($asset->assignedTo),
+                    (string) $this->describeAssignedTo($this->assignedTarget($asset)),
                     $contractId,
                     $cols['lease_end_date'] ? $this->dateString($asset->{$cols['lease_end_date']}) : '',
                     $cols['ownership_type'] ? (string) $asset->{$cols['ownership_type']} : '',
@@ -3894,12 +3895,21 @@ class ProcurementReportsController extends Controller
         // Every leased device, all fiscal years — the grid mirrors the whole
         // live lease book, not a single year (it replaces the per-contract
         // sheets of the Leases workbook).
-        $assets = Asset::with('model.category', 'status', 'lessor')
+        $assets = Asset::with('model.category', 'status', 'lessor', 'assignedTo')
             ->whereNotNull($contractIdColumn)
             ->where($contractIdColumn, '!=', '')
             ->orderBy($contractIdColumn)
             ->orderBy('asset_tag')
             ->get();
+
+        // A handful of schedules never had their name copied onto their
+        // devices, so the picker listed them as a bare schedule id while
+        // every neighbour read "Devices Leases FY…". The contract register
+        // knows the name — fall back to it rather than showing a nameless row.
+        $nameBySchedule = Contract::query()
+            ->whereNotNull('schedule_number')
+            ->where('schedule_number', '!=', '')
+            ->pluck('name', 'schedule_number');
 
         $contracts = [];
         foreach ($assets as $asset) {
@@ -3911,13 +3921,24 @@ class ProcurementReportsController extends Controller
             if (! isset($contracts[$contractId])) {
                 $contracts[$contractId] = [
                     'contract_id' => $contractId,
-                    'contract_name' => $cols['contract_name'] ? trim((string) $asset->{$cols['contract_name']}) : '',
+                    'contract_name' => '',
                     'provider' => $asset->lessor?->name ?: $this->contractProvider($contractId),
                     'lease_end_date' => $cols['lease_end_date'] ? (string) $asset->{$cols['lease_end_date']} : '',
                     'is_lease_to_own' => false,
                     'active_count' => 0,
                     'assets' => [],
                 ];
+            }
+
+            // The display name lives on each device, and not every device on a
+            // lease carries it — a returned or archived unit sorting first
+            // would otherwise leave the whole contract reading as a bare
+            // schedule id. Take the first device that has one; fall back to
+            // the contract register only if none do.
+            if ($contracts[$contractId]['contract_name'] === '') {
+                $contracts[$contractId]['contract_name'] = ($cols['contract_name']
+                    ? trim((string) $asset->{$cols['contract_name']})
+                    : '') ?: '';
             }
 
             $ownership = $cols['ownership_type'] ? (string) $asset->{$cols['ownership_type']} : '';
@@ -3935,10 +3956,29 @@ class ProcurementReportsController extends Controller
 
             $buyoutCost = $cols['buyout_cost'] ? $this->parseMoney($asset->{$cols['buyout_cost']}) : 0.0;
 
+            // Who holds the device. A lease row without this reads as an
+            // anonymous serial, which is the thing that makes a return or
+            // buyout decision impossible to act on — the target can be a
+            // person, a room, or another asset, so carry the flavour too.
+            $assignedTo = $this->assignedTarget($asset);
+
             $contracts[$contractId]['assets'][] = [
                 'asset_id' => $asset->id,
                 'asset_tag' => (string) $asset->asset_tag,
                 'serial' => (string) $asset->serial,
+                'assigned_name' => $this->describeAssignedTo($assignedTo),
+                'assigned_kind' => match (true) {
+                    $assignedTo instanceof User => 'user',
+                    $assignedTo instanceof Asset => 'asset',
+                    $assignedTo instanceof Location => 'location',
+                    default => '',
+                },
+                'assigned_url' => match (true) {
+                    $assignedTo instanceof User => route('users.show', $assignedTo->id),
+                    $assignedTo instanceof Asset => route('hardware.show', $assignedTo->id),
+                    $assignedTo instanceof Location => route('locations.show', $assignedTo->id),
+                    default => '',
+                },
                 'status' => (string) $asset->status?->name,
                 'status_id' => $asset->status_id,
                 'status_type' => $asset->status?->getStatuslabelType(),
@@ -3957,6 +3997,13 @@ class ProcurementReportsController extends Controller
         // Only contracts that still have at least one on-lease (non-archived)
         // device — fully-returned/closed leases drop off.
         $contracts = array_filter($contracts, fn ($c) => $c['active_count'] > 0);
+
+        // Last resort for a lease whose devices all lack the name.
+        foreach ($contracts as $id => $contract) {
+            if ($contract['contract_name'] === '') {
+                $contracts[$id]['contract_name'] = (string) $nameBySchedule->get($id, '');
+            }
+        }
 
         // Soonest lease end first so the contracts nearing term surface first.
         uasort($contracts, fn ($a, $b) => [$a['lease_end_date'], $a['contract_id']] <=> [$b['lease_end_date'], $b['contract_id']]);
@@ -3995,6 +4042,7 @@ class ProcurementReportsController extends Controller
             $withContract ? trans('admin/purchase-orders/general.lease_contract_id') : null,
             trans('admin/purchase-orders/general.detail_serial'),
             trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.disposition_assigned_to'),
             trans('admin/purchase-orders/general.disposition_action'),
             trans('admin/purchase-orders/general.disposition_decommissioned_date'),
             trans('admin/purchase-orders/general.detail_buyout_cost'),
@@ -4016,6 +4064,7 @@ class ProcurementReportsController extends Controller
             'contract' => $withContract ? $contractId : null,
             'serial' => $row['serial'],
             'asset_tag' => $row['asset_tag'],
+            'assigned_to' => $row['assigned_name'],
             'status' => $row['status'],
             'decommissioned_date' => $row['decommissioned_date'],
             'buyout_cost' => $row['buyout_cost'],
@@ -4452,6 +4501,29 @@ class ProcurementReportsController extends Controller
      * or Location. Each surfaces its identifier under a different name —
      * return the most-meaningful one for whichever flavour came back.
      */
+    /**
+     * The checkout target of an asset, eager-load safe.
+     *
+     * Asset::assignedTo() is `morphTo('assigned', …)`, so the relation's own
+     * name is `assigned` while the method is `assignedTo`. Eager loading with
+     * `with('assignedTo')` therefore lands the resolved target under the
+     * `assigned` key and leaves `assignedTo` holding null — read the property
+     * after eager loading and every row comes back unassigned. Prefer the
+     * loaded relation, fall back to a lazy read.
+     */
+    private function assignedTarget(Asset $asset)
+    {
+        if (! $asset->assigned_to) {
+            return null;
+        }
+
+        if ($asset->relationLoaded('assigned')) {
+            return $asset->getRelation('assigned');
+        }
+
+        return $asset->assignedTo;
+    }
+
     private function describeAssignedTo($target): string
     {
         if ($target === null) {

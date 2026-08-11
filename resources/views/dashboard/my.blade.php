@@ -35,6 +35,8 @@
    the one actionable card without shouting. */
 .eud-accept-card { border-color: color-mix(in srgb, #f0b429 55%, transparent); }
 .eud-wrap .ecu-kicker { margin-bottom: 10px; }
+.eud-assets-kicker { display: flex; align-items: center; justify-content: space-between; }
+.eud-extra-btn { font-weight: 400; text-transform: none; letter-spacing: normal; }
 .eud-order-line { font-size: 15px; margin: 0 0 10px; }
 .eud-wrap .ecu-rail { margin: 6px 0 4px; }
 /* The equipment list is the page — read at body size, not caption size. */
@@ -123,7 +125,15 @@
                  Actions column carrying each machine's doorway: buyout for
                  Faculty program machines, early refresh for Staff ones. --}}
             <div class="ecu-card eud-card">
-                <div class="ecu-kicker">{{ trans('general.assets') }} <span class="badge">{{ $myAssets->count() }}</span></div>
+                <div class="ecu-kicker eud-assets-kicker">
+                    <span>{{ trans('general.assets') }} <span class="badge">{{ $myAssets->count() }}</span></span>
+                    {{-- The universal doorway into the store: everyone can ask
+                         for gear beyond their refresh cycle, whether or not
+                         the Store sits in their navigation. --}}
+                    <a href="{{ route('store.index', ['intent' => 'additional']) }}" class="btn btn-xs btn-default eud-extra-btn">
+                        {{ trans('admin/store/general.request_additional') }}
+                    </a>
+                </div>
                 @if ($myAssets->isEmpty())
                     <p class="eud-sub" style="margin:0;">{{ trans('admin/store/general.dash_no_laptop') }}</p>
                 @else
