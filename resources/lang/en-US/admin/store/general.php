@@ -127,6 +127,7 @@ return [
     'dash_renewal_button' => 'Start the laptop program form',
     'dash_lease_ended' => 'Lease ended :date',
     'dash_no_laptop' => 'Nothing is checked out to you yet.',
+    'request_additional' => 'Request additional equipment',
     'dash_go' => 'Go to',
     'orders_none' => 'You have not ordered anything yet.',
     'cancel_order' => 'Cancel',

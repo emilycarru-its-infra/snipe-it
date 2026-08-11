@@ -193,6 +193,132 @@
                     <p class="text-muted">{{ trans('admin/purchase-orders/general.promoted_help') }}</p>
                 </div>
             </div>
+
+            {{-- The step that used to happen in Outlook.
+
+                 The vendor cannot place a line without a purchase order
+                 number, so this panel only exists once one has been issued —
+                 and by then the quote has usually come back, which is why the
+                 quote fields are here rather than earlier: they are what the
+                 invoice will be checked against, and the vendor's figure, not
+                 our price list, is the authoritative one. --}}
+            @php
+                $orderEmails = collect(explode(',', (string) $requisition->supplier?->order_emails))
+                    ->map(fn ($email) => trim($email))
+                    ->filter()
+                    ->values();
+                $poDocuments = $requisition->purchaseOrder?->uploads()->pluck('filename') ?? collect();
+                $missingParts = $requisition->linesMissingPartNumbers();
+            @endphp
+
+            <div class="box {{ $requisition->vendor_sent_at ? 'box-default' : 'box-primary' }}">
+                <div class="box-header with-border">
+                    <h3 class="box-title">{{ trans('admin/purchase-orders/general.vendor_send_title') }}</h3>
+                </div>
+                <form method="POST" action="{{ route('requisitions.send-vendor', $requisition->id) }}">
+                    {{ csrf_field() }}
+                    <div class="box-body">
+                        @if ($requisition->vendor_sent_at)
+                            <p>
+                                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                                {{ trans('admin/purchase-orders/general.vendor_sent_at') }}
+                                <strong>{{ \App\Helpers\Helper::getFormattedDateObject($requisition->vendor_sent_at, 'datetime', false) }}</strong>
+                            </p>
+                            <p class="text-muted">{{ trans('admin/purchase-orders/general.vendor_sent_help') }}</p>
+                        @else
+                            <p class="text-muted">
+                                {{ trans('admin/purchase-orders/general.vendor_send_help', ['supplier' => $requisition->supplier?->name ?: trans('general.supplier')]) }}
+                            </p>
+                        @endif
+
+                        @if ($orderEmails->isEmpty())
+                            <p class="text-danger">{{ trans('admin/purchase-orders/general.vendor_send_help_no_emails') }}</p>
+                        @else
+                            <p class="text-muted" style="margin-bottom: 4px;">
+                                {{ trans('admin/purchase-orders/general.vendor_send_recipients') }}:
+                                <span class="text-monospace">{{ $orderEmails->implode(', ') }}</span>
+                            </p>
+                        @endif
+
+                        @if ($poDocuments->isNotEmpty())
+                            <p class="text-muted">
+                                {{ trans('admin/purchase-orders/general.vendor_send_attachments') }}:
+                                <span class="text-monospace">{{ $poDocuments->implode(', ') }}</span>
+                            </p>
+                        @endif
+
+                        {{-- Both part numbers are what CDW cannot work
+                             without: the MFR# says which product, the EDC is
+                             the number they place. Named here rather than only
+                             refused on submit, so the fix is visible before the
+                             button is pressed. --}}
+                        @if ($missingParts->isNotEmpty())
+                            <p class="text-danger">
+                                {{ trans_choice('admin/purchase-orders/general.vendor_send_missing_part_numbers', $missingParts->count(), ['count' => $missingParts->count()]) }}
+                            </p>
+                            <ul class="text-danger">
+                                @foreach ($missingParts as $line)
+                                    <li>
+                                        {{ $line->description }} —
+                                        {{ blank($line->mfr_part_number) ? trans('mail.store_vendor_csv_mfr') : '' }}
+                                        {{ blank($line->mfr_part_number) && blank($line->vendor_sku) ? '+' : '' }}
+                                        {{ blank($line->vendor_sku) ? trans('mail.store_vendor_csv_edc') : '' }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+
+                        <div class="form-group">
+                            <label for="funding-account">{{ trans('admin/purchase-orders/general.vendor_send_account') }} <span class="text-danger">*</span></label>
+                            <select name="funding_account" id="funding-account" class="form-control">
+                                <option value="">{{ trans('admin/store/general.funding_unset') }}</option>
+                                @foreach (\App\Models\StoreOrder::FUNDING_ACCOUNTS as $account)
+                                    <option value="{{ $account }}" {{ old('funding_account', $requisition->funding_account) === $account ? 'selected' : '' }}>
+                                        {{ trans('admin/store/general.funding_'.$account) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_account_help') }}</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="lease-schedule">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule') }}</label>
+                            <input type="text" name="lease_schedule" id="lease-schedule" class="form-control"
+                                   value="{{ old('lease_schedule', $requisition->lease_schedule) }}">
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule_help') }}</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="quote-number">{{ trans('admin/purchase-orders/general.quote_number') }}</label>
+                            <input type="text" name="quote_number" id="quote-number" class="form-control"
+                                   value="{{ old('quote_number', $requisition->quote_number) }}">
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.quote_number_help') }}</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="quote-total">{{ trans('admin/purchase-orders/general.quote_total') }}</label>
+                            <input type="number" step="0.01" min="0" name="quote_total" id="quote-total" class="form-control"
+                                   value="{{ old('quote_total', $requisition->quote_total) }}">
+                            <p class="help-block">{{ trans('admin/purchase-orders/general.quote_total_help') }}</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="quote-expires">{{ trans('admin/purchase-orders/general.quote_expires_at') }}</label>
+                            <input type="date" name="quote_expires_at" id="quote-expires" class="form-control"
+                                   value="{{ old('quote_expires_at', $requisition->quote_expires_at?->format('Y-m-d')) }}">
+                        </div>
+                    </div>
+                    <div class="box-footer">
+                        <button type="submit" name="test" value="1" class="btn btn-default btn-block">
+                            {{ trans('admin/purchase-orders/general.vendor_send_test_submit') }}
+                        </button>
+                        <button type="submit" class="btn btn-primary btn-block"
+                                {{ $orderEmails->isEmpty() || $missingParts->isNotEmpty() ? 'disabled' : '' }}>
+                            {{ trans('admin/purchase-orders/general.vendor_send_submit') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
         @elseif ($requisition->status !== 'cancelled')
             <div class="box box-warning">
                 <div class="box-header with-border">

@@ -608,6 +608,25 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
     }
 
     /**
+     * Whether the Store earns a place in this person's navigation, which
+     * is a different question from whether they may use it. Faculty (the
+     * program runs through it) and shared purchasers (they buy for labs
+     * and team spaces) live in the store; plain staff like a Finance
+     * accountant do not — their machine is refreshed on lease cadence, so
+     * a permanent Store tab reads as an invitation to shop. They still
+     * reach the store through its doorways on /my: Request early refresh
+     * on a machine, or Request additional equipment.
+     */
+    public function seesStoreInNav(): bool
+    {
+        if (! $this->isEndUser()) {
+            return true;
+        }
+
+        return $this->isFacultyProgramMember() || $this->canOrderShared();
+    }
+
+    /**
      * Whether this person may place shared-usage orders — carts for labs,
      * classrooms and team spaces rather than their own assigned machine.
      * Group-driven by name, like Regular Faculty: membership in "Shared

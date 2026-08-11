@@ -35,13 +35,61 @@
     </div>
     <div class="form-group disp-contract-picker">
         <label for="disp-contract-select" class="disp-contract-label">{{ trans('admin/purchase-orders/general.disposition_pick_contract') }}</label>
-        <select id="disp-contract-select" class="form-control input-sm disp-contract-select">
+        {{-- The native select stays as the source of truth (pane switching and
+             the serial search both drive it); the combo below is a presentation
+             layer over it, because a <select> cannot align its options into
+             columns and a run of "name — id — count · lessor" is unscannable
+             at 40+ leases. --}}
+        <select id="disp-contract-select" class="form-control input-sm disp-contract-select disp-contract-select-native">
             @foreach ($contracts as $i => $c)
                 <option value="disp-pane-{{ $i }}" data-contract="{{ $c['contract_id'] }}" {{ $c['contract_id'] === $selectedContract ? 'selected' : '' }}>
                     {{ ! empty($c['contract_name']) ? $c['contract_name'].' — ' : '' }}{{ $c['contract_id'] }} — {{ $c['active_count'] }}/{{ count($c['assets']) }}{{ ! empty($c['provider']) ? ' · '.$c['provider'] : '' }}
                 </option>
             @endforeach
         </select>
+        @php
+            // Rendered server-side so a lazily-injected grid (dashboard embed,
+            // where inline scripts are stripped) shows its selection before any
+            // JS runs.
+            $selected = collect($contracts)->firstWhere('contract_id', $selectedContract) ?: ($contracts[0] ?? null);
+            $selectedLabel = $selected ? implode(' · ', array_filter([
+                $selected['contract_name'] ?: null,
+                $selected['contract_id'],
+                $selected['active_count'].'/'.count($selected['assets']),
+                $selected['provider'] ?: null,
+            ])) : '';
+        @endphp
+        <div class="disp-combo">
+            <button type="button" class="disp-combo-button" aria-haspopup="listbox" aria-expanded="false">
+                <span class="disp-combo-current">{{ $selectedLabel }}</span>
+                <i class="fa-solid fa-angle-down disp-combo-caret" aria-hidden="true"></i>
+            </button>
+            <div class="disp-combo-panel" role="listbox" hidden>
+                <div class="disp-combo-filter">
+                    <input type="text" class="form-control input-sm disp-combo-search" autocomplete="off" spellcheck="false"
+                           placeholder="{{ trans('admin/purchase-orders/general.disposition_filter_contracts') }}">
+                </div>
+                <div class="disp-combo-head" aria-hidden="true">
+                    <span>{{ trans('admin/purchase-orders/general.disposition_pick_contract') }}</span>
+                    <span>{{ trans('admin/purchase-orders/general.lease_contract_id') }}</span>
+                    <span class="disp-combo-num">{{ trans('admin/purchase-orders/general.disposition_on_lease') }}</span>
+                    <span>{{ trans('admin/purchase-orders/general.disposition_lessor') }}</span>
+                </div>
+                <div class="disp-combo-list">
+                    @foreach ($contracts as $i => $c)
+                        <div class="disp-combo-option{{ $c['contract_id'] === $selectedContract ? ' is-selected' : '' }}"
+                             role="option" tabindex="-1"
+                             aria-selected="{{ $c['contract_id'] === $selectedContract ? 'true' : 'false' }}"
+                             data-value="disp-pane-{{ $i }}">
+                            <span class="disp-combo-name">{{ $c['contract_name'] ?: '—' }}</span>
+                            <span class="disp-combo-id">{{ $c['contract_id'] }}</span>
+                            <span class="disp-combo-num">{{ $c['active_count'] }}/{{ count($c['assets']) }}</span>
+                            <span class="disp-combo-lessor">{{ $c['provider'] }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="tab-content disp-tab-content">
@@ -71,6 +119,7 @@
                                 @endif
                                 <th>{{ trans('admin/purchase-orders/general.detail_serial') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.detail_asset_tag') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.disposition_assigned_to') }}</th>
                                 <th>{{ trans('admin/purchase-orders/general.disposition_action') }}</th>
                                 <th class="disp-col-date">{{ trans('admin/purchase-orders/general.disposition_decommissioned_date') }}</th>
                                 <th class="disp-col-cost">{{ trans('admin/purchase-orders/general.detail_buyout_cost') }}</th>
@@ -91,6 +140,20 @@
                                     @endif
                                     <td><a href="{{ route('hardware.show', $a['asset_id']) }}" class="js-lightbox">{{ $a['serial'] }}</a></td>
                                     <td>{{ $a['asset_tag'] }}</td>
+                                    {{-- Who holds it: person, room, or parent asset. The icon
+                                         carries the flavour so a room does not read as a name. --}}
+                                    <td class="disp-col-assigned">
+                                        @if ($a['assigned_name'] !== '')
+                                            <i class="fa-solid {{ $a['assigned_kind'] === 'user' ? 'fa-user' : ($a['assigned_kind'] === 'location' ? 'fa-location-dot' : 'fa-laptop') }} disp-assigned-icon" aria-hidden="true"></i>
+                                            @if ($a['assigned_url'] !== '')
+                                                <a href="{{ $a['assigned_url'] }}">{{ $a['assigned_name'] }}</a>
+                                            @else
+                                                {{ $a['assigned_name'] }}
+                                            @endif
+                                        @else
+                                            <span class="text-muted">&mdash;</span>
+                                        @endif
+                                    </td>
                                     @php
                                         $statusClass = match ($a['status_type'] ?? null) {
                                             'deployable' => 'label-success',

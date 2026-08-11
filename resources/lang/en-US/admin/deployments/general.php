@@ -183,6 +183,7 @@ return [
     'flow_group_type' => 'Type',
     'flow_group_model' => 'Model',
     'flow_group_group' => 'Group',
+    'flow_group_wave' => 'Wave',
     'flow_group_location' => 'Location',
     'flow_selected' => ':count selected',
     'flow_move_to' => 'Move to',

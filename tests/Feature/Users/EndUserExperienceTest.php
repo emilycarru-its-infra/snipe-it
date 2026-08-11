@@ -118,8 +118,11 @@ class EndUserExperienceTest extends TestCase
             ->assertRedirect(route('forms.show', 'faculty-program'));
         $this->actingAs($user)->get(route('store.orders'))
             ->assertRedirect(route('forms.show', 'faculty-program'));
+        // The doorway button (store?intent=…) is for everyone — through it
+        // the gate still routes to the form — so only the bare tab URL must
+        // be absent.
         $this->actingAs($user)->get(route('my'))->assertOk()
-            ->assertDontSee(route('store.index'), false);
+            ->assertDontSee('"'.route('store.index').'"', false);
 
         // Ordering is gated the same way — no order appears.
         $this->actingAs($user)->post(route('store.orders.store'), [
@@ -132,15 +135,31 @@ class EndUserExperienceTest extends TestCase
         $this->actingAs($user)->get(route('store.index'))->assertOk();
     }
 
-    public function test_staff_without_forms_see_no_forms_tab_but_keep_the_store()
+    public function test_staff_without_forms_see_no_forms_tab_and_no_store_tab()
     {
-        // An end user in no eligible group: no Forms anywhere, Store open.
+        // An end user in no eligible group: no Forms anywhere, and no Store
+        // tab either — their machine refreshes on lease cadence, so the
+        // store is a doorway, not a destination. The doorway button is
+        // there, and the store itself still opens when walked through.
         $user = User::factory()->create(['activated' => 1]);
 
         $page = $this->actingAs($user)->get(route('my'))->assertOk();
         $page->assertDontSee(route('forms.index'), false);
-        $page->assertSee(route('store.index'), false);
+        // The tab is a bare /store href; the doorway carries ?intent=…,
+        // so quoting the URL distinguishes the two.
+        $page->assertDontSee('"'.route('store.index').'"', false);
+        $page->assertSee(trans('admin/store/general.request_additional'));
         $this->actingAs($user)->get(route('store.index'))->assertOk();
+    }
+
+    public function test_a_shared_purchaser_keeps_the_store_tab()
+    {
+        $user = User::factory()->create(['activated' => 1]);
+        $group = \App\Models\Group::factory()->create(['name' => 'Shared Purchasers']);
+        $user->groups()->attach($group->id);
+
+        $page = $this->actingAs($user)->get(route('my'))->assertOk();
+        $page->assertSee('"'.route('store.index').'"', false);
     }
 
     public function test_an_admin_keeps_the_sidebar_and_gets_no_end_user_bar()

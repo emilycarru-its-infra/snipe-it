@@ -130,7 +130,9 @@ class FacultyVisibilityTest extends TestCase
             'suppliers.index',
             'contracts.index',
         ] as $route) {
-            $this->actingAs($faculty)->get(route($route))
+            // The old hub URLs 302 to the elevated top-level boards; it is
+            // the final page that must refuse them.
+            $this->actingAs($faculty)->followingRedirects()->get(route($route))
                 ->assertForbidden("faculty reached {$route}");
         }
     }

@@ -73,9 +73,15 @@ class RequisitionBasket
             : new Requisition;
 
         // Once a requisition has been keyed into Colleague its lines are what
-        // was keyed, and must stay that way.
-        if ($requisition->exists && $requisition->status !== 'draft') {
-            throw new \RuntimeException(trans('admin/purchase-orders/general.requisition_locked'));
+        // was keyed — unless the vendor has since quoted it, which is the one
+        // event that makes our figures the wrong ones. See
+        // Requisition::linesEditable().
+        if ($requisition->exists && ! $requisition->linesEditable()) {
+            throw new \RuntimeException(trans(
+                $requisition->vendor_sent_at
+                    ? 'admin/purchase-orders/general.requisition_locked_sent'
+                    : 'admin/purchase-orders/general.requisition_locked'
+            ));
         }
 
         $requisition->fill([

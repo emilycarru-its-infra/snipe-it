@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasUploads;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -22,6 +23,7 @@ use Watson\Validating\ValidatingTrait;
 class LeaseSchedule extends SnipeModel
 {
     use HasFactory;
+    use HasUploads;
     use Loggable;
     use Searchable;
     use SoftDeletes;

@@ -2261,6 +2261,11 @@
                              forms see no Forms tab at all. --}}
                         @php
                             $euCanUseStore = auth()->user()->canUseStore();
+                            // Plain staff (no program, no shared purchasing)
+                            // reach the store through /my's doorways instead
+                            // of a permanent tab; their Orders tab still
+                            // appears once a doorway order exists.
+                            $euStoreTab = $euCanUseStore && auth()->user()->seesStoreInNav();
                             $euHasOrders = $euCanUseStore
                                 && \App\Models\StoreOrder::where('user_id', auth()->id())->exists();
                         @endphp
@@ -2273,7 +2278,7 @@
                                     <a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw" aria-hidden="true"></i> {{ trans('admin/forms/general.menu_link') }}</a>
                                 </li>
                             @endif
-                            @if ($euCanUseStore)
+                            @if ($euStoreTab)
                                 <li {!! request()->is('store') ? 'class="active"' : '' !!}>
                                     <a href="{{ route('store.index') }}"><i class="fa-solid fa-store fa-fw" aria-hidden="true"></i> {{ trans('admin/store/general.store') }}</a>
                                 </li>
@@ -2525,23 +2530,23 @@
                                              them here rather than through the
                                              Procurement section, which is the
                                              buying side of the same thing. Same
-                                             doorway as the topbar: a faculty
-                                             member without a program form on
-                                             file gets no store link anywhere. --}}
-                                        @if (auth()->user()->canUseStore())
+                                             visibility rule as the topbar tab —
+                                             plain staff enter through /my's
+                                             doorways instead. --}}
+                                        @if (auth()->user()->canUseStore() && auth()->user()->seesStoreInNav())
                                             <li {!! (request()->is('store') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('store.index') }}">
                                                     <i class="fa-solid fa-store fa-fw" aria-hidden="true"></i>
                                                     {{ trans('admin/store/general.store') }}
                                                 </a>
                                             </li>
-                                            <li {!! (request()->is('store/orders*') ? ' class="active"' : '') !!}>
-                                                <a href="{{ route('store.orders') }}">
-                                                    <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
-                                                    {{ trans('admin/store/general.my_orders') }}
-                                                </a>
-                                            </li>
                                         @endif
+                                        <li {!! (request()->is('store/orders*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('store.orders') }}">
+                                                <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
+                                                {{ trans('admin/store/general.my_orders') }}
+                                            </a>
+                                        </li>
 
                                         <li class="divider"></li>
 
