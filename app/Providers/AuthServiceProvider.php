@@ -254,23 +254,26 @@ class AuthServiceProvider extends ServiceProvider
         // existed, and the procurement board was gated by
         // reports.procurement.view.
         // -----------------------------------------
+        // The blanket `admin` permission opens these like every
+        // policy-guarded page — the ITS groups carry it instead of the
+        // per-module keys.
         Gate::define('deployments.view', function ($user) {
-            if ($user->hasAccess('deployments.view') || $user->hasAccess('deployments.edit') || $user->hasAccess('orders.view')) {
+            if ($user->hasAccess('admin') || $user->hasAccess('deployments.view') || $user->hasAccess('deployments.edit') || $user->hasAccess('orders.view')) {
                 return true;
             }
         });
         Gate::define('deployments.edit', function ($user) {
-            if ($user->hasAccess('deployments.edit') || $user->hasAccess('orders.edit')) {
+            if ($user->hasAccess('admin') || $user->hasAccess('deployments.edit') || $user->hasAccess('orders.edit')) {
                 return true;
             }
         });
         Gate::define('procurement.view', function ($user) {
-            if ($user->hasAccess('procurement.view') || $user->hasAccess('procurement.edit') || $user->hasAccess('reports.procurement.view') || $user->hasAccess('orders.view')) {
+            if ($user->hasAccess('admin') || $user->hasAccess('procurement.view') || $user->hasAccess('procurement.edit') || $user->hasAccess('reports.procurement.view') || $user->hasAccess('orders.view')) {
                 return true;
             }
         });
         Gate::define('procurement.edit', function ($user) {
-            if ($user->hasAccess('procurement.edit') || $user->hasAccess('orders.edit')) {
+            if ($user->hasAccess('admin') || $user->hasAccess('procurement.edit') || $user->hasAccess('orders.edit')) {
                 return true;
             }
         });
