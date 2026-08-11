@@ -53,61 +53,50 @@ class ProcurementHubTest extends TestCase
         return $order;
     }
 
-    public function test_the_hub_carries_a_tab_for_every_procurement_table()
+    public function test_in_flight_work_shows_as_pipeline_cards_on_the_board()
     {
+        $this->pendingOrder();
+        Requisition::create(['title' => 'Ministry ask', 'status' => 'submitted', 'requisition_number' => 'REQM-77']);
+
         $response = $this->actingAs($this->superuser())
-            ->get(route('procurement.index'))
+            ->followingRedirects()->get(route('procurement.index'))
             ->assertOk();
 
-        foreach (['queue', 'requisitions', 'purchaseorders', 'orders', 'suppliers', 'leases', 'agreements', 'depreciation'] as $tab) {
-            $response->assertSee('href="#'.$tab.'"', false);
-            $response->assertSee('id="'.$tab.'"', false);
-        }
+        // The approval queue and open requisitions ride the Orders Pipeline
+        // as cards — no side tables, no duplicate tabs.
+        $response->assertSee('ECU-STORE-');
+        $response->assertSee('REQM-77');
+        $response->assertSee(trans('admin/purchase-orders/general.pipeline_chip_awaiting'));
+        $response->assertSee(e(trans('admin/purchase-orders/general.pipeline_chip_reqm')));
+        $response->assertDontSee('href="#suppliers"', false);
+        $response->assertDontSee('href="#depreciation"', false);
     }
 
-    /**
-     * Bootstrap-table resolves formatters by name off `window`. A missing one
-     * renders the literal string "purchaseOrdersLinkFormatter" in every cell
-     * of that column, which is silent — no error, no empty table.
-     */
-    public function test_the_hub_loads_the_formatters_its_tables_name()
+    public function test_reports_carry_a_sticky_stage_pill_filter_strip()
     {
         $response = $this->actingAs($this->superuser())
-            ->get(route('procurement.index'))
+            ->followingRedirects()->get(route('procurement.index'))
             ->assertOk();
 
-        foreach ([
-            'requisitionsLinkFormatter',
-            'purchaseOrdersLinkFormatter',
-            'purchaseOrdersActionsFormatter',
-            'ordersLinkFormatter',
-            'leaseDecisionsLinkFormatter',
-        ] as $formatter) {
-            $response->assertSee('window.'.$formatter, false);
+        // Five aligned stage columns of pills — filters over the fully
+        // rendered report stream, not tab selectors.
+        foreach (['budgeting', 'ordering', 'deploying', 'reconciling', 'completed'] as $stage) {
+            $response->assertSee('class="pr-pill-col" data-report-stage="'.$stage.'"', false);
         }
+        $response->assertSee('data-pr-report="proc-report_po_budget"', false);
+        $response->assertSee('id="proc-report_po_budget"', false);
     }
 
-    public function test_the_queue_on_the_hub_keeps_its_decision_controls()
+    public function test_queue_decisions_live_on_the_queue_page()
     {
         $this->pendingOrder();
 
         $this->actingAs($this->superuser())
-            ->get(route('procurement.index'))
+            ->get(route('procurement.queue'))
             ->assertOk()
             ->assertSee(trans('admin/store/general.queue_approve'))
             ->assertSee(trans('admin/store/general.queue_decline'))
             ->assertSee('MacBook Pro | 16" | M5 Max');
-    }
-
-    public function test_the_queue_status_filter_works_from_the_hub()
-    {
-        $this->pendingOrder();
-
-        // Asking for approved orders should not show the pending one.
-        $this->actingAs($this->superuser())
-            ->get(route('procurement.index', ['status' => 'approved']))
-            ->assertOk()
-            ->assertDontSee('MacBook Pro | 16" | M5 Max');
     }
 
     /**
@@ -117,7 +106,7 @@ class ProcurementHubTest extends TestCase
     public function test_order_approvers_is_behind_a_modal_rather_than_on_the_page()
     {
         $this->actingAs($this->superuser())
-            ->get(route('procurement.index'))
+            ->followingRedirects()->get(route('procurement.index'))
             ->assertOk()
             ->assertSee('data-target="#approversModal"', false)
             ->assertSee('id="approversModal"', false);
@@ -130,7 +119,7 @@ class ProcurementHubTest extends TestCase
         $user->save();
 
         $this->actingAs($user)
-            ->get(route('procurement.index'))
+            ->followingRedirects()->get(route('procurement.index'))
             ->assertOk()
             ->assertDontSee('id="approversModal"', false);
     }
@@ -138,7 +127,7 @@ class ProcurementHubTest extends TestCase
     public function test_procurement_is_a_top_level_nav_item()
     {
         $this->actingAs($this->superuser())
-            ->get(route('procurement.index'))
+            ->followingRedirects()->get(route('procurement.index'))
             ->assertOk()
             ->assertSee('class="topbar-nav-label">'.trans('general.procurement'), false);
     }

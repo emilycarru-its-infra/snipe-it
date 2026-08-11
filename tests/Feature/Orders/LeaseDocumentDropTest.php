@@ -61,7 +61,7 @@ class LeaseDocumentDropTest extends TestCase
     {
         $this->actingAs(User::factory()->superuser()->create());
 
-        $this->get(route('procurement.index'))
+        $this->followingRedirects()->get(route('procurement.index'))
             ->assertOk()
             ->assertSee(route('lease-documents.parse'));
     }

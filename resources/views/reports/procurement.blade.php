@@ -9,38 +9,46 @@
 {{-- Page content --}}
 @section('content')
 
-<div class="row">
-    <div class="col-md-12">
-        <div class="box-header" style="padding-left:0;">
-            <h1 class="box-title" style="font-size:22px; margin:0; display:inline-block; vertical-align:middle;">
-                {{ trans('admin/purchase-orders/general.dashboard_title') }}
-            </h1>
-            {{-- Switching FY reloads the page; stash the scroll position so
-                 the reader lands back where they were, not at the top. --}}
-            <form method="get" style="display:inline-block; margin-left:15px; vertical-align:middle;">
-                <select name="fiscal_year" class="form-control input-sm" style="display:inline-block; width:auto;"
-                        onchange="sessionStorage.setItem('procDashScroll', String(window.scrollY)); this.form.submit()">
-                    <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
-                    @foreach ($allFiscalYears as $fy)
-                        <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
-                    @endforeach
-                </select>
-            </form>
-            {{-- The PO Builder and Requisitions are working tools, not
-                 reports — they live up here, not in the report list. --}}
-            <div class="pull-right hidden-print">
-                <a href="{{ route('purchase-orders.builder', ['fiscal_year' => $selectedFy ?? 'all']) }}" class="btn btn-sm btn-default">
-                    {{ trans('admin/purchase-orders/general.report_po_builder') }}
-                </a>
-                <a href="{{ route('requisitions.index') }}" class="btn btn-sm btn-default">
-                    {{ trans('admin/purchase-orders/general.requisitions') }}
-                </a>
-            </div>
-        </div>
-    </div>
+{{-- The working-tool doors left, the FY scope right and prominent —
+     the breadcrumb directly above already names the module. --}}
+<div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
+    <span class="hidden-print" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        <a href="{{ route('purchase-orders.builder', ['fiscal_year' => $selectedFy ?? 'all']) }}" class="btn btn-sm btn-default">
+            {{ trans('admin/purchase-orders/general.report_po_builder') }}
+        </a>
+        <a href="{{ route('requisitions.index') }}" class="btn btn-sm btn-default">
+            {{ trans('admin/purchase-orders/general.requisitions') }}
+        </a>
+        <a href="{{ route('store.index') }}" class="btn btn-sm btn-default">{{ trans('admin/store/general.go_store') }}</a>
+        @can('procurement.edit')
+            <a href="{{ route('procurement.store-admin') }}" class="btn btn-sm btn-default">{{ trans('admin/store/general.go_store_admin') }}</a>
+        @endcan
+        @if (auth()->user()->isSuperUser())
+            <button type="button" class="btn btn-sm btn-default" data-toggle="modal" data-target="#approversModal">
+                {{ trans('admin/store/general.approvers_title') }}
+            </button>
+        @endif
+    </span>
+    {{-- Switching FY reloads the page; stash the scroll position so the
+         reader lands back where they were, not at the top. --}}
+    <form method="get" style="margin:0 0 0 auto;">
+        <select name="fiscal_year" class="form-control" style="width:auto; font-weight:700;"
+                onchange="sessionStorage.setItem('procDashScroll', String(window.scrollY)); this.form.submit()">
+            <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
+            @foreach ($allFiscalYears as $fy)
+                <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
+            @endforeach
+        </select>
+    </form>
 </div>
 
-<div class="row">
+<style>
+    @media (min-width: 992px) {
+        .proc-chart-row .col-md-3 { width: 16.6667%; }
+    }
+    .proc-chart-row .box-body { height: 220px; }
+</style>
+<div class="row proc-chart-row">
     <div class="col-md-3 col-sm-6">
         <div class="box box-default">
             <div class="box-header with-border">
@@ -89,153 +97,81 @@
             </div>
         </div>
     </div>
-</div>
-
-@if (count($leaseEndSchedules))
-<div class="row">
-    <div class="col-md-12">
+    {{-- Lease returns, financial lens: pending decisions and credits at a
+         glance. The physical collection/wipe/pack work lives on the
+         Deployments board's decommissioning lane. --}}
+    <div class="col-md-3 col-sm-6 proc-pipe">
         <div class="box box-default">
             <div class="box-header with-border">
-                <h3 class="box-title">
-                    {{ $selectedFy
-                        ? trans('admin/purchase-orders/general.lease_end_title', ['fy' => $selectedFy])
-                        : trans('admin/purchase-orders/general.lease_end_title_all') }}
-                </h3>
-                @can('create', \App\Models\Order::class)
-                    <a href="{{ route('lease-decisions.create') }}" class="btn btn-default btn-xs pull-right">
-                        {{ trans('admin/lease-decisions/general.create') }}
-                    </a>
-                @endcan
+                <h3 class="box-title">{{ trans('admin/purchase-orders/general.returns_card_title') }}</h3>
             </div>
-            <div class="box-body">
-                <p class="text-muted" style="margin-bottom:10px;">{{ trans('admin/purchase-orders/general.lease_end_help') }}</p>
-                <style>
-                    /* Keep contract / provider / end-date on one line each; let the
-                       Models column be the flexible one that wraps and grows. The
-                       Plan column has a reserved min-width so opening the inline
-                       note editor doesn't reflow the whole table. */
-                    .lease-end-table th:nth-child(1), .lease-end-table td:nth-child(1),
-                    .lease-end-table th:nth-child(2), .lease-end-table td:nth-child(2),
-                    .lease-end-table th:nth-child(3), .lease-end-table td:nth-child(3),
-                    .lease-end-table th:nth-child(4), .lease-end-table td:nth-child(4) { white-space: nowrap; }
-                    .lease-end-table td:nth-child(6) { white-space: normal; min-width: 280px; }
-                    .lease-end-table th:nth-child(8), .lease-end-table td:nth-child(8) { min-width: 260px; }
-                    .lease-end-table .rpt-note-input { width: 100%; box-sizing: border-box; }
-                    /* The retained note is the plan, not a footnote: full
-                       foreground colour, readable size, a left accent bar. */
-                    .lease-end-retained-note {
-                        display: block;
-                        margin-top: 6px;
-                        padding: 6px 10px;
-                        font-size: 13px;
-                        color: var(--color-fg, #262626);
-                        background: light-dark(rgba(60, 141, 188, .08), rgba(60, 141, 188, .16));
-                        border-left: 3px solid #3c8dbc;
-                        border-radius: 0 6px 6px 0;
-                        max-width: 560px;
-                    }
-                </style>
-                <div class="table-responsive">
-                    <table class="table table-striped lease-end-table" style="margin-bottom:0;">
-                        <thead>
-                            <tr>
-                                <th>{{ trans('admin/lease-decisions/general.contract_reference') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.lease_end_ownership') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.lease_end_date') }}</th>
-                                <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_devices') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.lease_end_models') }}</th>
-                                <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_replacement') }}</th>
-                                <th>{{ trans('admin/purchase-orders/general.lease_end_plan') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($leaseEndSchedules as $schedule)
-                                <tr>
-                                    <td><strong>{{ $schedule['contract_id'] }}</strong></td>
-                                    <td>{{ $schedule['provider'] }}</td>
-                                    <td>
-                                        @php $ownershipMix = $schedule['ownership_counts']; @endphp
-                                        @if (empty($ownershipMix))
-                                            <span class="text-muted">—</span>
-                                        @elseif (count($ownershipMix) === 1)
-                                            {{ array_key_first($ownershipMix) }}
-                                        @else
-                                            {{ collect($ownershipMix)->map(fn ($qty, $type) => $qty.'× '.$type)->implode(', ') }}
-                                        @endif
-                                    </td>
-                                    <td>{{ $schedule['lease_end_date'] }}</td>
-                                    <td class="text-right">{{ $schedule['count'] }}</td>
-                                    <td>
-                                        {{ collect($schedule['model_counts'])
-                                            ->map(fn ($qty, $model) => $qty.'× '.$model)
-                                            ->implode(', ') }}
-                                    </td>
-                                    <td class="text-right">${{ Helper::formatCurrencyOutput($schedule['cost']) }}</td>
-                                    <td>
-                                        @if ($schedule['is_lease_to_own'])
-                                            <span class="label label-default">{{ trans('admin/purchase-orders/general.lease_end_retained') }}</span>
-                                            {{-- The budget consequence is the decision — say it like one,
-                                                 not like a footnote. A per-row plan note overrides the
-                                                 generic retained text and is editable in place. --}}
-                                            <span class="lease-end-retained-note rpt-note-cell" data-model="lease_plan_note" data-contract="{{ $schedule['contract_id'] }}">
-                                                <span class="rpt-note-text">{{ $schedule['plan_note'] !== '' ? $schedule['plan_note'] : trans('admin/purchase-orders/general.lease_end_retained_help') }}</span>
-                                                @can('create', \App\Models\Order::class)
-                                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
-                                                @endcan
-                                            </span>
-                                        @elseif ($schedule['decision'])
-                                            <span class="label {{ $schedule['refresh_planned'] ? 'label-primary' : 'label-warning' }}">
-                                                {{ trans('admin/purchase-orders/general.lease_end_decision_tag', [
-                                                    'type' => trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type),
-                                                    'status' => trans('admin/purchase-orders/general.decision_status_'.$schedule['decision']->status),
-                                                ]) }}
-                                            </span>
-                                            @unless ($schedule['refresh_planned'])
-                                                <span class="text-muted" style="display:block; font-size:12px;">
-                                                    {{ trans('admin/purchase-orders/general.lease_end_reassess') }}
-                                                </span>
-                                            @endunless
-                                            <span class="rpt-note-cell" data-model="lease_decision" data-id="{{ $schedule['decision']->id }}" style="display:block; font-size:12px;">
-                                                <span class="rpt-note-text text-muted">{{ $schedule['decision']->notes }}</span>
-                                                @can('create', \App\Models\Order::class)
-                                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
-                                                @endcan
-                                            </span>
-                                        @else
-                                            <span class="label label-success">{{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}</span>
-                                            <span class="rpt-note-cell" data-model="lease_plan_note" data-contract="{{ $schedule['contract_id'] }}" style="display:block; font-size:12px;">
-                                                <span class="rpt-note-text text-muted">{{ $schedule['plan_note'] }}</span>
-                                                @can('create', \App\Models\Order::class)
-                                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
-                                                @endcan
-                                            </span>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                        <tfoot>
-                            @php
-                                $leaseEndAll = collect($leaseEndSchedules);
-                            @endphp
-                            <tr>
-                                <th colspan="4">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
-                                <th class="text-right">{{ $leaseEndAll->sum('count') }}</th>
-                                <th></th>
-                                <th class="text-right">${{ Helper::formatCurrencyOutput($leaseEndAll->sum('cost')) }}</th>
-                                <th></th>
-                            </tr>
-                        </tfoot>
-                    </table>
+            <div class="box-body" style="overflow:auto;">
+                @php
+                    $returnsPending = count($pipeline['returns']['pending']['cards']) + $pipeline['returns']['pending']['more'];
+                    $returnsClosed = count($pipeline['returns']['closed']['cards']) + $pipeline['returns']['closed']['more'];
+                @endphp
+                <div style="margin-bottom:8px;">
+                    <a href="#proc-report_lease_decisions" class="pr-jump" data-pr-jump="proc-report_lease_decisions" style="font-weight:700;">
+                        {{ trans('admin/purchase-orders/general.pipeline_returns_pending') }} · {{ $returnsPending }}
+                    </a>
+                    <div style="margin-top:4px;">
+                        @foreach (array_slice($pipeline['returns']['pending']['cards']->all(), 0, 3) as $returnRow)
+                            <span class="label label-default" style="display:inline-block; margin:0 4px 4px 0;">{{ $returnRow['contract_reference'] }}</span>
+                        @endforeach
+                    </div>
                 </div>
+                <div style="margin-bottom:8px;">
+                    <a href="#proc-report_credit_ledger" class="pr-jump" data-pr-jump="proc-report_credit_ledger" style="font-weight:700;">
+                        {{ trans('admin/purchase-orders/general.pipeline_returns_closed') }} · {{ $returnsClosed }}
+                    </a>
+                </div>
+                <p class="text-muted" style="font-size:11.5px; margin:0;">
+                    <a href="{{ route('reports.deployments') }}#decommissioning">{{ trans('admin/purchase-orders/general.pipeline_returns_physical_link') }}</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    {{-- The unfunded counterweight to the funded pipeline: no replacement
+         money was pre-approved for these devices. One section per family
+         (Legacy, Buyouts), each sliceable by model. --}}
+    <div class="col-md-3 col-sm-6">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/deployments/general.legacy_box_title') }}
+                    <span class="text-muted" style="font-weight:normal;">· {{ $legacyFleet['count'] ?? 0 }} · ${{ \App\Helpers\Helper::formatCurrencyOutput($legacyFleet['purchase_cost'] ?? 0) }}</span>
+                </h3>
+            </div>
+            <div class="box-body" style="overflow:auto;">
+                <p class="text-muted" style="font-size:11.5px; margin:0 0 8px;">{{ trans('admin/deployments/general.legacy_box_subtitle') }}</p>
+                @forelse ($legacyFleet['sections'] ?? [] as $section)
+                    <div style="margin-bottom:10px;">
+                        <a href="{{ url('hardware') }}?status_id={{ $section['status_ids'][0] }}" style="font-weight:700;">
+                            {{ $section['label'] }} · {{ $section['count'] }} · ${{ \App\Helpers\Helper::formatCurrencyOutput($section['purchase_cost']) }}
+                        </a>
+                        <div class="text-muted" style="font-size:11.5px;">
+                            {{ trans('admin/deployments/general.legacy_age_note', [
+                                'age' => $section['avg_age_years'] ?? '—',
+                                'oldest' => $section['oldest_year'] ?? '—',
+                            ]) }}
+                        </div>
+                        <div style="margin-top:4px;">
+                            @foreach (array_slice($section['by_model'], 0, 4) as $legacyRow)
+                                <a href="{{ url('hardware') }}?status_id={{ $section['status_ids'][0] }}&model_id={{ $legacyRow['model_id'] }}"
+                                   class="label label-default" style="display:inline-block; margin:0 4px 4px 0;">
+                                    {{ $legacyRow['model'] }} · {{ $legacyRow['count'] }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-muted" style="margin:0;">—</p>
+                @endforelse
+                <p class="text-muted" style="font-size:11.5px; margin:0;">{{ trans('admin/deployments/general.legacy_note') }}</p>
             </div>
         </div>
     </div>
 </div>
-@endif
 
-@include('reports.procurement._pipeline')
 
 
 @php
@@ -253,7 +189,7 @@
     // lifecycle, with the remaining working/audit views after.
     $procReports = collect([
         ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'stage' => 'budgeting'],
-        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'budgeting'],
+        ['route' => 'reports.procurement.lease-end-schedules', 'name' => 'report_lease_end_schedules', 'desc' => 'report_lease_end_schedules_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'stage' => 'reconciling'],
@@ -264,7 +200,7 @@
         ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'deploying'],
-        ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'stage' => 'ordering'],
+        ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.csi-reconciliation', 'name' => 'report_csi_reconciliation', 'desc' => 'report_csi_reconciliation_desc', 'stage' => 'reconciling'],
@@ -272,91 +208,18 @@
         ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.asset-lease-detail', 'name' => 'report_asset_lease_detail', 'desc' => 'report_asset_lease_detail_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc', 'stage' => 'ordering'],
-        ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'stage' => 'reconciling'],
-        ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'stage' => 'completed'],
+        ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'stage' => 'completed'],
+        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'completed'],
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
 
-<div class="row proc-reports-row">
-    {{-- Sticky jump-nav so every report stays one click away in the long scroll. --}}
-    <div class="proc-nav-col hidden-sm hidden-xs">
-        <div class="proc-report-nav proc-pipe">
-            <div class="box box-default" style="margin-bottom:0;">
-                <div class="box-header with-border">
-                    <h3 class="box-title">{{ trans('admin/purchase-orders/general.reports') }}</h3>
-                </div>
-                <div class="box-body no-padding">
-                    <div class="pp-filter-note" id="pp-filter-note">
-                        <span class="pp-fdot"></span>
-                        <span data-pp-filter-label></span>
-                        <a href="#" id="pp-filter-clear">{{ trans('admin/purchase-orders/general.pipeline_filter_clear') }}</a>
-                    </div>
-                    <ul class="nav nav-pills nav-stacked proc-report-navlist">
-                        @foreach ($procReports as $report)
-                            <li data-report-stage="{{ $report['stage'] }}">
-                                <a href="#proc-{{ $report['name'] }}" data-target-report="proc-{{ $report['name'] }}">
-                                    <span class="pp-sdot" style="background: var(--pp-{{ $report['stage'] }})"></span>{{ trans('admin/purchase-orders/general.'.$report['name']) }}
-                                </a>
-                            </li>
-                        @endforeach
-                    </ul>
-                    @if (! empty($hiddenReports))
-                        <p style="padding:8px 12px; margin:0;">
-                            <a href="#" id="show-all-procurement-reports">
-                                <i class="fa-solid fa-eye" aria-hidden="true"></i>
-                                {{ trans('admin/purchase-orders/general.reports_hidden_count', ['count' => count($hiddenReports)]) }}
-                            </a>
-                        </p>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
+@include('reports.procurement._pipeline')
 
-    <div class="proc-content-col col-sm-12 proc-pipe">
-        @foreach ($procReports as $report)
-            <div class="box box-default proc-report-box" id="proc-{{ $report['name'] }}" data-report-stage="{{ $report['stage'] }}" style="scroll-margin-top:64px;">
-                <div class="box-header with-border">
-                    <h3 class="box-title">
-                        <a href="{{ $reportLink($report['route']) }}">{{ trans('admin/purchase-orders/general.'.$report['name']) }}</a>
-                    </h3>
-                    <div class="box-tools pull-right">
-                        <a href="{{ $reportLink($report['route']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('general.view') }}">
-                            <x-icon type="reports" />
-                        </a>
-                        <a href="{{ $reportLink($report['route'], ['format' => 'csv']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_csv') }}">
-                            <x-icon type="download" />
-                        </a>
-                        @if ($report['route'] === 'reports.procurement.disposition-grid')
-                            <a href="{{ $reportLink($report['route'], ['format' => 'xlsx']) }}" class="btn btn-box-tool" data-tooltip="true" title="{{ trans('admin/purchase-orders/general.disposition_download_xlsx') }}">
-                                <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
-                            </a>
-                        @endif
-                        <a href="#" class="btn btn-box-tool hide-procurement-report"
-                           data-report="{{ $report['name'] }}"
-                           data-tooltip="true" title="{{ trans('admin/purchase-orders/general.report_hide') }}">
-                            <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
-                        </a>
-                        <button type="button" class="btn btn-box-tool" data-widget="collapse" data-tooltip="true" title="{{ trans('general.collapse') }}">
-                            <i class="fa fa-minus" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                    {{-- The description lives in the sticky header so the
-                         report's name AND subtitle stay pinned while its
-                         rows scroll under them. --}}
-                    <p class="text-muted proc-report-desc">{{ trans('admin/purchase-orders/general.'.$report['desc']) }}</p>
-                </div>
-                <div class="box-body">
-                    <div class="proc-report-body" data-embed-url="{{ $reportLink($report['route'], ['embed' => 1]) }}">
-                        <div class="text-center text-muted" style="padding:18px;">
-                            <i class="fa fa-spinner fa-spin" aria-hidden="true"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @endforeach
-    </div>
-</div>
+@include('procurement._approvers-modal')
+
+
+
 
 <style>
     html { scroll-behavior: smooth; }
@@ -605,14 +468,91 @@
     // ~20 parallel queries) so heavy reports don't stampede the server; each
     // section fills in as it arrives.
     (function () {
-        var pending = Array.prototype.slice.call(
-            document.querySelectorAll('.proc-report-body[data-embed-url]')
-        );
+        var pills = document.querySelectorAll('.pr-pill[data-pr-report]');
+        if (! pills.length) { return; }
 
-        function loadNext() {
-            var el = pending.shift();
+        // Pills are filters: none active shows every report; any active
+        // set shows only those. The pipeline's stage filter composes on
+        // top via the shared [data-report-stage] hidden toggling.
+        function applyPills() {
+            var active = Array.prototype.filter.call(pills, function (pill) {
+                return pill.classList.contains('active');
+            }).map(function (pill) { return pill.dataset.prReport; });
+
+            document.querySelectorAll('.pr-report-pane').forEach(function (pane) {
+                pane.classList.toggle('pr-hidden', active.length > 0 && active.indexOf(pane.id) === -1);
+            });
+        }
+
+        pills.forEach(function (pill) {
+            pill.addEventListener('click', function (e) {
+                e.preventDefault();
+                pill.classList.toggle('active');
+                applyPills();
+                syncHash();
+            });
+        });
+
+        // The filter state is a URL: #stage=<key>&reports=<id,id> — copy
+        // the address bar and the recipient lands on the same slice.
+        function syncHash() {
+            var parts = [];
+            if (window.ppCurrentStage) { parts.push('stage=' + window.ppCurrentStage); }
+            var active = Array.prototype.filter.call(pills, function (pill) {
+                return pill.classList.contains('active');
+            }).map(function (pill) { return pill.dataset.prReport; });
+            if (active.length) { parts.push('reports=' + active.join(',')); }
+            history.replaceState(null, '', parts.length ? '#' + parts.join('&') : location.pathname + location.search);
+        }
+        window.prSyncHash = syncHash;
+        window.prClearPills = function () {
+            pills.forEach(function (pill) { pill.classList.remove('active'); });
+            applyPills();
+        };
+
+        (function restoreFromHash() {
+            var hash = location.hash.replace(/^#/, '');
+            if (! hash) { return; }
+            var params = {};
+            hash.split('&').forEach(function (part) {
+                var kv = part.split('=');
+                params[kv[0]] = decodeURIComponent(kv[1] || '');
+            });
+            if (params.stage) {
+                var chev = document.querySelector('.pp-chev[data-pp-stage="' + params.stage + '"]');
+                if (chev) { chev.click(); }
+            }
+            if (params.reports) {
+                var wanted = params.reports.split(',');
+                pills.forEach(function (pill) {
+                    pill.classList.toggle('active', wanted.indexOf(pill.dataset.prReport) !== -1);
+                });
+                applyPills();
+            }
+        })();
+
+        // Deep links (the Lease Returns card): select exactly that
+        // report's pill and land on it.
+        document.querySelectorAll('.pr-jump[data-pr-jump]').forEach(function (jump) {
+            jump.addEventListener('click', function (e) {
+                e.preventDefault();
+                var id = jump.dataset.prJump;
+                pills.forEach(function (pill) {
+                    pill.classList.toggle('active', pill.dataset.prReport === id);
+                });
+                applyPills();
+                syncHash();
+                var pane = document.getElementById(id);
+                if (pane) { pane.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+            });
+        });
+
+        // Every report loads up front, one after another — filters only
+        // ever show and hide already-rendered content.
+        var queue = Array.prototype.slice.call(document.querySelectorAll('.proc-report-body[data-embed-url]'));
+        (function drain() {
+            var el = queue.shift();
             if (! el) { return; }
-
             fetch(el.dataset.embedUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
                 .then(function (resp) {
                     if (! resp.ok) { throw new Error('HTTP ' + resp.status); }
@@ -622,34 +562,11 @@
                 .catch(function () {
                     el.innerHTML = '<p class="text-danger">' + @json(trans('general.something_went_wrong')) + '</p>';
                 })
-                .then(loadNext);
-        }
-
-        loadNext();
+                .then(drain);
+        })();
     })();
 
-    // Highlight the report currently in view in the sticky jump-nav.
-    (function () {
-        var links = {};
-        document.querySelectorAll('.proc-report-navlist a[data-target-report]').forEach(function (a) {
-            links[a.dataset.targetReport] = a.parentElement;
-        });
-        var boxes = document.querySelectorAll('.proc-report-box');
-        if (! boxes.length || typeof IntersectionObserver === 'undefined') { return; }
 
-        var observer = new IntersectionObserver(function (entries) {
-            entries.forEach(function (entry) {
-                var li = links[entry.target.id];
-                if (! li) { return; }
-                if (entry.isIntersecting) {
-                    Object.keys(links).forEach(function (k) { links[k].classList.remove('active'); });
-                    li.classList.add('active');
-                }
-            });
-        }, { rootMargin: '-64px 0px -70% 0px' });
-
-        boxes.forEach(function (box) { observer.observe(box); });
-    })();
 </script>
 {{-- Delegated handlers so the lazy-loaded Per-Serial Disposition Grid stays
      editable once it is injected into its report box. --}}
