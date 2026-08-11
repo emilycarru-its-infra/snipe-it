@@ -33,7 +33,18 @@ class WaveAnnouncer
      */
     public function recipients(DeploymentWave $wave): Collection
     {
-        $assetIds = DeploymentItem::where('wave_id', $wave->id)->pluck('asset_id')->filter();
+        // Both sides of a swap, because on a refresh wave the new machine does
+        // not exist yet: the item carries only `replaces_asset_id`, and the
+        // person is on the device being replaced. Reading `asset_id` alone found
+        // nobody in a wave of 21 named faculty.
+        $items = DeploymentItem::where('wave_id', $wave->id)
+            ->get(['asset_id', 'replaces_asset_id']);
+
+        $assetIds = $items->pluck('replaces_asset_id')
+            ->merge($items->pluck('asset_id'))
+            ->filter()
+            ->unique()
+            ->values();
 
         if ($assetIds->isEmpty()) {
             return collect();
