@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Order;
 use App\Models\StaffBlackout;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,14 +11,14 @@ use Illuminate\Http\Request;
  * the deployments Gantt overlays for capacity planning. UI-created rows are
  * source='manual'; the M365 calendar sync (deployment-staff-sync function)
  * writes source='graph' rows through the API upsert endpoint instead.
- * Authorization reuses the Order policy, mirroring the deployment board.
+ * Gated by the deployments module permission.
  */
 class StaffBlackoutsController extends Controller
 {
     /** List all blackouts, newest first, with the staff member's name. */
     public function index()
     {
-        $this->authorize('view', Order::class);
+        $this->authorize('deployments.view');
 
         return view('deployment-blackouts.index', [
             'blackouts' => StaffBlackout::with('user')->orderByDesc('start_date')->orderByDesc('id')->get(),
@@ -28,7 +27,7 @@ class StaffBlackoutsController extends Controller
 
     public function create()
     {
-        $this->authorize('create', Order::class);
+        $this->authorize('deployments.edit');
 
         return view('deployment-blackouts.form', [
             'blackout' => new StaffBlackout(['source' => 'manual']),
@@ -37,7 +36,7 @@ class StaffBlackoutsController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->authorize('create', Order::class);
+        $this->authorize('deployments.edit');
 
         $blackout = new StaffBlackout;
         $blackout->fill($this->input($request));
@@ -53,7 +52,7 @@ class StaffBlackoutsController extends Controller
 
     public function edit(StaffBlackout $blackout)
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
 
         if ($blackout->source !== 'manual') {
             return redirect()->route('deployments.blackouts.index')
@@ -67,7 +66,7 @@ class StaffBlackoutsController extends Controller
 
     public function update(Request $request, StaffBlackout $blackout): RedirectResponse
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
 
         if ($blackout->source !== 'manual') {
             return redirect()->route('deployments.blackouts.index')
@@ -86,7 +85,7 @@ class StaffBlackoutsController extends Controller
 
     public function destroy(StaffBlackout $blackout): RedirectResponse
     {
-        $this->authorize('delete', Order::class);
+        $this->authorize('deployments.edit');
 
         if ($blackout->source !== 'manual') {
             return redirect()->route('deployments.blackouts.index')
