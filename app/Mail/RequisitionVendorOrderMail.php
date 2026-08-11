@@ -3,7 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Actionlog;
-use App\Models\Requisition;
+use App\Models\PurchaseOrder;
 use App\Services\RequisitionVendorCsv;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
@@ -32,7 +32,7 @@ class RequisitionVendorOrderMail extends BaseMailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public Requisition $requisition,
+        public PurchaseOrder $purchaseOrder,
         public bool $test = false,
     ) {}
 
@@ -41,7 +41,7 @@ class RequisitionVendorOrderMail extends BaseMailable
         $subject = $this->overriddenSubject(
             'procurement.vendor_order',
             trans('mail.requisition_vendor_order_subject', [
-                'reference' => $this->requisition->display_name,
+                'reference' => $this->purchaseOrder->po_number,
                 'quote' => $this->quoteSuffix(),
             ])
         );
@@ -59,16 +59,19 @@ class RequisitionVendorOrderMail extends BaseMailable
 
     public function content(): Content
     {
-        $this->requisition->loadMissing('items', 'supplier', 'purchaseOrder');
+        $this->purchaseOrder->loadMissing('supplier');
+
+        $lines = $this->purchaseOrder->vendorOrderLines();
 
         return $this->bodyContent('procurement.vendor_order', 'notifications.markdown.requisition-vendor-order', [
-            'requisition' => $this->requisition,
-            'reference' => $this->requisition->display_name,
-            'supplier' => $this->requisition->supplier,
-            'lineCount' => $this->requisition->items->count(),
+            'order' => $this->purchaseOrder,
+            'lines' => $lines,
+            'reference' => $this->purchaseOrder->po_number,
+            'supplier' => $this->purchaseOrder->supplier,
+            'lineCount' => $lines->count(),
             // Called out in the body rather than left to be noticed: these are
             // the lines the vendor has to price and issue numbers for.
-            'specialLines' => $this->requisition->specialRequestLines(),
+            'specialLines' => $this->purchaseOrder->specialRequestLines(),
         ]);
     }
 
@@ -81,7 +84,7 @@ class RequisitionVendorOrderMail extends BaseMailable
      */
     public function attachments(): array
     {
-        $csv = new RequisitionVendorCsv($this->requisition);
+        $csv = new RequisitionVendorCsv($this->purchaseOrder);
 
         $attachments = [
             Attachment::fromData(fn () => $csv->contents(), $csv->filename())
@@ -108,12 +111,12 @@ class RequisitionVendorOrderMail extends BaseMailable
      */
     private function purchaseOrderDocuments()
     {
-        $purchaseOrder = $this->requisition->purchaseOrder;
+        $purchaseOrder = $this->purchaseOrder;
 
         // `exists` and not just null: the email previewer in Settings → Emails
         // renders this mailable against unsaved sample models, and asking an
         // idless purchase order for its uploads is a query for everything.
-        if (! $purchaseOrder || ! $purchaseOrder->exists) {
+        if (! $purchaseOrder->exists) {
             return collect();
         }
 
@@ -125,8 +128,8 @@ class RequisitionVendorOrderMail extends BaseMailable
     /** " — quote PZFD093" when there is one, nothing when there isn't. */
     private function quoteSuffix(): string
     {
-        return filled($this->requisition->quote_number)
-            ? trans('mail.requisition_vendor_order_subject_quote', ['quote' => $this->requisition->quote_number])
+        return filled($this->purchaseOrder->quote_number)
+            ? trans('mail.requisition_vendor_order_subject_quote', ['quote' => $this->purchaseOrder->quote_number])
             : '';
     }
 }

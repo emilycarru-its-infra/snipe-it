@@ -124,9 +124,9 @@ Route::group(['middleware' => 'auth'], function () {
     /*
     * Orders
     */
-    Route::resource('orders', OrdersController::class);
-    Route::post('orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
-    Route::post('orders/allocate', [OrdersController::class, 'allocate'])->name('orders.allocate');
+    Route::resource('procurement/orders', OrdersController::class);
+    Route::post('procurement/orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
+    Route::post('procurement/orders/allocate', [OrdersController::class, 'allocate'])->name('orders.allocate');
 
     // Type-ahead behind the toolbar lookup. No breadcrumb: it answers XHR,
     // it is never a page you land on.
@@ -137,20 +137,20 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('my', [DashboardController::class, 'my'])->name('my');
     Route::post('my/assets/{asset}/request-buyout', [DashboardController::class, 'myRequestBuyout'])
         ->name('my.request-buyout');
-    Route::get('orders/{order}/export', [OrdersController::class, 'export'])->name('orders.export');
-    Route::post('orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('orders.cancel');
-    Route::post('orders/{order}/reopen', [OrdersController::class, 'reopen'])->name('orders.reopen');
-    Route::post('orders/{order}/items', [OrdersController::class, 'storeItem'])->name('orders.items.store');
-    Route::delete('orders/{order}/items/{item}', [OrdersController::class, 'destroyItem'])->name('orders.items.destroy');
-    Route::post('orders/{order}/items/{item}/receive', [OrdersController::class, 'receiveItem'])->name('orders.items.receive');
-    Route::post('orders/{order}/items/{item}/unreceive', [OrdersController::class, 'unreceiveItem'])->name('orders.items.unreceive');
-    Route::post('orders/{order}/shipments', [OrdersController::class, 'storeShipment'])->name('orders.shipments.store');
-    Route::put('orders/{order}/shipments/{shipment}', [OrdersController::class, 'updateShipment'])->name('orders.shipments.update');
-    Route::delete('orders/{order}/shipments/{shipment}', [OrdersController::class, 'destroyShipment'])->name('orders.shipments.destroy');
-    Route::post('orders/{order}/shipments/{shipment}/receive', [OrdersController::class, 'receiveShipment'])->name('orders.shipments.receive');
-    Route::post('orders/{order}/invoices', [OrdersController::class, 'storeInvoice'])->name('orders.invoices.store');
-    Route::put('orders/{order}/invoices/{invoice}', [OrdersController::class, 'updateInvoice'])->name('orders.invoices.update');
-    Route::delete('orders/{order}/invoices/{invoice}', [OrdersController::class, 'destroyInvoice'])->name('orders.invoices.destroy');
+    Route::get('procurement/orders/{order}/export', [OrdersController::class, 'export'])->name('orders.export');
+    Route::post('procurement/orders/{order}/cancel', [OrdersController::class, 'cancel'])->name('orders.cancel');
+    Route::post('procurement/orders/{order}/reopen', [OrdersController::class, 'reopen'])->name('orders.reopen');
+    Route::post('procurement/orders/{order}/items', [OrdersController::class, 'storeItem'])->name('orders.items.store');
+    Route::delete('procurement/orders/{order}/items/{item}', [OrdersController::class, 'destroyItem'])->name('orders.items.destroy');
+    Route::post('procurement/orders/{order}/items/{item}/receive', [OrdersController::class, 'receiveItem'])->name('orders.items.receive');
+    Route::post('procurement/orders/{order}/items/{item}/unreceive', [OrdersController::class, 'unreceiveItem'])->name('orders.items.unreceive');
+    Route::post('procurement/orders/{order}/shipments', [OrdersController::class, 'storeShipment'])->name('orders.shipments.store');
+    Route::put('procurement/orders/{order}/shipments/{shipment}', [OrdersController::class, 'updateShipment'])->name('orders.shipments.update');
+    Route::delete('procurement/orders/{order}/shipments/{shipment}', [OrdersController::class, 'destroyShipment'])->name('orders.shipments.destroy');
+    Route::post('procurement/orders/{order}/shipments/{shipment}/receive', [OrdersController::class, 'receiveShipment'])->name('orders.shipments.receive');
+    Route::post('procurement/orders/{order}/invoices', [OrdersController::class, 'storeInvoice'])->name('orders.invoices.store');
+    Route::put('procurement/orders/{order}/invoices/{invoice}', [OrdersController::class, 'updateInvoice'])->name('orders.invoices.update');
+    Route::delete('procurement/orders/{order}/invoices/{invoice}', [OrdersController::class, 'destroyInvoice'])->name('orders.invoices.destroy');
 
     /*
     * Purchase Orders
@@ -158,13 +158,22 @@ Route::group(['middleware' => 'auth'], function () {
     // The PO builder: operational home under /purchase-orders, out of
     // the reports tree it started life in. Registered before the
     // resource so "builder" never binds as a {purchase_order}.
-    Route::get('purchase-orders/builder', [RequisitionsController::class, 'builder'])
+    Route::get('procurement/purchase-orders/builder', [RequisitionsController::class, 'builder'])
         ->name('purchase-orders.builder')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('procurement.index')
             ->push(trans('admin/purchase-orders/general.report_po_builder'), route('purchase-orders.builder')));
 
-    Route::resource('purchase-orders', PurchaseOrdersController::class);
-    Route::post('purchase-orders/bulk/delete', [PurchaseOrdersController::class, 'bulkDelete'])->name('purchase-orders.bulk.delete');
+    Route::resource('procurement/purchase-orders', PurchaseOrdersController::class);
+    Route::post('procurement/purchase-orders/bulk/delete', [PurchaseOrdersController::class, 'bulkDelete'])->name('purchase-orders.bulk.delete');
+
+    // Placing the order, and recording what the vendor says back. On the
+    // purchase order rather than the requisition because the purchase order is
+    // what authorises the spending and what the vendor bills against — the
+    // requisition is the transient basket that produced the number.
+    Route::post('procurement/purchase-orders/{purchase_order}/send-vendor', [PurchaseOrdersController::class, 'sendVendor'])
+        ->name('purchase-orders.send-vendor');
+    Route::post('procurement/purchase-orders/{purchase_order}/vendor-response', [PurchaseOrdersController::class, 'vendorResponse'])
+        ->name('purchase-orders.vendor-response');
 
     /*
     * The internal store — every authenticated user can browse and order.
@@ -228,29 +237,25 @@ Route::group(['middleware' => 'auth'], function () {
     $reqCrumb = fn (Trail $trail) => $trail->parent('home')
         ->push(trans('admin/purchase-orders/general.requisitions'), route('requisitions.index'));
 
-    Route::get('requisitions', [RequisitionsController::class, 'index'])
+    Route::get('procurement/requisitions', [RequisitionsController::class, 'index'])
         ->name('requisitions.index')
         ->breadcrumbs($reqCrumb);
-    Route::post('requisitions', [RequisitionsController::class, 'store'])
+    Route::post('procurement/requisitions', [RequisitionsController::class, 'store'])
         ->name('requisitions.store');
-    Route::get('requisitions/{requisition}', [RequisitionsController::class, 'show'])
+    Route::get('procurement/requisitions/{requisition}', [RequisitionsController::class, 'show'])
         ->name('requisitions.show')
         ->breadcrumbs(fn (Trail $trail, $requisition) => ($reqCrumb)($trail)
             ->push($requisition->display_name, route('requisitions.show', $requisition)));
-    Route::patch('requisitions/{requisition}', [RequisitionsController::class, 'update'])
+    Route::patch('procurement/requisitions/{requisition}', [RequisitionsController::class, 'update'])
         ->name('requisitions.update');
     // The crossing into the budget ledger: REQM becomes PO, PDF in hand.
-    Route::post('requisitions/{requisition}/promote', [RequisitionsController::class, 'promote'])
+    Route::post('procurement/requisitions/{requisition}/promote', [RequisitionsController::class, 'promote'])
         ->name('requisitions.promote');
-    Route::post('requisitions/{requisition}/send-vendor', [RequisitionsController::class, 'sendVendor'])
-        ->name('requisitions.send-vendor');
-    Route::post('requisitions/{requisition}/vendor-response', [RequisitionsController::class, 'vendorResponse'])
-        ->name('requisitions.vendor-response');
-    Route::delete('requisitions/{requisition}', [RequisitionsController::class, 'destroy'])
+    Route::delete('procurement/requisitions/{requisition}', [RequisitionsController::class, 'destroy'])
         ->name('requisitions.destroy');
-    Route::get('requisitions/{requisition}/print', [RequisitionsController::class, 'print'])
+    Route::get('procurement/requisitions/{requisition}/print', [RequisitionsController::class, 'print'])
         ->name('requisitions.print');
-    Route::get('requisitions/{requisition}/export', [RequisitionsController::class, 'export'])
+    Route::get('procurement/requisitions/{requisition}/export', [RequisitionsController::class, 'export'])
         ->name('requisitions.export');
 
     /*
@@ -259,21 +264,21 @@ Route::group(['middleware' => 'auth'], function () {
     $ldCrumb = fn (Trail $trail) => $trail->parent('home')
         ->push(trans('admin/lease-decisions/general.lease_decisions'), route('lease-decisions.index'));
 
-    Route::get('lease-decisions', [LeaseDecisionsController::class, 'index'])
+    Route::get('procurement/lease-decisions', [LeaseDecisionsController::class, 'index'])
         ->name('lease-decisions.index')
         ->breadcrumbs($ldCrumb);
-    Route::get('lease-decisions/create', [LeaseDecisionsController::class, 'create'])
+    Route::get('procurement/lease-decisions/create', [LeaseDecisionsController::class, 'create'])
         ->name('lease-decisions.create')
         ->breadcrumbs(fn (Trail $trail) => ($ldCrumb)($trail)
             ->push(trans('admin/lease-decisions/general.create'), route('lease-decisions.create')));
-    Route::get('lease-decisions/{lease_decision}/edit', [LeaseDecisionsController::class, 'edit'])
+    Route::get('procurement/lease-decisions/{lease_decision}/edit', [LeaseDecisionsController::class, 'edit'])
         ->name('lease-decisions.edit')
         ->breadcrumbs(fn (Trail $trail, $lease_decision) => ($ldCrumb)($trail)
             ->push(trans('admin/lease-decisions/general.update'), route('lease-decisions.edit', $lease_decision)));
 
-    Route::resource('lease-decisions', LeaseDecisionsController::class)
+    Route::resource('procurement/lease-decisions', LeaseDecisionsController::class)
         ->except(['show', 'index', 'create', 'edit']);
-    Route::post('lease-decisions/bulk/delete', [LeaseDecisionsController::class, 'bulkDelete'])->name('lease-decisions.bulk.delete');
+    Route::post('procurement/lease-decisions/bulk/delete', [LeaseDecisionsController::class, 'bulkDelete'])->name('lease-decisions.bulk.delete');
 
     /*
     * User Agreement Program agreements
@@ -947,7 +952,35 @@ Route::group(['prefix' => 'account', 'middleware' => ['auth']], function () {
 
 });
 
+/*
+| Purchase orders resolve by their number — /procurement/purchase-orders/P0026022
+| — because that is what finance, the vendor and every PDF call them. An integer
+| still resolves, so links written before the change, and any code that passes an
+| id rather than a model, keep working instead of 404ing.
+*/
+Route::bind('purchase_order', function ($value) {
+    return \App\Models\PurchaseOrder::where('po_number', $value)->first()
+        ?? \App\Models\PurchaseOrder::findOrFail($value);
+});
+
 Route::group(['middleware' => ['auth']], function () {
+    /*
+    | Procurement moved under one prefix — /procurement/purchase-orders,
+    | /procurement/requisitions, /procurement/orders,
+    | /procurement/lease-decisions, /procurement/lessor-breakdown — because it
+    | is one workflow and was scattered across the URL root. Route names did
+    | not change, so every link in the app followed automatically; these
+    | redirects are for what the app does not control: bookmarks, links in
+    | emails already sent, and references in older PDFs.
+    */
+    foreach (['purchase-orders', 'requisitions', 'orders', 'lease-decisions'] as $legacyProcurementPath) {
+        Route::redirect($legacyProcurementPath, '/procurement/'.$legacyProcurementPath, 301);
+        Route::redirect($legacyProcurementPath.'/{tail}', '/procurement/'.$legacyProcurementPath.'/{tail}', 301)
+            ->where('tail', '.*');
+    }
+
+    Route::redirect('reports/lessor-breakdown', '/procurement/lessor-breakdown', 301);
+
     Route::post('notes', [NotesController::class, 'store'])->name('notes.store');
 });
 
@@ -1120,14 +1153,8 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
         'unaccepted_assets/{deleted?}', [ReportsController::class, 'postAssetAcceptanceReport'])
         ->name('reports/export/unaccepted_assets');
 
-    // Lessor Breakdown sits at the reports root, not under procurement:
-    // it is a whole-portfolio snapshot (never FY-scoped) with its own
-    // charts page, listed alongside the other report dashboards.
-    Route::get('lessor-breakdown', [ProcurementReportsController::class, 'lessorBreakdown'])
-        ->name('reports.lessor-breakdown')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('general.reports'), route('reports.index'))
-            ->push(trans('admin/purchase-orders/general.report_lessor_breakdown'), route('reports.lessor-breakdown')));
+    // Lessor Breakdown now lives with the rest of procurement, at
+    // /procurement/lessor-breakdown.
 
     // The procurement board moved out to /procurement (route names kept).
 
@@ -1284,6 +1311,11 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('po-builder', function () {
             return redirect()->route('purchase-orders.builder', request()->query());
         });
+        // A whole-portfolio snapshot rather than an FY-scoped one, but it is
+        // procurement's page and belongs on procurement's path.
+        Route::get('lessor-breakdown', [ProcurementReportsController::class, 'lessorBreakdown'])
+            ->name('reports.lessor-breakdown')
+            ->breadcrumbs($crumb('reports.lessor-breakdown', 'report_lessor_breakdown'));
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
@@ -1329,7 +1361,7 @@ Route::group(['middleware' => ['auth']], function () {
             ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
         Route::patch('invoice-approval/{invoice}', [ProcurementReportsController::class, 'updateInvoiceApproval'])
             ->name('reports.procurement.invoice-approval.update');
-        Route::get('lease-decisions', [ProcurementReportsController::class, 'leaseDecisions'])
+        Route::get('procurement/lease-decisions', [ProcurementReportsController::class, 'leaseDecisions'])
             ->name('reports.procurement.lease-decisions')
             ->breadcrumbs($crumb('reports.procurement.lease-decisions', 'report_lease_decisions'));
         Route::get('po-disposition', [ProcurementReportsController::class, 'poDisposition'])
@@ -1359,8 +1391,6 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('credit-ledger', [ProcurementReportsController::class, 'creditTerminationLedger'])
             ->name('reports.procurement.credit-ledger')
             ->breadcrumbs($crumb('reports.procurement.credit-ledger', 'report_credit_ledger'));
-        // Moved to the reports root — old links and bookmarks keep working.
-        Route::redirect('lessor-breakdown', '/reports/lessor-breakdown', 301);
         Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
             ->name('reports.procurement.pst-applicability')
             ->breadcrumbs($crumb('reports.procurement.pst-applicability', 'report_pst_applicability'));

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\HasUploads;
 use App\Models\Traits\Loggable;
+use App\Models\Traits\PlacesVendorOrders;
 use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,15 +12,25 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Watson\Validating\ValidatingTrait;
 
 /**
- * A purchase order — the budget unit. One purchase order (the number issued
- * by the finance ERP) spans many vendor orders, which each carry invoices
- * and line items. Budget is tracked here; spend rolls up from the orders.
+ * A purchase order — the document an order is actually placed from.
+ *
+ * It is the budget unit: one purchase order, the number the finance ERP issued,
+ * spans many vendor orders which each carry invoices and line items. Budget is
+ * tracked here and spend rolls up from the orders.
+ *
+ * It is also the document that authorises buying, which is why the vendor-facing
+ * side of an order lives here rather than on the requisition that produced it:
+ * the account it is charged to, the vendor's quote, the send itself, and the
+ * answers that come back. A requisition is transient — a basket to be keyed into
+ * Colleague, carrying the REQM until this number exists — and after that it is a
+ * tracking record. The vendor bills against this.
  */
 class PurchaseOrder extends SnipeModel
 {
     use HasFactory;
     use HasUploads;
     use Loggable;
+    use PlacesVendorOrders;
     use Searchable;
     use SoftDeletes;
     use ValidatingTrait;
@@ -44,6 +55,12 @@ class PurchaseOrder extends SnipeModel
         'status' => 'required|string|in:open,amended,closed,cancelled',
         'order_date' => 'nullable|date',
         'notes' => 'nullable|string|max:65535',
+        'funding_account' => 'nullable|string|in:purchase_admin,purchase_curriculum,lease_admin,lease_curriculum',
+        'lease_schedule' => 'nullable|string|max:191',
+        'quote_number' => 'nullable|string|max:191',
+        'quote_total' => 'nullable|numeric|min:0',
+        'quote_expires_at' => 'nullable|date',
+        'vendor_order_number' => 'nullable|string|max:191',
     ];
 
     protected $injectUniqueIdentifier = true;
@@ -59,11 +76,34 @@ class PurchaseOrder extends SnipeModel
         'status',
         'order_date',
         'notes',
+        'funding_account',
+        'lease_schedule',
+        'quote_number',
+        'quote_total',
+        'quote_expires_at',
+        'quote_confirmed_at',
+        'vendor_sent_at',
+        'vendor_changes_at',
+        'vendor_changes_notes',
+        'vendor_order_number',
+        'order_cc',
     ];
 
     protected $casts = [
         'order_date' => 'date',
+        'quote_expires_at' => 'date',
+        'quote_total' => 'decimal:2',
+        'quote_confirmed_at' => 'datetime',
+        'vendor_sent_at' => 'datetime',
+        'vendor_changes_at' => 'datetime',
     ];
+
+    /**
+     * How long a catalog row's part numbers are trusted before the order form
+     * flags them. A quarter, because that is the cadence the vendor can supply
+     * an updated list from the distribution warehouses at.
+     */
+    public const PART_NUMBER_STALE_DAYS = 92;
 
     protected $searchableAttributes = ['po_number', 'title', 'fiscal_year', 'cost_center', 'status', 'notes'];
 
@@ -71,6 +111,79 @@ class PurchaseOrder extends SnipeModel
         'supplier' => ['name'],
         'company' => ['name'],
     ];
+
+    /**
+     * Addressed by its number, not by our row id.
+     *
+     * `/procurement/purchase-orders/P0026022` is the URL somebody can type from
+     * a finance email or a PDF; `/purchase-orders/4` is a fact about our
+     * database that nobody outside it knows. The number is unique, issued by the
+     * finance ERP, and already the thing every other system quotes.
+     *
+     * Resolution still accepts an id — see the binding in routes/web.php — so
+     * older links and any code passing an integer keep working.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'po_number';
+    }
+
+    /**
+     * The requisitions that resolved to this purchase order — the baskets that
+     * were keyed into Colleague to get this number. Normally one; more than one
+     * when finance folded several REQMs into a single PO.
+     */
+    public function requisitions()
+    {
+        return $this->hasMany(Requisition::class, 'purchase_order_id');
+    }
+
+    /**
+     * The lines to order, gathered from those requisitions. This is what the
+     * vendor is sent: the purchase order is the authority, but the basket that
+     * describes what to buy was built on the requisition.
+     *
+     * @return \Illuminate\Support\Collection<int, RequisitionItem>
+     */
+    public function vendorOrderLines()
+    {
+        return $this->requisitions()
+            ->with('items.catalogItem')
+            ->orderBy('id')
+            ->get()
+            ->flatMap(fn (Requisition $requisition) => $requisition->items)
+            ->values();
+    }
+
+    /**
+     * Requesters to copy, taken from the store orders whose lines were folded
+     * into this purchase order's requisitions.
+     *
+     * @return array<int, string>
+     */
+    public function storeOrderRequesterEmails(): array
+    {
+        return StoreOrder::query()
+            ->whereIn('requisition_id', $this->requisitions()->pluck('id'))
+            ->with('user')
+            ->get()
+            ->map(fn (StoreOrder $order) => $order->user?->email)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /** Comments meant for the vendor, carried up from the requisition. */
+    public function printerComments(): ?string
+    {
+        return $this->requisitions()->orderBy('id')->value('printer_comments');
+    }
+
+    /** Comments that stay with us, carried up from the requisition. */
+    public function internalComments(): ?string
+    {
+        return $this->requisitions()->orderBy('id')->value('internal_comments');
+    }
 
     /**
      * The vendor orders placed against this purchase order.
