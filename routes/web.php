@@ -50,6 +50,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StaffBlackoutsController;
 use App\Http\Controllers\StatuslabelsController;
+use App\Http\Controllers\TopSearchController;
 use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SuppliersController;
@@ -127,6 +128,10 @@ Route::group(['middleware' => 'auth'], function () {
     Route::resource('orders', OrdersController::class);
     Route::post('orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
     Route::post('orders/allocate', [OrdersController::class, 'allocate'])->name('orders.allocate');
+
+    // Type-ahead behind the toolbar lookup. No breadcrumb: it answers XHR,
+    // it is never a page you land on.
+    Route::get('search/suggest', [TopSearchController::class, 'suggest'])->name('search.suggest');
 
     // The end-user one-stop: tracker, lease, and everything checked out to
     // them, at a link short enough to say out loud.
@@ -579,6 +584,11 @@ Route::group(['middleware' => 'auth'], function () {
 */
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser']], function () {
+
+    Route::get('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'edit'])
+        ->name('admin.toolbar.edit');
+    Route::post('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'update'])
+        ->name('admin.toolbar.update');
 
     Route::get('settings', [SettingsController::class, 'getSettings'])
         ->name('settings.general.index')
