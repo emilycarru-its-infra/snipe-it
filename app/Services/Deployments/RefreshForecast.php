@@ -172,6 +172,28 @@ class RefreshForecast
      * refresh_reason ('eol'|'lease'|'both') and source_date (Y-m-d). Returns
      * an empty collection when $fy is null — a FY choice is required.
      */
+    /**
+     * Assets and lease contracts carrying an approved (or completed) buyout,
+     * as [assetIds, contractReferences]. A decision recorded against the
+     * contract covers every device on it; one recorded against an asset
+     * covers just that device.
+     *
+     * @return array{0: array<int, int>, 1: array<int, string>}
+     */
+    private function approvedBuyouts(): array
+    {
+        $decisions = \App\Models\LeaseDecision::query()
+            ->where('decision_type', 'buyout')
+            ->whereIn('status', ['approved', 'completed'])
+            ->get(['asset_id', 'contract_reference']);
+
+        return [
+            $decisions->pluck('asset_id')->filter()->unique()->values()->all(),
+            $decisions->whereNull('asset_id')->pluck('contract_reference')
+                ->filter()->unique()->values()->all(),
+        ];
+    }
+
     public function forFiscalYear(?string $fy): Collection
     {
         $range = self::fiscalYearRange($fy);
@@ -184,14 +206,35 @@ class RefreshForecast
         $endStr = $end->toDateString();
         $leaseCol = self::leaseEndColumn();
 
+        // A lease end is a return window, and a return window is what makes
+        // the lease date a refresh trigger. Once a buyout is approved the
+        // device is ours and stays in service, so its lease end says nothing
+        // about when it should be replaced — only our own End of Life does.
+        // Without this, a bought-out device is stuck in the FY its lease
+        // happened to end in and cannot be planned into any other year.
+        [$buyoutAssetIds, $buyoutContractRefs] = $this->approvedBuyouts();
+
         $query = Asset::query()
             ->NotArchived()
             ->with(['model', 'status', 'location'])
-            ->where(function ($q) use ($start, $end, $leaseCol, $startStr, $endStr) {
+            ->where(function ($q) use ($start, $end, $leaseCol, $startStr, $endStr, $buyoutAssetIds, $buyoutContractRefs) {
                 $q->whereBetween('asset_eol_date', [$start, $end]);
                 if ($leaseCol !== null) {
                     // Native lease_end_date is a DATE; 'Y-m-d' bounds compare fine.
-                    $q->orWhereBetween($leaseCol, [$startStr, $endStr]);
+                    $q->orWhere(function ($lease) use ($leaseCol, $startStr, $endStr, $buyoutAssetIds, $buyoutContractRefs) {
+                        $lease->whereBetween($leaseCol, [$startStr, $endStr]);
+
+                        if (! empty($buyoutAssetIds)) {
+                            $lease->whereNotIn('assets.id', $buyoutAssetIds);
+                        }
+
+                        if (! empty($buyoutContractRefs)) {
+                            $lease->where(function ($contract) use ($buyoutContractRefs) {
+                                $contract->whereNull('lease_contract_id')
+                                    ->orWhereNotIn('lease_contract_id', $buyoutContractRefs);
+                            });
+                        }
+                    });
                 }
             });
 

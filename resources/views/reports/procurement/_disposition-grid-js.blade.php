@@ -8,6 +8,45 @@
     .disp-contract-picker { margin-bottom: 12px; }
     .disp-contract-label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
     .disp-contract-select { max-width: 460px; }
+    /* Column-aligned contract combo. The native select is kept for behaviour
+       and hidden from view (not display:none — it stays focusable/labelled). */
+    .disp-contract-select-native { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .disp-combo { position: relative; max-width: 720px; }
+    .disp-combo-button {
+        display: flex; align-items: center; gap: 8px; width: 100%;
+        background: var(--pp-surface, #fff); color: inherit;
+        border: 1px solid var(--pp-line, #ccc); border-radius: 4px;
+        padding: 6px 10px; font-size: 12.5px; text-align: left;
+    }
+    .disp-combo-current { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .disp-combo-caret { flex: 0 0 auto; opacity: .6; }
+    .disp-combo-panel {
+        position: absolute; z-index: 40; top: calc(100% + 2px); left: 0; right: 0;
+        background: var(--pp-surface, #fff); border: 1px solid var(--pp-line, #ccc);
+        border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.18);
+        max-height: 60vh; display: flex; flex-direction: column;
+    }
+    .disp-combo-filter { padding: 8px; border-bottom: 1px solid var(--pp-line, #eee); }
+    .disp-combo-head, .disp-combo-option {
+        display: grid;
+        grid-template-columns: minmax(150px, 1.3fr) minmax(150px, 1fr) 72px minmax(110px, .8fr);
+        gap: 12px; align-items: center; padding: 5px 10px;
+    }
+    .disp-combo-head {
+        font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+        color: var(--pp-ink2, #767676); border-bottom: 1px solid var(--pp-line, #eee);
+    }
+    .disp-combo-list { overflow-y: auto; }
+    .disp-combo-option { font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+    .disp-combo-option > span { overflow: hidden; text-overflow: ellipsis; }
+    .disp-combo-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .disp-combo-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .disp-combo-lessor, .disp-combo-num { color: var(--pp-ink2, #767676); }
+    .disp-combo-option:hover, .disp-combo-option.is-active { background: color-mix(in srgb, currentColor 8%, transparent); }
+    .disp-combo-option.is-selected .disp-combo-name { font-weight: 700; }
+    .disp-combo-option[hidden] { display: none; }
+    .disp-col-assigned { white-space: nowrap; }
+    .disp-assigned-icon { opacity: .55; margin-right: 5px; }
     .disp-tab-content { padding-top: 4px; }
     .disp-contract-meta { margin-bottom: 8px; }
     .disp-table th, .disp-table td { vertical-align: middle !important; font-size: 12.5px; }
@@ -103,6 +142,152 @@
         syncContract(grid, opt ? opt.getAttribute('data-contract') : null);
         refreshBulkState(grid);
     });
+
+    // ---- Column-aligned contract combo -------------------------------------
+    // A presentation layer over the native select: every selection routes back
+    // through it and dispatches 'change', so pane switching, URL sync and the
+    // serial search keep their single code path.
+    function comboOf(grid) { return grid ? grid.querySelector('.disp-combo') : null; }
+
+    function comboLabel(option) {
+        if (! option) { return ''; }
+        var parts = [];
+        ['.disp-combo-name', '.disp-combo-id', '.disp-combo-num', '.disp-combo-lessor'].forEach(function (sel) {
+            var node = option.querySelector(sel);
+            var text = node ? node.textContent.trim() : '';
+            if (text && text !== '—') { parts.push(text); }
+        });
+        return parts.join(' · ');
+    }
+
+    function syncCombo(grid) {
+        var combo = comboOf(grid);
+        var sel = grid ? grid.querySelector('.disp-contract-select') : null;
+        if (! combo || ! sel) { return; }
+        var options = combo.querySelectorAll('.disp-combo-option');
+        var current = null;
+        for (var i = 0; i < options.length; i++) {
+            var match = options[i].getAttribute('data-value') === sel.value;
+            options[i].classList.toggle('is-selected', match);
+            options[i].setAttribute('aria-selected', match ? 'true' : 'false');
+            if (match) { current = options[i]; }
+        }
+        var label = combo.querySelector('.disp-combo-current');
+        if (label) { label.textContent = comboLabel(current); }
+    }
+
+    function closeCombo(combo) {
+        if (! combo) { return; }
+        var panel = combo.querySelector('.disp-combo-panel');
+        var button = combo.querySelector('.disp-combo-button');
+        if (panel) { panel.hidden = true; }
+        if (button) { button.setAttribute('aria-expanded', 'false'); }
+        combo.querySelectorAll('.disp-combo-option.is-active').forEach(function (o) { o.classList.remove('is-active'); });
+    }
+
+    function openCombo(combo) {
+        if (! combo) { return; }
+        var panel = combo.querySelector('.disp-combo-panel');
+        var button = combo.querySelector('.disp-combo-button');
+        if (panel) { panel.hidden = false; }
+        if (button) { button.setAttribute('aria-expanded', 'true'); }
+        var selected = combo.querySelector('.disp-combo-option.is-selected');
+        if (selected) {
+            selected.classList.add('is-active');
+            selected.scrollIntoView({ block: 'nearest' });
+        }
+        var search = combo.querySelector('.disp-combo-search');
+        if (search) { search.focus(); search.select(); }
+    }
+
+    function visibleOptions(combo) {
+        return Array.prototype.filter.call(
+            combo.querySelectorAll('.disp-combo-option'),
+            function (o) { return ! o.hidden; }
+        );
+    }
+
+    function moveActive(combo, delta) {
+        var options = visibleOptions(combo);
+        if (! options.length) { return; }
+        var index = options.findIndex(function (o) { return o.classList.contains('is-active'); });
+        options.forEach(function (o) { o.classList.remove('is-active'); });
+        var next = index < 0 ? (delta > 0 ? 0 : options.length - 1) : index + delta;
+        if (next < 0) { next = 0; }
+        if (next > options.length - 1) { next = options.length - 1; }
+        options[next].classList.add('is-active');
+        options[next].scrollIntoView({ block: 'nearest' });
+    }
+
+    function chooseOption(option) {
+        var grid = gridOf(option);
+        var sel = grid ? grid.querySelector('.disp-contract-select') : null;
+        if (! sel) { return; }
+        sel.value = option.getAttribute('data-value');
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        closeCombo(comboOf(grid));
+        var button = comboOf(grid) ? comboOf(grid).querySelector('.disp-combo-button') : null;
+        if (button) { button.focus(); }
+    }
+
+    document.addEventListener('click', function (e) {
+        var button = e.target.closest ? e.target.closest('.disp-combo-button') : null;
+        if (button) {
+            e.preventDefault();
+            var combo = button.closest('.disp-combo');
+            var panel = combo.querySelector('.disp-combo-panel');
+            if (panel && panel.hidden) { openCombo(combo); } else { closeCombo(combo); }
+            return;
+        }
+        var option = e.target.closest ? e.target.closest('.disp-combo-option') : null;
+        if (option) { chooseOption(option); return; }
+        // Any click elsewhere dismisses an open panel.
+        if (! (e.target.closest && e.target.closest('.disp-combo-panel'))) {
+            document.querySelectorAll('.disp-combo').forEach(closeCombo);
+        }
+    });
+
+    document.addEventListener('input', function (e) {
+        var search = e.target.closest ? e.target.closest('.disp-combo-search') : null;
+        if (! search) { return; }
+        var combo = search.closest('.disp-combo');
+        var needle = search.value.trim().toLowerCase();
+        combo.querySelectorAll('.disp-combo-option').forEach(function (option) {
+            option.hidden = needle !== '' && option.textContent.toLowerCase().indexOf(needle) === -1;
+            if (option.hidden) { option.classList.remove('is-active'); }
+        });
+        if (! combo.querySelector('.disp-combo-option.is-active')) { moveActive(combo, 1); }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        var combo = e.target.closest ? e.target.closest('.disp-combo') : null;
+        if (! combo) { return; }
+        var panel = combo.querySelector('.disp-combo-panel');
+        var isOpen = panel && ! panel.hidden;
+        if (e.key === 'Escape' && isOpen) { e.preventDefault(); closeCombo(combo); return; }
+        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            e.preventDefault();
+            if (! isOpen) { openCombo(combo); return; }
+            moveActive(combo, e.key === 'ArrowDown' ? 1 : -1);
+            return;
+        }
+        if (e.key === 'Enter' && isOpen) {
+            var active = combo.querySelector('.disp-combo-option.is-active');
+            if (active) { e.preventDefault(); chooseOption(active); }
+        }
+    });
+
+    // Mirror every native-select change (combo click, serial search jump,
+    // deep link) back into the button label and selected row.
+    document.addEventListener('change', function (e) {
+        var sel = e.target.closest ? e.target.closest('.disp-contract-select') : null;
+        if (sel) { syncCombo(gridOf(sel)); }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.disp-grid').forEach(syncCombo);
+    });
+    document.querySelectorAll('.disp-grid').forEach(syncCombo);
 
     function saveNote(grid, row, value) {
         var body = new URLSearchParams();

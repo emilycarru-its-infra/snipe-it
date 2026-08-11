@@ -641,6 +641,14 @@ class Actionlog extends SnipeModel
                 return 'private_uploads/suppliers/'.$this->filename;
             case User::class:
                 return 'private_uploads/users/'.$this->filename;
+                // The procurement entities upload through the same routes and
+                // land in the directories Controller::$map_storage_path names;
+                // without a case here the path resolves to null and anything
+                // that stats the file (exists_on_disk, download) blows up.
+            case PurchaseOrder::class:
+                return 'private_uploads/purchase-orders/'.$this->filename;
+            case LeaseSchedule::class:
+                return 'private_uploads/lease-schedules/'.$this->filename;
             default:
                 return null;
         }

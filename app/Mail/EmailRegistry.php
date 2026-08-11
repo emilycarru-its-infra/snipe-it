@@ -349,6 +349,16 @@ class EmailRegistry
                 'configurable_recipients' => true,
                 'configurable_cc' => true,
             ],
+            [
+                'key' => 'procurement.vendor_order',
+                'category' => 'store',
+                'label' => 'Vendor order (to reps)',
+                'description' => 'The order emailed to the vendor\'s reps once finance has issued the purchase order — agreed prices, not an estimate. Recipients default to the supplier\'s order email list; CC defaults to the procurement admin lists.',
+                'merge_vars' => ['requisition' => 'The requisition (lines, quote, totals)', 'reference' => 'The purchase order number', 'supplier' => 'The vendor'],
+                'factory' => fn (EmailSampleData $s) => new RequisitionVendorOrderMail($s->requisition()),
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+            ],
 
             [
                 'key' => 'account.welcome',
