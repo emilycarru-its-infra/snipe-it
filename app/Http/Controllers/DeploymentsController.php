@@ -9,9 +9,9 @@ use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
 use App\Models\Location;
 use App\Models\Order;
-use App\Models\Statuslabel;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
+use App\Services\Deployments\HistoricalFlow;
 use App\Services\Deployments\RefreshForecast;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -21,25 +21,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * Deployments planning workspace — the OPERATIONAL sibling of the
  * FINANCIAL /reports/procurement board. `report()` renders the FY-filtered
- * dashboard (donut+count widgets over the FY's deployment_items, by stage /
- * type / replacement model) plus the wave list; `forecast()` + `addFromForecast()`
- * drive the headline auto-collection (RefreshForecast). The rest is wave
- * CRUD and a per-wave board (`show`). Authorization reuses the Order policy,
- * mirroring the exhibit board.
+ * board: the Device Flow rail over one unified device table (wave items +
+ * the FY's refresh backlog), the timeline, the wave list and the
+ * decommissioning lane; `forecast()` + `addFromForecast()` drive the
+ * headline auto-collection (RefreshForecast). The rest is wave CRUD and a
+ * per-wave board (`show`). Gated by the deployments module permission:
+ * read for every board page, read+write for anything that changes state.
  */
 class DeploymentsController extends Controller
 {
-    /** Palette for the per-model widget (models are free-string, no catalog color). */
-    private const MODEL_PALETTE = ['#2980b9', '#27ae60', '#8e44ad', '#d35400', '#16a085', '#c0392b', '#2c3e50', '#f39c12', '#7f8c8d', '#1abc9c'];
-
     /**
-     * The /reports/deployments board: FY/type/stage filters, three
-     * donut+count widgets, the waves table, and a forecast summary count.
-     * Supports ?format=csv (waves export).
+     * The /reports/deployments board. Supports ?format=csv (waves export)
+     * and ?format=csv&decom_pickup=Y-m-d (one pickup run's device list).
      */
     public function report(Request $request)
     {
-        $this->authorize('view', Order::class);
+        $this->authorize('deployments.view');
 
         $forecast = new RefreshForecast;
 
@@ -56,13 +53,20 @@ class DeploymentsController extends Controller
         $window = collect(range($currentStartYear - 3, $currentStartYear + 3))
             ->map(fn ($y) => sprintf('FY%d-%02d', $y, ($y + 1) % 100));
         $waveFys = DeploymentWave::query()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')->all();
-        $fiscalYears = $window->merge($waveFys)->unique()->sortDesc()->values()->all();
+        // Oldest first — reading order matches the passage of time.
+        $fiscalYears = $window->merge($waveFys)->unique()->sort()->values()->all();
 
         // No explicit choice opens on the current FY — never the far end of
         // the planning window.
         $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: $currentFy;
         $typeFilter = $request->query('deployment_type');
-        $stageFilter = $request->query('stage');
+        $fyStartYear = RefreshForecast::fiscalYearStartYear($fy);
+        $isPast = $fyStartYear < $currentStartYear;
+        $isFuture = $fyStartYear > $currentStartYear;
+
+        if ($request->query('format') === 'csv' && $request->filled('decom_pickup')) {
+            return $this->streamPickupCsv((string) $request->query('decom_pickup'));
+        }
 
         $wavesQuery = DeploymentWave::query()
             ->with(['type', 'owner', 'location'])
@@ -73,29 +77,40 @@ class DeploymentsController extends Controller
         }
         $waves = $wavesQuery->ordered()->get();
 
-        // Items in scope (the FY's waves), for the widgets.
+        // Every tracked device on the FY's waves.
         $waveIds = $waves->pluck('id')->all();
         $allItems = DeploymentItem::query()
-            ->with(['stage', 'wave.type', 'model'])
+            ->with(['stage', 'wave.type', 'model', 'asset.location', 'asset.status', 'asset.model', 'replacesAsset.location', 'replacesAsset.status', 'replacesAsset.model'])
             ->whereIn('wave_id', $waveIds ?: [0])
             ->get();
-        $items = $stageFilter
-            ? $allItems->where('stage_id', (int) $stageFilter)->values()
-            : $allItems;
 
         if ($request->query('format') === 'csv') {
             return $this->streamWavesCsv($waves, $fy);
         }
 
-        // The stage rail always shows the whole funnel — it IS the stage
-        // filter (a chevron click narrows the widgets below), so its counts
-        // never narrow with the selection.
+        // One row per device, whatever the source lens: tracked wave items,
+        // the refresh backlog (due this FY, on no wave — for a past FY that
+        // means never refreshed, so the plan is still open), the FY's
+        // procurement order lines not yet tracked (ordered → arrived →
+        // deployed straight from the money side), and — for past years —
+        // the reconstruction from asset history, each device at its
+        // furthest stage. The rail counts THESE rows, so the chevrons and
+        // the table can never disagree.
+        $deviceRows = $this->deviceRows($allItems, $forecast->forFiscalYear($fy));
+        if ($isPast) {
+            $deviceRows = array_merge($deviceRows, $this->historicalRows($fy, $allItems));
+        } else {
+            $deviceRows = array_merge($deviceRows, $this->orderRows($fy, $allItems), $this->requisitionRows($fy));
+        }
+
+        $rowCounts = collect($deviceRows)->countBy('stage_slug');
         $stageRail = $stages->map(fn ($stage) => [
             'id' => $stage->id,
+            'slug' => $stage->slug,
             'name' => $stage->name,
             'color' => $stage->color ?: '#bdc3c7',
             'is_terminal' => (bool) $stage->is_terminal,
-            'count' => $allItems->where('stage_id', $stage->id)->count(),
+            'count' => (int) $rowCounts->get($stage->slug, 0),
         ])->values()->all();
 
         return view('reports.deployments.index', [
@@ -104,110 +119,315 @@ class DeploymentsController extends Controller
             'stages' => $stages,
             'fiscalYears' => $fiscalYears,
             'fy' => $fy,
+            'isPast' => $isPast,
+            'isFuture' => $isFuture,
             'typeFilter' => $typeFilter,
-            'stageFilter' => $stageFilter,
             'stageRail' => $stageRail,
-            'widgets' => $this->buildWidgets($items, $stages, $types),
+            'deviceRows' => $deviceRows,
+            'backlogCount' => collect($deviceRows)->where('kind', 'backlog')->count(),
             'timeline' => (new DeploymentTimeline)->build($waves),
-            'decommission' => (new DecommissionLane)->build($fy),
-            // The full look-ahead list, not just a count: picking a future FY
-            // shows that whole year's expected lease-end / EOL devices right
-            // on the board, so next year's rollout can be planned before a
-            // single wave exists.
-            'forecastAssets' => $forecast->forFiscalYear($fy),
-            'legacyFleet' => $this->legacyFleet(),
-            'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'stage' => $stageFilter, 'format' => 'csv']),
+            'decommission' => $isFuture ? null : (new DecommissionLane)->build($fy, ! $isPast),
+            'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'format' => 'csv']),
         ]);
     }
 
     /**
-     * The unfunded aging fleet: devices parked on the 'Active (Legacy)'
-     * status — still in daily use, but with no planned replacement and no
-     * funding in sight. Leases carry their own pre-approved replacement
-     * money from signing; these devices have none, which is exactly what
-     * an exec reading this board needs to see next to the funded waves.
+     * One row per device in the FY's flow — wave items first, then the
+     * refresh backlog (due this FY, on no wave yet) as Planned rows. The
+     * asset is the unit of measurement throughout; a backlog row carries
+     * asset_id (for add-to-wave), an item row carries item_id (for stage
+     * moves) plus has_order (whether the procurement gate is satisfied).
      */
-    private function legacyFleet(): array
+    private function deviceRows($allItems, $forecastAssets): array
     {
-        $statusIds = Statuslabel::where('name', 'like', 'Active (Legacy)%')->pluck('id');
-        if ($statusIds->isEmpty()) {
-            return ['count' => 0];
+        $reasonLabel = [
+            'eol' => trans('admin/deployments/general.reason_eol'),
+            'lease' => trans('admin/deployments/general.reason_lease'),
+            'both' => trans('admin/deployments/general.reason_both'),
+        ];
+
+        $rows = [];
+        foreach ($allItems as $item) {
+            $subject = $item->asset ?: $item->replacesAsset;
+            // The device column names the physical unit, never the model:
+            // the incoming asset once it exists, otherwise the device being
+            // replaced (that machine IS the unit until its successor lands).
+            $device = $item->asset?->name ?: $item->asset?->asset_tag
+                ?: $item->replacesAsset?->name ?: $item->replacesAsset?->asset_tag
+                ?: '—';
+            $rows[] = [
+                'kind' => 'item',
+                'item_id' => $item->id,
+                'asset_id' => null,
+                'device' => $device,
+                'device_url' => $subject ? route('hardware.show', $subject->id) : null,
+                'model' => $item->model?->name ?: $subject?->model?->name ?: '—',
+                'wave' => $item->wave?->name,
+                'wave_url' => $item->wave ? route('deployment-waves.show', $item->wave) : null,
+                'wave_color' => $item->wave?->displayColor(),
+                'type' => $item->wave?->typeLabel() ?: '—',
+                'group' => $item->group_label,
+                'context' => $item->replacesAsset
+                    ? trans('admin/deployments/general.replaces').' '.($item->replacesAsset->asset_tag ?: $item->replacesAsset->name)
+                    : '—',
+                'due' => optional($item->target_deploy_date)->toDateString() ?: '—',
+                'status' => $subject?->status?->name ?: '—',
+                'location' => $subject?->location?->name ?: $item->wave?->location?->name ?: '—',
+                'stage_slug' => $item->stage?->slug ?: 'planned',
+                'stage_name' => $item->stageLabel(),
+                'stage_color' => $item->stageColor(),
+                'has_order' => (bool) $item->order_item_id,
+            ];
         }
 
-        $assets = Asset::whereIn('status_id', $statusIds->all())
-            ->with('model')
-            ->get();
+        foreach ($forecastAssets as $asset) {
+            $rows[] = [
+                'kind' => 'backlog',
+                'item_id' => null,
+                'asset_id' => $asset->id,
+                'device' => $asset->name ?: $asset->asset_tag ?: ('#'.$asset->id),
+                'device_url' => route('hardware.show', $asset->id),
+                'model' => $asset->model?->name ?: '—',
+                'wave' => null,
+                'wave_url' => null,
+                'wave_color' => null,
+                'type' => trans('admin/deployments/general.flow_backlog_chip'),
+                'group' => null,
+                'context' => ($reasonLabel[$asset->refresh_reason] ?? $asset->refresh_reason)
+                    .($asset->lease_decision_label ? ' · '.$asset->lease_decision_label : ''),
+                'due' => $asset->source_date ?: '—',
+                'status' => $asset->status?->name ?: '—',
+                'location' => $asset->location?->name ?: '—',
+                'stage_slug' => 'planned',
+                'stage_name' => trans('admin/deployments/general.flow_backlog_stage'),
+                'stage_color' => '#7f8c8d',
+                'has_order' => false,
+            ];
+        }
 
-        $ages = $assets
-            ->filter(fn ($asset) => $asset->purchase_date)
-            ->map(fn ($asset) => $asset->purchase_date->diffInYears(now()));
-
-        $byModel = $assets
-            ->groupBy(fn ($asset) => $asset->model?->name ?: trans('general.na'))
-            ->map->count()
-            ->sortDesc()
-            ->take(6);
-
-        return [
-            'count' => $assets->count(),
-            'avg_age_years' => $ages->isEmpty() ? null : round($ages->avg(), 1),
-            'oldest_year' => $assets->min(fn ($asset) => $asset->purchase_date?->format('Y')),
-            'by_model' => $byModel->map(fn ($count, $name) => ['model' => $name, 'count' => $count])->values()->all(),
-            'status_ids' => $statusIds->all(),
-        ];
+        return $rows;
     }
 
     /**
-     * Build the three widgets (by stage, by wave type, by replacement
-     * model). Each returns count rows [label,count,pct,color] (zero rows
-     * kept for the catalog dimensions) plus a non-zero-only `chart` array.
+     * The FY's procurement order lines, straight from the money side —
+     * every actual order's line items that aren't already tracked as a
+     * deployment item. An unreceived line is Ordered; a received line is
+     * Arrived; a received asset in someone's hands is Deployed. This is
+     * what keeps the two boards looking at the same physical devices.
      */
-    private function buildWidgets($items, $stages, $types): array
+    private function orderRows(?string $fy, $allItems): array
     {
-        $total = max($items->count(), 1);
-        $row = fn ($label, $count, $color) => [
-            'label' => $label,
+        $linkedOrderItemIds = $allItems->pluck('order_item_id')->filter()->all();
+
+        $orders = Order::actual()
+            ->when($fy, fn ($q) => $q->where('fiscal_year', $fy))
+            ->whereIn('status', ['ordered', 'shipped', 'partially_received', 'received'])
+            ->with(['items.item.model', 'items.item.location', 'items.item.status', 'supplier', 'purchaseOrder'])
+            ->orderBy('order_date')
+            ->get();
+
+        $stageMeta = [
+            'ordered' => ['name' => trans('admin/deployments/general.flow_order_stage_ordered'), 'color' => '#2980b9'],
+            'arrived' => ['name' => trans('admin/deployments/general.flow_order_stage_arrived'), 'color' => '#27ae60'],
+            'deployed' => ['name' => trans('admin/deployments/general.flow_order_stage_deployed'), 'color' => '#00a65a'],
+        ];
+
+        $rows = [];
+        foreach ($orders as $order) {
+            foreach ($order->items as $line) {
+                if (in_array($line->id, $linkedOrderItemIds, true)) {
+                    continue;
+                }
+
+                $asset = $line->item instanceof Asset ? $line->item : null;
+                $slug = match (true) {
+                    $asset && $asset->assigned_to !== null => 'deployed',
+                    (bool) $line->received_at => 'arrived',
+                    default => 'ordered',
+                };
+
+                $device = $asset?->name ?: $asset?->asset_tag
+                    ?: (($line->description ?: $order->order_number)
+                        .((int) $line->quantity > 1 ? ' ×'.(int) $line->quantity : ''));
+
+                $rows[] = [
+                    'kind' => 'order',
+                    'item_id' => null,
+                    'asset_id' => null,
+                    'device' => $device,
+                    'device_url' => $asset ? route('hardware.show', $asset->id) : route('orders.show', $order->id),
+                    'model' => $asset?->model?->name ?: ($line->description ?: '—'),
+                    'wave' => $order->order_number,
+                    'wave_url' => route('orders.show', $order->id),
+                    'wave_color' => '#605ca8',
+                    'type' => trans('admin/deployments/general.flow_order_chip'),
+                    'group' => $order->order_number,
+                    'context' => $order->purchaseOrder?->po_number ?: ($order->supplier?->name ?: '—'),
+                    'due' => $order->expected_date?->format('Y-m-d') ?: '—',
+                    'status' => $asset?->status?->name ?: ucfirst(str_replace('_', ' ', (string) $order->status)),
+                    'location' => $asset?->location?->name ?: '—',
+                    'stage_slug' => $slug,
+                    'stage_name' => $stageMeta[$slug]['name'],
+                    'stage_color' => $stageMeta[$slug]['color'],
+                    'has_order' => true,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Unplanned capital requests: open requisitions (draft → requisitioned)
+     * are money asked for but not yet a PO — ministry funding and other
+     * ad-hoc asks. They surface as Planned lines so the flow shows work
+     * coming before procurement even issues the order; once finance issues
+     * the PO the requisition becomes an order and flows in as an order row.
+     */
+    private function requisitionRows(?string $fy): array
+    {
+        $requisitions = \App\Models\Requisition::query()
+            ->whereIn('status', ['draft', 'submitted', 'requisitioned'])
+            ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
+            ->with('items')
+            ->orderBy('requisition_number')
+            ->get();
+
+        $rows = [];
+        foreach ($requisitions as $requisition) {
+            foreach ($requisition->items as $line) {
+                $rows[] = [
+                    'kind' => 'requisition',
+                    'item_id' => null,
+                    'asset_id' => null,
+                    'device' => ($line->description ?: $requisition->title)
+                        .((int) $line->quantity > 1 ? ' ×'.(int) $line->quantity : ''),
+                    'device_url' => route('requisitions.show', $requisition->id),
+                    'model' => $line->description ?: '—',
+                    'wave' => $requisition->requisition_number ?: ('REQ-'.$requisition->id),
+                    'wave_url' => route('requisitions.show', $requisition->id),
+                    'wave_color' => '#8a63d2',
+                    'type' => trans('admin/deployments/general.flow_requisition_chip'),
+                    'group' => $requisition->requisition_number ?: ('REQ-'.$requisition->id),
+                    'context' => $requisition->title ?: ($requisition->cost_center ?: '—'),
+                    'due' => $requisition->needed_by?->toDateString() ?: '—',
+                    'status' => ucfirst((string) $requisition->status),
+                    'location' => '—',
+                    'stage_slug' => 'planned',
+                    'stage_name' => trans('admin/deployments/general.flow_requisition_stage'),
+                    'stage_color' => '#8a63d2',
+                    'has_order' => false,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Past fiscal years predate deployment tracking, so the flow is
+     * reconstructed from asset history — each device that moved that year
+     * appears once, at its furthest stage (see HistoricalFlow).
+     */
+    private function historicalRows(?string $fy, $allItems): array
+    {
+        $onItems = $allItems->pluck('asset_id')->filter()
+            ->merge($allItems->pluck('replaces_asset_id')->filter())
+            ->all();
+
+        $stageMeta = [
+            'ordered' => ['name' => trans('admin/deployments/general.hist_stage_ordered'), 'color' => '#2980b9'],
+            'inventoried' => ['name' => trans('admin/deployments/general.hist_stage_inventoried'), 'color' => '#f39c12'],
+            'deployed' => ['name' => trans('admin/deployments/general.hist_stage_deployed'), 'color' => '#00a65a'],
+        ];
+
+        $rows = [];
+        foreach ((new HistoricalFlow)->assetsByStage($fy) as $slug => $assets) {
+            foreach ($assets as $asset) {
+                if (in_array($asset->id, $onItems, true)) {
+                    continue;
+                }
+                $rows[] = [
+                    'kind' => 'history',
+                    'item_id' => null,
+                    'asset_id' => null,
+                    'device' => $asset->name ?: $asset->asset_tag ?: ('#'.$asset->id),
+                    'device_url' => route('hardware.show', $asset->id),
+                    'model' => $asset->model?->name ?: '—',
+                    'wave' => null,
+                    'wave_url' => null,
+                    'wave_color' => null,
+                    'type' => trans('admin/deployments/general.flow_history_chip'),
+                    'group' => null,
+                    'context' => '—',
+                    'due' => '—',
+                    'status' => $asset->status?->name ?: '—',
+                    'location' => $asset->location?->name ?: '—',
+                    'stage_slug' => $slug,
+                    'stage_name' => $stageMeta[$slug]['name'],
+                    'stage_color' => $stageMeta[$slug]['color'],
+                    'has_order' => false,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Bulk-set the holding location for devices being collected — where a
+     * whole group of outgoing machines waits for its pickup run.
+     */
+    public function setHoldingLocation(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'asset_ids' => 'required|array|min:1',
+            'asset_ids.*' => 'integer',
+            'location_id' => 'required|integer|exists:locations,id',
+        ]);
+
+        $count = Asset::query()
+            ->whereIn('id', $request->input('asset_ids'))
+            ->update(['location_id' => (int) $request->input('location_id')]);
+
+        return redirect()->back()->with('success', trans('admin/deployments/general.holding_location_set', [
             'count' => $count,
-            'pct' => round($count / $total * 100),
-            'color' => $color ?: '#bdc3c7',
+            'location' => Location::find((int) $request->input('location_id'))?->name,
+        ]));
+    }
+
+    /** CSV of one pickup run: every device decommissioned on that date. */
+    private function streamPickupCsv(string $date): StreamedResponse
+    {
+        $this->authorize('deployments.view');
+
+        $assets = (new DecommissionLane)->pickupAssets($date);
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="pickup-'.$date.'.csv"',
         ];
 
-        $stageRows = [];
-        foreach ($stages as $s) {
-            $stageRows[] = $row($s->name, $items->where('stage_id', $s->id)->count(), $s->color);
-        }
-
-        $typeRows = [];
-        foreach ($types as $t) {
-            $count = $items->filter(fn ($i) => $i->wave && $i->wave->deployment_type_id == $t->id)->count();
-            $typeRows[] = $row($t->name, $count, $t->color);
-        }
-
-        // Replacement-model buckets (top 10 by count), free-string labels.
-        $modelRows = [];
-        $byModel = $items->filter(fn ($i) => $i->model)->groupBy(fn ($i) => $i->model->name);
-        foreach ($byModel as $name => $group) {
-            $modelRows[] = $row($name, $group->count(), self::MODEL_PALETTE[count($modelRows) % count(self::MODEL_PALETTE)]);
-        }
-        usort($modelRows, fn ($a, $b) => $b['count'] <=> $a['count']);
-        $modelRows = array_slice($modelRows, 0, 10);
-
-        $chart = function (array $rows) {
-            $nonzero = array_values(array_filter($rows, fn ($r) => $r['count'] > 0));
-
-            return [
-                'labels' => array_column($nonzero, 'label'),
-                'data' => array_column($nonzero, 'count'),
-                'colors' => array_column($nonzero, 'color'),
-            ];
-        };
-
-        return [
-            'stage' => ['rows' => $stageRows, 'chart' => $chart($stageRows)],
-            'type' => ['rows' => $typeRows, 'chart' => $chart($typeRows)],
-            'model' => ['rows' => $modelRows, 'chart' => $chart($modelRows)],
-            'total' => $items->count(),
-        ];
+        return response()->stream(function () use ($assets, $date) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Asset Tag', 'Name', 'Serial', 'Model', 'Status', 'Lessor', 'Lease End', 'Location', 'Decommissioned']);
+            foreach ($assets as $asset) {
+                fputcsv($out, [
+                    $asset->asset_tag,
+                    $asset->name,
+                    $asset->serial,
+                    $asset->model?->name ?: '',
+                    $asset->status?->name ?: '',
+                    $asset->lessor?->name ?: '',
+                    $asset->lease_end_date,
+                    $asset->location?->name ?: '',
+                    $date,
+                ]);
+            }
+            fclose($out);
+        }, 200, $headers);
     }
 
     private function streamWavesCsv($waves, ?string $fy): StreamedResponse
@@ -253,7 +473,7 @@ class DeploymentsController extends Controller
      */
     public function storage(Request $request)
     {
-        $this->authorize('view', Order::class);
+        $this->authorize('deployments.view');
 
         $locations = Location::query()
             ->whereNotNull('storage_capacity')
@@ -340,7 +560,7 @@ class DeploymentsController extends Controller
 
     public function create()
     {
-        $this->authorize('create', Order::class);
+        $this->authorize('deployments.edit');
 
         return view('deployment-waves.create', [
             'wave' => new DeploymentWave([
@@ -354,7 +574,7 @@ class DeploymentsController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->authorize('create', Order::class);
+        $this->authorize('deployments.edit');
 
         $wave = new DeploymentWave;
         $wave->fill($request->all());
@@ -370,7 +590,7 @@ class DeploymentsController extends Controller
 
     public function show(DeploymentWave $deploymentWave)
     {
-        $this->authorize('view', Order::class);
+        $this->authorize('deployments.view');
 
         $deploymentWave->load([
             'type', 'owner', 'location', 'storageLocation', 'purchaseOrder',
@@ -401,7 +621,7 @@ class DeploymentsController extends Controller
 
     public function edit(DeploymentWave $deploymentWave)
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
 
         return view('deployment-waves.edit', [
             'wave' => $deploymentWave,
@@ -411,7 +631,7 @@ class DeploymentsController extends Controller
 
     public function update(Request $request, DeploymentWave $deploymentWave): RedirectResponse
     {
-        $this->authorize('update', Order::class);
+        $this->authorize('deployments.edit');
 
         $deploymentWave->fill($request->all());
 
@@ -425,7 +645,7 @@ class DeploymentsController extends Controller
 
     public function destroy(DeploymentWave $deploymentWave): RedirectResponse
     {
-        $this->authorize('delete', Order::class);
+        $this->authorize('deployments.edit');
 
         $fy = $deploymentWave->fiscal_year;
         $deploymentWave->delete();
@@ -437,7 +657,7 @@ class DeploymentsController extends Controller
     /** CSV of a single wave's items. */
     public function exportWave(DeploymentWave $deploymentWave): StreamedResponse
     {
-        $this->authorize('view', Order::class);
+        $this->authorize('deployments.view');
 
         $deploymentWave->load(['items.stage', 'items.asset', 'items.replacesAsset', 'items.model', 'items.assignedUser', 'items.assignedTech', 'items.storageLocation']);
 
@@ -475,7 +695,7 @@ class DeploymentsController extends Controller
 
     public function forecast(Request $request)
     {
-        $this->authorize('view', Order::class);
+        $this->authorize('deployments.view');
 
         $forecast = new RefreshForecast;
         $fiscalYears = $forecast->availableFiscalYears();
@@ -484,14 +704,16 @@ class DeploymentsController extends Controller
         $candidates = $fy ? $forecast->forFiscalYear($fy) : collect();
 
         $waves = $fy
-            ? DeploymentWave::where('fiscal_year', $fy)->ordered()->get()
-            : DeploymentWave::ordered()->get();
+            ? DeploymentWave::where('fiscal_year', $fy)->withCount('items')->ordered()->get()
+            : DeploymentWave::withCount('items')->ordered()->get();
 
         return view('reports.deployments.forecast', [
             'candidates' => $candidates,
             'fiscalYears' => $fiscalYears ?: [$fy],
             'fy' => $fy,
             'waves' => $waves,
+            'types' => DeploymentType::active()->ordered()->get(),
+            'timeline' => (new DeploymentTimeline)->build($waves),
             'leaseColumnPresent' => RefreshForecast::leaseEndColumn() !== null,
         ]);
     }
@@ -503,7 +725,7 @@ class DeploymentsController extends Controller
      */
     public function addFromForecast(Request $request): RedirectResponse
     {
-        $this->authorize('create', Order::class);
+        $this->authorize('deployments.edit');
 
         $request->validate([
             'asset_ids' => 'required|array|min:1',
@@ -518,11 +740,18 @@ class DeploymentsController extends Controller
         if ($waveId) {
             $wave = DeploymentWave::findOrFail((int) $waveId);
         } elseif ($newWaveName !== '') {
+            // The planning hub can shape the wave at creation: type and the
+            // arrival / deploy windows land straight on the timeline.
             $wave = new DeploymentWave([
                 'name' => $newWaveName,
                 'fiscal_year' => $fy,
                 'wave_state' => 'planned',
-                'deployment_type_id' => DeploymentType::where('slug', 'refresh')->value('id'),
+                'deployment_type_id' => (int) $request->input('deployment_type_id')
+                    ?: DeploymentType::where('slug', 'refresh')->value('id'),
+                'arrival_window_start' => $request->input('arrival_window_start') ?: null,
+                'arrival_window_end' => $request->input('arrival_window_end') ?: null,
+                'target_start_date' => $request->input('target_start_date') ?: null,
+                'target_end_date' => $request->input('target_end_date') ?: null,
             ]);
             $wave->created_by = auth()->id();
             $wave->save();

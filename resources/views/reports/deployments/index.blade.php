@@ -6,55 +6,42 @@
 
 @section('header_right')
     <a href="{{ route('deployment-config.index', 'types') }}" class="btn btn-sm btn-default"><i class="fas fa-cog"></i> {{ trans('admin/deployments/general.configure') }}</a>
-    <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.forecast') }}</a>
-    <a href="{{ route('deployments.storage') }}" class="btn btn-sm btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
-    <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-sm btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
     <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('admin/deployments/general.download') }}</a>
-    <a href="{{ route('deployment-waves.create') }}" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_wave') }}</a>
 @stop
 
 @section('content')
 <div class="row"><div class="col-md-12">
 
-{{-- Filters --}}
-<div class="row">
-    <div class="col-md-12">
-        <form method="GET" action="{{ route('reports.deployments') }}" class="form-inline" style="margin-bottom:15px;">
-            <div class="form-group">
-                <label>{{ trans('admin/deployments/general.filter_fiscal_year') }}</label>
-                <select name="fiscal_year" class="form-control" onchange="this.form.submit()">
-                    @foreach ($fiscalYears as $y)
-                        <option value="{{ $y }}" {{ (string) $fy === (string) $y ? 'selected' : '' }}>{{ $y }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="form-group">
-                <label>{{ trans('admin/deployments/general.filter_type') }}</label>
-                <select name="deployment_type" class="form-control" onchange="this.form.submit()">
-                    <option value="">{{ trans('admin/deployments/general.all_types') }}</option>
-                    @foreach ($types as $t)
-                        <option value="{{ $t->id }}" {{ (string) $typeFilter === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="form-group">
-                <label>{{ trans('admin/deployments/general.filter_stage') }}</label>
-                <select name="stage" class="form-control" onchange="this.form.submit()">
-                    <option value="">{{ trans('admin/deployments/general.all_stages') }}</option>
-                    @foreach ($stages as $st)
-                        <option value="{{ $st->id }}" {{ (string) $stageFilter === (string) $st->id ? 'selected' : '' }}>{{ $st->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-        </form>
-    </div>
+{{-- Filters + the module's doors, on one visible row. --}}
+<div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
+    <form method="GET" action="{{ route('reports.deployments') }}" style="display:flex; align-items:center; gap:8px; margin:0;">
+        <label style="margin:0;">{{ trans('admin/deployments/general.filter_fiscal_year') }}</label>
+        <select name="fiscal_year" class="form-control" style="width:auto;" onchange="this.form.submit()">
+            @foreach ($fiscalYears as $y)
+                <option value="{{ $y }}" {{ (string) $fy === (string) $y ? 'selected' : '' }}>{{ $y }}</option>
+            @endforeach
+        </select>
+        <label style="margin:0 0 0 6px;">{{ trans('admin/deployments/general.filter_type') }}</label>
+        <select name="deployment_type" class="form-control" style="width:auto;" onchange="this.form.submit()">
+            <option value="">{{ trans('admin/deployments/general.all_types') }}</option>
+            @foreach ($types as $t)
+                <option value="{{ $t->id }}" {{ (string) $typeFilter === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
+            @endforeach
+        </select>
+    </form>
+    <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.forecast') }}</a>
+    <a href="{{ route('deployments.storage') }}" class="btn btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
+    <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
+    @can('deployments.edit')
+        @include('reports.deployments._new-wave-popover', ['popoverId' => 'dp-new-wave', 'fy' => $fy, 'types' => $types])
+    @endcan
 </div>
 
-{{-- Device-flow chevron rail: the whole funnel at a glance, one chevron
-     per catalog stage (Planned → … → Deployed). Clicking a chevron applies
-     the same ?stage= filter as the select above; the terminal stage renders
-     in its own colour even at zero so "nothing deployed yet" is visible.
-     Geometry mirrors the procurement pipeline rail. --}}
+{{-- Device-flow chevron rail. Counts are counts of ROWS in the device
+     table below — one row per device whatever its source (wave item,
+     refresh backlog, order line, past-year reconstruction) — so chevrons
+     and table can never disagree. A chevron click filters the table;
+     clicking the selected chevron again clears the filter. --}}
 <style>
     .dp-rail-scroll { overflow-x: auto; margin-bottom: 15px; }
     .dp-rail { display: flex; min-width: 900px; padding: 2px 0; }
@@ -63,6 +50,7 @@
         clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
         margin-right: -11px;
         text-decoration: none;
+        cursor: pointer;
         background: color-mix(in srgb, var(--dp-c) 10%, var(--box-bg, #fff));
     }
     .dp-chev:first-child {
@@ -71,9 +59,25 @@
     }
     .dp-chev:hover, .dp-chev:focus { text-decoration: none; background: color-mix(in srgb, var(--dp-c) 20%, var(--box-bg, #fff)); }
     .dp-chev.selected { background: var(--dp-c); }
+    .dp-chev.dp-dropover { background: color-mix(in srgb, var(--dp-c) 45%, var(--box-bg, #fff)); }
     .dp-chev .dp-stage { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dp-c); }
     .dp-chev .dp-big { font-size: 20px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--color-fg, #333); }
     .dp-chev.selected .dp-stage, .dp-chev.selected .dp-big { color: #fff; }
+    .dp-scroll { max-height: 65vh; overflow: auto; }
+    .dp-scroll thead th {
+        position: sticky; top: 0; z-index: 2;
+        background: var(--box-bg, #fff);
+        box-shadow: 0 1px 0 var(--box-border-color, #f4f4f4);
+    }
+    .dp-group-head td {
+        font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+        background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 8%, var(--box-bg, #fff));
+        cursor: grab;
+    }
+    #dp-rows tr[draggable="true"] { cursor: grab; }
+    .dp-bulkbar { display: none; padding: 8px 10px; border-bottom: 1px solid var(--box-border-color, #f4f4f4); }
+    .dp-bulkbar.active { display: block; }
+    .dp-bulkbar .form-control { display: inline-block; width: auto; vertical-align: middle; }
 </style>
 <div class="box box-default">
     <div class="box-header with-border">
@@ -82,12 +86,9 @@
     </div>
     <div class="box-body">
         <div class="dp-rail-scroll">
-            <div class="dp-rail">
+            <div class="dp-rail" id="dp-rail">
                 @foreach ($stageRail as $rs)
-                    @php($selected = (string) $stageFilter === (string) $rs['id'])
-                    <a class="dp-chev {{ $selected ? 'selected' : '' }}"
-                       style="--dp-c: {{ $rs['color'] }}"
-                       href="{{ route('reports.deployments', array_filter(['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'stage' => $selected ? null : $rs['id']])) }}">
+                    <a class="dp-chev" data-stage="{{ $rs['slug'] }}" data-stage-id="{{ $rs['id'] }}" style="--dp-c: {{ $rs['color'] }}" href="#devices-flow">
                         <div class="dp-stage">{{ $rs['name'] }}</div>
                         <div class="dp-big">{{ $rs['count'] }}</div>
                     </a>
@@ -97,228 +98,12 @@
     </div>
 </div>
 
-{{-- Lease-end / EOL look-ahead: the full candidate list for the selected
-     FY, so picking a future year (say FY2027-28) shows every device
-     expected to come due — the planning list exists before any wave does.
-     The forecast picker is one click away to pull them onto a wave. --}}
-@if ($forecastAssets->count() > 0)
-<div class="box box-default">
-    <div class="box-header with-border">
-        <h3 class="box-title">
-            {{ trans('admin/deployments/general.forecast_summary', ['count' => $forecastAssets->count(), 'fy' => $fy]) }}
-        </h3>
-        <div class="box-tools pull-right">
-            <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary">
-                <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}
-            </a>
-        </div>
-    </div>
-    <div class="box-body no-padding" style="max-height:420px; overflow:auto;">
-        <table class="table table-hover table-striped table-condensed" style="margin-bottom:0;">
-            <thead>
-                <tr>
-                    <th>{{ trans('admin/deployments/general.device') }}</th>
-                    <th>{{ trans('admin/deployments/general.model') }}</th>
-                    <th>{{ trans('admin/deployments/general.refresh_reason') }}</th>
-                    <th>{{ trans('admin/deployments/general.source_date') }}</th>
-                    <th>{{ trans('general.status') }}</th>
-                    <th>{{ trans('admin/deployments/general.location') }}</th>
-                </tr>
-            </thead>
-            <tbody>
-            @php($reasonLabel = ['eol' => trans('admin/deployments/general.reason_eol'), 'lease' => trans('admin/deployments/general.reason_lease'), 'both' => trans('admin/deployments/general.reason_both')])
-            @foreach ($forecastAssets as $asset)
-                <tr>
-                    <td><a href="{{ route('hardware.show', $asset) }}" class="js-lightbox">{{ $asset->name ?: $asset->asset_tag ?: ('#'.$asset->id) }}</a></td>
-                    <td>{{ $asset->model?->name ?: '—' }}</td>
-                    <td><span class="label label-default">{{ $reasonLabel[$asset->refresh_reason] ?? $asset->refresh_reason }}</span></td>
-                    <td>{{ $asset->source_date ?: '—' }}</td>
-                    <td>{{ $asset->status?->name ?: '—' }}</td>
-                    <td>{{ $asset->location?->name ?: '—' }}</td>
-                </tr>
-            @endforeach
-            </tbody>
-        </table>
-    </div>
-</div>
+@if ($waves->isNotEmpty())
+@include('reports.deployments._timeline')
 @endif
-
-{{-- The unfunded counterweight to the look-ahead above: leases carry
-     pre-approved replacement money from signing, but the Active (Legacy)
-     fleet is aging in daily use with no replacement plan or funding in
-     sight. Exec readers should see both stories side by side. --}}
-@if (($legacyFleet['count'] ?? 0) > 0)
-<div class="box box-default" style="border-left:4px solid #dd4b39;">
-    <div class="box-header with-border">
-        <h3 class="box-title">
-            <i class="fas fa-hourglass-half text-red" aria-hidden="true"></i>
-            {{ trans('admin/deployments/general.legacy_title', ['count' => $legacyFleet['count']]) }}
-        </h3>
-        <div class="box-tools pull-right">
-            <a href="{{ url('hardware') }}?status_id={{ $legacyFleet['status_ids'][0] }}" class="btn btn-sm btn-default">
-                {{ trans('admin/deployments/general.legacy_view_devices') }}
-            </a>
-        </div>
-    </div>
-    <div class="box-body">
-        <p style="margin:0 0 8px;">
-            {{ trans('admin/deployments/general.legacy_note', [
-                'age' => $legacyFleet['avg_age_years'] ?? '—',
-                'oldest' => $legacyFleet['oldest_year'] ?? '—',
-            ]) }}
-        </p>
-        @foreach ($legacyFleet['by_model'] as $row)
-            <span class="label" style="background-color:#dd4b39; color:#fff; display:inline-block; margin:0 4px 4px 0;">
-                {{ $row['model'] }} · {{ $row['count'] }}
-            </span>
-        @endforeach
-    </div>
-</div>
-@endif
-
-{{-- Donut + count widgets --}}
-<div class="row">
-    @php($cards = [
-        ['key' => 'stage', 'title' => trans('admin/deployments/general.widget_stage'), 'canvas' => 'deployStageChart'],
-        ['key' => 'type', 'title' => trans('admin/deployments/general.widget_type'), 'canvas' => 'deployTypeChart'],
-        ['key' => 'model', 'title' => trans('admin/deployments/general.widget_model'), 'canvas' => 'deployModelChart'],
-    ])
-    @foreach ($cards as $card)
-        <div class="col-md-4">
-            <div class="box box-default">
-                <div class="box-header with-border"><h3 class="box-title">{{ $card['title'] }}</h3></div>
-                <div class="box-body">
-                    <div style="position:relative; height:200px; margin-bottom:10px;">
-                        <canvas id="{{ $card['canvas'] }}"></canvas>
-                    </div>
-                    <table class="table table-striped" style="margin-bottom:0;">
-                        <tbody>
-                        @forelse ($widgets[$card['key']]['rows'] as $r)
-                            <tr>
-                                <td><span class="label" style="background-color: {{ $r['color'] }}; color:#fff;">{{ $r['label'] }}</span></td>
-                                <td class="text-right"><strong>{{ $r['count'] }}</strong></td>
-                                <td class="text-right text-muted">{{ $r['pct'] }}%</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="3" class="text-center text-muted">—</td></tr>
-                        @endforelse
-                        </tbody>
-                        <tfoot><tr><th>{{ trans('admin/deployments/general.total') }}</th><th class="text-right">{{ $widgets['total'] }}</th><th></th></tr></tfoot>
-                    </table>
-                </div>
-            </div>
-        </div>
-    @endforeach
-</div>
-
-{{-- Timeline / Gantt (P2a) --}}
-<div class="box box-default">
-    <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/deployments/general.timeline_title') }}</h3>
-        <div class="box-tools pull-right">
-            <span class="text-muted" style="font-size:12px;">
-                <span style="display:inline-block; width:12px; height:12px; background:#2980b9; border-radius:2px; vertical-align:middle;"></span>
-                {{ trans('admin/deployments/general.timeline_legend_arrival') }}
-                &nbsp;&nbsp;
-                <span style="display:inline-block; width:12px; height:12px; background:#2980b9; opacity:0.45; border-radius:2px; vertical-align:middle;"></span>
-                {{ trans('admin/deployments/general.timeline_legend_deploy') }}
-                &nbsp;&nbsp;
-                <span style="display:inline-block; width:12px; height:12px; vertical-align:middle; border-radius:2px;
-                    background:repeating-linear-gradient(45deg,#95a5a6,#95a5a6 3px,#bdc3c7 3px,#bdc3c7 6px);"></span>
-                {{ trans('admin/deployments/general.timeline_blackouts_label') }}
-            </span>
-        </div>
-    </div>
-    <div class="box-body table-responsive">
-        @if (($timeline['waves_with_collision'] ?? 0) > 0)
-            <div class="callout callout-warning" style="margin:0 0 12px;">
-                <i class="fas fa-exclamation-triangle"></i>
-                {{ trans('admin/deployments/general.timeline_collision_callout', ['count' => $timeline['waves_with_collision']]) }}
-            </div>
-        @endif
-        @if (count($timeline['months']) === 0)
-            <p class="text-center text-muted" style="margin:20px 0;">{{ trans('admin/deployments/general.timeline_empty') }}</p>
-        @else
-            @php($colCount = count($timeline['months']))
-            <table class="table table-condensed" style="margin-bottom:0; table-layout:fixed;">
-                <thead>
-                    <tr>
-                        <th style="width:200px;">{{ trans('admin/deployments/general.wave') }}</th>
-                        @foreach ($timeline['months'] as $m)
-                            <th class="text-center text-muted" style="font-weight:normal; font-size:11px;">{{ $m['label'] }}</th>
-                        @endforeach
-                    </tr>
-                </thead>
-                <tbody>
-                @php($bands = $timeline['blackout_bands'] ?? [])
-                @if (count($bands) > 0)
-                    {{-- Staff OOO header strip: each blackout as a faint striped band on the month axis. --}}
-                    <tr>
-                        <td><span class="text-muted" style="font-size:11px;"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.timeline_blackouts_label') }}</span></td>
-                        <td colspan="{{ $colCount }}" style="position:relative; padding:0;">
-                            <div style="position:relative; height:20px;">
-                                @foreach ($bands as $band)
-                                    <div title="{{ $band['name'] }}: {{ $band['label'] }}"
-                                         style="position:absolute; top:3px; height:14px; border-radius:3px;
-                                                left: {{ $band['offsetPct'] }}%; width: {{ $band['widthPct'] }}%;
-                                                background:repeating-linear-gradient(45deg,#95a5a6,#95a5a6 3px,#bdc3c7 3px,#bdc3c7 6px);
-                                                overflow:hidden; white-space:nowrap;">
-                                        <span style="color:#fff; font-size:10px; padding-left:4px; line-height:14px;">{{ $band['name'] }}</span>
-                                    </div>
-                                @endforeach
-                            </div>
-                        </td>
-                    </tr>
-                @endif
-                @foreach ($timeline['rows'] as $r)
-                    <tr>
-                        <td>
-                            @if (count($r['collisions'] ?? []) > 0)
-                                <i class="fas fa-exclamation-triangle text-yellow" title="{{ trans('admin/deployments/general.timeline_collision_tooltip') }}: {{ collect($r['collisions'])->map(fn ($c) => $c['name'].' ('.$c['label'].')')->implode(', ') }}"></i>
-                            @endif
-                            <a href="{{ route('deployment-waves.show', $r['wave']) }}">
-                                <span class="label" style="background-color: {{ $r['wave']->displayColor() }}; color:#fff;">{{ $r['wave']->name }}</span>
-                            </a>
-                        </td>
-                        <td colspan="{{ $colCount }}" style="position:relative; padding:0;">
-                            {{-- Faint blackout bands behind the wave bars (visually subordinate). --}}
-                            @foreach ($bands as $band)
-                                <div style="position:absolute; top:0; bottom:0; z-index:0;
-                                            left: {{ $band['offsetPct'] }}%; width: {{ $band['widthPct'] }}%;
-                                            background:repeating-linear-gradient(45deg,rgba(149,165,166,0.10),rgba(149,165,166,0.10) 4px,rgba(189,195,199,0.10) 4px,rgba(189,195,199,0.10) 8px);"></div>
-                            @endforeach
-                            @if (! $r['has_dates'])
-                                <span class="text-muted" style="font-size:11px; padding-left:6px; position:relative; z-index:1;">{{ trans('admin/deployments/general.timeline_no_dates') }}</span>
-                            @else
-                                <div style="position:relative; height:38px; z-index:1;">
-                                    @if ($r['arrival'])
-                                        <div title="{{ trans('admin/deployments/general.timeline_legend_arrival') }}: {{ $r['arrival']['label'] }}"
-                                             style="position:absolute; top:3px; height:14px; border-radius:3px;
-                                                    left: {{ $r['arrival']['offsetPct'] }}%; width: {{ $r['arrival']['widthPct'] }}%;
-                                                    background-color: {{ $r['arrival']['color'] }}; overflow:hidden; white-space:nowrap;">
-                                            <span style="color:#fff; font-size:10px; padding-left:4px; line-height:14px;">{{ $r['arrival']['label'] }}</span>
-                                        </div>
-                                    @endif
-                                    @if ($r['deploy'])
-                                        <div title="{{ trans('admin/deployments/general.timeline_legend_deploy') }}: {{ $r['deploy']['label'] }}"
-                                             style="position:absolute; top:20px; height:14px; border-radius:3px; opacity:0.55;
-                                                    left: {{ $r['deploy']['offsetPct'] }}%; width: {{ $r['deploy']['widthPct'] }}%;
-                                                    background-color: {{ $r['deploy']['color'] }}; overflow:hidden; white-space:nowrap;">
-                                            <span style="color:#fff; font-size:10px; padding-left:4px; line-height:14px;">{{ $r['deploy']['label'] }}</span>
-                                        </div>
-                                    @endif
-                                </div>
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
-        @endif
-    </div>
-</div>
 
 {{-- Waves table --}}
+@if ($waves->isNotEmpty())
 <div class="box box-default">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.waves_title') }}</h3>
@@ -364,15 +149,185 @@
         </table>
     </div>
 </div>
+@endif
 
-{{-- Decommissioning — the reverse flow. Derived entirely from fields the
-     devices already carry: Processing* status = collecting, decommission
-     date = out the door, archived status = terminal. Deep per-device work
-     happens on the Disposition Grid; this lane is the operational rollup —
-     what is being gathered, and which rooms the pickup has to visit. --}}
+{{-- The unified device table: one row per physical device in the FY's
+     flow, whatever lens produced it. Chevrons filter it, Group regroups
+     it, checkboxes and drag drive bulk moves. --}}
+<div class="box box-default" id="devices-flow">
+    <div class="box-header with-border">
+        <h3 class="box-title" id="dp-title">{{ trans('admin/deployments/general.flow_devices_title', ['count' => count($deviceRows), 'fy' => $fy]) }}</h3>
+        <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary" style="margin-left:12px; vertical-align:middle;">
+            <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}</a>
+        <span style="margin-left:16px; vertical-align:middle; white-space:nowrap;">
+            <span class="text-muted" style="font-size:12px; margin-right:4px;">{{ trans('admin/deployments/general.flow_group_label') }}</span>
+            <span class="btn-group" id="dp-group-btns" style="vertical-align:middle;">
+                <button type="button" class="btn btn-xs btn-default active" data-group="">{{ trans('admin/deployments/general.flow_group_none') }}</button>
+                <button type="button" class="btn btn-xs btn-default" data-group="group">{{ trans('admin/deployments/general.flow_group_group') }}</button>
+                <button type="button" class="btn btn-xs btn-default" data-group="location">{{ trans('admin/deployments/general.flow_group_location') }}</button>
+                <button type="button" class="btn btn-xs btn-default" data-group="type">{{ trans('admin/deployments/general.flow_group_type') }}</button>
+                <button type="button" class="btn btn-xs btn-default" data-group="model">{{ trans('admin/deployments/general.flow_group_model') }}</button>
+            </span>
+        </span>
+    </div>
+    @if ($backlogCount > 0)
+        <div class="box-body" style="padding-top:8px; padding-bottom:8px; border-bottom:1px solid var(--box-border-color, #f4f4f4);">
+            <span class="text-muted" style="font-size:12.5px;">
+                {{ $isPast
+                    ? trans('admin/deployments/general.flow_backlog_note_past', ['count' => $backlogCount, 'fy' => $fy])
+                    : trans('admin/deployments/general.flow_backlog_note', ['count' => $backlogCount]) }}
+            </span>
+        </div>
+    @endif
+
+    {{-- Bulk action bar: appears once anything is checked. Stage moves and
+         grouping act on tracked (wave) rows; add-to-wave acts on backlog
+         rows. Derived rows (orders, history) carry no checkbox. --}}
+    <div class="dp-bulkbar" id="dp-bulkbar">
+        <strong id="dp-sel-count"></strong>
+        <span id="dp-move-wrap" style="margin-left:12px; display:none;">
+            {{ trans('admin/deployments/general.flow_move_to') }}:
+            @foreach ($stages as $stage)
+                <button type="button" class="btn btn-xs btn-default dp-move-btn" data-stage-id="{{ $stage->id }}"
+                        style="border-color: {{ $stage->color ?: '#bdc3c7' }};">
+                    {{ $stage->name }}
+                </button>
+            @endforeach
+            <span style="margin-left:10px;">
+                <input type="text" id="dp-group-input" class="form-control input-sm" style="width:160px;" placeholder="{{ trans('admin/deployments/general.flow_set_group') }}">
+                <button type="button" class="btn btn-xs btn-default" id="dp-group-apply">{{ trans('admin/deployments/general.flow_set_group') }}</button>
+            </span>
+            <span class="text-muted" style="font-size:12px; margin-left:8px;">{{ trans('admin/deployments/general.flow_gate_hint') }}</span>
+        </span>
+        <span id="dp-wave-wrap" style="margin-left:12px; display:none;">
+            {{ trans('admin/deployments/general.flow_add_to_wave') }}:
+            <select id="dp-wave-select" class="form-control input-sm">
+                <option value="">{{ trans('admin/deployments/general.catalog_none') }}</option>
+                @foreach ($waves as $wave)
+                    <option value="{{ $wave->id }}">{{ $wave->name }}</option>
+                @endforeach
+            </select>
+            <input type="text" id="dp-wave-new" class="form-control input-sm" placeholder="{{ trans('admin/deployments/general.new_wave_name') }}">
+            <button type="button" class="btn btn-xs btn-primary" id="dp-wave-go">{{ trans('admin/deployments/general.add_from_forecast') }}</button>
+        </span>
+    </div>
+
+    <div class="box-body no-padding dp-scroll">
+        <table class="table table-hover table-striped table-condensed" style="margin-bottom:0;">
+            <thead>
+                <tr>
+                    <th style="width:28px;"><input type="checkbox" id="dp-select-all"></th>
+                    <th>{{ trans('admin/deployments/general.device') }}</th>
+                    <th>{{ trans('admin/deployments/general.model') }}</th>
+                    <th>{{ trans('admin/deployments/general.stage') }}</th>
+                    <th>{{ trans('admin/deployments/general.wave') }}</th>
+                    <th>{{ trans('admin/deployments/general.deployment_type') }}</th>
+                    <th>{{ trans('admin/deployments/general.refresh_reason') }}</th>
+                    <th>{{ trans('admin/deployments/general.source_date') }}</th>
+                    <th>{{ trans('general.status') }}</th>
+                    <th>{{ trans('admin/deployments/general.location') }}</th>
+                </tr>
+            </thead>
+            <tbody id="dp-rows">
+            @forelse ($deviceRows as $idx => $row)
+                <tr data-idx="{{ $idx }}"
+                    data-kind="{{ $row['kind'] }}"
+                    data-stage="{{ $row['stage_slug'] }}"
+                    data-type="{{ $row['type'] }}"
+                    data-model="{{ $row['model'] }}"
+                    data-group="{{ $row['group'] ?: '—' }}"
+                    data-location="{{ $row['location'] }}"
+                    @if ($row['item_id']) data-item-id="{{ $row['item_id'] }}" @endif
+                    @if ($row['asset_id']) data-asset-id="{{ $row['asset_id'] }}" @endif>
+                    <td>
+                        @if ($row['item_id'] || $row['asset_id'])
+                            <input type="checkbox" class="dp-check">
+                        @endif
+                    </td>
+                    <td>
+                        @if ($row['device_url'])
+                            <a href="{{ $row['device_url'] }}" @if ($row['kind'] !== 'order') class="js-lightbox" @endif>{{ $row['device'] }}</a>
+                        @else
+                            {{ $row['device'] }}
+                        @endif
+                    </td>
+                    <td>{{ $row['model'] }}</td>
+                    <td><span class="label" style="background-color: {{ $row['stage_color'] }}; color:#fff;">{{ $row['stage_name'] }}</span></td>
+                    <td>
+                        @if ($row['wave'])
+                            <a href="{{ $row['wave_url'] }}"><span class="label" style="background-color: {{ $row['wave_color'] }}; color:#fff;">{{ $row['wave'] }}</span></a>
+                        @else — @endif
+                    </td>
+                    <td>{{ $row['type'] }}</td>
+                    <td>{{ $row['context'] }}</td>
+                    <td>{{ $row['due'] }}</td>
+                    <td>{{ $row['status'] }}</td>
+                    <td>{{ $row['location'] }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="10" class="text-center text-muted">{{ trans('admin/deployments/general.flow_empty') }}</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<form id="dp-stage-form" method="POST" action="{{ route('deployment-items.bulk-stage') }}" style="display:none;">
+    @csrf
+    <input type="hidden" name="stage_id" value="">
+    <span id="dp-stage-ids"></span>
+</form>
+<form id="dp-group-form" method="POST" action="{{ route('deployment-items.bulk-group') }}" style="display:none;">
+    @csrf
+    <input type="hidden" name="group_label" value="">
+    <span id="dp-group-ids"></span>
+</form>
+<form id="dp-wave-form" method="POST" action="{{ route('deployments.forecast.add') }}" style="display:none;">
+    @csrf
+    <input type="hidden" name="fiscal_year" value="{{ $fy }}">
+    <input type="hidden" name="wave_id" value="">
+    <input type="hidden" name="new_wave_name" value="">
+    <span id="dp-wave-ids"></span>
+</form>
+
+{{-- User agreements in flight — the faculty program's quoted → signed
+     ledger. It lives here because signing gates the physical hand-off;
+     the fragment is served by the procurement side, fetched on load. --}}
+@can('procurement.view')
 <div class="box box-default">
     <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/deployments/general.decom_title') }}</h3>
+        <h3 class="box-title">{{ trans('admin/store/general.tab_agreements') }}</h3>
+    </div>
+    <div class="box-body">
+        <div id="dp-agreements-embed" data-embed-url="{{ route('reports.procurement.user-agreement-ledger', ['embed' => 1]) }}">
+            <div class="text-center text-muted" style="padding:14px;"><i class="fa fa-spinner fa-spin" aria-hidden="true"></i></div>
+        </div>
+    </div>
+</div>
+<script nonce="{{ csrf_token() }}">
+(function () {
+    var target = document.getElementById('dp-agreements-embed');
+    if (! target) { return; }
+    fetch(target.dataset.embedUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(function (resp) { if (! resp.ok) { throw new Error('HTTP ' + resp.status); } return resp.text(); })
+        .then(function (html) { target.innerHTML = html; })
+        .catch(function () { target.innerHTML = '<p class="text-muted">—</p>'; });
+})();
+</script>
+@endcan
+
+{{-- Decommissioning — the reverse flow, current + past years only (a
+     future year has no outgoing work yet). Collecting is split into
+     buckets per Processing kind — returns, donations and recycling are
+     handled by different parties. The pickups register groups
+     decommissioned devices by decommission date: each date is one
+     physical run, with its own targeted CSV. --}}
+@if ($decommission)
+<div class="box box-default" id="decommissioning" style="scroll-margin-top:64px;">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.decom_title') }}
+            <a href="#decommissioning" class="text-muted" style="font-size:13px;" title="{{ trans('admin/deployments/general.decom_permalink') }}"><i class="fas fa-link"></i></a>
+        </h3>
         <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.decom_hint') }}</span>
         <div class="box-tools pull-right">
             <a href="{{ route('reports.procurement.disposition-grid') }}" class="btn btn-sm btn-default">
@@ -382,12 +337,11 @@
     </div>
     <div class="box-body">
         <div class="dp-rail-scroll">
-            <div class="dp-rail" style="min-width:640px;">
-                @php($decomStages = [
-                    ['label' => trans('admin/deployments/general.decom_collecting'), 'note' => trans('admin/deployments/general.decom_collecting_note'), 'count' => $decommission['collectingCount'], 'color' => '#1f9e8e'],
+            <div class="dp-rail" style="min-width:520px;">
+                @php($decomStages = array_values(array_filter([
+                    $isPast ? null : ['label' => trans('admin/deployments/general.decom_collecting'), 'note' => trans('admin/deployments/general.decom_collecting_note'), 'count' => $decommission['collectingCount'], 'color' => '#1f9e8e'],
                     ['label' => trans('admin/deployments/general.decom_decommissioned'), 'note' => trans('admin/deployments/general.decom_decommissioned_note'), 'count' => $decommission['decommissionedCount'], 'color' => '#c8860a'],
-                    ['label' => trans('admin/deployments/general.decom_archived'), 'note' => trans('admin/deployments/general.decom_archived_note'), 'count' => $decommission['archivedCount'], 'color' => '#95a5a6'],
-                ])
+                ])))
                 @foreach ($decomStages as $ds)
                     <div class="dp-chev" style="--dp-c: {{ $ds['color'] }}; cursor:default;">
                         <div class="dp-stage">{{ $ds['label'] }}</div>
@@ -397,87 +351,347 @@
                 @endforeach
             </div>
         </div>
+        @if ($decommission['unarchivedCount'] > 0)
+            <p class="text-muted" style="font-size:12px; margin:6px 0 0;">
+                {{ trans('admin/deployments/general.decom_unarchived_note', ['count' => $decommission['unarchivedCount']]) }}
+            </p>
+        @endif
 
-        @if ($decommission['collectingCount'] === 0)
-            <p class="text-muted" style="margin:10px 0 0;">{{ trans('admin/deployments/general.decom_none') }}</p>
-        @else
-            <div class="row" style="margin-top:15px;">
-                <div class="col-md-8">
-                    <div class="table-responsive">
-                        <table class="table table-striped table-condensed" style="margin-bottom:0;">
-                            <thead>
-                                <tr>
-                                    <th>{{ trans('admin/deployments/general.decom_col_asset') }}</th>
-                                    <th>{{ trans('admin/deployments/general.decom_col_model') }}</th>
-                                    <th>{{ trans('admin/deployments/general.decom_col_status') }}</th>
-                                    <th>{{ trans('admin/deployments/general.decom_col_location') }}</th>
-                                    <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
-                                    <th>{{ trans('admin/deployments/general.decom_col_lease_end') }}</th>
-                                </tr>
-                            </thead>
+        @if (! $isPast)
+            @if ($decommission['collectingCount'] === 0)
+                <p class="text-muted" style="margin:10px 0 0;">{{ trans('admin/deployments/general.decom_none') }}</p>
+            @else
+                <div class="row" style="margin-top:15px;">
+                    <div class="col-md-9">
+                        @foreach ($decommission['buckets'] as $bucket)
+                            <form method="POST" action="{{ route('deployments.decommission.location') }}">
+                                @csrf
+                                <h5 style="font-weight:700; margin:{{ $loop->first ? '0' : '18px' }} 0 6px;">
+                                    {{ $bucket['label'] }}
+                                    <span class="text-muted" style="font-weight:normal;">· {{ $bucket['count'] }}</span>
+                                    <span class="pull-right" style="font-weight:normal;">
+                                        <select class="js-data-ajax input-sm" data-endpoint="locations" data-placeholder="{{ trans('admin/deployments/general.holding_location_label') }}" name="location_id" style="min-width:220px;"></select>
+                                        <button type="submit" class="btn btn-xs btn-default">{{ trans('admin/deployments/general.holding_location_apply') }}</button>
+                                    </span>
+                                </h5>
+                                <div class="dp-scroll" style="max-height:360px;">
+                                    <table class="table table-striped table-condensed" style="margin-bottom:0;">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:28px;"></th>
+                                                <th>{{ trans('admin/deployments/general.decom_col_asset') }}</th>
+                                                <th>{{ trans('admin/deployments/general.decom_col_model') }}</th>
+                                                <th>{{ trans('admin/deployments/general.decom_col_status') }}</th>
+                                                <th>{{ trans('admin/deployments/general.decom_col_location') }}</th>
+                                                <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
+                                                <th>{{ trans('admin/deployments/general.decom_col_lease_end') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($bucket['rows'] as $row)
+                                                <tr>
+                                                    <td><input type="checkbox" name="asset_ids[]" value="{{ $row['id'] }}"></td>
+                                                    <td><a href="{{ route('hardware.show', $row['id']) }}" class="js-lightbox">{{ $row['asset_tag'] }}</a></td>
+                                                    <td>{{ $row['model'] ?: '—' }}</td>
+                                                    <td>{{ $row['status'] ?: '—' }}</td>
+                                                    <td>{{ $row['location'] ?: '—' }}</td>
+                                                    <td>{{ $row['lessor'] ?: '—' }}</td>
+                                                    <td>{{ $row['lease_end_date'] ?: '—' }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </form>
+                        @endforeach
+                    </div>
+                    <div class="col-md-3">
+                        <h5 style="margin-top:0; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
+                        <table class="table table-condensed" style="margin-bottom:10px;">
                             <tbody>
-                                @foreach ($decommission['collectingRows'] as $row)
+                                @foreach ($decommission['byLocation'] as $loc)
                                     <tr>
-                                        <td><a href="{{ route('hardware.show', $row['id']) }}" class="js-lightbox">{{ $row['asset_tag'] }}</a></td>
-                                        <td>{{ $row['model'] ?: '—' }}</td>
-                                        <td>{{ $row['status'] ?: '—' }}</td>
-                                        <td>{{ $row['location'] ?: '—' }}</td>
-                                        <td>{{ $row['lessor'] ?: '—' }}</td>
-                                        <td>{{ $row['lease_end_date'] ?: '—' }}</td>
+                                        <td>{{ $loc['location'] }}</td>
+                                        <td class="text-right"><strong>{{ $loc['count'] }}</strong></td>
                                     </tr>
                                 @endforeach
                             </tbody>
                         </table>
+                        @foreach ($decommission['statuses'] as $status)
+                            @if ($status['count'] > 0)
+                                <span class="label" style="background-color:#1f9e8e; color:#fff; display:inline-block; margin:0 4px 4px 0;">
+                                    {{ $status['name'] }} · {{ $status['count'] }}
+                                </span>
+                            @endif
+                        @endforeach
                     </div>
-                    @if ($decommission['collectingMore'] > 0)
-                        <p class="text-muted" style="font-size:12px; margin:8px 0 0;">
-                            {{ trans('admin/deployments/general.decom_more', ['count' => $decommission['collectingMore']]) }}
-                        </p>
-                    @endif
                 </div>
-                <div class="col-md-4">
-                    <h5 style="margin-top:0; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
-                    <table class="table table-condensed" style="margin-bottom:10px;">
-                        <tbody>
-                            @foreach ($decommission['byLocation'] as $loc)
-                                <tr>
-                                    <td>{{ $loc['location'] }}</td>
-                                    <td class="text-right"><strong>{{ $loc['count'] }}</strong></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                    @foreach ($decommission['statuses'] as $status)
-                        @if ($status['count'] > 0)
-                            <span class="label" style="background-color:#1f9e8e; color:#fff; display:inline-block; margin:0 4px 4px 0;">
-                                {{ $status['name'] }} · {{ $status['count'] }}
-                            </span>
-                        @endif
-                    @endforeach
-                </div>
+            @endif
+        @endif
+
+        {{-- Pickups register: the way back through what actually left. --}}
+        <h5 style="margin-top:18px; font-weight:700;">
+            {{ trans('admin/deployments/general.decom_pickups_title') }}
+            <span class="text-muted" style="font-weight:normal; font-size:12px; margin-left:6px;">{{ trans('admin/deployments/general.decom_pickups_hint') }}</span>
+        </h5>
+        @if (count($decommission['pickups']) === 0)
+            <p class="text-muted" style="margin:6px 0 0;">{{ trans('admin/deployments/general.decom_no_pickups') }}</p>
+        @else
+            <div class="dp-scroll" style="max-height:360px;">
+                <table class="table table-striped table-condensed" style="margin-bottom:0;">
+                    <thead>
+                        <tr>
+                            <th>{{ trans('admin/deployments/general.pickup_col_date') }}</th>
+                            <th class="text-right">{{ trans('admin/deployments/general.pickup_col_devices') }}</th>
+                            <th>{{ trans('admin/deployments/general.pickup_col_models') }}</th>
+                            <th>{{ trans('admin/deployments/general.pickup_col_locations') }}</th>
+                            <th>{{ trans('admin/deployments/general.pickup_col_lessors') }}</th>
+                            <th style="width:70px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($decommission['pickups'] as $pickup)
+                            <tr>
+                                <td>{{ $pickup['date'] }}</td>
+                                <td class="text-right"><strong>{{ $pickup['count'] }}</strong></td>
+                                <td>{{ $pickup['models'] }}</td>
+                                <td>{{ $pickup['locations'] }}</td>
+                                <td>{{ $pickup['lessors'] ?: '—' }}</td>
+                                <td>
+                                    <a href="{{ route('reports.deployments', ['fiscal_year' => $fy, 'decom_pickup' => $pickup['date'], 'format' => 'csv']) }}" class="btn btn-xs btn-default">
+                                        <i class="fas fa-download"></i> {{ trans('admin/deployments/general.pickup_csv') }}
+                                    </a>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         @endif
     </div>
 </div>
+@endif
 
-<script src="{{ url(mix('js/dist/Chart.min.js')) }}"></script>
 <script nonce="{{ csrf_token() }}">
 (function () {
-    var donut = function (id, payload) {
-        var el = document.getElementById(id);
-        if (!el || !payload.labels.length) { return; }
-        new Chart(el, {
-            type: 'doughnut',
-            data: {
-                labels: payload.labels,
-                datasets: [{ data: payload.data, backgroundColor: payload.colors }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, legend: { position: 'right' } }
+    var tbody = document.getElementById('dp-rows');
+    if (!tbody) { return; }
+
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-idx]'));
+    var stageFilter = '';
+    var stageLabel = '';
+    var groupBy = '';
+    var titleEl = document.getElementById('dp-title');
+    var titleTemplate = @json(trans('admin/deployments/general.flow_devices_title', ['count' => '__N__', 'fy' => $fy]));
+    var stageSuffix = @json(trans('admin/deployments/general.flow_stage_suffix', ['stage' => '__S__']));
+    var emptyText = @json(trans('admin/deployments/general.flow_stage_empty'));
+
+    function rebuild() {
+        Array.prototype.forEach.call(tbody.querySelectorAll('tr.dp-group-head, tr.dp-stage-empty'), function (h) { h.remove(); });
+
+        var visible = [];
+        rows.forEach(function (r) {
+            var show = !stageFilter || r.getAttribute('data-stage') === stageFilter;
+            r.style.display = show ? '' : 'none';
+            if (show) { visible.push(r); }
         });
-    };
-    donut('deployStageChart', @json($widgets['stage']['chart']));
-    donut('deployTypeChart', @json($widgets['type']['chart']));
-    donut('deployModelChart', @json($widgets['model']['chart']));
+
+        // The title always tells the truth about what is on screen.
+        var title = titleTemplate.replace('__N__', visible.length);
+        if (stageFilter && stageLabel) { title += ' ' + stageSuffix.replace('__S__', stageLabel); }
+        titleEl.textContent = title;
+
+        if (visible.length === 0 && rows.length > 0) {
+            var emptyRow = document.createElement('tr');
+            emptyRow.className = 'dp-stage-empty';
+            var td = document.createElement('td');
+            td.colSpan = 10;
+            td.className = 'text-center text-muted';
+            td.textContent = emptyText;
+            emptyRow.appendChild(td);
+            tbody.appendChild(emptyRow);
+        }
+
+        if (!groupBy) {
+            rows.slice().sort(function (a, b) {
+                return (+a.getAttribute('data-idx')) - (+b.getAttribute('data-idx'));
+            }).forEach(function (r) { tbody.appendChild(r); });
+            return;
+        }
+
+        var groups = {};
+        var order = [];
+        visible.forEach(function (r) {
+            var key = r.getAttribute('data-' + groupBy) || '—';
+            if (!groups[key]) { groups[key] = []; order.push(key); }
+            groups[key].push(r);
+        });
+        order.sort(function (a, b) { return groups[b].length - groups[a].length; });
+        order.forEach(function (key) {
+            var head = document.createElement('tr');
+            head.className = 'dp-group-head';
+            head.setAttribute('draggable', 'true');
+            head.setAttribute('data-group-key', key);
+            var td = document.createElement('td');
+            td.colSpan = 10;
+            var check = document.createElement('input');
+            check.type = 'checkbox';
+            check.className = 'dp-group-check';
+            check.style.marginRight = '8px';
+            td.appendChild(check);
+            td.appendChild(document.createTextNode(key + ' · ' + groups[key].length));
+            head.appendChild(td);
+            tbody.appendChild(head);
+            groups[key].forEach(function (r) { tbody.appendChild(r); });
+
+            // A group is a unit: its checkbox selects every row in it, and
+            // dragging its header carries the whole cohort onto a chevron.
+            check.addEventListener('change', function () {
+                groups[key].forEach(function (r) {
+                    var box = r.querySelector('.dp-check');
+                    if (box) { box.checked = check.checked; }
+                });
+                refreshBulkbar();
+            });
+            head.addEventListener('dragstart', function (e) {
+                var ids = groups[key].map(function (r) { return r.getAttribute('data-item-id'); }).filter(Boolean);
+                e.dataTransfer.setData('text/plain', ids.join(','));
+                e.dataTransfer.effectAllowed = 'move';
+            });
+        });
+        rows.forEach(function (r) {
+            if (visible.indexOf(r) === -1) { tbody.appendChild(r); }
+        });
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('#dp-rail .dp-chev'), function (chev) {
+        chev.addEventListener('click', function (e) {
+            e.preventDefault();
+            var slug = chev.getAttribute('data-stage');
+            var wasSelected = chev.classList.contains('selected');
+            Array.prototype.forEach.call(document.querySelectorAll('#dp-rail .dp-chev'), function (c) { c.classList.remove('selected'); });
+            stageFilter = wasSelected ? '' : slug;
+            stageLabel = wasSelected ? '' : chev.querySelector('.dp-stage').textContent;
+            if (!wasSelected) { chev.classList.add('selected'); }
+            rebuild();
+        });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('#dp-group-btns button'), function (btn) {
+        btn.addEventListener('click', function () {
+            Array.prototype.forEach.call(document.querySelectorAll('#dp-group-btns button'), function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            groupBy = btn.getAttribute('data-group');
+            rebuild();
+        });
+    });
+
+    // ── Selection + bulk actions ─────────────────────────────────────
+    var bulkbar = document.getElementById('dp-bulkbar');
+    var selCount = document.getElementById('dp-sel-count');
+    var moveWrap = document.getElementById('dp-move-wrap');
+    var waveWrap = document.getElementById('dp-wave-wrap');
+
+    function selected() {
+        return rows.filter(function (r) {
+            var box = r.querySelector('.dp-check');
+            return r.style.display !== 'none' && box && box.checked;
+        });
+    }
+
+    function refreshBulkbar() {
+        var sel = selected();
+        var items = sel.filter(function (r) { return r.getAttribute('data-item-id'); });
+        var assets = sel.filter(function (r) { return r.getAttribute('data-asset-id'); });
+        bulkbar.classList.toggle('active', sel.length > 0);
+        selCount.textContent = @json(trans('admin/deployments/general.flow_selected', ['count' => '__N__'])).replace('__N__', sel.length);
+        moveWrap.style.display = items.length > 0 ? '' : 'none';
+        waveWrap.style.display = assets.length > 0 ? '' : 'none';
+    }
+
+    tbody.addEventListener('change', function (e) {
+        if (e.target.classList.contains('dp-check')) { refreshBulkbar(); }
+    });
+
+    document.getElementById('dp-select-all').addEventListener('change', function () {
+        var check = this.checked;
+        rows.forEach(function (r) {
+            var box = r.querySelector('.dp-check');
+            if (box && r.style.display !== 'none') { box.checked = check; }
+        });
+        refreshBulkbar();
+    });
+
+    function fillIds(containerId, name, values) {
+        var container = document.getElementById(containerId);
+        container.innerHTML = '';
+        values.forEach(function (v) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = v;
+            container.appendChild(input);
+        });
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.dp-move-btn'), function (btn) {
+        btn.addEventListener('click', function () {
+            var ids = selected().map(function (r) { return r.getAttribute('data-item-id'); }).filter(Boolean);
+            if (!ids.length) { return; }
+            var form = document.getElementById('dp-stage-form');
+            form.querySelector('input[name="stage_id"]').value = btn.getAttribute('data-stage-id');
+            fillIds('dp-stage-ids', 'item_ids[]', ids);
+            form.submit();
+        });
+    });
+
+    document.getElementById('dp-group-apply').addEventListener('click', function () {
+        var ids = selected().map(function (r) { return r.getAttribute('data-item-id'); }).filter(Boolean);
+        if (!ids.length) { return; }
+        var form = document.getElementById('dp-group-form');
+        form.querySelector('input[name="group_label"]').value = document.getElementById('dp-group-input').value;
+        fillIds('dp-group-ids', 'item_ids[]', ids);
+        form.submit();
+    });
+
+    // ── Drag rows (or whole groups) onto rail chevrons ───────────────
+    // Dragging a checked row carries the whole selection; an unchecked
+    // row moves alone. Backlog / derived rows carry no item id, and the
+    // server gate keeps Planned→beyond honest regardless.
+    rows.forEach(function (r) {
+        if (!r.getAttribute('data-item-id')) { return; }
+        r.setAttribute('draggable', 'true');
+        r.addEventListener('dragstart', function (e) {
+            var ids;
+            var box = r.querySelector('.dp-check');
+            if (box && box.checked) {
+                ids = selected().map(function (s) { return s.getAttribute('data-item-id'); }).filter(Boolean);
+            } else {
+                ids = [r.getAttribute('data-item-id')];
+            }
+            e.dataTransfer.setData('text/plain', ids.join(','));
+            e.dataTransfer.effectAllowed = 'move';
+        });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('#dp-rail .dp-chev'), function (chev) {
+        chev.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            chev.classList.add('dp-dropover');
+        });
+        chev.addEventListener('dragleave', function () { chev.classList.remove('dp-dropover'); });
+        chev.addEventListener('drop', function (e) {
+            e.preventDefault();
+            chev.classList.remove('dp-dropover');
+            var ids = (e.dataTransfer.getData('text/plain') || '').split(',').filter(Boolean);
+            if (!ids.length) { return; }
+            var form = document.getElementById('dp-stage-form');
+            form.querySelector('input[name="stage_id"]').value = chev.getAttribute('data-stage-id');
+            fillIds('dp-stage-ids', 'item_ids[]', ids);
+            form.submit();
+        });
+    });
 })();
 </script>
 </div></div>

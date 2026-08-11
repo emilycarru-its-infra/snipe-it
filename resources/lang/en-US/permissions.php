@@ -29,6 +29,36 @@ return [
         'note' => 'This will allow users to import even if access to users, assets, etc is denied elsewhere.',
     ],
 
+    'deployments' => [
+        'name' => 'Deployments',
+        'note' => 'The deployments module: device flow, waves, forecast planning, decommissioning.',
+    ],
+
+    'deploymentsview' => [
+        'name' => 'View Deployments',
+        'note' => 'Read-only access to the deployments board, forecast, storage and timeline.',
+    ],
+
+    'deploymentsedit' => [
+        'name' => 'Manage Deployments',
+        'note' => 'Create and edit waves, move devices between stages, group cohorts, set holding locations.',
+    ],
+
+    'procurement' => [
+        'name' => 'Procurement',
+        'note' => 'The procurement module: pipeline, budgets, reports, lease lifecycle.',
+    ],
+
+    'procurementview' => [
+        'name' => 'View Procurement',
+        'note' => 'Read-only access to the procurement board and its reports.',
+    ],
+
+    'procurementedit' => [
+        'name' => 'Manage Procurement',
+        'note' => 'Write access to procurement workflows that are not covered by more specific permissions.',
+    ],
+
     'reports' => [
         'name' => 'Reports',
         'note' => 'Grants access to the Reports section of the application. Use the sub-permissions below to allow access to individual reports.',

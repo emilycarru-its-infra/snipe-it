@@ -29,6 +29,28 @@ return [
         ],
     ],
 
+    'Deployments' => [
+        [
+            'permission' => 'deployments.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'deployments.edit',
+            'display' => true,
+        ],
+    ],
+
+    'Procurement' => [
+        [
+            'permission' => 'procurement.view',
+            'display' => true,
+        ],
+        [
+            'permission' => 'procurement.edit',
+            'display' => true,
+        ],
+    ],
+
     'Reports' => [
         [
             'permission' => 'reports.view',

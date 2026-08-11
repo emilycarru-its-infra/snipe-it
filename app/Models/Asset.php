@@ -35,6 +35,10 @@ use Watson\Validating\ValidatingTrait;
  * native typed columns (F2) and the `_snipeit_*` custom fields dropped. Declared
  * so static property access (`$asset->lease_end_date`) type-checks.
  *
+ * @property string|null $refresh_reason transient — set by RefreshForecast
+ * @property string|null $source_date transient — set by RefreshForecast
+ * @property string|null $lease_decision_label transient — set by RefreshForecast
+ * @property string|null $lease_decision_note transient — set by RefreshForecast
  * @property string|null $lease_contract_id
  * @property string|null $lease_contract_name
  * @property string|null $lease_end_date
