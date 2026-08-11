@@ -44,9 +44,11 @@ class ContractsTransformer
             'requisition_number'  => $contract->requisition_number ? e($contract->requisition_number) : null,
             'voucher_number'      => $contract->voucher_number ? e($contract->voucher_number) : null,
             'service_offering'    => $contract->service_offering ? e($contract->service_offering) : null,
+            'service_catalogue'   => $contract->service_catalogue ? e($contract->service_catalogue) : null,
             'ticket_url'          => $contract->ticket_url ? e($contract->ticket_url) : null,
             'schedule_number'     => $contract->schedule_number ? e($contract->schedule_number) : null,
             'source'              => e($contract->source),
+            'ssot'                => $contract->ssot,
             'notes'               => Helper::parseEscapedMarkedownInline($contract->notes),
             'supplier'            => $contract->supplier ? [
                 'id'        => (int) $contract->supplier->id,

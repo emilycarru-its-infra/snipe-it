@@ -19,16 +19,12 @@ return [
     'all_types' => 'All types',
     'all_stages' => 'All stages',
 
-    // Widgets
-    'widget_stage' => 'By Stage',
-    'widget_type' => 'By Type',
-    'widget_model' => 'By Model',
     'count' => 'Count',
     'total' => 'Total',
 
     // Forecast (auto-collect)
     'forecast_title' => 'Refresh Forecast',
-    'forecast_help' => 'Devices whose end-of-life or lease-end date falls in the selected fiscal year. Check the ones to plan and add them to a wave as replacement items.',
+    'forecast_help' => 'Devices whose End of Life or lease-end date falls in the selected fiscal year. Check the ones to plan and add them to a wave as replacement items.',
     'forecast_summary' => ':count device(s) due for refresh in :fy',
     'forecast_lease_missing' => 'No "Lease End Date" custom field in this environment — only native end-of-life dates are used.',
     'add_from_forecast' => 'Add devices from forecast',
@@ -36,13 +32,15 @@ return [
     'forecast_choose_fy' => 'Choose a fiscal year to see refresh candidates.',
     'forecast_added' => 'Added :count device(s) to the wave.',
     'forecast_no_wave' => 'Pick an existing wave or name a new one.',
+    'forecast_col_decision' => 'Decision',
+    'plan_builder_title' => 'Plan a wave',
     'target_wave' => 'Target wave',
     'new_wave_name' => 'or create a new wave named',
     'refresh_reason' => 'Reason',
     'source_date' => 'Due',
-    'reason_eol' => 'End of life',
-    'reason_lease' => 'Lease end',
-    'reason_both' => 'EOL + lease',
+    'reason_eol' => 'End of Life',
+    'reason_lease' => 'Lease End',
+    'reason_both' => 'Lease End',
 
     // Wave fields
     'name' => 'Name',
@@ -140,8 +138,8 @@ return [
     'storage_no_devices' => 'No staged devices here.',
 
     // Staff availability blackouts (P4)
-    'blackouts_title' => 'Staff Availability',
-    'blackouts_button' => 'Staff availability',
+    'blackouts_title' => 'Staffing',
+    'blackouts_button' => 'Staffing',
     'blackout_create' => 'New Time Off',
     'blackout_update' => 'Edit Time Off',
     'blackout_add' => 'Add time off',
@@ -167,8 +165,46 @@ return [
 
     // Stage rail — the per-device funnel across the filtered waves.
     'rail_title' => 'Device Flow',
-    'rail_hint' => 'Every tracked device sits in one stage — click a stage to narrow the boards below.',
+    'rail_hint' => 'Every device sits in one stage — click a chevron to see exactly that list, click it again to show all.',
     'rail_devices' => 'devices',
+
+    // Unified device table under the rail (wave items + refresh backlog +
+    // order lines + past-year reconstruction).
+    'flow_devices_title' => ':count device(s) · :fy',
+    'flow_stage_suffix' => 'in :stage',
+    'flow_stage_empty' => 'No devices in this stage.',
+    'flow_backlog_chip' => 'Backlog',
+    'flow_backlog_stage' => 'Planned — no wave',
+    'flow_backlog_note' => ':count of these are due for refresh and not on a wave yet.',
+    'flow_backlog_note_past' => ':count device(s) were due for refresh in :fy and never got refreshed — they are still the open plan, counted under Planned.',
+    'flow_empty' => 'No devices in this fiscal year\'s flow.',
+    'flow_group_label' => 'Group',
+    'flow_group_none' => 'None',
+    'flow_group_type' => 'Type',
+    'flow_group_model' => 'Model',
+    'flow_group_group' => 'Group',
+    'flow_group_location' => 'Location',
+    'flow_selected' => ':count selected',
+    'flow_move_to' => 'Move to',
+    'flow_add_to_wave' => 'Add selected to wave',
+    'flow_set_group' => 'Set group',
+    'flow_gate_hint' => 'A device leaves Planned only once it sits on a real order line — ordering is a fact from procurement (requisition → purchase order), not a board move.',
+    'bulk_moved' => 'Moved :count device(s) to :stage.',
+    'bulk_gated' => ':count device(s) stayed in Planned — not linked to an order line yet. Link each device to its procurement order line to move it forward.',
+    'group_set' => ':count device(s) grouped as ":group".',
+    'group_cleared' => 'Group cleared on :count device(s).',
+
+    // Derived rows: procurement order lines and past-year reconstruction.
+    'flow_order_chip' => 'Order',
+    'flow_order_stage_ordered' => 'Ordered',
+    'flow_order_stage_arrived' => 'Arrived',
+    'flow_order_stage_deployed' => 'Deployed',
+    'flow_history_chip' => 'History',
+    'flow_requisition_chip' => 'Requisition',
+    'flow_requisition_stage' => 'Planned — requisition',
+    'hist_stage_ordered' => 'Purchased',
+    'hist_stage_inventoried' => 'Inventoried',
+    'hist_stage_deployed' => 'Deployed',
 
     // Decommissioning lane — the reverse flow (lease returns, donations,
     // recycling).
@@ -178,16 +214,35 @@ return [
     'decom_collecting_note' => 'on a Processing status — being gathered, wiped, packed',
     'decom_decommissioned' => 'Decommissioned',
     'decom_decommissioned_note' => 'decommission date stamped — returned / donated / recycled',
-    'decom_archived' => 'Archived',
-    'decom_archived_note' => 'parked on an archived status',
+    'decom_unarchived_note' => ':count of these are not parked on an archived status yet.',
     'decom_locations' => 'Holding locations',
     'decom_none' => 'Nothing is in decommissioning right now.',
     'decom_open_disposition' => 'Disposition Grid',
-    'decom_more' => '+ :count more — the Disposition Grid has the full list.',
-    // Unfunded legacy fleet callout.
+    'decom_bucket_returns' => 'Returns',
+    'decom_bucket_donations' => 'Donations',
+    'decom_bucket_recycling' => 'Recycling',
+    'holding_location_label' => 'Set holding location',
+    'holding_location_apply' => 'Apply',
+    'holding_location_set' => ':count device(s) moved to :location.',
+    // Pickups: decommissioned devices grouped by decommission date — each
+    // date is one physical lease-return / donation / recycling run.
+    'decom_pickups_title' => 'Pickups & disposal runs',
+    'decom_pickups_hint' => 'grouped by decommission date — each date is one lease return, donation or recycling run',
+    'pickup_col_date' => 'Pickup date',
+    'pickup_col_devices' => 'Devices',
+    'pickup_col_models' => 'Models',
+    'pickup_col_locations' => 'From locations',
+    'pickup_col_lessors' => 'Lease company',
+    'pickup_csv' => 'CSV',
+    'decom_no_pickups' => 'No decommission dates recorded in this fiscal year.',
+    // Aging fleet box (shown on procurement + fleet health).
+    'legacy_box_title' => 'Aging Fleet',
+    'legacy_box_subtitle' => 'Operational Risk, degraded student experience',
     'legacy_title' => 'Legacy fleet — :count devices with no funded replacement',
-    'legacy_note' => 'Devices on Active (Legacy): still in daily use, average age :age years, oldest from :oldest. Unlike the leased fleet, no replacement money was pre-approved for these — they age until funding is found.',
+    'legacy_note' => 'No replacement money was pre-approved for these devices — they age until funding is found.',
+    'legacy_age_note' => 'avg age :age yrs · oldest :oldest',
     'legacy_view_devices' => 'View devices',
+    'decom_permalink' => 'Link straight to this section',
 
     'decom_col_asset' => 'Asset Tag',
     'decom_col_model' => 'Model',

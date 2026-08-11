@@ -4,30 +4,31 @@ namespace App\Services\Deployments;
 
 use App\Models\Asset;
 use App\Models\Statuslabel;
+use Illuminate\Support\Str;
 
 /**
  * The reverse pipeline on the Deployments board: devices on their way OUT —
- * lease returns, donations, recycling. The incoming rail tracks boxes into
- * rooms; this lane tracks the same physical work in the other direction.
+ * lease returns, donations, recycling. Derived from fields devices already
+ * carry, nothing new to maintain:
  *
- * The lane is derived from fields devices already carry, nothing new to
- * maintain:
- *
- *   collecting      status label in the Processing* family (created in the
- *                   running instance for exactly this — e.g. "Processing
- *                   (Return)"), no decommission date yet. The device is
- *                   being gathered, wiped, packed.
+ *   collecting      status label in the Processing* family, no decommission
+ *                   date yet. The device is being gathered, wiped, packed.
+ *                   Only meaningful for the CURRENT fiscal year. Split into
+ *                   buckets per Processing kind (returns / donations /
+ *                   recycling) because each is physically handled by a
+ *                   different party.
  *   decommissioned  decommission_date stamped — returned / donated /
- *                   recycled; it has left our management.
- *   archived        decommissioned AND parked on an archived status label,
- *                   the terminal resting state.
+ *                   recycled; it has left our management. Devices are then
+ *                   parked on an archived status; any gap between the two
+ *                   counts is unfinished bookkeeping, surfaced as a note.
+ *
+ * Decommissioned devices also group by their decommission date into
+ * "pickups": every distinct date is one physical pickup or donation /
+ * recycling run, each with a targeted CSV export.
  */
 class DecommissionLane
 {
-    /** Collecting-table rows shown before collapsing to a "+N more" line. */
-    private const ROW_CAP = 20;
-
-    public function build(?string $fy): array
+    public function build(?string $fy, bool $includeCollecting = true): array
     {
         $range = RefreshForecast::fiscalYearRange($fy);
 
@@ -35,12 +36,15 @@ class DecommissionLane
             ->orderBy('name')
             ->get();
 
-        $collecting = Asset::query()
-            ->whereIn('status_id', $processingStatuses->pluck('id')->all() ?: [-1])
-            ->whereNull('decommission_date')
-            ->with(['model', 'status', 'location', 'lessor'])
-            ->orderBy('lease_end_date')
-            ->get();
+        $collecting = collect();
+        if ($includeCollecting) {
+            $collecting = Asset::query()
+                ->whereIn('status_id', $processingStatuses->pluck('id')->all() ?: [-1])
+                ->whereNull('decommission_date')
+                ->with(['model', 'status', 'location', 'lessor'])
+                ->orderBy('lease_end_date')
+                ->get();
+        }
 
         // Decommissioned is FY-scoped by the decommission date so the lane
         // reads as "this year's outgoing work", matching the board's FY
@@ -48,24 +52,37 @@ class DecommissionLane
         $decommissioned = Asset::query()
             ->whereNotNull('decommission_date')
             ->when($range, fn ($q) => $q->whereBetween('decommission_date', $range))
-            ->with('status')
+            ->with(['status', 'model', 'location', 'lessor'])
             ->get();
 
         $archivedCount = $decommissioned
             ->filter(fn ($asset) => (bool) $asset->status?->archived)
             ->count();
 
-        $rows = $collecting->take(self::ROW_CAP)->map(fn ($asset) => [
-            'id' => $asset->id,
-            'asset_tag' => $asset->asset_tag,
-            'model' => $asset->model?->name,
-            'status' => $asset->status?->name,
-            'location' => $asset->location?->name,
-            'lessor' => $asset->lessor?->name,
-            // Plain 'Y-m-d' string — the lease date columns are deliberately
-            // not Carbon-cast (see Asset::$casts).
-            'lease_end_date' => $asset->lease_end_date,
-        ])->values()->all();
+        // One bucket per Processing kind — returns, donations, recycling
+        // are handled by different parties, so they read separately. Any
+        // Processing status naming none of the three gets its own bucket
+        // under the status name. Always the FULL list, no row cap.
+        $buckets = [];
+        foreach ($collecting as $asset) {
+            $kind = $this->kindOf($asset->status?->name ?: '');
+            if (! isset($buckets[$kind['key']])) {
+                $buckets[$kind['key']] = ['key' => $kind['key'], 'label' => $kind['label'], 'rows' => [], 'count' => 0];
+            }
+            $buckets[$kind['key']]['rows'][] = [
+                'id' => $asset->id,
+                'asset_tag' => $asset->asset_tag,
+                'model' => $asset->model?->name,
+                'status' => $asset->status?->name,
+                'location' => $asset->location?->name,
+                'lessor' => $asset->lessor?->name,
+                // Plain 'Y-m-d' string — the lease date columns are
+                // deliberately not Carbon-cast (see Asset::$casts).
+                'lease_end_date' => $asset->lease_end_date,
+            ];
+            $buckets[$kind['key']]['count']++;
+        }
+        $buckets = array_values($buckets);
 
         // Where the outgoing devices physically sit — the holding rooms the
         // pickup truck (or the donation run) has to visit.
@@ -76,17 +93,70 @@ class DecommissionLane
             ->values()
             ->all();
 
+        // One pickup per distinct decommission date: the register of runs
+        // that actually left the building, newest first.
+        $pickups = $decommissioned
+            ->groupBy(fn ($asset) => (string) $asset->decommission_date)
+            ->map(function ($group, $date) {
+                $models = $group->groupBy(fn ($asset) => $asset->model?->name ?: '—')
+                    ->map->count()
+                    ->sortDesc();
+
+                return [
+                    'date' => $date,
+                    'count' => $group->count(),
+                    'models' => $models->take(3)
+                        ->map(fn ($count, $name) => $name.' · '.$count)
+                        ->implode(', ')
+                        .($models->count() > 3 ? ' +'.($models->count() - 3) : ''),
+                    'locations' => $group->groupBy(fn ($asset) => $asset->location?->name ?: '—')
+                        ->keys()->take(3)->implode(', '),
+                    'lessors' => $group->groupBy(fn ($asset) => $asset->lessor?->name)
+                        ->keys()->filter()->implode(', '),
+                ];
+            })
+            ->sortKeysDesc()
+            ->values()
+            ->all();
+
         return [
             'statuses' => $processingStatuses->map(fn ($status) => [
                 'name' => $status->name,
                 'count' => $collecting->where('status_id', $status->id)->count(),
             ])->values()->all(),
             'collectingCount' => $collecting->count(),
-            'collectingRows' => $rows,
-            'collectingMore' => max($collecting->count() - self::ROW_CAP, 0),
+            'buckets' => $buckets,
             'byLocation' => $byLocation,
             'decommissionedCount' => $decommissioned->count(),
             'archivedCount' => $archivedCount,
+            'unarchivedCount' => max($decommissioned->count() - $archivedCount, 0),
+            'pickups' => $pickups,
         ];
+    }
+
+    /** Map a Processing status name onto its physical handling kind. */
+    private function kindOf(string $statusName): array
+    {
+        $name = Str::lower($statusName);
+
+        return match (true) {
+            str_contains($name, 'return') => ['key' => 'returns', 'label' => trans('admin/deployments/general.decom_bucket_returns')],
+            str_contains($name, 'donat') => ['key' => 'donations', 'label' => trans('admin/deployments/general.decom_bucket_donations')],
+            str_contains($name, 'recycl') => ['key' => 'recycling', 'label' => trans('admin/deployments/general.decom_bucket_recycling')],
+            default => ['key' => Str::slug($statusName ?: 'other'), 'label' => $statusName ?: '—'],
+        };
+    }
+
+    /**
+     * The full device list for one pickup date, for the targeted CSV — the
+     * paperwork for a single lease-return / donation / recycling run.
+     */
+    public function pickupAssets(string $date)
+    {
+        return Asset::query()
+            ->whereDate('decommission_date', $date)
+            ->with(['model', 'status', 'location', 'lessor'])
+            ->orderBy('asset_tag')
+            ->get();
     }
 }
