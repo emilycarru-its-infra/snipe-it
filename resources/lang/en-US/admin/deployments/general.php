@@ -210,7 +210,7 @@ return [
     'announced_at' => 'Announced',
     'announce_already' => 'Announced :date. Sending again re-sends the same message to the same people.',
 
-    'announce_faculty_subject' => 'Faculty Laptop Program :fiscal_year - action required',
+    'announce_faculty_subject' => 'Faculty Laptop Program {{ fiscal_year }} - action required',
     'announce_faculty_body' => 'Hello {{ first_name }},
 
 I am pleased to announce that Emily Carr is continuing the University sponsored Faculty Laptop Program. This program provides leased Mac laptops to regular faculty on a four-year cycle. At the end of the fourth year, faculty are eligible to request a replacement leased laptop for another four years, and return the one they have.
@@ -233,7 +233,7 @@ Ordering happens in our own store now — no external site and no separate sign-
 
 If anything does not work as described, reply to this email and we will sort it out.',
 
-    'announce_refresh_subject' => ':wave - your device is scheduled for replacement',
+    'announce_refresh_subject' => '{{ wave }} - your device is scheduled for replacement',
     'announce_refresh_body' => 'Hello {{ first_name }},
 
 Your device is part of {{ wave }}, scheduled for {{ fiscal_year }}.

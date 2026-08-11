@@ -171,6 +171,44 @@ class WaveAnnouncementTest extends TestCase
         $this->assertStringNotContainsString('{{', $rendered, 'no merge field should survive rendering');
     }
 
+    /**
+     * A template default is rendered, not passed through trans(), so a ":token"
+     * in one reaches the recipient verbatim — which is exactly what happened: a
+     * test arrived titled "Faculty Laptop Program :fiscal_year".
+     */
+    public function test_the_shipped_templates_use_merge_fields_the_renderer_understands()
+    {
+        $wave = $this->wave();
+        $faculty = User::factory()->create();
+        $asset = $this->deviceFor($wave, $faculty);
+
+        $announcer = new WaveAnnouncer;
+        $row = $announcer->recipients($wave)->first();
+        $context = $announcer->context($wave, $row['user'], $row['assets']);
+
+        foreach (\App\Services\Deployments\WaveAnnouncementTemplates::all($wave) as $template) {
+            $mail = new DeploymentWaveMail(
+                $wave, $faculty, $template['subject'], $template['body'], $row['assets'], $context
+            );
+
+            $subject = $mail->envelope()->subject;
+
+            $this->assertStringNotContainsString(':', str_replace(['https:', 'http:'], '', $subject),
+                $template['key'].' subject should not carry a trans-style token');
+            $this->assertStringNotContainsString('{{', $subject, $template['key'].' subject should be fully rendered');
+
+            if ($template['body'] !== '') {
+                $this->assertStringNotContainsString('{{', $mail->render(), $template['key'].' body should be fully rendered');
+            }
+        }
+
+        $this->assertStringContainsString('FY2026-27', (new DeploymentWaveMail(
+            $wave, $faculty,
+            trans('admin/deployments/general.announce_faculty_subject'),
+            'x', $row['assets'], $context
+        ))->envelope()->subject);
+    }
+
     public function test_a_wave_with_nobody_holding_a_device_cannot_be_announced()
     {
         Mail::fake();
