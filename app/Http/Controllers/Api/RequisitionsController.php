@@ -9,6 +9,7 @@ use App\Models\CatalogItem;
 use App\Models\Company;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
+use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Services\RequisitionBasket;
 use App\Services\RequisitionPromotion;
@@ -59,6 +60,9 @@ class RequisitionsController extends Controller
             'product_types' => CatalogItem::PRODUCT_TYPES,
             'price_types' => CatalogItem::PRICE_TYPES,
             'statuses' => Requisition::STATUSES,
+            // The four CDW accounts. One must be set before an order can go to
+            // the vendor: it decides the blanket purchase order and the payee.
+            'funding_accounts' => StoreOrder::FUNDING_ACCOUNTS,
             'defaults' => [
                 'gst_rate' => 0.05,
                 'pst_rate' => 0.07,
@@ -76,6 +80,9 @@ class RequisitionsController extends Controller
                     'gl_number', 'quantity', 'unit_of_measure', 'unit_cost', 'pst_applicable', 'notes'],
                 'promote' => ['purchase_order_id', 'po_number', 'title', 'fiscal_year',
                     'cost_center', 'budget', 'order_date', 'notes', 'document', 'document_notes'],
+                'update' => ['requisition_number', 'status', 'notes', 'internal_comments',
+                    'printer_comments', 'quote_number', 'quote_total', 'quote_expires_at',
+                    'funding_account', 'lease_schedule'],
             ],
             'rules' => RequisitionBasket::rules(),
         ], null));
@@ -224,11 +231,25 @@ class RequisitionsController extends Controller
             'status' => 'sometimes|nullable|string|in:'.implode(',', Requisition::STATUSES),
             'notes' => 'sometimes|nullable|string|max:65535',
             'internal_comments' => 'sometimes|nullable|string|max:65535',
+            'printer_comments' => 'sometimes|nullable|string|max:65535',
+            // The quote the vendor sent back, and the account the order is
+            // placed against. Settable here because the whole point of these
+            // endpoints is that a requisition can be driven without a browser
+            // — and recording a quote is what reopens the basket for
+            // repricing, which is a scripted job when a quote covers 40 lines.
+            'quote_number' => 'sometimes|nullable|string|max:191',
+            'quote_total' => 'sometimes|nullable|numeric|min:0',
+            'quote_expires_at' => 'sometimes|nullable|date',
+            'funding_account' => 'sometimes|nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'lease_schedule' => 'sometimes|nullable|string|max:191',
         ]);
 
         $hadRequisitionNumber = (bool) $requisition->requisition_number;
 
-        foreach (['requisition_number', 'notes', 'internal_comments'] as $field) {
+        foreach ([
+            'requisition_number', 'notes', 'internal_comments', 'printer_comments',
+            'quote_number', 'quote_total', 'quote_expires_at', 'funding_account', 'lease_schedule',
+        ] as $field) {
             if ($request->has($field)) {
                 $requisition->{$field} = $validated[$field] ?? null;
             }

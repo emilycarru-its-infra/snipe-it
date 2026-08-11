@@ -37,7 +37,11 @@ class RequisitionsTransformer
                 // ordered, so the builder and the delete both close.
                 'update' => Gate::allows('update', Requisition::class),
                 'delete' => Gate::allows('delete', Requisition::class) && $requisition->status !== 'ordered',
-                'edit_basket' => Gate::allows('update', Requisition::class) && $requisition->status === 'draft',
+                // The basket reopens when the vendor quotes it — that is the
+                // event that makes our figures the wrong ones — and closes for
+                // good once the order has gone out.
+                'edit_basket' => Gate::allows('update', Requisition::class) && $requisition->linesEditable(),
+                'send_vendor' => Gate::allows('update', Requisition::class) && $requisition->readyForVendor(),
             ],
             'id' => (int) $requisition->id,
             'display_name' => $requisition->display_name,
@@ -58,6 +62,11 @@ class RequisitionsTransformer
             ] : null,
             'fiscal_year' => $requisition->fiscal_year ? e($requisition->fiscal_year) : null,
             'cost_center' => $requisition->cost_center ? e($requisition->cost_center) : null,
+            // Which CDW account, and so which blanket purchase order and who
+            // is invoiced. A lease also carries the CSI schedule.
+            'funding_account' => $requisition->funding_account,
+            'funding_label' => $requisition->fundingLabel(),
+            'lease_schedule' => $requisition->lease_schedule ? e($requisition->lease_schedule) : null,
             'default_gl_number' => $requisition->default_gl_number ? e($requisition->default_gl_number) : null,
             'needed_by' => Helper::getFormattedDateObject($requisition->needed_by, 'date'),
             'notes' => $requisition->notes ? e($requisition->notes) : null,
@@ -71,12 +80,21 @@ class RequisitionsTransformer
             'pst' => $requisition->pstAmount(),
             'total' => $requisition->total(),
             'has_estimated_lines' => $requisition->hasEstimatedLines(),
+            // The vendor's quote is the authoritative cost — vendor_total is
+            // theirs when we hold it and ours until then.
+            'quote_number' => $requisition->quote_number ? e($requisition->quote_number) : null,
+            'quote_total' => $requisition->quote_total !== null ? (float) $requisition->quote_total : null,
+            'quote_expires_at' => Helper::getFormattedDateObject($requisition->quote_expires_at, 'date'),
+            'vendor_total' => $requisition->vendorTotal(),
+            'lines_missing_part_numbers' => $requisition->linesMissingPartNumbers()
+                ->map(fn (RequisitionItem $line) => e($line->description))->values()->all(),
             'created_by' => $requisition->adminuser?->present()->fullName,
             // Dates go out as Snipe's {datetime, formatted} objects rather
             // than bare ISO strings: every other transformer does, and the
             // datatable's date formatter reads that shape.
             'submitted_at' => Helper::getFormattedDateObject($requisition->submitted_at, 'datetime'),
             'requisitioned_at' => Helper::getFormattedDateObject($requisition->requisitioned_at, 'datetime'),
+            'vendor_sent_at' => Helper::getFormattedDateObject($requisition->vendor_sent_at, 'datetime'),
             'created_at' => Helper::getFormattedDateObject($requisition->created_at, 'datetime'),
             'items' => $requisition->items->map(fn (RequisitionItem $line) => self::transformItem($line))->values()->all(),
         ];

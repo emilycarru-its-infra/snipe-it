@@ -216,4 +216,24 @@ return [
     'store_vendor_csv_bundle' => 'CDW Bundle',
     'store_vendor_csv_requested_by' => 'Requested By',
     'store_vendor_csv_estimated_unit' => 'Our Estimated Unit Price (CAD)',
+
+    // The order itself, once the quote is back and finance has issued the
+    // purchase order. Where the request above asks a question, this one
+    // states agreed numbers, so nothing here is hedged as an estimate.
+    'requisition_vendor_order_subject' => 'Emily Carr University — purchase order :reference:quote',
+    'requisition_vendor_order_subject_quote' => ' (quote :quote)',
+    'requisition_vendor_order_heading' => 'Purchase order :reference',
+    'requisition_vendor_order_intro' => 'Hello :supplier team, please place the following order for Emily Carr University of Art + Design against purchase order :reference. The purchase order is attached.',
+    'requisition_vendor_order_account' => 'Account: :account:schedule — please place every line against that account\'s blanket purchase order.',
+    'requisition_vendor_order_account_schedule' => ', CSI schedule :schedule',
+    'requisition_vendor_order_quote' => 'This is your quote :quote, total C$:total including tax.',
+    'requisition_vendor_order_estimate_note' => 'The unit prices below are ours, from the last price list we hold, and total C$:total before tax — please quote the current figure and flag anything discontinued or replaced.',
+    'requisition_vendor_order_csv_note' => '{1} The attached CSV carries the line with its exact part numbers, quantity and agreed unit price.|[2,*] The attached CSV carries all :lines lines with exact part numbers, quantities and the agreed unit prices.',
+    'requisition_vendor_order_total' => 'Order total C$:total.',
+    'requisition_vendor_order_footer' => 'Please confirm with your order number so our systems can match the shipment automatically. Reply to all on this email and our team will follow up. Thank you.',
+
+    'requisition_vendor_csv_reference' => 'ECU Purchase Order',
+    'requisition_vendor_csv_unit_of_measure' => 'Unit',
+    'requisition_vendor_csv_unit_cost' => 'Agreed Unit Price (CAD)',
+    'requisition_vendor_csv_line_total' => 'Line Total (CAD)',
 ];

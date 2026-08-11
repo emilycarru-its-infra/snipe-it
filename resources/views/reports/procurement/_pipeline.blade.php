@@ -19,7 +19,8 @@
     $t = fn ($key, $repl = []) => trans('admin/purchase-orders/general.'.$key, $repl);
     $cardCounts = [
         'budgeting' => count($pipeline['planned']) + $pipeline['plannedMore'] + count($pipeline['requisitionCards'] ?? []),
-        'ordering' => count($pipeline['open']) + $pipeline['openMore'] + count($pipeline['storeQueue'] ?? []),
+        'ordering' => count($pipeline['open']) + $pipeline['openMore'] + count($pipeline['storeQueue'] ?? [])
+            + count($pipeline['sentRequisitionCards'] ?? []),
         'deploying' => count($pipeline['processing']) + $pipeline['processingMore'],
         'reconciling' => count($pipeline['pendingInvoices']) + $pipeline['pendingInvoicesMore'],
         'completed' => $pipeline['completedCount'],
@@ -328,6 +329,19 @@
 
                         {{-- Ordering --}}
                         <div class="pp-col" data-pp-stage="ordering" style="--pp-c: var(--pp-ordering)">
+                            @foreach ($pipeline['sentRequisitionCards'] ?? [] as $sentCard)
+                                <div class="pp-card" data-pp-modal="sentreq-{{ $sentCard['id'] }}" tabindex="0" role="button">
+                                    <div class="pp-t">{{ $sentCard['number'] }}@if ($sentCard['supplier']) · {{ $sentCard['supplier'] }}@endif</div>
+                                    <div class="pp-d">{{ $sentCard['title'] ?: '—' }} · <span class="pp-money">{{ $fmt($sentCard['total']) }}</span></div>
+                                    <div class="pp-chips">
+                                        <span class="pp-chip pp-chip-po">{{ $sentCard['number'] }}</span>
+                                        <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_with_vendor') }}</span>
+                                        @if ($sentCard['quote_number'])
+                                            <span class="pp-chip">{{ $sentCard['quote_number'] }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
                             @foreach ($pipeline['storeQueue'] ?? [] as $queueCard)
                                 <div class="pp-card" data-pp-modal="storeq-{{ $queueCard['id'] }}" tabindex="0" role="button">
                                     <div class="pp-t">{{ $queueCard['number'] }}</div>
@@ -486,6 +500,42 @@
             </div>
             <div style="margin-top:10px;">
                 <a class="btn btn-primary btn-sm" href="{{ route('requisitions.show', $reqCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+            </div>
+        </div>
+    @endforeach
+    @foreach ($pipeline['sentRequisitionCards'] ?? [] as $sentCard)
+        <div data-pp-content="sentreq-{{ $sentCard['id'] }}" data-pp-color="var(--pp-ordering)" data-pp-title="{{ $sentCard['number'] }}">
+            <div class="pp-facts">
+                <span>{{ trans('general.total_cost') }}<b class="pp-money">{{ $fmt($sentCard['total']) }}</b></span>
+                <span>{{ trans('admin/orders/general.line_items') }}<b>{{ count($sentCard['items']) }}</b></span>
+                <span>{{ trans('admin/store/general.funding_label') }}<b>{{ $sentCard['account'] }}</b></span>
+                <span>{{ trans('admin/purchase-orders/general.vendor_sent_at') }}<b>{{ $sentCard['sent_at'] }}</b></span>
+                @if ($sentCard['quote_number'])
+                    <span>{{ trans('admin/purchase-orders/general.quote_number') }}<b>{{ $sentCard['quote_number'] }}</b></span>
+                @endif
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>{{ trans('admin/orders/general.item') }}</th>
+                            <th class="text-right">{{ trans('general.qty') }}</th>
+                            <th class="text-right">{{ trans('admin/orders/general.unit_cost') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($sentCard['items'] as $line)
+                            <tr>
+                                <td>{{ $line['description'] ?: '—' }}</td>
+                                <td class="text-right">{{ $line['quantity'] }}</td>
+                                <td class="text-right pp-money">{{ $fmt($line['unit_cost']) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:10px;">
+                <a class="btn btn-primary btn-sm" href="{{ route('requisitions.show', $sentCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
             </div>
         </div>
     @endforeach

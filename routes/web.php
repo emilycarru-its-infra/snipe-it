@@ -242,6 +242,8 @@ Route::group(['middleware' => 'auth'], function () {
     // The crossing into the budget ledger: REQM becomes PO, PDF in hand.
     Route::post('requisitions/{requisition}/promote', [RequisitionsController::class, 'promote'])
         ->name('requisitions.promote');
+    Route::post('requisitions/{requisition}/send-vendor', [RequisitionsController::class, 'sendVendor'])
+        ->name('requisitions.send-vendor');
     Route::delete('requisitions/{requisition}', [RequisitionsController::class, 'destroy'])
         ->name('requisitions.destroy');
     Route::get('requisitions/{requisition}/print', [RequisitionsController::class, 'print'])

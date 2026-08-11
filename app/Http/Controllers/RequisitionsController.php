@@ -3,16 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\Helper;
+use App\Mail\RequisitionVendorOrderMail;
 use App\Models\CatalogItem;
 use App\Models\Company;
+use App\Models\EmailTemplate;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
+use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Services\RequisitionBasket;
 use App\Services\RequisitionPromotion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use League\Csv\EscapeFormula;
 use League\Csv\Writer;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -295,6 +300,118 @@ class RequisitionsController extends Controller
 
         return redirect()->route('requisitions.show', $requisition->id)
             ->with('success', trans('admin/purchase-orders/general.requisition_updated'));
+    }
+
+    /**
+     * Send the order to the vendor's reps, and record that we did.
+     *
+     * This is the step that used to happen in Outlook, and the only step of a
+     * requisition's life the system had no record of: an order could be sent,
+     * quoted and confirmed without a single fact about it landing anywhere.
+     *
+     * Gated on the purchase order rather than on a permission of its own,
+     * because the vendor's desk places every line against a purchase order
+     * number and will not act without one — the same reason the store funnel
+     * refuses to send a request with no funding account.
+     *
+     * A test send goes to whoever pressed the button and stamps nothing, so
+     * the layout and the attachments can be checked against a real order
+     * without the vendor seeing a rehearsal.
+     */
+    public function sendVendor(Request $request, Requisition $requisition): RedirectResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'lease_schedule' => 'nullable|string|max:191',
+            'test' => 'nullable|boolean',
+        ]);
+
+        $requisition->load('items', 'supplier', 'purchaseOrder');
+
+        // The quote and the account are recorded whether or not the send
+        // succeeds: they are facts about the order — one from the vendor, one
+        // our own decision — not side effects of emailing anybody.
+        foreach (['quote_number', 'quote_total', 'quote_expires_at', 'funding_account', 'lease_schedule'] as $field) {
+            if ($request->filled($field)) {
+                $requisition->{$field} = $validated[$field];
+            }
+        }
+
+        if ($requisition->isDirty()) {
+            $requisition->save();
+        }
+
+        if (! $requisition->purchase_order_id || $requisition->status === 'cancelled' || $requisition->items->isEmpty()) {
+            return redirect()->route('requisitions.show', $requisition->id)
+                ->with('error', trans('admin/purchase-orders/general.vendor_send_needs_po'));
+        }
+
+        if (! $requisition->fundingResolved()) {
+            return redirect()->route('requisitions.show', $requisition->id)
+                ->with('error', trans($requisition->funding_account === 'lease'
+                    ? 'admin/store/general.funding_lease_needs_schedule'
+                    : 'admin/purchase-orders/general.vendor_send_needs_account'));
+        }
+
+        // Both part numbers on every line. The MFR# identifies the product
+        // and the EDC is what CDW places, so a line short of either is not an
+        // order they can fill. Named rather than counted: the fix is a catalog
+        // row somebody has to go and complete.
+        if (($missing = $requisition->linesMissingPartNumbers())->isNotEmpty()) {
+            return redirect()->route('requisitions.show', $requisition->id)
+                ->with('error', trans('admin/purchase-orders/general.vendor_send_needs_part_numbers', [
+                    'lines' => $missing->pluck('description')->implode(', '),
+                ]));
+        }
+
+        $test = $request->boolean('test');
+
+        if ($test) {
+            $to = [auth()->user()->email];
+            $cc = [];
+        } else {
+            $to = EmailTemplate::recipientsFor('procurement.vendor_order', $requisition->supplier?->order_emails);
+            $cc = EmailTemplate::ccFor('procurement.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca');
+        }
+
+        $to = array_filter($to);
+
+        if ($to === []) {
+            return redirect()->route('requisitions.show', $requisition->id)
+                ->with('error', trans('admin/store/general.vendor_send_no_recipients'));
+        }
+
+        try {
+            $mail = Mail::to($to);
+            if ($cc !== []) {
+                $mail->cc($cc);
+            }
+            $mail->send(new RequisitionVendorOrderMail($requisition->fresh(['items', 'supplier', 'purchaseOrder']), $test));
+        } catch (\Throwable $e) {
+            Log::warning('Vendor order email failed for requisition '.$requisition->id.': '.$e->getMessage());
+
+            return redirect()->route('requisitions.show', $requisition->id)
+                ->with('error', trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
+        }
+
+        if ($test) {
+            return redirect()->route('requisitions.show', $requisition->id)
+                ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $to[0]]));
+        }
+
+        // Only a real send is a send. Stamped after the mailer returns rather
+        // than before, so a bounced transport does not leave the order looking
+        // placed.
+        $requisition->vendor_sent_at = now();
+        $requisition->save();
+
+        return redirect()->route('requisitions.show', $requisition->id)
+            ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
     }
 
     public function destroy(Requisition $requisition): RedirectResponse

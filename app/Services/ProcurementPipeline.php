@@ -97,6 +97,42 @@ class ProcurementPipeline
                         'unit_cost' => (float) $line->unit_cost,
                     ])->all(),
                 ])->values()->all(),
+            // Orders that have gone to the vendor. They are past budgeting —
+            // the purchase order exists and the vendor is holding the order —
+            // but no Order row exists yet, because that arrives with the
+            // vendor's own order number when they ship. Without these, an
+            // order vanishes off the board for the weeks between sending it
+            // and its first shipment, which is exactly when somebody asks
+            // where it is.
+            'sentRequisitionCards' => \App\Models\Requisition::query()
+                ->whereNotNull('vendor_sent_at')
+                ->whereNotNull('purchase_order_id')
+                ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
+                // Once the vendor's order lands against the same purchase
+                // order, that Order card is the truth and this one would
+                // double-count it.
+                ->whereNotExists(fn ($q) => $q->selectRaw('1')
+                    ->from('orders')
+                    ->whereColumn('orders.purchase_order_id', 'requisitions.purchase_order_id')
+                    ->whereNull('orders.deleted_at'))
+                ->with('items', 'purchaseOrder', 'supplier')
+                ->orderBy('vendor_sent_at')
+                ->get()
+                ->map(fn ($requisition) => [
+                    'id' => $requisition->id,
+                    'number' => $requisition->display_name,
+                    'title' => $requisition->title,
+                    'supplier' => $requisition->supplier?->name,
+                    'account' => $requisition->fundingLabel(),
+                    'quote_number' => $requisition->quote_number,
+                    'sent_at' => $requisition->vendor_sent_at?->format('Y-m-d'),
+                    'total' => $requisition->vendorTotal(),
+                    'items' => $requisition->items->map(fn ($line) => [
+                        'description' => $line->description,
+                        'quantity' => (int) $line->quantity,
+                        'unit_cost' => (float) $line->unit_cost,
+                    ])->all(),
+                ])->values()->all(),
             'storeQueue' => \App\Models\StoreOrder::query()
                 ->pending()
                 ->with(['user', 'items'])

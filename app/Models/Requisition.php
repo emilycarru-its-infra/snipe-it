@@ -65,6 +65,11 @@ class Requisition extends SnipeModel
         'pst_rate' => 'nullable|numeric|min:0|max:1',
         'shipping' => 'nullable|numeric|min:0',
         'notes' => 'nullable|string|max:65535',
+        'quote_number' => 'nullable|string|max:191',
+        'quote_total' => 'nullable|numeric|min:0',
+        'quote_expires_at' => 'nullable|date',
+        'funding_account' => 'nullable|string|in:lease,purchase,curriculum,grant',
+        'lease_schedule' => 'nullable|string|max:191',
     ];
 
     protected $injectUniqueIdentifier = true;
@@ -78,6 +83,8 @@ class Requisition extends SnipeModel
         'purchase_order_id',
         'fiscal_year',
         'cost_center',
+        'funding_account',
+        'lease_schedule',
         'default_gl_number',
         'needed_by',
         'gst_rate',
@@ -85,6 +92,10 @@ class Requisition extends SnipeModel
         'shipping',
         'submitted_at',
         'requisitioned_at',
+        'vendor_sent_at',
+        'quote_number',
+        'quote_total',
+        'quote_expires_at',
         'notes',
         'internal_comments',
         'printer_comments',
@@ -95,6 +106,9 @@ class Requisition extends SnipeModel
         'needed_by' => 'date',
         'submitted_at' => 'datetime',
         'requisitioned_at' => 'datetime',
+        'vendor_sent_at' => 'datetime',
+        'quote_expires_at' => 'date',
+        'quote_total' => 'decimal:2',
         'gst_rate' => 'decimal:5',
         'pst_rate' => 'decimal:5',
         'shipping' => 'decimal:4',
@@ -184,6 +198,109 @@ class Requisition extends SnipeModel
     public function hasEstimatedLines(): bool
     {
         return $this->items->contains(fn (RequisitionItem $item) => $item->isEstimate());
+    }
+
+    /**
+     * Whether this can be sent to the vendor as an order.
+     *
+     * Three gates, each one a round trip through the vendor's desk if it is
+     * missing:
+     *
+     *   the purchase order — the vendor places every line against a PO number
+     *   the account        — which of the four CDW accounts, and so which
+     *                        blanket PO and who gets invoiced; CDW cannot
+     *                        infer it, and a lease account also needs its CSI
+     *                        schedule so the invoice reaches the right
+     *                        Exhibit A
+     *   the part numbers   — both of them. The manufacturer's number is what
+     *                        identifies the product and CDW's own number (the
+     *                        EDC) is what they actually place; a line missing
+     *                        either cannot be ordered
+     *
+     * Estimated prices are explicitly *not* a gate. Ours are estimates by
+     * design and the returned quote is the authoritative number, so an order
+     * priced off the last price list is a normal order, not a draft.
+     */
+    public function readyForVendor(): bool
+    {
+        return $this->purchase_order_id !== null
+            && $this->status !== 'cancelled'
+            && $this->items->isNotEmpty()
+            && $this->fundingResolved()
+            && $this->linesMissingPartNumbers()->isEmpty();
+    }
+
+    /** An account, and for a lease the schedule the invoice lands on. */
+    public function fundingResolved(): bool
+    {
+        if ($this->funding_account === null) {
+            return false;
+        }
+
+        return $this->funding_account !== 'lease' || filled($this->lease_schedule);
+    }
+
+    public function fundingLabel(): string
+    {
+        return $this->funding_account
+            ? trans('admin/store/general.funding_'.$this->funding_account)
+            : trans('admin/store/general.funding_unset');
+    }
+
+    /**
+     * Lines the vendor could not place: missing a part number they need.
+     *
+     * Both numbers are required on a product and they do different jobs — the
+     * manufacturer's number says which product, CDW's own number (the EDC) is
+     * the thing they place — so a catalog line carrying one of the two is still
+     * not orderable.
+     *
+     * The MFR# is not required on a line that is not a product. Freight and the
+     * BC environmental handling fee are ordinary lines on a CDW quote and carry
+     * a CDW number but no manufacturer's number, because no manufacturer makes
+     * them; demanding one would mean inventing it. They still need the EDC,
+     * which is what CDW actually places.
+     *
+     * Returned rather than counted, because the fix is per line: a catalog row
+     * is incomplete and somebody has to go and fill it in.
+     *
+     * @return \Illuminate\Support\Collection<int, RequisitionItem>
+     */
+    public function linesMissingPartNumbers()
+    {
+        return $this->items
+            ->filter(fn (RequisitionItem $item) => blank($item->vendor_sku)
+                || ($item->catalog_item_id !== null && blank($item->mfr_part_number)))
+            ->values();
+    }
+
+    /**
+     * Whether the basket can still be rewritten.
+     *
+     * Two hard edges with a deliberate gap between them. Once a requisition is
+     * keyed into Colleague its lines are what was keyed, so it locks — but a
+     * vendor quote is exactly the event that makes our figures wrong, and when
+     * one arrives we reprice against it, because the quote is what the invoice
+     * will match. Recording the quote number is what opens the basket back up,
+     * and sending the order closes it for good: after that, changing a line
+     * would mean the vendor and we are holding different orders.
+     */
+    public function linesEditable(): bool
+    {
+        if ($this->vendor_sent_at !== null) {
+            return false;
+        }
+
+        return $this->status === 'draft' || filled($this->quote_number);
+    }
+
+    /**
+     * What the vendor's authoritative cost is, once they have quoted: their
+     * number when we have it, our own arithmetic until then.
+     */
+    public function vendorTotal(): float
+    {
+        return $this->quote_total !== null ? (float) $this->quote_total : $this->total();
     }
 
     /**
