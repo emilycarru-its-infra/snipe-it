@@ -2524,19 +2524,24 @@
                                              their own topbar; an admin reaches
                                              them here rather than through the
                                              Procurement section, which is the
-                                             buying side of the same thing. --}}
-                                        <li {!! (request()->is('store') ? ' class="active"' : '') !!}>
-                                            <a href="{{ route('store.index') }}">
-                                                <i class="fa-solid fa-store fa-fw" aria-hidden="true"></i>
-                                                {{ trans('admin/store/general.store') }}
-                                            </a>
-                                        </li>
-                                        <li {!! (request()->is('store/orders*') ? ' class="active"' : '') !!}>
-                                            <a href="{{ route('store.orders') }}">
-                                                <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
-                                                {{ trans('admin/store/general.my_orders') }}
-                                            </a>
-                                        </li>
+                                             buying side of the same thing. Same
+                                             doorway as the topbar: a faculty
+                                             member without a program form on
+                                             file gets no store link anywhere. --}}
+                                        @if (auth()->user()->canUseStore())
+                                            <li {!! (request()->is('store') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('store.index') }}">
+                                                    <i class="fa-solid fa-store fa-fw" aria-hidden="true"></i>
+                                                    {{ trans('admin/store/general.store') }}
+                                                </a>
+                                            </li>
+                                            <li {!! (request()->is('store/orders*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('store.orders') }}">
+                                                    <i class="fa-solid fa-truck-fast fa-fw" aria-hidden="true"></i>
+                                                    {{ trans('admin/store/general.my_orders') }}
+                                                </a>
+                                            </li>
+                                        @endif
 
                                         <li class="divider"></li>
 
