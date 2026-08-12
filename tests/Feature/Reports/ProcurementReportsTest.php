@@ -748,6 +748,39 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_capital'));
     }
 
+    public function test_a_kept_contract_shows_as_a_zero_dollar_line_not_an_omission()
+    {
+        // Lease-to-own being kept at term end, with the buyout logged: it
+        // appears (finance must see it was weighed), asks for nothing, and
+        // never reaches a PO draft.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-KEPT',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2026-12-31',
+        ], ['purchase_cost' => 3200.00]);
+        LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI-CAPREQ-KEPT',
+            'decision_type' => 'buyout',
+            'status' => 'approved',
+            'notes' => 'Refresh budget redirected to the Faculty Laptop program.',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('ECI-CAPREQ-KEPT')
+            ->assertSee(trans('admin/purchase-orders/general.capital_retained'))
+            // Its original cost never lands in the ask.
+            ->assertDontSee('$3,200.00');
+
+        // A year holding only kept contracts has nothing to draft.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27'])
+            ->assertRedirect(route('reports.procurement.capital-request', ['fiscal_year' => 'FY2026-27']))
+            ->assertSessionHas('error');
+        $this->assertSame(0, \App\Models\Requisition::count());
+    }
+
     public function test_the_capital_request_becomes_a_builder_draft()
     {
         $model = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13']);
