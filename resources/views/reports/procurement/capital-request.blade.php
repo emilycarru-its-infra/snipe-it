@@ -29,6 +29,34 @@
 
 <p class="text-muted" style="max-width:900px;">{{ trans('admin/purchase-orders/general.capital_request_intro') }}</p>
 
+{{-- The three views this page condenses, and the door onward: the same
+     year in the schedules register, the device-level forecast, and the
+     builder — plus one click to turn the request into a draft basket. --}}
+<div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:15px;" class="hidden-print">
+    <a href="{{ route('reports.procurement.lease-end-schedules', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-default">
+        {{ trans('admin/purchase-orders/general.report_lease_end_schedules') }}
+    </a>
+    <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-default">
+        {{ trans('admin/deployments/general.forecast') }}
+    </a>
+    <a href="{{ route('purchase-orders.builder', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-default">
+        {{ trans('admin/purchase-orders/general.report_po_builder') }}
+    </a>
+    @can('create', \App\Models\Requisition::class)
+        @if ($refresh->isNotEmpty())
+            <form method="POST" action="{{ route('reports.procurement.capital-request.draft') }}" style="margin:0 0 0 auto;"
+                  onsubmit="return confirm({{ json_encode(trans('admin/purchase-orders/general.capital_draft_confirm', ['fy' => $fy])) }});">
+                {{ csrf_field() }}
+                <input type="hidden" name="fiscal_year" value="{{ $fy }}">
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="fas fa-cart-plus" aria-hidden="true"></i>
+                    {{ trans('admin/purchase-orders/general.capital_draft_button') }}
+                </button>
+            </form>
+        @endif
+    @endcan
+</div>
+
 <div class="row">
     @foreach ([
         ['label' => trans('admin/purchase-orders/general.capital_tile_devices'), 'value' => number_format($refreshDevices)],

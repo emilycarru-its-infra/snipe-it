@@ -748,6 +748,36 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_capital'));
     }
 
+    public function test_the_capital_request_becomes_a_builder_draft()
+    {
+        $model = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13']);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-2',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-11-01',
+        ], ['purchase_cost' => 1800.00, 'model_id' => $model->id]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-2',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-11-01',
+        ], ['purchase_cost' => 1800.00, 'model_id' => $model->id]);
+
+        $response = $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
+
+        $requisition = \App\Models\Requisition::latest('id')->first();
+        $this->assertNotNull($requisition);
+        $response->assertRedirect(route('purchase-orders.builder', ['requisition' => $requisition->id]));
+
+        // Two identical devices on one contract become one two-unit line,
+        // priced at the replacement estimate.
+        $this->assertSame('draft', $requisition->status);
+        $this->assertSame('FY2026-27', $requisition->fiscal_year);
+        $line = $requisition->items()->first();
+        $this->assertSame(2, (int) $line->quantity);
+        $this->assertSame(1800.00, (float) $line->unit_cost);
+    }
+
     public function test_asset_lease_detail_report_renders()
     {
         $this->actingAs($this->superuser())
