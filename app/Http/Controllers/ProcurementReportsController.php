@@ -1762,10 +1762,19 @@ class ProcurementReportsController extends Controller
             }
         }
 
-        // ── The POs this request became, once finance issued them.
+        // ── The POs this request became, once finance issued them — and the
+        // requisitions still in flight ahead of a PO, so the page says where
+        // the ask stands, not just what it is.
         $purchaseOrders = PurchaseOrder::where('fiscal_year', $fyLabel)
             ->orderBy('po_number')
             ->get(['id', 'po_number', 'title', 'budget']);
+
+        $openRequisitions = Requisition::with('items')
+            ->whereNull('purchase_order_id')
+            ->whereIn('status', ['draft', 'submitted', 'requisitioned'])
+            ->where('fiscal_year', $fyLabel)
+            ->orderBy('created_at')
+            ->get();
 
         // Flat CSV of both sections, in the workbook's column order.
         $csvRecords = [];
@@ -1798,6 +1807,7 @@ class ProcurementReportsController extends Controller
             'newAskTotal' => $newAskTotal,
             'grandTotal' => $refreshTotal + $newAskTotal,
             'purchaseOrders' => $purchaseOrders,
+            'openRequisitions' => $openRequisitions,
             'csv' => [
                 'columns' => [
                     trans('admin/purchase-orders/general.capital_col_area'),
