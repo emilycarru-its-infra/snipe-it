@@ -390,13 +390,15 @@ class FacultyProgramFormTest extends TestCase
 
     /**
      * The store gate used to require the application to have been created
-     * inside the fiscal year containing the old laptop's lease end. A
-     * cohort invited after its lease had already ended therefore submitted
-     * into a closed window: the store bounced them back to the form, and
-     * re-submitting could not help, because a new row's created_at is
-     * always now and the window is always in the past.
+     * inside the fiscal year containing the old laptop's lease end, which
+     * is unsatisfiable for a cohort invited ahead of its renewal. Wave 2's
+     * leases end in October 2027, so the window sat a year in the future
+     * and every applicant was bounced back to the form. Re-submitting could
+     * not help: created_at is always now.
+     *
+     * @dataProvider leaseEndOffsets
      */
-    public function test_the_store_opens_after_applying_even_when_the_old_lease_ended_in_a_past_year(): void
+    public function test_the_store_opens_after_applying_whatever_the_old_lease_end_is(int $yearsFromNow): void
     {
         $user = $this->facultyUser();
 
@@ -407,8 +409,7 @@ class FacultyProgramFormTest extends TestCase
             'assigned_to' => $user->id,
             'assigned_type' => User::class,
             'asset_tag' => 'A00WAVE2',
-            // A 2021 lease, long expired by the time the invitation lands.
-            'lease_end_date' => now()->subYears(2)->format('Y-m-d'),
+            'lease_end_date' => now()->addYears($yearsFromNow)->format('Y-m-d'),
         ]);
 
         // Before applying, the store is closed and points at the form.
@@ -423,6 +424,61 @@ class FacultyProgramFormTest extends TestCase
         ])->assertRedirect(route('forms.success', 'faculty-program'));
 
         $this->actingAs($user)->get(route('store.index'))->assertOk();
+    }
+
+    /** Lease ending a year out (wave 2), and one already expired. */
+    public static function leaseEndOffsets(): array
+    {
+        return ['renewal ahead' => [1], 'lease already ended' => [-2]];
+    }
+
+    /**
+     * Faculty are never asked for a GL code — the program pays for their
+     * laptop. An optional field reads as a required one to someone who has
+     * no answer for it, and on wave 2 it stopped people mid-order.
+     */
+    public function test_faculty_are_never_asked_for_a_gl_code(): void
+    {
+        $user = $this->facultyUser();
+
+        UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+            'terms_accepted_at' => now(),
+        ]);
+
+        $this->actingAs($user)->get(route('store.index'))
+            ->assertOk()
+            ->assertDontSee('st-gl-code', false)
+            ->assertDontSee(trans('admin/store/general.gl_code_label'), false);
+    }
+
+    /** Everyone else still gets it — their order can be department-funded. */
+    public function test_non_faculty_are_still_asked_for_a_gl_code(): void
+    {
+        $this->actingAs(User::factory()->create())->get(route('store.index'))
+            ->assertOk()
+            ->assertSee('st-gl-code', false);
+    }
+
+    /**
+     * A pickup row is not an application. PickupUpgradeAutoCreator writes
+     * quoted pickups off a checkout for people who have never seen the
+     * form, and those must not open the store — the form is the gate.
+     */
+    public function test_an_auto_created_pickup_does_not_open_the_store(): void
+    {
+        $user = $this->facultyUser();
+
+        UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        $this->actingAs($user)->get(route('store.index'))
+            ->assertRedirect(route('forms.show', 'faculty-program'));
     }
 
     /**
