@@ -104,46 +104,23 @@
             </div>
         </div>
         @endif
+        {{-- Just the add-to-wave control: creating a wave lives behind the
+             New Wave button, so the creation fields here were a second copy
+             of the same form. Pick the wave, add the selection. --}}
         <div class="{{ $waves->isNotEmpty() ? 'col-md-6' : 'col-md-12' }}" style="display:flex;">
             <div class="box box-default" style="flex:1;">
                 <div class="box-header with-border">
-                    <h3 class="box-title">{{ trans('admin/deployments/general.plan_builder_title') }}</h3>
+                    <h3 class="box-title">{{ trans('admin/deployments/general.add_from_forecast') }}</h3>
                 </div>
                 <div class="box-body" style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
                     <div>
                         <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.target_wave') }}</label>
-                        <select name="wave_id" class="form-control" style="width:auto; min-width:180px;">
+                        <select name="wave_id" class="form-control" style="width:auto; min-width:220px;">
                             <option value="">—</option>
                             @foreach ($waves as $w)
                                 <option value="{{ $w->id }}">{{ $w->name }} ({{ $w->items_count }})</option>
                             @endforeach
                         </select>
-                    </div>
-                    <div>
-                        <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.new_wave_name') }}</label>
-                        <input type="text" name="new_wave_name" class="form-control" placeholder="{{ $fy }} Refresh">
-                    </div>
-                    <div>
-                        <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.deployment_type') }}</label>
-                        <select name="deployment_type_id" class="form-control" style="width:auto;">
-                            @foreach ($types as $t)
-                                <option value="{{ $t->id }}" {{ $t->slug === 'refresh' ? 'selected' : '' }}>{{ $t->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.arrival_window') }}</label>
-                        <div style="display:flex; gap:6px;">
-                            <input type="date" name="arrival_window_start" class="form-control">
-                            <input type="date" name="arrival_window_end" class="form-control">
-                        </div>
-                    </div>
-                    <div>
-                        <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.deploy_window') }}</label>
-                        <div style="display:flex; gap:6px;">
-                            <input type="date" name="target_start_date" class="form-control">
-                            <input type="date" name="target_end_date" class="form-control">
-                        </div>
                     </div>
                     <div>
                         <button type="submit" class="btn btn-primary">

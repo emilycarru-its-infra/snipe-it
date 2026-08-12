@@ -264,6 +264,7 @@ return [
     'capital_tile_new' => 'New asks',
     'capital_tile_grand' => 'Total request',
     'capital_pos_title' => 'Issued purchase orders for this year',
+    'capital_reqs_title' => 'Open requisitions — awaiting a purchase order',
     'capital_pos_none' => 'No purchase order issued yet — this page is the request.',
     'capital_draft_button' => 'Start a PO draft from this request',
     'capital_draft_confirm' => 'Create a draft requisition in the PO Builder with every :fy refresh line?',
