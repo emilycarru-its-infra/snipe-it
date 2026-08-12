@@ -1351,6 +1351,13 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('leasing', [ProcurementReportsController::class, 'lessorBreakdown'])
             ->name('reports.lessor-breakdown')
             ->breadcrumbs($crumb('reports.lessor-breakdown', 'leasing_title'));
+        // One lease's own page, addressed by the contract id itself.
+        Route::get('leasing/{contract}', [ProcurementReportsController::class, 'leaseDetail'])
+            ->name('reports.procurement.lease-detail')
+            ->where('contract', '[A-Za-z0-9._-]+')
+            ->breadcrumbs(fn (Trail $trail, $contract) => $trail
+                ->parent('reports.lessor-breakdown')
+                ->push($contract, route('reports.procurement.lease-detail', $contract)));
         Route::get('rent-costs', [ProcurementReportsController::class, 'rentCosts'])
             ->name('reports.procurement.rent-costs')
             ->breadcrumbs($crumb('reports.procurement.rent-costs', 'report_rent_costs'));
