@@ -57,7 +57,9 @@ class PurchaseAutoCreatorTest extends TestCase
             'user_id'         => $user->id,
             'asset_id'        => $asset->id,
             'agreement_type'  => 'purchase',
-            'lifecycle_stage' => 'quoted',
+            // Eligible, not quoted: a status label changing is the machine
+            // reaching lease end, not somebody asking to buy it.
+            'lifecycle_stage' => 'eligible',
         ]);
 
         $agreement = UserAgreement::where('asset_id', $asset->id)->first();
@@ -132,6 +134,6 @@ class PurchaseAutoCreatorTest extends TestCase
         // One closed + one new open.
         $this->assertSame(2, UserAgreement::where('asset_id', $asset->id)->count());
         $this->assertSame(1, UserAgreement::where('asset_id', $asset->id)
-            ->where('lifecycle_stage', 'quoted')->count());
+            ->where('lifecycle_stage', 'eligible')->count());
     }
 }
