@@ -6,6 +6,7 @@ use App\Forms\FormDefinition;
 use App\Models\Asset;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\FacultyProgramNotifier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -191,6 +192,12 @@ class FacultyProgramForm extends FormDefinition
                 $agreement->storeUnsignedPdf();
             }
         }
+
+        // Somebody is told. Until this, a submission was recorded and
+        // announced to nobody: the first the program heard of an
+        // application was usually the applicant asking why nothing had
+        // happened.
+        FacultyProgramNotifier::submitted($pickup, $buyout, (bool) $existingPickup);
 
         return redirect()
             ->route('forms.success', ['slug' => $this->slug()])

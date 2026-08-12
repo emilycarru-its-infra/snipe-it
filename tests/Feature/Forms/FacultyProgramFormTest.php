@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Forms;
 
+use App\Mail\FacultyProgramSubmissionMail;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\Category;
@@ -12,6 +13,7 @@ use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\FormAccess;
 use App\Services\StoreOrderAssetProvisioner;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class FacultyProgramFormTest extends TestCase
@@ -430,6 +432,97 @@ class FacultyProgramFormTest extends TestCase
     public static function leaseEndOffsets(): array
     {
         return ['renewal ahead' => [1], 'lease already ended' => [-2]];
+    }
+
+    /**
+     * A submission used to be recorded and announced to nobody, so the
+     * first the program heard of an application was usually the applicant
+     * asking why nothing had happened.
+     */
+    public function test_submitting_the_form_mails_the_program(): void
+    {
+        Mail::fake();
+        $user = $this->facultyUser();
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'payroll_deduction',
+            'buyout_decision' => 'no_prior_laptop',
+            'notes' => 'Do I pick the laptop here or in the store?',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        Mail::assertSent(FacultyProgramSubmissionMail::class, function ($mail) use ($user) {
+            return $mail->pickup->user_id === $user->id && $mail->updated === false;
+        });
+    }
+
+    /** An edit is a different mail from a first submission, and says so. */
+    public function test_editing_the_form_mails_the_program_as_an_update(): void
+    {
+        $user = $this->facultyUser();
+        $payload = [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no_prior_laptop',
+            'accept_terms' => '1',
+        ];
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), $payload);
+
+        Mail::fake();
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), array_merge($payload, [
+            'payment_method' => 'payroll_deduction',
+        ]));
+
+        Mail::assertSent(FacultyProgramSubmissionMail::class, fn ($mail) => $mail->updated === true);
+    }
+
+    /**
+     * The template renders, with the two answers whoever works the queue
+     * is actually scanning for. Mail::fake() asserts a send but never
+     * builds the view, so a broken template would pass every other test
+     * here and only fail in front of a real recipient.
+     */
+    public function test_the_program_email_renders_the_answers(): void
+    {
+        $user = $this->facultyUser();
+
+        $pickup = UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+            'payment_method' => 'payroll_deduction',
+            'terms_accepted_at' => now(),
+            'notes' => 'Do I still select it from the store?',
+        ]);
+
+        $html = (new FacultyProgramSubmissionMail($pickup->load('user')))->render();
+
+        $this->assertStringContainsString('Payroll Deduction', $html);
+        $this->assertStringContainsString('Do I still select it from the store?', $html);
+        $this->assertStringContainsString(
+            trans('mail.faculty_program_buyout_none'), $html
+        );
+    }
+
+    /** A mail transport problem must never cost somebody their submission. */
+    public function test_a_failing_program_email_does_not_break_the_submission(): void
+    {
+        $user = $this->facultyUser();
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('relay down'));
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no_prior_laptop',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $this->assertDatabaseHas('user_agreements', [
+            'user_id' => $user->id,
+            'agreement_type' => 'pickup',
+            'lifecycle_stage' => 'quoted',
+        ]);
     }
 
     /**
