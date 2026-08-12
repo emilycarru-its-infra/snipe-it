@@ -12,20 +12,26 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property int $id
  * @property string $fiscal_year
+ * @property string|null $area
  * @property string $need
+ * @property string|null $type
  * @property string $description
  * @property int $quantity
  * @property string $unit_cost
+ * @property string|null $preference
  * @property int $sort_order
  */
 class CapitalRequestLine extends Model
 {
     protected $fillable = [
         'fiscal_year',
+        'area',
         'need',
+        'type',
         'description',
         'quantity',
         'unit_cost',
+        'preference',
         'sort_order',
     ];
 
