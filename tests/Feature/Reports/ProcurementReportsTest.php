@@ -708,6 +708,76 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(route('reports.procurement.lease-detail', '301452-007'), false);
     }
 
+    public function test_the_capital_request_is_one_link_for_finance()
+    {
+        // A contract ending inside FY2026-27 (Apr 2026 – Mar 2027), with a
+        // live device: it appears as a refresh line priced at the
+        // replacement estimate (original cost when no catalog mapping).
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-1',
+            'Lease Contract Name' => 'Devices Leases FY26-27 #8',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+            'Usage' => 'Curriculum',
+        ], ['purchase_cost' => 2500.00]);
+
+        $response = $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.capital_request_title'))
+            ->assertSee('ECI-CAPREQ-1')
+            ->assertSee('$2,500.00')
+            ->assertSee(trans('admin/purchase-orders/general.capital_pref_rental'));
+
+        // A different year does not carry this contract.
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2028-29')
+            ->assertOk()
+            ->assertDontSee('ECI-CAPREQ-1');
+
+        // The CSV export ships the same rows for the finance workbook.
+        $csv = $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27&format=csv');
+        $csv->assertOk();
+        $this->assertStringContainsString('ECI-CAPREQ-1', $csv->streamedContent());
+
+        // Capital Spend kept its report, one path over.
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital-spend')
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.report_capital'));
+    }
+
+    public function test_the_capital_request_becomes_a_builder_draft()
+    {
+        $model = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13']);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-2',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-11-01',
+        ], ['purchase_cost' => 1800.00, 'model_id' => $model->id]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-2',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-11-01',
+        ], ['purchase_cost' => 1800.00, 'model_id' => $model->id]);
+
+        $response = $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
+
+        $requisition = \App\Models\Requisition::latest('id')->first();
+        $this->assertNotNull($requisition);
+        $response->assertRedirect(route('purchase-orders.builder', ['requisition' => $requisition->id]));
+
+        // Two identical devices on one contract become one two-unit line,
+        // priced at the replacement estimate.
+        $this->assertSame('draft', $requisition->status);
+        $this->assertSame('FY2026-27', $requisition->fiscal_year);
+        $line = $requisition->items()->first();
+        $this->assertSame(2, (int) $line->quantity);
+        $this->assertSame(1800.00, (float) $line->unit_cost);
+    }
+
     public function test_asset_lease_detail_report_renders()
     {
         $this->actingAs($this->superuser())

@@ -221,15 +221,28 @@
                        value="{{ old('quote_expires_at', $purchaseOrder->quote_expires_at?->format('Y-m-d')) }}">
             </div>
         </div>
-        <div class="box-footer">
-            <button type="submit" name="test" value="1" class="btn btn-default btn-block">
-                {{ trans('admin/purchase-orders/general.vendor_send_test_submit') }}
-            </button>
-            <button type="submit" class="btn btn-primary btn-block"
-                    {{ $orderEmails->isEmpty() || $missingParts->isNotEmpty() || $lines->isEmpty() ? 'disabled' : '' }}>
-                {{ trans('admin/purchase-orders/general.vendor_send_submit') }}
-            </button>
-        </div>
+        {{-- Once the order is out there is nothing to send — the next move
+             belongs to the vendor's panel below. Recording their changes
+             reopens the basket, and the buttons with it. --}}
+        @if (in_array($purchaseOrder->vendorStage(), ['sent', 'confirmed', 'placed'], true))
+            <div class="box-footer">
+                <p class="text-muted" style="margin:0;">
+                    {{ trans('admin/purchase-orders/general.vendor_send_already_sent', [
+                        'date' => \App\Helpers\Helper::getFormattedDateObject($purchaseOrder->vendor_sent_at, 'datetime', false),
+                    ]) }}
+                </p>
+            </div>
+        @else
+            <div class="box-footer">
+                <button type="submit" name="test" value="1" class="btn btn-default btn-block">
+                    {{ trans('admin/purchase-orders/general.vendor_send_test_submit') }}
+                </button>
+                <button type="submit" class="btn btn-primary btn-block"
+                        {{ $orderEmails->isEmpty() || $missingParts->isNotEmpty() || $lines->isEmpty() ? 'disabled' : '' }}>
+                    {{ trans('admin/purchase-orders/general.vendor_send_submit') }}
+                </button>
+            </div>
+        @endif
     </form>
 </div>
 
