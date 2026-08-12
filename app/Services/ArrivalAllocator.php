@@ -76,6 +76,91 @@ class ArrivalAllocator
     }
 
     /**
+     * Claim a waiting request for an arrival that just landed, without
+     * anybody pairing it by hand.
+     *
+     * The matching contract the docblocks used to describe — CDW echoing
+     * our ECU-STORE reference back — never existed; CDW returns their own
+     * order number and nothing of ours. What we do have by ship time is
+     * that number recorded against the purchase order we raised, so the
+     * arrival's order_number resolves through the paperwork instead:
+     *
+     *   asset.order_number  =  purchase_orders.vendor_order_number
+     *                              -> requisitions
+     *                              -> store_orders
+     *                              -> the assets those orders provisioned
+     *
+     * Model equality still decides, exactly as in the manual path — a
+     * batch of eight Airs against five store orders claims five and
+     * leaves three unallocated rather than forcing a pairing. Oldest
+     * order first, because the person who has been waiting longest is the
+     * one whose status page should move.
+     *
+     * Returns the claimed record, or null when nothing matches — which is
+     * not a failure. Extras, a purchase order nobody has stamped yet, and
+     * a model we never provisioned all land on the manual allocation page,
+     * which is what it is for.
+     */
+    public function autoAllocate(Asset $arrival): ?Asset
+    {
+        $reference = trim((string) $arrival->order_number);
+
+        if ($reference === '' || str_starts_with($reference, 'ECU-STORE-') || ! filled($arrival->serial)) {
+            return null;
+        }
+
+        // Only ever claims on behalf of an arrival nobody has touched:
+        // assigned, or moved out of a pending status, means a human has
+        // already decided what this machine is for.
+        if ($arrival->assigned_to || ! $arrival->status?->pending) {
+            return null;
+        }
+
+        $waiting = $this->waitingFor($reference)
+            ->first(fn (Asset $candidate) => (int) $candidate->model_id === (int) $arrival->model_id);
+
+        if (! $waiting) {
+            return null;
+        }
+
+        return $this->allocate($arrival, $waiting)['asset'];
+    }
+
+    /**
+     * The unfilled requests behind a vendor order number, oldest order
+     * first.
+     *
+     * @return Collection<int, Asset>
+     */
+    private function waitingFor(string $vendorOrderNumber): Collection
+    {
+        $references = StoreOrder::query()
+            ->whereHas('requisition.purchaseOrder',
+                fn ($q) => $q->where('vendor_order_number', $vendorOrderNumber))
+            ->orderBy('created_at')
+            ->pluck('id')
+            ->map(fn ($id) => 'ECU-STORE-'.$id);
+
+        if ($references->isEmpty()) {
+            return collect();
+        }
+
+        // Ordered by the reference list rather than by asset id, so "oldest
+        // order first" survives a batch whose assets were provisioned out
+        // of sequence.
+        $byReference = Asset::whereIn('order_number', $references)
+            ->where(fn ($q) => $q->whereNull('serial')->orWhere('serial', ''))
+            ->whereNull('assigned_to')
+            ->with('model', 'status')
+            ->get()
+            ->groupBy('order_number');
+
+        return $references
+            ->flatMap(fn ($reference) => $byReference->get($reference, collect()))
+            ->values();
+    }
+
+    /**
      * @return array{asset: Asset, released: bool}
      */
     public function allocate(Asset $arrival, Asset $waiting): array
