@@ -201,11 +201,24 @@ class OrdersController extends Controller
                     ]
                 )->id;
 
+                // The invoice belongs in the key, not just the payload. An
+                // order is commonly billed across several invoices, and CDW
+                // routinely bills equipment and its AppleCare separately
+                // against the same serials — order TESTPV1 carries TESTAJ2
+                // for 4 Mac minis and TESTAJ1 for their AppleCare. Keyed on
+                // order + asset alone, ingesting the second invoice moved the
+                // existing lines onto it instead of adding new ones, so the
+                // first invoice lost every line item and began reporting a
+                // variance equal to its whole subtotal.
                 OrderItem::updateOrCreate(
-                    ['order_id' => $order->id, 'item_type' => Asset::class, 'item_id' => $line['asset_id']],
+                    [
+                        'order_id' => $order->id,
+                        'invoice_id' => $invoice?->id,
+                        'item_type' => Asset::class,
+                        'item_id' => $line['asset_id'],
+                    ],
                     [
                         'purchase_order_id' => $purchaseOrderId,
-                        'invoice_id' => $invoice?->id,
                         'shipment_id' => $shipmentId,
                         'description' => $line['description'] ?? null,
                         'quantity' => $line['quantity'] ?? 1,
