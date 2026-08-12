@@ -10,16 +10,12 @@
     $mergeFields = ['first_name', 'recipient', 'device', 'device_model', 'lease_end', 'lease_end_year', 'wave', 'year', 'fiscal_year', 'form_url', 'store_url'];
 @endphp
 
-<button type="button" class="btn btn-primary" data-announce-open>
+<button type="button" class="btn btn-sm btn-primary" data-announce-open
+        title="{{ $wave->announced_at ? trans('admin/deployments/general.announce_already', ['date' => \App\Helpers\Helper::getFormattedDateObject($wave->announced_at, 'datetime', false)]) : '' }}">
     <i class="fas fa-envelope" aria-hidden="true"></i>
     {{ trans('admin/deployments/general.announce_title') }}
     <span class="badge">{{ $announceRecipients->count() }}</span>
 </button>
-@if ($wave->announced_at)
-    <span class="text-muted" style="margin-left:8px;">
-        {{ trans('admin/deployments/general.announce_already', ['date' => \App\Helpers\Helper::getFormattedDateObject($wave->announced_at, 'datetime', false)]) }}
-    </span>
-@endif
 
 <dialog id="announce-sheet" class="announce-sheet" aria-label="{{ trans('admin/deployments/general.announce_title') }}">
     <form method="POST" action="{{ route('deployment-waves.announce', $wave) }}" class="announce-sheet-inner">
@@ -146,6 +142,14 @@
         padding: 12px 16px; border-top: 1px solid var(--surface-border, #e4e9ee);
     }
     .announce-code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; }
+    /* The app marks every required field with a thick orange right border. It
+       reads as a warning on a form where nearly everything is required, and here
+       the two fields it lands on are the subject and the letter itself. */
+    .announce-sheet input:required,
+    .announce-sheet textarea:required,
+    .announce-sheet select:required {
+        border-right: 1px solid var(--surface-border, #d2d6de);
+    }
     .announce-recipient-list { margin-top: 6px; columns: 2; }
     @media (max-width: 700px) {
         .announce-sheet { width: 100vw; border-radius: 0; max-height: 100vh; }

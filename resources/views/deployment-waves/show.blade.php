@@ -9,6 +9,7 @@
     <a href="{{ route('deployments.storage') }}" class="btn btn-sm btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ route('deployment-waves.export', $wave) }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('admin/deployments/general.download') }}</a>
     <a href="{{ route('deployment-waves.edit', $wave) }}" class="btn btn-sm btn-warning"><i class="fas fa-pencil-alt"></i> {{ trans('general.update') }}</a>
+    @include('deployment-waves._announce')
 @stop
 
 @section('content')
@@ -63,12 +64,6 @@
             .wave-meta dt { text-align: left; font-weight: 700; white-space: nowrap; }
             .wave-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
         </style>
-    </div>
-</div>
-
-<div class="box box-default">
-    <div class="box-body">
-        @include('deployment-waves._announce')
     </div>
 </div>
 
