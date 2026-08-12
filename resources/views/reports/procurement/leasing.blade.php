@@ -53,42 +53,6 @@
     </div>
 </div>
 
-{{-- Rent Costs — the year's leasing bill, contract by contract. The FY
-     select answers "and what about next year" without leaving the page. --}}
-<div class="row">
-    <div class="col-md-12">
-        <div class="box box-default rpt-report-box">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.report_rent_costs') }}</h3>
-                <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/purchase-orders/general.report_rent_costs_desc') }}</span>
-                <div class="box-tools pull-right" style="display:flex; align-items:center; gap:8px;">
-                    <form method="get" style="margin:0;">
-                        <select name="fiscal_year" class="form-control input-sm" style="width:auto; font-weight:700;" onchange="this.form.submit()">
-                            @foreach ($allFiscalYears as $fyOption)
-                                <option value="{{ $fyOption }}" @selected($fyOption === $rentCosts['fy'])>{{ $fyOption }}</option>
-                            @endforeach
-                            @unless ($allFiscalYears->contains($rentCosts['fy']))
-                                <option value="{{ $rentCosts['fy'] }}" selected>{{ $rentCosts['fy'] }}</option>
-                            @endunless
-                        </select>
-                    </form>
-                    <a href="{{ route('reports.procurement.rent-costs', ['format' => 'csv', 'fiscal_year' => $rentCosts['fy']]) }}" class="btn btn-sm btn-default">
-                        <x-icon type="download" /> {{ trans('general.download') }}
-                    </a>
-                </div>
-            </div>
-            <div class="box-body">
-                @include('reports.procurement._report-table', [
-                    'columns' => $rentCosts['columns'],
-                    'rows'    => $rentCosts['records'],
-                    'footer'  => $rentCosts['footer'] ?? null,
-                    'canEditNotes' => false,
-                ])
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="row">
     <div class="col-md-12">
         <div class="box box-default rpt-report-box">
@@ -106,6 +70,33 @@
                     'columns' => $breakdown['columns'],
                     'rows'    => $breakdown['records'],
                     'footer'  => $breakdown['footer'] ?? null,
+                    'canEditNotes' => false,
+                ])
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Rent Costs — the year's leasing bill, contract by contract. The
+     Annual Rent bars above ARE the year picker: click a bar, get that
+     year's breakdown here. --}}
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-default rpt-report-box" id="rent-costs" style="scroll-margin-top:80px;">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/purchase-orders/general.report_rent_costs') }} — {{ $rentCosts['fy'] }}</h3>
+                <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/purchase-orders/general.rent_costs_bars_hint') }}</span>
+                <div class="box-tools pull-right">
+                    <a href="{{ route('reports.procurement.rent-costs', ['format' => 'csv', 'fiscal_year' => $rentCosts['fy']]) }}" class="btn btn-sm btn-default">
+                        <x-icon type="download" /> {{ trans('general.download') }}
+                    </a>
+                </div>
+            </div>
+            <div class="box-body">
+                @include('reports.procurement._report-table', [
+                    'columns' => $rentCosts['columns'],
+                    'rows'    => $rentCosts['records'],
+                    'footer'  => $rentCosts['footer'] ?? null,
                     'canEditNotes' => false,
                 ])
             </div>
@@ -142,15 +133,33 @@
         var c = themeColors();
         Object.keys(charts).forEach(function (key) { charts[key].destroy(); });
 
+        // The bars are the Rent Costs year picker: clicking one reloads the
+        // page scoped to that fiscal year, landing on the table. The bar
+        // for the year on display is tinted to say which year the table
+        // below is answering for.
+        var selectedFy = @json($rentCosts['fy']);
         charts.annualRent = new Chart(document.getElementById('chart-lessor-annual-rent'), {
             type: 'bar',
             data: {
                 labels: lessorChart.annualRent.labels,
-                datasets: [{ data: lessorChart.annualRent.data, backgroundColor: c.bar }]
+                datasets: [{
+                    data: lessorChart.annualRent.data,
+                    backgroundColor: lessorChart.annualRent.labels.map(function (label) {
+                        return label === selectedFy ? '#f39c12' : c.bar;
+                    })
+                }]
             },
             options: {
                 responsive: true, maintainAspectRatio: false, legend: { display: false },
                 tooltips: { callbacks: { label: function (item) { return money(item.yLabel); } } },
+                onClick: function (event, elements) {
+                    if (! elements.length) { return; }
+                    var fy = lessorChart.annualRent.labels[elements[0]._index];
+                    window.location = '{{ route('reports.lessor-breakdown') }}?fiscal_year=' + encodeURIComponent(fy) + '#rent-costs';
+                },
+                hover: { onHover: function (event, elements) {
+                    event.target.style.cursor = elements.length ? 'pointer' : 'default';
+                } },
                 scales: {
                     xAxes: [{ gridLines: { display: false }, ticks: { fontColor: c.font } }],
                     yAxes: [{ gridLines: { color: c.grid }, ticks: { beginAtZero: true, callback: money, fontColor: c.font } }]

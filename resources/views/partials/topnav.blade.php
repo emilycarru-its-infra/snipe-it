@@ -70,12 +70,6 @@
                  doors. Configure is gone — the wave-type and stage catalogs
                  are managed inline on the Waves page. --}}
             <ul class="dropdown-menu topnav-menu">
-                @can('view', App\Models\Asset::class)
-                    <li{!! (request()->is('reports/exhibit*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('reports.exhibit') }}">{{ trans('admin/reports/general.hub_tile_exhibit') }}</a>
-                    </li>
-                    <li class="divider"></li>
-                @endcan
                 <li{!! (request()->is('deployments/waves') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployment-waves.index') }}">{{ trans('admin/deployments/general.waves_title') }}</a>
                 </li>
@@ -91,6 +85,12 @@
                 <li{!! (request()->is('deployments/blackouts*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.blackouts.index') }}">{{ trans('admin/deployments/general.blackouts_button') }}</a>
                 </li>
+                @can('view', App\Models\Asset::class)
+                    <li class="divider"></li>
+                    <li{!! (request()->is('reports/exhibit*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('reports.exhibit') }}">{{ trans('admin/reports/general.hub_tile_exhibit') }}</a>
+                    </li>
+                @endcan
             </ul>
         </li>
     @endif

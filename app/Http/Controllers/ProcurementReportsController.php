@@ -1417,10 +1417,114 @@ class ProcurementReportsController extends Controller
         // charts that used to sit on the reports hub, the lessor breakdown,
         // and the year's rent contract by contract. One page answers "what
         // are we leasing, from whom, and what does this year cost".
+        //
+        // The FY comes straight off the query rather than the sticky
+        // procurement scope: the Annual Rent bars are the year picker here,
+        // and clicking through a decade of them should not re-aim every
+        // other report's session default.
         return view('reports.procurement.leasing', [
             'breakdown' => $breakdown,
-            'rentCosts' => $this->rentCostsReport($this->resolveFiscalYear($request)),
-            'allFiscalYears' => $this->availableFiscalYears(),
+            'rentCosts' => $this->rentCostsReport($request->query('fiscal_year')),
+        ]);
+    }
+
+    /**
+     * One lease, the whole story: the terms, the money, and the device
+     * schedule — the in-app mirror of the lessor's own Exhibit A, which is
+     * currently a workbook somebody has to go find. Addressable by the
+     * contract id itself (/procurement/leasing/301452-007) so any table
+     * naming a lease can open it.
+     */
+    public function leaseDetail(Request $request, string $contract)
+    {
+        $this->authorize('procurement.view');
+
+        $group = collect($this->groupedLeaseAssets(null))
+            ->first(fn ($g) => strcasecmp($g['contract_id'], $contract) === 0);
+
+        abort_unless($group !== null, 404);
+
+        $cols = $this->leaseFieldColumns();
+        $basis = $this->leaseRentBasis($group);
+
+        // The register's own term dates, when the contract is on file.
+        $term = Contract::where('schedule_number', $group['contract_id'])->first();
+
+        // Per-device money: the asset's own fields first, order items as
+        // the transition fallback — the same precedence Leases Contracts
+        // applies, so the two pages can never disagree.
+        $assetIds = collect($group['assets'])->pluck('id')->all();
+        $orderItemsByAsset = OrderItem::with('order.purchaseOrder')
+            ->where('item_type', Asset::class)
+            ->whereIn('item_id', $assetIds)
+            ->get()
+            ->groupBy('item_id');
+
+        $devices = [];
+        $totals = ['equipment' => 0.0, 'soft' => 0.0, 'rent' => 0.0, 'buyout' => 0.0];
+        $poNumbers = [];
+        $cdwOrders = [];
+
+        foreach ($group['assets'] as $asset) {
+            $items = $orderItemsByAsset->get($asset->id, collect());
+
+            $soft = $cols['warranty_cost'] ? $this->parseMoney($asset->{$cols['warranty_cost']}) : 0.0;
+            if ($soft <= 0) {
+                $soft = (float) $items->sum('warranty_cost');
+            }
+            $rent = $cols['lease_rent'] ? $this->parseMoney($asset->{$cols['lease_rent']}) : 0.0;
+            $buyout = $cols['buyout_cost'] ? $this->parseMoney($asset->{$cols['buyout_cost']}) : 0.0;
+            $equipment = (float) ($asset->purchase_cost ?? 0);
+
+            $totals['equipment'] += $equipment;
+            $totals['soft'] += $soft;
+            $totals['rent'] += $rent;
+            $totals['buyout'] += $buyout;
+
+            $assetPo = $cols['po_number'] ? trim((string) $asset->{$cols['po_number']}) : '';
+            if (str_starts_with($assetPo, 'P00')) {
+                $poNumbers[$assetPo] = true;
+            } else {
+                foreach ($items as $item) {
+                    if ($poNum = $item->order?->purchaseOrder?->po_number) {
+                        $poNumbers[$poNum] = true;
+                    }
+                }
+            }
+            if ($cdw = trim((string) $asset->order_number)) {
+                $cdwOrders[$cdw] = true;
+            } else {
+                foreach ($items as $item) {
+                    if ($orderNum = $item->order?->order_number) {
+                        $cdwOrders[$orderNum] = true;
+                    }
+                }
+            }
+
+            $devices[] = [
+                'asset' => $asset,
+                'equipment' => $equipment,
+                'soft' => $soft,
+                'rent' => $rent,
+                'buyout' => $buyout,
+                'ownership' => $cols['ownership_type'] ? trim((string) $asset->{$cols['ownership_type']}) : '',
+            ];
+        }
+
+        // Stable read: the schedule in serial order, like the Exhibit.
+        usort($devices, fn ($a, $b) => strcmp((string) $a['asset']->serial, (string) $b['asset']->serial));
+
+        return view('reports.procurement.lease-detail', [
+            'group' => $group,
+            'term' => $term,
+            'basis' => $basis,
+            'devices' => $devices,
+            'totals' => $totals,
+            'poNumbers' => array_keys($poNumbers),
+            'cdwOrders' => array_keys($cdwOrders),
+            'decisions' => LeaseDecision::where('contract_reference', $group['contract_id'])
+                ->orderByDesc('decision_date')->get(),
+            'closure' => app(LeaseClosure::class)->summarise($group['assets']),
         ]);
     }
 
@@ -2683,6 +2787,7 @@ class ProcurementReportsController extends Controller
                     $group['archived'],
                     $this->summariseCounts($group['model_counts']),
                 ],
+                'links' => [1 => route('reports.procurement.lease-detail', $group['contract_id'])],
             ];
         }
 
@@ -2844,6 +2949,7 @@ class ProcurementReportsController extends Controller
                     implode(', ', array_keys($poNumbers)),
                     implode(', ', array_keys($cdwOrders)),
                 ],
+                'links' => [1 => route('reports.procurement.lease-detail', $group['contract_id'])],
                 'cdw_order_numbers' => array_keys($cdwOrders),
             ];
         }
@@ -3639,6 +3745,7 @@ class ProcurementReportsController extends Controller
                     $state['open'],
                 ],
                 'strong' => [1 => true],
+                'links' => [0 => route('reports.procurement.lease-detail', $group['contract_id'])],
                 'children' => [
                     'columns' => [
                         trans('admin/hardware/table.serial'),
@@ -4719,12 +4826,11 @@ class ProcurementReportsController extends Controller
 
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_name'),
-            trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.lease_provider'),
-            trans('admin/purchase-orders/general.lease_end_date'),
-            trans('admin/purchase-orders/general.extension_monthly_cost'),
-            trans('admin/purchase-orders/general.rent_months_in_fy', ['fy' => $fyLabel]),
+            trans('admin/purchase-orders/general.lease_contract_id'),
             trans('admin/purchase-orders/general.rent_fy_total', ['fy' => $fyLabel]),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.lease_ownership'),
         ];
 
         $records = [];
@@ -4755,23 +4861,27 @@ class ProcurementReportsController extends Controller
                 'class' => '',
                 'cells' => [
                     $group['contract_name'] ?: $group['contract_id'],
-                    $group['contract_id'],
                     $group['provider'],
-                    $this->dateString($group['lease_end_date']),
-                    $this->money($basis['monthly'])
+                    $group['contract_id'],
+                    $this->money($fyRent)
                         .($basis['estimated'] ? ' '.trans('admin/purchase-orders/general.extension_cost_estimated') : ''),
-                    $months,
-                    $this->money($fyRent),
+                    $this->dateString($group['lease_end_date']),
+                    $this->summariseCounts($group['ownership_counts']),
+                ],
+                // Both name and id open the lease's own page.
+                'links' => [
+                    0 => route('reports.procurement.lease-detail', $group['contract_id']),
+                    2 => route('reports.procurement.lease-detail', $group['contract_id']),
                 ],
             ];
         }
 
         // Biggest line first — that is the order the number gets asked in.
-        usort($records, fn ($a, $b) => $this->parseMoney($b['cells'][6]) <=> $this->parseMoney($a['cells'][6]));
+        usort($records, fn ($a, $b) => $this->parseMoney($b['cells'][3]) <=> $this->parseMoney($a['cells'][3]));
 
         $footer = [
-            trans('admin/orders/general.total'), '', '', '', '', '',
-            $this->money($total),
+            trans('admin/orders/general.total'), '', '',
+            $this->money($total), '', '',
         ];
 
         // 'fy' rides along so the page can say which year it resolved to
