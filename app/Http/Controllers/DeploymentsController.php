@@ -9,6 +9,7 @@ use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
 use App\Models\Location;
 use App\Models\Order;
+use App\Models\Statuslabel;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\HistoricalFlow;
@@ -671,6 +672,59 @@ class DeploymentsController extends Controller
         }
 
         return redirect()->route('deployment-waves.show', $deploymentWave)->with('success', $message);
+    }
+
+    /**
+     * Every wave, every year — the board shows one fiscal year at a time,
+     * so this is where "which waves exist at all" gets answered. Also hosts
+     * the two catalogs that shape waves (types, per-device stages), managed
+     * inline beside the things they describe rather than behind a separate
+     * Configure page.
+     */
+    public function waves()
+    {
+        $this->authorize('deployments.view');
+
+        return view('deployment-waves.index', [
+            'waves' => DeploymentWave::with(['type', 'owner'])->withCount('items')
+                ->orderByDesc('fiscal_year')->orderBy('sort_order')->orderBy('name')->get(),
+            'types' => DeploymentType::orderBy('sort_order')->orderBy('name')->get(),
+            'stages' => DeploymentStage::orderBy('sort_order')->orderBy('name')->get(),
+            'statuslabels' => Statuslabel::orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * The decommissioning lane on its own address. The board keeps the same
+     * lane as its bottom section; this page is for the person whose whole
+     * job today is the outgoing pile. Supports the same
+     * ?format=csv&decom_pickup=Y-m-d export as the board.
+     */
+    public function decommissioning(Request $request)
+    {
+        $this->authorize('deployments.view');
+
+        $currentStartYear = now()->month >= 4 ? now()->year : now()->year - 1;
+        $currentFy = sprintf('FY%d-%02d', $currentStartYear, ($currentStartYear + 1) % 100);
+        $fiscalYears = collect(range($currentStartYear - 3, $currentStartYear + 3))
+            ->map(fn ($y) => sprintf('FY%d-%02d', $y, ($y + 1) % 100))
+            ->values()->all();
+
+        $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: $currentFy;
+        $fyStartYear = RefreshForecast::fiscalYearStartYear($fy);
+        $isPast = $fyStartYear < $currentStartYear;
+        $isFuture = $fyStartYear > $currentStartYear;
+
+        if ($request->query('format') === 'csv' && $request->filled('decom_pickup')) {
+            return $this->streamPickupCsv((string) $request->query('decom_pickup'));
+        }
+
+        return view('reports.deployments.decommissioning', [
+            'fy' => $fy,
+            'fiscalYears' => $fiscalYears,
+            'isPast' => $isPast,
+            'decommission' => $isFuture ? null : (new DecommissionLane)->build($fy, ! $isPast),
+        ]);
     }
 
     public function show(DeploymentWave $deploymentWave)

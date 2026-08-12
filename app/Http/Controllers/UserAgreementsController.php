@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * CRUD and signing actions for User Agreement Program agreements. The
- * read-only ledger lives at /reports/procurement/user-agreement-ledger; this
+ * read-only ledger lives at /procurement/agreements; this
  * controller owns creation, editing, the explicit Send-for-Signature
  * action, and PDF preview / signed-PDF download.
  */

@@ -55,11 +55,17 @@
         border-color: var(--pr-tab-c, #3c8dbc);
         color: var(--pp-ink, #333a40);
     }
+    {{-- Each report is a card, not a run of rules: scrolling a dozen
+         tables, the rounded edge is what says where one report ends and
+         the next begins. --}}
     .pr-report-pane {
-        padding: 14px 0 16px;
-        border-bottom: 1px solid var(--pp-line, #e4e9ee);
+        padding: 14px 16px 16px;
+        margin: 14px 0;
+        background: var(--box-bg, #fff);
+        border: 1px solid var(--pp-line, #e4e9ee);
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
     }
-    .pr-report-pane:last-child { border-bottom: 0; }
     .pr-report-pane.pr-hidden { display: none; }
 </style>
 <div id="pr-reports" style="margin-top:0; padding-top:0;">

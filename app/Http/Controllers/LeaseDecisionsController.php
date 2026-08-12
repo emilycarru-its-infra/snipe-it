@@ -69,7 +69,10 @@ class LeaseDecisionsController extends Controller
 
         $lease_decision->delete();
 
-        return redirect()->route('lease-decisions.index')->with('success', trans('admin/lease-decisions/message.delete.success'));
+        // Deletion is offered from the Buyout Register as well as the
+        // module's own index — land the person back where they acted.
+        return redirect()->back(fallback: route('lease-decisions.index'))
+            ->with('success', trans('admin/lease-decisions/message.delete.success'));
     }
 
     public function bulkDelete(Request $request): RedirectResponse

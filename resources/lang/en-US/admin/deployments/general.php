@@ -66,6 +66,9 @@ return [
     'replaces' => 'Replaces',
     'model' => 'Model',
     'projected_replacement' => 'Projected Replacement',
+    'replacement' => 'Replacement',
+    'usage_assigned' => 'Individually assigned',
+    'usage_shared' => 'Shared fleet',
     'projected_cost_total' => 'Projected replacement spend: $:total',
     'projected_cost_help' => 'Comparable current models priced from the store catalog; devices without a mapping use the replaced device\'s original cost.',
     'recipient' => 'Recipient',
@@ -104,6 +107,9 @@ return [
     'catalog_deleted' => 'Deleted.',
     'catalog_in_use_deactivated' => 'In use by existing waves/devices — deactivated instead of deleted.',
     'catalog_delete_confirm' => 'Delete this entry?',
+    'catalog_new_type' => 'New wave type…',
+    'catalog_new_stage' => 'New stage…',
+    'decom_future_none' => 'A future year has no outgoing work yet.',
 
     // Download
     'download' => 'Download',
@@ -305,6 +311,7 @@ Reply to this email if the device above is not the one you are using, or if ther
     // Decommissioning lane — the reverse flow (lease returns, donations,
     // recycling).
     'decom_title' => 'Decommissioning — Outgoing Devices',
+    'decom_nav' => 'Decommissioning',
     'decom_hint' => 'The reverse flow: devices leaving the fleet — lease returns, donations, recycling.',
     'decom_collecting' => 'Collecting',
     'decom_collecting_note' => 'on a Processing status — being gathered, wiped, packed',

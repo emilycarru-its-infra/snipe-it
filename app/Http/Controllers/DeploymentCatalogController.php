@@ -69,7 +69,9 @@ class DeploymentCatalogController extends Controller
             return redirect()->back()->withInput()->withErrors($item->getErrors());
         }
 
-        return redirect()->route('deployment-config.index', $catalog)
+        // Edits arrive from the waves index (where the catalogs live now)
+        // as well as the old config page — land back where the person was.
+        return redirect()->back(fallback: route('deployment-config.index', $catalog))
             ->with('success', trans('admin/deployments/general.catalog_saved'));
     }
 
@@ -98,7 +100,9 @@ class DeploymentCatalogController extends Controller
             return redirect()->back()->withInput()->withErrors($item->getErrors());
         }
 
-        return redirect()->route('deployment-config.index', $catalog)
+        // Edits arrive from the waves index (where the catalogs live now)
+        // as well as the old config page — land back where the person was.
+        return redirect()->back(fallback: route('deployment-config.index', $catalog))
             ->with('success', trans('admin/deployments/general.catalog_saved'));
     }
 
@@ -119,13 +123,13 @@ class DeploymentCatalogController extends Controller
             $item->active = false;
             $item->save();
 
-            return redirect()->route('deployment-config.index', $catalog)
+            return redirect()->back(fallback: route('deployment-config.index', $catalog))
                 ->with('warning', trans('admin/deployments/general.catalog_in_use_deactivated'));
         }
 
         $item->delete();
 
-        return redirect()->route('deployment-config.index', $catalog)
+        return redirect()->back(fallback: route('deployment-config.index', $catalog))
             ->with('success', trans('admin/deployments/general.catalog_deleted'));
     }
 
