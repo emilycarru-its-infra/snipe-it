@@ -258,6 +258,7 @@ return [
     'capital_col_preference' => 'Preference',
     'capital_pref_lto' => '5-year lease to own',
     'capital_pref_rental' => '4-year rental lease',
+    'capital_retained' => 'Kept at term end — no refresh this year',
     'capital_tile_devices' => 'Devices refreshing',
     'capital_tile_refresh' => 'Refresh estimate',
     'capital_tile_new' => 'New asks',
