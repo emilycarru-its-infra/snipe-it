@@ -160,7 +160,7 @@
                     <tbody>
                     @forelse ($order->items as $lineItem)
                         <tr>
-                            <td>{{ class_basename($lineItem->item_type) }}</td>
+                            <td>{{ $lineItem->item_type ? class_basename($lineItem->item_type) : trans('general.na') }}</td>
                             <td>
                                 @php $li = $lineItem->item; @endphp
                                 @if ($li && $lineItem->item_type === \App\Models\Asset::class)
