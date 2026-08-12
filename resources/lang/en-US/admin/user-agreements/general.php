@@ -1,6 +1,21 @@
 <?php
 
 return [
+    // What faculty said they would do with the old laptop, and what happened to
+    // it. Kept separate from the lifecycle stages: a stage is where the paperwork
+    // is, this is whether the paperwork matches the world.
+    'intent_return' => 'Returning it',
+    'intent_buyout' => 'Buying it',
+    'intent_no_prior_laptop' => 'No prior laptop',
+    'intent_actual_still_held' => 'still checked out to them',
+    'intent_actual_returned' => 'no longer theirs',
+    'intent_actual_disposed' => 'disposed',
+    'intent_actual_gone' => 'no device on record',
+    'intent_mismatch_generic' => 'The answer and the device do not agree.',
+    'intent_mismatch_return_still_held' => 'Said they would return it, still checked out to them.',
+    'intent_mismatch_buyout_returned' => 'Said they would buy it, but it is no longer theirs.',
+    'intent_mismatch_buyout_still_held' => 'Buyout agreed but the paperwork has not been signed.',
+    'intent_mismatch_no_prior_laptop_still_held' => 'Said they had no prior laptop, but one is checked out to them.',
     'user_agreements' => 'Agreements',
     'agreement' => 'Agreement',
     'create' => 'New Agreement',

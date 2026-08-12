@@ -72,6 +72,8 @@
     </div>
 </div>
 
+@include('deployment-waves._roster')
+
 {{-- Arrivals rollup (P2b) --}}
 @if ($arrivals['linked'] > 0)
 <div class="box box-default">
