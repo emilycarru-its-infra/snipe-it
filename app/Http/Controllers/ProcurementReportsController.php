@@ -1568,7 +1568,10 @@ class ProcurementReportsController extends Controller
 
         $data = $this->capitalRequestData($request->input('fiscal_year'));
 
-        if ($data['refresh']->isEmpty()) {
+        // Kept contracts ask for nothing — the draft is only the real ask.
+        $lines = $data['refresh']->reject(fn ($row) => $row['retained'])->values();
+
+        if ($lines->isEmpty()) {
             return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $data['fy']])
                 ->with('error', trans('general.no_results'));
         }
@@ -1579,13 +1582,13 @@ class ProcurementReportsController extends Controller
             'fiscal_year' => $data['fy'],
             // The supplier the catalog lines belong to — one basket, one
             // vendor. Rows without a mapping ride along as free-form lines.
-            'supplier_id' => $data['refresh']->pluck('supplier_id')->filter()->first(),
+            'supplier_id' => $lines->pluck('supplier_id')->filter()->first(),
             'gst_rate' => 0.05,
             'pst_rate' => 0,
             'shipping' => 0,
         ]);
 
-        foreach ($data['refresh']->values() as $index => $row) {
+        foreach ($lines as $index => $row) {
             RequisitionItem::create([
                 'requisition_id' => $requisition->id,
                 'catalog_item_id' => $row['catalog_item_id'],
@@ -1633,11 +1636,49 @@ class ProcurementReportsController extends Controller
             }
 
             // A contract with an approved buyout is being kept, not
-            // refreshed — its budget is redirected, so it asks for nothing
-            // here (the Lease End Schedules report carries the envelope).
+            // refreshed. It still appears — finance reading this page must
+            // see the contract was weighed, not wonder where it went — but
+            // as a zero-dollar line saying "kept", contributing nothing to
+            // the totals and nothing to a PO draft.
             $decision = $decisions[$group['contract_id']] ?? null;
-            if ($decision && $decision->decision_type === 'buyout'
-                && in_array($decision->status, ['approved', 'completed'], true)) {
+            $retained = $decision && $decision->decision_type === 'buyout'
+                && in_array($decision->status, ['approved', 'completed'], true);
+
+            if ($retained) {
+                $liveCount = 0;
+                $modelCounts = [];
+                foreach ($group['assets'] as $asset) {
+                    $statusName = (string) $asset->status?->name;
+                    if ($asset->status?->getStatuslabelType() === 'archived'
+                        || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
+                        continue;
+                    }
+                    $liveCount++;
+                    $modelName = $asset->model?->name ?: trans('general.na');
+                    $modelCounts[$modelName] = ($modelCounts[$modelName] ?? 0) + 1;
+                }
+
+                if ($liveCount > 0) {
+                    arsort($modelCounts);
+                    $refresh['retained|'.$group['contract_id']] = [
+                        'area' => '—',
+                        'contract_id' => $group['contract_id'],
+                        'contract_name' => $group['contract_name'],
+                        'qty' => $liveCount,
+                        'model' => $this->summariseCounts($modelCounts),
+                        'unit' => 0.0,
+                        'estimated' => false,
+                        'cost' => 0.0,
+                        'preference' => trans('admin/purchase-orders/general.capital_retained'),
+                        'retained' => true,
+                        'note' => (string) $decision->notes,
+                        'catalog_item_id' => null,
+                        'vendor_sku' => null,
+                        'mfr_part_number' => null,
+                        'supplier_id' => null,
+                    ];
+                }
+
                 continue;
             }
 
@@ -1674,6 +1715,8 @@ class ProcurementReportsController extends Controller
                         'estimated' => $catalog === null || $catalog->isEstimate(),
                         'cost' => 0.0,
                         'preference' => $preference ?: '—',
+                        'retained' => false,
+                        'note' => '',
                         // Carried so "start a PO draft" can hand the builder
                         // real catalog lines, part numbers and all.
                         'catalog_item_id' => $catalog?->id,
@@ -1728,9 +1771,14 @@ class ProcurementReportsController extends Controller
         $csvRecords = [];
         foreach ($refresh as $row) {
             $csvRecords[] = ['cells' => [
-                $row['area'], trans('admin/purchase-orders/general.capital_need_refresh'),
+                $row['area'],
+                $row['retained']
+                    ? trim(trans('admin/purchase-orders/general.capital_retained').' '.$row['note'])
+                    : trans('admin/purchase-orders/general.capital_need_refresh'),
                 $row['contract_id'], $row['qty'], $row['model'],
-                $this->money($row['unit']), $this->money($row['cost']), $row['preference'],
+                $row['retained'] ? '' : $this->money($row['unit']),
+                $row['retained'] ? '' : $this->money($row['cost']),
+                $row['retained'] ? '' : $row['preference'],
             ]];
         }
         foreach ($newAsks as $row) {
