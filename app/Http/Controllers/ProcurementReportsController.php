@@ -18,6 +18,8 @@ use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
+use App\Models\Requisition;
+use App\Models\RequisitionItem;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -1555,6 +1557,54 @@ class ProcurementReportsController extends Controller
     }
 
     /**
+     * The request becoming a basket: one click turns the refresh lines into
+     * a draft requisition in the PO Builder — the same grouping, priced the
+     * same, with catalog part numbers where the replacement maps to one.
+     * The draft is a starting point to refine against quotes, not an order.
+     */
+    public function capitalRequestDraft(Request $request)
+    {
+        $this->authorize('create', Requisition::class);
+
+        $data = $this->capitalRequestData($request->input('fiscal_year'));
+
+        if ($data['refresh']->isEmpty()) {
+            return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $data['fy']])
+                ->with('error', trans('general.no_results'));
+        }
+
+        $requisition = Requisition::create([
+            'title' => trans('admin/purchase-orders/general.capital_request_title').' '.$data['fy'],
+            'status' => 'draft',
+            'fiscal_year' => $data['fy'],
+            // The supplier the catalog lines belong to — one basket, one
+            // vendor. Rows without a mapping ride along as free-form lines.
+            'supplier_id' => $data['refresh']->pluck('supplier_id')->filter()->first(),
+            'gst_rate' => 0.05,
+            'pst_rate' => 0,
+            'shipping' => 0,
+        ]);
+
+        foreach ($data['refresh']->values() as $index => $row) {
+            RequisitionItem::create([
+                'requisition_id' => $requisition->id,
+                'catalog_item_id' => $row['catalog_item_id'],
+                'description' => $row['model'],
+                'vendor_sku' => $row['vendor_sku'],
+                'mfr_part_number' => $row['mfr_part_number'],
+                'quantity' => $row['qty'],
+                'unit_of_measure' => 'EA',
+                'unit_cost' => round($row['unit'], 2),
+                'pst_applicable' => false,
+                'sort_order' => $index,
+            ]);
+        }
+
+        return redirect()->route('purchase-orders.builder', ['requisition' => $requisition->id])
+            ->with('success', trans('admin/purchase-orders/general.capital_draft_created', ['fy' => $data['fy']]));
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function capitalRequestData(?string $fy): array
@@ -1624,6 +1674,12 @@ class ProcurementReportsController extends Controller
                         'estimated' => $catalog === null || $catalog->isEstimate(),
                         'cost' => 0.0,
                         'preference' => $preference ?: '—',
+                        // Carried so "start a PO draft" can hand the builder
+                        // real catalog lines, part numbers and all.
+                        'catalog_item_id' => $catalog?->id,
+                        'vendor_sku' => $catalog?->vendor_sku,
+                        'mfr_part_number' => $catalog?->mfr_part_number,
+                        'supplier_id' => $catalog?->supplier_id,
                     ];
                 }
 

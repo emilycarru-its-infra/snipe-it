@@ -1365,6 +1365,8 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('capital', [ProcurementReportsController::class, 'capitalRequest'])
             ->name('reports.procurement.capital-request')
             ->breadcrumbs($crumb('reports.procurement.capital-request', 'capital_request_title'));
+        Route::post('capital/draft', [ProcurementReportsController::class, 'capitalRequestDraft'])
+            ->name('reports.procurement.capital-request.draft');
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
