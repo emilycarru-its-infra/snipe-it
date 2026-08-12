@@ -35,7 +35,7 @@
                 <tr>
                     <th>{{ trans('admin/deployments/general.roster_person') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_device') }}</th>
-                    <th>{{ trans('admin/deployments/general.roster_lease_end') }}</th>
+                    <th>{{ trans('admin/deployments/general.roster_due') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_said') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_actual') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_ordered') }}</th>
@@ -65,7 +65,15 @@
                             <span class="text-muted">&mdash;</span>
                         @endif
                     </td>
-                    <td>{{ $asset?->lease_end_date ? \Carbon\Carbon::parse($asset->lease_end_date)->toDateString() : '—' }}</td>
+                    @php $due = $asset ? (new \App\Services\Deployments\WaveMembership)->dueDate($asset) : null; @endphp
+                    <td>
+                        {{ $due?->toDateString() ?? '—' }}
+                        @if ($due && $asset->asset_eol_date && $due->isSameDay(\Carbon\Carbon::parse($asset->asset_eol_date)))
+                            <span class="text-muted">{{ trans('admin/deployments/general.roster_due_eol') }}</span>
+                        @elseif ($due)
+                            <span class="text-muted">{{ trans('admin/deployments/general.roster_due_lease') }}</span>
+                        @endif
+                    </td>
                     <td>
                         @if ($intent)
                             {{ trans('admin/user-agreements/general.intent_'.$intent['intent']) }}
