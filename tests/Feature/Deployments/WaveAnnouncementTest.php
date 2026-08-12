@@ -331,7 +331,8 @@ class WaveAnnouncementTest extends TestCase
             ->assertSee(trans('admin/deployments/general.announce_title'))
             ->assertSee('Faculty Laptop Program', false)
             ->assertSee('faculty@ecuad.ca')
-            ->assertSee(trans('admin/deployments/general.checked_out_to'));
+            // The merged table is person-first for an assigned wave.
+            ->assertSee(trans('admin/deployments/general.roster_person'));
     }
 
     /** A wave lives under deployments; the old top-level path still lands. */

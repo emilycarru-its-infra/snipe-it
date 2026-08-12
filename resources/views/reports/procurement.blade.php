@@ -199,6 +199,7 @@
         ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc', 'stage' => 'budgeting'],
+        ['route' => 'reports.procurement.rent-costs', 'name' => 'report_rent_costs', 'desc' => 'report_rent_costs_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'stage' => 'budgeting'],
@@ -573,5 +574,6 @@
 @include('reports.procurement._disposition-grid-js')
 {{-- And the inline-editable note cells in the other report tables. --}}
 @include('reports.procurement._report-note-js')
+@include('reports.procurement._report-children-js')
 @include('reports.procurement._report-sticky-js')
 @stop

@@ -157,21 +157,36 @@ class ProcurementReportsTest extends TestCase
     {
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.leases-operational'))
+            ->assertRedirect(route('reports.procurement.leases-operational', ['fiscal_year' => 'all']));
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.leases-operational', ['fiscal_year' => 'all']))
             ->assertOk()
-            ->assertSee(trans('admin/purchase-orders/general.report_leases_operational'));
+            ->assertSee(trans('admin/purchase-orders/general.report_leases_operational'))
+            // Charts above the table, and every column but Models nowrapped.
+            ->assertSee('leases-assets-per-contract', false)
+            ->assertSee('leases-ownership-mix', false)
+            ->assertSee('rpt-nowrap-tail', false);
+
+        // The path says "leases", the old spellings walk over.
+        $this->actingAs($this->superuser())->get('/procurement/leases-hardware?fiscal_year=all')->assertOk();
+        $this->actingAs($this->superuser())->get('/procurement/leases-operational')->assertRedirect('/procurement/leases-hardware');
+        $this->actingAs($this->superuser())->get('/procurement/leases-financial')->assertRedirect('/procurement/leases-contracts');
     }
 
     public function test_leases_financial_report_renders_without_lease_data()
     {
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.leases-financial'))
+            ->get(route('reports.procurement.leases-financial', ['fiscal_year' => 'all']))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.report_leases_financial'))
             // Column headers are the human-readable labels, not the raw
             // `_snipeit_*` generated DB column names (regression: the header
             // row was being clobbered by the field-column lookup map).
             ->assertSee(trans('admin/purchase-orders/general.lease_contract_id'))
-            ->assertDontSee('_snipeit_lease_contract_id');
+            ->assertDontSee('_snipeit_lease_contract_id')
+            ->assertSee('leases-cost-per-contract', false)
+            ->assertSee('leases-cost-by-lessor', false);
     }
 
     public function test_csi_schedule_report_renders_without_lease_data()
@@ -195,7 +210,7 @@ class ProcurementReportsTest extends TestCase
         $superuser = $this->superuser();
 
         $this->actingAs($superuser)
-            ->get(route('reports.procurement.leases-operational'))
+            ->get(route('reports.procurement.leases-operational', ['fiscal_year' => 'all']))
             ->assertOk()
             // CSI Leasing is the provider for any 301452-* schedule.
             ->assertSee('301452-003')
@@ -608,6 +623,60 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('$5,000.00');
     }
 
+    public function test_aro_register_waits_for_the_decision_window_on_lease_to_own()
+    {
+        // A lease-to-own contract five years from term end has made no
+        // decision yet — "kept at term end" is a prediction, not a fact, and
+        // 301452-008 (ending 2031) was reading as already settled. No logged
+        // decision, term end far out: the register stays silent about it.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-FAR-OUT',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => now()->addYears(5)->format('Y-m-d'),
+        ]);
+
+        // The same shape at term end is exactly what the Retained row is
+        // for, logged decision or not.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-AT-TERM',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => now()->addMonth()->format('Y-m-d'),
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.aro-register'))
+            ->assertOk()
+            ->assertSee('ECI-AT-TERM')
+            ->assertDontSee('ECI-FAR-OUT');
+    }
+
+    public function test_aro_register_offers_edit_and_delete_on_logged_decisions()
+    {
+        $decision = LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI20230701',
+            'decision_type' => 'return',
+            'status' => 'approved',
+            'amount' => 250,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.aro-register'))
+            ->assertOk()
+            ->assertSee(route('lease-decisions.edit', $decision->id), false)
+            ->assertSee(route('lease-decisions.destroy', $decision->id), false);
+    }
+
+    public function test_agreements_hub_lives_at_procurement_agreements()
+    {
+        $this->actingAs($this->superuser())
+            ->get('/procurement/agreements')
+            ->assertOk();
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/user-agreement-ledger')
+            ->assertRedirect('/procurement/agreements');
+    }
+
     public function test_asset_lease_detail_report_renders()
     {
         $this->actingAs($this->superuser())
@@ -965,38 +1034,60 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('INV-REGULAR-1');
     }
 
-    public function test_lessor_breakdown_is_a_section_of_the_reports_hub_with_annual_rent()
+    public function test_the_leasing_page_carries_the_charts_and_both_tables()
     {
-        // The hub renders the section: charts (Annual Rent leading) + table.
-        $this->actingAs($this->superuser())
-            ->get(route('reports.index'))
-            ->assertOk()
-            ->assertSee('id="lessor-breakdown"', false)
-            ->assertSee(trans('admin/purchase-orders/general.lessor_chart_annual_rent'))
-            ->assertSee(trans('admin/purchase-orders/general.lessor_chart_cost'))
-            ->assertSee('chart-lessor-ownership');
-
-        // It has a page of its own on procurement's path — addressable and
-        // linkable, which an anchor on the hub is not. The hub still renders
-        // the same dataset as a section.
+        // The Leasing page owns the portfolio: the three charts (Annual
+        // Rent leading), the lessor breakdown, and the year's Rent Costs.
         $this->actingAs($this->superuser())
             ->get(route('reports.lessor-breakdown'))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.lessor_chart_annual_rent'))
+            ->assertSee(trans('admin/purchase-orders/general.lessor_chart_cost'))
+            ->assertSee('chart-lessor-ownership')
+            ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'))
+            ->assertSee(trans('admin/purchase-orders/general.report_rent_costs'));
 
         $this->actingAs($this->superuser())
             ->get(route('reports.lessor-breakdown', ['format' => 'csv']))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=utf-8');
 
-        // It lives with the rest of procurement now, so the elevated module's
-        // path is the destination rather than a hop, and the old reports-root
-        // URL redirects into it.
+        // The page lives at /procurement/leasing; both prior addresses walk
+        // there, and the reports hub no longer renders the section.
         $this->actingAs($this->superuser())
-            ->get('/procurement/lessor-breakdown')
+            ->get('/procurement/leasing')
             ->assertOk();
         $this->actingAs($this->superuser())
+            ->get('/procurement/lessor-breakdown')
+            ->assertRedirect('/procurement/leasing');
+        $this->actingAs($this->superuser())
             ->get('/reports/lessor-breakdown')
-            ->assertRedirect('/procurement/lessor-breakdown');
+            ->assertRedirect('/procurement/leasing');
+        $this->actingAs($this->superuser())
+            ->get(route('reports.index'))
+            ->assertOk()
+            ->assertDontSee('chart-lessor-ownership');
+    }
+
+    public function test_rent_costs_breaks_the_year_down_per_contract()
+    {
+        // One contract fully inside the selected year at $100/month of
+        // complete per-device rent: twelve months, $1,200 for the year.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-RENT-1',
+            'Lease Contract Name' => 'Devices Leases FY26-27 #9',
+            'Lease Rent' => '100',
+            'Lease End Date' => now()->startOfYear()->addYears(3)->format('Y-m-d'),
+        ], ['purchase_date' => now()->subYear()->format('Y-m-d')]);
+
+        $fy = now()->month >= 4 ? now()->year : now()->year - 1;
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.rent-costs', ['fiscal_year' => sprintf('FY%d-%02d', $fy, ($fy + 1) % 100)]))
+            ->assertOk()
+            ->assertSee('ECI-RENT-1')
+            ->assertSee('Devices Leases FY26-27 #9')
+            ->assertSee('$1,200.00');
     }
 
     public function test_procurement_dashboard_leads_with_the_new_report_order_and_drops_lessor_breakdown()
@@ -1046,10 +1137,10 @@ class ProcurementReportsTest extends TestCase
             'Lease Contract ID' => 'ECI20221201',
         ], ['asset_tag' => 'LESSOR-1', 'purchase_date' => '2022-12-01']);
 
-        // The breakdown is a global snapshot: whatever FY the hub reader
-        // arrives from, the portfolio still shows in full.
+        // The breakdown is a global snapshot: whatever FY scope the reader
+        // arrives with, the portfolio still shows in full.
         $this->actingAs($this->superuser())
-            ->get(route('reports.index', ['fiscal_year' => 'FY2099-00']))
+            ->get(route('reports.lessor-breakdown', ['fiscal_year' => 'FY2099-00']))
             ->assertOk()
             ->assertSee('CCA Financial')
             ->assertDontSee('Macquarie');
@@ -1106,7 +1197,7 @@ class ProcurementReportsTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.leases-financial'))
+            ->get(route('reports.procurement.leases-financial', ['fiscal_year' => 'all']))
             ->assertOk()
             ->assertSee('PMCN-FIN-1')
             ->assertSee('$155.70')

@@ -170,11 +170,37 @@
 
     open?.addEventListener('click', function () {
         sheet.showModal();
-        // select2 measures on init and comes out 0px wide inside a closed
-        // dialog, so the pickers are built the first time the sheet opens.
+        // The global select2 init hangs every dropdown off document.body,
+        // and showModal() puts this sheet in the browser's top layer — above
+        // body and everything in it, results list included. You could type
+        // into the picker and the matches were rendering underneath the
+        // sheet. Rebuilt here with the sheet itself as the dropdown's home.
         if (window.jQuery && ! sheet.dataset.selectsReady) {
-            window.jQuery(sheet).find('.js-data-ajax').each(function () {
-                window.jQuery(this).trigger('snipeit.select2');
+            var $ = window.jQuery;
+            $(sheet).find('.js-data-ajax').each(function () {
+                var $el = $(this);
+                if ($el.hasClass('select2-hidden-accessible')) {
+                    $el.select2('destroy');
+                }
+                $el.select2({
+                    placeholder: $el.data('placeholder') || '',
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: $(sheet),
+                    ajax: {
+                        url: {!! json_encode(url('api/v1/users/selectlist')) !!},
+                        dataType: 'json',
+                        delay: 250,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        data: function (params) {
+                            return { search: params.term, page: params.page || 1 };
+                        },
+                        cache: true
+                    }
+                });
             });
             sheet.dataset.selectsReady = '1';
         }

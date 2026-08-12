@@ -429,6 +429,14 @@ Route::group(['middleware' => 'auth'], function () {
     Route::delete('deployments/blackouts/{blackout}', [StaffBlackoutsController::class, 'destroy'])
         ->name('deployments.blackouts.destroy');
 
+    Route::get('deployments/waves', [DeploymentsController::class, 'waves'])
+        ->name('deployment-waves.index')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.waves_title'), route('deployment-waves.index')));
+    Route::get('deployments/decommissioning', [DeploymentsController::class, 'decommissioning'])
+        ->name('deployments.decommissioning')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.decom_nav'), route('deployments.decommissioning')));
     Route::get('deployments/waves/create', [DeploymentsController::class, 'create'])
         ->name('deployment-waves.create')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
@@ -990,7 +998,17 @@ Route::group(['middleware' => ['auth']], function () {
             ->where('tail', '.*');
     }
 
-    Route::redirect('reports/lessor-breakdown', '/procurement/lessor-breakdown', 301);
+    // The lease portfolio has moved twice: off the reports hub, then from
+    // "lessor breakdown" to the page it grew into.
+    Route::redirect('reports/lessor-breakdown', '/procurement/leasing', 301);
+    Route::redirect('procurement/lessor-breakdown', '/procurement/leasing', 301);
+
+    // The agreements hub used to be called the user-agreement ledger.
+    Route::redirect('procurement/user-agreement-ledger', '/procurement/agreements', 301);
+
+    // The leases pages were "operational" and "financial" once.
+    Route::redirect('procurement/leases-operational', '/procurement/leases-hardware', 301);
+    Route::redirect('procurement/leases-financial', '/procurement/leases-contracts', 301);
 
     // A wave is part of deployments, so it lives under /deployments/waves. The
     // old top-level path is in links already sent.
@@ -1327,11 +1345,15 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('po-builder', function () {
             return redirect()->route('purchase-orders.builder', request()->query());
         });
-        // A whole-portfolio snapshot rather than an FY-scoped one, but it is
-        // procurement's page and belongs on procurement's path.
-        Route::get('lessor-breakdown', [ProcurementReportsController::class, 'lessorBreakdown'])
+        // The lease portfolio page — charts, lessor breakdown and the
+        // year's rent costs. The route name predates the page's growth
+        // from a single breakdown table.
+        Route::get('leasing', [ProcurementReportsController::class, 'lessorBreakdown'])
             ->name('reports.lessor-breakdown')
-            ->breadcrumbs($crumb('reports.lessor-breakdown', 'report_lessor_breakdown'));
+            ->breadcrumbs($crumb('reports.lessor-breakdown', 'leasing_title'));
+        Route::get('rent-costs', [ProcurementReportsController::class, 'rentCosts'])
+            ->name('reports.procurement.rent-costs')
+            ->breadcrumbs($crumb('reports.procurement.rent-costs', 'report_rent_costs'));
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
@@ -1350,10 +1372,11 @@ Route::group(['middleware' => ['auth']], function () {
             ->breadcrumbs($crumb('reports.procurement.forecast', 'report_forecast'));
         Route::post('refresh-forecast/planned-order', [ProcurementReportsController::class, 'createPlannedOrder'])
             ->name('reports.procurement.forecast.plan');
-        Route::get('leases-operational', [ProcurementReportsController::class, 'leasesOperational'])
+        // "Leases", not "leased", in both name and path.
+        Route::get('leases-hardware', [ProcurementReportsController::class, 'leasesOperational'])
             ->name('reports.procurement.leases-operational')
             ->breadcrumbs($crumb('reports.procurement.leases-operational', 'report_leases_operational'));
-        Route::get('leases-financial', [ProcurementReportsController::class, 'leasesFinancial'])
+        Route::get('leases-contracts', [ProcurementReportsController::class, 'leasesFinancial'])
             ->name('reports.procurement.leases-financial')
             ->breadcrumbs($crumb('reports.procurement.leases-financial', 'report_leases_financial'));
         Route::get('lease-data-health', [ProcurementReportsController::class, 'leaseDataHealth'])
@@ -1410,7 +1433,9 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('pst-applicability', [ProcurementReportsController::class, 'pstApplicability'])
             ->name('reports.procurement.pst-applicability')
             ->breadcrumbs($crumb('reports.procurement.pst-applicability', 'report_pst_applicability'));
-        Route::get('user-agreement-ledger', [ProcurementReportsController::class, 'userAgreementLedger'])
+        // The agreements hub. The route NAME keeps its history; the PATH is
+        // the short noun people type.
+        Route::get('agreements', [ProcurementReportsController::class, 'userAgreementLedger'])
             ->name('reports.procurement.user-agreement-ledger')
             ->breadcrumbs($crumb('reports.procurement.user-agreement-ledger', 'report_user_agreement_ledger'));
         Route::get('lease-end-schedules', [ProcurementReportsController::class, 'leaseEndSchedulesReport'])
