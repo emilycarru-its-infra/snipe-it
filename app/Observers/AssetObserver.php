@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
 use App\Models\User;
+use App\Services\ArrivalAllocator;
 use App\Services\StoreOrderNotifier;
 use App\Services\UserAgreements\PickupUpgradeAutoCreator;
 use App\Services\UserAgreements\PurchaseAutoCreator;
@@ -121,6 +122,31 @@ class AssetObserver
         $logAction->logaction('create');
 
         $this->markOrderItemsReceived($asset);
+        $this->autoAllocateArrival($asset);
+    }
+
+    /**
+     * A machine that just arrived may be one somebody is waiting for.
+     *
+     * Deferred rather than run inline, because allocating deletes the
+     * arrival record: doing that inside its own created() would pull the
+     * row out from under whatever is still holding it — the CDW listener
+     * creates these over the API and then reads the response, and would
+     * see a failure for an allocation that actually succeeded.
+     *
+     * Failure is logged, never thrown. An arrival that does not allocate
+     * is not broken, it is just unpaired, and the manual allocation page
+     * on the orders screen is exactly where it should then show up.
+     */
+    private function autoAllocateArrival(Asset $asset): void
+    {
+        defer(function () use ($asset) {
+            try {
+                app(ArrivalAllocator::class)->autoAllocate($asset->fresh('model', 'status'));
+            } catch (\Throwable $e) {
+                Log::warning('Auto-allocation failed for asset '.$asset->id.': '.$e->getMessage());
+            }
+        });
     }
 
     /**

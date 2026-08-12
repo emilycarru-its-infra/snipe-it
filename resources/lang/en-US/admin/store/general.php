@@ -213,6 +213,12 @@ return [
     'quote_variance' => ':percent% vs our estimate',
 
     // Warranty term, stored in months and read in whichever unit divides.
+    // Our catalog prices are the reseller's bundle pricing, which already
+    // has the warranty in it — the separate AppleCare line only appears
+    // later, when the invoice breaks the bundle back apart. Faculty had no
+    // way to know that: a warranty listed beside a price reads as an
+    // upsell they will be billed for.
+    'warranty_included' => ':term, included in the price',
     'warranty_years' => '{1} 1 year|[2,*] :count years',
     'warranty_months' => '{1} 1 month|[2,*] :count months',
 
