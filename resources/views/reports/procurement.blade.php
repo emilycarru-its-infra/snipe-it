@@ -16,6 +16,9 @@
         <a href="{{ route('purchase-orders.builder', ['fiscal_year' => $selectedFy ?? 'all']) }}" class="btn btn-sm btn-default">
             {{ trans('admin/purchase-orders/general.report_po_builder') }}
         </a>
+        <a href="{{ route('reports.procurement.capital-request', array_filter(['fiscal_year' => $selectedFy])) }}" class="btn btn-sm btn-default">
+            {{ trans('admin/purchase-orders/general.capital_request_title') }}
+        </a>
         <a href="{{ route('requisitions.index') }}" class="btn btn-sm btn-default">
             {{ trans('admin/purchase-orders/general.requisitions') }}
         </a>
