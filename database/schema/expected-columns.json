@@ -159,6 +159,17 @@
         "source",
         "updated_at"
     ],
+    "capital_request_lines": [
+        "created_at",
+        "description",
+        "fiscal_year",
+        "id",
+        "need",
+        "quantity",
+        "sort_order",
+        "unit_cost",
+        "updated_at"
+    ],
     "catalog_items": [
         "bundle_url",
         "category",
