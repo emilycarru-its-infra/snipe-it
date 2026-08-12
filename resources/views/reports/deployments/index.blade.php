@@ -107,13 +107,12 @@
     </div>
 </div>
 
+{{-- Waves and the timeline side by side — the list and its calendar are
+     one thought, and stacked they cost a screen each. --}}
 @if ($waves->isNotEmpty())
-@include('reports.deployments._timeline')
-@endif
-
-{{-- Waves table --}}
-@if ($waves->isNotEmpty())
-<div class="box box-default">
+<div class="row" style="display:flex; flex-wrap:wrap;">
+    <div class="col-md-6" style="display:flex;">
+<div class="box box-default" style="flex:1;">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.waves_title') }}</h3>
     </div>
@@ -156,6 +155,13 @@
             @endforelse
             </tbody>
         </table>
+    </div>
+</div>
+    </div>
+    <div class="col-md-6" style="display:flex;">
+        <div style="flex:1; min-width:0;">
+            @include('reports.deployments._timeline')
+        </div>
     </div>
 </div>
 @endif
