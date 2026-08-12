@@ -16,6 +16,7 @@ use App\Services\Deployments\RefreshForecast;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use App\Services\Deployments\WaveAnnouncer;
+use App\Services\Deployments\WaveMembership;
 use App\Services\Deployments\WaveAnnouncementTemplates;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
@@ -695,13 +696,29 @@ class DeploymentsController extends Controller
         });
 
         $announcer = new WaveAnnouncer;
+        $recipients = $announcer->recipients($deploymentWave);
+        $membership = new WaveMembership;
+
+        // Who has acted on the invitation. Keyed by user so the roster can say
+        // "ordered" beside a name rather than making somebody compare two screens.
+        $ordersByUser = \App\Models\StoreOrder::where('deployment_wave_id', $deploymentWave->id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->keyBy('user_id');
 
         return view('deployment-waves.show', [
             'wave' => $deploymentWave,
             // Who the announcement would reach, resolved from the devices rather
             // than a list: an asset checked out to a person names that person.
-            'announceRecipients' => $announcer->recipients($deploymentWave),
+            'announceRecipients' => $recipients,
             'announceTemplates' => WaveAnnouncementTemplates::all($deploymentWave),
+            // Wave members whose device is not actually at lease end. A warning,
+            // never a block: exceptions are legitimate, being invisible is not.
+            'announceIneligible' => $membership->ineligible($deploymentWave, $recipients),
+            'waveOrders' => $ordersByUser,
+            // What each person said they would do with the old laptop, against
+            // what happened to it.
+            'intentRows' => (new \App\Services\UserAgreements\IntentReconciler)->rows(),
             'projectedTotal' => (float) $projected->sum(),
             'stages' => DeploymentStage::active()->ordered()->get(),
             'arrivals' => $timeline->arrivals($deploymentWave),

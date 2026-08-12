@@ -124,8 +124,18 @@ class FacultyProgramForm extends FormDefinition
                 ->with('error', trans('admin/forms/faculty-program.locked_error'));
         }
 
+        // The answer itself is kept, not just the agreements it produced. It is
+        // what makes a later reconciliation possible: said return, still holding
+        // it in March. See App\Services\UserAgreements\IntentReconciler.
+        $intent = match ($validated['buyout_decision']) {
+            'yes' => 'buyout',
+            'no' => 'return',
+            default => 'no_prior_laptop',
+        };
+
         $pickupValues = [
             'agreement_type' => 'pickup',
+            'stated_intent' => $intent,
             'user_id' => $user->id,
             'asset_id' => $returning?->id,
             'lifecycle_stage' => 'quoted',
@@ -147,6 +157,7 @@ class FacultyProgramForm extends FormDefinition
         if ($validated['buyout_decision'] === 'yes') {
             $buyoutValues = [
                 'agreement_type' => 'purchase',
+                'stated_intent' => 'buyout',
                 'user_id' => $user->id,
                 'asset_id' => $returning?->id,
                 'lifecycle_stage' => 'quoted',
@@ -169,12 +180,14 @@ class FacultyProgramForm extends FormDefinition
             $existingPurchase->update(['lifecycle_stage' => 'cancelled']);
         }
 
-        // Changed answers change the paperwork: any pre-rendered unsigned
-        // PDF is re-rendered now so the next surface that serves it (the
-        // signature email, the profile download) reflects what they just
-        // said — a payment-method flip alters the repayment section.
+        // The paperwork is rendered here, not waiting for somebody to press a
+        // button per person. A buyout agreement that exists only as a database
+        // row is not a document finance can act on, and the whole point of
+        // asking the question in a form is that the answer produces the thing
+        // it implies. Re-rendered on a resubmission too: a payment-method flip
+        // alters the repayment section.
         foreach ([$pickup, $buyout] as $agreement) {
-            if ($agreement && $agreement->pdf_path) {
+            if ($agreement) {
                 $agreement->storeUnsignedPdf();
             }
         }
