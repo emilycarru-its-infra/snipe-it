@@ -243,7 +243,17 @@ return [
     'announce_subject' => 'Subject',
     'announce_body' => 'Message',
     'announce_body_help' => 'Markdown. These resolve per person: :fields',
-    'announce_submit' => 'Send to Everyone in the Wave',
+    'announce_submit' => 'Send to Everyone (:count)',
+
+    // Chasing the two places somebody stalls. The wording says what the
+    // recipient has not done rather than what we are doing to them, because
+    // that is the thing the sender is choosing between.
+    'announce_chase_no_application' => 'Chase Not Applied (:count)',
+    'announce_chase_no_application_help' => 'People in this wave with no application on file. Everyone who has already applied is skipped.',
+    'announce_chase_no_order' => 'Chase Not Ordered (:count)',
+    'announce_chase_no_order_help' => 'People who applied but have not chosen a machine yet. Nobody who has not applied is chased about ordering.',
+    'announce_nobody_to_chase_no_application' => 'Everybody in this wave has applied — nobody to chase.',
+    'announce_nobody_to_chase_no_order' => 'Everybody who applied has ordered — nobody to chase.',
     'announce_test_submit' => 'Send a test to me first',
     'announce_test_sent' => 'Test sent to :email, written against the first recipient\'s device. Nobody else was emailed and the wave was not started.',
     'announce_sent' => 'Sent to :count people. The wave has started.',

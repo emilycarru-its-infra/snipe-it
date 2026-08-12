@@ -6,7 +6,9 @@ use App\Mail\DeploymentWaveMail;
 use App\Models\Asset;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentWave;
+use App\Models\StoreOrder;
 use App\Models\User;
+use App\Models\UserAgreement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -31,7 +33,7 @@ class WaveAnnouncer
      *
      * @return Collection<int, array{user: User, assets: Collection<int, Asset>}>
      */
-    public function recipients(DeploymentWave $wave): Collection
+    public function recipients(DeploymentWave $wave, ?string $audience = null): Collection
     {
         // Both sides of a swap, because on a refresh wave the new machine does
         // not exist yet: the item carries only `replaces_asset_id`, and the
@@ -70,7 +72,68 @@ class WaveAnnouncer
             }
         }
 
-        return $rows->values();
+        return $this->forAudience($rows->values(), $audience);
+    }
+
+    /** Who a send is aimed at. */
+    public const AUDIENCES = [self::AUDIENCE_ALL, self::AUDIENCE_NO_APPLICATION, self::AUDIENCE_NO_ORDER];
+
+    public const AUDIENCE_ALL = 'all';
+
+    public const AUDIENCE_NO_APPLICATION = 'no_application';
+
+    public const AUDIENCE_NO_ORDER = 'no_order';
+
+    /**
+     * Narrow a wave to the people a chasing email is actually for.
+     *
+     * The whole point is that nobody has to work out the list by hand. Wave 2
+     * went out to everyone, and finding who had stalled meant reading the
+     * agreement ledger against the store orders and comparing names — which is
+     * how somebody sat stuck for five weeks without anyone noticing.
+     *
+     * The two questions worth asking are the two steps of the program: has this
+     * person applied, and have they chosen a machine. Both are answered from
+     * the same facts the rest of the system runs on, so a reminder cannot be
+     * sent to somebody who already did the thing.
+     *
+     * @param  Collection<int, array{user: User, assets: Collection<int, Asset>}>  $rows
+     * @return Collection<int, array{user: User, assets: Collection<int, Asset>}>
+     */
+    private function forAudience(Collection $rows, ?string $audience): Collection
+    {
+        if ($audience === null || $audience === self::AUDIENCE_ALL || $rows->isEmpty()) {
+            return $rows;
+        }
+
+        $userIds = $rows->pluck('user.id');
+
+        // An application is a submitted form, not a row the lease-end
+        // pipeline wrote on somebody's behalf — terms_accepted_at is the
+        // stamp only a real submission carries, and it is the same test the
+        // store gate uses to decide whether to let them in.
+        $applied = UserAgreement::whereIn('user_id', $userIds)
+            ->where('agreement_type', 'pickup')
+            ->whereNotNull('terms_accepted_at')
+            ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
+            ->pluck('user_id')
+            ->unique();
+
+        if ($audience === self::AUDIENCE_NO_APPLICATION) {
+            return $rows->reject(fn ($row) => $applied->contains($row['user']->id))->values();
+        }
+
+        // Chasing an order is only fair once they can place one, so this is
+        // people who applied and stopped — never people who have not started.
+        $ordered = StoreOrder::whereIn('user_id', $userIds)
+            ->whereNotIn('status', ['declined', 'cancelled'])
+            ->pluck('user_id')
+            ->unique();
+
+        return $rows
+            ->filter(fn ($row) => $applied->contains($row['user']->id)
+                && ! $ordered->contains($row['user']->id))
+            ->values();
     }
 
     /**
@@ -131,8 +194,9 @@ class WaveAnnouncer
         array $extra = [],
         ?Collection $cc = null,
         ?Collection $testRecipients = null,
+        ?string $audience = null,
     ): array {
-        $recipients = $this->recipients($wave);
+        $recipients = $this->recipients($wave, $audience);
 
         if ($recipients->isEmpty()) {
             return ['sent' => 0, 'recipients' => [], 'failed' => []];

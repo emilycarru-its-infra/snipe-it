@@ -328,9 +328,14 @@ class StoreController extends Controller
             $earlyRefresh = (bool) $openOrder->refreshAsset;
             $outgoing = $openOrder->refreshAsset
                 ?? $provisioner->outgoingMachine(new StoreOrder(['user_id' => auth()->id()]));
+            // A decided buyout, not merely a possible one. `eligible` is the
+            // lease-end pipeline noting the machine is buyable; reading it
+            // here told people their old laptop was theirs to keep when they
+            // had never been asked, which is the opposite of what happens at
+            // handover if nobody corrects it.
             $buyout = UserAgreement::where('user_id', auth()->id())
                 ->where('agreement_type', 'purchase')
-                ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
+                ->whereIn('lifecycle_stage', array_diff(UserAgreement::OPEN_LIFECYCLE_STAGES, ['eligible']))
                 ->exists();
         }
 

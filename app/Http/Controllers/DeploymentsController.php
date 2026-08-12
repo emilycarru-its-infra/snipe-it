@@ -621,6 +621,7 @@ class DeploymentsController extends Controller
             'test_recipients.*' => 'integer|exists:users,id',
             'test' => 'nullable|boolean',
             'save_template' => 'nullable|boolean',
+            'audience' => 'nullable|string|in:'.implode(',', WaveAnnouncer::AUDIENCES),
         ]);
 
         // Saving the wording is its own decision, not a side effect of sending:
@@ -634,10 +635,18 @@ class DeploymentsController extends Controller
         }
 
         $test = $request->boolean('test');
+        $audience = $validated['audience'] ?? WaveAnnouncer::AUDIENCE_ALL;
 
-        if ($announcer->recipients($deploymentWave)->isEmpty()) {
+        // "Nobody to chase" is a different answer from "this wave has no
+        // recipients", and it is the good one: it means everybody did the
+        // thing. Saying so plainly stops it reading as a failure.
+        if ($announcer->recipients($deploymentWave, $audience)->isEmpty()) {
             return redirect()->route('deployment-waves.show', $deploymentWave)
-                ->with('error', trans('admin/deployments/general.announce_no_recipients'));
+                ->with($audience === WaveAnnouncer::AUDIENCE_ALL ? 'error' : 'success', trans(
+                    $audience === WaveAnnouncer::AUDIENCE_ALL
+                        ? 'admin/deployments/general.announce_no_recipients'
+                        : 'admin/deployments/general.announce_nobody_to_chase_'.$audience
+                ));
         }
 
         try {
@@ -650,6 +659,7 @@ class DeploymentsController extends Controller
                 [],
                 \App\Models\User::whereIn('id', $validated['cc'] ?? [])->get(),
                 \App\Models\User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
+                $audience,
             );
         } catch (\Throwable $e) {
             Log::warning('Wave announcement failed for wave '.$deploymentWave->id.': '.$e->getMessage());
@@ -765,6 +775,15 @@ class DeploymentsController extends Controller
             // Who the announcement would reach, resolved from the devices rather
             // than a list: an asset checked out to a person names that person.
             'announceRecipients' => $recipients,
+            // How many of them are still to act, so chasing is one click on a
+            // labelled button rather than working the list out by hand against
+            // the ledger and the store orders.
+            'announceStalled' => [
+                WaveAnnouncer::AUDIENCE_NO_APPLICATION => $announcer->recipients(
+                    $deploymentWave, WaveAnnouncer::AUDIENCE_NO_APPLICATION)->count(),
+                WaveAnnouncer::AUDIENCE_NO_ORDER => $announcer->recipients(
+                    $deploymentWave, WaveAnnouncer::AUDIENCE_NO_ORDER)->count(),
+            ],
             'announceTemplates' => WaveAnnouncementTemplates::all($deploymentWave),
             // Wave members whose device is not actually at lease end. A warning,
             // never a block: exceptions are legitimate, being invisible is not.

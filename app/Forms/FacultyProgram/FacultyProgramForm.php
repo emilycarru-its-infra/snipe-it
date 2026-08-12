@@ -169,15 +169,25 @@ class FacultyProgramForm extends FormDefinition
                 'notes' => $validated['notes'] ?? null,
             ];
 
-            if ($existingPurchase && $existingPurchase->lifecycle_stage === 'quoted') {
-                $existingPurchase->update($buyoutValues);
-                $buyout = $existingPurchase;
+            // Saying yes promotes the standing eligibility rather than
+            // opening a second record beside it: the lease-end pipeline may
+            // already have noted this machine as buyable, and two purchase
+            // rows for one laptop is one of them being wrong.
+            $slot = $existingPurchase ?? $this->eligiblePurchase($user);
+
+            if ($slot) {
+                $slot->update($buyoutValues);
+                $buyout = $slot;
             } else {
                 $buyout = UserAgreement::create($buyoutValues);
             }
         } elseif ($existingPurchase && $existingPurchase->lifecycle_stage === 'quoted') {
             // They changed their mind about keeping the old machine — the
-            // quoted buyout is off, not orphaned.
+            // quoted buyout is off, not orphaned. Only a quoted row is
+            // cancelled here, because only a quoted row was ever a decision:
+            // an eligible one is the pipeline noting the machine is buyable,
+            // and answering "no" to a question nobody asked leaves nothing
+            // to cancel.
             $existingPurchase->update(['lifecycle_stage' => 'cancelled']);
         }
 
@@ -260,11 +270,28 @@ class FacultyProgramForm extends FormDefinition
         return $submission->user_id;
     }
 
+    /**
+     * A buyout this person has actually decided on. Deliberately excludes
+     * `eligible`, which the lease-end pipeline writes on its own: it means
+     * the machine could be bought, not that anyone asked to buy it, and
+     * treating it as an answer is what pre-selected "yes" on this form for
+     * people who had never seen the question.
+     */
     private function existingPurchase(User $user): ?UserAgreement
     {
         return UserAgreement::where('user_id', $user->id)
             ->where('agreement_type', 'purchase')
             ->whereIn('lifecycle_stage', ['quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment'])
+            ->latest('created_at')
+            ->first();
+    }
+
+    /** The standing "this machine is buyable" note, if the pipeline made one. */
+    private function eligiblePurchase(User $user): ?UserAgreement
+    {
+        return UserAgreement::where('user_id', $user->id)
+            ->where('agreement_type', 'purchase')
+            ->where('lifecycle_stage', 'eligible')
             ->latest('created_at')
             ->first();
     }
