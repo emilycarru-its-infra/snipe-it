@@ -121,6 +121,37 @@ class IngestOrderTest extends TestCase
         $this->assertEquals($invoice->id, OrderItem::where('item_id', $asset->id)->first()->invoice_id);
     }
 
+    public function test_a_second_invoice_for_the_same_asset_adds_a_line_rather_than_moving_it()
+    {
+        $asset = Asset::factory()->create();
+        $actor = $this->actingAsForApi($this->superuser());
+
+        // CDW bills the hardware, then the AppleCare for the same serials on
+        // a separate invoice against the same order — PVXX158 carries
+        // AJ7XC8E for 4 Mac minis and AJ7324Y for their AppleCare.
+        $actor->postJson(route('api.orders.ingest'), [
+            'order_number' => 'ORD-TWO-INV',
+            'items' => [['asset_id' => $asset->id, 'unit_cost' => 4079.19, 'warranty_cost' => 0.85]],
+            'invoice' => ['invoice_number' => 'EQUIP-INV', 'subtotal' => 4080.04, 'total' => 4284.04],
+        ])->assertOk();
+
+        $actor->postJson(route('api.orders.ingest'), [
+            'order_number' => 'ORD-TWO-INV',
+            'items' => [['asset_id' => $asset->id, 'unit_cost' => 0, 'warranty_cost' => 155.00]],
+            'invoice' => ['invoice_number' => 'SOFT-INV', 'subtotal' => 155.00, 'total' => 162.75],
+        ])->assertOk();
+
+        $equipment = OrderInvoice::where('invoice_number', 'EQUIP-INV')->first();
+        $soft = OrderInvoice::where('invoice_number', 'SOFT-INV')->first();
+
+        // Each invoice keeps its own line — the second must not relocate the
+        // first, which would leave EQUIP-INV with no line items at all and a
+        // variance equal to its whole subtotal.
+        $this->assertEquals(2, OrderItem::where('item_id', $asset->id)->where('item_type', Asset::class)->count());
+        $this->assertEquals(4079.19, (float) OrderItem::where('invoice_id', $equipment->id)->value('unit_cost'));
+        $this->assertEquals(155.00, (float) OrderItem::where('invoice_id', $soft->id)->value('warranty_cost'));
+    }
+
     public function test_creates_one_shipment_per_distinct_tracking_number()
     {
         $assetA = Asset::factory()->create();
