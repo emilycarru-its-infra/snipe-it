@@ -30,27 +30,6 @@
 
 <p class="text-muted" style="max-width:900px;">{{ trans('admin/purchase-orders/general.capital_request_intro') }}</p>
 
-{{-- The money, one line of arithmetic: the envelope is the request; the
-     tiles after it show how much of it the lines account for. --}}
-<div class="row">
-    @foreach ([
-        ['label' => trans('admin/purchase-orders/general.capital_tile_envelope'), 'value' => '$'.number_format($envelope, 2), 'hint' => trans('admin/purchase-orders/general.capital_tile_envelope_hint', ['count' => $endingSchedules->count()])],
-        ['label' => trans('admin/purchase-orders/general.capital_tile_refresh'), 'value' => '$'.number_format($refreshTotal, 2), 'hint' => trans('admin/purchase-orders/general.capital_tile_refresh_hint', ['count' => $refreshDevices])],
-        ['label' => trans('admin/purchase-orders/general.capital_tile_new'), 'value' => '$'.number_format($newAskTotal, 2), 'hint' => trans('admin/purchase-orders/general.capital_tile_new_hint', ['count' => $newAskLines->count()])],
-        ['label' => trans('admin/purchase-orders/general.capital_tile_remaining'), 'value' => ($remaining < 0 ? '-$' : '$').number_format(abs($remaining), 2), 'hint' => trans($remaining < 0 ? 'admin/purchase-orders/general.capital_tile_over_hint' : 'admin/purchase-orders/general.capital_tile_remaining_hint')],
-    ] as $tile)
-        <div class="col-md-3 col-sm-6">
-            <div class="box box-default">
-                <div class="box-body text-center">
-                    <div class="text-muted" style="font-size:12px; text-transform:uppercase; letter-spacing:.06em;">{{ $tile['label'] }}</div>
-                    <div style="font-size:22px; font-weight:700; margin-top:4px;">{{ $tile['value'] }}</div>
-                    <div class="text-muted" style="font-size:11.5px; margin-top:2px;">{{ $tile['hint'] }}</div>
-                </div>
-            </div>
-        </div>
-    @endforeach
-</div>
-
 @if ($openRequisitions->isNotEmpty())
 <div class="box box-default">
     <div class="box-header with-border">
@@ -158,29 +137,32 @@
         <table class="table table-striped capital-table">
             <thead>
                 <tr>
+                    <th>{{ trans('admin/purchase-orders/general.capital_col_need') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.capital_col_ending_contract') }}</th>
                     <th>{{ trans('admin/purchase-orders/general.capital_col_area') }}</th>
                     <th>{{ trans('admin/purchase-orders/general.capital_col_schedule') }}</th>
                     <th>{{ trans('admin/purchase-orders/general.capital_col_type') }}</th>
-                    <th>{{ trans('admin/purchase-orders/general.capital_col_need') }}</th>
-                    <th>{{ trans('admin/purchase-orders/general.capital_col_ending_contract') }}</th>
                     <th class="text-right">{{ trans('admin/purchase-orders/general.lease_qty') }}</th>
                     <th>{{ trans('admin/purchase-orders/general.forecast_model') }}</th>
                     <th class="text-right">{{ trans('admin/purchase-orders/general.capital_col_cost') }}</th>
                     <th class="text-right">{{ trans('admin/purchase-orders/general.capital_col_unit') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.capital_col_wave') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.capital_col_reqm') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.capital_col_po') }}</th>
                     <th style="width:40px;"></th>
                 </tr>
             </thead>
             <tbody>
             @forelse ($refresh as $row)
                 <tr>
-                    <td>{{ $row['area'] }}</td>
-                    <td>{{ $row['preference'] }}</td>
-                    <td>{{ $row['type'] ?: '—' }}</td>
                     <td>{{ trans('admin/purchase-orders/general.capital_need_refresh') }}</td>
                     <td>
                         <a href="{{ route('reports.procurement.lease-detail', $row['contract_id']) }}" class="js-lightbox"
                            title="{{ $row['contract_name'] }}">{{ $row['contract_id'] }}</a>
                     </td>
+                    <td>{{ $row['area'] }}</td>
+                    <td>{{ $row['preference'] }}</td>
+                    <td>{{ $row['type'] ?: '—' }}</td>
                     <td class="text-right">{{ $row['qty'] }}</td>
                     <td style="white-space:normal;">{{ $row['model'] }}</td>
                     <td class="text-right">${{ number_format($row['cost'], 2) }}</td>
@@ -188,24 +170,61 @@
                         ${{ number_format($row['unit'], 2) }}
                         @if ($row['estimated'])<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
                     </td>
+                    <td>
+                        @forelse ($row['waves'] as $waveId => $waveName)
+                            <a href="{{ route('deployment-waves.show', $waveId) }}">{{ $waveName }}</a>@if (! $loop->last), @endif
+                        @empty
+                            <span class="text-muted">&mdash;</span>
+                        @endforelse
+                    </td>
+                    <td>
+                        @if ($row['reqm'])
+                            <a href="{{ route('purchase-orders.builder', ['requisition' => $row['requisition_id']]) }}">{{ $row['reqm'] }}</a>
+                        @else
+                            <span class="text-muted">&mdash;</span>
+                        @endif
+                    </td>
+                    <td>
+                        @if ($row['po'])
+                            <a href="{{ route('purchase-orders.show', $row['po']) }}">{{ $row['po'] }}</a>
+                        @else
+                            <span class="text-muted">&mdash;</span>
+                        @endif
+                    </td>
                     <td></td>
                 </tr>
             @empty
                 @if ($newAskLines->isEmpty())
-                    <tr><td colspan="10" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
+                    <tr><td colspan="13" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
                 @endif
             @endforelse
             @foreach ($newAskLines as $line)
+                @php($paper = $newAskPaper[$line->id] ?? null)
                 <tr>
+                    <td>{{ $line->need }}</td>
+                    <td></td>
                     <td>{{ $line->area ?: '—' }}</td>
                     <td>{{ $line->preference ?: '—' }}</td>
                     <td>{{ $line->type ?: '—' }}</td>
-                    <td>{{ $line->need }}</td>
-                    <td></td>
                     <td class="text-right">{{ $line->quantity }}</td>
                     <td style="white-space:normal;">{{ $line->description }}</td>
                     <td class="text-right">${{ number_format($line->lineTotal(), 2) }}</td>
                     <td class="text-right">${{ number_format((float) $line->unit_cost, 2) }}</td>
+                    <td><span class="text-muted">&mdash;</span></td>
+                    <td>
+                        @if ($paper && $paper['reqm'])
+                            <a href="{{ route('purchase-orders.builder', ['requisition' => $paper['requisition_id']]) }}">{{ $paper['reqm'] }}</a>
+                        @else
+                            <span class="text-muted">&mdash;</span>
+                        @endif
+                    </td>
+                    <td>
+                        @if ($paper && $paper['po'])
+                            <a href="{{ route('purchase-orders.show', $paper['po']) }}">{{ $paper['po'] }}</a>
+                        @else
+                            <span class="text-muted">&mdash;</span>
+                        @endif
+                    </td>
                     <td class="text-right">
                         @can('create', \App\Models\Requisition::class)
                             <form method="POST" action="{{ route('reports.procurement.capital-request.lines.destroy', $line) }}" style="display:inline-block; margin:0;"
@@ -225,7 +244,64 @@
                         <th class="text-right">{{ $refreshDevices + $newAskLines->sum('quantity') }}</th>
                         <th></th>
                         <th class="text-right">${{ number_format($refreshTotal + $newAskTotal, 2) }}</th>
-                        <th colspan="2"></th>
+                        <th colspan="5"></th>
+                    </tr>
+                </tfoot>
+            @endif
+        </table>
+    </div>
+</div>
+
+{{-- The budget's source, beneath the request it funds: every schedule
+     ending in the year at its full original value — the pre-approved
+     envelope the lines above distribute. --}}
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_envelope_title') }} — {{ $fy }}</h3>
+    </div>
+    <div class="box-body table-responsive no-padding">
+        <table class="table table-striped capital-table">
+            <thead>
+                <tr>
+                    <th>{{ trans('admin/purchase-orders/general.lease_contract_id') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.lease_end_ownership') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.lease_end_date') }}</th>
+                    <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_devices') }}</th>
+                    <th class="text-right">{{ trans('admin/purchase-orders/general.capital_envelope_value') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.lease_end_plan') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse ($endingSchedules as $schedule)
+                <tr>
+                    <td>
+                        <a href="{{ route('reports.procurement.lease-detail', $schedule['contract_id']) }}" class="js-lightbox">{{ $schedule['contract_id'] }}</a>
+                    </td>
+                    <td>{{ collect($schedule['ownership_counts'])->keys()->implode(', ') ?: '—' }}</td>
+                    <td>{{ $schedule['lease_end_date'] }}</td>
+                    <td class="text-right">{{ $schedule['count'] }}</td>
+                    <td class="text-right">${{ number_format($schedule['cost'], 2) }}</td>
+                    <td style="white-space:normal;">
+                        @if ($schedule['is_lease_to_own'])
+                            {{ trans('admin/purchase-orders/general.lease_end_retained') }}
+                        @elseif ($schedule['decision'])
+                            {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
+                        @else
+                            {{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
+            @endforelse
+            </tbody>
+            @if ($endingSchedules->isNotEmpty())
+                <tfoot>
+                    <tr>
+                        <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
+                        <th class="text-right">{{ $endingSchedules->sum('count') }}</th>
+                        <th class="text-right">${{ number_format($envelope, 2) }}</th>
+                        <th></th>
                     </tr>
                 </tfoot>
             @endif

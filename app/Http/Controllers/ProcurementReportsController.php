@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\CustomField;
+use App\Models\DeploymentItem;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
 use App\Models\Location;
@@ -1650,10 +1651,48 @@ class ProcurementReportsController extends Controller
             ->values();
         $envelope = (float) $endingSchedules->sum('cost');
 
+        // ── The plan, where one exists. A device already placed on a
+        // deployment wave carries its planned replacement model — that IS
+        // the request line for it, priced from the same catalog mapping the
+        // wave board shows. Devices on no wave fall back to the forecast's
+        // like-for-like mapping. The wave rides along on the row, so the
+        // request reads straight back to the board it came from.
+        $waveItems = DeploymentItem::with(['wave:id,name', 'model.refreshCatalogItem', 'model.category'])
+            ->whereNotNull('replaces_asset_id')
+            ->get()
+            ->keyBy('replaces_asset_id');
+
+        // ── The paper, populated back. The workflow runs "PO through the
+        // ERP, comments say 'Lines ## of Devices Capital Request'" — so
+        // each line names the REQM it landed on and, once finance issues
+        // it, the PO. Matched through the year's requisition lines.
+        $reqByCatalog = [];
+        $reqByDescription = [];
+        $fyRequisitions = Requisition::with(['purchaseOrder:id,po_number', 'items:id,requisition_id,catalog_item_id,description'])
+            ->where('fiscal_year', $fyLabel)
+            ->orderBy('created_at')
+            ->get();
+        foreach ($fyRequisitions as $req) {
+            $ref = [
+                'requisition_id' => $req->id,
+                'reqm' => $req->requisition_number ? 'REQM '.$req->requisition_number : $req->title,
+                'po' => $req->purchaseOrder?->po_number,
+            ];
+            foreach ($req->items as $reqItem) {
+                if ($reqItem->catalog_item_id) {
+                    $reqByCatalog[$reqItem->catalog_item_id] ??= $ref;
+                }
+                if ($reqItem->description) {
+                    $reqByDescription[$reqItem->description] ??= $ref;
+                }
+            }
+        }
+
         // ── The refresh: refreshing contracts ending in the year, each
-        // device priced at its forecast replacement, grouped the way the
-        // workbook read — one row per contract × replacement model × area.
-        // Kept contracts get no row here; their story is the envelope's.
+        // device priced at its planned or forecast replacement, grouped the
+        // way the workbook read — one row per contract × replacement model
+        // × area. Kept contracts get no row here; their story is the
+        // envelope's.
         $refresh = [];
         $refreshTotal = 0.0;
         $refreshDevices = 0;
@@ -1678,9 +1717,21 @@ class ProcurementReportsController extends Controller
                     continue;
                 }
 
-                $catalog = $asset->model?->refreshCatalogItem;
+                // The wave's planned model wins over the like-for-like
+                // forecast: once a device is on a wave, the wave is the plan.
+                $waveItem = $waveItems->get($asset->id);
+                $plannedModel = $waveItem?->model;
+
+                if ($plannedModel) {
+                    $catalog = $plannedModel->refreshCatalogItem;
+                    $replacement = $catalog?->name ?: $plannedModel->name;
+                    $typeName = (string) ($catalog?->category ?: $plannedModel->category?->name ?: '');
+                } else {
+                    $catalog = $asset->model?->refreshCatalogItem;
+                    $replacement = $catalog?->name ?: ($asset->model?->name ?: trans('general.na'));
+                    $typeName = (string) ($catalog?->category ?: $asset->model?->category?->name ?: '');
+                }
                 $unit = $catalog?->effectiveCost() ?? (float) ($asset->purchase_cost ?? 0);
-                $replacement = $catalog?->name ?: ($asset->model?->name ?: trans('general.na'));
 
                 $ownership = $cols['ownership_type'] ? trim((string) $asset->{$cols['ownership_type']}) : '';
                 $preference = match ($ownership) {
@@ -1697,12 +1748,16 @@ class ProcurementReportsController extends Controller
                         'contract_id' => $group['contract_id'],
                         'contract_name' => $group['contract_name'],
                         'qty' => 0,
-                        'type' => (string) ($catalog?->category ?: $asset->model?->category?->name ?: ''),
+                        'type' => $typeName,
                         'model' => $replacement,
                         'unit' => $unit,
                         'estimated' => $catalog === null || $catalog->isEstimate(),
                         'cost' => 0.0,
                         'preference' => $preference ?: '—',
+                        'waves' => [],
+                        'requisition_id' => null,
+                        'reqm' => null,
+                        'po' => null,
                         'retained' => false,
                         'note' => '',
                         // Carried so "start a PO draft" can hand the builder
@@ -1718,8 +1773,21 @@ class ProcurementReportsController extends Controller
                 $refresh[$key]['cost'] += $unit;
                 $refreshTotal += $unit;
                 $refreshDevices++;
+
+                if ($waveItem?->wave) {
+                    $refresh[$key]['waves'][$waveItem->wave->id] = $waveItem->wave->name;
+                }
             }
         }
+
+        // Attach the paper trail per line, then read in contract order.
+        foreach ($refresh as &$row) {
+            $paper = $reqByCatalog[$row['catalog_item_id']] ?? $reqByDescription[$row['model']] ?? null;
+            $row['requisition_id'] = $paper['requisition_id'] ?? null;
+            $row['reqm'] = $paper['reqm'] ?? null;
+            $row['po'] = $paper['po'] ?? null;
+        }
+        unset($row);
 
         $refresh = collect($refresh)
             ->sortBy([['contract_id', 'asc'], ['cost', 'desc']])
@@ -1733,6 +1801,15 @@ class ProcurementReportsController extends Controller
             ->orderBy('sort_order')->orderBy('id')
             ->get();
         $newAskTotal = (float) $newAskLines->sum(fn ($line) => $line->lineTotal());
+
+        // The same paper trail for typed lines — the draft writes them as
+        // "need — description", so that is the string to find them by.
+        $newAskPaper = [];
+        foreach ($newAskLines as $line) {
+            $newAskPaper[$line->id] = $reqByDescription[trim($line->need.' — '.$line->description, ' —')]
+                ?? $reqByDescription[$line->description]
+                ?? null;
+        }
 
         // ── The POs this request became, once finance issued them — and the
         // requisitions still in flight ahead of a PO, so the page says where
@@ -1752,17 +1829,20 @@ class ProcurementReportsController extends Controller
         $csvRecords = [];
         foreach ($refresh as $row) {
             $csvRecords[] = ['cells' => [
-                $row['area'], $row['preference'], $row['type'],
                 trans('admin/purchase-orders/general.capital_need_refresh'),
-                $row['contract_id'], $row['qty'], $row['model'],
+                $row['contract_id'], $row['area'], $row['preference'], $row['type'],
+                $row['qty'], $row['model'],
                 $this->money($row['cost']), $this->money($row['unit']),
+                implode(', ', $row['waves']), (string) $row['reqm'], (string) $row['po'],
             ]];
         }
         foreach ($newAskLines as $line) {
+            $paper = $newAskPaper[$line->id];
             $csvRecords[] = ['cells' => [
-                (string) $line->area, (string) $line->preference, (string) $line->type,
-                $line->need, '', $line->quantity, $line->description,
+                $line->need, '', (string) $line->area, (string) $line->preference, (string) $line->type,
+                $line->quantity, $line->description,
                 $this->money($line->lineTotal()), $this->money((float) $line->unit_cost),
+                '', (string) ($paper['reqm'] ?? ''), (string) ($paper['po'] ?? ''),
             ]];
         }
 
@@ -1775,6 +1855,7 @@ class ProcurementReportsController extends Controller
             'refreshTotal' => $refreshTotal,
             'refreshDevices' => $refreshDevices,
             'newAskLines' => $newAskLines,
+            'newAskPaper' => $newAskPaper,
             'newAskTotal' => $newAskTotal,
             // The request is the envelope, always — the allocation below it
             // says how much of it the lines account for so far.
@@ -1783,21 +1864,24 @@ class ProcurementReportsController extends Controller
             'openRequisitions' => $openRequisitions,
             'csv' => [
                 'columns' => [
+                    trans('admin/purchase-orders/general.capital_col_need'),
+                    trans('admin/purchase-orders/general.capital_col_ending_contract'),
                     trans('admin/purchase-orders/general.capital_col_area'),
                     trans('admin/purchase-orders/general.capital_col_schedule'),
                     trans('admin/purchase-orders/general.capital_col_type'),
-                    trans('admin/purchase-orders/general.capital_col_need'),
-                    trans('admin/purchase-orders/general.capital_col_ending_contract'),
                     trans('admin/purchase-orders/general.lease_qty'),
                     trans('admin/purchase-orders/general.forecast_model'),
                     trans('admin/purchase-orders/general.capital_col_cost'),
                     trans('admin/purchase-orders/general.capital_col_unit'),
+                    trans('admin/purchase-orders/general.capital_col_wave'),
+                    trans('admin/purchase-orders/general.capital_col_reqm'),
+                    trans('admin/purchase-orders/general.capital_col_po'),
                 ],
                 'records' => $csvRecords,
                 'footer' => [
                     trans('admin/orders/general.total'), '', '', '', '',
                     $refreshDevices + (int) $newAskLines->sum('quantity'), '',
-                    $this->money($refreshTotal + $newAskTotal), '',
+                    $this->money($refreshTotal + $newAskTotal), '', '', '', '',
                 ],
             ],
         ];
