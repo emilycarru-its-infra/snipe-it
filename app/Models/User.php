@@ -569,21 +569,26 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      * nothing to order against.
      *
      * Deliberately not scoped to a fiscal year. It used to be, anchored on
-     * the old laptop's lease end date, and that locked out precisely the
-     * people the program exists for: a 2021-lease cohort invited in 2026
-     * has a lease-end anchor in a closed fiscal year, so an application
-     * created today could never land inside the window. Re-submitting made
-     * it worse rather than better — the new row's created_at is always
-     * "now", and the window is always in the past — so the store bounced
-     * them back to the form indefinitely. An open pickup agreement is the
-     * fact the gate actually cares about; when the renewal cycle needs to
-     * be a factor it belongs on the agreement, not on a date range
-     * inferred from a lease that has already ended.
+     * the old laptop's lease end date, and that is unsatisfiable for a
+     * cohort invited ahead of its renewal — which is the only sensible time
+     * to invite one. Wave 2's leases end in October 2027, putting the
+     * window a year in the future, so an application submitted today fell
+     * before it and the store bounced every applicant back to the form.
+     * Re-submitting could not help: created_at is always now, and now is
+     * never inside a window anchored somewhere else. The anchor was wrong
+     * in both directions — an already-ended lease puts the window in the
+     * past just as surely — so the window is gone rather than re-aimed.
+     *
+     * The form's own stamp is the signal, not the row's existence.
+     * PickupUpgradeAutoCreator writes quoted pickup rows off a checkout,
+     * for people who have never seen the form; only a real submission sets
+     * terms_accepted_at, so only a real submission opens the store.
      */
     public function hasOpenProgramForm(): bool
     {
         return UserAgreement::where('user_id', $this->id)
             ->where('agreement_type', 'pickup')
+            ->whereNotNull('terms_accepted_at')
             ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
             ->exists();
     }

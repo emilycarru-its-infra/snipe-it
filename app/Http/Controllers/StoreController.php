@@ -84,6 +84,8 @@ class StoreController extends Controller
             'strings' => $this->storefrontStrings(),
             'locations' => $locations,
             'refreshAsset' => $this->refreshAssetFor($request->query('refresh')),
+            // Faculty are never asked to fund their own program laptop.
+            'showGlCode' => ! auth()->user()->isFacultyProgramMember(),
             'openOrderCount' => StoreOrder::where('user_id', auth()->id())
                 ->whereIn('status', ['pending', 'approved'])
                 ->count(),
@@ -204,8 +206,12 @@ class StoreController extends Controller
         // code only means anything in that context.
         $refreshAsset = $shared ? null : $this->refreshAssetFor($validated['refresh_asset_id'] ?? null);
         // The GL code is open to every order, not just early refreshes — any
-        // store purchase can be department-funded.
-        $glCode = trim((string) ($validated['gl_code'] ?? ''));
+        // store purchase can be department-funded. Except faculty, who are
+        // never asked: the program pays for their laptop, so a code posted
+        // against a faculty order came from a stale form, not a decision.
+        $glCode = auth()->user()->isFacultyProgramMember()
+            ? ''
+            : trim((string) ($validated['gl_code'] ?? ''));
 
         $order = DB::transaction(function () use ($validated, $isFaculty, $shared, $refreshAsset, $glCode) {
             // The wave that invited this order, when there is one. Without it,
