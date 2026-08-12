@@ -27,6 +27,7 @@ return [
         'unreceive_success' => 'Line item marked as not received.',
         'type_invalid' => 'That item type cannot be added to an order.',
         'not_found' => 'The selected item could not be found.',
+        'ingest_not_found' => 'No :type exists with id :id.',
     ],
 
     'shipment' => [

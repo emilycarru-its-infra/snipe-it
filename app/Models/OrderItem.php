@@ -37,11 +37,26 @@ class OrderItem extends Model
         // A line item linked to an asset that is already in a deployable
         // (Active) status is received on arrival — the device is in service.
         static::creating(function (OrderItem $item) {
-            if (is_null($item->received_at) && $item->item_type === Asset::class && $item->item_id) {
+            if (! is_null($item->received_at)) {
+                return;
+            }
+
+            if ($item->item_type === Asset::class && $item->item_id) {
                 $asset = Asset::find($item->item_id);
                 if ($asset && $asset->status && $asset->status->deployable) {
                     $item->received_at = now();
                 }
+
+                return;
+            }
+
+            // Anything that is not an asset — a cable, a licence seat, a rack
+            // rail, a service charge — has no deployable status to consult,
+            // so being invoiced is the only arrival signal there is. Without
+            // this the order sits at partially_received forever and drags the
+            // procurement dashboard with it.
+            if ($item->invoice_id) {
+                $item->received_at = now();
             }
         });
 
