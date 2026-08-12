@@ -71,7 +71,7 @@
                         <td>
                             <button type="button" class="rpt-child-toggle" aria-expanded="true">
                                 <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-                            </button><strong>{{ $cell }}</strong>
+                            </button>@if (isset($row['links'][$ci]))<a href="{{ $row['links'][$ci] }}" class="js-lightbox"><strong>{{ $cell }}</strong></a>@else<strong>{{ $cell }}</strong>@endif
                         </td>
                         @continue
                     @endif

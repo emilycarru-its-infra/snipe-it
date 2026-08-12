@@ -677,6 +677,37 @@ class ProcurementReportsTest extends TestCase
             ->assertRedirect('/procurement/agreements');
     }
 
+    public function test_each_lease_has_a_page_of_its_own()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => '100000-007',
+            'Lease Contract Name' => 'Devices Leases FY30-31 #4',
+            'Ownership Type' => 'Lease to Return',
+            'Lease Rent' => '72.03',
+            'Lease End Date' => '2030-06-30',
+        ], ['serial' => 'TESTSN0004', 'purchase_date' => '2026-06-01', 'purchase_cost' => 3061.22]);
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/leasing/100000-007')
+            ->assertOk()
+            ->assertSee('Devices Leases FY30-31 #4')
+            ->assertSee('100000-007')
+            ->assertSee('TESTSN0004')
+            ->assertSee('$3,061.22')
+            ->assertSee(trans('admin/purchase-orders/general.lease_detail_schedule'));
+
+        // An id that is not a lease is a 404, not an empty page.
+        $this->actingAs($this->superuser())
+            ->get('/procurement/leasing/NOT-A-LEASE')
+            ->assertNotFound();
+
+        // The Rent Costs table links each contract to its page.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.rent-costs', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee(route('reports.procurement.lease-detail', '100000-007'), false);
+    }
+
     public function test_asset_lease_detail_report_renders()
     {
         $this->actingAs($this->superuser())
