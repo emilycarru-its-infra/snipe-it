@@ -797,16 +797,18 @@ class ProcurementReportsTest extends TestCase
             'status' => 'approved',
         ]);
 
-        // The envelope tile carries both contracts' full value; the kept
-        // contract itself appears nowhere as a line — its budget stays in
-        // the envelope for redistribution, and that is its whole story.
-        $this->actingAs($this->superuser())
+        // The envelope table carries both contracts at full value; the kept
+        // contract appears there and ONLY there — never as a request line —
+        // which is how its budget stays in the envelope for redistribution.
+        $content = $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
             ->assertSee('$5,700.00')
-            ->assertSee(trans('admin/purchase-orders/general.capital_tile_envelope'))
-            ->assertSee('ECI-CAPREQ-REF')
-            ->assertDontSee('ECI-CAPREQ-KEPT');
+            ->assertSee(trans('admin/purchase-orders/general.capital_envelope_title'))
+            ->assertSee(trans('admin/purchase-orders/general.lease_end_retained'))
+            ->getContent();
+        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-KEPT</a>'));
+        $this->assertSame(2, substr_count($content, '>ECI-CAPREQ-REF</a>'));
 
         // The draft carries only the refresh distribution.
         $this->actingAs($this->superuser())
@@ -814,6 +816,52 @@ class ProcurementReportsTest extends TestCase
         $requisition = \App\Models\Requisition::latest('id')->first();
         $this->assertNotNull($requisition);
         $this->assertSame(1, $requisition->items()->count());
+    }
+
+    public function test_the_request_reads_the_wave_plan_and_populates_the_paper_back()
+    {
+        // A device on an ending contract, already planned into a wave with
+        // a DIFFERENT replacement model: the wave's plan wins over the
+        // like-for-like forecast, and the wave rides on the line.
+        $asset = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-WAVE',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 2000.00]);
+
+        $planned = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13 M5']);
+        $wave = \App\Models\DeploymentWave::create([
+            'name' => 'FY26-27 Faculty Refresh', 'slug' => 'fy2627-faculty-'.uniqid(), 'fiscal_year' => 'FY2026-27',
+        ]);
+        \App\Models\DeploymentItem::create([
+            'wave_id' => $wave->id, 'replaces_asset_id' => $asset->id, 'model_id' => $planned->id,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('MacBook Air 13 M5')
+            ->assertSee('FY26-27 Faculty Refresh');
+
+        // Draft it; the REQM column then names the requisition the line
+        // landed on, and once finance issues a PO it appears too.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
+        $requisition = \App\Models\Requisition::latest('id')->first();
+        $requisition->forceFill(['requisition_number' => '0017999'])->save();
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('REQM 0017999');
+
+        $po = PurchaseOrder::factory()->create(['po_number' => 'P0026150', 'fiscal_year' => 'FY2026-27']);
+        $requisition->forceFill(['purchase_order_id' => $po->id])->save();
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('P0026150');
     }
 
     public function test_new_asks_are_entered_by_hand_and_join_the_draft()

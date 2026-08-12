@@ -217,6 +217,8 @@ class AssetModel extends SnipeModel
     /**
      * The store catalog item that replaces a device of this model at
      * refresh — the comparable current model, priced from the catalog.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<CatalogItem, $this>
      */
     public function refreshCatalogItem()
     {
