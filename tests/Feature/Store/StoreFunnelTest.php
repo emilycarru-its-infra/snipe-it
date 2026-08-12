@@ -627,6 +627,56 @@ class StoreFunnelTest extends TestCase
         $this->assertNull($item->model_id);
     }
 
+    /**
+     * Prices drift — Apple's retail number once overwrote the reseller's
+     * bundle price on two rows, and a reseller correction arrived on a
+     * third. The import cannot fix a row it did not create, so without this
+     * the only route was a database console.
+     */
+    public function test_the_catalog_api_corrects_a_price()
+    {
+        $item = $this->shelfItem(['unit_cost' => null, 'store_sort' => 4]);
+        $item->estimated_cost = 3499;
+        $item->price_type = 'list';
+        $item->save();
+
+        $this->actingAsForApi($this->procurement())
+            ->patchJson(route('api.catalog-items.update', $item->id), ['estimated_cost' => 2800])
+            ->assertOk();
+
+        $item->refresh();
+        $this->assertSame(2800.0, (float) $item->estimated_cost);
+        // A hand-corrected estimate is ours, not Apple's, so the row stops
+        // claiming the number came from a retail page.
+        $this->assertSame('estimate', $item->price_type);
+        $this->assertSame(4, (int) $item->store_sort, 'a price fix is not a reset');
+    }
+
+    /** A quote outranks an estimate, and clearing it is a real change. */
+    public function test_the_catalog_api_can_set_and_clear_a_quoted_price()
+    {
+        $item = $this->shelfItem(['unit_cost' => null]);
+        $item->estimated_cost = 2100;
+        $item->save();
+
+        $this->actingAsForApi($this->procurement())
+            ->patchJson(route('api.catalog-items.update', $item->id), [
+                'unit_cost' => 2377.19, 'price_type' => 'quoted',
+            ])->assertOk();
+
+        $item->refresh();
+        $this->assertSame(2377.19, (float) $item->unit_cost);
+        $this->assertSame(2377.19, $item->effectiveCost());
+
+        $this->actingAsForApi($this->procurement())
+            ->patchJson(route('api.catalog-items.update', $item->id), ['unit_cost' => null])
+            ->assertOk();
+
+        $item->refresh();
+        $this->assertNull($item->unit_cost);
+        $this->assertSame(2100.0, $item->effectiveCost(), 'back to the estimate');
+    }
+
     public function test_the_catalog_api_creates_and_retires_a_row()
     {
         $model = AssetModel::factory()->create();

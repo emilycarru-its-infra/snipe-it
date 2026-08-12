@@ -526,6 +526,114 @@ class FacultyProgramFormTest extends TestCase
     }
 
     /**
+     * The lease-end pipeline notes that a machine is buyable. That is not
+     * an answer to the buyout question, and the form must not treat it as
+     * one — it used to pre-select "yes, buy it out" for people who had
+     * never seen the question.
+     */
+    public function test_an_eligible_buyout_does_not_preselect_yes(): void
+    {
+        $user = $this->facultyUser();
+        $asset = $this->laptopFor($user, 'A00ELIG');
+
+        // What the pipeline writes, and an application already on file so
+        // the form is in its returning-visitor state.
+        UserAgreement::create([
+            'agreement_type' => 'purchase',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'eligible',
+        ]);
+        UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+            'terms_accepted_at' => now(),
+        ]);
+
+        $html = $this->actingAs($user)->get(route('forms.show', 'faculty-program'))
+            ->assertOk()->getContent();
+
+        // The "yes" radio must not be the checked one.
+        $this->assertDoesNotMatchRegularExpression(
+            '/value="yes"[^>]*checked/', $html,
+            'an eligible buyout is not a decision to buy',
+        );
+    }
+
+    /** Saying yes promotes that note rather than opening a second record. */
+    public function test_saying_yes_promotes_the_eligible_buyout(): void
+    {
+        $user = $this->facultyUser();
+        $asset = $this->laptopFor($user, 'A00PROM');
+
+        $eligible = UserAgreement::create([
+            'agreement_type' => 'purchase',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'eligible',
+        ]);
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'yes',
+            'buyout_asset_tag' => 'A00PROM',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $purchases = UserAgreement::where('user_id', $user->id)
+            ->where('agreement_type', 'purchase')->get();
+
+        $this->assertCount(1, $purchases, 'one laptop, one buyout record');
+        $this->assertSame($eligible->id, $purchases->first()->id);
+        $this->assertSame('quoted', $purchases->first()->lifecycle_stage);
+    }
+
+    /**
+     * Declining leaves the eligibility alone. It was never a decision, so
+     * there is nothing to reverse — and cancelling it is what stamped the
+     * first wave-2 applicant Cancelled in the ledger.
+     */
+    public function test_declining_does_not_cancel_an_eligible_buyout(): void
+    {
+        $user = $this->facultyUser();
+        $asset = $this->laptopFor($user, 'A00KEEP');
+
+        $eligible = UserAgreement::create([
+            'agreement_type' => 'purchase',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'eligible',
+        ]);
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $this->assertSame('eligible', $eligible->fresh()->lifecycle_stage);
+    }
+
+    /** A laptop checked out to this person, for the trade-in question. */
+    private function laptopFor(User $user, string $tag): Asset
+    {
+        $category = Category::firstOrCreate(
+            ['name' => 'Laptop', 'category_type' => 'asset'],
+            ['created_by' => 1],
+        );
+
+        return Asset::factory()->create([
+            'model_id' => AssetModel::factory()->create(['category_id' => $category->id])->id,
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'asset_tag' => $tag,
+        ]);
+    }
+
+    /**
      * Faculty are never asked for a GL code — the program pays for their
      * laptop. An optional field reads as a required one to someone who has
      * no answer for it, and on wave 2 it stopped people mid-order.

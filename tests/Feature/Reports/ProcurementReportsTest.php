@@ -797,22 +797,16 @@ class ProcurementReportsTest extends TestCase
             'status' => 'approved',
         ]);
 
-        $content = $this->actingAs($this->superuser())
+        // The envelope tile carries both contracts' full value; the kept
+        // contract itself appears nowhere as a line — its budget stays in
+        // the envelope for redistribution, and that is its whole story.
+        $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
-            // The envelope is both contracts' full value.
             ->assertSee('$5,700.00')
             ->assertSee(trans('admin/purchase-orders/general.capital_tile_envelope'))
-            // The kept contract sits in the envelope table…
-            ->assertSee('ECI-CAPREQ-KEPT')
-            ->assertSee(trans('admin/purchase-orders/general.lease_end_retained'))
-            ->getContent();
-
-        // …but never as a refresh line: only the refreshing contract's
-        // device is distributed, so the kept one renders exactly one row
-        // (the envelope's) while the refreshing one renders two.
-        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-KEPT</a>'));
-        $this->assertSame(2, substr_count($content, '>ECI-CAPREQ-REF</a>'));
+            ->assertSee('ECI-CAPREQ-REF')
+            ->assertDontSee('ECI-CAPREQ-KEPT');
 
         // The draft carries only the refresh distribution.
         $this->actingAs($this->superuser())

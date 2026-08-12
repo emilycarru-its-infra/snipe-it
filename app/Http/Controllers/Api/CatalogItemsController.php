@@ -110,11 +110,14 @@ class CatalogItemsController extends Controller
      * optional and only what is sent is touched, so hiding a row does not
      * silently reset its sort or unlink its model.
      *
-     * The part numbers are writable here because they are the fields the
-     * reseller's desk works from — an order for a row with no manufacturer
-     * part number cannot be placed at all — and a price-list import only
-     * fills them for rows it created. Rows added by hand need a way in that
-     * is not a database console.
+     * The part numbers and the prices are writable here because they are
+     * what actually goes out on an order — a row with no manufacturer part
+     * number cannot be placed at all, and a wrong price is quoted to a
+     * faculty member before anyone checks it. Both arrive from the
+     * price-list import and from quotes, and neither of those can correct a
+     * row that has already drifted; `store()` has always accepted prices,
+     * so leaving them off `update()` only meant the fix had to happen in a
+     * database console.
      */
     public function update(Request $request, CatalogItem $catalogItem): JsonResponse
     {
@@ -132,6 +135,9 @@ class CatalogItemsController extends Controller
             'subcategory' => 'sometimes|nullable|string|max:191',
             'product_type' => 'sometimes|string|in:standard,cto',
             'supplier_id' => 'sometimes|nullable|integer|exists:suppliers,id',
+            'unit_cost' => 'sometimes|nullable|numeric|min:0',
+            'estimated_cost' => 'sometimes|nullable|numeric|min:0',
+            'price_type' => 'sometimes|string|in:quoted,estimate,list',
         ]);
 
         // The supplier is who a vendor order request is addressed to, so a
@@ -172,6 +178,30 @@ class CatalogItemsController extends Controller
         // unless it is an accessory.
         if ($request->has('model_id')) {
             $catalogItem->model_id = $validated['model_id'] ?? null;
+        }
+
+        // Prices are writable here for the same reason the part numbers are:
+        // a wrong one goes out on a real order. They arrive from the
+        // price-list import and from quotes, but neither of those can
+        // correct a row that has already drifted — three did, and the only
+        // remaining route was a database console.
+        //
+        // `unit_cost` is what we were quoted and outranks `estimated_cost`
+        // in effectiveCost(), so sending null is a real "we are back to an
+        // estimate" rather than a no-op.
+        foreach (['unit_cost', 'estimated_cost'] as $field) {
+            if ($request->has($field)) {
+                $catalogItem->{$field} = $validated[$field] ?? null;
+            }
+        }
+
+        if ($request->has('price_type')) {
+            $catalogItem->price_type = $validated['price_type'];
+        } elseif ($request->has('estimated_cost') && $catalogItem->price_type === 'list') {
+            // A hand-corrected estimate is ours, not Apple's. Leaving it
+            // labelled `list` would say the number came from a retail page
+            // it no longer agrees with.
+            $catalogItem->price_type = 'estimate';
         }
 
         if ($request->hasFile('image')) {
