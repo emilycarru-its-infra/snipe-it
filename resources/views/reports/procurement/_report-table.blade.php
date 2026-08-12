@@ -30,21 +30,51 @@
         [data-theme="dark"] .rpt-report-table > tbody > tr.info > td { background-color: rgba(60, 141, 188, .22) !important; }
         [data-theme="dark"] .rpt-report-table > tbody > tr.success > td { background-color: rgba(0, 166, 90, .18) !important; }
         [data-theme="dark"] .rpt-report-table > tbody > tr.danger > td { background-color: rgba(221, 75, 57, .26) !important; }
+        /* Nested unit tables (e.g. the Extension Watch's devices under each
+           contract): the contract keeps the report's columns, its units get
+           their own headed table indented beneath a chevron, open by
+           default. */
+        .rpt-child-cell { padding: 0 0 0 34px !important; border-top: 0 !important; }
+        .rpt-child-table { margin: 0; }
+        .rpt-child-table > thead > tr > th {
+            font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em;
+            color: var(--text-muted, #777); border-bottom-width: 1px;
+        }
+        .rpt-child-toggle { border: 0; background: none; padding: 0 8px 0 0; opacity: .6; }
+        .rpt-child-toggle:hover { opacity: 1; }
+        /* Reports opting in keep every column on one line except the last —
+           the trailing catch-all (a Models list, an order list) is the only
+           cell allowed to wrap. */
+        .rpt-nowrap-tail > thead > tr > th:not(:last-child),
+        .rpt-nowrap-tail > tbody > tr > td:not(:last-child),
+        .rpt-nowrap-tail > tfoot > tr > th:not(:last-child) { white-space: nowrap; }
     </style>
 @endonce
+@php
+    $hasRowActions = collect($rows)->contains(fn ($row) => ! empty($row['row_actions']));
+@endphp
 <div class="table-responsive rpt-table-scroll">
-    <table class="table table-striped rpt-report-table">
+    <table class="table table-striped rpt-report-table{{ ! empty($nowrapExceptLast) ? ' rpt-nowrap-tail' : '' }}">
         <thead>
             <tr>
                 @foreach ($columns as $col)
                     <th>{{ $col }}</th>
                 @endforeach
+                @if ($hasRowActions)<th></th>@endif
             </tr>
         </thead>
         <tbody>
         @forelse ($rows as $row)
             <tr @if (! empty($row['class'])) class="{{ $row['class'] }}" @endif>
                 @foreach ($row['cells'] as $ci => $cell)
+                    @if ($ci === 0 && ! empty($row['children']['rows']))
+                        <td>
+                            <button type="button" class="rpt-child-toggle" aria-expanded="true">
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </button><strong>{{ $cell }}</strong>
+                        </td>
+                        @continue
+                    @endif
                     @if (! empty($canEditNotes) && isset($row['editable_note']) && $row['editable_note']['col'] === $ci)
                         <td class="rpt-note-cell" data-model="{{ $row['editable_note']['model'] }}" data-id="{{ $row['editable_note']['id'] }}">
                             <span class="rpt-note-text">{{ $cell }}</span>
@@ -95,10 +125,57 @@
                         <td>{{ $cell }}</td>
                     @endif
                 @endforeach
+                @if ($hasRowActions)
+                    <td class="text-right" style="white-space:nowrap;">
+                        @foreach ($row['row_actions'] ?? [] as $action)
+                            @if (($action['method'] ?? null) === 'DELETE')
+                                <form method="POST" action="{{ $action['url'] }}" style="display:inline-block; margin:0;"
+                                      onsubmit="return confirm({{ json_encode($action['confirm'] ?? trans('general.sure_to_delete')) }});">
+                                    {{ csrf_field() }}@method('DELETE')
+                                    <button type="submit" class="btn btn-xs btn-danger" title="{{ $action['title'] }}">
+                                        <i class="fa-solid fa-{{ $action['icon'] }}" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            @else
+                                <a href="{{ $action['url'] }}" class="btn btn-xs btn-default" title="{{ $action['title'] }}">
+                                    <i class="fa-solid fa-{{ $action['icon'] }}" aria-hidden="true"></i>
+                                </a>
+                            @endif
+                        @endforeach
+                    </td>
+                @endif
             </tr>
+            @if (! empty($row['children']['rows']))
+                <tr class="rpt-child-row">
+                    <td class="rpt-child-cell" colspan="{{ count($columns) + ($hasRowActions ? 1 : 0) }}">
+                        <table class="table rpt-child-table">
+                            <thead>
+                                <tr>
+                                    @foreach ($row['children']['columns'] ?? [] as $childCol)
+                                        <th>{{ $childCol }}</th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($row['children']['rows'] as $child)
+                                    <tr>
+                                        @foreach ($child['cells'] as $cci => $childCell)
+                                            @if ($childCell !== '' && $childCell !== null && isset($child['links'][$cci]))
+                                                <td><a href="{{ $child['links'][$cci] }}" class="js-lightbox">{{ $childCell }}</a></td>
+                                            @else
+                                                <td>{{ $childCell }}</td>
+                                            @endif
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+            @endif
         @empty
             <tr>
-                <td colspan="{{ count($columns) }}">{{ trans('general.no_results') }}</td>
+                <td colspan="{{ count($columns) + ($hasRowActions ? 1 : 0) }}">{{ trans('general.no_results') }}</td>
             </tr>
         @endforelse
         </tbody>
@@ -125,6 +202,7 @@
                             <th colspan="{{ count($footerCells) - $lastValueIdx }}">{{ $cell }}</th>
                         @endif
                     @endforeach
+                    @if ($hasRowActions)<th></th>@endif
                 </tr>
             </tfoot>
         @endif

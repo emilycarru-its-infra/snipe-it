@@ -66,20 +66,18 @@
                 <x-icon type="deployments" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('admin/deployments/general.dashboard_title') }}</span>
             </a>
+            {{-- The button opens the board itself; the menu holds the other
+                 doors. Configure is gone — the wave-type and stage catalogs
+                 are managed inline on the Waves page. --}}
             <ul class="dropdown-menu topnav-menu">
-                <li{!! (request()->is('reports/deployments') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('reports.deployments') }}">{{ trans('admin/deployments/general.dashboard_title') }}</a>
-                </li>
                 @can('view', App\Models\Asset::class)
                     <li{!! (request()->is('reports/exhibit*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.exhibit') }}">{{ trans('admin/reports/general.hub_tile_exhibit') }}</a>
                     </li>
+                    <li class="divider"></li>
                 @endcan
-                <li class="divider"></li>
-                {{-- Waves have no index of their own — the board is the list.
-                     This is the one action that is not reachable from it. --}}
-                <li{!! (request()->is('deployment-waves/create') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('deployment-waves.create') }}">{{ trans('admin/deployments/general.create') }}</a>
+                <li{!! (request()->is('deployments/waves') ? ' class="active"' : '') !!}>
+                    <a href="{{ route('deployment-waves.index') }}">{{ trans('admin/deployments/general.waves_title') }}</a>
                 </li>
                 <li{!! (request()->is('deployments/forecast*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.forecast') }}">{{ trans('admin/deployments/general.forecast') }}</a>
@@ -87,11 +85,11 @@
                 <li{!! (request()->is('deployments/storage*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.storage') }}">{{ trans('admin/deployments/general.storage') }}</a>
                 </li>
+                <li{!! (request()->is('deployments/decommissioning*') ? ' class="active"' : '') !!}>
+                    <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/deployments/general.decom_nav') }}</a>
+                </li>
                 <li{!! (request()->is('deployments/blackouts*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.blackouts.index') }}">{{ trans('admin/deployments/general.blackouts_button') }}</a>
-                </li>
-                <li{!! (request()->is('deployment-config*') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('deployment-config.index', 'types') }}">{{ trans('admin/deployments/general.configure') }}</a>
                 </li>
             </ul>
         </li>
@@ -105,37 +103,30 @@
                 <x-icon type="procurement" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('general.procurement') }}</span>
             </a>
+            {{-- The button itself opens /procurement — the menu holds the
+                 working doors, not a copy of the destination. Two runs:
+                 the paperwork (orders through approvals), then the store. --}}
             <ul class="dropdown-menu topnav-menu">
                 @can('view', \App\Models\Order::class)
-                    <li{!! (request()->is('procurement') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('procurement.index') }}">{{ trans('admin/store/general.procurement') }}</a>
+                    <li{!! (request()->is('procurement/orders*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('orders.index') }}">{{ trans('admin/orders/general.orders') }}</a>
                     </li>
+                    <li{!! (request()->is('procurement/purchase-orders*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('purchase-orders.index') }}">{{ trans('admin/purchase-orders/general.purchase_orders') }}</a>
+                    </li>
+                    <li{!! (request()->is('procurement/requisitions*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('requisitions.index') }}">{{ trans('admin/purchase-orders/general.requisitions') }}</a>
+                    </li>
+                    @can('reports.procurement.view')
+                        <li{!! (request()->is('procurement/leasing*') ? ' class="active"' : '') !!}>
+                            <a href="{{ route('reports.lessor-breakdown') }}">{{ trans('admin/purchase-orders/general.leasing_title') }}</a>
+                        </li>
+                    @endcan
                     <li{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('procurement.queue') }}">{{ trans('admin/store/general.queue') }}</a>
                     </li>
                     <li class="divider"></li>
-                    <li{!! (request()->is('requisitions*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('requisitions.index') }}">{{ trans('admin/purchase-orders/general.requisitions') }}</a>
-                    </li>
-                    <li{!! (request()->is('orders') || request()->is('orders/*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('orders.index') }}">{{ trans('admin/orders/general.orders') }}</a>
-                    </li>
-                    <li{!! (request()->is('purchase-orders*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('purchase-orders.index') }}">{{ trans('admin/purchase-orders/general.purchase_orders') }}</a>
-                    </li>
                 @endcan
-                @can('view', \App\Models\Supplier::class)
-                    <li{!! (request()->is('suppliers*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('suppliers.index') }}">{{ trans('general.suppliers') }}</a>
-                    </li>
-                @endcan
-                @can('view', \App\Models\Depreciation::class)
-                    <li{!! (request()->is('depreciations*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('depreciations.index') }}">{{ trans('general.depreciation') }}</a>
-                    </li>
-                @endcan
-
-                <li class="dropdown-header">{{ trans('general.nav_group_store_forms') }}</li>
                 <li{!! (request()->is('store') ? ' class="active"' : '') !!}>
                     <a href="{{ route('store.index') }}">{{ trans('admin/store/general.store') }}</a>
                 </li>
@@ -149,24 +140,9 @@
                         <a href="{{ route('forms.index') }}">{{ trans('admin/forms/general.menu_link') }}</a>
                     </li>
                 @endif
-
-                @can('view', \App\Models\Order::class)
-                    <li class="dropdown-header">{{ trans('general.nav_group_leases') }}</li>
-                    <li{!! (request()->is('lease-decisions*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('lease-decisions.index') }}">{{ trans('admin/lease-decisions/general.lease_decisions') }}</a>
-                    </li>
-                    <li{!! (request()->is('user-agreements*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('user-agreements.index') }}">{{ trans('admin/user-agreements/general.user_agreements') }}</a>
-                    </li>
-                @endcan
-
                 @can('reports.procurement.view')
-                    <li class="dropdown-header">{{ trans('general.reports') }}</li>
-                    <li{!! (request()->is('reports/procurement*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('reports.procurement') }}">{{ trans('admin/reports/general.hub_tile_procurement') }}</a>
-                    </li>
-                    <li{!! (request()->is('reports/lessor-breakdown*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('reports.lessor-breakdown') }}">{{ trans('admin/purchase-orders/general.report_lessor_breakdown') }}</a>
+                    <li{!! (request()->is('procurement/agreements*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('reports.procurement.user-agreement-ledger') }}">{{ trans('admin/store/general.tab_agreements') }}</a>
                     </li>
                 @endcan
             </ul>

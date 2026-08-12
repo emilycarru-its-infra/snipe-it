@@ -61,18 +61,12 @@ class ReportsController extends Controller
     {
         $this->authorize('reports.view');
 
-        // The lessor breakdown renders as a section of this hub rather than
-        // a standalone page. Its builder lives with the other lease rollups
-        // on the procurement controller; only readers with the procurement
-        // permission get the section (and pay for the query).
-        $lessorBreakdown = auth()->user()?->can('reports.procurement.view')
-            ? app(ProcurementReportsController::class)->lessorBreakdownData()
-            : null;
-
+        // The lease portfolio (charts and breakdown) lives on the Leasing
+        // page at /procurement/leasing — procurement's view, procurement's
+        // path — not as a section here.
         return view('reports/index', [
             'fleetRefresh'        => $this->fleetRefreshByFiscalYear(6),
             'contractExpirations' => $this->contractExpirationsByQuarter(8),
-            'lessorBreakdown'     => $lessorBreakdown,
         ]);
     }
 

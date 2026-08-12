@@ -584,7 +584,7 @@ class PurchaseOrderVendorSendTest extends TestCase
         // And the flat paths people have bookmarked still land.
         $this->actingAs($staff)->get('/purchase-orders/P0026022')->assertRedirect('/procurement/purchase-orders/P0026022');
         $this->actingAs($staff)->get('/requisitions')->assertRedirect('/procurement/requisitions');
-        $this->actingAs($staff)->get('/reports/lessor-breakdown')->assertRedirect('/procurement/lessor-breakdown');
+        $this->actingAs($staff)->get('/reports/lessor-breakdown')->assertRedirect('/procurement/leasing');
     }
 
     /**

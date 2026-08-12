@@ -67,8 +67,6 @@
     </div>
 </div>
 
-@include('deployment-waves._roster')
-
 {{-- Arrivals rollup (P2b) --}}
 @if ($arrivals['linked'] > 0)
 <div class="box box-default">
@@ -107,114 +105,6 @@
 </div>
 @endif
 
-{{-- Items board --}}
-<div class="box box-default">
-    <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/deployments/general.board_title') }} — {{ $wave->items->count() }} {{ trans('admin/deployments/general.device') }}(s)</h3>
-        @if (($projectedTotal ?? 0) > 0)
-            <div class="box-tools pull-right">
-                <span class="label label-info" title="{{ trans('admin/deployments/general.projected_cost_help') }}">
-                    {{ trans('admin/deployments/general.projected_cost_total', ['total' => number_format($projectedTotal, 2)]) }}
-                </span>
-            </div>
-        @endif
-    </div>
-    <div class="box-body table-responsive no-padding">
-        <table class="table table-hover table-striped">
-            <thead>
-                <tr>
-                    <th>{{ trans('admin/deployments/general.stage') }}</th>
-                    {{-- Who has it, not what it is: the Device column repeated
-                         the Model column, while the one thing this board is for —
-                         knowing whose machine is being swapped — was missing. --}}
-                    <th>{{ trans('admin/deployments/general.checked_out_to') }}</th>
-                    <th>{{ trans('admin/deployments/general.replaces') }}</th>
-                    <th>{{ trans('admin/deployments/general.model') }}</th>
-                    <th>{{ trans('admin/deployments/general.projected_replacement') }}</th>
-                    <th>{{ trans('admin/deployments/general.recipient') }}</th>
-                    <th>{{ trans('admin/deployments/general.tech') }}</th>
-                    <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
-                    <th>{{ trans('admin/deployments/general.target_deploy_date') }}</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-            @forelse ($wave->items as $item)
-                <tr>
-                    <td>
-                        <form method="POST" action="{{ route('deployment-items.stage', $item) }}" class="form-inline" style="margin:0;">
-                            {{ csrf_field() }}
-                            <select name="stage_id" class="form-control input-sm" onchange="this.form.submit()" style="border-left:5px solid {{ $item->stageColor() }};">
-                                @foreach ($stages as $st)
-                                    <option value="{{ $st->id }}" {{ (int) $item->stage_id === (int) $st->id ? 'selected' : '' }}>{{ $st->name }}</option>
-                                @endforeach
-                            </select>
-                        </form>
-                    </td>
-                    <td>
-                        @php
-                            // The person on the device being replaced — that is
-                            // who the swap is with. Fall back to the incoming
-                            // asset's holder once one exists.
-                            $holder = $item->replacesAsset?->holderUser() ?? $item->asset?->holderUser() ?? $item->assignedUser;
-                            $holderLocation = $item->replacesAsset?->holderLocation() ?? $item->asset?->holderLocation();
-                        @endphp
-                        @if ($holder)
-                            <a href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
-                        @elseif ($holderLocation)
-                            <i class="fas fa-location-dot text-muted" aria-hidden="true"></i>
-                            <a href="{{ route('locations.show', $holderLocation) }}">{{ $holderLocation->name }}</a>
-                        @else
-                            <span class="text-muted">&mdash;</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if ($item->replacesAsset)
-                            <a href="{{ route('hardware.show', $item->replacesAsset) }}">{{ $item->replacesAsset->asset_tag ?: $item->replacesAsset->name }}</a>
-                        @else — @endif
-                    </td>
-                    <td>{{ $item->model?->name ?: '—' }}</td>
-                    <td>
-                        @php($catalog = $item->model?->refreshCatalogItem)
-                        @if ($catalog)
-                            <span title="{{ $catalog->name }}">${{ number_format($catalog->effectiveCost(), 2) }}</span>
-                            @if ($catalog->isEstimate())<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
-                        @elseif ($item->replacesAsset?->purchase_cost)
-                            <span class="text-muted" title="{{ trans('admin/purchase-orders/general.forecast_basis_original') }}">${{ number_format((float) $item->replacesAsset->purchase_cost, 2) }}</span>
-                        @else — @endif
-                    </td>
-                    <td>@if ($item->assignedUser)<a href="{{ route('users.show', $item->assignedUser) }}">{{ $item->assignedUser->full_name }}</a>@else — @endif</td>
-                    <td>{{ $item->assignedTech?->full_name ?: '—' }}</td>
-                    <td>
-                        @php($badge = $timeline->itemBadge($item))
-                        @if ($badge === 'received')
-                            <span class="label label-success">{{ trans('admin/deployments/general.arrivals_received') }}</span>
-                        @elseif ($badge === 'in_transit')
-                            <span class="label label-warning">{{ trans('admin/deployments/general.arrivals_in_transit') }}</span>
-                        @else
-                            <span class="label label-default">{{ trans('admin/deployments/general.arrivals_not_ordered') }}</span>
-                        @endif
-                    </td>
-                    <td>{{ optional($item->target_deploy_date)->toDateString() ?: '—' }}</td>
-                    <td class="text-right">
-                        <form method="POST" action="{{ route('deployment-items.destroy', $item) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.item_delete_confirm') }}');">
-                            {{ csrf_field() }}@method('DELETE')
-                            <button type="submit" class="btn btn-xs btn-danger"><i class="fas fa-trash"></i></button>
-                        </form>
-                    </td>
-                </tr>
-            @empty
-                <tr><td colspan="10" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr>
-            @endforelse
-            </tbody>
-        </table>
-    </div>
-    <div class="box-footer">
-        <form method="POST" action="{{ route('deployment-waves.destroy', $wave) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.delete_confirm') }}');">
-            {{ csrf_field() }}@method('DELETE')
-            <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> {{ trans('general.delete') }}</button>
-        </form>
-    </div>
-</div>
+@include('deployment-waves._items')
 
 @stop

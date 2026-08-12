@@ -203,18 +203,10 @@
                 </table>
             </div>
         </div>
-    </div>
-
-    <div class="col-md-4">
-        @include('purchase-orders._vendor-order')
-    </div>
-</div>
-
-{{-- Documents at the foot rather than behind a tab: the purchase order PDF and
-     the vendor's quote are what somebody opens this page to read, and a tab hid
-     them behind a click and an untranslated label. --}}
-<div class="row">
-    <div class="col-md-12">
+        {{-- Documents in the left column with the lines and orders, not at
+             the page's foot: the PO PDF and the vendor's quote are what
+             somebody opens this page to read, and full-width at the bottom
+             they sat below the fold beside an empty gutter. --}}
         <div class="box box-default">
             <div class="box-header with-border">
                 <h3 class="box-title"><i class="fas fa-paperclip"></i> {{ trans('admin/lease-schedules/general.documents') }}</h3>
@@ -223,6 +215,10 @@
                 @include('partials.object-documents', ['object' => $purchaseOrder, 'object_type' => 'purchase-orders'])
             </div>
         </div>
+    </div>
+
+    <div class="col-md-4">
+        @include('purchase-orders._vendor-order')
     </div>
 </div>
 @stop
