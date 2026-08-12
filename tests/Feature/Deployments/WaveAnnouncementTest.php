@@ -171,6 +171,125 @@ class WaveAnnouncementTest extends TestCase
         $this->assertStringNotContainsString('{{', $rendered, 'no merge field should survive rendering');
     }
 
+    /**
+     * A template default is rendered, not passed through trans(), so a ":token"
+     * in one reaches the recipient verbatim — which is exactly what happened: a
+     * test arrived titled "Faculty Laptop Program :fiscal_year".
+     */
+    public function test_the_shipped_templates_use_merge_fields_the_renderer_understands()
+    {
+        $wave = $this->wave();
+        $faculty = User::factory()->create();
+        $asset = $this->deviceFor($wave, $faculty);
+
+        $announcer = new WaveAnnouncer;
+        $row = $announcer->recipients($wave)->first();
+        $context = $announcer->context($wave, $row['user'], $row['assets']);
+
+        foreach (\App\Services\Deployments\WaveAnnouncementTemplates::all($wave) as $template) {
+            $mail = new DeploymentWaveMail(
+                $wave, $faculty, $template['subject'], $template['body'], $row['assets'], $context
+            );
+
+            $subject = $mail->envelope()->subject;
+
+            $this->assertStringNotContainsString(':', str_replace(['https:', 'http:'], '', $subject),
+                $template['key'].' subject should not carry a trans-style token');
+            $this->assertStringNotContainsString('{{', $subject, $template['key'].' subject should be fully rendered');
+
+            if ($template['body'] !== '') {
+                $this->assertStringNotContainsString('{{', $mail->render(), $template['key'].' body should be fully rendered');
+            }
+        }
+
+        // The subject says the calendar year, because "Faculty Laptop Program
+        // FY2026-27" is not how anyone refers to it in an inbox.
+        $this->assertStringContainsString(now()->format('Y'), (new DeploymentWaveMail(
+            $wave, $faculty,
+            trans('admin/deployments/general.announce_faculty_subject'),
+            'x', $row['assets'], $context
+        ))->envelope()->subject);
+    }
+
+    /**
+     * The wording is composed in the browser, so "save this" has to write it
+     * somewhere the next send reads — not wait for a code change a year later,
+     * when whoever edited it is not in the room.
+     */
+    public function test_update_template_saves_the_wording_for_next_time()
+    {
+        Mail::fake();
+
+        $wave = $this->wave();
+        $this->deviceFor($wave, User::factory()->create());
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('deployment-waves.announce', $wave), [
+                'subject' => 'Faculty Laptop Program {{ year }} — new laptop time!',
+                'body' => 'Hello {{ first_name }}, this is the wording we settled on.',
+                'save_template' => 1,
+            ])
+            ->assertRedirect(route('deployment-waves.show', $wave))
+            ->assertSessionHas('success');
+
+        // Saving is not sending.
+        Mail::assertNothingSent();
+        $this->assertNull($wave->fresh()->announced_at);
+
+        $templates = \App\Services\Deployments\WaveAnnouncementTemplates::all($wave);
+        $this->assertSame('saved', $templates[0]['key'], 'the saved wording should lead the picker');
+        $this->assertStringContainsString('the wording we settled on', $templates[0]['body']);
+        $this->assertSame('saved', \App\Services\Deployments\WaveAnnouncementTemplates::defaultKeyFor($wave));
+
+        // And the shipped defaults are still reachable, so there is a way back.
+        $this->assertContains('faculty_program', array_column($templates, 'key'));
+    }
+
+    /** A test can go to several people: an annual letter gets more than one read. */
+    public function test_a_test_can_be_addressed_to_several_people()
+    {
+        Mail::fake();
+
+        $wave = $this->wave();
+        $this->deviceFor($wave, User::factory()->create(['email' => 'faculty@ecuad.ca']));
+
+        $one = User::factory()->create(['email' => 'reviewer1@ecuad.ca']);
+        $two = User::factory()->create(['email' => 'reviewer2@ecuad.ca']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('deployment-waves.announce', $wave), [
+                'subject' => 'x', 'body' => 'y', 'test' => 1,
+                'test_recipients' => [$one->id, $two->id],
+            ])
+            ->assertRedirect();
+
+        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->test
+            && $mail->hasTo('reviewer1@ecuad.ca') && $mail->hasTo('reviewer2@ecuad.ca')
+            && ! $mail->hasTo('faculty@ecuad.ca'));
+
+        $this->assertNull($wave->fresh()->announced_at);
+    }
+
+    /** People picked to be copied are copied on every one of the emails. */
+    public function test_picked_people_are_copied_on_every_email()
+    {
+        Mail::fake();
+
+        $wave = $this->wave();
+        $this->deviceFor($wave, User::factory()->create(['email' => 'one@ecuad.ca']));
+        $this->deviceFor($wave, User::factory()->create(['email' => 'two@ecuad.ca']));
+        $dean = User::factory()->create(['email' => 'dean@ecuad.ca']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('deployment-waves.announce', $wave), [
+                'subject' => 'x', 'body' => 'y', 'cc' => [$dean->id],
+            ])
+            ->assertRedirect();
+
+        Mail::assertSent(DeploymentWaveMail::class, 2);
+        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasCc('dean@ecuad.ca'));
+    }
+
     public function test_a_wave_with_nobody_holding_a_device_cannot_be_announced()
     {
         Mail::fake();

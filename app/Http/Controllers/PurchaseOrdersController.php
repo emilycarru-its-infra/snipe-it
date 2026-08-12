@@ -113,6 +113,8 @@ class PurchaseOrdersController extends Controller
             'funding_account' => 'nullable|string|in:'.implode(',', CdwAccounts::keys()),
             'lease_schedule' => 'nullable|string|max:191',
             'order_cc' => 'nullable|string|max:65535',
+            'cc_users' => 'nullable|array',
+            'cc_users.*' => 'integer|exists:users,id',
             'test' => 'nullable|boolean',
         ]);
 
@@ -125,6 +127,13 @@ class PurchaseOrdersController extends Controller
             if ($request->filled($field)) {
                 $purchase_order->{$field} = $validated[$field];
             }
+        }
+
+        // Picked people are stored as ids, so a name change or a new address
+        // follows them. An empty submission clears the list rather than being
+        // read as "leave it alone" — that is what unticking everyone means.
+        if ($request->has('cc_users')) {
+            $purchase_order->order_cc_users = implode(',', $validated['cc_users'] ?? []);
         }
 
         if ($purchase_order->isDirty()) {

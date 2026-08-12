@@ -95,6 +95,10 @@ class WaveAnnouncer
             'email' => $user->email,
             'wave' => $wave->name,
             'fiscal_year' => (string) $wave->fiscal_year,
+            // The plain year, because a subject line says "2026", not
+            // "FY2026-27". Taken from when the wave deploys if that is known,
+            // since a wave opened in December is next year's programme.
+            'year' => ($wave->target_start_date ?? $wave->arrival_window_start ?? now())->format('Y'),
             'device' => $asset ? trim($asset->present()->name.' '.($asset->asset_tag ? '('.$asset->asset_tag.')' : '')) : '',
             'device_model' => (string) $asset?->model?->name,
             'device_count' => $assets->count(),
@@ -118,23 +122,39 @@ class WaveAnnouncer
      *
      * @return array{sent: int, recipients: array<int, string>, failed: array<int, string>}
      */
-    public function send(DeploymentWave $wave, string $subject, string $body, User $actor, bool $test = false, array $extra = []): array
-    {
+    public function send(
+        DeploymentWave $wave,
+        string $subject,
+        string $body,
+        User $actor,
+        bool $test = false,
+        array $extra = [],
+        ?Collection $cc = null,
+        ?Collection $testRecipients = null,
+    ): array {
         $recipients = $this->recipients($wave);
 
         if ($recipients->isEmpty()) {
             return ['sent' => 0, 'recipients' => [], 'failed' => []];
         }
 
+        $ccAddresses = collect($cc ?? [])->map(fn (User $user) => $user->email)->filter()->unique()->values()->all();
+
         if ($test) {
             $first = $recipients->first();
             $context = $this->context($wave, $first['user'], $first['assets'], $extra);
 
-            Mail::to($actor->email)->send(new DeploymentWaveMail(
+            // Whoever was named, or the sender when nobody was: a test is for
+            // reading the thing before 21 people do, and more than one pair of
+            // eyes on an annual letter is the normal case.
+            $to = collect($testRecipients ?? [])->map(fn (User $user) => $user->email)->filter()->unique()->values()->all();
+            $to = $to === [] ? [$actor->email] : $to;
+
+            Mail::to($to)->send(new DeploymentWaveMail(
                 $wave, $first['user'], $subject, $body, $first['assets'], $context, true
             ));
 
-            return ['sent' => 1, 'recipients' => [$actor->email], 'failed' => []];
+            return ['sent' => count($to), 'recipients' => $to, 'failed' => []];
         }
 
         $sent = [];
@@ -144,7 +164,13 @@ class WaveAnnouncer
             $context = $this->context($wave, $row['user'], $row['assets'], $extra);
 
             try {
-                Mail::to($row['user']->email)->send(new DeploymentWaveMail(
+                $mail = Mail::to($row['user']->email);
+
+                if ($ccAddresses !== []) {
+                    $mail->cc($ccAddresses);
+                }
+
+                $mail->send(new DeploymentWaveMail(
                     $wave, $row['user'], $subject, $body, $row['assets'], $context
                 ));
                 $sent[] = $row['user']->email;

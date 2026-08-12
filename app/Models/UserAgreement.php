@@ -112,6 +112,8 @@ class UserAgreement extends SnipeModel
 
     protected $fillable = [
         'agreement_type',
+        'stated_intent',
+        'intent_reconciled_at',
         'user_id',
         'asset_id',
         'lifecycle_stage',
@@ -146,6 +148,7 @@ class UserAgreement extends SnipeModel
     ];
 
     protected $casts = [
+        'intent_reconciled_at' => 'datetime',
         'pdf_generated_at' => 'datetime',
         'signed_at' => 'datetime',
         'terms_accepted_at' => 'datetime',
@@ -164,11 +167,17 @@ class UserAgreement extends SnipeModel
         'asset' => ['asset_tag', 'serial', 'name'],
     ];
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this>
+     */
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Asset, $this>
+     */
     public function asset()
     {
         return $this->belongsTo(Asset::class, 'asset_id');
