@@ -94,7 +94,7 @@
             </thead>
             <tbody>
             @forelse ($refresh as $row)
-                <tr>
+                <tr @class(['text-muted' => $row['retained']])>
                     <td>{{ $row['area'] }}</td>
                     <td>
                         <a href="{{ route('reports.procurement.lease-detail', $row['contract_id']) }}" class="js-lightbox"
@@ -102,12 +102,23 @@
                     </td>
                     <td class="text-right">{{ $row['qty'] }}</td>
                     <td style="white-space:normal;">{{ $row['model'] }}</td>
-                    <td class="text-right">
-                        ${{ number_format($row['unit'], 2) }}
-                        @if ($row['estimated'])<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
-                    </td>
-                    <td class="text-right">${{ number_format($row['cost'], 2) }}</td>
-                    <td>{{ $row['preference'] }}</td>
+                    @if ($row['retained'])
+                        {{-- Kept at term end: weighed, decided, asking for
+                             nothing — visible so the omission is never read
+                             as an oversight. --}}
+                        <td colspan="2" class="text-right">$0.00</td>
+                        <td style="white-space:normal;" title="{{ $row['note'] }}">
+                            <span class="label label-default">{{ trans('admin/purchase-orders/general.capital_retained') }}</span>
+                            @if ($row['note'])<span style="margin-left:4px;">{{ \Illuminate\Support\Str::limit($row['note'], 80) }}</span>@endif
+                        </td>
+                    @else
+                        <td class="text-right">
+                            ${{ number_format($row['unit'], 2) }}
+                            @if ($row['estimated'])<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
+                        </td>
+                        <td class="text-right">${{ number_format($row['cost'], 2) }}</td>
+                        <td>{{ $row['preference'] }}</td>
+                    @endif
                 </tr>
             @empty
                 <tr><td colspan="7" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
@@ -117,7 +128,10 @@
                 <tfoot>
                     <tr>
                         <th colspan="2">{{ trans('admin/orders/general.total') }}</th>
-                        <th class="text-right">{{ $refreshDevices }}</th>
+                        {{-- Column arithmetic holds: kept rows count devices
+                             at $0, so Qty sums the column while Cost is the
+                             actual ask. --}}
+                        <th class="text-right">{{ $refresh->sum('qty') }}</th>
                         <th></th>
                         <th></th>
                         <th class="text-right">${{ number_format($refreshTotal, 2) }}</th>
