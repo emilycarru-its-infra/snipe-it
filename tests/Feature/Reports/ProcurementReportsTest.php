@@ -748,6 +748,33 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_capital'));
     }
 
+    public function test_open_requisitions_surface_on_the_capital_request()
+    {
+        $requisition = \App\Models\Requisition::create([
+            'title' => 'Foundation Mobile MacBook Labs',
+            'status' => 'submitted',
+            'requisition_number' => '0017859',
+            'fiscal_year' => 'FY2026-27',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.capital_reqs_title'))
+            ->assertSee('REQM 0017859')
+            ->assertSee(route('purchase-orders.builder', ['requisition' => $requisition->id]), false);
+
+        // Once a PO exists it moves to the issued list and leaves this one.
+        $po = PurchaseOrder::factory()->create(['po_number' => 'P0026099', 'fiscal_year' => 'FY2026-27']);
+        $requisition->forceFill(['purchase_order_id' => $po->id])->save();
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertDontSee(trans('admin/purchase-orders/general.capital_reqs_title'))
+            ->assertSee('P0026099');
+    }
+
     public function test_a_kept_contract_shows_as_a_zero_dollar_line_not_an_omission()
     {
         // Lease-to-own being kept at term end, with the buyout logged: it

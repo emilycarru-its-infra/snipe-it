@@ -75,6 +75,50 @@
     @endforeach
 </div>
 
+{{-- Where the ask stands: requisitions still waiting on a PO, then the
+     paper finance has already issued. Above the detail, because "has this
+     been actioned" is the first question an exec asks. --}}
+@if ($openRequisitions->isNotEmpty())
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_reqs_title') }}</h3>
+    </div>
+    <div class="box-body">
+        <ul class="list-unstyled" style="margin:0;">
+            @foreach ($openRequisitions as $requisition)
+                <li style="margin-bottom:4px;">
+                    <a href="{{ route('purchase-orders.builder', ['requisition' => $requisition->id]) }}">
+                        {{ $requisition->requisition_number ? 'REQM '.$requisition->requisition_number : $requisition->title }}
+                    </a>
+                    @if ($requisition->requisition_number && $requisition->title)<span class="text-muted">· {{ $requisition->title }}</span>@endif
+                    <span class="label label-default">{{ ucfirst($requisition->status) }}</span>
+                    <span class="text-muted">· ${{ number_format($requisition->items->sum(fn ($line) => $line->lineTotal()), 2) }}</span>
+                </li>
+            @endforeach
+        </ul>
+    </div>
+</div>
+@endif
+
+@if ($purchaseOrders->isNotEmpty())
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_pos_title') }}</h3>
+    </div>
+    <div class="box-body">
+        <ul class="list-unstyled" style="margin:0;">
+            @foreach ($purchaseOrders as $po)
+                <li style="margin-bottom:4px;">
+                    <a href="{{ route('purchase-orders.show', $po) }}">{{ $po->po_number }}</a>
+                    @if ($po->title)<span class="text-muted">· {{ $po->title }}</span>@endif
+                    @if ($po->budget)<span class="text-muted">· ${{ number_format((float) $po->budget, 2) }}</span>@endif
+                </li>
+            @endforeach
+        </ul>
+    </div>
+</div>
+@endif
+
 <div class="box box-default">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_section_refresh') }} — {{ $fy }}</h3>
@@ -186,27 +230,9 @@
     </div>
 </div>
 
-{{-- Where the request landed once finance issued paper. --}}
-<div class="box box-default">
-    <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_pos_title') }}</h3>
-    </div>
-    <div class="box-body">
-        @if ($purchaseOrders->isEmpty())
-            <p class="text-muted" style="margin:0;">{{ trans('admin/purchase-orders/general.capital_pos_none') }}</p>
-        @else
-            <ul class="list-unstyled" style="margin:0;">
-                @foreach ($purchaseOrders as $po)
-                    <li style="margin-bottom:4px;">
-                        <a href="{{ route('purchase-orders.show', $po) }}">{{ $po->po_number }}</a>
-                        @if ($po->title)<span class="text-muted">· {{ $po->title }}</span>@endif
-                        @if ($po->budget)<span class="text-muted">· ${{ number_format((float) $po->budget, 2) }}</span>@endif
-                    </li>
-                @endforeach
-            </ul>
-        @endif
-    </div>
-</div>
+@if ($purchaseOrders->isEmpty())
+    <p class="text-muted">{{ trans('admin/purchase-orders/general.capital_pos_none') }}</p>
+@endif
 
 <style>
     .capital-table td, .capital-table th { white-space: nowrap; }
