@@ -244,7 +244,9 @@ class CatalogItem extends Model
             $specs['Also'] = $this->extras;
         }
         if ($this->warrantyLabel()) {
-            $specs['Warranty'] = $this->warrantyLabel();
+            $specs['Warranty'] = trans('admin/store/general.warranty_included', [
+                'term' => $this->warrantyLabel(),
+            ]);
         }
 
         return $specs;
