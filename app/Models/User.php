@@ -10,7 +10,6 @@ use App\Models\Traits\Searchable;
 use App\Presenters\Presentable;
 use App\Presenters\UserPresenter;
 use App\Services\FormAccess;
-use Carbon\Carbon;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Auth\Passwords\CanResetPassword;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
@@ -565,26 +564,27 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
     }
 
     /**
-     * Whether this person has a program form on file for the fiscal year
-     * their renewal falls under — the fiscal year (Apr–Mar) containing
-     * their laptop's lease end, or the current one when no lease end is
-     * known. The Store is the second step of the program; without this
-     * form there is nothing to order against.
+     * Whether this person has an open program application on file. The
+     * Store is the second step of the program; without this form there is
+     * nothing to order against.
+     *
+     * Deliberately not scoped to a fiscal year. It used to be, anchored on
+     * the old laptop's lease end date, and that locked out precisely the
+     * people the program exists for: a 2021-lease cohort invited in 2026
+     * has a lease-end anchor in a closed fiscal year, so an application
+     * created today could never land inside the window. Re-submitting made
+     * it worse rather than better — the new row's created_at is always
+     * "now", and the window is always in the past — so the store bounced
+     * them back to the form indefinitely. An open pickup agreement is the
+     * fact the gate actually cares about; when the renewal cycle needs to
+     * be a factor it belongs on the agreement, not on a date range
+     * inferred from a lease that has already ended.
      */
-    public function hasProgramFormForRenewalYear(): bool
+    public function hasOpenProgramForm(): bool
     {
-        $renewalAnchor = Asset::currentLaptopOf($this->id)?->leaseEndDate() ?? now();
-
-        // Fiscal years run Apr 1 – Mar 31; a January renewal belongs to the
-        // FY that started the previous April.
-        $fyYear = $renewalAnchor->month >= 4 ? $renewalAnchor->year : $renewalAnchor->year - 1;
-        $fyStart = Carbon::create($fyYear, 4, 1)->startOfDay();
-        $fyEnd = $fyStart->copy()->addYear();
-
         return UserAgreement::where('user_id', $this->id)
             ->where('agreement_type', 'pickup')
-            ->where('lifecycle_stage', '!=', 'cancelled')
-            ->whereBetween('created_at', [$fyStart, $fyEnd])
+            ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
             ->exists();
     }
 
@@ -601,7 +601,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         }
 
         if ($this->isFacultyProgramMember()) {
-            return $this->hasProgramFormForRenewalYear();
+            return $this->hasOpenProgramForm();
         }
 
         return true;

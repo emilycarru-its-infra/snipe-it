@@ -387,4 +387,81 @@ class FacultyProgramFormTest extends TestCase
             ->assertSee('https://example.test/store', false)
             ->assertSee('fa-external-link-alt', false);
     }
+
+    /**
+     * The store gate used to require the application to have been created
+     * inside the fiscal year containing the old laptop's lease end. A
+     * cohort invited after its lease had already ended therefore submitted
+     * into a closed window: the store bounced them back to the form, and
+     * re-submitting could not help, because a new row's created_at is
+     * always now and the window is always in the past.
+     */
+    public function test_the_store_opens_after_applying_even_when_the_old_lease_ended_in_a_past_year(): void
+    {
+        $user = $this->facultyUser();
+
+        $category = Category::factory()->create(['name' => 'Laptop']);
+        $model = AssetModel::factory()->create(['category_id' => $category->id]);
+        Asset::factory()->create([
+            'model_id' => $model->id,
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'asset_tag' => 'A00WAVE2',
+            // A 2021 lease, long expired by the time the invitation lands.
+            'lease_end_date' => now()->subYears(2)->format('Y-m-d'),
+        ]);
+
+        // Before applying, the store is closed and points at the form.
+        $this->actingAs($user)->get(route('store.index'))
+            ->assertRedirect(route('forms.show', 'faculty-program'));
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $this->actingAs($user)->get(route('store.index'))->assertOk();
+    }
+
+    /**
+     * Declining the buyout cancels the purchase agreement — it must not
+     * also close the store on the member, whose pickup application is
+     * live and whose whole reason for being there is to pick a machine.
+     */
+    public function test_declining_the_buyout_does_not_close_the_store(): void
+    {
+        $user = $this->facultyUser();
+
+        $category = Category::factory()->create(['name' => 'Laptop']);
+        $model = AssetModel::factory()->create(['category_id' => $category->id]);
+        $asset = Asset::factory()->create([
+            'model_id' => $model->id,
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'asset_tag' => 'A00BUYOUT',
+        ]);
+
+        // The buyout row the lease-end pipeline creates before anyone is
+        // ever invited — nobody asked for it, and declining cancels it.
+        UserAgreement::create([
+            'agreement_type' => 'purchase',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        $this->assertSame('cancelled', UserAgreement::where('user_id', $user->id)
+            ->where('agreement_type', 'purchase')->first()->lifecycle_stage);
+
+        $this->actingAs($user)->get(route('store.index'))->assertOk();
+    }
 }

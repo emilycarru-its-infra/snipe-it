@@ -3261,7 +3261,18 @@ class ProcurementReportsController extends Controller
             // One status pill per row — the same lifecycle pill the Faculty
             // Program tracker uses — linking to the agreement record. Rows
             // spanning agreements in different stages get one pill each.
-            $stages = $group->pluck('lifecycle_stage')->unique()->values();
+            //
+            // A cancelled agreement alongside a live one does not describe
+            // the member, so it is left off the row: declining the buyout on
+            // your old laptop cancels that agreement, and a red Cancelled
+            // pill next to someone whose application is progressing normally
+            // reads as "this person's application was cancelled" — which is
+            // what happened to the first wave-2 applicant. Only a member
+            // whose every agreement is cancelled reads as cancelled; the
+            // cancelled row itself is still one click away on its record.
+            $live = $group->where('lifecycle_stage', '!=', 'cancelled');
+            $stages = ($live->isNotEmpty() ? $live : $group)
+                ->pluck('lifecycle_stage')->unique()->values();
             $stagePills = $stages->map(fn ($stage) => [
                 'label' => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage),
                 'class' => UserAgreement::STAGE_LABEL_CLASS[$stage] ?? 'default',
