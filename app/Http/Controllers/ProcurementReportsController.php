@@ -1528,6 +1528,193 @@ class ProcurementReportsController extends Controller
         ]);
     }
 
+    /**
+     * The Capital Request — the page that replaces the "Devices Capital
+     * Request" workbook sent to the head of finance before each fiscal
+     * year. One link, one answer: what is ending, what replaces it at what
+     * estimated cost, what is being asked for beyond the refresh, and the
+     * total being requested. Forecast figures update as the catalog does,
+     * so the March snapshot and the in-year actuals are the same living
+     * page instead of two drifting tabs.
+     */
+    public function capitalRequest(Request $request)
+    {
+        $this->authorize('procurement.view');
+
+        $data = $this->capitalRequestData($request->query('fiscal_year'));
+
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv('capital-request-'.$data['fy'], [
+                'columns' => $data['csv']['columns'],
+                'records' => $data['csv']['records'],
+                'footer' => $data['csv']['footer'],
+            ]);
+        }
+
+        return view('reports.procurement.capital-request', $data);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function capitalRequestData(?string $fy): array
+    {
+        // Same default rule as Rent Costs: no selection means the current
+        // fiscal year — the request is always for a specific year.
+        $startYear = (int) (now()->month >= 4 ? now()->year : now()->year - 1);
+        if ($fy && preg_match('/^FY(\d{4})-\d{2}$/', $this->normalizeFy($fy) ?? '', $m)) {
+            $startYear = (int) $m[1];
+        }
+        $fyLabel = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+
+        $cols = $this->leaseFieldColumns();
+        $decisions = $this->leaseDecisionsByContract();
+
+        // ── The refresh: contracts ending in the year, each device priced
+        // at its replacement estimate, grouped the way the workbook read —
+        // one row per contract × replacement model × area.
+        $refresh = [];
+        $refreshTotal = 0.0;
+        $refreshDevices = 0;
+
+        foreach ($this->groupedLeaseAssets(null) as $group) {
+            if ($this->fiscalYearFromEndDate($group['lease_end_date']) !== $fyLabel) {
+                continue;
+            }
+
+            // A contract with an approved buyout is being kept, not
+            // refreshed — its budget is redirected, so it asks for nothing
+            // here (the Lease End Schedules report carries the envelope).
+            $decision = $decisions[$group['contract_id']] ?? null;
+            if ($decision && $decision->decision_type === 'buyout'
+                && in_array($decision->status, ['approved', 'completed'], true)) {
+                continue;
+            }
+
+            foreach ($group['assets'] as $asset) {
+                // Disposed units carry budget, not bodies — same rule as
+                // the Lease End Schedules headcount.
+                $statusName = (string) $asset->status?->name;
+                if ($asset->status?->getStatuslabelType() === 'archived'
+                    || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
+                    continue;
+                }
+
+                $catalog = $asset->model?->refreshCatalogItem;
+                $unit = $catalog?->effectiveCost() ?? (float) ($asset->purchase_cost ?? 0);
+                $replacement = $catalog?->name ?: ($asset->model?->name ?: trans('general.na'));
+
+                $ownership = $cols['ownership_type'] ? trim((string) $asset->{$cols['ownership_type']}) : '';
+                $preference = match ($ownership) {
+                    'Lease to Own' => trans('admin/purchase-orders/general.capital_pref_lto'),
+                    'Lease to Return' => trans('admin/purchase-orders/general.capital_pref_rental'),
+                    default => '',
+                };
+                $area = $cols['usage'] ? trim((string) $asset->{$cols['usage']}) : '';
+
+                $key = implode('|', [$group['contract_id'], $replacement, $area, $preference]);
+                if (! isset($refresh[$key])) {
+                    $refresh[$key] = [
+                        'area' => $area ?: '—',
+                        'contract_id' => $group['contract_id'],
+                        'contract_name' => $group['contract_name'],
+                        'qty' => 0,
+                        'model' => $replacement,
+                        'unit' => $unit,
+                        'estimated' => $catalog === null || $catalog->isEstimate(),
+                        'cost' => 0.0,
+                        'preference' => $preference ?: '—',
+                    ];
+                }
+
+                $refresh[$key]['qty']++;
+                $refresh[$key]['cost'] += $unit;
+                $refreshTotal += $unit;
+                $refreshDevices++;
+            }
+        }
+
+        $refresh = collect($refresh)
+            ->sortBy([['contract_id', 'asc'], ['cost', 'desc']])
+            ->values();
+
+        // ── The new asks: planned orders for the year — the PO Builder's
+        // forecast lines that are not tied to an ending lease.
+        $newAsks = [];
+        $newAskTotal = 0.0;
+
+        $plannedOrders = Order::planned()
+            ->where('fiscal_year', $fyLabel)
+            ->with('items')
+            ->orderBy('order_number')
+            ->get();
+
+        foreach ($plannedOrders as $order) {
+            foreach ($order->items as $item) {
+                $lineTotal = (float) $item->quantity * ((float) $item->unit_cost + (float) $item->warranty_cost);
+                $newAskTotal += $lineTotal;
+                $newAsks[] = [
+                    'need' => $order->order_number ?: trans('admin/purchase-orders/general.capital_new_ask'),
+                    'qty' => (int) $item->quantity,
+                    'model' => (string) $item->description,
+                    'unit' => (float) $item->unit_cost + (float) $item->warranty_cost,
+                    'cost' => $lineTotal,
+                ];
+            }
+        }
+
+        // ── The POs this request became, once finance issued them.
+        $purchaseOrders = PurchaseOrder::where('fiscal_year', $fyLabel)
+            ->orderBy('po_number')
+            ->get(['id', 'po_number', 'title', 'budget']);
+
+        // Flat CSV of both sections, in the workbook's column order.
+        $csvRecords = [];
+        foreach ($refresh as $row) {
+            $csvRecords[] = ['cells' => [
+                $row['area'], trans('admin/purchase-orders/general.capital_need_refresh'),
+                $row['contract_id'], $row['qty'], $row['model'],
+                $this->money($row['unit']), $this->money($row['cost']), $row['preference'],
+            ]];
+        }
+        foreach ($newAsks as $row) {
+            $csvRecords[] = ['cells' => [
+                '', $row['need'], '', $row['qty'], $row['model'],
+                $this->money($row['unit']), $this->money($row['cost']), '',
+            ]];
+        }
+
+        return [
+            'fy' => $fyLabel,
+            'allFiscalYears' => $this->availableFiscalYears(),
+            'refresh' => $refresh,
+            'refreshTotal' => $refreshTotal,
+            'refreshDevices' => $refreshDevices,
+            'newAsks' => $newAsks,
+            'newAskTotal' => $newAskTotal,
+            'grandTotal' => $refreshTotal + $newAskTotal,
+            'purchaseOrders' => $purchaseOrders,
+            'csv' => [
+                'columns' => [
+                    trans('admin/purchase-orders/general.capital_col_area'),
+                    trans('admin/purchase-orders/general.capital_col_need'),
+                    trans('admin/purchase-orders/general.lease_contract_id'),
+                    trans('admin/purchase-orders/general.lease_qty'),
+                    trans('admin/purchase-orders/general.forecast_model'),
+                    trans('admin/purchase-orders/general.capital_col_unit'),
+                    trans('admin/purchase-orders/general.capital_col_cost'),
+                    trans('admin/purchase-orders/general.capital_col_preference'),
+                ],
+                'records' => $csvRecords,
+                'footer' => [
+                    trans('admin/orders/general.total'), '', '',
+                    $refreshDevices + array_sum(array_column($newAsks, 'qty')), '', '',
+                    $this->money($refreshTotal + $newAskTotal), '',
+                ],
+            ],
+        ];
+    }
+
     public function rentCosts(Request $request)
     {
         $this->authorize('procurement.view');
