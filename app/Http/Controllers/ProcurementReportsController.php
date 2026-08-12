@@ -1697,6 +1697,7 @@ class ProcurementReportsController extends Controller
                         'contract_id' => $group['contract_id'],
                         'contract_name' => $group['contract_name'],
                         'qty' => 0,
+                        'type' => (string) ($catalog?->category ?: $asset->model?->category?->name ?: ''),
                         'model' => $replacement,
                         'unit' => $unit,
                         'estimated' => $catalog === null || $catalog->isEstimate(),
@@ -1747,19 +1748,21 @@ class ProcurementReportsController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        // Flat CSV of both sections, in the workbook's column order.
+        // Flat CSV of the one table, in the workbook's column order.
         $csvRecords = [];
         foreach ($refresh as $row) {
             $csvRecords[] = ['cells' => [
-                $row['area'], trans('admin/purchase-orders/general.capital_need_refresh'),
+                $row['area'], $row['preference'], $row['type'],
+                trans('admin/purchase-orders/general.capital_need_refresh'),
                 $row['contract_id'], $row['qty'], $row['model'],
-                $this->money($row['unit']), $this->money($row['cost']), $row['preference'],
+                $this->money($row['cost']), $this->money($row['unit']),
             ]];
         }
         foreach ($newAskLines as $line) {
             $csvRecords[] = ['cells' => [
-                '', $line->need, '', $line->quantity, $line->description,
-                $this->money((float) $line->unit_cost), $this->money($line->lineTotal()), '',
+                (string) $line->area, (string) $line->preference, (string) $line->type,
+                $line->need, '', $line->quantity, $line->description,
+                $this->money($line->lineTotal()), $this->money((float) $line->unit_cost),
             ]];
         }
 
@@ -1781,19 +1784,20 @@ class ProcurementReportsController extends Controller
             'csv' => [
                 'columns' => [
                     trans('admin/purchase-orders/general.capital_col_area'),
+                    trans('admin/purchase-orders/general.capital_col_schedule'),
+                    trans('admin/purchase-orders/general.capital_col_type'),
                     trans('admin/purchase-orders/general.capital_col_need'),
-                    trans('admin/purchase-orders/general.lease_contract_id'),
+                    trans('admin/purchase-orders/general.capital_col_ending_contract'),
                     trans('admin/purchase-orders/general.lease_qty'),
                     trans('admin/purchase-orders/general.forecast_model'),
-                    trans('admin/purchase-orders/general.capital_col_unit'),
                     trans('admin/purchase-orders/general.capital_col_cost'),
-                    trans('admin/purchase-orders/general.capital_col_preference'),
+                    trans('admin/purchase-orders/general.capital_col_unit'),
                 ],
                 'records' => $csvRecords,
                 'footer' => [
-                    trans('admin/purchase-orders/general.capital_tile_envelope'), '', '',
-                    $refreshDevices + (int) $newAskLines->sum('quantity'), '', '',
-                    $this->money($envelope), '',
+                    trans('admin/orders/general.total'), '', '', '', '',
+                    $refreshDevices + (int) $newAskLines->sum('quantity'), '',
+                    $this->money($refreshTotal + $newAskTotal), '',
                 ],
             ],
         ];
@@ -1806,10 +1810,13 @@ class ProcurementReportsController extends Controller
 
         $validated = $request->validate([
             'fiscal_year' => 'required|string|max:16',
+            'area' => 'nullable|string|max:191',
             'need' => 'required|string|max:191',
+            'type' => 'nullable|string|max:191',
             'description' => 'required|string|max:191',
             'quantity' => 'required|integer|min:1',
             'unit_cost' => 'required|numeric|min:0',
+            'preference' => 'nullable|string|max:191',
         ]);
 
         $validated['fiscal_year'] = $this->normalizeFy($validated['fiscal_year']) ?? $validated['fiscal_year'];
