@@ -31,10 +31,17 @@ class FacultyProgramGapsTest extends TestCase
         ], $overrides));
     }
 
-    private function heldAsset(User $user, ?string $leaseEnd = '2026-12-31'): Asset
+    private function heldAsset(User $user, ?string $leaseEnd = '2026-12-31', ?string $eol = null): Asset
     {
         $asset = Asset::factory()->create(['lease_end_date' => $leaseEnd]);
-        $asset->forceFill(['assigned_to' => $user->id, 'assigned_type' => User::class])->saveQuietly();
+
+        // EOL is stamped after create: the factory sets its own in an
+        // afterMaking hook, which would overwrite anything passed in.
+        $asset->forceFill([
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'asset_eol_date' => $eol,
+        ])->saveQuietly();
 
         return $asset->refresh();
     }
@@ -65,10 +72,16 @@ class FacultyProgramGapsTest extends TestCase
     }
 
     /**
-     * Somebody in the wave whose lease is not ending is usually a deliberate
-     * exception, so it warns rather than blocks — but it stops being invisible.
+     * Due means either date: the lease ending, or the machine reaching end of
+     * life. Reading lease end alone flagged all twenty faculty in a wave where
+     * every one was correctly included — a five-year lease-to-own refreshed on a
+     * four-year cycle reaches end of life a year before the lease ends, which is
+     * the whole reason the refresh happens when it does.
+     *
+     * Somebody genuinely not due is usually a deliberate exception, so it warns
+     * rather than blocks — but it stops being invisible.
      */
-    public function test_a_wave_member_with_no_lease_ending_is_flagged_but_allowed()
+    public function test_a_wave_member_not_due_by_either_date_is_flagged_but_allowed()
     {
         $wave = $this->wave();
 
@@ -81,6 +94,13 @@ class FacultyProgramGapsTest extends TestCase
         $noDate = User::factory()->create();
         DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $this->heldAsset($noDate, null)->id]);
 
+        // The ordinary faculty case, and the one that was wrongly flagged: a
+        // five-year lease refreshed on a four-year cycle. The lease runs past the
+        // window; end of life does not.
+        $eolFirst = User::factory()->create();
+        DeploymentItem::create(['wave_id' => $wave->id,
+            'replaces_asset_id' => $this->heldAsset($eolFirst, '2031-12-31', '2026-09-01')->id]);
+
         $flagged = (new WaveMembership)->ineligible($wave->fresh());
 
         $this->assertCount(2, $flagged);
@@ -88,11 +108,14 @@ class FacultyProgramGapsTest extends TestCase
             [$notEnding->id, $noDate->id],
             $flagged->pluck('user.id')->all()
         );
-        $this->assertSame('lease_not_ending', $flagged->firstWhere('user.id', $notEnding->id)['reason']);
-        $this->assertSame('no_lease_end_date', $flagged->firstWhere('user.id', $noDate->id)['reason']);
+        $this->assertSame('not_due', $flagged->firstWhere('user.id', $notEnding->id)['reason']);
+        $this->assertSame('no_dates', $flagged->firstWhere('user.id', $noDate->id)['reason']);
 
-        // Flagged, not excluded: the announcement still reaches all three.
-        $this->assertCount(3, (new \App\Services\Deployments\WaveAnnouncer)->recipients($wave->fresh()));
+        // The lease-to-own case is NOT flagged: end of life is what makes them due.
+        $this->assertNotContains($eolFirst->id, $flagged->pluck('user.id')->all());
+
+        // Flagged, not excluded: the announcement still reaches everybody.
+        $this->assertCount(4, (new \App\Services\Deployments\WaveAnnouncer)->recipients($wave->fresh()));
     }
 
     /**
