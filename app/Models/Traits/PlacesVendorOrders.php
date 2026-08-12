@@ -191,12 +191,36 @@ trait PlacesVendorOrders
     public function orderCcAddresses(): array
     {
         return collect($this->storeOrderRequesterEmails())
+            ->merge($this->orderCcUsers()->map(fn ($user) => $user->email)->all())
             ->merge(self::splitAddresses($this->order_cc))
             ->map(fn ($email) => strtolower(trim($email)))
             ->filter()
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * People picked to be copied, as users rather than as typed addresses.
+     *
+     * Stored as ids so a name change or a new address follows the person, and so
+     * the picker can show who was chosen last time instead of a string somebody
+     * has to read to recognise.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\User>
+     */
+    public function orderCcUsers()
+    {
+        // Only the purchase order carries the column: it is the record an order
+        // is sent from. A requisition asked for its CC list returns nobody
+        // rather than reaching for a property it does not have.
+        $ids = collect(explode(',', (string) ($this->getAttribute('order_cc_users') ?? '')))
+            ->map(fn ($id) => (int) trim($id))
+            ->filter()
+            ->unique()
+            ->all();
+
+        return $ids === [] ? collect() : \App\Models\User::whereIn('id', $ids)->get();
     }
 
     /**

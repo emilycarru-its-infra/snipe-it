@@ -31,25 +31,12 @@
                 </div>
             </div>
             <div class="box-body">
-                <ul class="nav nav-tabs" role="tablist" style="margin-bottom: 15px;">
-                    <li role="presentation" class="active">
-                        <a href="#po-overview" aria-controls="po-overview" role="tab" data-toggle="tab">
-                            {{ trans('general.info') }}
-                        </a>
-                    </li>
-                    <li role="presentation">
-                        <a href="#po-documents" aria-controls="po-documents" role="tab" data-toggle="tab">
-                            {{ trans('admin/lease-schedules/general.documents') }}
-                        </a>
-                    </li>
-                </ul>
-
-                <div class="tab-content">
-                <div role="tabpanel" class="tab-pane active" id="po-overview">
+                <div class="row po-summary">
+                <div class="col-sm-6">
                 <table class="table table-striped">
                     <tbody>
                         <tr>
-                            <td style="width:25%"><strong>{{ trans('admin/purchase-orders/general.po_number') }}</strong></td>
+                            <td style="width:40%"><strong>{{ trans('admin/purchase-orders/general.po_number') }}</strong></td>
                             <td>{{ $purchaseOrder->po_number }}</td>
                         </tr>
                         <tr>
@@ -91,7 +78,10 @@
                     </tbody>
                 </table>
 
-                <h3>{{ trans('admin/purchase-orders/general.financial_summary') }}</h3>
+                </div>
+
+                <div class="col-sm-6">
+                <h4 style="margin-top:0;">{{ trans('admin/purchase-orders/general.financial_summary') }}</h4>
                 <table class="table table-striped">
                     <tbody>
                         <tr>
@@ -120,6 +110,9 @@
                         </tr>
                     </tbody>
                 </table>
+
+                </div>
+                </div>{{-- /.po-summary --}}
 
                 @php
                     $printerComments = $purchaseOrder->printerComments();
@@ -208,18 +201,28 @@
                     @endforelse
                     </tbody>
                 </table>
-                </div>{{-- /#po-overview --}}
-
-                <div role="tabpanel" class="tab-pane" id="po-documents">
-                    @include('partials.object-documents', ['object' => $purchaseOrder, 'object_type' => 'purchase-orders'])
-                </div>
-                </div>{{-- /.tab-content --}}
             </div>
         </div>
     </div>
 
     <div class="col-md-4">
         @include('purchase-orders._vendor-order')
+    </div>
+</div>
+
+{{-- Documents at the foot rather than behind a tab: the purchase order PDF and
+     the vendor's quote are what somebody opens this page to read, and a tab hid
+     them behind a click and an untranslated label. --}}
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-default">
+            <div class="box-header with-border">
+                <h3 class="box-title"><i class="fas fa-paperclip"></i> {{ trans('admin/lease-schedules/general.documents') }}</h3>
+            </div>
+            <div class="box-body">
+                @include('partials.object-documents', ['object' => $purchaseOrder, 'object_type' => 'purchase-orders'])
+            </div>
+        </div>
     </div>
 </div>
 @stop

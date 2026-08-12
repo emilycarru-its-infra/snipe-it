@@ -613,8 +613,23 @@ class DeploymentsController extends Controller
         $validated = $request->validate([
             'subject' => 'required|string|max:191',
             'body' => 'required|string|max:65535',
+            'cc' => 'nullable|array',
+            'cc.*' => 'integer|exists:users,id',
+            'test_recipients' => 'nullable|array',
+            'test_recipients.*' => 'integer|exists:users,id',
             'test' => 'nullable|boolean',
+            'save_template' => 'nullable|boolean',
         ]);
+
+        // Saving the wording is its own decision, not a side effect of sending:
+        // somebody rewriting the annual letter wants next year to open on it,
+        // whether or not this send goes out today.
+        if ($request->boolean('save_template')) {
+            WaveAnnouncementTemplates::save($validated['subject'], $validated['body'], auth()->id());
+
+            return redirect()->route('deployment-waves.show', $deploymentWave)
+                ->with('success', trans('admin/deployments/general.announce_template_saved_confirm'));
+        }
 
         $test = $request->boolean('test');
 
@@ -629,7 +644,10 @@ class DeploymentsController extends Controller
                 $validated['subject'],
                 $validated['body'],
                 auth()->user(),
-                $test
+                $test,
+                [],
+                \App\Models\User::whereIn('id', $validated['cc'] ?? [])->get(),
+                \App\Models\User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
             );
         } catch (\Throwable $e) {
             Log::warning('Wave announcement failed for wave '.$deploymentWave->id.': '.$e->getMessage());
@@ -640,7 +658,9 @@ class DeploymentsController extends Controller
 
         if ($test) {
             return redirect()->route('deployment-waves.show', $deploymentWave)
-                ->with('success', trans('admin/deployments/general.announce_test_sent', ['email' => auth()->user()->email]));
+                ->with('success', trans('admin/deployments/general.announce_test_sent', [
+                    'email' => implode(', ', $result['recipients']),
+                ]));
         }
 
         $message = trans('admin/deployments/general.announce_sent', ['count' => $result['sent']]);
