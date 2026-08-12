@@ -16,6 +16,7 @@ use App\Services\Deployments\RefreshForecast;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use App\Services\Deployments\WaveAnnouncer;
+use App\Services\Deployments\WaveMembership;
 use App\Services\Deployments\WaveAnnouncementTemplates;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
@@ -613,8 +614,23 @@ class DeploymentsController extends Controller
         $validated = $request->validate([
             'subject' => 'required|string|max:191',
             'body' => 'required|string|max:65535',
+            'cc' => 'nullable|array',
+            'cc.*' => 'integer|exists:users,id',
+            'test_recipients' => 'nullable|array',
+            'test_recipients.*' => 'integer|exists:users,id',
             'test' => 'nullable|boolean',
+            'save_template' => 'nullable|boolean',
         ]);
+
+        // Saving the wording is its own decision, not a side effect of sending:
+        // somebody rewriting the annual letter wants next year to open on it,
+        // whether or not this send goes out today.
+        if ($request->boolean('save_template')) {
+            WaveAnnouncementTemplates::save($validated['subject'], $validated['body'], auth()->id());
+
+            return redirect()->route('deployment-waves.show', $deploymentWave)
+                ->with('success', trans('admin/deployments/general.announce_template_saved_confirm'));
+        }
 
         $test = $request->boolean('test');
 
@@ -629,7 +645,10 @@ class DeploymentsController extends Controller
                 $validated['subject'],
                 $validated['body'],
                 auth()->user(),
-                $test
+                $test,
+                [],
+                \App\Models\User::whereIn('id', $validated['cc'] ?? [])->get(),
+                \App\Models\User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
             );
         } catch (\Throwable $e) {
             Log::warning('Wave announcement failed for wave '.$deploymentWave->id.': '.$e->getMessage());
@@ -640,7 +659,9 @@ class DeploymentsController extends Controller
 
         if ($test) {
             return redirect()->route('deployment-waves.show', $deploymentWave)
-                ->with('success', trans('admin/deployments/general.announce_test_sent', ['email' => auth()->user()->email]));
+                ->with('success', trans('admin/deployments/general.announce_test_sent', [
+                    'email' => implode(', ', $result['recipients']),
+                ]));
         }
 
         $message = trans('admin/deployments/general.announce_sent', ['count' => $result['sent']]);
@@ -675,13 +696,29 @@ class DeploymentsController extends Controller
         });
 
         $announcer = new WaveAnnouncer;
+        $recipients = $announcer->recipients($deploymentWave);
+        $membership = new WaveMembership;
+
+        // Who has acted on the invitation. Keyed by user so the roster can say
+        // "ordered" beside a name rather than making somebody compare two screens.
+        $ordersByUser = \App\Models\StoreOrder::where('deployment_wave_id', $deploymentWave->id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->keyBy('user_id');
 
         return view('deployment-waves.show', [
             'wave' => $deploymentWave,
             // Who the announcement would reach, resolved from the devices rather
             // than a list: an asset checked out to a person names that person.
-            'announceRecipients' => $announcer->recipients($deploymentWave),
+            'announceRecipients' => $recipients,
             'announceTemplates' => WaveAnnouncementTemplates::all($deploymentWave),
+            // Wave members whose device is not actually at lease end. A warning,
+            // never a block: exceptions are legitimate, being invisible is not.
+            'announceIneligible' => $membership->ineligible($deploymentWave, $recipients),
+            'waveOrders' => $ordersByUser,
+            // What each person said they would do with the old laptop, against
+            // what happened to it.
+            'intentRows' => (new \App\Services\UserAgreements\IntentReconciler)->rows(),
             'projectedTotal' => (float) $projected->sum(),
             'stages' => DeploymentStage::active()->ordered()->get(),
             'arrivals' => $timeline->arrivals($deploymentWave),

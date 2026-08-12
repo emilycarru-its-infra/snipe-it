@@ -37,6 +37,7 @@ use Watson\Validating\ValidatingTrait;
  * @property string|null $vendor_changes_notes
  * @property string|null $vendor_order_number
  * @property string|null $order_cc
+ * @property string|null $order_cc_users
  */
 class PurchaseOrder extends SnipeModel
 {
@@ -100,6 +101,7 @@ class PurchaseOrder extends SnipeModel
         'vendor_changes_notes',
         'vendor_order_number',
         'order_cc',
+        'order_cc_users',
     ];
 
     protected $casts = [

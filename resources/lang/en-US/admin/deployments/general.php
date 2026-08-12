@@ -190,6 +190,40 @@ return [
     // than an empty box; the merge fields are the part that used to be retyped,
     // and mis-typed.
     'checked_out_to' => 'Checked Out To',
+    'roster_title' => 'Who Was Invited',
+    'roster_ordered_count' => ':ordered of :total have ordered',
+    'roster_person' => 'Person',
+    'roster_device' => 'Current device',
+    'roster_lease_end' => 'Lease ends',
+    'roster_said' => 'They said',
+    'roster_actual' => 'Actually',
+    'roster_ordered' => 'Order',
+    'roster_not_ordered' => 'not yet',
+    'roster_no_answer' => 'no form yet',
+    'roster_ineligible_warning' => '{1} One person in this wave has no device reaching lease end. That is allowed — exceptions happen — but worth a look before the invitation goes out.|[2,*] :count people in this wave have no device reaching lease end. That is allowed — exceptions happen — but worth a look before the invitation goes out.',
+    'roster_reason_lease_not_ending' => 'Their lease does not end within the next year.',
+    'roster_reason_no_lease_end_date' => 'Their device has no lease end date recorded.',
+    'announce_insert_field' => 'Insert a field',
+    'announce_insert_field_prompt' => 'Add a value that changes per person…',
+    'announce_field_first_name' => 'their first name',
+    'announce_field_recipient' => 'their full name',
+    'announce_field_device' => 'the device they hold, with its tag',
+    'announce_field_device_model' => 'the model of that device',
+    'announce_field_lease_end' => 'when its lease ends',
+    'announce_field_lease_end_year' => 'the year the lease ends',
+    'announce_field_wave' => 'this wave',
+    'announce_field_year' => 'the year',
+    'announce_field_fiscal_year' => 'the fiscal year',
+    'announce_field_form_url' => 'the faculty program form',
+    'announce_field_store_url' => 'the store',
+    'announce_cc' => 'Also copy',
+    'announce_cc_help' => 'Copied on every one of these emails. Pick people, not typed addresses.',
+    'announce_test_to' => 'Send the test to',
+    'announce_test_to_help' => 'Leave empty and it comes to you. More than one pair of eyes on an annual letter is the normal case.',
+    'announce_save_template' => 'Update Template',
+    'announce_template_saved' => 'Saved wording (last used)',
+    'announce_template_saved_confirm' => 'Template saved. The next announcement opens on this wording, and the shipped defaults are still in the picker.',
+    'announce_template_replace' => 'Replace what you have written with this template?',
     'announce_title' => 'Email the People in This Wave',
     'announce_help' => 'One email per person, written against their own device and lease dates. Sending it starts the wave.',
     'announce_recipients' => 'Goes to :count people in this wave',
@@ -210,7 +244,7 @@ return [
     'announced_at' => 'Announced',
     'announce_already' => 'Announced :date. Sending again re-sends the same message to the same people.',
 
-    'announce_faculty_subject' => 'Faculty Laptop Program :fiscal_year - action required',
+    'announce_faculty_subject' => 'Faculty Laptop Program {{ year }} — new laptop time!',
     'announce_faculty_body' => 'Hello {{ first_name }},
 
 I am pleased to announce that Emily Carr is continuing the University sponsored Faculty Laptop Program. This program provides leased Mac laptops to regular faculty on a four-year cycle. At the end of the fourth year, faculty are eligible to request a replacement leased laptop for another four years, and return the one they have.
@@ -233,7 +267,7 @@ Ordering happens in our own store now — no external site and no separate sign-
 
 If anything does not work as described, reply to this email and we will sort it out.',
 
-    'announce_refresh_subject' => ':wave - your device is scheduled for replacement',
+    'announce_refresh_subject' => '{{ wave }} - your device is scheduled for replacement',
     'announce_refresh_body' => 'Hello {{ first_name }},
 
 Your device is part of {{ wave }}, scheduled for {{ fiscal_year }}.

@@ -65,6 +65,7 @@ class StoreOrder extends Model
         'decided_by',
         'decided_at',
         'requisition_id',
+        'deployment_wave_id',
         'vendor_sent_at',
         'quote_number',
         'quote_total',
@@ -133,6 +134,18 @@ class StoreOrder extends Model
     public function refreshAsset()
     {
         return $this->belongsTo(Asset::class, 'refresh_asset_id');
+    }
+
+    /**
+     * The wave whose announcement this order answers. Set when a faculty member
+     * orders while holding a device in an announced wave, so the wave can show
+     * who has acted on the invitation and who has not.
+     *
+     * @return BelongsTo<DeploymentWave, $this>
+     */
+    public function deploymentWave()
+    {
+        return $this->belongsTo(DeploymentWave::class, 'deployment_wave_id');
     }
 
     /**

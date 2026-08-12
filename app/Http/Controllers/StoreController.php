@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\CatalogItem;
 use App\Models\Location;
 use App\Models\StoreOrder;
+use App\Services\Deployments\WaveMembership;
 use App\Models\StoreOrderItem;
 use App\Models\UserAgreement;
 use App\Services\StoreOrderAssetProvisioner;
@@ -207,10 +208,16 @@ class StoreController extends Controller
         $glCode = trim((string) ($validated['gl_code'] ?? ''));
 
         $order = DB::transaction(function () use ($validated, $isFaculty, $shared, $refreshAsset, $glCode) {
+            // The wave that invited this order, when there is one. Without it,
+            // "who from wave 2 has ordered" is two screens and a name
+            // comparison; with it, the wave page can say who is still to act.
+            $wave = $isFaculty ? (new WaveMembership)->waveFor(auth()->user()) : null;
+
             $order = StoreOrder::create([
                 'user_id' => auth()->id(),
                 'status' => 'pending',
                 'program' => $isFaculty ? 'faculty' : null,
+                'deployment_wave_id' => $wave?->id,
                 'order_usage' => $shared ? 'shared' : 'assigned',
                 'location_id' => $shared ? ($validated['location_id'] ?? null) : null,
                 'refresh_asset_id' => $refreshAsset?->id,

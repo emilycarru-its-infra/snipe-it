@@ -6,9 +6,15 @@ use App\Models\PurchaseOrder;
 use App\Models\User;
 use Tests\TestCase;
 
+/**
+ * Documents on a purchase order. They used to sit behind a tab; they are a
+ * section at the foot of the page now, because the purchase order PDF and the
+ * vendor's quote are what somebody opens this page to read and a tab hid them
+ * behind a click.
+ */
 class PurchaseOrderDocumentsTabTest extends TestCase
 {
-    public function test_purchase_order_view_includes_documents_tab()
+    public function test_purchase_order_view_includes_its_documents()
     {
         $superuser = User::factory()->superuser()->create();
         $po = PurchaseOrder::factory()->create(['po_number' => 'PO-DOCTAB-1']);
@@ -17,8 +23,9 @@ class PurchaseOrderDocumentsTabTest extends TestCase
             ->get(route('purchase-orders.show', $po))
             ->assertOk()
             ->assertSee('PO-DOCTAB-1')
-            ->assertSee('po-documents', false)        // tab pane id
-            ->assertSee(trans('admin/lease-schedules/general.documents'));
+            ->assertSee(trans('admin/lease-schedules/general.documents'))
+            // The upload form is on the page itself rather than in a hidden pane.
+            ->assertSee(route('ui.files.store', ['object_type' => 'purchase-orders', 'id' => $po->id]), false);
     }
 
     public function test_upload_routes_accept_purchase_orders_object_type()

@@ -52,6 +52,7 @@ class DeploymentWave extends SnipeModel
     ];
 
     protected $fillable = [
+        'announced_at',
         'name',
         'slug',
         'fiscal_year',
@@ -71,6 +72,7 @@ class DeploymentWave extends SnipeModel
     ];
 
     protected $casts = [
+        'announced_at' => 'datetime',
         'arrival_window_start' => 'date',
         'arrival_window_end' => 'date',
         'target_start_date' => 'date',
