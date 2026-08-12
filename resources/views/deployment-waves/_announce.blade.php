@@ -106,8 +106,21 @@
                 <button type="submit" name="test" value="1" class="btn btn-default">
                     {{ trans('admin/deployments/general.announce_test_submit') }}
                 </button>
+                {{-- Chasing the two places somebody stalls, without anyone
+                     working out the list. The count is on the button because
+                     it is the thing you want to know before pressing it, and
+                     a zero disables it: there is nobody to chase, which is
+                     the good outcome rather than an empty send. --}}
+                @foreach (['no_application', 'no_order'] as $audience)
+                    @php($stalled = $announceStalled[$audience] ?? 0)
+                    <button type="submit" name="audience" value="{{ $audience }}"
+                            class="btn btn-default" {{ $stalled === 0 ? 'disabled' : '' }}
+                            title="{{ trans('admin/deployments/general.announce_chase_'.$audience.'_help') }}">
+                        {{ trans('admin/deployments/general.announce_chase_'.$audience, ['count' => $stalled]) }}
+                    </button>
+                @endforeach
                 <button type="submit" class="btn btn-primary">
-                    {{ trans('admin/deployments/general.announce_submit') }}
+                    {{ trans('admin/deployments/general.announce_submit', ['count' => $announceRecipients->count()]) }}
                 </button>
             </footer>
         @endunless

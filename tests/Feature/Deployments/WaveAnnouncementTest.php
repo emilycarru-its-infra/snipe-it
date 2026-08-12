@@ -7,7 +7,9 @@ use App\Models\Asset;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentWave;
 use App\Models\Location;
+use App\Models\StoreOrder;
 use App\Models\User;
+use App\Models\UserAgreement;
 use App\Services\Deployments\WaveAnnouncer;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -345,5 +347,97 @@ class WaveAnnouncementTest extends TestCase
         $this->actingAs(User::factory()->superuser()->create())
             ->get('/deployment-waves/'.$wave->id)
             ->assertRedirect('/deployments/waves/'.$wave->id);
+    }
+
+    /** An application on file — the stamp only a real submission carries. */
+    private function applied(User $user): UserAgreement
+    {
+        return UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+            'terms_accepted_at' => now(),
+        ]);
+    }
+
+    /**
+     * Chasing the people who have not applied, without anyone working the
+     * list out. Wave 2 went out to everyone and finding who had stalled
+     * meant reading the ledger against the store orders by name.
+     */
+    public function test_the_not_applied_audience_skips_everyone_who_applied()
+    {
+        $wave = $this->wave();
+        $done = User::factory()->create(['email' => 'done@ecuad.ca']);
+        $stalled = User::factory()->create(['email' => 'stalled@ecuad.ca']);
+        $this->deviceFor($wave, $done);
+        $this->deviceFor($wave, $stalled);
+        $this->applied($done);
+
+        $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_APPLICATION);
+
+        $this->assertSame(['stalled@ecuad.ca'], $chase->pluck('user.email')->all());
+        // And the unfiltered send still reaches both.
+        $this->assertCount(2, (new WaveAnnouncer)->recipients($wave));
+    }
+
+    /**
+     * A row the lease-end pipeline wrote is not an application, so somebody
+     * carrying one is still chased — that row is exactly why the store gate
+     * checks terms_accepted_at rather than mere existence.
+     */
+    public function test_an_auto_created_pickup_does_not_count_as_applying()
+    {
+        $wave = $this->wave();
+        $user = User::factory()->create(['email' => 'auto@ecuad.ca']);
+        $this->deviceFor($wave, $user);
+
+        UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_APPLICATION);
+
+        $this->assertSame(['auto@ecuad.ca'], $chase->pluck('user.email')->all());
+    }
+
+    /**
+     * Chasing an order is only fair once somebody can place one, so this
+     * audience is people who applied and stopped — never people who have
+     * not started, who would be told to order from a store they cannot open.
+     */
+    public function test_the_not_ordered_audience_is_applicants_who_have_not_ordered()
+    {
+        $wave = $this->wave();
+        $ordered = User::factory()->create(['email' => 'ordered@ecuad.ca']);
+        $applied = User::factory()->create(['email' => 'applied@ecuad.ca']);
+        $neverApplied = User::factory()->create(['email' => 'never@ecuad.ca']);
+        $this->deviceFor($wave, $ordered);
+        $this->deviceFor($wave, $applied);
+        $this->deviceFor($wave, $neverApplied);
+
+        $this->applied($ordered);
+        $this->applied($applied);
+        StoreOrder::create(['user_id' => $ordered->id, 'status' => 'pending']);
+
+        $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_ORDER);
+
+        $this->assertSame(['applied@ecuad.ca'], $chase->pluck('user.email')->all());
+    }
+
+    /** A withdrawn order is not an order, so they are chased again. */
+    public function test_a_cancelled_order_does_not_count_as_ordering()
+    {
+        $wave = $this->wave();
+        $user = User::factory()->create(['email' => 'withdrew@ecuad.ca']);
+        $this->deviceFor($wave, $user);
+        $this->applied($user);
+        StoreOrder::create(['user_id' => $user->id, 'status' => 'cancelled']);
+
+        $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_ORDER);
+
+        $this->assertSame(['withdrew@ecuad.ca'], $chase->pluck('user.email')->all());
     }
 }

@@ -63,7 +63,17 @@ class PurchaseAutoCreator
             'agreement_type'  => 'purchase',
             'user_id'         => $userId,
             'asset_id'        => $asset->id,
-            'lifecycle_stage' => 'quoted',
+            // Eligible, not quoted. A status label changing is not somebody
+            // asking to buy their laptop, and `quoted` says we put a price
+            // in front of them, which nobody did. Every surface that reads
+            // these rows read that stage as a decision: the intake form
+            // pre-selected "yes, buy it out", the store's order page told
+            // people they were keeping a machine they had said nothing
+            // about, and declining on the form cancelled the phantom offer
+            // and stamped the member Cancelled in the ledger. Eligible is
+            // what this actually is — a machine reaching lease end, and a
+            // buyout nobody has decided on either way.
+            'lifecycle_stage' => 'eligible',
             'buyout_cost'     => $this->costs->buyoutCost($asset),
             'old_asset_tag'   => $asset->asset_tag,
             'old_serial'      => $asset->serial,
