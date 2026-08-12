@@ -1111,6 +1111,7 @@
         "lease_schedule",
         "notes",
         "order_cc",
+        "order_cc_users",
         "order_date",
         "po_number",
         "quote_confirmed_at",

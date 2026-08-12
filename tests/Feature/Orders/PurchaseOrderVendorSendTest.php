@@ -518,6 +518,55 @@ class PurchaseOrderVendorSendTest extends TestCase
     }
 
     /**
+     * The PO page is one screen now: summary and money side by side, no tabs, and
+     * documents as a table at the foot rather than behind an untranslated label.
+     */
+    public function test_the_purchase_order_page_is_one_screen()
+    {
+        $order = $this->purchaseOrder();
+
+        $body = $this->actingAs($this->procurement())
+            ->get(route('purchase-orders.show', $order))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('po-summary', $body, 'the summary should be the two-column block');
+        $this->assertStringNotContainsString('general.info', $body, 'no untranslated label should reach the page');
+        // The layout has its own tabs; what matters is that the purchase order
+        // no longer hides half of itself behind one.
+        $this->assertStringNotContainsString('po-documents', $body, 'documents are a section, not a tab');
+        $this->assertStringNotContainsString('po-overview', $body);
+        $this->assertStringContainsString(trans('admin/lease-schedules/general.documents'), $body);
+    }
+
+    /**
+     * Copied people are picked, not typed: an address with a transposed letter
+     * bounces silently, and an id follows somebody through a name change.
+     */
+    public function test_copied_people_are_stored_as_users_and_still_allow_an_external_address()
+    {
+        Mail::fake();
+
+        $order = $this->purchaseOrder();
+        $dean = User::factory()->create(['email' => 'dean@ecuad.ca']);
+
+        $this->actingAs($this->procurement())
+            ->post(route('purchase-orders.send-vendor', $order), [
+                'cc_users' => [$dean->id],
+                'order_cc' => 'rep@cdw.ca',
+            ])
+            ->assertRedirect();
+
+        Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => $mail->hasCc('dean@ecuad.ca')
+            && $mail->hasCc('rep@cdw.ca'));
+
+        $order->refresh();
+        $this->assertSame((string) $dean->id, $order->order_cc_users);
+        $this->assertContains('dean@ecuad.ca', $order->orderCcAddresses());
+        $this->assertContains('rep@cdw.ca', $order->orderCcAddresses());
+    }
+
+    /**
      * A purchase order is addressed by its number, because that is what finance,
      * the vendor and every PDF call it. An id still resolves, so older links do
      * not 404.

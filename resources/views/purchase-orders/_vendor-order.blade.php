@@ -173,10 +173,25 @@
             </div>
 
             <div class="form-group">
-                <label for="order-cc">{{ trans('admin/purchase-orders/general.vendor_send_cc') }}</label>
-                <textarea name="order_cc" id="order-cc" rows="2" class="form-control"
-                          placeholder="name@ecuad.ca, other@ecuad.ca">{{ old('order_cc', $purchaseOrder->order_cc) }}</textarea>
+                <label for="order-cc-users">{{ trans('admin/purchase-orders/general.vendor_send_cc') }}</label>
+                {{-- People first, typed addresses second. Nearly everyone copied
+                     on an order has an account here, and picking them avoids the
+                     transposed-letter address that bounces silently. The text box
+                     stays for the exception: a vendor contact with no account. --}}
+                <select class="js-data-ajax" data-endpoint="users" multiple name="cc_users[]" id="order-cc-users"
+                        data-placeholder="{{ trans('general.select_user') }}" style="width: 100%">
+                    @foreach ($purchaseOrder->orderCcUsers() as $ccUser)
+                        <option value="{{ $ccUser->id }}" selected>{{ $ccUser->present()->fullName }} ({{ $ccUser->email }})</option>
+                    @endforeach
+                </select>
                 <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_cc_help') }}</p>
+
+                <label for="order-cc" class="text-muted" style="font-weight:400; margin-top:6px;">
+                    {{ trans('admin/purchase-orders/general.vendor_send_cc_external') }}
+                </label>
+                <textarea name="order_cc" id="order-cc" rows="2" class="form-control"
+                          placeholder="rep@cdw.ca">{{ old('order_cc', $purchaseOrder->order_cc) }}</textarea>
+                <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_cc_external_help') }}</p>
                 @php $resolvedCc = $purchaseOrder->orderCcAddresses(); @endphp
                 @if (! empty($resolvedCc))
                     <p class="help-block">
