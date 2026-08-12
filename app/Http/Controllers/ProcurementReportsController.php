@@ -6,6 +6,7 @@ use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
+use App\Models\CapitalRequestLine;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Contract;
@@ -1568,10 +1569,9 @@ class ProcurementReportsController extends Controller
 
         $data = $this->capitalRequestData($request->input('fiscal_year'));
 
-        // Kept contracts ask for nothing — the draft is only the real ask.
-        $lines = $data['refresh']->reject(fn ($row) => $row['retained'])->values();
+        $lines = $data['refresh']->values();
 
-        if ($lines->isEmpty()) {
+        if ($lines->isEmpty() && $data['newAskLines']->isEmpty()) {
             return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $data['fy']])
                 ->with('error', trans('general.no_results'));
         }
@@ -1588,7 +1588,8 @@ class ProcurementReportsController extends Controller
             'shipping' => 0,
         ]);
 
-        foreach ($lines as $index => $row) {
+        $sort = 0;
+        foreach ($lines as $row) {
             RequisitionItem::create([
                 'requisition_id' => $requisition->id,
                 'catalog_item_id' => $row['catalog_item_id'],
@@ -1599,7 +1600,22 @@ class ProcurementReportsController extends Controller
                 'unit_of_measure' => 'EA',
                 'unit_cost' => round($row['unit'], 2),
                 'pst_applicable' => false,
-                'sort_order' => $index,
+                'sort_order' => $sort++,
+            ]);
+        }
+
+        // The new asks ride along as free-form lines — CDW's desk prices
+        // what has no part number yet, same as any special request.
+        foreach ($data['newAskLines'] as $line) {
+            RequisitionItem::create([
+                'requisition_id' => $requisition->id,
+                'catalog_item_id' => null,
+                'description' => trim($line->need.' — '.$line->description, ' —'),
+                'quantity' => $line->quantity,
+                'unit_of_measure' => 'EA',
+                'unit_cost' => round((float) $line->unit_cost, 2),
+                'pst_applicable' => false,
+                'sort_order' => $sort++,
             ]);
         }
 
@@ -1623,9 +1639,21 @@ class ProcurementReportsController extends Controller
         $cols = $this->leaseFieldColumns();
         $decisions = $this->leaseDecisionsByContract();
 
-        // ── The refresh: contracts ending in the year, each device priced
-        // at its replacement estimate, grouped the way the workbook read —
-        // one row per contract × replacement model × area.
+        // ── The budget envelope. The Lease End Schedules register is the
+        // authority: every schedule ending in the year has its FULL original
+        // value pre-approved for the new fiscal year — the whole envelope is
+        // the request, always. The decisions only steer what it buys: a kept
+        // lease-to-own contributes its value to the envelope and asks for no
+        // devices, which is exactly how its budget gets redistributed.
+        $endingSchedules = collect($this->leaseEndSchedules())
+            ->where('fiscal_year', $fyLabel)
+            ->values();
+        $envelope = (float) $endingSchedules->sum('cost');
+
+        // ── The refresh: refreshing contracts ending in the year, each
+        // device priced at its forecast replacement, grouped the way the
+        // workbook read — one row per contract × replacement model × area.
+        // Kept contracts get no row here; their story is the envelope's.
         $refresh = [];
         $refreshTotal = 0.0;
         $refreshDevices = 0;
@@ -1635,50 +1663,9 @@ class ProcurementReportsController extends Controller
                 continue;
             }
 
-            // A contract with an approved buyout is being kept, not
-            // refreshed. It still appears — finance reading this page must
-            // see the contract was weighed, not wonder where it went — but
-            // as a zero-dollar line saying "kept", contributing nothing to
-            // the totals and nothing to a PO draft.
             $decision = $decisions[$group['contract_id']] ?? null;
-            $retained = $decision && $decision->decision_type === 'buyout'
-                && in_array($decision->status, ['approved', 'completed'], true);
-
-            if ($retained) {
-                $liveCount = 0;
-                $modelCounts = [];
-                foreach ($group['assets'] as $asset) {
-                    $statusName = (string) $asset->status?->name;
-                    if ($asset->status?->getStatuslabelType() === 'archived'
-                        || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
-                        continue;
-                    }
-                    $liveCount++;
-                    $modelName = $asset->model?->name ?: trans('general.na');
-                    $modelCounts[$modelName] = ($modelCounts[$modelName] ?? 0) + 1;
-                }
-
-                if ($liveCount > 0) {
-                    arsort($modelCounts);
-                    $refresh['retained|'.$group['contract_id']] = [
-                        'area' => '—',
-                        'contract_id' => $group['contract_id'],
-                        'contract_name' => $group['contract_name'],
-                        'qty' => $liveCount,
-                        'model' => $this->summariseCounts($modelCounts),
-                        'unit' => 0.0,
-                        'estimated' => false,
-                        'cost' => 0.0,
-                        'preference' => trans('admin/purchase-orders/general.capital_retained'),
-                        'retained' => true,
-                        'note' => (string) $decision->notes,
-                        'catalog_item_id' => null,
-                        'vendor_sku' => null,
-                        'mfr_part_number' => null,
-                        'supplier_id' => null,
-                    ];
-                }
-
+            if ($decision && $decision->decision_type === 'buyout'
+                && in_array($decision->status, ['approved', 'completed'], true)) {
                 continue;
             }
 
@@ -1737,30 +1724,14 @@ class ProcurementReportsController extends Controller
             ->sortBy([['contract_id', 'asc'], ['cost', 'desc']])
             ->values();
 
-        // ── The new asks: planned orders for the year — the PO Builder's
-        // forecast lines that are not tied to an ending lease.
-        $newAsks = [];
-        $newAskTotal = 0.0;
-
-        $plannedOrders = Order::planned()
-            ->where('fiscal_year', $fyLabel)
-            ->with('items')
-            ->orderBy('order_number')
+        // ── The new asks: entered by hand, exactly as the workbook's "New
+        // Ask" rows were. A new ask is a decision, not a derivation — this
+        // page understands lease ends and requisitions, nothing about
+        // orders already placed.
+        $newAskLines = CapitalRequestLine::where('fiscal_year', $fyLabel)
+            ->orderBy('sort_order')->orderBy('id')
             ->get();
-
-        foreach ($plannedOrders as $order) {
-            foreach ($order->items as $item) {
-                $lineTotal = (float) $item->quantity * ((float) $item->unit_cost + (float) $item->warranty_cost);
-                $newAskTotal += $lineTotal;
-                $newAsks[] = [
-                    'need' => $order->order_number ?: trans('admin/purchase-orders/general.capital_new_ask'),
-                    'qty' => (int) $item->quantity,
-                    'model' => (string) $item->description,
-                    'unit' => (float) $item->unit_cost + (float) $item->warranty_cost,
-                    'cost' => $lineTotal,
-                ];
-            }
-        }
+        $newAskTotal = (float) $newAskLines->sum(fn ($line) => $line->lineTotal());
 
         // ── The POs this request became, once finance issued them — and the
         // requisitions still in flight ahead of a PO, so the page says where
@@ -1780,32 +1751,31 @@ class ProcurementReportsController extends Controller
         $csvRecords = [];
         foreach ($refresh as $row) {
             $csvRecords[] = ['cells' => [
-                $row['area'],
-                $row['retained']
-                    ? trim(trans('admin/purchase-orders/general.capital_retained').' '.$row['note'])
-                    : trans('admin/purchase-orders/general.capital_need_refresh'),
+                $row['area'], trans('admin/purchase-orders/general.capital_need_refresh'),
                 $row['contract_id'], $row['qty'], $row['model'],
-                $row['retained'] ? '' : $this->money($row['unit']),
-                $row['retained'] ? '' : $this->money($row['cost']),
-                $row['retained'] ? '' : $row['preference'],
+                $this->money($row['unit']), $this->money($row['cost']), $row['preference'],
             ]];
         }
-        foreach ($newAsks as $row) {
+        foreach ($newAskLines as $line) {
             $csvRecords[] = ['cells' => [
-                '', $row['need'], '', $row['qty'], $row['model'],
-                $this->money($row['unit']), $this->money($row['cost']), '',
+                '', $line->need, '', $line->quantity, $line->description,
+                $this->money((float) $line->unit_cost), $this->money($line->lineTotal()), '',
             ]];
         }
 
         return [
             'fy' => $fyLabel,
             'allFiscalYears' => $this->availableFiscalYears(),
+            'envelope' => $envelope,
+            'endingSchedules' => $endingSchedules,
             'refresh' => $refresh,
             'refreshTotal' => $refreshTotal,
             'refreshDevices' => $refreshDevices,
-            'newAsks' => $newAsks,
+            'newAskLines' => $newAskLines,
             'newAskTotal' => $newAskTotal,
-            'grandTotal' => $refreshTotal + $newAskTotal,
+            // The request is the envelope, always — the allocation below it
+            // says how much of it the lines account for so far.
+            'remaining' => $envelope - $refreshTotal - $newAskTotal,
             'purchaseOrders' => $purchaseOrders,
             'openRequisitions' => $openRequisitions,
             'csv' => [
@@ -1821,12 +1791,41 @@ class ProcurementReportsController extends Controller
                 ],
                 'records' => $csvRecords,
                 'footer' => [
-                    trans('admin/orders/general.total'), '', '',
-                    $refreshDevices + array_sum(array_column($newAsks, 'qty')), '', '',
-                    $this->money($refreshTotal + $newAskTotal), '',
+                    trans('admin/purchase-orders/general.capital_tile_envelope'), '', '',
+                    $refreshDevices + (int) $newAskLines->sum('quantity'), '', '',
+                    $this->money($envelope), '',
                 ],
             ],
         ];
+    }
+
+    /** Add one manually entered New Ask line to the year's capital request. */
+    public function capitalRequestLineStore(Request $request)
+    {
+        $this->authorize('create', Requisition::class);
+
+        $validated = $request->validate([
+            'fiscal_year' => 'required|string|max:16',
+            'need' => 'required|string|max:191',
+            'description' => 'required|string|max:191',
+            'quantity' => 'required|integer|min:1',
+            'unit_cost' => 'required|numeric|min:0',
+        ]);
+
+        $validated['fiscal_year'] = $this->normalizeFy($validated['fiscal_year']) ?? $validated['fiscal_year'];
+        CapitalRequestLine::create($validated);
+
+        return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $validated['fiscal_year']]);
+    }
+
+    public function capitalRequestLineDestroy(CapitalRequestLine $line)
+    {
+        $this->authorize('create', Requisition::class);
+
+        $fy = $line->fiscal_year;
+        $line->delete();
+
+        return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $fy]);
     }
 
     public function rentCosts(Request $request)

@@ -1367,6 +1367,10 @@ Route::group(['middleware' => ['auth']], function () {
             ->breadcrumbs($crumb('reports.procurement.capital-request', 'capital_request_title'));
         Route::post('capital/draft', [ProcurementReportsController::class, 'capitalRequestDraft'])
             ->name('reports.procurement.capital-request.draft');
+        Route::post('capital/lines', [ProcurementReportsController::class, 'capitalRequestLineStore'])
+            ->name('reports.procurement.capital-request.lines.store');
+        Route::delete('capital/lines/{line}', [ProcurementReportsController::class, 'capitalRequestLineDestroy'])
+            ->name('reports.procurement.capital-request.lines.destroy');
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));

@@ -775,11 +775,17 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('P0026099');
     }
 
-    public function test_a_kept_contract_shows_as_a_zero_dollar_line_not_an_omission()
+    public function test_the_envelope_is_the_request_and_kept_contracts_feed_it()
     {
-        // Lease-to-own being kept at term end, with the buyout logged: it
-        // appears (finance must see it was weighed), asks for nothing, and
-        // never reaches a PO draft.
+        // A refreshing contract and a kept lease-to-own, both ending in the
+        // year. The pre-approved envelope is the FULL original value of
+        // both — the kept contract contributes its budget while asking for
+        // no devices, which is how that money gets redistributed.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-REF',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 2500.00]);
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI-CAPREQ-KEPT',
             'Ownership Type' => 'Lease to Own',
@@ -789,23 +795,65 @@ class ProcurementReportsTest extends TestCase
             'contract_reference' => 'ECI-CAPREQ-KEPT',
             'decision_type' => 'buyout',
             'status' => 'approved',
-            'notes' => 'Refresh budget redirected to the Faculty Laptop program.',
         ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            // The envelope is both contracts' full value.
+            ->assertSee('$5,700.00')
+            ->assertSee(trans('admin/purchase-orders/general.capital_tile_envelope'))
+            // The kept contract sits in the envelope table…
+            ->assertSee('ECI-CAPREQ-KEPT')
+            ->assertSee(trans('admin/purchase-orders/general.lease_end_retained'))
+            ->getContent();
+
+        // …but never as a refresh line: only the refreshing contract's
+        // device is distributed, so the kept one renders exactly one row
+        // (the envelope's) while the refreshing one renders two.
+        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-KEPT</a>'));
+        $this->assertSame(2, substr_count($content, '>ECI-CAPREQ-REF</a>'));
+
+        // The draft carries only the refresh distribution.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
+        $requisition = \App\Models\Requisition::latest('id')->first();
+        $this->assertNotNull($requisition);
+        $this->assertSame(1, $requisition->items()->count());
+    }
+
+    public function test_new_asks_are_entered_by_hand_and_join_the_draft()
+    {
+        // The new asks are decisions, typed in — never derived from orders.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.lines.store'), [
+                'fiscal_year' => 'FY2026-27',
+                'need' => 'New Ask - Research TechServ',
+                'description' => 'Lenovo ThinkStation P620 64GB 2TB',
+                'quantity' => 6,
+                'unit_cost' => 4885.00,
+            ])
+            ->assertRedirect(route('reports.procurement.capital-request', ['fiscal_year' => 'FY2026-27']));
 
         $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
-            ->assertSee('ECI-CAPREQ-KEPT')
-            ->assertSee(trans('admin/purchase-orders/general.capital_retained'))
-            // Its original cost never lands in the ask.
-            ->assertDontSee('$3,200.00');
+            ->assertSee('New Ask - Research TechServ')
+            ->assertSee('$29,310.00');
 
-        // A year holding only kept contracts has nothing to draft.
+        // It rides into the PO draft as a free-form line.
         $this->actingAs($this->superuser())
-            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27'])
-            ->assertRedirect(route('reports.procurement.capital-request', ['fiscal_year' => 'FY2026-27']))
-            ->assertSessionHas('error');
-        $this->assertSame(0, \App\Models\Requisition::count());
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
+        $requisition = \App\Models\Requisition::latest('id')->first();
+        $this->assertNotNull($requisition);
+        $this->assertSame(6, (int) $requisition->items()->first()->quantity);
+
+        // And deletes cleanly.
+        $line = \App\Models\CapitalRequestLine::first();
+        $this->actingAs($this->superuser())
+            ->delete(route('reports.procurement.capital-request.lines.destroy', $line))
+            ->assertRedirect(route('reports.procurement.capital-request', ['fiscal_year' => 'FY2026-27']));
+        $this->assertSame(0, \App\Models\CapitalRequestLine::count());
     }
 
     public function test_the_capital_request_becomes_a_builder_draft()
