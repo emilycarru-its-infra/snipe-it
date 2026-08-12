@@ -160,13 +160,16 @@
         "updated_at"
     ],
     "capital_request_lines": [
+        "area",
         "created_at",
         "description",
         "fiscal_year",
         "id",
         "need",
+        "preference",
         "quantity",
         "sort_order",
+        "type",
         "unit_cost",
         "updated_at"
     ],
