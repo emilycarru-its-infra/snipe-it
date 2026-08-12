@@ -58,7 +58,14 @@ class WaveMembership
     }
 
     /**
-     * Wave members whose device is not actually at lease end.
+     * Wave members whose device is not actually due for replacement.
+     *
+     * Due means either date: the lease ending, or the machine reaching end of
+     * life. Reading lease end alone was wrong in the ordinary case rather than an
+     * edge one — a five-year lease-to-own refreshed on a four-year cycle reaches
+     * end of life a year before the lease ends, which is the whole reason the
+     * refresh happens when it does. It flagged all twenty faculty in a wave where
+     * every one of them was correctly included.
      *
      * A warning, not a gate: exceptions are legitimate and the person adding one
      * knows why. What is not legitimate is finding out in March that somebody was
@@ -77,26 +84,38 @@ class WaveMembership
             $user = $row['user'];
             $assets = $row['assets'];
 
-            // Any device of theirs in the wave reaching lease end inside the
-            // window makes them eligible; the reason names what was missing when
-            // none does.
-            $ending = $assets->filter(fn (Asset $asset) => $asset->lease_end_date !== null
-                && $asset->lease_end_date <= $cutoff);
+            // Either date makes them due, whichever comes first.
+            $due = $assets->filter(fn (Asset $asset) => $this->dueDate($asset) !== null
+                && $this->dueDate($asset) <= $cutoff);
 
-            if ($ending->isNotEmpty()) {
+            if ($due->isNotEmpty()) {
                 continue;
             }
 
-            $hasAnyLeaseDate = $assets->contains(fn (Asset $asset) => $asset->lease_end_date !== null);
+            $hasAnyDate = $assets->contains(fn (Asset $asset) => $this->dueDate($asset) !== null);
 
             $flagged->push([
                 'user' => $user,
                 'assets' => $assets,
-                'reason' => $hasAnyLeaseDate ? 'lease_not_ending' : 'no_lease_end_date',
+                'reason' => $hasAnyDate ? 'not_due' : 'no_dates',
             ]);
         }
 
         return $flagged->values();
+    }
+
+    /**
+     * When a device is due for replacement: the earlier of its end of life and
+     * its lease end. Either alone is an incomplete answer — a lease-to-own runs a
+     * year past the refresh, and a purchased machine has no lease date at all.
+     */
+    public function dueDate(Asset $asset): ?\Illuminate\Support\Carbon
+    {
+        $dates = collect([$asset->asset_eol_date, $asset->lease_end_date])
+            ->filter()
+            ->map(fn ($date) => \Illuminate\Support\Carbon::parse($date));
+
+        return $dates->isEmpty() ? null : $dates->sort()->first();
     }
 
     /**
