@@ -1361,6 +1361,10 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('rent-costs', [ProcurementReportsController::class, 'rentCosts'])
             ->name('reports.procurement.rent-costs')
             ->breadcrumbs($crumb('reports.procurement.rent-costs', 'report_rent_costs'));
+        // The year's capital ask, as one link for finance.
+        Route::get('capital', [ProcurementReportsController::class, 'capitalRequest'])
+            ->name('reports.procurement.capital-request')
+            ->breadcrumbs($crumb('reports.procurement.capital-request', 'capital_request_title'));
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
@@ -1371,7 +1375,9 @@ Route::group(['middleware' => ['auth']], function () {
             ->name('reports.procurement.receiving');
         Route::get('tax', [ProcurementReportsController::class, 'tax'])
             ->name('reports.procurement.tax');
-        Route::get('capital', [ProcurementReportsController::class, 'capital'])
+        // Capital Spend (the ledger) moved aside so /procurement/capital
+        // could be the Capital Request — the link that goes to finance.
+        Route::get('capital-spend', [ProcurementReportsController::class, 'capital'])
             ->name('reports.procurement.capital')
             ->breadcrumbs($crumb('reports.procurement.capital', 'report_capital'));
         Route::get('refresh-forecast', [ProcurementReportsController::class, 'refreshForecast'])

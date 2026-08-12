@@ -176,6 +176,33 @@ class PurchaseOrderVendorSendTest extends TestCase
         $this->assertNull($order->fresh()->vendor_sent_at);
     }
 
+    public function test_the_send_buttons_leave_once_the_order_is_out()
+    {
+        $order = $this->purchaseOrder();
+
+        // Not yet sent: the buttons are the point of the panel.
+        $this->actingAs($this->procurement())
+            ->get(route('purchase-orders.show', $order))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.vendor_send_submit'));
+
+        // Sent: nothing to send — the next move is the vendor's panel.
+        $order->forceFill(['vendor_sent_at' => now()])->save();
+        $this->actingAs($this->procurement())
+            ->get(route('purchase-orders.show', $order))
+            ->assertOk()
+            ->assertDontSee(trans('admin/purchase-orders/general.vendor_send_submit'))
+            ->assertSee(trans('admin/purchase-orders/general.vendor_response_title'));
+
+        // The vendor answered with changes: the basket reopens, and the
+        // send buttons with it.
+        $order->forceFill(['vendor_changes_at' => now()])->save();
+        $this->actingAs($this->procurement())
+            ->get(route('purchase-orders.show', $order))
+            ->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.vendor_send_submit'));
+    }
+
     public function test_a_stranger_cannot_send_an_order()
     {
         Mail::fake();
