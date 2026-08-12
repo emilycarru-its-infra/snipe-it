@@ -234,6 +234,15 @@ class EmailRegistry
                 'merge_vars' => ['agreement' => 'The agreement', 'faculty_name' => 'Recipient name'],
                 'factory' => fn (EmailSampleData $s) => new UserAgreementSignatureReminderMail($s->userAgreement('pickup'), 1),
             ],
+            [
+                'key' => FacultyProgramSubmissionMail::KEY,
+                'category' => 'agreements',
+                'label' => 'Faculty Laptop Program application',
+                'description' => 'Sent to the program when a faculty member submits or edits the intake form. Recipients default to the device and asset admin lists.',
+                'merge_vars' => ['pickup' => 'The application', 'buyout' => 'Their buyout agreement, if they chose one', 'applicant' => 'Who applied', 'asset' => 'Their current laptop', 'updated' => 'Whether this replaces an earlier submission'],
+                'factory' => fn (EmailSampleData $s) => new FacultyProgramSubmissionMail($s->userAgreement('pickup')),
+                'configurable_recipients' => true,
+            ],
 
             // ---- Acceptance responses (notification-channel; preview-only) ----
             [

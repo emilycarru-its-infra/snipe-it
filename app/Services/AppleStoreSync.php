@@ -13,10 +13,15 @@ use Illuminate\Support\Facades\Storage;
  * orderable configuration with its part number, CAD price, chip core
  * counts, colour, screen size and display finish — as a JSON bootstrap.
  * This walks those pages and refreshes any catalog row whose
- * manufacturer part number Apple recognises: the retail price lands as
- * the row's estimate (a CDW quote always outranks it), and the spec
- * columns are corrected from Apple's data, which knows the exact CPU/GPU
- * binning where our name parsing only knows the chip's base config.
+ * manufacturer part number Apple recognises: the spec columns are
+ * corrected from Apple's data, which knows the exact CPU/GPU binning
+ * where our name parsing only knows the chip's base config, and the
+ * retail price fills the estimate only when we have no price of our own.
+ *
+ * Price is deliberately not a refresh. We never buy at Apple retail —
+ * the reseller's price list is our negotiated bundle rate with the
+ * warranty already in it — so Apple's number overwriting ours made the
+ * catalog less honest rather than more.
  *
  * CTO rows carry CDW's own Z-codes, not Apple part numbers, so they pass
  * through untouched — their prices only ever come from quotes.
@@ -111,7 +116,17 @@ class AppleStoreSync
 
         $amount = $prices[$product['priceKey'] ?? '']['amount'] ?? null;
 
-        if ($amount !== null && (float) $amount > 0) {
+        // Apple's retail price only fills a blank. We do not buy at retail:
+        // the reseller's price list is bundle pricing at our negotiated
+        // rate, warranty included, and it is always the lower number — the
+        // two rows Apple had overwritten were out by $99 and $699, both
+        // upward, which is a real quote faculty were reading and a
+        // comparable the intake form was quoting back at them.
+        //
+        // The specs below are a different matter and still worth taking:
+        // Apple knows the exact CPU/GPU binning that our name parsing can
+        // only guess at from the chip's base configuration.
+        if ($amount !== null && (float) $amount > 0 && $item->estimated_cost === null) {
             $item->estimated_cost = (float) $amount;
 
             if ($item->price_type !== 'quoted') {
