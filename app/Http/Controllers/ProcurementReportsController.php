@@ -632,6 +632,13 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('procurement.view');
 
+        // The leases pages describe the whole portfolio by default — the
+        // FY-sticky scope answers a budgeting question these pages are not
+        // for. Opening bare lands on ?fiscal_year=all, explicitly.
+        if ($redirect = $this->redirectToAllYears($request, 'reports.procurement.leases-operational')) {
+            return $redirect;
+        }
+
         return $this->render(
             $request,
             'leases-operational-report',
@@ -648,6 +655,10 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('procurement.view');
 
+        if ($redirect = $this->redirectToAllYears($request, 'reports.procurement.leases-financial')) {
+            return $redirect;
+        }
+
         return $this->render(
             $request,
             'leases-financial-report',
@@ -658,6 +669,19 @@ class ProcurementReportsController extends Controller
             [],
             true
         );
+    }
+
+    /**
+     * The bare-URL default for the leases pages: every year. Embeds and CSV
+     * exports pass their scope explicitly and are left alone.
+     */
+    private function redirectToAllYears(Request $request, string $routeName)
+    {
+        if ($request->has('fiscal_year') || $request->boolean('embed') || $request->query('format')) {
+            return null;
+        }
+
+        return redirect()->route($routeName, ['fiscal_year' => 'all']);
     }
 
     /**
@@ -1379,31 +1403,41 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('procurement.view');
 
-        // A page of its own at /procurement/lessor-breakdown rather than an
-        // anchor on the reports hub. It is procurement's view of the lease
-        // portfolio and belongs on procurement's path, addressable and
-        // linkable — an anchor cannot be either. The hub still renders the
-        // same dataset as a section, from lessorBreakdownData().
+        $breakdown = $this->lessorBreakdownReport(null);
+
+        if ($request->query('format') === 'csv') {
+            return $this->streamReportCsv('lessor-breakdown-report', $breakdown);
+        }
+
+        if ($request->boolean('embed')) {
+            return $this->embedTable($breakdown);
+        }
+
+        // The Leasing page: the lease portfolio in one place — the three
+        // charts that used to sit on the reports hub, the lessor breakdown,
+        // and the year's rent contract by contract. One page answers "what
+        // are we leasing, from whom, and what does this year cost".
+        return view('reports.procurement.leasing', [
+            'breakdown' => $breakdown,
+            'rentCosts' => $this->rentCostsReport($this->resolveFiscalYear($request)),
+            'allFiscalYears' => $this->availableFiscalYears(),
+        ]);
+    }
+
+    public function rentCosts(Request $request)
+    {
+        $this->authorize('procurement.view');
+
         return $this->render(
             $request,
-            'lessor-breakdown-report',
-            trans('admin/purchase-orders/general.report_lessor_breakdown'),
-            'reports.lessor-breakdown',
-            $this->lessorBreakdownReport(null),
+            'rent-costs-report',
+            trans('admin/purchase-orders/general.report_rent_costs'),
+            'reports.procurement.rent-costs',
+            $this->rentCostsReport($this->resolveFiscalYear($request)),
             '',
             [],
             true
         );
-    }
-
-    /**
-     * The lessor breakdown dataset for the /reports hub section. Public so
-     * ReportsController can assemble the hub page; the portfolio snapshot is
-     * never FY-scoped.
-     */
-    public function lessorBreakdownData(): array
-    {
-        return $this->lessorBreakdownReport(null);
     }
 
     public function pstApplicability(Request $request)
@@ -2618,12 +2652,19 @@ class ProcurementReportsController extends Controller
 
         $records = [];
         $totalAssets = $totalActive = $totalBuyout = $totalArchived = 0;
+        $assetsPerContract = [];
+        $ownershipTotals = [];
 
         foreach ($this->groupedLeaseAssets($fy) as $group) {
             $totalAssets += count($group['assets']);
             $totalActive += $group['active'];
             $totalBuyout += $group['buyout'];
             $totalArchived += $group['archived'];
+
+            $assetsPerContract[$group['contract_id']] = count($group['assets']);
+            foreach ($group['ownership_counts'] as $type => $count) {
+                $ownershipTotals[$type] = ($ownershipTotals[$type] ?? 0) + $count;
+            }
 
             $records[] = [
                 // Buyout-only contracts are dimmed: they're history, not a
@@ -2650,7 +2691,46 @@ class ProcurementReportsController extends Controller
             $totalAssets, $totalActive, $totalBuyout, $totalArchived, '',
         ];
 
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+        arsort($assetsPerContract);
+        ksort($ownershipTotals);
+
+        return [
+            'columns' => $columns,
+            'records' => $records,
+            'footer' => $footer,
+            // Every column but the trailing Models list stays on one line.
+            'nowrap_except_last' => true,
+            'charts' => [
+                [
+                    'id' => 'leases-assets-per-contract',
+                    'title' => trans('admin/purchase-orders/general.leases_chart_assets_per_contract'),
+                    'type' => 'bar',
+                    'labels' => array_keys($assetsPerContract),
+                    'data' => array_values($assetsPerContract),
+                    'money' => false,
+                ],
+                [
+                    'id' => 'leases-ownership-mix',
+                    'title' => trans('admin/purchase-orders/general.leases_chart_ownership_mix'),
+                    'type' => 'doughnut',
+                    'labels' => array_keys($ownershipTotals),
+                    'data' => array_values($ownershipTotals),
+                    'money' => false,
+                ],
+                [
+                    'id' => 'leases-lifecycle',
+                    'title' => trans('admin/purchase-orders/general.leases_chart_lifecycle'),
+                    'type' => 'doughnut',
+                    'labels' => [
+                        trans('admin/purchase-orders/general.lease_active'),
+                        trans('admin/purchase-orders/general.lease_buyouts'),
+                        trans('admin/purchase-orders/general.lease_archived'),
+                    ],
+                    'data' => [$totalActive, $totalBuyout, $totalArchived],
+                    'money' => false,
+                ],
+            ],
+        ];
     }
 
     /**
@@ -2698,6 +2778,8 @@ class ProcurementReportsController extends Controller
         $records = [];
         $totalAssets = 0;
         $totalEquipment = $totalWarranty = $totalCost = 0.0;
+        $costPerContract = [];
+        $costByLessor = [];
 
         foreach ($groups as $group) {
             $equipmentCost = $group['total_cost'];
@@ -2744,6 +2826,9 @@ class ProcurementReportsController extends Controller
             $totalEquipment += $equipmentCost;
             $totalWarranty += $warrantyCost;
             $totalCost += $contractTotal;
+
+            $costPerContract[$group['contract_id']] = round($contractTotal, 2);
+            $costByLessor[$group['provider']] = round(($costByLessor[$group['provider']] ?? 0) + $contractTotal, 2);
 
             $records[] = [
                 'class' => '',
@@ -2797,7 +2882,44 @@ class ProcurementReportsController extends Controller
             '', '',
         ];
 
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+        arsort($costPerContract);
+        arsort($costByLessor);
+
+        return [
+            'columns' => $columns,
+            'records' => $records,
+            'footer' => $footer,
+            'nowrap_except_last' => true,
+            'charts' => [
+                [
+                    'id' => 'leases-cost-per-contract',
+                    'title' => trans('admin/purchase-orders/general.leases_chart_cost_per_contract'),
+                    'type' => 'bar',
+                    'labels' => array_keys($costPerContract),
+                    'data' => array_values($costPerContract),
+                    'money' => true,
+                ],
+                [
+                    'id' => 'leases-cost-by-lessor',
+                    'title' => trans('admin/purchase-orders/general.leases_chart_cost_by_lessor'),
+                    'type' => 'doughnut',
+                    'labels' => array_keys($costByLessor),
+                    'data' => array_values($costByLessor),
+                    'money' => true,
+                ],
+                [
+                    'id' => 'leases-cost-split',
+                    'title' => trans('admin/purchase-orders/general.leases_chart_cost_split'),
+                    'type' => 'doughnut',
+                    'labels' => [
+                        trans('admin/purchase-orders/general.lease_equipment_cost'),
+                        trans('admin/purchase-orders/general.lease_warranty_cost'),
+                    ],
+                    'data' => [round($totalEquipment, 2), round($totalWarranty, 2)],
+                    'money' => true,
+                ],
+            ],
+        ];
     }
 
     /**
@@ -3466,6 +3588,29 @@ class ProcurementReportsController extends Controller
                 ? $group['monthly_rent_total']
                 : $group['total_cost'] / $termMonths;
 
+            // One child row per still-open device, so a contract can be
+            // traced to the units to actually chase — serial (opens the
+            // record in the lightbox), tag, who or where it is checked out
+            // to, status and ownership type. Closed units are omitted: they
+            // are the part of the lease already dealt with. Nested under the
+            // contract with their own headings, because device rows borrowed
+            // the contract's columns before — serial numbers were rendering
+            // under "Lease End Date".
+            $childRows = [];
+            foreach ($state['open_assets'] as $asset) {
+                $target = $asset->assigned_to ? $asset->assignedTo : null;
+                $childRows[] = [
+                    'cells' => [
+                        $asset->serial,
+                        $asset->asset_tag,
+                        $this->describeAssignedTo($target) ?: (string) $asset->defaultLoc?->name,
+                        $asset->status?->name,
+                        trim((string) $asset->ownership_type),
+                    ],
+                    'links' => [0 => route('hardware.show', $asset->id)],
+                ];
+            }
+
             // The device dates govern the watch (see above); the register's
             // own term end still matters when it disagrees, so the conflict
             // rides along on the contract cell instead of a dedicated
@@ -3483,28 +3628,17 @@ class ProcurementReportsController extends Controller
                     $state['open'],
                 ],
                 'strong' => [1 => true],
-            ];
-
-            // One row per still-open device, so a contract can be traced to
-            // the units to actually chase — serial (opens the record in the
-            // lightbox), tag, who or where it is checked out to, status and
-            // ownership type. Closed units are omitted: they are the part of
-            // the lease already dealt with.
-            foreach ($state['open_assets'] as $asset) {
-                $target = $asset->assigned_to ? $asset->assignedTo : null;
-                $records[] = [
-                    'class' => 'lease-extension-detail',
-                    'cells' => [
-                        '',
-                        $asset->serial,
-                        $asset->asset_tag,
-                        $this->describeAssignedTo($target) ?: (string) $asset->defaultLoc?->name,
-                        $asset->status?->name,
-                        trim((string) $asset->ownership_type),
+                'children' => [
+                    'columns' => [
+                        trans('admin/hardware/table.serial'),
+                        trans('admin/hardware/table.asset_tag'),
+                        trans('admin/hardware/table.checkoutto'),
+                        trans('admin/hardware/table.status'),
+                        trans('admin/purchase-orders/general.detail_ownership'),
                     ],
-                    'links' => [1 => route('hardware.show', $asset->id)],
-                ];
-            }
+                    'rows' => $childRows,
+                ],
+            ];
         }
 
         return ['columns' => $columns, 'records' => $records];
@@ -3554,12 +3688,16 @@ class ProcurementReportsController extends Controller
         $records = [];
         $total = 0.0;
 
+        $canEdit = auth()->user()?->can('create', Order::class) ?? false;
+        $canDelete = auth()->user()?->can('delete', Order::class) ?? false;
+
         // Lease-to-own contracts carry no retirement obligation — the
         // equipment is simply kept at term end, no return is owed and no
         // buyout is paid — so they never contribute cost rows. They still
         // appear, as explicit zero-cost "Retained" lines further down, so
         // the register says the keep happened instead of silently omitting
-        // the contract.
+        // the contract. Keyed to the contract's lease end date, because the
+        // retained line is only true near term end.
         $leaseToOwnContracts = [];
 
         // Real per-asset Buyout Cost values aggregated per contract —
@@ -3568,7 +3706,7 @@ class ProcurementReportsController extends Controller
         // contains real numbers.
         foreach ($this->groupedLeaseAssets($fy) as $group) {
             if (! empty($group['ownership_counts']['Lease to Own'])) {
-                $leaseToOwnContracts[$group['contract_id']] = true;
+                $leaseToOwnContracts[$group['contract_id']] = $group['lease_end_date'];
 
                 continue;
             }
@@ -3608,7 +3746,9 @@ class ProcurementReportsController extends Controller
             // A decision logged against a lease-to-own contract is the
             // retention call, not a costed obligation — hold it for the
             // Retained block below rather than booking it as a buyout.
-            if (isset($leaseToOwnContracts[$decision->contract_reference])) {
+            // array_key_exists, not isset: the map's values are lease end
+            // dates and a contract without one is still lease-to-own.
+            if (array_key_exists($decision->contract_reference, $leaseToOwnContracts)) {
                 $retainedDecisions[$decision->contract_reference] = $decision;
 
                 continue;
@@ -3626,14 +3766,26 @@ class ProcurementReportsController extends Controller
                     (string) $decision->notes,
                 ],
                 'editable_note' => ['col' => 6, 'model' => 'lease_decision', 'id' => $decision->id],
+                'row_actions' => $this->leaseDecisionRowActions($decision, $canEdit, $canDelete),
             ];
         }
 
         // Retained lease-to-own contracts: the equipment is kept at term end,
         // so there is no return obligation and no buyout cost — the row's job
         // is to say that decision was made, at zero cost impact.
-        foreach (array_keys($leaseToOwnContracts) as $contractId) {
+        foreach ($leaseToOwnContracts as $contractId => $leaseEndRaw) {
             $decision = $retainedDecisions[$contractId] ?? null;
+
+            // "Kept at term end" is only a fact once term end is in sight.
+            // Without this, a lease-to-own signed this year showed up as a
+            // Retained decision five years before anyone could make it —
+            // 301452-008, ending 2031, read as already settled. Synthetic
+            // rows wait for the decision window; a row a human logged is
+            // theirs to keep (and now theirs to edit or delete).
+            if (! $decision && ! $this->withinLeaseDecisionWindow($leaseEndRaw)) {
+                continue;
+            }
+
             $record = [
                 'class' => '',
                 'cells' => [
@@ -3652,6 +3804,7 @@ class ProcurementReportsController extends Controller
             ];
             if ($decision) {
                 $record['editable_note'] = ['col' => 6, 'model' => 'lease_decision', 'id' => $decision->id];
+                $record['row_actions'] = $this->leaseDecisionRowActions($decision, $canEdit, $canDelete);
             }
             $records[] = $record;
         }
@@ -3662,6 +3815,68 @@ class ProcurementReportsController extends Controller
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Whether a contract's term end is close enough that an end-of-term
+     * fact (retained, returned, bought out) can honestly be stated. Uses
+     * the same lookahead as the Extension Watch — the two reports are
+     * describing the same window from opposite sides. A date that will not
+     * parse is treated as out of window: that contract's problem is data,
+     * and it belongs on Lease Data Health rather than in the register.
+     */
+    private function withinLeaseDecisionWindow(?string $raw): bool
+    {
+        if (empty($raw)) {
+            return false;
+        }
+
+        $leaseEnd = null;
+        foreach (['Y-m-d', 'm/d/Y'] as $fmt) {
+            $leaseEnd = \DateTime::createFromFormat($fmt, $raw);
+            if ($leaseEnd !== false) {
+                break;
+            }
+        }
+
+        if (! $leaseEnd) {
+            return false;
+        }
+
+        return $leaseEnd <= (new \DateTime('today'))
+            ->modify('+'.self::EXTENSION_LOOKAHEAD_MONTHS.' months');
+    }
+
+    /**
+     * The register rows a human logged are theirs to change from the
+     * register itself — a wrong row used to mean finding the decision in
+     * a different module by eye.
+     *
+     * @return array<int, array{url: string, icon: string, title: string, method?: string, confirm?: string}>
+     */
+    private function leaseDecisionRowActions(LeaseDecision $decision, bool $canEdit, bool $canDelete): array
+    {
+        $actions = [];
+
+        if ($canEdit) {
+            $actions[] = [
+                'url' => route('lease-decisions.edit', $decision->id),
+                'icon' => 'pencil',
+                'title' => trans('general.update'),
+            ];
+        }
+
+        if ($canDelete) {
+            $actions[] = [
+                'url' => route('lease-decisions.destroy', $decision->id),
+                'icon' => 'trash',
+                'title' => trans('general.delete'),
+                'method' => 'DELETE',
+                'confirm' => trans('general.sure_to_delete_var', ['item' => $decision->contract_reference]),
+            ];
+        }
+
+        return $actions;
     }
 
     /**
@@ -4386,53 +4601,18 @@ class ProcurementReportsController extends Controller
 
         $byFy = [];
         foreach ($this->groupedLeaseAssets(null) as $group) {
-            $start = null;
-            foreach ($group['assets'] as $asset) {
-                if ($asset->purchase_date) {
-                    $purchase = $asset->purchase_date instanceof \DateTimeInterface
-                        ? \Carbon\Carbon::instance(new \DateTime($asset->purchase_date->format('Y-m-d')))
-                        : \Carbon\Carbon::parse((string) $asset->purchase_date);
-                    if ($start === null || $purchase->lessThan($start)) {
-                        $start = $purchase;
-                    }
-                }
-            }
-            if ($start === null) {
+            $basis = $this->leaseRentBasis($group);
+            if ($basis === null) {
                 continue;
             }
 
-            $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
-            $termMonths = $isLeaseToOwn ? 60 : 48;
-
-            $end = null;
-            if (! empty($group['lease_end_date'])) {
-                foreach (['Y-m-d', 'm/d/Y'] as $fmt) {
-                    $parsed = \DateTime::createFromFormat($fmt, $group['lease_end_date']);
-                    if ($parsed !== false) {
-                        $end = \Carbon\Carbon::instance($parsed);
-                        break;
-                    }
-                }
-            }
-            $end ??= $start->copy()->addMonths($termMonths);
-            if ($end->lessThanOrEqualTo($start)) {
-                continue;
-            }
-
-            $rentIsComplete = $group['monthly_rent_total'] > 0
-                && $this->assetsWithRent($group['assets']) === count($group['assets']);
-            $actualTermMonths = max(1, (int) round($start->diffInDays($end) / 30.44));
-            $monthly = $rentIsComplete
-                ? (float) $group['monthly_rent_total']
-                : (float) $group['total_cost'] / $actualTermMonths;
-
-            for ($month = $start->copy()->startOfMonth(); $month->lessThan($end); $month->addMonth()) {
+            for ($month = $basis['start']->copy()->startOfMonth(); $month->lessThan($basis['end']); $month->addMonth()) {
                 $startYear = (int) ($month->month >= 4 ? $month->year : $month->year - 1);
                 if ($startYear < $currentStartYear - 6 || $startYear > $currentStartYear + 6) {
                     continue;
                 }
                 $fy = $fyOf($month);
-                $byFy[$fy] = ($byFy[$fy] ?? 0.0) + $monthly;
+                $byFy[$fy] = ($byFy[$fy] ?? 0.0) + $basis['monthly'];
             }
         }
 
@@ -4442,6 +4622,150 @@ class ProcurementReportsController extends Controller
             'labels' => array_keys($byFy),
             'data' => array_map(fn ($v) => round($v, 2), array_values($byFy)),
         ];
+    }
+
+    /**
+     * One contract's rent basis: when its term runs and what a month of it
+     * costs. The summed Lease Rent when every device carries one, else the
+     * contract's total cost amortised over the actual term — the same basis
+     * rule the Extension Watch applies, with `estimated` saying which was
+     * used. Null when the term cannot be established at all.
+     *
+     * Shared by the Annual Rent chart and the Rent Costs table so a bar on
+     * one and a total on the other can never disagree.
+     *
+     * @param  array<string, mixed>  $group
+     * @return array{start: \Carbon\Carbon, end: \Carbon\Carbon, monthly: float, estimated: bool}|null
+     */
+    private function leaseRentBasis(array $group): ?array
+    {
+        $start = null;
+        foreach ($group['assets'] as $asset) {
+            if ($asset->purchase_date) {
+                $purchase = $asset->purchase_date instanceof \DateTimeInterface
+                    ? \Carbon\Carbon::instance(new \DateTime($asset->purchase_date->format('Y-m-d')))
+                    : \Carbon\Carbon::parse((string) $asset->purchase_date);
+                if ($start === null || $purchase->lessThan($start)) {
+                    $start = $purchase;
+                }
+            }
+        }
+        if ($start === null) {
+            return null;
+        }
+
+        $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
+        $termMonths = $isLeaseToOwn ? 60 : 48;
+
+        $end = null;
+        if (! empty($group['lease_end_date'])) {
+            foreach (['Y-m-d', 'm/d/Y'] as $fmt) {
+                $parsed = \DateTime::createFromFormat($fmt, $group['lease_end_date']);
+                if ($parsed !== false) {
+                    $end = \Carbon\Carbon::instance($parsed);
+                    break;
+                }
+            }
+        }
+        $end ??= $start->copy()->addMonths($termMonths);
+        if ($end->lessThanOrEqualTo($start)) {
+            return null;
+        }
+
+        $rentIsComplete = $group['monthly_rent_total'] > 0
+            && $this->assetsWithRent($group['assets']) === count($group['assets']);
+        $actualTermMonths = max(1, (int) round($start->diffInDays($end) / 30.44));
+
+        return [
+            'start' => $start,
+            'end' => $end,
+            'monthly' => $rentIsComplete
+                ? (float) $group['monthly_rent_total']
+                : (float) $group['total_cost'] / $actualTermMonths,
+            'estimated' => ! $rentIsComplete,
+        ];
+    }
+
+    /**
+     * Rent Costs — what one fiscal year's leasing costs, contract by
+     * contract. The Annual Rent chart answers "how much a year"; the first
+     * follow-up is always "made up of what", and answering it meant opening
+     * the SharePoint workbook. Each contract contributes its monthly basis
+     * for the months of its term that fall inside the year.
+     */
+    private function rentCostsReport(?string $fy = null): array
+    {
+        // The question is "what does this year's leasing cost" — an
+        // unscoped register answers a different one, so no selection means
+        // the current fiscal year, never "all".
+        $startYear = (int) (now()->month >= 4 ? now()->year : now()->year - 1);
+        if ($fy && preg_match('/^FY(\d{4})-\d{2}$/', $fy, $m)) {
+            $startYear = (int) $m[1];
+        }
+        $fyLabel = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+        $fyStart = \Carbon\Carbon::create($startYear, 4, 1);
+        $fyEnd = $fyStart->copy()->addYear();
+
+        $columns = [
+            trans('admin/purchase-orders/general.lease_contract_name'),
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_provider'),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.extension_monthly_cost'),
+            trans('admin/purchase-orders/general.rent_months_in_fy', ['fy' => $fyLabel]),
+            trans('admin/purchase-orders/general.rent_fy_total', ['fy' => $fyLabel]),
+        ];
+
+        $records = [];
+        $total = 0.0;
+
+        foreach ($this->groupedLeaseAssets(null) as $group) {
+            $basis = $this->leaseRentBasis($group);
+            if ($basis === null) {
+                continue;
+            }
+
+            // The same month walk as the Annual Rent chart, restricted to
+            // the chosen year, so the table's total IS that year's bar.
+            $months = 0;
+            for ($month = $basis['start']->copy()->startOfMonth(); $month->lessThan($basis['end']); $month->addMonth()) {
+                if ($month->greaterThanOrEqualTo($fyStart) && $month->lessThan($fyEnd)) {
+                    $months++;
+                }
+            }
+            if ($months === 0) {
+                continue;
+            }
+
+            $fyRent = $basis['monthly'] * $months;
+            $total += $fyRent;
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
+                    $group['contract_name'] ?: $group['contract_id'],
+                    $group['contract_id'],
+                    $group['provider'],
+                    $this->dateString($group['lease_end_date']),
+                    $this->money($basis['monthly'])
+                        .($basis['estimated'] ? ' '.trans('admin/purchase-orders/general.extension_cost_estimated') : ''),
+                    $months,
+                    $this->money($fyRent),
+                ],
+            ];
+        }
+
+        // Biggest line first — that is the order the number gets asked in.
+        usort($records, fn ($a, $b) => $this->parseMoney($b['cells'][6]) <=> $this->parseMoney($a['cells'][6]));
+
+        $footer = [
+            trans('admin/orders/general.total'), '', '', '', '', '',
+            $this->money($total),
+        ];
+
+        // 'fy' rides along so the page can say which year it resolved to
+        // when the caller passed nothing.
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'fy' => $fyLabel];
     }
 
     /**
@@ -4740,6 +5064,8 @@ class ProcurementReportsController extends Controller
             'columns' => $report['columns'],
             'rows' => $report['records'],
             'footer' => $report['footer'] ?? null,
+            'reportCharts' => $report['charts'] ?? null,
+            'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
             'controls' => $controls,
             'downloadUrl' => route($routeName, array_filter($downloadParams, fn ($v) => $v !== null && $v !== '')),
             'reportParams' => $extraParams,
@@ -4761,6 +5087,7 @@ class ProcurementReportsController extends Controller
             'columns' => $report['columns'],
             'rows' => $report['records'],
             'footer' => $report['footer'] ?? null,
+            'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
             'canEditNotes' => auth()->user()?->can('create', Order::class) ?? false,
         ]);
     }
@@ -4780,6 +5107,12 @@ class ProcurementReportsController extends Controller
 
             foreach ($report['records'] as $record) {
                 fputcsv($handle, $formatter->escapeRecord($record['cells']));
+
+                // Nested unit rows flatten under their parent, indented by
+                // one empty cell — the same shape the flat export had.
+                foreach ($record['children']['rows'] ?? [] as $child) {
+                    fputcsv($handle, $formatter->escapeRecord(array_merge([''], $child['cells'])));
+                }
             }
 
             if (! empty($report['footer'])) {

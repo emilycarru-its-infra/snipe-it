@@ -16,6 +16,29 @@ class DeploymentsBoardTest extends TestCase
         return User::factory()->superuser()->create();
     }
 
+    public function test_waves_index_lists_every_wave_with_the_inline_catalogs()
+    {
+        DeploymentWave::create(['name' => 'FY26 Faculty Refresh', 'slug' => 'fy26-faculty', 'fiscal_year' => 'FY2026-27']);
+        DeploymentWave::create(['name' => 'FY24 Lab Rollout', 'slug' => 'fy24-lab', 'fiscal_year' => 'FY2024-25']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployment-waves.index'))
+            ->assertOk()
+            ->assertSee('FY26 Faculty Refresh')
+            ->assertSee('FY24 Lab Rollout')
+            // The catalogs are managed here, not behind a Configure page.
+            ->assertSee(trans('admin/deployments/general.catalog_types'))
+            ->assertSee(trans('admin/deployments/general.catalog_stages'));
+    }
+
+    public function test_decommissioning_has_a_page_of_its_own()
+    {
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.decommissioning'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.decom_title'));
+    }
+
     public function test_board_renders_the_stage_rail_from_the_stage_catalog()
     {
         $wave = DeploymentWave::create(['name' => 'Rail Wave', 'fiscal_year' => 'FY2026-27']);
