@@ -12,6 +12,7 @@ return [
     'theme'                 => 'Area',
     'product'               => 'Product',
     'fiscal_year'           => 'Fiscal Year',
+    'program'               => 'Program',
     'contract_type'         => 'Type',
     'workflow_status'       => 'Workflow Status',
     'start_date'            => 'Start Date',

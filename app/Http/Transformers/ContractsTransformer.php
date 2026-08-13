@@ -30,6 +30,7 @@ class ContractsTransformer
             'theme'               => $contract->theme ? e($contract->theme) : null,
             'product'             => $contract->product ? e($contract->product) : null,
             'fiscal_year'         => $contract->fiscal_year ? e($contract->fiscal_year) : null,
+            'program'             => $contract->program ? e($contract->program) : null,
             'type'                => $contract->type ? e($contract->type) : null,
             'workflow_status'     => $contract->workflow_status ? e($contract->workflow_status) : null,
             'is_active'           => (bool) $contract->is_active,

@@ -39,6 +39,7 @@
                         <tr><th style="width:30%">{{ trans('admin/contracts/general.theme') }}</th><td>{{ $contract->theme ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.product') }}</th><td>{{ $contract->product ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.fiscal_year') }}</th><td>{{ $contract->fiscal_year ?? '—' }}</td></tr>
+                        <tr><th>{{ trans('admin/contracts/general.program') }}</th><td>{{ $contract->program ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.contract_type') }}</th><td>{{ $contract->type ?? '—' }}</td></tr>
                         <tr><th>{{ trans('admin/contracts/general.workflow_status') }}</th><td>{{ $contract->workflow_status ?? '—' }}</td></tr>
                         <tr><th>{{ trans('general.supplier') }}</th><td>

@@ -24,7 +24,7 @@ class ContractsController extends Controller
             ->withCount(['children', 'licenses', 'assets', 'serials'])
             ->withSum('children as children_cost_sum', 'total_cost');
 
-        foreach (['theme', 'product', 'fiscal_year', 'type', 'workflow_status', 'supplier_id', 'gl_code', 'tdx_id', 'parent_contract_id', 'source', 'ssot', 'schedule_number'] as $field) {
+        foreach (['theme', 'product', 'fiscal_year', 'program', 'type', 'workflow_status', 'supplier_id', 'gl_code', 'tdx_id', 'parent_contract_id', 'source', 'ssot', 'schedule_number'] as $field) {
             if ($request->filled($field)) {
                 $contracts->where($field, '=', $request->input($field));
             }
@@ -72,7 +72,7 @@ class ContractsController extends Controller
 
         $allowed_columns = [
             'id', 'name', 'contract_number', 'theme', 'product', 'fiscal_year',
-            'type', 'workflow_status', 'is_active', 'start_date', 'end_date',
+            'program', 'type', 'workflow_status', 'is_active', 'start_date', 'end_date',
             'total_cost', 'gl_code', 'tdx_id', 'tdx_modified_date',
             'created_at', 'updated_at',
         ];
