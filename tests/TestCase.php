@@ -4,6 +4,7 @@ namespace Tests;
 
 use App\Http\Middleware\SecurityHeaders;
 use App\Models\Asset;
+use App\Services\FormAccess;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use RuntimeException;
@@ -44,6 +45,13 @@ abstract class TestCase extends BaseTestCase
         // Flush the custom field filter map cache between tests so that
         // dynamically-created custom fields are always picked up fresh.
         Asset::flushCustomFieldFilterMap();
+
+        // Same reason, and the same bug: FormAccess memoizes who may submit
+        // which form, keyed by user id. Ids repeat across tests on a fresh
+        // database, so one test's answer decided another test's store gate
+        // — which showed up only in a full run, as a redirect in a test
+        // that passes on its own.
+        FormAccess::flush();
     }
 
     // ...existing code...

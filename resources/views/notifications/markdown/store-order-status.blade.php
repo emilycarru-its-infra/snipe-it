@@ -5,7 +5,10 @@
 
 {{ trans('mail.store_order_'.$event.'_intro') }}
 
-@if ($event === 'declined' && $note)
+{{-- Any decision note, not only a refusal. An approval note is written to
+     be read, and this printed it nowhere for approvals — so the note sat on
+     the order while the requester got a bare "approved". --}}
+@if ($note && in_array($event, ['approved', 'declined'], true))
 > {{ $note }}
 @endif
 

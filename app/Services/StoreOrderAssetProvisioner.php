@@ -140,6 +140,8 @@ class StoreOrderAssetProvisioner
             $asset->name = $order->user?->present()->fullName;
         }
 
+        $this->stampRequiredCustomFields($asset, $order, $line);
+
         $asset->order_number = $order->reference();
         $asset->purchase_cost = (float) $line->unit_cost ?: null;
         $asset->supplier_id = $line->catalogItem?->supplier_id;
@@ -156,6 +158,92 @@ class StoreOrderAssetProvisioner
         }
 
         return $asset;
+    }
+
+    /**
+     * Fill the custom fields the model's fieldset insists on.
+     *
+     * Without this an order for anything whose model carries a fieldset
+     * provisioned nothing at all: validation rejected the save, the method
+     * below logged and returned null, and StoreController caught it so the
+     * order still succeeded. Two iPads went missing that way and nobody
+     * noticed until somebody went looking for the order — 50 of the 61
+     * items on the shelf are on a fieldset, so the six laptops that did
+     * provision only worked because that one model happens to carry none.
+     *
+     * Resolved by field name rather than by the `_snipeit_*` column, which
+     * is an environment fact: the same field is a different column in dev.
+     * Only fields we can actually answer are set, and only when required —
+     * guessing at Memory or Colour to satisfy a validator would put
+     * invented facts on an asset record.
+     */
+    private function stampRequiredCustomFields(Asset $asset, StoreOrder $order, StoreOrderItem $line): void
+    {
+        $fields = $asset->model?->fieldset?->fields;
+
+        if (! $fields) {
+            return;
+        }
+
+        $known = [
+            'Platform' => $this->platformFor($line),
+            'Catalog' => $this->catalogFor($order),
+        ];
+
+        foreach ($fields as $field) {
+            $value = $known[$field->name] ?? null;
+
+            // `required` is a property of this field *on this fieldset*, so
+            // it lives on the pivot — the same field is optional elsewhere.
+            if ($value !== null && $field->pivot?->required && $field->db_column) {
+                $asset->{$field->db_column} = $value;
+            }
+        }
+    }
+
+    /**
+     * Which platform this line is, in the Platform field's own vocabulary.
+     *
+     * CatalogItem::platform() answers Macintosh for everything Apple makes,
+     * which is right for the store's filtering and wrong on an iPad's asset
+     * record. The category is what separates them.
+     */
+    private function platformFor(StoreOrderItem $line): ?string
+    {
+        $item = $line->catalogItem;
+        $manufacturer = $item?->model?->manufacturer?->name;
+
+        if (! $manufacturer) {
+            return null;
+        }
+
+        if ($manufacturer !== 'Apple') {
+            return 'Windows';
+        }
+
+        $name = strtolower(trim(($item->category ?? '').' '.($item->name ?? '')));
+
+        return match (true) {
+            str_contains($name, 'ipad') => 'iPadOS',
+            str_contains($name, 'iphone') => 'iOS',
+            str_contains($name, 'apple tv') => 'tvOS',
+            str_contains($name, 'vision') => 'visionOS',
+            default => 'Macintosh',
+        };
+    }
+
+    /**
+     * Which programme the device belongs to. The order already knows: a
+     * faculty-programme order is a Faculty machine, a shared cart buys for
+     * a room and those are Curriculum, and everything else is Staff.
+     */
+    private function catalogFor(StoreOrder $order): string
+    {
+        return match (true) {
+            $order->isFacultyProgram() => 'Faculty',
+            $order->isShared() => 'Curriculum',
+            default => 'Staff',
+        };
     }
 
     /**
