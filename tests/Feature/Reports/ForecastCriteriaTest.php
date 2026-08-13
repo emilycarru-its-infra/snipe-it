@@ -40,7 +40,7 @@ class ForecastCriteriaTest extends TestCase
         $desktop = $this->assetInCategory('EARLY-DESKTOP', 'Desktop');
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.forecast', [
+            ->get(route('deployments.forecast', [
                 'fiscal_year' => 'all',
                 'criteria' => [['field' => 'category', 'value' => 'Laptop']],
             ]))
@@ -54,7 +54,7 @@ class ForecastCriteriaTest extends TestCase
         $laptop = $this->assetInCategory('EARLY-LAPTOP', 'Laptop');
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.forecast', ['fiscal_year' => 'all']))
+            ->get(route('deployments.forecast', ['fiscal_year' => 'all']))
             ->assertOk()
             ->assertDontSee('EARLY-LAPTOP');
     }
@@ -66,7 +66,7 @@ class ForecastCriteriaTest extends TestCase
         // A blank value row and an unknown field must not throw and must not
         // narrow the result on their own; the real category row still applies.
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.forecast', [
+            ->get(route('deployments.forecast', [
                 'fiscal_year' => 'all',
                 'criteria' => [
                     ['field' => 'category', 'value' => 'Laptop'],
