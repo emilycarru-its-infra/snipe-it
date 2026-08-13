@@ -917,8 +917,17 @@ class DeploymentsController extends Controller
             ? DeploymentWave::where('fiscal_year', $fy)->withCount('items')->ordered()->get()
             : DeploymentWave::withCount('items')->ordered()->get();
 
+        // The money beside the plan: the capital request's envelope (lease
+        // ends' pre-approved funds), what the current plan requests, and
+        // the gap — so adjusting waves here shows its budget effect without
+        // a tab switch. Procurement numbers, so procurement's permission.
+        $capital = auth()->user()?->can('procurement.view')
+            ? app(ProcurementReportsController::class)->capitalSummary($fy)
+            : null;
+
         return view('reports.deployments.forecast', [
             'candidates' => $candidates,
+            'capital' => $capital,
             'fiscalYears' => $fiscalYears ?: [$fy],
             'fy' => $fy,
             'waves' => $waves,

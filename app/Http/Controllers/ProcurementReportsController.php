@@ -1795,6 +1795,27 @@ class ProcurementReportsController extends Controller
         return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $fy]);
     }
 
+    /**
+     * The capital request's money in four numbers, for pages that plan
+     * against it — the forecast shows this strip so adjusting the plan and
+     * watching the funds happen on the same screen. Public for the same
+     * reason lessorBreakdownData once was: another controller assembles a
+     * page around it.
+     *
+     * @return array{fy: string, envelope: float, requested: float, remaining: float}
+     */
+    public function capitalSummary(?string $fy): array
+    {
+        $data = $this->capitalRequestData($fy);
+
+        return [
+            'fy' => $data['fy'],
+            'envelope' => (float) $data['envelope'],
+            'requested' => (float) $data['refreshTotal'] + (float) $data['newAskTotal'],
+            'remaining' => (float) $data['remaining'],
+        ];
+    }
+
     public function rentCosts(Request $request)
     {
         $this->authorize('procurement.view');
