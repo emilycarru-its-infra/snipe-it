@@ -1504,7 +1504,7 @@ class ProcurementReportsController extends Controller
         // wave board shows. Devices on no wave fall back to the forecast's
         // like-for-like mapping. The wave rides along on the row, so the
         // request reads straight back to the board it came from.
-        $waveItems = DeploymentItem::with(['wave:id,name', 'model.refreshCatalogItem', 'model.category'])
+        $waveItems = DeploymentItem::with(['wave:id,name,fiscal_year', 'model.refreshCatalogItem', 'model.category'])
             ->whereNotNull('replaces_asset_id')
             ->get()
             ->keyBy('replaces_asset_id');
@@ -1535,27 +1535,51 @@ class ProcurementReportsController extends Controller
             }
         }
 
-        // ── The refresh: refreshing contracts ending in the year, each
-        // device priced at its planned or forecast replacement, grouped the
-        // way the workbook read — one row per contract × replacement model
-        // × area. Kept contracts get no row here; their story is the
-        // envelope's.
+        // ── The refresh, one device at a time. Which YEAR a device asks in
+        // follows the decision chain, strongest first: a wave it is planned
+        // into pins it to that wave's fiscal year (an operational call —
+        // the FY26-27 faculty wave refreshing 5-year leases at year 4 must
+        // land in FY26-27's request, not the year the paper expires); with
+        // no wave, the forecast's operative date decides — the EARLIER of
+        // its End of Life and its lease end, the same rule the forecast
+        // itself applies; lease end alone is only the default when nothing
+        // sharper was decided. Kept contracts get no rows anywhere; their
+        // story is the envelope's.
         $refresh = [];
         $refreshTotal = 0.0;
         $refreshDevices = 0;
 
         foreach ($this->groupedLeaseAssets(null) as $group) {
-            if ($this->fiscalYearFromEndDate($group['lease_end_date']) !== $fyLabel) {
-                continue;
-            }
-
             $decision = $decisions[$group['contract_id']] ?? null;
             if ($decision && $decision->decision_type === 'buyout'
                 && in_array($decision->status, ['approved', 'completed'], true)) {
                 continue;
             }
 
+            $contractFy = $this->fiscalYearFromEndDate($group['lease_end_date']);
+
             foreach ($group['assets'] as $asset) {
+                // The device's request year: wave FY, else the earlier of
+                // EOL and lease end, else the contract's lease-end year.
+                $deviceWaveItem = $waveItems->get($asset->id);
+                $waveFy = $this->normalizeFy((string) $deviceWaveItem?->wave?->fiscal_year);
+
+                $eolStr = $asset->asset_eol_date
+                    ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString()
+                    : '';
+                $leaseStr = (string) ($asset->lease_end_date ?? '');
+                $operativeDate = match (true) {
+                    $eolStr !== '' && $leaseStr !== '' => min($eolStr, $leaseStr),
+                    $eolStr !== '' => $eolStr,
+                    default => $leaseStr,
+                };
+
+                $requestFy = $waveFy
+                    ?: ($this->fiscalYearFromEndDate($operativeDate) ?? $contractFy);
+
+                if ($requestFy !== $fyLabel) {
+                    continue;
+                }
                 // Disposed units carry budget, not bodies — same rule as
                 // the Lease End Schedules headcount.
                 $statusName = (string) $asset->status?->name;
@@ -1566,7 +1590,7 @@ class ProcurementReportsController extends Controller
 
                 // The wave's planned model wins over the like-for-like
                 // forecast: once a device is on a wave, the wave is the plan.
-                $waveItem = $waveItems->get($asset->id);
+                $waveItem = $deviceWaveItem;
                 $plannedModel = $waveItem?->model;
 
                 if ($plannedModel) {

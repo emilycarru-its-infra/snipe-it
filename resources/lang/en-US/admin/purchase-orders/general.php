@@ -279,6 +279,7 @@ return [
     'capital_col_wave' => 'Wave',
     'capital_col_reqm' => 'REQM',
     'capital_col_po' => 'PO',
+    'capital_group_lines' => 'lines',
     'capital_model_placeholder' => 'Model / description',
     'capital_pos_title' => 'Issued purchase orders for this year',
     'capital_reqs_title' => 'Open requisitions — awaiting a purchase order',

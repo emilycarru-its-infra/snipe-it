@@ -870,6 +870,56 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('P0026150');
     }
 
+    public function test_a_devices_request_year_follows_the_decision_not_the_paper()
+    {
+        // The faculty case: a 5-year lease ending in FY2027-28, refreshed
+        // at year 4 by a FY2026-27 wave. The wave is the decision, so the
+        // line belongs to FY2026-27's request — not the year the paper
+        // expires.
+        $waved = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 2100.00]);
+        $wave = \App\Models\DeploymentWave::create([
+            'name' => 'FY26-27 Faculty Wave', 'slug' => 'fy2627-early-'.uniqid(), 'fiscal_year' => 'FY2026-27',
+        ]);
+        \App\Models\DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $waved->id]);
+
+        // Same contract, no wave, but an End of Life WE set earlier than
+        // the lease end: the forecast's operative date wins. (Stamped after
+        // create — the factory's afterMaking overwrites asset_eol_date.)
+        $early = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 1900.00]);
+        Asset::query()->whereKey($early->id)->update(['asset_eol_date' => '2026-10-01']);
+
+        // And one with nothing sharper decided: lease end stands.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 1700.00]);
+
+        // FY2026-27 carries the wave device and the early-EOL device…
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('$2,100.00')
+            ->assertSee('$1,900.00')
+            ->assertDontSee('$1,700.00');
+
+        // …and FY2027-28 keeps only the undecided one.
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2027-28')
+            ->assertOk()
+            ->assertSee('$1,700.00')
+            ->assertDontSee('$2,100.00')
+            ->assertDontSee('$1,900.00');
+    }
+
     public function test_new_asks_are_entered_by_hand_and_join_the_draft()
     {
         // The new asks are decisions, typed in — never derived from orders.
