@@ -49,6 +49,10 @@ return [
     'buyout_cost_pro_13' => '~$900 for the 13" MacBook Pro',
     'buyout_cost_pro_15' => '~$1,100 for the 15" MacBook Pro',
     'buyout_yes' => 'Yes, I want to keep and buy out my laptop and pay the remaining end-of-lease costs',
+    // Said at the point of choosing, because choosing is what sends the
+    // email. Somebody picking this should know a third party is about to be
+    // contacted about their machine, and that a number is coming back.
+    'buyout_yes_note' => 'Choosing this asks the lease company for a firm quote on your laptop. You will be copied on that request, and nothing is charged until you have seen the figure.',
     'buyout_no' => 'No, I don\'t want to keep my laptop and will return it by Sept 15th to B1116, B1115, or Media Resources',
     'buyout_no_prior_laptop' => 'No, I don\'t have a laptop to return',
     'buyout_have_laptop' => 'Our records show a laptop checked out to you — choose whether you\'re keeping or returning it.',
@@ -117,7 +121,11 @@ return [
     'tradein_title' => 'Trade in or keep?',
     'tradein_none_title' => 'Your first program laptop',
     'tradein_none_sub' => 'We found no leased laptop checked out to you — if that\'s wrong, enter its tag and serial below.',
-    'tradein_buyout_estimate' => 'estimated buyout, confirmed before anything is charged',
+    // An estimate, and said to be one. Roughly a year's rent, which is what
+    // these settle near; the firm number comes from the lease company, and
+    // only for the people who ask to keep their machine.
+    'tradein_buyout_estimate' => 'estimated buyout — about a year\'s rent. We ask the lease company for a firm quote only if you choose to keep it, and nothing is charged before you see it.',
+    'tradein_buyout_quoted' => 'quoted by the lease company',
     'newmachine_kicker' => 'Your new laptop',
     'payment_kicker' => 'If you go above the base',
     'notes_kicker' => 'Anything else',

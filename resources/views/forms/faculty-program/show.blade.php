@@ -132,7 +132,9 @@
                                         <span class="ecu-tag">{{ $laptop->asset_tag }}</span>
                                         @if ($laptop->serial) · <span class="ecu-tag">{{ $laptop->serial }}</span> @endif
                                         @if (! is_null($buyoutCosts->get($laptop->id)))
-                                            <br>{{ trans('admin/forms/faculty-program.tradein_buyout_estimate') }}
+                                            <br>{{ trans($buyoutIsQuoted->get($laptop->id)
+                                                ? 'admin/forms/faculty-program.tradein_buyout_quoted'
+                                                : 'admin/forms/faculty-program.tradein_buyout_estimate') }}
                                             <strong>${{ \App\Helpers\Helper::formatCurrencyOutput($buyoutCosts->get($laptop->id)) }}</strong>
                                         @endif
                                     </span>
@@ -158,7 +160,9 @@
                         </table>
                         @if (! is_null($buyoutCosts->get($priorAsset->id)))
                             <div class="fp-buyout-price">${{ \App\Helpers\Helper::formatCurrencyOutput($buyoutCosts->get($priorAsset->id)) }}</div>
-                            <div class="fp-muted">{{ trans('admin/forms/faculty-program.tradein_buyout_estimate') }}</div>
+                            <div class="fp-muted">{{ trans($buyoutIsQuoted->get($priorAsset->id)
+                                ? 'admin/forms/faculty-program.tradein_buyout_quoted'
+                                : 'admin/forms/faculty-program.tradein_buyout_estimate') }}</div>
                         @endif
                     </div>
                 @endif
@@ -171,7 +175,14 @@
                     <label class="ecu-opt {{ $prefillBuyout === 'yes' ? 'ecu-selected' : '' }}">
                         <input type="radio" name="buyout_decision" value="yes" {{ $prefillBuyout === 'yes' ? 'checked' : '' }} required>
                         <span class="ecu-ctl"></span>
-                        <span class="ecu-opt-text">{{ trans('admin/forms/faculty-program.buyout_yes') }}</span>
+                        <span class="ecu-opt-text">
+                            {{ trans('admin/forms/faculty-program.buyout_yes') }}
+                            {{-- Said where the choice is made, because making it is
+                                 what sends the email. --}}
+                            <small class="fp-muted" style="display:block; margin-top:6px;">
+                                {{ trans('admin/forms/faculty-program.buyout_yes_note') }}
+                            </small>
+                        </span>
                     </label>
                     <label class="ecu-opt {{ $prefillBuyout === 'no' ? 'ecu-selected' : '' }}">
                         <input type="radio" name="buyout_decision" value="no" {{ $prefillBuyout === 'no' ? 'checked' : '' }}>

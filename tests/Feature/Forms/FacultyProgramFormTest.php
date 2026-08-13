@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Forms;
 
+use App\Mail\AssetBuyoutRequestMail;
 use App\Mail\FacultyProgramSubmissionMail;
 use App\Models\Asset;
 use App\Models\AssetModel;
@@ -720,5 +721,116 @@ class FacultyProgramFormTest extends TestCase
             ->where('agreement_type', 'purchase')->first()->lifecycle_stage);
 
         $this->actingAs($user)->get(route('store.index'))->assertOk();
+    }
+
+    /** A laptop on an active lease, so a buyout quote is eligible. */
+    private function leasedLaptopFor(User $user, string $tag, float $cost = 2996.93): Asset
+    {
+        $category = Category::firstOrCreate(
+            ['name' => 'Laptop', 'category_type' => 'asset'],
+            ['created_by' => 1],
+        );
+
+        return Asset::factory()->create([
+            'model_id' => AssetModel::factory()->create(['category_id' => $category->id])->id,
+            'assigned_to' => $user->id,
+            'assigned_type' => User::class,
+            'asset_tag' => $tag,
+            'purchase_cost' => $cost,
+            'lease_end_date' => now()->addYear()->format('Y-m-d'),
+            'ownership_type' => 'Leased',
+        ]);
+    }
+
+    /**
+     * A year's rent, derived from capital cost. On the ECI20221001
+     * schedule the lessor's own rent line is a flat 21.4% of acquisition
+     * cost before tax and a shade over 24% with it, so multiplying
+     * reproduces their figure rather than approximating it.
+     */
+    public function test_the_form_estimates_a_buyout_when_no_quote_exists(): void
+    {
+        config(['forms.buyout_estimate.annual_rent_factor' => 0.24]);
+        $user = $this->facultyUser();
+        $this->leasedLaptopFor($user, 'A00EST', 2996.93);
+
+        $this->actingAs($user)->get(route('forms.show', 'faculty-program'))
+            ->assertOk()
+            // 2,996.93 x 0.24 = 719.26, the lessor's 719.32 to within cents.
+            ->assertSee('719.26', false)
+            ->assertSee('estimated buyout', false);
+    }
+
+    /** A real quote outranks the estimate, and says it is a quote. */
+    public function test_a_quoted_buyout_outranks_the_estimate(): void
+    {
+        $user = $this->facultyUser();
+        $asset = $this->leasedLaptopFor($user, 'A00QUO', 2996.93);
+        $asset->buyout_cost = 850.00;
+        $asset->saveQuietly();
+
+        $this->actingAs($user)->get(route('forms.show', 'faculty-program'))
+            ->assertOk()
+            ->assertSee('850.00', false)
+            ->assertSee('quoted by the lease company', false)
+            ->assertDontSee('719.26', false);
+    }
+
+    /** No capital cost, no estimate — better blank than a confident zero. */
+    public function test_no_purchase_cost_means_no_estimate(): void
+    {
+        $user = $this->facultyUser();
+        $asset = $this->leasedLaptopFor($user, 'A00NIL');
+        $asset->purchase_cost = null;
+        $asset->saveQuietly();
+
+        $this->actingAs($user)->get(route('forms.show', 'faculty-program'))
+            ->assertOk()
+            ->assertDontSee('estimated buyout', false);
+    }
+
+    /**
+     * Choosing to keep the machine is what makes a firm quote worth
+     * asking for, so the request goes then rather than waiting for
+     * somebody to press the button on the asset page.
+     */
+    public function test_choosing_buyout_requests_a_quote_from_the_lessor(): void
+    {
+        Mail::fake();
+        $user = $this->facultyUser();
+        $asset = $this->leasedLaptopFor($user, 'A00REQ');
+        $supplier = \App\Models\Supplier::factory()->create(['email' => 'lessor@example.test']);
+        $asset->lessor_id = $supplier->id;
+        $asset->saveQuietly();
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'yes',
+            'buyout_asset_tag' => 'A00REQ',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        Mail::assertSent(AssetBuyoutRequestMail::class);
+    }
+
+    /** Returning it asks nobody for anything. */
+    public function test_returning_the_laptop_requests_no_quote(): void
+    {
+        Mail::fake();
+        $user = $this->facultyUser();
+        $asset = $this->leasedLaptopFor($user, 'A00NOREQ');
+        $supplier = \App\Models\Supplier::factory()->create(['email' => 'lessor@example.test']);
+        $asset->lessor_id = $supplier->id;
+        $asset->saveQuietly();
+
+        $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), [
+            'acknowledge_top_up' => '1',
+            'payment_method' => 'pay_in_full',
+            'buyout_decision' => 'no',
+            'accept_terms' => '1',
+        ])->assertRedirect(route('forms.success', 'faculty-program'));
+
+        Mail::assertNotSent(AssetBuyoutRequestMail::class);
     }
 }
