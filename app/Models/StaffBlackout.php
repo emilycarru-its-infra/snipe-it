@@ -45,6 +45,7 @@ class StaffBlackout extends SnipeModel
         'synced_at' => 'datetime',
     ];
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');

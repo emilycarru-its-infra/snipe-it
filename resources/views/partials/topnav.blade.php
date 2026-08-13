@@ -68,11 +68,10 @@
             </a>
             {{-- The button opens the board itself; the menu holds the other
                  doors. Configure is gone — the wave-type and stage catalogs
-                 are managed inline on the Waves page. --}}
+                 are managed inline on the Waves page, which itself is
+                 reached from Forecast (and staffing blackouts live there
+                 too), so neither needs a menu line. --}}
             <ul class="dropdown-menu topnav-menu">
-                <li{!! (request()->is('deployments/waves') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('deployment-waves.index') }}">{{ trans('admin/deployments/general.waves_title') }}</a>
-                </li>
                 <li{!! (request()->is('deployments/forecast*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.forecast') }}">{{ trans('admin/deployments/general.forecast') }}</a>
                 </li>
@@ -81,9 +80,6 @@
                 </li>
                 <li{!! (request()->is('deployments/decommissioning*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/deployments/general.decom_nav') }}</a>
-                </li>
-                <li{!! (request()->is('deployments/blackouts*') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('deployments.blackouts.index') }}">{{ trans('admin/deployments/general.blackouts_button') }}</a>
                 </li>
                 @can('view', App\Models\Asset::class)
                     <li class="divider"></li>
@@ -162,12 +158,9 @@
                 <x-icon type="contracts" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('admin/contracts/general.contracts') }}</span>
             </a>
+            {{-- The button itself opens Contracts, so the menu holds only
+                 what the button does not: licenses and their types. --}}
             <ul class="dropdown-menu topnav-menu">
-                @can('view', \App\Models\Contract::class)
-                    <li{!! (request()->is('contracts*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('contracts.index') }}">{{ trans('admin/contracts/general.contracts') }}</a>
-                    </li>
-                @endcan
                 @can('view', \App\Models\License::class)
                     <li{!! (request()->is('licenses*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('licenses.index') }}">{{ trans('general.licenses') }}</a>
@@ -176,12 +169,6 @@
                 @can('view', \App\Models\LicenseModel::class)
                     <li{!! (request()->is('admin/license-models*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('license-models.index') }}">{{ trans('admin/licensemodels/general.sidebar_label') }}</a>
-                    </li>
-                @endcan
-                @can('view', \App\Models\Contract::class)
-                    <li class="dropdown-header">{{ trans('general.reports') }}</li>
-                    <li{!! (request()->is('contracts*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('contracts.index') }}">{{ trans('admin/reports/general.hub_tile_contracts') }}</a>
                     </li>
                 @endcan
             </ul>

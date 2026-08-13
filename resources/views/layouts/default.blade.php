@@ -1002,6 +1002,11 @@
            it. Container-scoped on purpose — a page-global sticky rule
            fights every non-scrolling table's geometry. */
         .sticky-table { max-height: 70vh; overflow: auto; }
+        {{-- collapse breaks sticky headers in Chrome: the th sticks but its
+             background/borders stay with the scrolled row grid, so rows
+             bleed straight through the "frozen" header. separate keeps the
+             painted cell attached to the stuck position. --}}
+        .sticky-table table { border-collapse: separate; border-spacing: 0; }
         .sticky-table table > thead > tr > th {
             position: sticky;
             top: 0;
