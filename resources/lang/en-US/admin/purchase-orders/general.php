@@ -245,6 +245,7 @@ return [
     'report_lessor_breakdown' => 'Lessor Breakdown',
     'leasing_title' => 'Leasing',
     'capital_request_title' => 'Devices Capital Request',
+    'capital_nav' => 'Capital',
     'capital_request_intro' => 'The year\'s device capital ask, for budget review and approval. The full original value of every lease ending in the year is the pre-approved budget — all of it is requested, distributed across the most likely replacements and the new asks below. Estimates track the current catalog and are refined to actuals as quotes land.',
     'capital_section_refresh' => 'Lease End Refresh',
     'capital_section_new_asks' => 'New Asks & Planned Additions',
