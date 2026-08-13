@@ -142,7 +142,7 @@
                     </td>
                     <td>
                         @if ($order)
-                            <a href="{{ route('procurement.queue', ['status' => $order->status]) }}">{{ $order->reference() }}</a>
+                            <a href="{{ route('procurement.approvals', ['status' => $order->status]) }}">{{ $order->reference() }}</a>
                             <span class="label label-default">{{ $order->displayStatus() }}</span>
                         @else
                             <span class="text-muted">{{ trans('admin/deployments/general.roster_not_ordered') }}</span>

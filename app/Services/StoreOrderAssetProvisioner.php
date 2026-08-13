@@ -136,8 +136,19 @@ class StoreOrderAssetProvisioner
             // Snipe returns an asset to on check-in.
             $asset->rtd_location_id = $order->location_id;
             $asset->location_id = $order->location_id;
-        } elseif ((int) $line->quantity === 1) {
-            $asset->name = $order->user?->present()->fullName;
+        } else {
+            // An assigned order is going to a person, and where that person
+            // sits is where the device is headed — so it gets their location
+            // rather than none at all. Provisioned assets used to arrive
+            // with no location whatsoever, which is what the Staff Devices
+            // Missing Location alert was reporting: a device nobody could
+            // place, weeks before it turns up.
+            $asset->rtd_location_id = $order->user?->location_id;
+            $asset->location_id = $order->user?->location_id;
+
+            if ((int) $line->quantity === 1) {
+                $asset->name = $order->user?->present()->fullName;
+            }
         }
 
         $this->stampRequiredCustomFields($asset, $order, $line);

@@ -406,4 +406,46 @@ class StoreOrderAssetProvisioningTest extends TestCase
         $this->artisan('store:reprovision', ['order' => $order->id])->assertSuccessful();
         $this->assertCount(1, Asset::where('order_number', $order->reference())->get());
     }
+
+    /**
+     * A provisioned device used to arrive with no location at all, which
+     * is what the Staff Devices Missing Location alert reports — a machine
+     * nobody can place, weeks before it turns up. An assigned order is
+     * going to a person, so it gets that person's location.
+     */
+    public function test_an_assigned_order_takes_the_requesters_location(): void
+    {
+        $this->enableAutoTags();
+        $location = \App\Models\Location::factory()->create(['name' => 'B2131']);
+        $user = $this->requester();
+        $user->location_id = $location->id;
+        $user->saveQuietly();
+
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $this->shelfItem()->id, 'quantity' => 1]],
+        ]);
+
+        $asset = Asset::where('order_number', StoreOrder::first()->reference())->first();
+
+        $this->assertSame($location->id, (int) $asset->rtd_location_id);
+        $this->assertSame($location->id, (int) $asset->location_id);
+    }
+
+    /** A requester with no location leaves it unset rather than guessing. */
+    public function test_no_requester_location_leaves_the_asset_unplaced(): void
+    {
+        $this->enableAutoTags();
+        $user = $this->requester();
+        $user->location_id = null;
+        $user->saveQuietly();
+
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $this->shelfItem()->id, 'quantity' => 1]],
+        ]);
+
+        $asset = Asset::where('order_number', StoreOrder::first()->reference())->first();
+
+        $this->assertNotNull($asset);
+        $this->assertNull($asset->rtd_location_id);
+    }
 }

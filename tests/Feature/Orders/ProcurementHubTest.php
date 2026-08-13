@@ -92,7 +92,7 @@ class ProcurementHubTest extends TestCase
         $this->pendingOrder();
 
         $this->actingAs($this->superuser())
-            ->get(route('procurement.queue'))
+            ->get(route('procurement.approvals'))
             ->assertOk()
             ->assertSee(trans('admin/store/general.queue_approve'))
             ->assertSee(trans('admin/store/general.queue_decline'))
@@ -146,7 +146,7 @@ class ProcurementHubTest extends TestCase
         $user = $this->superuser();
 
         foreach ([
-            route('procurement.queue'),
+            route('procurement.approvals'),
             route('requisitions.index'),
             route('purchase-orders.index'),
             route('orders.index'),

@@ -3225,7 +3225,7 @@
                                             </a>
                                         </li>
                                         <li {{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('procurement.queue') }}">
+                                            <a href="{{ route('procurement.approvals') }}">
                                                 {{ trans('admin/store/general.queue') }}
                                             </a>
                                         </li>

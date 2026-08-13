@@ -216,6 +216,11 @@ return [
     'store_vendor_part_missing' => 'not on file',
     'store_vendor_bundle_link' => 'CDW bundle for this build',
     'store_vendor_order_estimate_note' => 'Our estimate for this request is C$:total before tax and shipping, from the last price list we hold — please quote the current figure and flag anything discontinued or replaced.',
+    // Labelled as ours, not theirs. There is no quote at this point, so the
+    // column must not read like an agreed price the reseller is expected to
+    // honour — the note below asks them to replace it with a real one.
+    'store_vendor_order_estimate_column' => 'Our estimate',
+    'store_vendor_order_estimate_total' => 'Estimated total',
     'store_vendor_order_reference' => 'Please reference :references on the order confirmation so our systems can match the shipment automatically.',
     'store_vendor_order_footer' => 'Reply to all on this email and our team will follow up. Thank you.',
 

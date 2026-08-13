@@ -121,7 +121,7 @@ class FacultyVisibilityTest extends TestCase
 
         foreach ([
             'procurement.index',
-            'procurement.queue',
+            'procurement.approvals',
             'procurement.store-admin',
             'purchase-orders.index',
             'requisitions.index',
