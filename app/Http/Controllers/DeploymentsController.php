@@ -881,7 +881,30 @@ class DeploymentsController extends Controller
         $fiscalYears = $forecast->availableFiscalYears();
         $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: ($fiscalYears[0] ?? null);
 
-        $candidates = $fy ? $forecast->forFiscalYear($fy) : collect();
+        // Early-renewal mode, absorbed from the retired procurement forecast
+        // page: criteria replace the EOL/lease window entirely, so a subset
+        // of an active contract can be slotted in ahead of its dates.
+        $criteria = $forecast->criteriaFromRequest($request);
+        $candidates = $criteria !== []
+            ? $forecast->byCriteria($criteria)
+            : ($fy ? $forecast->forFiscalYear($fy) : collect());
+
+        // The money column: each candidate priced at its comparable current
+        // model's live catalog price, the old cost only as a fallback.
+        $totalEstimate = (float) $candidates->sum(
+            fn (Asset $asset) => $asset->replacementCostEstimate() ?? (float) ($asset->purchase_cost ?? 0)
+        );
+
+        if ($request->query('format') === 'csv') {
+            return $this->streamForecastCsv($candidates, $fy, $totalEstimate);
+        }
+
+        // Devices already carrying a planned replacement line, so the page
+        // can't double-book them into a second planned order.
+        $plannedAssetIds = \App\Models\OrderItem::whereIn('replaces_asset_id', $candidates->pluck('id'))
+            ->whereHas('order', fn ($q) => $q->where('is_planned', true))
+            ->pluck('replaces_asset_id')
+            ->all();
 
         $waves = $fy
             ? DeploymentWave::where('fiscal_year', $fy)->withCount('items')->ordered()->get()
@@ -895,6 +918,64 @@ class DeploymentsController extends Controller
             'types' => DeploymentType::active()->ordered()->get(),
             'timeline' => (new DeploymentTimeline)->build($waves),
             'leaseColumnPresent' => RefreshForecast::leaseEndColumn() !== null,
+            'totalEstimate' => $totalEstimate,
+            'plannedAssetIds' => $plannedAssetIds,
+            'filterFields' => $forecast->filterFields(),
+            'filterValues' => $forecast->filterValues(),
+            'activeCriteria' => $criteria,
+            'earlyRenewalMode' => $criteria !== [],
+        ]);
+    }
+
+    /**
+     * The forecast as finance receives it — the same column shape the
+     * retired procurement forecast report exported.
+     *
+     * @param  \Illuminate\Support\Collection<int, Asset>  $candidates
+     */
+    private function streamForecastCsv($candidates, ?string $fy, float $totalEstimate): StreamedResponse
+    {
+        return new StreamedResponse(function () use ($candidates, $totalEstimate) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            fputcsv($handle, [
+                trans('admin/purchase-orders/general.forecast_asset_tag'),
+                trans('admin/purchase-orders/general.forecast_asset_name'),
+                trans('admin/purchase-orders/general.forecast_model'),
+                trans('admin/purchase-orders/general.forecast_serial'),
+                trans('admin/purchase-orders/general.forecast_purchase_date'),
+                trans('admin/deployments/general.source_date'),
+                trans('admin/purchase-orders/general.forecast_estimate'),
+                trans('admin/purchase-orders/general.forecast_estimate_basis'),
+                trans('admin/purchase-orders/general.forecast_status'),
+                trans('general.supplier'),
+            ]);
+
+            foreach ($candidates as $asset) {
+                $catalog = $asset->model?->refreshCatalogItem;
+                $estimate = $asset->replacementCostEstimate() ?? (float) ($asset->purchase_cost ?? 0);
+                fputcsv($handle, [
+                    (string) $asset->asset_tag,
+                    (string) $asset->name,
+                    (string) $asset->model?->name,
+                    (string) $asset->serial,
+                    $asset->purchase_date ? Carbon::parse($asset->purchase_date)->toDateString() : '',
+                    (string) $asset->source_date,
+                    number_format($estimate, 2, '.', ''),
+                    $catalog
+                        ? trans('admin/purchase-orders/general.forecast_basis_catalog', ['name' => $catalog->name])
+                        : trans('admin/purchase-orders/general.forecast_basis_original'),
+                    (string) $asset->status?->name,
+                    (string) $asset->supplier?->name,
+                ]);
+            }
+
+            fputcsv($handle, [trans('admin/orders/general.total'), '', '', '', '', '', number_format($totalEstimate, 2, '.', ''), '', '', '']);
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="refresh-forecast-'.($fy ?: 'all').'-'.date('Y-m-d').'.csv"',
         ]);
     }
 
