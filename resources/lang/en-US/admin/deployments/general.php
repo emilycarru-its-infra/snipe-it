@@ -122,6 +122,7 @@ return [
 
     // Timeline (P2a)
     'timeline_title' => 'Timeline',
+    'timeline_today' => 'Today',
     'waves_title' => 'Waves',
     'timeline_legend_arrival' => 'Arrival window',
     'timeline_legend_deploy' => 'Deploy window',
