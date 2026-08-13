@@ -420,6 +420,7 @@
         "notes",
         "parent_contract_id",
         "product",
+        "program",
         "requisition_number",
         "schedule_number",
         "service_catalogue",
