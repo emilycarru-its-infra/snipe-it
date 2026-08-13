@@ -16,6 +16,8 @@
     </div>
 @endunless
 
+@php $sanitiseListId = fn ($key) => 'fcl-'.preg_replace('/[^a-z0-9]/i', '-', $key); @endphp
+
 {{-- FY selector --}}
 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
     <form method="GET" action="{{ route('deployments.forecast') }}" style="display:flex; align-items:center; gap:8px; margin:0;">
@@ -29,6 +31,51 @@
     <a href="{{ route('reports.deployments', ['fiscal_year' => $fy]) }}" class="btn btn-default">{{ trans('admin/deployments/general.dashboard_title') }}</a>
     <a href="{{ route('deployments.storage') }}" class="btn btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
+    {{-- Early renewal / criteria, behind a button — the entry form is a
+         once-in-a-while tool and was costing a whole box of the page. --}}
+    <span class="nw-pop-wrap" style="position:relative; display:inline-block;">
+        <button type="button" class="btn {{ ($earlyRenewalMode ?? false) ? 'btn-primary' : 'btn-default' }} nw-pop-toggle" data-pop="fc-criteria-pop">
+            <i class="fas fa-filter" aria-hidden="true"></i> {{ trans('admin/purchase-orders/general.forecast_criteria_title') }}
+            @if ($earlyRenewalMode ?? false)<span class="badge">{{ count($activeCriteria) }}</span>@endif
+        </button>
+        <div class="nw-pop" id="fc-criteria-pop" style="width:520px;">
+            <p class="text-muted" style="font-size:12px;">{{ trans('admin/purchase-orders/general.forecast_criteria_help') }}</p>
+            <form method="get" id="forecast-criteria-form">
+                <input type="hidden" name="fiscal_year" value="{{ $fy }}">
+                <div id="forecast-criteria-rows">
+                    @php $criteriaRows = ! empty($activeCriteria) ? $activeCriteria : [['field' => '', 'value' => '']]; @endphp
+                    @foreach ($criteriaRows as $i => $c)
+                        <div class="forecast-criteria-row" style="display:flex; gap:6px; margin-bottom:6px;">
+                            <select name="criteria[{{ $i }}][field]" class="form-control input-sm fc-field" style="flex:1;">
+                                <option value="">{{ trans('admin/purchase-orders/general.forecast_criteria_field') }}</option>
+                                @foreach ($filterFields as $key => $label)
+                                    <option value="{{ $key }}" {{ ($c['field'] ?? '') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <input type="text" name="criteria[{{ $i }}][value]" class="form-control input-sm fc-value" style="flex:1;"
+                                   value="{{ $c['value'] ?? '' }}"
+                                   @if (! empty($c['field']) && ! empty($filterValues[$c['field']])) list="{{ $sanitiseListId($c['field']) }}" @endif
+                                   placeholder="{{ trans('admin/purchase-orders/general.forecast_criteria_value') }}">
+                            <button type="button" class="btn btn-default btn-sm fc-remove" title="{{ trans('button.delete') }}">&times;</button>
+                        </div>
+                    @endforeach
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:8px;">
+                    <button type="button" id="fc-add" class="btn btn-default btn-sm">
+                        <i class="fa-solid fa-plus" aria-hidden="true"></i> {{ trans('admin/purchase-orders/general.forecast_criteria_add') }}
+                    </button>
+                    <span style="flex:1;"></span>
+                    @if ($earlyRenewalMode ?? false)
+                        <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-link btn-sm">{{ trans('admin/purchase-orders/general.forecast_criteria_clear') }}</a>
+                    @endif
+                    <button type="submit" class="btn btn-primary btn-sm">{{ trans('admin/purchase-orders/general.forecast_criteria_apply') }}</button>
+                </div>
+            </form>
+        </div>
+    </span>
+    @if ($earlyRenewalMode ?? false)
+        <span class="label label-primary" style="align-self:center;">{{ trans('admin/purchase-orders/general.forecast_early_renewal_badge') }}</span>
+    @endif
     <a href="{{ route('deployments.forecast', array_filter(['fiscal_year' => $fy, 'format' => 'csv', 'criteria' => $activeCriteria])) }}" class="btn btn-default">
         <x-icon type="download" /> {{ trans('general.download') }}
     </a>
@@ -37,57 +84,16 @@
     @endcan
 </div>
 
-{{-- Early-renewal criteria, absorbed from the retired procurement
-     forecast page: any criteria replace the EOL/lease window and list
-     every matching device, so a subset of an active contract can be
-     slotted in early. --}}
-@php $sanitiseListId = fn ($key) => 'fcl-'.preg_replace('/[^a-z0-9]/i', '-', $key); @endphp
-<div class="box {{ ($earlyRenewalMode ?? false) ? 'box-primary' : 'box-default' }}">
-    <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/purchase-orders/general.forecast_criteria_title') }}</h3>
-        @if ($earlyRenewalMode ?? false)
-            <span class="label label-primary" style="margin-left:8px;">{{ trans('admin/purchase-orders/general.forecast_early_renewal_badge') }}</span>
-        @endif
-    </div>
-    <div class="box-body">
-        <p class="text-muted">{{ trans('admin/purchase-orders/general.forecast_criteria_help') }}</p>
-        <form method="get" id="forecast-criteria-form">
-            <input type="hidden" name="fiscal_year" value="{{ $fy }}">
-            <div id="forecast-criteria-rows">
-                @php $criteriaRows = ! empty($activeCriteria) ? $activeCriteria : [['field' => '', 'value' => '']]; @endphp
-                @foreach ($criteriaRows as $i => $c)
-                    <div class="forecast-criteria-row form-inline" style="margin-bottom:6px;">
-                        <select name="criteria[{{ $i }}][field]" class="form-control fc-field" style="min-width:220px;">
-                            <option value="">{{ trans('admin/purchase-orders/general.forecast_criteria_field') }}</option>
-                            @foreach ($filterFields as $key => $label)
-                                <option value="{{ $key }}" {{ ($c['field'] ?? '') === $key ? 'selected' : '' }}>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        <input type="text" name="criteria[{{ $i }}][value]" class="form-control fc-value" style="min-width:220px;"
-                               value="{{ $c['value'] ?? '' }}"
-                               @if (! empty($c['field']) && ! empty($filterValues[$c['field']])) list="{{ $sanitiseListId($c['field']) }}" @endif
-                               placeholder="{{ trans('admin/purchase-orders/general.forecast_criteria_value') }}">
-                        <button type="button" class="btn btn-default fc-remove" title="{{ trans('button.delete') }}">&times;</button>
-                    </div>
-                @endforeach
-            </div>
-            <button type="button" id="fc-add" class="btn btn-default btn-sm" style="margin-top:6px;">
-                <i class="fa-solid fa-plus" aria-hidden="true"></i> {{ trans('admin/purchase-orders/general.forecast_criteria_add') }}
-            </button>
-            <button type="submit" class="btn btn-primary btn-sm" style="margin-top:6px;">{{ trans('admin/purchase-orders/general.forecast_criteria_apply') }}</button>
-            @if ($earlyRenewalMode ?? false)
-                <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-link btn-sm" style="margin-top:6px;">{{ trans('admin/purchase-orders/general.forecast_criteria_clear') }}</a>
-            @endif
-        </form>
-        @foreach ($filterValues as $key => $vals)
-            @if (! empty($vals))
-                <datalist id="{{ $sanitiseListId($key) }}">
-                    @foreach ($vals as $v)<option value="{{ $v }}">@endforeach
-                </datalist>
-            @endif
-        @endforeach
-    </div>
-</div>
+
+@include('reports.deployments._popover-assets')
+
+@foreach ($filterValues as $key => $vals)
+    @if (! empty($vals))
+        <datalist id="{{ $sanitiseListId($key) }}">
+            @foreach ($vals as $v)<option value="{{ $v }}">@endforeach
+        </datalist>
+    @endif
+@endforeach
 
 @if (! $fy)
     <div class="alert alert-info">{{ trans('admin/deployments/general.forecast_choose_fy') }}</div>
