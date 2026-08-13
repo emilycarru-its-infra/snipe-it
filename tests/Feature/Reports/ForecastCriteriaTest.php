@@ -77,4 +77,37 @@ class ForecastCriteriaTest extends TestCase
             ->assertOk()
             ->assertSee('EARLY-LAPTOP');
     }
+
+    /**
+     * Displays, printers and scanners carry lifecycle EOL dates for
+     * operations, but they are outside the device capital plan (AB#4473) —
+     * the forecast never surfaces them, on either the FY path or the
+     * criteria path.
+     */
+    public function test_non_plan_categories_never_enter_the_forecast()
+    {
+        $laptop = $this->assetInCategory('PLAN-LAPTOP', 'Laptop');
+        $display = $this->assetInCategory('PLAN-DISPLAY', 'Display');
+        $eol = now()->addMonths(2)->format('Y-m-d');
+        Asset::query()->whereKey($laptop->id)->update(['asset_eol_date' => $eol]);
+        Asset::query()->whereKey($display->id)->update(['asset_eol_date' => $eol]);
+
+        $fy = now()->month >= 4 ? now()->year : now()->year - 1;
+        $fyLabel = sprintf('FY%d-%02d', $fy, ($fy + 1) % 100);
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.forecast', ['fiscal_year' => $fyLabel]))
+            ->assertOk()
+            ->assertSee('PLAN-LAPTOP')
+            ->assertDontSee('PLAN-DISPLAY');
+
+        // Even asked for by name, an excluded category stays out.
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.forecast', [
+                'fiscal_year' => 'all',
+                'criteria' => [['field' => 'category', 'value' => 'Display']],
+            ]))
+            ->assertOk()
+            ->assertDontSee('PLAN-DISPLAY');
+    }
 }
