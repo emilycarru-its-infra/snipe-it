@@ -105,6 +105,10 @@
         background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 8%, var(--box-bg, #fff));
     }
     .fc-scroll { max-height: 62vh; overflow: auto; }
+    {{-- Half-width timeline: the box fills the column and the label rail
+         narrows so the bars keep most of the width. --}}
+    .fc-timeline-half > .box { flex: 1; margin-bottom: 20px; }
+    .fc-timeline-half .gantt { --gantt-rail: 150px; }
     {{-- Same collapse-vs-sticky Chrome bug the layout's .sticky-table
          guards against: without separate, rows bleed through the header. --}}
     .fc-scroll table { border-collapse: separate; border-spacing: 0; }
@@ -118,16 +122,13 @@
 </style>
 
 @if ($waves->isNotEmpty())
-@include('reports.deployments._timeline')
-@endif
-
-<form method="POST" action="{{ route('deployments.forecast.add') }}">
-    {{ csrf_field() }}
-    <input type="hidden" name="fiscal_year" value="{{ $fy }}">
-
-    @if ($waves->isNotEmpty())
+{{-- Waves and their Gantt side by side, 50/50 — the two views of the
+     same plan read together, not stacked a screen apart. --}}
+<div class="row" style="display:flex; flex-wrap:wrap; align-items:stretch;">
+    <div class="col-md-6" style="display:flex;">
+        <div style="flex:1; display:flex; flex-direction:column;">
 {{-- The FY's waves at a glance. --}}
-<div class="box box-default">
+<div class="box box-default" style="flex:1;">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.waves_title') }}</h3>
     </div>
@@ -168,7 +169,19 @@
         </table>
     </div>
 </div>
-    @endif
+        </div>
+    </div>
+    <div class="col-md-6" style="display:flex;">
+        <div style="flex:1; display:flex; flex-direction:column;" class="fc-timeline-half">
+            @include('reports.deployments._timeline')
+        </div>
+    </div>
+</div>
+@endif
+
+<form method="POST" action="{{ route('deployments.forecast.add') }}">
+    {{ csrf_field() }}
+    <input type="hidden" name="fiscal_year" value="{{ $fy }}">
 
     {{-- Candidate assets --}}
     <div class="box box-default">
