@@ -39,6 +39,13 @@
     </div>
 </div>
 
+<div class="form-group {{ $errors->has('program') ? ' has-error' : '' }}">
+    <label for="program" class="col-md-3 control-label">{{ trans('admin/contracts/general.program') }}</label>
+    <div class="col-md-7">
+        <input class="form-control" name="program" type="text" id="program" placeholder="3D Animation" value="{{ old('program', $item->program) }}">
+    </div>
+</div>
+
 <div class="form-group {{ $errors->has('parent_contract_id') ? ' has-error' : '' }}">
     <label for="parent_contract_id" class="col-md-3 control-label">{{ trans('admin/contracts/general.parent') }}</label>
     <div class="col-md-7">
