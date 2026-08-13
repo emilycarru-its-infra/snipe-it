@@ -193,7 +193,7 @@ class ImpersonateTest extends TestCase
         $this->post(route('impersonate.stop'));
 
         // And the same on the way back.
-        foreach (['users.index', 'procurement.queue'] as $route) {
+        foreach (['users.index', 'procurement.approvals'] as $route) {
             $this->get(route($route))->assertOk();
             $this->assertSame($admin->id, auth()->id(), "lost the session at {$route}");
         }

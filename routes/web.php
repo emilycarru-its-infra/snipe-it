@@ -208,7 +208,12 @@ Route::group(['middleware' => 'auth'], function () {
     // "Approvals" is what this page is for, and what people call it. The
     // old /procurement/queue keeps working — it is linked from emails that
     // have already gone out, so it redirects rather than 404s.
-    Route::redirect('procurement/queue', 'procurement/approvals', 301);
+    // Named, so route('procurement.queue') still resolves for anything not
+    // yet updated. It is referenced from the top navigation, so a stale call
+    // would throw on every page rather than break one link. Transitional —
+    // remove once no branch in flight refers to it.
+    Route::redirect('procurement/queue', 'procurement/approvals', 301)
+        ->name('procurement.queue');
     Route::get('procurement/approvals', [ProcurementController::class, 'queue'])
         ->name('procurement.approvals')
         ->breadcrumbs(fn (Trail $trail) => ($procCrumb)($trail)
