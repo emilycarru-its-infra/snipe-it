@@ -41,21 +41,21 @@ class StoreQueuePanelsTest extends TestCase
 
         // Pending: the account picker is on the decision form, open schedules
         // offered and the closed one withheld.
-        $r = $this->actingAs($staff)->get(route('procurement.queue', ['status' => 'pending']))->assertOk();
+        $r = $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'pending']))->assertOk();
         $r->assertSee('301452-009', false)->assertSee('301452-010', false)
             ->assertDontSee('301452-005', false)
             ->assertSee('No account set', false)->assertSee('Lease', false);
 
         // Approved with no account: send is disabled and says why.
         StoreOrder::first()->update(['status' => 'approved']);
-        $this->actingAs($staff)->get(route('procurement.queue', ['status' => 'approved']))->assertOk()
+        $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'approved']))->assertOk()
             ->assertSee('Set an account on every selected order first', false)
             ->assertSee('disabled', false);
 
         // Sent: the quote panel and the not-received badge appear.
         StoreOrder::first()->update(['status' => 'ordered', 'vendor_sent_at' => now(),
             'funding_account' => 'lease_admin', 'lease_schedule' => '301452-009']);
-        $this->actingAs($staff)->get(route('procurement.queue', ['status' => 'ordered']))->assertOk()
+        $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'ordered']))->assertOk()
             ->assertSee('CDW quote', false)
             ->assertSee('Confirm and place', false)
             ->assertSee('Not received', false)
@@ -63,7 +63,7 @@ class StoreQueuePanelsTest extends TestCase
 
         // Arrived: flips to Received.
         StoreOrder::first()->update(['arrived_at' => now(), 'confirmed_at' => now()]);
-        $this->actingAs($staff)->get(route('procurement.queue', ['status' => 'ordered']))->assertOk()
+        $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'ordered']))->assertOk()
             ->assertSee('Received', false);
 
         // The catalog table shows and can edit both part numbers.

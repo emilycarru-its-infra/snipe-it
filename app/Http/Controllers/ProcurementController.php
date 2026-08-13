@@ -71,9 +71,12 @@ class ProcurementController extends Controller
             $this->authorize('view', Requisition::class);
         }
 
-        $status = $request->query('status', 'pending');
+        // No filter means everything. Defaulting to pending hid the rest of
+        // the page behind a closed dropdown — an approved order was still
+        // there, but you had to already know to go looking for it.
+        $status = $request->query('status', 'all');
         if (! in_array($status, StoreOrder::STATUSES, true) && $status !== 'all') {
-            $status = 'pending';
+            $status = 'all';
         }
 
         $orders = StoreOrder::with('items.catalogItem.supplier', 'user.department', 'decidedBy', 'requisition.purchaseOrder', 'refreshAsset')
@@ -82,10 +85,18 @@ class ProcurementController extends Controller
             ->paginate(50)
             ->withQueryString();
 
+        // One grouped count for the pills, so the page says how much is
+        // waiting before anyone clicks anything.
+        $counts = StoreOrder::query()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
         return view('procurement.queue', [
             'orders' => $orders,
             'selectedStatus' => $status,
             'statuses' => StoreOrder::STATUSES,
+            'statusCounts' => $counts->put('all', $counts->sum())->all(),
             'fundingAccounts' => StoreOrder::FUNDING_ACCOUNTS,
             'leaseSchedules' => CsiSchedule::openScheduleNames(),
         ]);
@@ -109,7 +120,7 @@ class ProcurementController extends Controller
         ]);
 
         if ($order->status !== 'pending') {
-            return redirect()->route('procurement.queue')
+            return redirect()->route('procurement.approvals')
                 ->with('error', trans('admin/store/general.queue_already_decided'));
         }
 
@@ -133,7 +144,7 @@ class ProcurementController extends Controller
 
         StoreOrderNotifier::requester($order, $validated['decision']);
 
-        return redirect()->route('procurement.queue')
+        return redirect()->route('procurement.approvals')
             ->with('success', trans('admin/store/general.queue_decided_'.$validated['decision']));
     }
 
@@ -165,7 +176,7 @@ class ProcurementController extends Controller
             ->get();
 
         if ($orders->isEmpty()) {
-            return redirect()->route('procurement.queue', ['status' => 'approved'])
+            return redirect()->route('procurement.approvals', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.vendor_send_not_approved'));
         }
 
@@ -175,7 +186,7 @@ class ProcurementController extends Controller
         // and cannot pick which, so sending anyway would buy nothing but a
         // round trip through their desk.
         if (! $test && $orders->contains(fn (StoreOrder $order) => ! $order->readyForVendor())) {
-            return redirect()->route('procurement.queue', ['status' => 'approved'])
+            return redirect()->route('procurement.approvals', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.funding_required'));
         }
 
@@ -190,7 +201,7 @@ class ProcurementController extends Controller
         $to = array_filter($to);
 
         if ($to === []) {
-            return redirect()->route('procurement.queue', ['status' => 'approved'])
+            return redirect()->route('procurement.approvals', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.vendor_send_no_recipients'));
         }
 
@@ -203,12 +214,12 @@ class ProcurementController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Vendor order email failed for store orders ['.$orders->pluck('id')->implode(',').']: '.$e->getMessage());
 
-            return redirect()->route('procurement.queue', ['status' => 'approved'])
+            return redirect()->route('procurement.approvals', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
         }
 
         if ($test) {
-            return redirect()->route('procurement.queue', ['status' => 'approved'])
+            return redirect()->route('procurement.approvals', ['status' => 'approved'])
                 ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $to[0]]));
         }
 
@@ -217,7 +228,7 @@ class ProcurementController extends Controller
             StoreOrderNotifier::requester($order, 'ordered');
         }
 
-        return redirect()->route('procurement.queue', ['status' => 'approved'])
+        return redirect()->route('procurement.approvals', ['status' => 'approved'])
             ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
     }
 
@@ -246,7 +257,7 @@ class ProcurementController extends Controller
 
         // Nothing to quote against until the request has actually gone out.
         if ($order->vendor_sent_at === null) {
-            return redirect()->route('procurement.queue', ['status' => 'ordered'])
+            return redirect()->route('procurement.approvals', ['status' => 'ordered'])
                 ->with('error', trans('admin/store/general.quote_wrong_state'));
         }
 
@@ -271,12 +282,12 @@ class ProcurementController extends Controller
         }
 
         if ($updates === []) {
-            return redirect()->route('procurement.queue', ['status' => 'ordered']);
+            return redirect()->route('procurement.approvals', ['status' => 'ordered']);
         }
 
         $order->update($updates);
 
-        return redirect()->route('procurement.queue', ['status' => 'ordered'])
+        return redirect()->route('procurement.approvals', ['status' => 'ordered'])
             ->with('success', trans($request->boolean('confirm')
                 ? 'admin/store/general.quote_confirmed'
                 : 'admin/store/general.quote_recorded'));
@@ -299,7 +310,7 @@ class ProcurementController extends Controller
         $account = $validated['funding_account'] ?? null;
 
         if ($account === 'lease' && empty($validated['lease_schedule'])) {
-            return redirect()->route('procurement.queue', ['status' => $order->status])
+            return redirect()->route('procurement.approvals', ['status' => $order->status])
                 ->with('error', trans('admin/store/general.funding_lease_needs_schedule'));
         }
 
@@ -308,7 +319,7 @@ class ProcurementController extends Controller
             'lease_schedule' => $account === 'lease' ? $validated['lease_schedule'] : null,
         ]);
 
-        return redirect()->route('procurement.queue', ['status' => $order->status])
+        return redirect()->route('procurement.approvals', ['status' => $order->status])
             ->with('success', trans('admin/store/general.funding_saved'));
     }
 
@@ -363,7 +374,7 @@ class ProcurementController extends Controller
             ->get();
 
         if ($orders->isEmpty()) {
-            return redirect()->route('procurement.queue', ['status' => 'approved'])
+            return redirect()->route('procurement.approvals', ['status' => 'approved'])
                 ->with('error', trans('admin/store/general.queue_nothing_approved'));
         }
 
