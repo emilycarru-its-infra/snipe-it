@@ -59,7 +59,9 @@
         <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_request_title') }} — {{ $fy }}</h3>
         <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px;">
             @if ($remaining > 0)
-                <span class="label label-info">{{ trans('admin/purchase-orders/general.capital_remaining_chip', ['amount' => number_format($remaining, 2)]) }}</span>
+                {{-- Sized to the buttons it sits between — the bare label's
+                     own line-height made it a squashed pill in the flex row. --}}
+                <span class="label label-info capital-remaining-chip">{{ trans('admin/purchase-orders/general.capital_remaining_chip', ['amount' => number_format($remaining, 2)]) }}</span>
             @endif
             @can('create', \App\Models\Requisition::class)
                 <span class="nw-pop-wrap" style="position:relative; display:inline-block;">
@@ -333,6 +335,15 @@
 
 <style>
     .capital-table td, .capital-table th { white-space: nowrap; }
+    .capital-remaining-chip {
+        display: inline-flex;
+        align-items: center;
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+    }
     /* The popover pattern from the New Wave button, anchored right so it
        stays on screen when opened from box-tools. */
     .nw-pop {
