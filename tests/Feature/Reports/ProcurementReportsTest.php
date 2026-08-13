@@ -870,6 +870,65 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('P0026150');
     }
 
+    public function test_a_self_contained_requisition_never_attaches_to_request_lines()
+    {
+        // The Foundation labs case: a stand-alone REQM buying the same
+        // product a refresh line forecasts. Same catalog item, zero
+        // connection — the request's paper is only what was drafted FROM
+        // the request.
+        $model = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13 M5']);
+        $catalog = \App\Models\CatalogItem::create([
+            'name' => 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver',
+            'family' => 'MacBook Air', 'category' => 'Laptops',
+            'product_type' => 'standard', 'price_type' => 'estimate', 'estimated_cost' => 2100.00,
+        ]);
+        $model->forceFill(['refresh_catalog_item_id' => $catalog->id])->save();
+
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-SELF',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['model_id' => $model->id]);
+
+        // The self-contained requisition: same product, own purpose, PO
+        // already issued. fiscal_year matches; capital_request_fy is null.
+        $foreign = \App\Models\Requisition::create([
+            'title' => 'Foundation Mobile MacBook Labs',
+            'status' => 'ordered',
+            'requisition_number' => '0017859',
+            'fiscal_year' => 'FY2026-27',
+        ]);
+        \App\Models\RequisitionItem::create([
+            'requisition_id' => $foreign->id,
+            'catalog_item_id' => $catalog->id,
+            'description' => 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver',
+            'quantity' => 42, 'unit_of_measure' => 'EA', 'unit_cost' => 2150.48,
+            'pst_applicable' => false, 'sort_order' => 0,
+        ]);
+
+        // No attach: the line shows no REQM, and no group forms.
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertDontSee('REQM 0017859')
+            ->assertDontSee('class="capital-group-head"', false);
+
+        // Drafting FROM the request creates lineage, and only then does a
+        // REQM group appear.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
+        $draft = \App\Models\Requisition::latest('id')->first();
+        $this->assertSame('FY2026-27', $draft->capital_request_fy);
+        $draft->forceFill(['requisition_number' => '0018000'])->save();
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('REQM 0018000')
+            ->assertSee('class="capital-group-head"', false)
+            ->assertDontSee('REQM 0017859');
+    }
+
     public function test_a_devices_request_year_follows_the_decision_not_the_paper()
     {
         // The faculty case: a 5-year lease ending in FY2027-28, refreshed
