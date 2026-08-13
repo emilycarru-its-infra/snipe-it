@@ -450,10 +450,6 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployment-waves.create')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.create'), route('deployment-waves.create')));
-    Route::get('deployments/waves/{deploymentWave}/edit', [DeploymentsController::class, 'edit'])
-        ->name('deployment-waves.edit')
-        ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.update'), route('deployment-waves.edit', $deploymentWave)));
     Route::get('deployments/waves/{deploymentWave}', [DeploymentsController::class, 'show'])
         ->name('deployment-waves.show')
         ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
