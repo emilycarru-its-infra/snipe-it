@@ -6,10 +6,10 @@
 @once
 @push('css')
 <style>
-    .gantt { position: relative; }
+    .gantt { position: relative; --gantt-rail: 230px; }
     .gantt-row {
         display: grid;
-        grid-template-columns: 230px minmax(0, 1fr);
+        grid-template-columns: var(--gantt-rail) minmax(0, 1fr);
         align-items: stretch;
         border-top: 1px solid var(--table-border-row-color, #f0f0f0);
     }
@@ -31,7 +31,7 @@
     }
     {{-- Month gridlines span the whole chart from one overlay, so every
          row sits on the same verticals. --}}
-    .gantt-gridlines { position: absolute; top: 0; bottom: 0; left: 230px; right: 0; pointer-events: none; }
+    .gantt-gridlines { position: absolute; top: 0; bottom: 0; left: var(--gantt-rail); right: 0; pointer-events: none; }
     .gantt-gridline { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--table-border-row-color, #ececec); }
     .gantt-today { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--text-danger, #d9534f); opacity: .7; }
     .gantt-month-label {
