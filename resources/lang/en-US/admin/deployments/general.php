@@ -89,6 +89,7 @@ return [
     'update' => 'Update Deployment Wave',
     'created' => 'Deployment wave created.',
     'updated' => 'Deployment wave updated.',
+    'update_field_rejected' => 'That field cannot be edited here.',
     'deleted' => 'Deployment wave deleted.',
     'delete_confirm' => 'Are you sure you want to delete this deployment wave?',
     'item_added' => 'Device added to wave.',
