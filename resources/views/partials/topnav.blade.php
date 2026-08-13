@@ -183,12 +183,11 @@
                 <x-icon type="consumables" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('general.consumables') }}</span>
             </a>
+            {{-- The button itself opens Consumables, so the menu is a flat
+                 list of the other doors — no self-referential entry, no
+                 Reports section header. --}}
             <ul class="dropdown-menu topnav-menu">
-                <li{!! (request()->is('consumables*') ? ' class="active"' : '') !!}>
-                    <a href="{{ url('consumables') }}">{{ trans('general.consumables') }}</a>
-                </li>
                 @can('reports.transactions.view')
-                    <li class="dropdown-header">{{ trans('general.reports') }}</li>
                     <li{!! (request()->is('reports/transactions*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.transactions.index') }}">{{ trans('admin/reports/general.hub_tile_transactions') }}</a>
                     </li>

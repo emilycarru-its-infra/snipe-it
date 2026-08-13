@@ -43,17 +43,29 @@ class DeploymentTimeline
     {
         [$min, $max] = $this->bounds($waves);
 
-        $months = ($min && $max) ? $this->monthGrid($min, $max) : [];
-        $totalMonths = count($months);
+        // Day-granular axis: bars are positioned by actual dates, not
+        // snapped to whole months — a Sep 8–18 window is a week-and-a-half
+        // sliver, not a month-wide slab.
+        $totalDays = ($min && $max) ? ((int) $min->diffInDays($max) + 1) : 0;
+
+        $months = ($min && $max) ? $this->monthGrid($min, $max, $totalDays) : [];
 
         // Blackouts overlapping the grid window, positioned on the same axis.
         $blackouts = ($min && $max) ? $this->blackoutsInWindow($min, $max) : collect();
-        $bands = $this->blackoutBands($blackouts, $min, $totalMonths);
+        $bands = $this->blackoutBands($blackouts, $min, $totalDays);
+
+        $today = null;
+        if ($min && $max) {
+            $now = Carbon::today();
+            if ($now->betweenIncluded($min, $max)) {
+                $today = round($min->diffInDays($now) / $totalDays * 100, 4);
+            }
+        }
 
         $rows = [];
         foreach ($waves as $wave) {
-            $arrival = $this->bar($wave->arrival_window_start, $wave->arrival_window_end, $min, $totalMonths);
-            $deploy = $this->bar($wave->target_start_date, $wave->target_end_date, $min, $totalMonths);
+            $arrival = $this->bar($wave->arrival_window_start, $wave->arrival_window_end, $min, $totalDays);
+            $deploy = $this->bar($wave->target_start_date, $wave->target_end_date, $min, $totalDays);
 
             // Collision: this wave's DEPLOY window overlapping any blackout.
             $collisions = $this->deployCollisions($wave, $blackouts);
@@ -80,6 +92,7 @@ class DeploymentTimeline
             'rows' => $rows,
             'blackout_bands' => $bands,
             'waves_with_collision' => $wavesWithCollision,
+            'today_pct' => $today,
         ];
     }
 
@@ -99,11 +112,11 @@ class DeploymentTimeline
      *
      * Returns: [['offsetPct'=>float,'widthPct'=>float,'name'=>string,'label'=>string], ...]
      */
-    private function blackoutBands(Collection $blackouts, ?Carbon $gridStart, int $totalMonths): array
+    private function blackoutBands(Collection $blackouts, ?Carbon $gridStart, int $totalDays): array
     {
         $bands = [];
         foreach ($blackouts as $b) {
-            $bar = $this->bar($b->start_date, $b->end_date, $gridStart, $totalMonths);
+            $bar = $this->bar($b->start_date, $b->end_date, $gridStart, $totalDays);
             if ($bar === null) {
                 continue;
             }
@@ -174,8 +187,12 @@ class DeploymentTimeline
         ];
     }
 
-    /** Inclusive list of month columns from $min to $max. */
-    private function monthGrid(Carbon $min, Carbon $max): array
+    /**
+     * Inclusive list of month columns from $min to $max, each positioned on
+     * the day axis so the Blade can draw its gridline exactly where the
+     * month starts (months are not all the same width in days).
+     */
+    private function monthGrid(Carbon $min, Carbon $max, int $totalDays): array
     {
         $months = [];
         $cursor = $min->copy()->startOfMonth();
@@ -183,8 +200,10 @@ class DeploymentTimeline
 
         while ($cursor->lessThanOrEqualTo($end)) {
             $months[] = [
-                'label' => $cursor->format('M y'),
+                'label' => $cursor->format('M Y'),
                 'key' => $cursor->format('Y-m'),
+                'offsetPct' => round(max(0, $min->diffInDays($cursor)) / $totalDays * 100, 4),
+                'widthPct' => round($cursor->daysInMonth / $totalDays * 100, 4),
             ];
             $cursor->addMonth();
         }
@@ -193,46 +212,39 @@ class DeploymentTimeline
     }
 
     /**
-     * Position+size one bar as percentages of the month grid. A bar spans
-     * from its start month to its end month inclusive; a missing endpoint
-     * falls back to the other so a single date still draws one month wide.
+     * Position+size one bar as percentages of the day axis. A missing
+     * endpoint falls back to the other so a single date still draws.
      * Returns null when neither endpoint is set.
      */
-    private function bar($start, $end, ?Carbon $gridStart, int $totalMonths): ?array
+    private function bar($start, $end, ?Carbon $gridStart, int $totalDays): ?array
     {
         if (! $start && ! $end) {
             return null;
         }
-        if (! $gridStart || $totalMonths <= 0) {
+        if (! $gridStart || $totalDays <= 0) {
             return null;
         }
 
-        $startC = Carbon::parse($start ?: $end)->startOfMonth();
-        $endC = Carbon::parse($end ?: $start)->startOfMonth();
+        $startC = Carbon::parse($start ?: $end);
+        $endC = Carbon::parse($end ?: $start);
+        if ($startC->gt($endC)) {
+            [$startC, $endC] = [$endC, $startC];
+        }
 
-        $offsetMonths = $this->monthDiff($gridStart, $startC);
-        $spanMonths = max(1, $this->monthDiff($startC, $endC) + 1);
-
-        $offsetMonths = max(0, min($offsetMonths, $totalMonths));
-        $spanMonths = max(1, min($spanMonths, $totalMonths - $offsetMonths));
+        $offsetDays = max(0, min((int) $gridStart->diffInDays($startC, false), $totalDays));
+        $spanDays = max(1, min((int) $startC->diffInDays($endC) + 1, $totalDays - $offsetDays));
 
         return [
-            'offsetPct' => round($offsetMonths / $totalMonths * 100, 4),
-            'widthPct' => round($spanMonths / $totalMonths * 100, 4),
+            'offsetPct' => round($offsetDays / $totalDays * 100, 4),
+            'widthPct' => round($spanDays / $totalDays * 100, 4),
         ];
     }
 
-    /** Whole-month difference from $a to $b (b - a), can be negative. */
-    private function monthDiff(Carbon $a, Carbon $b): int
-    {
-        return ($b->year - $a->year) * 12 + ($b->month - $a->month);
-    }
-
-    /** Human "Apr 26 – Jun 26" label for a date range (one side if the other is null). */
+    /** Human "Sep 8 – Oct 2" label for a date range (one side if the other is null). */
     private function rangeLabel($start, $end): string
     {
-        $s = $start ? Carbon::parse($start)->format('M y') : null;
-        $e = $end ? Carbon::parse($end)->format('M y') : null;
+        $s = $start ? Carbon::parse($start)->format('M j') : null;
+        $e = $end ? Carbon::parse($end)->format('M j') : null;
 
         if ($s && $e) {
             return $s === $e ? $s : "$s – $e";
