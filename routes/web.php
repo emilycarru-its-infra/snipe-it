@@ -205,19 +205,23 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('procurement/hub', [ProcurementController::class, 'index'])
         ->name('procurement.index')
         ->breadcrumbs($procCrumb);
-    Route::get('procurement/queue', [ProcurementController::class, 'queue'])
-        ->name('procurement.queue')
+    // "Approvals" is what this page is for, and what people call it. The
+    // old /procurement/queue keeps working — it is linked from emails that
+    // have already gone out, so it redirects rather than 404s.
+    Route::redirect('procurement/queue', 'procurement/approvals', 301);
+    Route::get('procurement/approvals', [ProcurementController::class, 'queue'])
+        ->name('procurement.approvals')
         ->breadcrumbs(fn (Trail $trail) => ($procCrumb)($trail)
-            ->push(trans('admin/store/general.queue'), route('procurement.queue')));
-    Route::post('procurement/queue/{order}/decide', [ProcurementController::class, 'decide'])
+            ->push(trans('admin/store/general.queue'), route('procurement.approvals')));
+    Route::post('procurement/approvals/{order}/decide', [ProcurementController::class, 'decide'])
         ->name('procurement.queue.decide');
-    Route::post('procurement/queue/pull', [ProcurementController::class, 'pullIntoRequisition'])
+    Route::post('procurement/approvals/pull', [ProcurementController::class, 'pullIntoRequisition'])
         ->name('procurement.queue.pull');
-    Route::post('procurement/queue/send-vendor', [ProcurementController::class, 'sendVendorOrders'])
+    Route::post('procurement/approvals/send-vendor', [ProcurementController::class, 'sendVendorOrders'])
         ->name('procurement.queue.send-vendor');
-    Route::post('procurement/queue/{order}/funding', [ProcurementController::class, 'setFunding'])
+    Route::post('procurement/approvals/{order}/funding', [ProcurementController::class, 'setFunding'])
         ->name('procurement.queue.funding');
-    Route::post('procurement/queue/{order}/quote', [ProcurementController::class, 'recordQuote'])
+    Route::post('procurement/approvals/{order}/quote', [ProcurementController::class, 'recordQuote'])
         ->name('procurement.queue.quote');
     Route::post('procurement/approvers', [ProcurementController::class, 'saveApprovers'])
         ->name('procurement.approvers.save');

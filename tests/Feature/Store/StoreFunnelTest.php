@@ -197,7 +197,7 @@ class StoreFunnelTest extends TestCase
         $user = $this->endUser();
 
         $this->actingAs($user)->followingRedirects()->get(route('procurement.index'))->assertForbidden();
-        $this->actingAs($user)->get(route('procurement.queue'))->assertForbidden();
+        $this->actingAs($user)->get(route('procurement.approvals'))->assertForbidden();
         $this->actingAs($user)->get(route('procurement.store-admin'))->assertForbidden();
         $this->actingAs($user)->post(route('procurement.queue.pull'), ['title' => 'x', 'orders' => [1]])->assertForbidden();
     }

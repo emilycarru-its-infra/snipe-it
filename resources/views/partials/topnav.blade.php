@@ -132,7 +132,7 @@
                 </li>
                 @can('view', \App\Models\Order::class)
                     <li{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('procurement.queue') }}">{{ trans('admin/store/general.queue') }}</a>
+                        <a href="{{ route('procurement.approvals') }}">{{ trans('admin/store/general.queue') }}</a>
                     </li>
                 @endcan
                 @can('admin')

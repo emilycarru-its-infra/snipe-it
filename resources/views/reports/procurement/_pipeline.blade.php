@@ -581,7 +581,7 @@
                 </table>
             </div>
             <div style="margin-top:10px;">
-                <a class="btn btn-primary btn-sm" href="{{ route('procurement.queue') }}">{{ trans('admin/purchase-orders/general.pipeline_open_queue') }}</a>
+                <a class="btn btn-primary btn-sm" href="{{ route('procurement.approvals') }}">{{ trans('admin/purchase-orders/general.pipeline_open_queue') }}</a>
             </div>
         </div>
     @endforeach

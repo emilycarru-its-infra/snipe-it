@@ -8,6 +8,15 @@ return [
     'my_orders' => 'My Orders',
     'nav_orders' => 'Orders',
     'queue' => 'Approvals',
+    // The filter pills. Spelled out rather than ucfirst()'d so "all" reads
+    // as a choice rather than a leftover option name.
+    'queue_filter_label' => 'Filter orders by status',
+    'queue_status_all' => 'All',
+    'queue_status_pending' => 'Awaiting review',
+    'queue_status_approved' => 'Approved',
+    'queue_status_ordered' => 'Ordered',
+    'queue_status_declined' => 'Declined',
+    'queue_status_cancelled' => 'Cancelled',
     'queue_read_only' => 'Approvals need the Manage Procurement permission.',
     'store_admin' => 'Catalog',
 
