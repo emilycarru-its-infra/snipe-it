@@ -227,7 +227,17 @@ class DeploymentsController extends Controller
         $orders = Order::actual()
             ->when($fy, fn ($q) => $q->where('fiscal_year', $fy))
             ->whereIn('status', ['ordered', 'shipped', 'partially_received', 'received'])
-            ->with(['items.item.model', 'items.item.location', 'items.item.status', 'supplier', 'purchaseOrder'])
+            // items.item is a morphTo: an order line can point at an Asset,
+            // but also at a Component or Accessory, which carry no model()
+            // relation — a blanket items.item.model eager load throws the
+            // moment one such line exists. Constrain the nested loads to
+            // the Asset shape; other item types render from the line itself.
+            ->with([
+                'items.item' => fn ($morphTo) => $morphTo->morphWith([
+                    Asset::class => ['model', 'location', 'status'],
+                ]),
+                'supplier', 'purchaseOrder',
+            ])
             ->orderBy('order_date')
             ->get();
 
@@ -696,6 +706,7 @@ class DeploymentsController extends Controller
         $this->authorize('deployments.view');
 
         return view('deployment-waves.index', [
+            'blackouts' => \App\Models\StaffBlackout::with('user')->orderByDesc('start_date')->orderByDesc('id')->get(),
             'waves' => DeploymentWave::with(['type', 'owner'])->withCount('items')
                 ->orderByDesc('fiscal_year')->orderBy('sort_order')->orderBy('name')->get(),
             'types' => DeploymentType::orderBy('sort_order')->orderBy('name')->get(),

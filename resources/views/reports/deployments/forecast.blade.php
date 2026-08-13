@@ -29,8 +29,8 @@
         </select>
     </form>
     <a href="{{ route('reports.deployments', ['fiscal_year' => $fy]) }}" class="btn btn-default">{{ trans('admin/deployments/general.dashboard_title') }}</a>
+    <a href="{{ route('deployment-waves.index') }}" class="btn btn-default"><i class="fas fa-water"></i> {{ trans('admin/deployments/general.waves_title') }}</a>
     <a href="{{ route('deployments.storage') }}" class="btn btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
-    <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
     {{-- Early renewal / criteria, behind a button — the entry form is a
          once-in-a-while tool and was costing a whole box of the page. --}}
     <span class="nw-pop-wrap" style="position:relative; display:inline-block;">
@@ -105,6 +105,9 @@
         background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 8%, var(--box-bg, #fff));
     }
     .fc-scroll { max-height: 62vh; overflow: auto; }
+    {{-- Same collapse-vs-sticky Chrome bug the layout's .sticky-table
+         guards against: without separate, rows bleed through the header. --}}
+    .fc-scroll table { border-collapse: separate; border-spacing: 0; }
     .fc-money-chip {
         display: inline-flex; align-items: center; height: 26px;
         padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
@@ -122,10 +125,7 @@
     {{ csrf_field() }}
     <input type="hidden" name="fiscal_year" value="{{ $fy }}">
 
-    <div class="row" style="display:flex; flex-wrap:wrap;">
-        @if ($waves->isNotEmpty())
-        <div class="col-md-6" style="display:flex;">
-            <div style="flex:1;">
+    @if ($waves->isNotEmpty())
 {{-- The FY's waves at a glance. --}}
 <div class="box box-default">
     <div class="box-header with-border">
@@ -168,37 +168,7 @@
         </table>
     </div>
 </div>
-            </div>
-        </div>
-        @endif
-        {{-- Just the add-to-wave control: creating a wave lives behind the
-             New Wave button, so the creation fields here were a second copy
-             of the same form. Pick the wave, add the selection. --}}
-        <div class="{{ $waves->isNotEmpty() ? 'col-md-6' : 'col-md-12' }}" style="display:flex;">
-            <div class="box box-default" style="flex:1;">
-                <div class="box-header with-border">
-                    <h3 class="box-title">{{ trans('admin/deployments/general.add_from_forecast') }}</h3>
-                </div>
-                <div class="box-body" style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
-                    <div>
-                        <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.target_wave') }}</label>
-                        <select name="wave_id" class="form-control" style="width:auto; min-width:220px;">
-                            <option value="">—</option>
-                            @foreach ($waves as $w)
-                                <option value="{{ $w->id }}">{{ $w->name }} ({{ $w->items_count }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}
-                            (<span id="fc-sel-count">0</span>)
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    @endif
 
     {{-- Candidate assets --}}
     <div class="box box-default">
@@ -207,8 +177,33 @@
             {{-- The budget beside the plan: lease-end funds, what the plan
                  currently requests, and the gap — live from the capital
                  request, linking into it. Adjust here, watch the money. --}}
+            <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                {{-- Add-to-wave is one action, not a box of its own: pick the
+                     target wave in the popover and the checked candidates go
+                     over. The submit rides the surrounding form, so the
+                     checkbox selection is exactly what gets added. --}}
+                <span class="nw-pop-wrap" style="position:relative; display:inline-block;">
+                    <button type="button" class="btn btn-sm btn-primary nw-pop-toggle" data-pop="fc-add-pop">
+                        <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}
+                        (<span id="fc-sel-count">0</span>)
+                    </button>
+                    <div class="nw-pop" id="fc-add-pop" style="width:300px;">
+                        <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.target_wave') }}</label>
+                        <select name="wave_id" class="form-control" style="width:100%; margin-bottom:10px;">
+                            <option value="">—</option>
+                            @foreach ($waves as $w)
+                                <option value="{{ $w->id }}">{{ $w->name }} ({{ $w->items_count }})</option>
+                            @endforeach
+                        </select>
+                        <div class="text-right">
+                            <button type="button" class="btn btn-sm btn-default nw-pop-cancel" data-pop="fc-add-pop">{{ trans('button.cancel') }}</button>
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}
+                            </button>
+                        </div>
+                    </div>
+                </span>
             @if ($capital)
-                <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     <a href="{{ route('reports.procurement.capital-request', ['fiscal_year' => $capital['fy']]) }}" class="label label-default fc-money-chip">
                         {{ trans('admin/deployments/general.forecast_funds_chip', ['amount' => number_format($capital['envelope'], 2)]) }}
                     </a>
@@ -220,8 +215,8 @@
                             ? trans('admin/deployments/general.forecast_over_chip', ['amount' => number_format(abs($capital['remaining']), 2)])
                             : trans('admin/purchase-orders/general.capital_remaining_chip', ['amount' => number_format($capital['remaining'], 2)]) }}
                     </a>
-                </div>
             @endif
+                </div>
             <span style="margin-left:16px; vertical-align:middle; white-space:nowrap;">
                 <span class="text-muted" style="font-size:12px; margin-right:4px;">{{ trans('admin/deployments/general.flow_group_label') }}</span>
                 <span class="btn-group" id="fc-group-btns" style="vertical-align:middle;">

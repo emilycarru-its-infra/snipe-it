@@ -15,14 +15,16 @@ use Illuminate\Http\Request;
  */
 class StaffBlackoutsController extends Controller
 {
-    /** List all blackouts, newest first, with the staff member's name. */
-    public function index()
+    /**
+     * The standalone list page is gone — the table is configuration and
+     * lives on the Waves page now. The route name survives so old links
+     * land in the right place.
+     */
+    public function index(): RedirectResponse
     {
         $this->authorize('deployments.view');
 
-        return view('deployment-blackouts.index', [
-            'blackouts' => StaffBlackout::with('user')->orderByDesc('start_date')->orderByDesc('id')->get(),
-        ]);
+        return redirect()->route('deployment-waves.index');
     }
 
     public function create()
@@ -46,7 +48,7 @@ class StaffBlackoutsController extends Controller
             return redirect()->back()->withInput()->withErrors($blackout->getErrors());
         }
 
-        return redirect()->route('deployments.blackouts.index')
+        return redirect()->route('deployment-waves.index')
             ->with('success', trans('admin/deployments/general.blackout_saved'));
     }
 
@@ -55,7 +57,7 @@ class StaffBlackoutsController extends Controller
         $this->authorize('deployments.edit');
 
         if ($blackout->source !== 'manual') {
-            return redirect()->route('deployments.blackouts.index')
+            return redirect()->route('deployment-waves.index')
                 ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
         }
 
@@ -69,7 +71,7 @@ class StaffBlackoutsController extends Controller
         $this->authorize('deployments.edit');
 
         if ($blackout->source !== 'manual') {
-            return redirect()->route('deployments.blackouts.index')
+            return redirect()->route('deployment-waves.index')
                 ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
         }
 
@@ -79,7 +81,7 @@ class StaffBlackoutsController extends Controller
             return redirect()->back()->withInput()->withErrors($blackout->getErrors());
         }
 
-        return redirect()->route('deployments.blackouts.index')
+        return redirect()->route('deployment-waves.index')
             ->with('success', trans('admin/deployments/general.blackout_saved'));
     }
 
@@ -88,13 +90,13 @@ class StaffBlackoutsController extends Controller
         $this->authorize('deployments.edit');
 
         if ($blackout->source !== 'manual') {
-            return redirect()->route('deployments.blackouts.index')
+            return redirect()->route('deployment-waves.index')
                 ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
         }
 
         $blackout->delete();
 
-        return redirect()->route('deployments.blackouts.index')
+        return redirect()->route('deployment-waves.index')
             ->with('success', trans('admin/deployments/general.blackout_deleted'));
     }
 
