@@ -416,22 +416,22 @@ Route::group(['middleware' => 'auth'], function () {
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.storage_title'), route('deployments.storage')));
 
-    // Staff availability blackouts (vacation / OOO) — manual CRUD.
+    // Staff availability blackouts (vacation / OOO) — manual CRUD. The
+    // list itself is a configuration table on the Waves page; the index
+    // route survives as a redirect there.
     Route::get('deployments/blackouts', [StaffBlackoutsController::class, 'index'])
-        ->name('deployments.blackouts.index')
-        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index')));
+        ->name('deployments.blackouts.index');
     Route::get('deployments/blackouts/create', [StaffBlackoutsController::class, 'create'])
         ->name('deployments.blackouts.create')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index'))
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployment-waves.index'))
             ->push(trans('admin/deployments/general.blackout_create'), route('deployments.blackouts.create')));
     Route::post('deployments/blackouts', [StaffBlackoutsController::class, 'store'])
         ->name('deployments.blackouts.store');
     Route::get('deployments/blackouts/{blackout}/edit', [StaffBlackoutsController::class, 'edit'])
         ->name('deployments.blackouts.edit')
         ->breadcrumbs(fn (Trail $trail, $blackout) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.blackouts_title'), route('deployments.blackouts.index'))
+            ->push(trans('admin/deployments/general.blackouts_title'), route('deployment-waves.index'))
             ->push(trans('admin/deployments/general.blackout_update'), route('deployments.blackouts.edit', $blackout)));
     Route::put('deployments/blackouts/{blackout}', [StaffBlackoutsController::class, 'update'])
         ->name('deployments.blackouts.update');

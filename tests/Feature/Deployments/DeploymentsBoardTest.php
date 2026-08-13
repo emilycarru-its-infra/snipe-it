@@ -476,6 +476,56 @@ class DeploymentsBoardTest extends TestCase
     }
 
     /**
+     * OrderItem::item is a morphTo that can point at more than Assets. An
+     * order line for a Component used to 500 the whole board, because the
+     * eager load asked every item type for a model() relation only Assets
+     * have.
+     */
+    public function test_board_survives_an_order_line_for_a_non_asset()
+    {
+        $order = \App\Models\Order::factory()->create([
+            'fiscal_year' => 'FY2026-27',
+            'status' => 'ordered',
+            'is_planned' => false,
+        ]);
+        $component = \App\Models\Component::factory()->create(['name' => 'Odd Part']);
+        \App\Models\OrderItem::create([
+            'order_id' => $order->id,
+            'item_type' => \App\Models\Component::class,
+            'item_id' => $component->id,
+            'description' => 'Odd Part',
+            'quantity' => 1,
+            'unit_cost' => 10,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.deployments', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk();
+    }
+
+    public function test_waves_page_hosts_the_staffing_blackouts_table()
+    {
+        \App\Models\StaffBlackout::create([
+            'user_id' => User::factory()->create()->id,
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-05',
+            'reason' => 'Vacation',
+            'source' => 'manual',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployment-waves.index'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.blackouts_title'))
+            ->assertSee('Vacation');
+
+        // The standalone page is gone; its URL folds into the waves page.
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.blackouts.index'))
+            ->assertRedirect(route('deployment-waves.index'));
+    }
+
+    /**
      * The dedicated Update page is gone: every human-typed wave field edits
      * in place on the show page, one field per request, asset-page style.
      */

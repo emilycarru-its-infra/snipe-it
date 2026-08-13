@@ -52,7 +52,7 @@ return [
     // Said at the point of choosing, because choosing is what sends the
     // email. Somebody picking this should know a third party is about to be
     // contacted about their machine, and that a number is coming back.
-    'buyout_yes_note' => 'Choosing this asks the lease company for a firm quote on your laptop. You will be copied on that request, and nothing is charged until you have seen the figure.',
+    'buyout_yes_note' => 'Choosing this records your decision to keep the laptop. The IT team will confirm the buyout figure with the lease company and follow up with you — nothing is charged until you have seen the figure.',
     'buyout_no' => 'No, I don\'t want to keep my laptop and will return it by Sept 15th to B1116, B1115, or Media Resources',
     'buyout_no_prior_laptop' => 'No, I don\'t have a laptop to return',
     'buyout_have_laptop' => 'Our records show a laptop checked out to you — choose whether you\'re keeping or returning it.',
