@@ -3135,7 +3135,7 @@ parameters:
 		-
 			message: '#^Relation ''type'' is not found in App\\Models\\DeploymentWave model\.$#'
 			identifier: larastan.relationExistence
-			count: 2
+			count: 3
 			path: app/Http/Controllers/DeploymentsController.php
 
 		-

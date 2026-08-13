@@ -19,6 +19,7 @@ use Watson\Validating\ValidatingTrait;
  * @property-read Asset|null $replacesAsset
  * @property-read OrderItem|null $orderItem
  * @property-read DeploymentStage|null $stage
+ * @property-read DeploymentWave|null $wave
  */
 class DeploymentItem extends SnipeModel
 {
@@ -75,6 +76,7 @@ class DeploymentItem extends SnipeModel
         'assignedUser' => ['first_name', 'last_name', 'username', 'email'],
     ];
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<DeploymentWave, $this> */
     public function wave()
     {
         return $this->belongsTo(DeploymentWave::class, 'wave_id');
@@ -95,6 +97,7 @@ class DeploymentItem extends SnipeModel
         return $this->belongsTo(OrderItem::class, 'order_item_id');
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<AssetModel, $this> */
     public function model()
     {
         return $this->belongsTo(AssetModel::class, 'model_id');

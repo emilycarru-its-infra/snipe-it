@@ -266,7 +266,19 @@ class StoreController extends Controller
         // undo a placed order, so it logs rather than throws; the queue makes
         // a missing record visible.
         try {
-            app(StoreOrderAssetProvisioner::class)->provision($order->load('items.catalogItem', 'user'));
+            $provisioned = app(StoreOrderAssetProvisioner::class)
+                ->provision($order->load('items.catalogItem', 'user'));
+
+            // Silence here is how two iPads went missing: every unit failed
+            // validation, the failure went to a log nobody reads, and the
+            // order looked normal for a day. Say plainly how many of the
+            // expected records exist, so the line is findable by count
+            // rather than by knowing what to grep for.
+            $expected = $order->expectedAssetCount();
+            if ($provisioned->count() < $expected) {
+                Log::error('Store order '.$order->id.' provisioned '
+                    .$provisioned->count().' of '.$expected.' expected assets');
+            }
         } catch (\Throwable $e) {
             Log::error('Asset provisioning failed for order '.$order->id.': '.$e->getMessage());
         }

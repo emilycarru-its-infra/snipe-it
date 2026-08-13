@@ -31,8 +31,17 @@ class StoreOrderNotifier
             $mail = Mail::to($email);
 
             // The "we received it" mail also lands with procurement, so
-            // the queue never depends on someone remembering to look.
-            $cc = EmailTemplate::ccFor('store.'.$event, $event === 'requested' ? 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca' : null);
+            // the queue never depends on someone remembering to look. A
+            // decision copies them too: approving or declining is the
+            // moment somebody may have to act, and it went to the requester
+            // alone — so the note an approver wrote reached nobody on this
+            // side and there was no record of the decision in a mailbox.
+            $copiedToProcurement = in_array($event, ['requested', 'approved', 'declined'], true);
+
+            $cc = EmailTemplate::ccFor(
+                'store.'.$event,
+                $copiedToProcurement ? 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca' : null,
+            );
 
             if ($cc !== []) {
                 $mail->cc($cc);

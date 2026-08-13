@@ -29,9 +29,64 @@
     <a href="{{ route('reports.deployments', ['fiscal_year' => $fy]) }}" class="btn btn-default">{{ trans('admin/deployments/general.dashboard_title') }}</a>
     <a href="{{ route('deployments.storage') }}" class="btn btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
+    <a href="{{ route('deployments.forecast', array_filter(['fiscal_year' => $fy, 'format' => 'csv', 'criteria' => $activeCriteria])) }}" class="btn btn-default">
+        <x-icon type="download" /> {{ trans('general.download') }}
+    </a>
     @can('deployments.edit')
         @include('reports.deployments._new-wave-popover', ['popoverId' => 'fc-new-wave', 'fy' => $fy, 'types' => $types])
     @endcan
+</div>
+
+{{-- Early-renewal criteria, absorbed from the retired procurement
+     forecast page: any criteria replace the EOL/lease window and list
+     every matching device, so a subset of an active contract can be
+     slotted in early. --}}
+@php $sanitiseListId = fn ($key) => 'fcl-'.preg_replace('/[^a-z0-9]/i', '-', $key); @endphp
+<div class="box {{ ($earlyRenewalMode ?? false) ? 'box-primary' : 'box-default' }}">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/purchase-orders/general.forecast_criteria_title') }}</h3>
+        @if ($earlyRenewalMode ?? false)
+            <span class="label label-primary" style="margin-left:8px;">{{ trans('admin/purchase-orders/general.forecast_early_renewal_badge') }}</span>
+        @endif
+    </div>
+    <div class="box-body">
+        <p class="text-muted">{{ trans('admin/purchase-orders/general.forecast_criteria_help') }}</p>
+        <form method="get" id="forecast-criteria-form">
+            <input type="hidden" name="fiscal_year" value="{{ $fy }}">
+            <div id="forecast-criteria-rows">
+                @php $criteriaRows = ! empty($activeCriteria) ? $activeCriteria : [['field' => '', 'value' => '']]; @endphp
+                @foreach ($criteriaRows as $i => $c)
+                    <div class="forecast-criteria-row form-inline" style="margin-bottom:6px;">
+                        <select name="criteria[{{ $i }}][field]" class="form-control fc-field" style="min-width:220px;">
+                            <option value="">{{ trans('admin/purchase-orders/general.forecast_criteria_field') }}</option>
+                            @foreach ($filterFields as $key => $label)
+                                <option value="{{ $key }}" {{ ($c['field'] ?? '') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <input type="text" name="criteria[{{ $i }}][value]" class="form-control fc-value" style="min-width:220px;"
+                               value="{{ $c['value'] ?? '' }}"
+                               @if (! empty($c['field']) && ! empty($filterValues[$c['field']])) list="{{ $sanitiseListId($c['field']) }}" @endif
+                               placeholder="{{ trans('admin/purchase-orders/general.forecast_criteria_value') }}">
+                        <button type="button" class="btn btn-default fc-remove" title="{{ trans('button.delete') }}">&times;</button>
+                    </div>
+                @endforeach
+            </div>
+            <button type="button" id="fc-add" class="btn btn-default btn-sm" style="margin-top:6px;">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i> {{ trans('admin/purchase-orders/general.forecast_criteria_add') }}
+            </button>
+            <button type="submit" class="btn btn-primary btn-sm" style="margin-top:6px;">{{ trans('admin/purchase-orders/general.forecast_criteria_apply') }}</button>
+            @if ($earlyRenewalMode ?? false)
+                <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-link btn-sm" style="margin-top:6px;">{{ trans('admin/purchase-orders/general.forecast_criteria_clear') }}</a>
+            @endif
+        </form>
+        @foreach ($filterValues as $key => $vals)
+            @if (! empty($vals))
+                <datalist id="{{ $sanitiseListId($key) }}">
+                    @foreach ($vals as $v)<option value="{{ $v }}">@endforeach
+                </datalist>
+            @endif
+        @endforeach
+    </div>
 </div>
 
 @if (! $fy)
@@ -159,24 +214,36 @@
                         <th>{{ trans('admin/deployments/general.source_date') }}</th>
                         <th>{{ trans('general.status') }}</th>
                         <th>{{ trans('admin/deployments/general.location') }}</th>
+                        <th class="text-right">{{ trans('admin/purchase-orders/general.forecast_estimate') }}</th>
                         <th>{{ trans('admin/deployments/general.forecast_col_decision') }}</th>
                     </tr>
                 </thead>
                 <tbody id="fc-rows">
-                @php($reasonLabel = ['eol' => trans('admin/deployments/general.reason_eol'), 'lease' => trans('admin/deployments/general.reason_lease'), 'both' => trans('admin/deployments/general.reason_both')])
+                @php($reasonLabel = ['eol' => trans('admin/deployments/general.reason_eol'), 'lease' => trans('admin/deployments/general.reason_lease'), 'both' => trans('admin/deployments/general.reason_both'), 'funded' => trans('admin/deployments/general.reason_funded'), 'criteria' => trans('admin/deployments/general.reason_criteria')])
                 @forelse ($candidates as $idx => $asset)
                     <tr data-idx="{{ $idx }}"
                         data-location="{{ $asset->location?->name ?: '—' }}"
                         data-model="{{ $asset->model?->name ?: '—' }}"
                         data-reason="{{ $reasonLabel[$asset->refresh_reason] ?? $asset->refresh_reason }}"
                         data-decision="{{ $asset->lease_decision_label ?: '—' }}">
-                        <td><input type="checkbox" class="fc-check" name="asset_ids[]" value="{{ $asset->id }}"></td>
+                        <td>
+                            @if (in_array($asset->id, $plannedAssetIds, true))
+                                <span class="label label-info" title="{{ trans('admin/purchase-orders/general.forecast_planned_already') }}">{{ trans('admin/purchase-orders/general.forecast_planned_already') }}</span>
+                            @else
+                                <input type="checkbox" class="fc-check" name="asset_ids[]" value="{{ $asset->id }}">
+                            @endif
+                        </td>
                         <td><a href="{{ route('hardware.show', $asset) }}" class="js-lightbox">{{ $asset->name ?: $asset->asset_tag ?: ('#'.$asset->id) }}</a></td>
                         <td>{{ $asset->model?->name ?: '—' }}</td>
                         <td><span class="label label-default">{{ $reasonLabel[$asset->refresh_reason] ?? $asset->refresh_reason }}</span></td>
                         <td>{{ $asset->source_date ?: '—' }}</td>
                         <td>{{ $asset->status?->name ?: '—' }}</td>
                         <td>{{ $asset->location?->name ?: '—' }}</td>
+                        @php($fcCatalog = $asset->model?->refreshCatalogItem)
+                        <td class="text-right" style="white-space:nowrap;">
+                            ${{ number_format($asset->replacementCostEstimate() ?? (float) ($asset->purchase_cost ?? 0), 2) }}
+                            @if (! $fcCatalog)<span class="label label-default" title="{{ trans('admin/purchase-orders/general.forecast_basis_original') }}">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
+                        </td>
                         <td>
                             @if ($asset->lease_decision_label)
                                 <span class="label label-warning" @if ($asset->lease_decision_note) title="{{ $asset->lease_decision_note }}" @endif>
@@ -186,15 +253,100 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="text-center text-muted">{{ trans('admin/deployments/general.forecast_no_candidates') }}</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted">{{ trans('admin/deployments/general.forecast_no_candidates') }}</td></tr>
                 @endforelse
                 </tbody>
+                @if ($candidates->isNotEmpty())
+                    <tfoot>
+                        <tr>
+                            <th colspan="7" class="text-right">{{ trans('admin/orders/general.total') }}</th>
+                            <th class="text-right">${{ number_format($totalEstimate, 2) }}</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                @endif
             </table>
         </div>
+        @can('create', \App\Models\Order::class)
+            {{-- The same selection can also become a planned order — the
+                 forecast's dollars on the procurement dashboard. Same
+                 checkboxes, different button. --}}
+            <div class="box-footer form-inline" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <label for="fc-order-number" style="margin:0;">{{ trans('admin/purchase-orders/general.forecast_order_number') }}</label>
+                <input type="text" name="order_number" id="fc-order-number" class="form-control input-sm" maxlength="191">
+                <button type="submit" class="btn btn-default btn-sm"
+                        formaction="{{ route('reports.procurement.forecast.plan') }}">
+                    {{ trans('admin/purchase-orders/general.forecast_create_planned') }}
+                    (<span class="fc-sel-count-mirror">0</span>)
+                </button>
+            </div>
+        @endcan
     </div>
 </form>
 
 <script nonce="{{ csrf_token() }}">
+(function () {
+    var rows = document.getElementById('forecast-criteria-rows');
+    if (!rows) { return; }
+
+    function nextIndex() {
+        var max = -1;
+        rows.querySelectorAll('.fc-field').forEach(function (sel) {
+            var m = sel.name.match(/criteria\[(\d+)\]/);
+            if (m) { max = Math.max(max, parseInt(m[1], 10)); }
+        });
+        return max + 1;
+    }
+
+    function listIdFor(key) { return 'fcl-' + key.replace(/[^a-z0-9]/gi, '-'); }
+
+    function wireRow(row) {
+        var field = row.querySelector('.fc-field');
+        var value = row.querySelector('.fc-value');
+        var remove = row.querySelector('.fc-remove');
+        if (field) {
+            field.addEventListener('change', function () {
+                var id = listIdFor(field.value);
+                if (field.value && document.getElementById(id)) {
+                    value.setAttribute('list', id);
+                } else {
+                    value.removeAttribute('list');
+                }
+                value.value = '';
+            });
+        }
+        if (remove) {
+            remove.addEventListener('click', function () {
+                if (rows.querySelectorAll('.forecast-criteria-row').length > 1) {
+                    row.remove();
+                } else {
+                    field.value = '';
+                    value.value = '';
+                    value.removeAttribute('list');
+                }
+            });
+        }
+    }
+
+    rows.querySelectorAll('.forecast-criteria-row').forEach(wireRow);
+
+    var add = document.getElementById('fc-add');
+    if (add) {
+        add.addEventListener('click', function () {
+            var clone = rows.querySelector('.forecast-criteria-row').cloneNode(true);
+            var idx = nextIndex();
+            var f = clone.querySelector('.fc-field');
+            var v = clone.querySelector('.fc-value');
+            f.name = 'criteria[' + idx + '][field]';
+            f.value = '';
+            v.name = 'criteria[' + idx + '][value]';
+            v.value = '';
+            v.removeAttribute('list');
+            rows.appendChild(clone);
+            wireRow(clone);
+        });
+    }
+})();
 (function () {
     var tbody = document.getElementById('fc-rows');
     if (!tbody) { return; }
@@ -203,7 +355,12 @@
     var selCount = document.getElementById('fc-sel-count');
 
     function refreshCount() {
-        selCount.textContent = rows.filter(function (r) { return r.querySelector('.fc-check').checked; }).length;
+        var n = rows.filter(function (r) {
+            var check = r.querySelector('.fc-check');
+            return check && check.checked;
+        }).length;
+        selCount.textContent = n;
+        document.querySelectorAll('.fc-sel-count-mirror').forEach(function (el) { el.textContent = n; });
     }
 
     function rebuild() {
@@ -228,7 +385,7 @@
             var head = document.createElement('tr');
             head.className = 'fc-group-head';
             var td = document.createElement('td');
-            td.colSpan = 8;
+            td.colSpan = 9;
             var check = document.createElement('input');
             check.type = 'checkbox';
             check.style.marginRight = '8px';

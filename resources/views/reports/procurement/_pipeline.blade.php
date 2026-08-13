@@ -49,8 +49,14 @@
                 $t('pipeline_note_committed'),
                 $t('pipeline_note_pos', ['count' => $poCount]),
                 $t('pipeline_note_open_orders', ['count' => count($pipeline['open']) + $pipeline['openMore']]),
-                count($pipeline['storeQueue'] ?? []) > 0
-                    ? $t('pipeline_note_awaiting_review', ['count' => count($pipeline['storeQueue'])])
+                // Counted apart: "awaiting review" and "approved, waiting
+                // for a PO" are different things to act on, and lumping
+                // them was how an approved order looked like it had gone.
+                ($awaitingReview = collect($pipeline['storeQueue'] ?? [])->where('status', 'pending')->count())
+                    ? $t('pipeline_note_awaiting_review', ['count' => $awaitingReview])
+                    : null,
+                ($approvedWaiting = collect($pipeline['storeQueue'] ?? [])->where('status', 'approved')->count())
+                    ? $t('pipeline_note_approved_waiting', ['count' => $approvedWaiting])
                     : null,
             ])),
         ],
@@ -347,7 +353,15 @@
                                     <div class="pp-t">{{ $queueCard['number'] }}</div>
                                     <div class="pp-d">{{ $queueCard['requester'] }} · <span class="pp-money">{{ $fmt($queueCard['total']) }}</span></div>
                                     <div class="pp-chips">
-                                        <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_awaiting') }}</span>
+                                        {{-- Which of the two it is. An approved order
+                                             sitting here is waiting on a PO, not on a
+                                             decision, and the card should not ask for
+                                             one twice. --}}
+                                        @if (($queueCard['status'] ?? 'pending') === 'approved')
+                                            <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.pipeline_chip_approved') }}</span>
+                                        @else
+                                            <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_awaiting') }}</span>
+                                        @endif
                                     </div>
                                 </div>
                             @endforeach

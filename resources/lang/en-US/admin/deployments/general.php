@@ -38,6 +38,8 @@ return [
     'new_wave_name' => 'or create a new wave named',
     'refresh_reason' => 'Reason',
     'source_date' => 'Due',
+    'reason_funded' => 'Funded replacement',
+    'reason_criteria' => 'Criteria match',
     'reason_eol' => 'End of Life',
     'reason_lease' => 'Lease End',
     'reason_both' => 'Lease End',

@@ -122,13 +122,19 @@ class ProcurementReportsTest extends TestCase
             ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
         $superuser = $this->superuser();
 
+        // One forecast page now: the procurement address redirects into
+        // the deployments planning hub, where the page and CSV both live.
         $this->actingAs($superuser)
             ->get(route('reports.procurement.forecast'))
+            ->assertRedirect(route('deployments.forecast'));
+
+        $this->actingAs($superuser)
+            ->get(route('deployments.forecast'))
             ->assertOk()
             ->assertSee('FORECAST-1');
 
         $csv = $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+            ->get(route('deployments.forecast', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringContainsString('FORECAST-1', $csv->streamedContent());
     }
@@ -288,7 +294,7 @@ class ProcurementReportsTest extends TestCase
 
         // The forecast table links the asset cells into the lightbox…
         $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast'))
+            ->get(route('deployments.forecast'))
             ->assertOk()
             ->assertSee('js-lightbox')
             ->assertSee(route('hardware.show', $asset->id), false)
@@ -298,7 +304,7 @@ class ProcurementReportsTest extends TestCase
 
         // The links map is render-time only — exports carry clean cells.
         $csv = $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+            ->get(route('deployments.forecast', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringNotContainsString('js-lightbox', $csv->streamedContent());
         $this->assertStringNotContainsString('href', $csv->streamedContent());
@@ -797,16 +803,18 @@ class ProcurementReportsTest extends TestCase
             'status' => 'approved',
         ]);
 
-        // The envelope tile carries both contracts' full value; the kept
-        // contract itself appears nowhere as a line — its budget stays in
-        // the envelope for redistribution, and that is its whole story.
-        $this->actingAs($this->superuser())
+        // The envelope table carries both contracts at full value; the kept
+        // contract appears there and ONLY there — never as a request line —
+        // which is how its budget stays in the envelope for redistribution.
+        $content = $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
             ->assertSee('$5,700.00')
-            ->assertSee(trans('admin/purchase-orders/general.capital_tile_envelope'))
-            ->assertSee('ECI-CAPREQ-REF')
-            ->assertDontSee('ECI-CAPREQ-KEPT');
+            ->assertSee(trans('admin/purchase-orders/general.capital_envelope_title'))
+            ->assertSee(trans('admin/purchase-orders/general.lease_end_retained'))
+            ->getContent();
+        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-KEPT</a>'));
+        $this->assertSame(2, substr_count($content, '>ECI-CAPREQ-REF</a>'));
 
         // The draft carries only the refresh distribution.
         $this->actingAs($this->superuser())
@@ -814,6 +822,102 @@ class ProcurementReportsTest extends TestCase
         $requisition = \App\Models\Requisition::latest('id')->first();
         $this->assertNotNull($requisition);
         $this->assertSame(1, $requisition->items()->count());
+    }
+
+    public function test_the_request_reads_the_wave_plan_and_populates_the_paper_back()
+    {
+        // A device on an ending contract, already planned into a wave with
+        // a DIFFERENT replacement model: the wave's plan wins over the
+        // like-for-like forecast, and the wave rides on the line.
+        $asset = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-WAVE',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 2000.00]);
+
+        $planned = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13 M5']);
+        $wave = \App\Models\DeploymentWave::create([
+            'name' => 'FY26-27 Faculty Refresh', 'slug' => 'fy2627-faculty-'.uniqid(), 'fiscal_year' => 'FY2026-27',
+        ]);
+        \App\Models\DeploymentItem::create([
+            'wave_id' => $wave->id, 'replaces_asset_id' => $asset->id, 'model_id' => $planned->id,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('MacBook Air 13 M5')
+            ->assertSee('FY26-27 Faculty Refresh');
+
+        // Draft it; the REQM column then names the requisition the line
+        // landed on, and once finance issues a PO it appears too.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
+        $requisition = \App\Models\Requisition::latest('id')->first();
+        $requisition->forceFill(['requisition_number' => '0017999'])->save();
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('REQM 0017999');
+
+        $po = PurchaseOrder::factory()->create(['po_number' => 'P0026150', 'fiscal_year' => 'FY2026-27']);
+        $requisition->forceFill(['purchase_order_id' => $po->id])->save();
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('P0026150');
+    }
+
+    public function test_a_devices_request_year_follows_the_decision_not_the_paper()
+    {
+        // The faculty case: a 5-year lease ending in FY2027-28, refreshed
+        // at year 4 by a FY2026-27 wave. The wave is the decision, so the
+        // line belongs to FY2026-27's request — not the year the paper
+        // expires.
+        $waved = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 2100.00]);
+        $wave = \App\Models\DeploymentWave::create([
+            'name' => 'FY26-27 Faculty Wave', 'slug' => 'fy2627-early-'.uniqid(), 'fiscal_year' => 'FY2026-27',
+        ]);
+        \App\Models\DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $waved->id]);
+
+        // Same contract, no wave, but an End of Life WE set earlier than
+        // the lease end: the forecast's operative date wins. (Stamped after
+        // create — the factory's afterMaking overwrites asset_eol_date.)
+        $early = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 1900.00]);
+        Asset::query()->whereKey($early->id)->update(['asset_eol_date' => '2026-10-01']);
+
+        // And one with nothing sharper decided: lease end stands.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 1700.00]);
+
+        // FY2026-27 carries the wave device and the early-EOL device…
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('$2,100.00')
+            ->assertSee('$1,900.00')
+            ->assertDontSee('$1,700.00');
+
+        // …and FY2027-28 keeps only the undecided one.
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2027-28')
+            ->assertOk()
+            ->assertSee('$1,700.00')
+            ->assertDontSee('$2,100.00')
+            ->assertDontSee('$1,900.00');
     }
 
     public function test_new_asks_are_entered_by_hand_and_join_the_draft()

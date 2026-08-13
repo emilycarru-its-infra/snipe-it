@@ -133,8 +133,14 @@ class ProcurementPipeline
                         'unit_cost' => (float) $line->unit_cost,
                     ])->all(),
                 ])->values()->all(),
+            // Pending and approved both, because approving one used to make
+            // it disappear: this was the only place the board looked at
+            // store orders, and nothing downstream picks an order up until
+            // it has been pulled into a requisition and given a PO. An
+            // approved order had nowhere to live in between, so somebody
+            // approving one then went looking for it and found nothing.
             'storeQueue' => \App\Models\StoreOrder::query()
-                ->pending()
+                ->whereIn('status', ['pending', 'approved'])
                 ->with(['user', 'items'])
                 ->orderBy('created_at')
                 ->get()
@@ -142,6 +148,7 @@ class ProcurementPipeline
                     'id' => $order->id,
                     'number' => $order->reference(),
                     'requester' => $order->user?->present()->fullName ?? '',
+                    'status' => $order->status,
                     'total' => (float) $order->items->sum(fn ($item) => (float) $item->unit_cost * (int) $item->quantity),
                     'items' => $order->items->map(fn ($line) => [
                         'description' => $line->description,

@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\CustomField;
+use App\Models\DeploymentItem;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
 use App\Models\Location;
@@ -63,7 +64,6 @@ class ProcurementReportsController extends Controller
      * as opposed to "Active (Legacy)", which marks one that wants replacing but
      * has no plan or money behind it.
      */
-    private const STATUS_FUNDED_REPLACEMENT = 'Active (Replace)';
 
     private const EXTENSION_LOOKAHEAD_MONTHS = 3;
 
@@ -387,178 +387,20 @@ class ProcurementReportsController extends Controller
         );
     }
 
+    /**
+     * The forecast lives on one page now — the deployments planning hub,
+     * which carries the criteria, the estimates, the CSV and both actions
+     * (add to wave, create planned order). This address survives as a door.
+     */
     public function refreshForecast(Request $request)
     {
         $this->authorize('procurement.view');
 
-        $fy = $this->resolveFiscalYear($request);
-
-        // Early-renewal slotting: any criteria the reader adds (category,
-        // ownership type, lease contract, status, …) drives the candidate
-        // set instead of the default end-of-life window, so a subset of an
-        // active contract can be forecasted for an early refresh — e.g.
-        // "Category: Laptop AND Ownership Type: Lease to Own AND Lease
-        // Contract ID: ECI20221001". Selected rows still flow through the
-        // same planned-order path as the EOL forecast.
-        $criteria = $this->forecastCriteria($request);
-        $report = $this->refreshForecastReport($fy, $criteria);
-
-        if ($request->query('format') === 'csv') {
-            return $this->streamReportCsv('refresh-forecast-report', $report);
-        }
-
-        if ($request->boolean('embed')) {
-            return $this->embedTable($report);
-        }
-
-        return view('reports/procurement/forecast', [
-            'reportTitle' => trans('admin/purchase-orders/general.report_forecast'),
-            'columns' => $report['columns'],
-            'rows' => $report['records'],
-            'footer' => $report['footer'] ?? null,
-            'downloadUrl' => route('reports.procurement.forecast', array_filter(
-                ['format' => 'csv', 'fiscal_year' => $request->query('fiscal_year', $fy), 'criteria' => $criteria],
-                fn ($v) => $v !== null && $v !== '' && $v !== []
-            )),
-            'canCreate' => Gate::allows('create', Order::class),
-            'fyFilterable' => true,
-            'selectedFy' => $fy,
-            'allFiscalYears' => $this->availableFiscalYears(),
-            'reportParams' => [],
-            'filterFields' => $this->forecastFilterFields(),
-            'filterValues' => $this->forecastFilterValues(),
-            'activeCriteria' => $criteria,
-            'earlyRenewalMode' => $criteria !== [],
-        ]);
-    }
-
-    /**
-     * Normalise the `criteria[]` query input into a clean list of
-     * {field, value} predicates, dropping blank rows and any field that is
-     * not in the allow-list (the static columns + the live custom fields).
-     * All predicates are ANDed in refreshForecastReport().
-     */
-    private function forecastCriteria(Request $request): array
-    {
-        $raw = $request->query('criteria', []);
-        if (! is_array($raw)) {
-            return [];
-        }
-
-        $allowed = $this->forecastFilterFields();
-        $out = [];
-        foreach ($raw as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-            $field = (string) ($row['field'] ?? '');
-            $value = trim((string) ($row['value'] ?? ''));
-            if ($field === '' || $value === '' || ! isset($allowed[$field])) {
-                continue;
-            }
-            $out[] = ['field' => $field, 'value' => $value];
-        }
-
-        return $out;
-    }
-
-    /**
-     * The fields a forecast criterion can target: a curated set of asset
-     * taxonomies plus every custom field (keyed `cf:<db_column>`), so the
-     * reader can slot in an early renewal by whatever mix the situation
-     * needs without the field list being hard-coded.
-     */
-    private function forecastFilterFields(): array
-    {
-        $fields = [
-            'category' => trans('general.category'),
-            'manufacturer' => trans('general.manufacturer'),
-            'model' => trans('general.asset_model'),
-            'status' => trans('general.status'),
-            'supplier' => trans('general.supplier'),
-            'company' => trans('general.company'),
-        ];
-
-        foreach (CustomField::orderBy('name')->get() as $field) {
-            if ($field->db_column) {
-                $fields['cf:'.$field->db_column] = $field->name;
-            }
-        }
-
-        return $fields;
-    }
-
-    /**
-     * Known values per field, used to populate the criteria builder's
-     * datalists so the reader can autocomplete instead of guessing exact
-     * spellings. Custom-field values are sourced from the assets that carry
-     * them (capped, since some fields are high-cardinality); Model is left
-     * free-text for the same reason.
-     */
-    private function forecastFilterValues(): array
-    {
-        $values = [
-            'category' => Category::where('category_type', 'asset')->orderBy('name')->pluck('name')->all(),
-            'manufacturer' => Manufacturer::orderBy('name')->pluck('name')->all(),
-            'status' => Statuslabel::orderBy('name')->pluck('name')->all(),
-            'supplier' => Supplier::orderBy('name')->pluck('name')->all(),
-            'company' => Company::orderBy('name')->pluck('name')->all(),
-        ];
-
-        foreach (CustomField::orderBy('name')->get() as $field) {
-            if (! $field->db_column) {
-                continue;
-            }
-            $values['cf:'.$field->db_column] = Asset::query()
-                ->whereNotNull($field->db_column)
-                ->where($field->db_column, '!=', '')
-                ->distinct()
-                ->orderBy($field->db_column)
-                ->limit(200)
-                ->pluck($field->db_column)
-                ->all();
-        }
-
-        return $values;
-    }
-
-    /**
-     * Apply one forecast criterion to the asset query. Relation fields match
-     * by name; custom fields match the generated column exactly. The column
-     * is validated against the live custom-field allow-list before it ever
-     * reaches the query builder, so an arbitrary `cf:` value can't inject a
-     * column name.
-     */
-    private function applyForecastCriterion($query, string $field, string $value): void
-    {
-        switch ($field) {
-            case 'category':
-                $query->whereHas('model.category', fn ($q) => $q->where('name', $value));
-                break;
-            case 'manufacturer':
-                $query->whereHas('model.manufacturer', fn ($q) => $q->where('name', $value));
-                break;
-            case 'model':
-                $query->whereHas('model', fn ($q) => $q->where('name', $value));
-                break;
-            case 'status':
-                $query->whereHas('status', fn ($q) => $q->where('name', $value));
-                break;
-            case 'supplier':
-                $query->whereHas('supplier', fn ($q) => $q->where('name', $value));
-                break;
-            case 'company':
-                $query->whereHas('company', fn ($q) => $q->where('name', $value));
-                break;
-            default:
-                if (str_starts_with($field, 'cf:')) {
-                    $column = substr($field, 3);
-                    $allowed = CustomField::pluck('db_column')->filter()->all();
-                    if (in_array($column, $allowed, true)) {
-                        $query->where($column, $value);
-                    }
-                }
-        }
+        return redirect()->route('deployments.forecast', array_filter([
+            'fiscal_year' => $request->query('fiscal_year'),
+            'criteria' => $request->query('criteria'),
+            'format' => $request->query('format'),
+        ], fn ($v) => $v !== null && $v !== '' && $v !== []));
     }
 
     /**
@@ -569,6 +411,12 @@ class ProcurementReportsController extends Controller
     public function createPlannedOrder(Request $request): RedirectResponse
     {
         $this->authorize('create', Order::class);
+
+        // The merged forecast page submits its wave-selection checkboxes
+        // (asset_ids); the old field name stays accepted.
+        if (! $request->has('assets') && $request->has('asset_ids')) {
+            $request->merge(['assets' => $request->input('asset_ids')]);
+        }
 
         $validated = $request->validate([
             'assets' => 'required|array|min:1',
@@ -589,7 +437,7 @@ class ProcurementReportsController extends Controller
             ->get();
 
         if ($assets->isEmpty()) {
-            return redirect()->route('reports.procurement.forecast')
+            return redirect()->route('deployments.forecast', array_filter(['fiscal_year' => $validated['fiscal_year'] ?? null]))
                 ->with('error', trans('admin/purchase-orders/general.forecast_none_selected'));
         }
 
@@ -601,7 +449,7 @@ class ProcurementReportsController extends Controller
         $order->created_by = auth()->id();
 
         if (! $order->save()) {
-            return redirect()->route('reports.procurement.forecast')
+            return redirect()->route('deployments.forecast', array_filter(['fiscal_year' => $validated['fiscal_year'] ?? null]))
                 ->withInput()->withErrors($order->getErrors());
         }
 
@@ -1650,26 +1498,88 @@ class ProcurementReportsController extends Controller
             ->values();
         $envelope = (float) $endingSchedules->sum('cost');
 
-        // ── The refresh: refreshing contracts ending in the year, each
-        // device priced at its forecast replacement, grouped the way the
-        // workbook read — one row per contract × replacement model × area.
-        // Kept contracts get no row here; their story is the envelope's.
+        // ── The plan, where one exists. A device already placed on a
+        // deployment wave carries its planned replacement model — that IS
+        // the request line for it, priced from the same catalog mapping the
+        // wave board shows. Devices on no wave fall back to the forecast's
+        // like-for-like mapping. The wave rides along on the row, so the
+        // request reads straight back to the board it came from.
+        $waveItems = DeploymentItem::with(['wave:id,name,fiscal_year', 'model.refreshCatalogItem', 'model.category'])
+            ->whereNotNull('replaces_asset_id')
+            ->get()
+            ->keyBy('replaces_asset_id');
+
+        // ── The paper, populated back. The workflow runs "PO through the
+        // ERP, comments say 'Lines ## of Devices Capital Request'" — so
+        // each line names the REQM it landed on and, once finance issues
+        // it, the PO. Matched through the year's requisition lines.
+        $reqByCatalog = [];
+        $reqByDescription = [];
+        $fyRequisitions = Requisition::with(['purchaseOrder:id,po_number', 'items:id,requisition_id,catalog_item_id,description'])
+            ->where('fiscal_year', $fyLabel)
+            ->orderBy('created_at')
+            ->get();
+        foreach ($fyRequisitions as $req) {
+            $ref = [
+                'requisition_id' => $req->id,
+                'reqm' => $req->requisition_number ? 'REQM '.$req->requisition_number : $req->title,
+                'po' => $req->purchaseOrder?->po_number,
+            ];
+            foreach ($req->items as $reqItem) {
+                if ($reqItem->catalog_item_id) {
+                    $reqByCatalog[$reqItem->catalog_item_id] ??= $ref;
+                }
+                if ($reqItem->description) {
+                    $reqByDescription[$reqItem->description] ??= $ref;
+                }
+            }
+        }
+
+        // ── The refresh, one device at a time. Which YEAR a device asks in
+        // follows the decision chain, strongest first: a wave it is planned
+        // into pins it to that wave's fiscal year (an operational call —
+        // the FY26-27 faculty wave refreshing 5-year leases at year 4 must
+        // land in FY26-27's request, not the year the paper expires); with
+        // no wave, the forecast's operative date decides — the EARLIER of
+        // its End of Life and its lease end, the same rule the forecast
+        // itself applies; lease end alone is only the default when nothing
+        // sharper was decided. Kept contracts get no rows anywhere; their
+        // story is the envelope's.
         $refresh = [];
         $refreshTotal = 0.0;
         $refreshDevices = 0;
 
         foreach ($this->groupedLeaseAssets(null) as $group) {
-            if ($this->fiscalYearFromEndDate($group['lease_end_date']) !== $fyLabel) {
-                continue;
-            }
-
             $decision = $decisions[$group['contract_id']] ?? null;
             if ($decision && $decision->decision_type === 'buyout'
                 && in_array($decision->status, ['approved', 'completed'], true)) {
                 continue;
             }
 
+            $contractFy = $this->fiscalYearFromEndDate($group['lease_end_date']);
+
             foreach ($group['assets'] as $asset) {
+                // The device's request year: wave FY, else the earlier of
+                // EOL and lease end, else the contract's lease-end year.
+                $deviceWaveItem = $waveItems->get($asset->id);
+                $waveFy = $this->normalizeFy((string) $deviceWaveItem?->wave?->fiscal_year);
+
+                $eolStr = $asset->asset_eol_date
+                    ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString()
+                    : '';
+                $leaseStr = (string) ($asset->lease_end_date ?? '');
+                $operativeDate = match (true) {
+                    $eolStr !== '' && $leaseStr !== '' => min($eolStr, $leaseStr),
+                    $eolStr !== '' => $eolStr,
+                    default => $leaseStr,
+                };
+
+                $requestFy = $waveFy
+                    ?: ($this->fiscalYearFromEndDate($operativeDate) ?? $contractFy);
+
+                if ($requestFy !== $fyLabel) {
+                    continue;
+                }
                 // Disposed units carry budget, not bodies — same rule as
                 // the Lease End Schedules headcount.
                 $statusName = (string) $asset->status?->name;
@@ -1678,9 +1588,21 @@ class ProcurementReportsController extends Controller
                     continue;
                 }
 
-                $catalog = $asset->model?->refreshCatalogItem;
+                // The wave's planned model wins over the like-for-like
+                // forecast: once a device is on a wave, the wave is the plan.
+                $waveItem = $deviceWaveItem;
+                $plannedModel = $waveItem?->model;
+
+                if ($plannedModel) {
+                    $catalog = $plannedModel->refreshCatalogItem;
+                    $replacement = $catalog?->name ?: $plannedModel->name;
+                    $typeName = (string) ($catalog?->category ?: $plannedModel->category?->name ?: '');
+                } else {
+                    $catalog = $asset->model?->refreshCatalogItem;
+                    $replacement = $catalog?->name ?: ($asset->model?->name ?: trans('general.na'));
+                    $typeName = (string) ($catalog?->category ?: $asset->model?->category?->name ?: '');
+                }
                 $unit = $catalog?->effectiveCost() ?? (float) ($asset->purchase_cost ?? 0);
-                $replacement = $catalog?->name ?: ($asset->model?->name ?: trans('general.na'));
 
                 $ownership = $cols['ownership_type'] ? trim((string) $asset->{$cols['ownership_type']}) : '';
                 $preference = match ($ownership) {
@@ -1697,12 +1619,16 @@ class ProcurementReportsController extends Controller
                         'contract_id' => $group['contract_id'],
                         'contract_name' => $group['contract_name'],
                         'qty' => 0,
-                        'type' => (string) ($catalog?->category ?: $asset->model?->category?->name ?: ''),
+                        'type' => $typeName,
                         'model' => $replacement,
                         'unit' => $unit,
                         'estimated' => $catalog === null || $catalog->isEstimate(),
                         'cost' => 0.0,
                         'preference' => $preference ?: '—',
+                        'waves' => [],
+                        'requisition_id' => null,
+                        'reqm' => null,
+                        'po' => null,
                         'retained' => false,
                         'note' => '',
                         // Carried so "start a PO draft" can hand the builder
@@ -1718,8 +1644,21 @@ class ProcurementReportsController extends Controller
                 $refresh[$key]['cost'] += $unit;
                 $refreshTotal += $unit;
                 $refreshDevices++;
+
+                if ($waveItem?->wave) {
+                    $refresh[$key]['waves'][$waveItem->wave->id] = $waveItem->wave->name;
+                }
             }
         }
+
+        // Attach the paper trail per line, then read in contract order.
+        foreach ($refresh as &$row) {
+            $paper = $reqByCatalog[$row['catalog_item_id']] ?? $reqByDescription[$row['model']] ?? null;
+            $row['requisition_id'] = $paper['requisition_id'] ?? null;
+            $row['reqm'] = $paper['reqm'] ?? null;
+            $row['po'] = $paper['po'] ?? null;
+        }
+        unset($row);
 
         $refresh = collect($refresh)
             ->sortBy([['contract_id', 'asc'], ['cost', 'desc']])
@@ -1733,6 +1672,15 @@ class ProcurementReportsController extends Controller
             ->orderBy('sort_order')->orderBy('id')
             ->get();
         $newAskTotal = (float) $newAskLines->sum(fn ($line) => $line->lineTotal());
+
+        // The same paper trail for typed lines — the draft writes them as
+        // "need — description", so that is the string to find them by.
+        $newAskPaper = [];
+        foreach ($newAskLines as $line) {
+            $newAskPaper[$line->id] = $reqByDescription[trim($line->need.' — '.$line->description, ' —')]
+                ?? $reqByDescription[$line->description]
+                ?? null;
+        }
 
         // ── The POs this request became, once finance issued them — and the
         // requisitions still in flight ahead of a PO, so the page says where
@@ -1752,17 +1700,20 @@ class ProcurementReportsController extends Controller
         $csvRecords = [];
         foreach ($refresh as $row) {
             $csvRecords[] = ['cells' => [
-                $row['area'], $row['preference'], $row['type'],
                 trans('admin/purchase-orders/general.capital_need_refresh'),
-                $row['contract_id'], $row['qty'], $row['model'],
+                $row['contract_id'], $row['area'], $row['preference'], $row['type'],
+                $row['qty'], $row['model'],
                 $this->money($row['cost']), $this->money($row['unit']),
+                implode(', ', $row['waves']), (string) $row['reqm'], (string) $row['po'],
             ]];
         }
         foreach ($newAskLines as $line) {
+            $paper = $newAskPaper[$line->id];
             $csvRecords[] = ['cells' => [
-                (string) $line->area, (string) $line->preference, (string) $line->type,
-                $line->need, '', $line->quantity, $line->description,
+                $line->need, '', (string) $line->area, (string) $line->preference, (string) $line->type,
+                $line->quantity, $line->description,
                 $this->money($line->lineTotal()), $this->money((float) $line->unit_cost),
+                '', (string) ($paper['reqm'] ?? ''), (string) ($paper['po'] ?? ''),
             ]];
         }
 
@@ -1775,6 +1726,7 @@ class ProcurementReportsController extends Controller
             'refreshTotal' => $refreshTotal,
             'refreshDevices' => $refreshDevices,
             'newAskLines' => $newAskLines,
+            'newAskPaper' => $newAskPaper,
             'newAskTotal' => $newAskTotal,
             // The request is the envelope, always — the allocation below it
             // says how much of it the lines account for so far.
@@ -1783,21 +1735,24 @@ class ProcurementReportsController extends Controller
             'openRequisitions' => $openRequisitions,
             'csv' => [
                 'columns' => [
+                    trans('admin/purchase-orders/general.capital_col_need'),
+                    trans('admin/purchase-orders/general.capital_col_ending_contract'),
                     trans('admin/purchase-orders/general.capital_col_area'),
                     trans('admin/purchase-orders/general.capital_col_schedule'),
                     trans('admin/purchase-orders/general.capital_col_type'),
-                    trans('admin/purchase-orders/general.capital_col_need'),
-                    trans('admin/purchase-orders/general.capital_col_ending_contract'),
                     trans('admin/purchase-orders/general.lease_qty'),
                     trans('admin/purchase-orders/general.forecast_model'),
                     trans('admin/purchase-orders/general.capital_col_cost'),
                     trans('admin/purchase-orders/general.capital_col_unit'),
+                    trans('admin/purchase-orders/general.capital_col_wave'),
+                    trans('admin/purchase-orders/general.capital_col_reqm'),
+                    trans('admin/purchase-orders/general.capital_col_po'),
                 ],
                 'records' => $csvRecords,
                 'footer' => [
                     trans('admin/orders/general.total'), '', '', '', '',
                     $refreshDevices + (int) $newAskLines->sum('quantity'), '',
-                    $this->money($refreshTotal + $newAskTotal), '',
+                    $this->money($refreshTotal + $newAskTotal), '', '', '', '',
                 ],
             ],
         ];
@@ -2300,118 +2255,6 @@ class ProcurementReportsController extends Controller
      * Assets reaching end-of-life within the next year — the refresh
      * pipeline. purchase_cost stands in as the replacement-cost estimate.
      */
-    private function refreshForecastReport(?string $fy = null, array $criteria = []): array
-    {
-        $columns = [
-            trans('admin/purchase-orders/general.forecast_asset_tag'),
-            trans('admin/purchase-orders/general.forecast_asset_name'),
-            trans('admin/purchase-orders/general.forecast_model'),
-            trans('admin/purchase-orders/general.forecast_serial'),
-            trans('admin/purchase-orders/general.forecast_purchase_date'),
-            trans('admin/purchase-orders/general.forecast_eol_date'),
-            trans('admin/purchase-orders/general.forecast_estimate'),
-            trans('admin/purchase-orders/general.forecast_estimate_basis'),
-            trans('admin/purchase-orders/general.forecast_status'),
-            trans('general.supplier'),
-        ];
-
-        // Default forecast: end-of-life devices in the FY (or the rolling
-        // next-12-months window for "all"). Early-renewal mode — any criteria
-        // supplied — drops the EOL window entirely and lists every device
-        // matching the ANDed predicates, so a subset of an active lease can
-        // be slotted in for an early refresh well before its EOL date.
-        // "Active (Replace)" is a funded decision, not a prediction: its own
-        // note reads "identified for replacement in this fiscal year's capital
-        // that are not in an active lease". It therefore belongs on the
-        // forecast whatever its EOL date says — that is the whole point of
-        // someone having set it. Its sibling "Active (Legacy)" is deliberately
-        // not included: that marks kit that is aging and wants replacing but
-        // has no plan or money behind it, so putting it here would inflate a
-        // funded forecast with a wishlist.
-        //
-        // The status carries no fiscal year of its own and reads "this" year,
-        // so it joins the current year's forecast and the all-years view, never
-        // a historical one.
-        $currentFy = $this->normalizeFy(
-            (now()->month >= 4 ? now()->year : now()->year - 1).'-'.substr((string) ((now()->month >= 4 ? now()->year : now()->year - 1) + 1), -2)
-        );
-        $includeFunded = $fy === null || $fy === $currentFy;
-
-        $range = $this->fiscalYearRange($fy);
-        $assets = Asset::with('model.refreshCatalogItem', 'supplier', 'status')
-            ->when($criteria === [], fn ($query) => $query
-                ->where(fn ($outer) => $outer
-                    ->where(fn ($eol) => $eol
-                        ->whereNotNull('asset_eol_date')
-                        ->when($range, fn ($q) => $q->whereBetween('asset_eol_date', $range))
-                        ->when(! $range, fn ($q) => $q->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])))
-                    ->when($includeFunded, fn ($q) => $q->orWhereHas(
-                        'status',
-                        fn ($s) => $s->where('name', self::STATUS_FUNDED_REPLACEMENT)
-                    ))))
-            ->when($criteria !== [], function ($query) use ($criteria) {
-                foreach ($criteria as $criterion) {
-                    $this->applyForecastCriterion($query, $criterion['field'], $criterion['value']);
-                }
-            })
-            ->orderBy('asset_eol_date')
-            ->orderBy('purchase_date')
-            ->get();
-
-        // Devices that already have a planned replacement line item are
-        // flagged so the forecast view can show them as planned.
-        $plannedAssetIds = OrderItem::whereIn('replaces_asset_id', $assets->pluck('id'))
-            ->pluck('replaces_asset_id')
-            ->all();
-
-        $records = [];
-        $totalEstimate = 0.0;
-
-        foreach ($assets as $asset) {
-            // Projection: the comparable current model's live catalog price
-            // when the model is mapped; the old device's purchase cost only
-            // as a labelled fallback.
-            $catalogItem = $asset->model?->refreshCatalogItem;
-            $projected = $asset->replacementCostEstimate() ?? (float) $asset->purchase_cost;
-            $basis = $catalogItem
-                ? trans('admin/purchase-orders/general.forecast_basis_catalog', ['name' => $catalogItem->name])
-                : trans('admin/purchase-orders/general.forecast_basis_original');
-
-            $totalEstimate += $projected;
-            $planned = in_array($asset->id, $plannedAssetIds, true);
-            $records[] = [
-                'class' => $planned ? 'success' : '',
-                'asset_id' => $asset->id,
-                'planned' => $planned,
-                'links' => [
-                    0 => route('hardware.show', $asset->id),
-                    1 => route('hardware.show', $asset->id),
-                    3 => route('hardware.show', $asset->id),
-                ],
-                'cells' => [
-                    (string) $asset->asset_tag,
-                    (string) $asset->name,
-                    (string) $asset->model?->name,
-                    (string) $asset->serial,
-                    $this->dateString($asset->purchase_date),
-                    $this->dateString($asset->asset_eol_date),
-                    $this->money($projected),
-                    $basis,
-                    (string) $asset->status?->name,
-                    (string) $asset->supplier?->name,
-                ],
-            ];
-        }
-
-        $footer = [
-            trans('admin/orders/general.total'), '', '', '', '', '',
-            $this->money($totalEstimate),
-            '', '', '',
-        ];
-
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
-    }
-
     /**
      * Logical lease field => native `assets` column. These lived in Snipe-IT
      * custom fields (`_snipeit_*`); the F2 migration moved them to native typed
