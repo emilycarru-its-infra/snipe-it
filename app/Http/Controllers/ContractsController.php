@@ -358,7 +358,7 @@ class ContractsController extends Controller
     {
         foreach ([
             'contract_number', 'name', 'theme', 'product', 'fiscal_year',
-            'supplier_id', 'parent_contract_id', 'type', 'workflow_status',
+            'program', 'supplier_id', 'parent_contract_id', 'type', 'workflow_status',
             'start_date', 'end_date', 'total_cost', 'currency',
             'description', 'comments_review', 'gl_code',
             'requisition_number', 'voucher_number', 'service_offering',
