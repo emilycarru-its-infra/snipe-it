@@ -1428,6 +1428,9 @@ class ProcurementReportsController extends Controller
             'title' => trans('admin/purchase-orders/general.capital_request_title').' '.$data['fy'],
             'status' => 'draft',
             'fiscal_year' => $data['fy'],
+            // The lineage the REQM/PO columns read back through — only
+            // requisitions born from the request are the request's paper.
+            'capital_request_fy' => $data['fy'],
             // The supplier the catalog lines belong to — one basket, one
             // vendor. Rows without a mapping ride along as free-form lines.
             'supplier_id' => $lines->pluck('supplier_id')->filter()->first(),
@@ -1509,14 +1512,16 @@ class ProcurementReportsController extends Controller
             ->get()
             ->keyBy('replaces_asset_id');
 
-        // ── The paper, populated back. The workflow runs "PO through the
-        // ERP, comments say 'Lines ## of Devices Capital Request'" — so
-        // each line names the REQM it landed on and, once finance issues
-        // it, the PO. Matched through the year's requisition lines.
+        // ── The paper, populated back — but ONLY through explicit lineage:
+        // requisitions drafted FROM this capital request (capital_request_fy
+        // stamps them at draft time). Matching by product across every FY
+        // requisition attached the lease-refresh MacBook Airs to the
+        // Foundation labs REQM purely because both bought Airs — a
+        // self-contained purchase is not this request's paper.
         $reqByCatalog = [];
         $reqByDescription = [];
         $fyRequisitions = Requisition::with(['purchaseOrder:id,po_number', 'items:id,requisition_id,catalog_item_id,description'])
-            ->where('fiscal_year', $fyLabel)
+            ->where('capital_request_fy', $fyLabel)
             ->orderBy('created_at')
             ->get();
         foreach ($fyRequisitions as $req) {
