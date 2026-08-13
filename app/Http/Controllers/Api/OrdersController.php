@@ -6,7 +6,11 @@ use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FilterRequest;
 use App\Http\Transformers\OrdersTransformer;
+use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\Component;
+use App\Models\Consumable;
+use App\Models\License;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -17,9 +21,42 @@ use App\Services\StoreOrderNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class OrdersController extends Controller
 {
+    /**
+     * The line-item types the ingest endpoint accepts, mapped to their model.
+     *
+     * A vendor invoice is not all hardware. CDW bills cables, SSDs, security
+     * locks, rack rails and endpoint-security seats on the same account as
+     * laptops, and those have no serial and never become assets. Restricting
+     * line items to assets meant every such invoice was dropped without a
+     * record, so its whole subtotal read as an unexplained variance.
+     *
+     * @var array<string, class-string>
+     */
+    private const LINE_ITEM_TYPES = [
+        'asset' => Asset::class,
+        'accessory' => Accessory::class,
+        'component' => Component::class,
+        'consumable' => Consumable::class,
+        'license' => License::class,
+    ];
+
+    /**
+     * The table each line-item type is validated to exist in.
+     *
+     * @var array<string, string>
+     */
+    private const LINE_ITEM_TABLES = [
+        'asset' => 'assets',
+        'accessory' => 'accessories',
+        'component' => 'components',
+        'consumable' => 'consumables',
+        'license' => 'licenses',
+    ];
+
     /**
      * Display a listing of orders.
      */
@@ -124,8 +161,16 @@ class OrdersController extends Controller
             // or return money without shipping a device, so they carry no
             // asset line items.
             'items' => 'required_unless:invoice.invoice_type,buyout,credit,termination|array|min:1',
-            'items.*.asset_id' => 'required|integer|exists:assets,id',
-            'items.*.description' => 'nullable|string|max:65535',
+            // A line may name an asset the old way, name any other stocked
+            // item type, or name nothing at all and carry only a description
+            // — the last is how a one-off consumable or a service charge gets
+            // onto an invoice so it reconciles. Anonymous lines are refused:
+            // a line with neither a linked record nor a description is a
+            // number no one can account for later.
+            'items.*.asset_id' => 'nullable|integer|exists:assets,id',
+            'items.*.item_type' => 'nullable|string|in:'.implode(',', array_keys(self::LINE_ITEM_TYPES)),
+            'items.*.item_id' => 'nullable|integer',
+            'items.*.description' => 'required_without_all:items.*.asset_id,items.*.item_id|nullable|string|max:65535',
             'items.*.quantity' => 'nullable|integer|min:1',
             'items.*.unit_cost' => 'nullable|numeric',
             'items.*.warranty_cost' => 'nullable|numeric',
@@ -133,6 +178,12 @@ class OrdersController extends Controller
             'items.*.tracking_carrier' => 'nullable|string|max:191',
             'items.*.shipped_date' => 'nullable|date',
         ]);
+
+        // `exists` cannot be declared per line, because which table a line
+        // points at is decided by its own item_type. Resolve each line to a
+        // concrete [type, id] pair up front so a typo fails the request
+        // rather than silently writing a dangling morph.
+        $resolved = $this->resolveLineItemTargets($data['items'] ?? []);
 
         // Adjustment invoices move PO committed/remaining directly, which is
         // budget management, not order entry — gate them on the same
@@ -148,7 +199,7 @@ class OrdersController extends Controller
             ? null
             : PurchaseOrder::where('po_number', $data['purchase_order_number'])->value('id');
 
-        $order = DB::transaction(function () use ($data, $purchaseOrderId) {
+        $order = DB::transaction(function () use ($data, $purchaseOrderId, $resolved) {
             $order = Order::firstOrNew(['order_number' => $data['order_number']]);
 
             if (! $order->exists) {
@@ -190,7 +241,9 @@ class OrdersController extends Controller
                 );
             }
 
-            foreach ($data['items'] ?? [] as $line) {
+            foreach ($data['items'] ?? [] as $index => $line) {
+                [$itemType, $itemId] = $resolved[$index];
+
                 // A tracking number identifies a shipment; lines that share
                 // one collapse onto the same OrderShipment.
                 $shipmentId = empty($line['tracking_number']) ? null : OrderShipment::updateOrCreate(
@@ -210,13 +263,23 @@ class OrdersController extends Controller
                 // existing lines onto it instead of adding new ones, so the
                 // first invoice lost every line item and began reporting a
                 // variance equal to its whole subtotal.
+                // An unlinked line has no record to key on, so its description
+                // carries the identity instead — otherwise every cable and
+                // fee on one invoice would collapse into a single row and a
+                // re-pushed webhook would overwrite the lot.
+                $key = [
+                    'order_id' => $order->id,
+                    'invoice_id' => $invoice?->id,
+                    'item_type' => $itemType,
+                    'item_id' => $itemId,
+                ];
+
+                if ($itemId === null) {
+                    $key['description'] = $line['description'];
+                }
+
                 OrderItem::updateOrCreate(
-                    [
-                        'order_id' => $order->id,
-                        'invoice_id' => $invoice?->id,
-                        'item_type' => Asset::class,
-                        'item_id' => $line['asset_id'],
-                    ],
+                    $key,
                     [
                         'purchase_order_id' => $purchaseOrderId,
                         'shipment_id' => $shipmentId,
@@ -243,6 +306,50 @@ class OrdersController extends Controller
             (new OrdersTransformer)->transformOrder($order),
             'Order '.$order->order_number.' ingested.'
         );
+    }
+
+    /**
+     * Resolve each submitted line to the [morph class, id] pair it will be
+     * written with, refusing anything that does not exist.
+     *
+     * `asset_id` stays the shorthand it has always been — the CDW listener
+     * and the store shipment flow both send it — and is equivalent to an
+     * explicit `item_type: asset`. A line naming neither is stored unlinked,
+     * carrying only its description and cost, which is how a consumable or a
+     * one-off service charge gets onto an invoice at all.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array{0: ?string, 1: ?int}>
+     */
+    private function resolveLineItemTargets(array $items): array
+    {
+        $resolved = [];
+
+        foreach ($items as $index => $line) {
+            $type = $line['item_type'] ?? (isset($line['asset_id']) ? 'asset' : null);
+            $id = $line['item_id'] ?? $line['asset_id'] ?? null;
+
+            if ($type === null || $id === null) {
+                $resolved[$index] = [null, null];
+
+                continue;
+            }
+
+            $table = self::LINE_ITEM_TABLES[$type];
+
+            if (! DB::table($table)->where('id', $id)->whereNull('deleted_at')->exists()) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.item_id" => trans('admin/orders/message.item.ingest_not_found', [
+                        'type' => $type,
+                        'id' => $id,
+                    ]),
+                ]);
+            }
+
+            $resolved[$index] = [self::LINE_ITEM_TYPES[$type], (int) $id];
+        }
+
+        return $resolved;
     }
 
     /**

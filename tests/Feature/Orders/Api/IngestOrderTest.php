@@ -3,6 +3,8 @@
 namespace Tests\Feature\Orders\Api;
 
 use App\Models\Asset;
+use App\Models\Component;
+use App\Models\Consumable;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -150,6 +152,104 @@ class IngestOrderTest extends TestCase
         $this->assertEquals(2, OrderItem::where('item_id', $asset->id)->where('item_type', Asset::class)->count());
         $this->assertEquals(4079.19, (float) OrderItem::where('invoice_id', $equipment->id)->value('unit_cost'));
         $this->assertEquals(155.00, (float) OrderItem::where('invoice_id', $soft->id)->value('warranty_cost'));
+    }
+
+    public function test_ingests_a_line_item_for_a_non_asset_stocked_item()
+    {
+        $component = Component::factory()->create();
+        $consumable = Consumable::factory()->create();
+
+        $this->actingAsForApi($this->superuser())
+            ->postJson(route('api.orders.ingest'), [
+                'order_number' => 'ORD-TYPED',
+                'items' => [
+                    ['item_type' => 'component', 'item_id' => $component->id, 'unit_cost' => 408.39],
+                    ['item_type' => 'consumable', 'item_id' => $consumable->id, 'quantity' => 5, 'unit_cost' => 18.65],
+                ],
+                'invoice' => ['invoice_number' => 'TYPED-INV', 'subtotal' => 501.64, 'total' => 543.14],
+            ])
+            ->assertOk();
+
+        $invoice = OrderInvoice::where('invoice_number', 'TYPED-INV')->first();
+        $this->assertEquals(
+            Component::class,
+            OrderItem::where('item_id', $component->id)->where('item_type', Component::class)->value('item_type')
+        );
+
+        // The whole point: the invoice reconciles. 408.39 + 5 x 18.65 = 501.64.
+        $this->assertEqualsWithDelta(501.64, $invoice->fresh()->expectedSubtotal(), 0.001);
+        $this->assertEqualsWithDelta(0.0, $invoice->fresh()->variance(), 0.001);
+    }
+
+    public function test_ingests_an_unlinked_line_carrying_only_a_description()
+    {
+        // CDW invoices installation labour and recycling fees that are not a
+        // record of anything — they still have to land or the invoice reads
+        // as an unexplained variance.
+        $this->actingAsForApi($this->superuser())
+            ->postJson(route('api.orders.ingest'), [
+                'order_number' => 'ORD-UNLINKED',
+                'items' => [
+                    ['description' => 'INSTALLATION LABOUR', 'unit_cost' => 8.73],
+                    ['description' => 'BC PRINTER RECYCLING FEE', 'quantity' => 2, 'unit_cost' => 6.95],
+                ],
+                'invoice' => ['invoice_number' => 'UNLINKED-INV', 'subtotal' => 22.63, 'total' => 25.35],
+            ])
+            ->assertOk();
+
+        $order = Order::where('order_number', 'ORD-UNLINKED')->first();
+
+        // Two distinct lines, not one collapsed row — the description is what
+        // separates them, since neither has a record to key on.
+        $this->assertEquals(2, $order->items()->count());
+        $this->assertEqualsWithDelta(
+            0.0,
+            OrderInvoice::where('invoice_number', 'UNLINKED-INV')->first()->variance(),
+            0.001
+        );
+
+        // An invoiced non-asset line is received; nothing else can say so.
+        $this->assertEquals(2, $order->items()->whereNotNull('received_at')->count());
+        $this->assertEquals('received', $order->fresh()->status);
+    }
+
+    public function test_an_unlinked_line_is_idempotent_on_its_description()
+    {
+        $payload = [
+            'order_number' => 'ORD-UNLINKED-IDEM',
+            'items' => [['description' => 'CAT6 PATCH CABLE 3FT', 'quantity' => 5, 'unit_cost' => 11.55]],
+            'invoice' => ['invoice_number' => 'UNLINKED-IDEM', 'subtotal' => 57.75, 'total' => 64.68],
+        ];
+
+        $actor = $this->actingAsForApi($this->superuser());
+        $actor->postJson(route('api.orders.ingest'), $payload)->assertOk();
+        $actor->postJson(route('api.orders.ingest'), $payload)->assertOk();
+
+        $this->assertEquals(1, Order::where('order_number', 'ORD-UNLINKED-IDEM')->first()->items()->count());
+    }
+
+    public function test_rejects_a_line_that_names_neither_an_item_nor_a_description()
+    {
+        $this->actingAsForApi($this->superuser())
+            ->postJson(route('api.orders.ingest'), [
+                'order_number' => 'ORD-ANON',
+                'items' => [['unit_cost' => 99.99]],
+            ])
+            ->assertStatusMessageIs('error');
+
+        $this->assertDatabaseMissing('orders', ['order_number' => 'ORD-ANON']);
+    }
+
+    public function test_rejects_a_line_pointing_at_an_item_that_does_not_exist()
+    {
+        $this->actingAsForApi($this->superuser())
+            ->postJson(route('api.orders.ingest'), [
+                'order_number' => 'ORD-GHOST',
+                'items' => [['item_type' => 'component', 'item_id' => 999999, 'unit_cost' => 10]],
+            ])
+            ->assertStatusMessageIs('error');
+
+        $this->assertDatabaseMissing('orders', ['order_number' => 'ORD-GHOST']);
     }
 
     public function test_creates_one_shipment_per_distinct_tracking_number()
