@@ -139,6 +139,21 @@ class OrderItem extends Model
      * Nothing physical arrives for such a line, so it must not be counted as
      * an outstanding receipt.
      */
+    /**
+     * What this line is, for display. A warranty line points at the device it
+     * covers, so its item_type is Asset even though nothing shipped for it —
+     * labelling it "Asset" makes an order of four Mac minis read as eight
+     * machines, which is how PVXX158 came to look duplicated.
+     */
+    public function itemTypeLabel(): string
+    {
+        if ($this->isSoftCostOnly()) {
+            return trans('admin/orders/general.type_warranty');
+        }
+
+        return $this->item_type ? class_basename($this->item_type) : trans('general.na');
+    }
+
     public function isSoftCostOnly(): bool
     {
         return (float) $this->unit_cost === 0.0 && (float) $this->warranty_cost > 0.0;
