@@ -790,11 +790,11 @@ class FacultyProgramFormTest extends TestCase
     }
 
     /**
-     * Choosing to keep the machine is what makes a firm quote worth
-     * asking for, so the request goes then rather than waiting for
-     * somebody to press the button on the asset page.
+     * A submission never emails the lessor. Buyout values are gathered in
+     * bulk by the device team; one quote request per form submission was
+     * too many emails.
      */
-    public function test_choosing_buyout_requests_a_quote_from_the_lessor(): void
+    public function test_choosing_buyout_requests_no_quote_from_the_lessor(): void
     {
         Mail::fake();
         $user = $this->facultyUser();
@@ -811,7 +811,7 @@ class FacultyProgramFormTest extends TestCase
             'accept_terms' => '1',
         ])->assertRedirect(route('forms.success', 'faculty-program'));
 
-        Mail::assertSent(AssetBuyoutRequestMail::class);
+        Mail::assertNotSent(AssetBuyoutRequestMail::class);
     }
 
     /** Returning it asks nobody for anything. */

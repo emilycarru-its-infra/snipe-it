@@ -6,13 +6,11 @@ use App\Forms\FormDefinition;
 use App\Models\Asset;
 use App\Models\User;
 use App\Models\UserAgreement;
-use App\Services\AssetBuyoutRequester;
 use App\Services\FacultyProgramNotifier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -219,27 +217,10 @@ class FacultyProgramForm extends FormDefinition
         // happened.
         FacultyProgramNotifier::submitted($pickup, $buyout, (bool) $existingPickup);
 
-        // Choosing to keep the machine is what makes a firm quote worth
-        // asking for, so the request goes now rather than waiting for
-        // somebody to press the button on the asset page. The form shows an
-        // estimate precisely because we do not quote every laptop in the
-        // programme — this is the moment one of them becomes worth quoting.
-        //
-        // The requester is the faculty member, which puts them on the Cc
-        // alongside the device team, so the answer arrives to them and not
-        // only to us. Re-submitting cannot mail the lessor twice: the
-        // service throttles to one request per asset per 30 days.
-        if ($buyout && $returning) {
-            $failure = app(AssetBuyoutRequester::class)->send($returning, $user);
-
-            // Never fails the submission. A lessor with no email on file, a
-            // lease already ended, or a request already in flight are all
-            // reasons not to send and none of them are reasons to lose
-            // somebody's application.
-            if ($failure) {
-                Log::info('Faculty buyout quote not requested for asset '.$returning->id.': '.$failure);
-            }
-        }
+        // No lessor quote request goes out from here. Buyout values are
+        // gathered in bulk by the device team, not one email per form
+        // submission; the quote button on the asset page remains for the
+        // cases that do warrant a per-device ask.
 
         return redirect()
             ->route('forms.success', ['slug' => $this->slug()])
