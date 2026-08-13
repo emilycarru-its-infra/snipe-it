@@ -6,6 +6,9 @@ use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Category;
+use App\Models\CustomField;
+use App\Models\CustomFieldset;
+use App\Models\Manufacturer;
 use App\Models\Group;
 use App\Models\Setting;
 use App\Models\StoreOrder;
@@ -254,5 +257,95 @@ class StoreOrderAssetProvisioningTest extends TestCase
 
         $this->assertNotNull($asset);
         $this->assertStringStartsWith($order->reference(), $asset->asset_tag);
+    }
+
+    /**
+     * Phil's two iPads. The model carried the "Devices" fieldset, whose
+     * Platform and Catalog fields are required; the provisioner set
+     * neither, validation rejected every unit, and StoreController caught
+     * the failure so the order still looked placed. Two devices went
+     * missing and nobody noticed for a day.
+     *
+     * 50 of the 61 items on the shelf are on a fieldset — the laptops that
+     * did provision only worked because that one model happens to carry
+     * none — so this was never about iPads.
+     */
+    public function test_a_model_with_required_custom_fields_still_provisions(): void
+    {
+        $this->enableAutoTags();
+
+        $platform = CustomField::factory()->create([
+            'name' => 'Platform', 'element' => 'listbox',
+            'field_values' => "Macintosh\r\nWindows\r\niPadOS",
+        ]);
+        $catalog = CustomField::factory()->create([
+            'name' => 'Catalog', 'element' => 'listbox',
+            'field_values' => "Curriculum\r\nStaff\r\nFaculty",
+        ]);
+        $fieldset = CustomFieldset::factory()->create(['name' => 'Devices']);
+        $fieldset->fields()->attach($platform->id, ['required' => true, 'order' => 1]);
+        $fieldset->fields()->attach($catalog->id, ['required' => true, 'order' => 2]);
+
+        $apple = Manufacturer::factory()->create(['name' => 'Apple']);
+        $model = AssetModel::factory()->create([
+            'category_id' => Category::factory()->create(['name' => 'Tablets', 'category_type' => 'asset'])->id,
+            'manufacturer_id' => $apple->id,
+            'fieldset_id' => $fieldset->id,
+        ]);
+        $item = $this->shelfItem([
+            'name' => 'iPad |11" l 128GB | Silver', 'category' => 'Tablets',
+            'model_id' => $model->id, 'unit_cost' => 600,
+        ]);
+
+        $user = $this->requester();
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 2]],
+        ])->assertRedirect(route('store.orders'));
+
+        $order = StoreOrder::where('user_id', $user->id)->latest('id')->first();
+        $assets = Asset::where('order_number', $order->reference())->get();
+
+        $this->assertCount(2, $assets, 'both iPads should exist');
+        $this->assertSame(0, $order->fresh()->load('items.catalogItem')->provisioningShortfall());
+
+        // And the required fields carry answers the store actually knows,
+        // not filler to get past a validator.
+        $first = $assets->first();
+        $this->assertSame('iPadOS', $first->{$platform->db_column});
+        // requester() is in Regular Faculty, so this is a programme order.
+        $this->assertSame('Faculty', $first->{$catalog->db_column});
+    }
+
+    /** A faculty programme order is a Faculty machine. */
+    public function test_a_faculty_order_stamps_the_faculty_catalog(): void
+    {
+        $this->enableAutoTags();
+
+        $catalog = CustomField::factory()->create([
+            'name' => 'Catalog', 'element' => 'listbox',
+            'field_values' => "Curriculum\r\nStaff\r\nFaculty",
+        ]);
+        $fieldset = CustomFieldset::factory()->create(['name' => 'Devices']);
+        $fieldset->fields()->attach($catalog->id, ['required' => true, 'order' => 1]);
+
+        $model = AssetModel::factory()->create([
+            'category_id' => Category::firstOrCreate(
+                ['name' => 'Laptop', 'category_type' => 'asset'], ['created_by' => 1])->id,
+            'manufacturer_id' => Manufacturer::factory()->create(['name' => 'Apple'])->id,
+            'fieldset_id' => $fieldset->id,
+        ]);
+        $item = $this->shelfItem(['model_id' => $model->id, 'unit_cost' => 2100]);
+
+        $faculty = $this->requester();
+
+        $this->actingAs($faculty)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertRedirect(route('store.orders'));
+
+        $order = StoreOrder::where('user_id', $faculty->id)->latest('id')->first();
+        $asset = Asset::where('order_number', $order->reference())->first();
+
+        $this->assertNotNull($asset);
+        $this->assertSame('Faculty', $asset->{$catalog->db_column});
     }
 }
