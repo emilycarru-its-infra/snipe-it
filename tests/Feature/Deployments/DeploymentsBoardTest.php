@@ -526,6 +526,48 @@ class DeploymentsBoardTest extends TestCase
     }
 
     /**
+     * The timeline is a day-precise Gantt: a week-and-a-half arrival window
+     * must render as a sliver of the axis, not a month-wide slab, and the
+     * range captions carry actual days rather than month-year strings that
+     * read like dates.
+     */
+    public function test_timeline_positions_bars_by_day_not_by_month()
+    {
+        $wave = DeploymentWave::create([
+            'name' => 'Gantt Wave',
+            'fiscal_year' => 'FY2026-27',
+            'arrival_window_start' => '2026-09-08',
+            'arrival_window_end' => '2026-09-18',
+            'target_start_date' => '2026-09-08',
+            'target_end_date' => '2026-10-02',
+        ]);
+
+        $timeline = (new \App\Services\Deployments\DeploymentTimeline)->build(
+            DeploymentWave::whereKey($wave->id)->get()
+        );
+
+        // Grid spans Sep 1 – Oct 31 (61 days). The 11-day arrival window is
+        // ~18% wide, nowhere near the ~49% a whole-month slab would be.
+        $this->assertCount(2, $timeline['months']);
+        $arrival = $timeline['rows'][0]['arrival'];
+        $this->assertEqualsWithDelta(11 / 61 * 100, $arrival['widthPct'], 0.1);
+        $this->assertEqualsWithDelta(7 / 61 * 100, $arrival['offsetPct'], 0.1);
+        $this->assertSame('Sep 8 – Sep 18', $arrival['label']);
+        $this->assertSame('Sep 8 – Oct 2', $timeline['rows'][0]['deploy']['label']);
+
+        // Month columns carry their own axis positions for the gridlines.
+        $this->assertSame(0.0, $timeline['months'][0]['offsetPct']);
+        $this->assertEqualsWithDelta(30 / 61 * 100, $timeline['months'][1]['offsetPct'], 0.1);
+
+        // And the page renders the grid.
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.forecast', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee('gantt-gridlines', false)
+            ->assertSee('Sep 8 – Sep 18');
+    }
+
+    /**
      * The dedicated Update page is gone: every human-typed wave field edits
      * in place on the show page, one field per request, asset-page style.
      */
