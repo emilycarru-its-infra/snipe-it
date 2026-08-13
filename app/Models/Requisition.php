@@ -24,6 +24,7 @@ use Watson\Validating\ValidatingTrait;
  * budget, and an unapproved basket must not move those numbers.
  *
  * @property-read string $display_name
+ * @property string|null $capital_request_fy
  * @property string|null $funding_account
  * @property string|null $lease_schedule
  * @property string|null $quote_number
@@ -76,6 +77,7 @@ class Requisition extends SnipeModel
         'company_id' => 'nullable|exists:companies,id',
         'purchase_order_id' => 'nullable|exists:purchase_orders,id',
         'fiscal_year' => 'nullable|string|max:16',
+        'capital_request_fy' => 'nullable|string|max:16',
         'cost_center' => 'nullable|string|max:191',
         'default_gl_number' => 'nullable|string|max:191',
         'internal_comments' => 'nullable|string|max:65535',
@@ -103,6 +105,7 @@ class Requisition extends SnipeModel
         'company_id',
         'purchase_order_id',
         'fiscal_year',
+        'capital_request_fy',
         'cost_center',
         'funding_account',
         'lease_schedule',
