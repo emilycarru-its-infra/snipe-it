@@ -6,11 +6,13 @@ use App\Forms\FormDefinition;
 use App\Models\Asset;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\AssetBuyoutRequester;
 use App\Services\FacultyProgramNotifier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -64,8 +66,16 @@ class FacultyProgramForm extends FormDefinition
             // store catalog item mapped on the old laptop's model, priced
             // live from the catalog.
             'comparable' => $priorAsset?->model?->refreshCatalogItem,
+            // A quote when the lessor has given one, an estimate otherwise.
+            // Asking for a firm figure per machine would mean quoting every
+            // laptop in the programme to serve the handful of people who
+            // want to keep theirs, so the form estimates and the quote
+            // follows the request rather than the other way round.
             'buyoutCosts' => $laptops->mapWithKeys(fn (Asset $laptop) => [
-                $laptop->id => $this->buyoutCostFor($laptop),
+                $laptop->id => $this->buyoutCostFor($laptop) ?? $this->buyoutEstimateFor($laptop),
+            ]),
+            'buyoutIsQuoted' => $laptops->mapWithKeys(fn (Asset $laptop) => [
+                $laptop->id => $this->buyoutCostFor($laptop) !== null,
             ]),
             'existingPickup' => $existingPickup,
             'existingPurchase' => $this->existingPurchase($user),
@@ -209,6 +219,28 @@ class FacultyProgramForm extends FormDefinition
         // happened.
         FacultyProgramNotifier::submitted($pickup, $buyout, (bool) $existingPickup);
 
+        // Choosing to keep the machine is what makes a firm quote worth
+        // asking for, so the request goes now rather than waiting for
+        // somebody to press the button on the asset page. The form shows an
+        // estimate precisely because we do not quote every laptop in the
+        // programme — this is the moment one of them becomes worth quoting.
+        //
+        // The requester is the faculty member, which puts them on the Cc
+        // alongside the device team, so the answer arrives to them and not
+        // only to us. Re-submitting cannot mail the lessor twice: the
+        // service throttles to one request per asset per 30 days.
+        if ($buyout && $returning) {
+            $failure = app(AssetBuyoutRequester::class)->send($returning, $user);
+
+            // Never fails the submission. A lessor with no email on file, a
+            // lease already ended, or a request already in flight are all
+            // reasons not to send and none of them are reasons to lose
+            // somebody's application.
+            if ($failure) {
+                Log::info('Faculty buyout quote not requested for asset '.$returning->id.': '.$failure);
+            }
+        }
+
         return redirect()
             ->route('forms.success', ['slug' => $this->slug()])
             ->with('pickup_id', $pickup->id)
@@ -318,5 +350,35 @@ class FacultyProgramForm extends FormDefinition
         $value = $asset->buyout_cost;
 
         return is_numeric($value) ? (float) $value : null;
+    }
+
+    /**
+     * What buying the old laptop is likely to cost, when nobody has asked
+     * the lessor yet.
+     *
+     * A real quote only makes sense for the people who actually want one,
+     * so the form estimates instead: roughly a year's rent, which on the
+     * ECI20221001 schedule is a flat factor of the capital cost — 21.4%
+     * before tax and a shade over 24% with it, holding to within a fifth
+     * of a percentage point across all seven item types on the schedule,
+     * from a Mac mini to a 16-inch Pro. So it is a lease factor, not a
+     * curve, and multiplying the acquisition cost reproduces the lessor's
+     * own numbers rather than approximating them.
+     *
+     * Tax-inclusive because that is what an invoice shows, and an estimate
+     * that lands under the bill is the one that causes a problem.
+     *
+     * Returns null when there is no capital cost to work from — better a
+     * missing estimate than a confident zero.
+     */
+    private function buyoutEstimateFor(?Asset $asset): ?float
+    {
+        if (! $asset || ! is_numeric($asset->purchase_cost) || (float) $asset->purchase_cost <= 0) {
+            return null;
+        }
+
+        $factor = (float) config('forms.buyout_estimate.annual_rent_factor');
+
+        return $factor > 0 ? round((float) $asset->purchase_cost * $factor, 2) : null;
     }
 }

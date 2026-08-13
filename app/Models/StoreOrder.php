@@ -293,6 +293,31 @@ class StoreOrder extends Model
     }
 
     /**
+     * How many asset records this order should have produced — one per
+     * device unit. Accessory lines are excluded, matching the provisioner:
+     * a cable is not asset-tracked, so its absence is not a shortfall.
+     */
+    public function expectedAssetCount(): int
+    {
+        return (int) $this->items
+            ->filter(fn (StoreOrderItem $line) => $line->catalogItem?->model_id)
+            ->sum(fn (StoreOrderItem $line) => max(1, (int) $line->quantity));
+    }
+
+    /**
+     * Devices this order is missing records for. Computed rather than
+     * stored, so it is right whenever it is asked and clears itself the
+     * moment the records exist — a stored flag would have gone stale the
+     * first time somebody created the assets by hand.
+     */
+    public function provisioningShortfall(): int
+    {
+        $existing = Asset::where('order_number', $this->reference())->count();
+
+        return max(0, $this->expectedAssetCount() - $existing);
+    }
+
+    /**
      * The supplier a vendor order request for this order goes to — the
      * supplier of its first line's catalog item.
      */
