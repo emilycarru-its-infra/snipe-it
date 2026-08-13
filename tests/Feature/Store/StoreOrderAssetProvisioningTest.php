@@ -348,4 +348,62 @@ class StoreOrderAssetProvisioningTest extends TestCase
         $this->assertNotNull($asset);
         $this->assertSame('Faculty', $asset->{$catalog->db_column});
     }
+
+    /**
+     * Order 10's two iPads existed nowhere and the only remedy was
+     * building asset rows by hand, which is how a repair introduces its
+     * own wrong data. Re-running the real provisioner produces exactly
+     * what placing the order should have.
+     */
+    public function test_reprovision_creates_the_records_a_failed_order_is_missing(): void
+    {
+        $this->enableAutoTags();
+        $item = $this->shelfItem();
+        $user = $this->requester();
+
+        $this->actingAs($user)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 2]],
+        ]);
+        $order = StoreOrder::first();
+
+        // Simulate the failure: the order stands, the records do not exist.
+        Asset::where('order_number', $order->reference())->forceDelete();
+        $this->assertSame(2, $order->fresh()->load('items.catalogItem')->provisioningShortfall());
+
+        $this->artisan('store:reprovision', ['order' => $order->reference()])
+            ->assertSuccessful();
+
+        $this->assertCount(2, Asset::where('order_number', $order->reference())->get());
+        $this->assertSame(0, $order->fresh()->load('items.catalogItem')->provisioningShortfall());
+    }
+
+    /** Re-running over a partly provisioned order would duplicate it. */
+    public function test_reprovision_refuses_a_partly_provisioned_order(): void
+    {
+        $this->enableAutoTags();
+        $item = $this->shelfItem();
+
+        $this->actingAs($this->requester())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 2]],
+        ]);
+        $order = StoreOrder::first();
+
+        Asset::where('order_number', $order->reference())->first()->forceDelete();
+
+        $this->artisan('store:reprovision', ['order' => $order->id])->assertFailed();
+        $this->assertCount(1, Asset::where('order_number', $order->reference())->get());
+    }
+
+    /** A healthy order is left alone. */
+    public function test_reprovision_does_nothing_when_nothing_is_missing(): void
+    {
+        $this->enableAutoTags();
+        $this->actingAs($this->requester())->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $this->shelfItem()->id, 'quantity' => 1]],
+        ]);
+        $order = StoreOrder::first();
+
+        $this->artisan('store:reprovision', ['order' => $order->id])->assertSuccessful();
+        $this->assertCount(1, Asset::where('order_number', $order->reference())->get());
+    }
 }
