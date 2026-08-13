@@ -4,6 +4,7 @@ use App\Actions\Breadcrumbs\BuildAcceptanceBreadcrumbs;
 use App\Forms\FormRegistry;
 use App\Http\Controllers\Account;
 use App\Http\Controllers\ActionlogController;
+use App\Http\Controllers\AssetBuyoutsController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
@@ -479,6 +480,15 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployment-items.bulk-group');
     Route::post('deployments/decommission/location', [DeploymentsController::class, 'setHoldingLocation'])
         ->name('deployments.decommission.location');
+
+    // A device leaving by purchase rather than pickup: the quote, the split,
+    // the decision, the invoice, the payment.
+    Route::post('buyouts/{buyout}/quote', [AssetBuyoutsController::class, 'quote'])
+        ->name('buyouts.quote');
+    Route::post('buyouts/{buyout}/status', [AssetBuyoutsController::class, 'transition'])
+        ->name('buyouts.transition');
+    Route::patch('buyouts/{buyout}', [AssetBuyoutsController::class, 'update'])
+        ->name('buyouts.update');
     Route::post('deployment-items', [DeploymentItemsController::class, 'store'])
         ->name('deployment-items.store');
     Route::post('deployment-items/{deploymentItem}/stage', [DeploymentItemsController::class, 'updateStage'])

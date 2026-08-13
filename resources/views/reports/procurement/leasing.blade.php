@@ -93,11 +93,15 @@
                 </div>
             </div>
             <div class="box-body">
+                {{-- Sortable: the register rests in contract-name order, and
+                     every column is one click away — "which is biggest" and
+                     "which ends first" are both routine follow-ups. --}}
                 @include('reports.procurement._report-table', [
                     'columns' => $rentCosts['columns'],
                     'rows'    => $rentCosts['records'],
                     'footer'  => $rentCosts['footer'] ?? null,
                     'canEditNotes' => false,
+                    'sortable' => $rentCosts['sortable'] ?? false,
                 ])
             </div>
         </div>

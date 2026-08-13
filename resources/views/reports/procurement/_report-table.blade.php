@@ -48,13 +48,121 @@
         .rpt-nowrap-tail > thead > tr > th:not(:last-child),
         .rpt-nowrap-tail > tbody > tr > td:not(:last-child),
         .rpt-nowrap-tail > tfoot > tr > th:not(:last-child) { white-space: nowrap; }
+        /* Sortable headings (opt-in per report). The arrow is always in the
+           layout so the heading does not shift width when a column is picked;
+           it is just invisible until then. */
+        .rpt-sortable > thead > tr > th[aria-sort] { cursor: pointer; user-select: none; white-space: nowrap; }
+        .rpt-sortable > thead > tr > th[aria-sort]:hover { text-decoration: underline; }
+        .rpt-sortable > thead > tr > th[aria-sort]::after {
+            content: "\f0d8"; font-family: "Font Awesome 6 Free"; font-weight: 900;
+            font-size: 10px; margin-left: 6px; opacity: 0;
+        }
+        .rpt-sortable > thead > tr > th[aria-sort="ascending"]::after { opacity: .75; }
+        .rpt-sortable > thead > tr > th[aria-sort="descending"]::after { content: "\f0d7"; opacity: .75; }
     </style>
+    <script>
+        // Client-side column sort for reports that opt in. The rows are all
+        // already on the page — these tables are one row per contract, not a
+        // paginated register — so sorting is a reorder, never a refetch.
+        (function () {
+            // Cell values are display strings: "$63,233.54 (est.)", "2027-10-01",
+            // "12 Lease / 3 Purchased". Money and plain numbers compare
+            // numerically; everything else falls back to a natural compare, so
+            // "#2" lands before "#10" and dates in Y-m-d order sort themselves.
+            function value(row, index) {
+                var cell = row.children[index];
+                var text = cell ? (cell.textContent || '').trim() : '';
+                var numeric = text.replace(/[$,\s]/g, '').replace(/\(est\.\)$/, '');
+
+                return /^-?\d+(\.\d+)?$/.test(numeric) ? parseFloat(numeric) : text;
+            }
+
+            // A parent row owns any child row rendered directly beneath it, so
+            // they move as one block.
+            function blocks(tbody) {
+                var out = [];
+                Array.prototype.forEach.call(tbody.rows, function (row) {
+                    if (row.classList.contains('rpt-child-row') && out.length) {
+                        out[out.length - 1].push(row);
+                    } else {
+                        out.push([row]);
+                    }
+                });
+
+                return out;
+            }
+
+            function sortBy(table, index, direction) {
+                var tbody = table.tBodies[0];
+                if (!tbody) return;
+
+                var sorted = blocks(tbody).sort(function (a, b) {
+                    var left = value(a[0], index);
+                    var right = value(b[0], index);
+                    var result = (typeof left === 'number' && typeof right === 'number')
+                        ? left - right
+                        : String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' });
+
+                    return direction === 'descending' ? -result : result;
+                });
+
+                var fragment = document.createDocumentFragment();
+                sorted.forEach(function (block) {
+                    block.forEach(function (row) { fragment.appendChild(row); });
+                });
+                tbody.appendChild(fragment);
+            }
+
+            function wire(table) {
+                if (table.dataset.rptSortWired) return;
+                table.dataset.rptSortWired = '1';
+                table.classList.add('rpt-sortable');
+
+                var headings = table.tHead ? table.tHead.rows[0].cells : [];
+                Array.prototype.forEach.call(headings, function (th, index) {
+                    // The trailing row-actions column has no heading to sort by.
+                    if (!(th.textContent || '').trim()) return;
+
+                    th.setAttribute('aria-sort', 'none');
+                    th.setAttribute('tabindex', '0');
+                    th.setAttribute('role', 'button');
+
+                    function activate() {
+                        var next = th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+                        Array.prototype.forEach.call(headings, function (other) {
+                            if (other.hasAttribute('aria-sort')) other.setAttribute('aria-sort', 'none');
+                        });
+                        th.setAttribute('aria-sort', next);
+                        sortBy(table, index, next);
+                    }
+
+                    th.addEventListener('click', activate);
+                    th.addEventListener('keydown', function (event) {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            activate();
+                        }
+                    });
+                });
+            }
+
+            function wireAll() {
+                document.querySelectorAll('table[data-sortable="1"]').forEach(wire);
+            }
+
+            document.addEventListener('DOMContentLoaded', wireAll);
+            // Dashboard sections arrive later via innerHTML, so re-wire when
+            // one lands. Already-wired tables are skipped.
+            document.addEventListener('rpt:section-loaded', wireAll);
+        })();
+    </script>
 @endonce
 @php
     $hasRowActions = collect($rows)->contains(fn ($row) => ! empty($row['row_actions']));
 @endphp
 <div class="table-responsive rpt-table-scroll">
-    <table class="table table-striped rpt-report-table{{ ! empty($nowrapExceptLast) ? ' rpt-nowrap-tail' : '' }}">
+    <table class="table table-striped rpt-report-table{{ ! empty($nowrapExceptLast) ? ' rpt-nowrap-tail' : '' }}"
+           @if (! empty($sortable)) data-sortable="1" @endif>
         <thead>
             <tr>
                 @foreach ($columns as $col)
@@ -68,9 +176,16 @@
             <tr @if (! empty($row['class'])) class="{{ $row['class'] }}" @endif>
                 @foreach ($row['cells'] as $ci => $cell)
                     @if ($ci === 0 && ! empty($row['children']['rows']))
+                        {{-- Rows marked children_collapsed start folded: the
+                             group is context, and the rows around it are the
+                             finding (Lease Reconciliation's matches under its
+                             discrepancies). Everything else opens by default. --}}
+                        @php
+                            $childrenOpen = empty($row['children_collapsed']);
+                        @endphp
                         <td>
-                            <button type="button" class="rpt-child-toggle" aria-expanded="true">
-                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            <button type="button" class="rpt-child-toggle" aria-expanded="{{ $childrenOpen ? 'true' : 'false' }}">
+                                <i class="fa-solid fa-chevron-{{ $childrenOpen ? 'down' : 'right' }}" aria-hidden="true"></i>
                             </button>@if (isset($row['links'][$ci]))<a href="{{ $row['links'][$ci] }}" class="js-lightbox"><strong>{{ $cell }}</strong></a>@else<strong>{{ $cell }}</strong>@endif
                         </td>
                         @continue
@@ -146,7 +261,7 @@
                 @endif
             </tr>
             @if (! empty($row['children']['rows']))
-                <tr class="rpt-child-row">
+                <tr class="rpt-child-row" @if (! empty($row['children_collapsed'])) style="display:none;" @endif>
                     <td class="rpt-child-cell" colspan="{{ count($columns) + ($hasRowActions ? 1 : 0) }}">
                         <table class="table rpt-child-table">
                             <thead>

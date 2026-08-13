@@ -6,6 +6,9 @@
     'editable' => true,
     'options' => [],
     'link' => null,
+    // Most links here filter the asset list; a few (the order number) open a
+    // record instead, and want their own tooltip rather than "View Assets".
+    'link_title' => null,
 ])
 
 {{--
@@ -28,7 +31,7 @@
     <span class="inline-core-value @if ($copy_what) js-copy-{{ $copy_what }} @endif">
         @if ($hasValue)
             @if (! empty($link))
-                <a href="{{ $link }}" data-tooltip="true" data-placement="top" title="{{ trans('general.view_assets') }}">{{ $slot->isEmpty() ? $raw : $slot }}</a>
+                <a href="{{ $link }}" data-tooltip="true" data-placement="top" title="{{ $link_title ?: trans('general.view_assets') }}">{{ $slot->isEmpty() ? $raw : $slot }}</a>
             @else
                 {{ $slot->isEmpty() ? $raw : $slot }}
             @endif

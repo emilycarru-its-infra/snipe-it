@@ -67,6 +67,7 @@
                     'footer'  => $footer ?? null,
                     'canEditNotes' => $canEditNotes ?? false,
                     'nowrapExceptLast' => $nowrapExceptLast ?? false,
+                    'sortable' => $sortable ?? false,
                 ])
             </div>
         </div>
