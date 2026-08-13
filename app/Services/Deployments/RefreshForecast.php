@@ -182,6 +182,24 @@ class RefreshForecast
      * an empty collection when $fy is null — a FY choice is required.
      */
     /**
+     * Categories outside the device capital plan (displays, printers,
+     * scanners — see config/ecu.php and AB#4473) never enter the forecast,
+     * even though they carry lifecycle EOL dates for operations. Assets
+     * with no category at all pass through: unclassified is not excluded.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Asset>  $query
+     */
+    private function excludeNonPlanCategories($query): void
+    {
+        $excluded = (array) config('ecu.forecast_excluded_categories', []);
+        if ($excluded === []) {
+            return;
+        }
+
+        $query->whereDoesntHave('model.category', fn ($q) => $q->whereIn('name', $excluded));
+    }
+
+    /**
      * Assets and lease contracts carrying an approved (or completed) buyout,
      * as [assetIds, contractReferences]. A decision recorded against the
      * contract covers every device on it; one recorded against an asset
@@ -225,6 +243,7 @@ class RefreshForecast
 
         $query = Asset::query()
             ->NotArchived()
+            ->tap(fn ($q) => $this->excludeNonPlanCategories($q))
             ->with(['model.refreshCatalogItem', 'model.category', 'status', 'location', 'supplier'])
             ->where(function ($q) use ($fy, $start, $end, $leaseCol, $startStr, $endStr, $buyoutAssetIds, $buyoutContractRefs) {
                 $q->whereBetween('asset_eol_date', [$start, $end]);
@@ -351,6 +370,7 @@ class RefreshForecast
 
         $query = Asset::query()
             ->NotArchived()
+            ->tap(fn ($q) => $this->excludeNonPlanCategories($q))
             ->with(['model.refreshCatalogItem', 'model.category', 'status', 'location', 'supplier']);
 
         foreach ($criteria as $criterion) {
