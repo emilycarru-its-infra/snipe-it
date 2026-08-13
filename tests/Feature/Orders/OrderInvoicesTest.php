@@ -100,4 +100,33 @@ class OrderInvoicesTest extends TestCase
 
         $this->assertEquals(2250.0, $item->lineTotal());
     }
+
+    public function test_an_adjustment_invoice_reconciles_without_line_items()
+    {
+        $order = Order::factory()->create();
+
+        // A buyout commits money without shipping a device, so the ingest
+        // endpoint exempts it from carrying line items. Deriving an expected
+        // total of zero flagged it in the approval queue every month for a
+        // variance equal to its whole amount.
+        $buyout = OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'invoice_type' => 'buyout',
+            'subtotal' => 5584.00,
+        ]);
+
+        $this->assertTrue($buyout->isAdjustment());
+        $this->assertEqualsWithDelta(5584.00, $buyout->expectedSubtotal(), 0.001);
+        $this->assertEqualsWithDelta(0.0, $buyout->variance(), 0.001);
+
+        // A regular invoice with no line items is still a real variance.
+        $regular = OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'invoice_type' => 'regular',
+            'subtotal' => 1085.00,
+        ]);
+
+        $this->assertFalse($regular->isAdjustment());
+        $this->assertEqualsWithDelta(1085.00, $regular->variance(), 0.001);
+    }
 }
