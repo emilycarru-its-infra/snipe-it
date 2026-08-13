@@ -64,4 +64,24 @@ class OrderItemsTest extends TestCase
             ->get(route('orders.show', $order->id))
             ->assertOk();
     }
+
+    public function test_order_view_renders_a_line_item_with_no_linked_record()
+    {
+        // CDW bills installation labour and recycling fees that are not a
+        // record of anything, so the line carries only a description.
+        $order = Order::factory()->create();
+        OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => null,
+            'item_id' => null,
+            'description' => 'CDW INTERNAL INSTALLATION GENERAL',
+            'quantity' => 3,
+            'unit_cost' => 2.91,
+        ]);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('CDW INTERNAL INSTALLATION GENERAL');
+    }
 }
