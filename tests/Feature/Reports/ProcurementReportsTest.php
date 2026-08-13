@@ -3,15 +3,23 @@
 namespace Tests\Feature\Reports;
 
 use App\Models\Asset;
+use App\Models\AssetModel;
+use App\Models\BudgetAllocation;
+use App\Models\CapitalRequestLine;
+use App\Models\CatalogItem;
+use App\Models\DeploymentItem;
+use App\Models\DeploymentWave;
 use App\Models\LeaseDecision;
-use App\Models\UserAgreement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
+use App\Models\Requisition;
+use App\Models\RequisitionItem;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\UserAgreement;
 use Tests\TestCase;
 
 class ProcurementReportsTest extends TestCase
@@ -336,7 +344,7 @@ class ProcurementReportsTest extends TestCase
     public function test_csi_schedule_report_leads_with_the_lessor_column()
     {
         $active = Statuslabel::factory()->rtd()->create();
-        $lessor = \App\Models\Supplier::factory()->create(['name' => 'CSI Leasing Canada']);
+        $lessor = Supplier::factory()->create(['name' => 'CSI Leasing Canada']);
 
         $asset = Asset::factory()->create(['asset_tag' => 'CSI-LESSOR-1', 'status_id' => $active->id]);
         Asset::query()->whereKey($asset->id)
@@ -756,7 +764,7 @@ class ProcurementReportsTest extends TestCase
 
     public function test_open_requisitions_surface_on_the_capital_request()
     {
-        $requisition = \App\Models\Requisition::create([
+        $requisition = Requisition::create([
             'title' => 'Foundation Mobile MacBook Labs',
             'status' => 'submitted',
             'requisition_number' => '0017859',
@@ -819,7 +827,7 @@ class ProcurementReportsTest extends TestCase
         // The draft carries only the refresh distribution.
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
-        $requisition = \App\Models\Requisition::latest('id')->first();
+        $requisition = Requisition::latest('id')->first();
         $this->assertNotNull($requisition);
         $this->assertSame(1, $requisition->items()->count());
     }
@@ -835,11 +843,11 @@ class ProcurementReportsTest extends TestCase
             'Lease End Date' => '2026-10-01',
         ], ['purchase_cost' => 2000.00]);
 
-        $planned = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13 M5']);
-        $wave = \App\Models\DeploymentWave::create([
+        $planned = AssetModel::factory()->create(['name' => 'MacBook Air 13 M5']);
+        $wave = DeploymentWave::create([
             'name' => 'FY26-27 Faculty Refresh', 'slug' => 'fy2627-faculty-'.uniqid(), 'fiscal_year' => 'FY2026-27',
         ]);
-        \App\Models\DeploymentItem::create([
+        DeploymentItem::create([
             'wave_id' => $wave->id, 'replaces_asset_id' => $asset->id, 'model_id' => $planned->id,
         ]);
 
@@ -853,7 +861,7 @@ class ProcurementReportsTest extends TestCase
         // landed on, and once finance issues a PO it appears too.
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
-        $requisition = \App\Models\Requisition::latest('id')->first();
+        $requisition = Requisition::latest('id')->first();
         $requisition->forceFill(['requisition_number' => '0017999'])->save();
 
         $this->actingAs($this->superuser())
@@ -894,8 +902,8 @@ class ProcurementReportsTest extends TestCase
         // product a refresh line forecasts. Same catalog item, zero
         // connection — the request's paper is only what was drafted FROM
         // the request.
-        $model = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13 M5']);
-        $catalog = \App\Models\CatalogItem::create([
+        $model = AssetModel::factory()->create(['name' => 'MacBook Air 13 M5']);
+        $catalog = CatalogItem::create([
             'name' => 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver',
             'family' => 'MacBook Air', 'category' => 'Laptops',
             'product_type' => 'standard', 'price_type' => 'estimate', 'estimated_cost' => 2100.00,
@@ -910,13 +918,13 @@ class ProcurementReportsTest extends TestCase
 
         // The self-contained requisition: same product, own purpose, PO
         // already issued. fiscal_year matches; capital_request_fy is null.
-        $foreign = \App\Models\Requisition::create([
+        $foreign = Requisition::create([
             'title' => 'Foundation Mobile MacBook Labs',
             'status' => 'ordered',
             'requisition_number' => '0017859',
             'fiscal_year' => 'FY2026-27',
         ]);
-        \App\Models\RequisitionItem::create([
+        RequisitionItem::create([
             'requisition_id' => $foreign->id,
             'catalog_item_id' => $catalog->id,
             'description' => 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver',
@@ -935,7 +943,7 @@ class ProcurementReportsTest extends TestCase
         // REQM group appear.
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
-        $draft = \App\Models\Requisition::latest('id')->first();
+        $draft = Requisition::latest('id')->first();
         $this->assertSame('FY2026-27', $draft->capital_request_fy);
         $draft->forceFill(['requisition_number' => '0018000'])->save();
 
@@ -958,10 +966,10 @@ class ProcurementReportsTest extends TestCase
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => '2027-08-01',
         ], ['purchase_cost' => 2100.00]);
-        $wave = \App\Models\DeploymentWave::create([
+        $wave = DeploymentWave::create([
             'name' => 'FY26-27 Faculty Wave', 'slug' => 'fy2627-early-'.uniqid(), 'fiscal_year' => 'FY2026-27',
         ]);
-        \App\Models\DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $waved->id]);
+        DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $waved->id]);
 
         // Same contract, no wave, but an End of Life WE set earlier than
         // the lease end: the forecast's operative date wins. (Stamped after
@@ -1019,21 +1027,21 @@ class ProcurementReportsTest extends TestCase
         // It rides into the PO draft as a free-form line.
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
-        $requisition = \App\Models\Requisition::latest('id')->first();
+        $requisition = Requisition::latest('id')->first();
         $this->assertNotNull($requisition);
         $this->assertSame(6, (int) $requisition->items()->first()->quantity);
 
         // And deletes cleanly.
-        $line = \App\Models\CapitalRequestLine::first();
+        $line = CapitalRequestLine::first();
         $this->actingAs($this->superuser())
             ->delete(route('reports.procurement.capital-request.lines.destroy', $line))
             ->assertRedirect(route('reports.procurement.capital-request', ['fiscal_year' => 'FY2026-27']));
-        $this->assertSame(0, \App\Models\CapitalRequestLine::count());
+        $this->assertSame(0, CapitalRequestLine::count());
     }
 
     public function test_the_capital_request_becomes_a_builder_draft()
     {
-        $model = \App\Models\AssetModel::factory()->create(['name' => 'MacBook Air 13']);
+        $model = AssetModel::factory()->create(['name' => 'MacBook Air 13']);
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI-CAPREQ-2',
             'Ownership Type' => 'Lease to Return',
@@ -1048,7 +1056,7 @@ class ProcurementReportsTest extends TestCase
         $response = $this->actingAs($this->superuser())
             ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
 
-        $requisition = \App\Models\Requisition::latest('id')->first();
+        $requisition = Requisition::latest('id')->first();
         $this->assertNotNull($requisition);
         $response->assertRedirect(route('purchase-orders.builder', ['requisition' => $requisition->id]));
 
@@ -1088,6 +1096,57 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('PO-DRILL-1')
             ->assertSee('PMCN-DRILL-1')
             ->assertSee('INV-DRILL-1');
+    }
+
+    public function test_faculty_ledger_scopes_by_programme_cycle_not_row_creation_date()
+    {
+        // Every agreement on prod was written by one backfill, so created_at
+        // dates the import and the year filter matched all 70 — the FY2026-27
+        // ledger listed devices bought as far back as 2021.
+        $member = User::factory()->create();
+
+        // In this year's refresh wave, via the device being replaced.
+        $wave = DeploymentWave::create([
+            'name' => 'Faculty refresh FY2026-27',
+            'slug' => 'faculty-refresh-fy2627',
+            'fiscal_year' => 'FY2026-27',
+        ]);
+        $replaced = Asset::factory()->create(['purchase_date' => '2022-08-10']);
+        DeploymentItem::create([
+            'wave_id' => $wave->id,
+            'replaces_asset_id' => $replaced->id,
+        ]);
+        $thisCycle = UserAgreement::create([
+            'user_id' => $member->id,
+            'asset_id' => $replaced->id,
+            'agreement_type' => 'pickup',
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        // An older agreement for a device bought two years ago, in no wave.
+        $oldAsset = Asset::factory()->create(['purchase_date' => '2024-06-01']);
+        $oldCycle = UserAgreement::create([
+            'user_id' => $member->id,
+            'asset_id' => $oldAsset->id,
+            'agreement_type' => 'pickup',
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        $current = UserAgreement::forProgramFiscalYear('FY2026-27')->pluck('id');
+        $this->assertTrue($current->contains($thisCycle->id), 'wave member should be in the current year');
+        $this->assertFalse($current->contains($oldCycle->id), 'a 2024 device should not be');
+
+        // The old one lands in the year its device was actually bought, even
+        // though the row was written this year.
+        $earlier = UserAgreement::forProgramFiscalYear('FY2024-25')->pluck('id');
+        $this->assertTrue($earlier->contains($oldCycle->id));
+        $this->assertFalse($earlier->contains($thisCycle->id));
+
+        // "all" still means all.
+        $this->assertEqualsCanonicalizing(
+            [$thisCycle->id, $oldCycle->id],
+            UserAgreement::forProgramFiscalYear('all')->pluck('id')->all()
+        );
     }
 
     public function test_invoice_approval_queue_filters_by_attestation_type()
@@ -1312,7 +1371,7 @@ class ProcurementReportsTest extends TestCase
         ], ['serial' => 'ACTIVELEASE1']);
 
         // …a fully-archived lease (all devices returned) drops off.
-        $archived = \App\Models\Statuslabel::factory()->archived()->create();
+        $archived = Statuslabel::factory()->archived()->create();
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI20880101',
         ], ['serial' => 'RETURNEDLEASE1', 'status_id' => $archived->id]);
@@ -1788,7 +1847,7 @@ class ProcurementReportsTest extends TestCase
             ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 1500.50) < 0.01);
 
         // A posted lease_preapproval allocation overrides the live figure.
-        \App\Models\BudgetAllocation::create([
+        BudgetAllocation::create([
             'fiscal_year' => 'FY2026-27',
             'amount' => 999.00,
             'source' => 'lease_preapproval',
