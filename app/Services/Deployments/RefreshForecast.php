@@ -22,6 +22,15 @@ use Illuminate\Support\Facades\Schema;
 class RefreshForecast
 {
     /**
+     * "Active (Replace)" is a funded decision, not a prediction — devices
+     * somebody flipped to it are identified for replacement in the CURRENT
+     * fiscal year's capital regardless of their dates, so they join the
+     * current year's forecast. Its sibling "Active (Legacy)" is a wishlist
+     * and deliberately does not.
+     */
+    public const STATUS_FUNDED_REPLACEMENT = 'Active (Replace)';
+
+    /**
      * Canonicalize a fiscal-year string to `FY2025-26`, or null for an
      * empty / "all" / unparseable input.
      */
@@ -216,9 +225,18 @@ class RefreshForecast
 
         $query = Asset::query()
             ->NotArchived()
-            ->with(['model', 'status', 'location'])
-            ->where(function ($q) use ($start, $end, $leaseCol, $startStr, $endStr, $buyoutAssetIds, $buyoutContractRefs) {
+            ->with(['model.refreshCatalogItem', 'model.category', 'status', 'location', 'supplier'])
+            ->where(function ($q) use ($fy, $start, $end, $leaseCol, $startStr, $endStr, $buyoutAssetIds, $buyoutContractRefs) {
                 $q->whereBetween('asset_eol_date', [$start, $end]);
+
+                // Funded replacements carry no FY of their own and read
+                // "this year", so they join the current FY's forecast only.
+                $now = \Carbon\Carbon::now();
+                $currentFy = sprintf('FY%d-%02d', $sy = ($now->month >= 4 ? $now->year : $now->year - 1), ($sy + 1) % 100);
+                if (self::normalizeFy($fy) === $currentFy) {
+                    $q->orWhereHas('status', fn ($status) => $status->where('name', self::STATUS_FUNDED_REPLACEMENT));
+                }
+
                 if ($leaseCol !== null) {
                     // Native lease_end_date is a DATE; 'Y-m-d' bounds compare fine.
                     $q->orWhere(function ($lease) use ($leaseCol, $startStr, $endStr, $buyoutAssetIds, $buyoutContractRefs) {
@@ -294,6 +312,7 @@ class RefreshForecast
             $reason = match (true) {
                 $eolIn && $leaseIn => ($eolStr !== '' && $eolStr < $leaseVal) ? 'eol' : 'lease',
                 $leaseIn => 'lease',
+                ! $eolIn && $asset->status?->name === self::STATUS_FUNDED_REPLACEMENT => 'funded',
                 default => 'eol',
             };
 
@@ -312,5 +331,171 @@ class RefreshForecast
 
             return $asset;
         });
+    }
+
+    /**
+     * Early-renewal mode: any criteria supplied drop the EOL/lease window
+     * entirely and list every non-archived device matching the ANDed
+     * predicates — how a subset of an active contract gets slotted in for
+     * an early refresh (moved here from the retired procurement forecast
+     * page; the criteria and their query are unchanged).
+     *
+     * @param  array<int, array{field: string, value: string}>  $criteria
+     * @return Collection<int, Asset>
+     */
+    public function byCriteria(array $criteria): Collection
+    {
+        if ($criteria === []) {
+            return collect();
+        }
+
+        $query = Asset::query()
+            ->NotArchived()
+            ->with(['model.refreshCatalogItem', 'model.category', 'status', 'location', 'supplier']);
+
+        foreach ($criteria as $criterion) {
+            $this->applyCriterion($query, $criterion['field'], $criterion['value']);
+        }
+
+        return $query->orderBy('asset_eol_date')->orderBy('name')->get()
+            ->map(function (Asset $asset) {
+                $asset->refresh_reason = 'criteria';
+                $asset->source_date = $asset->asset_eol_date
+                    ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString()
+                    : (string) ($asset->lease_end_date ?? '');
+                $asset->lease_decision_label = null;
+                $asset->lease_decision_note = null;
+
+                return $asset;
+            });
+    }
+
+    /**
+     * Criteria rows off the query string, validated against the live field
+     * allow-list so an arbitrary `cf:` value can't reach the query builder.
+     *
+     * @return array<int, array{field: string, value: string}>
+     */
+    public function criteriaFromRequest(\Illuminate\Http\Request $request): array
+    {
+        $raw = $request->query('criteria', []);
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $allowed = $this->filterFields();
+        $out = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $field = (string) ($row['field'] ?? '');
+            $value = trim((string) ($row['value'] ?? ''));
+            if ($field === '' || $value === '' || ! isset($allowed[$field])) {
+                continue;
+            }
+            $out[] = ['field' => $field, 'value' => $value];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The fields a criterion can target: curated asset taxonomies plus
+     * every custom field (keyed `cf:<db_column>`).
+     *
+     * @return array<string, string>
+     */
+    public function filterFields(): array
+    {
+        $fields = [
+            'category' => trans('general.category'),
+            'manufacturer' => trans('general.manufacturer'),
+            'model' => trans('general.asset_model'),
+            'status' => trans('general.status'),
+            'supplier' => trans('general.supplier'),
+            'company' => trans('general.company'),
+        ];
+
+        foreach (\App\Models\CustomField::orderBy('name')->get() as $field) {
+            if ($field->db_column) {
+                $fields['cf:'.$field->db_column] = $field->name;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Known values per field, for the criteria builder's datalists.
+     * Custom-field values come from the assets that carry them (capped —
+     * some fields are high-cardinality); Model stays free-text.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function filterValues(): array
+    {
+        $values = [
+            'category' => \App\Models\Category::where('category_type', 'asset')->orderBy('name')->pluck('name')->all(),
+            'manufacturer' => \App\Models\Manufacturer::orderBy('name')->pluck('name')->all(),
+            'status' => \App\Models\Statuslabel::orderBy('name')->pluck('name')->all(),
+            'supplier' => \App\Models\Supplier::orderBy('name')->pluck('name')->all(),
+            'company' => \App\Models\Company::orderBy('name')->pluck('name')->all(),
+        ];
+
+        foreach (\App\Models\CustomField::orderBy('name')->get() as $field) {
+            if (! $field->db_column) {
+                continue;
+            }
+            $values['cf:'.$field->db_column] = Asset::query()
+                ->whereNotNull($field->db_column)
+                ->where($field->db_column, '!=', '')
+                ->distinct()
+                ->orderBy($field->db_column)
+                ->limit(200)
+                ->pluck($field->db_column)
+                ->all();
+        }
+
+        return $values;
+    }
+
+    /**
+     * One criterion onto the asset query. Relation fields match by name;
+     * custom fields match the generated column, validated against the
+     * live allow-list before touching the builder.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Asset>  $query
+     */
+    private function applyCriterion($query, string $field, string $value): void
+    {
+        switch ($field) {
+            case 'category':
+                $query->whereHas('model.category', fn ($q) => $q->where('name', $value));
+                break;
+            case 'manufacturer':
+                $query->whereHas('model.manufacturer', fn ($q) => $q->where('name', $value));
+                break;
+            case 'model':
+                $query->whereHas('model', fn ($q) => $q->where('name', $value));
+                break;
+            case 'status':
+                $query->whereHas('status', fn ($q) => $q->where('name', $value));
+                break;
+            case 'supplier':
+                $query->whereHas('supplier', fn ($q) => $q->where('name', $value));
+                break;
+            case 'company':
+                $query->whereHas('company', fn ($q) => $q->where('name', $value));
+                break;
+            default:
+                if (str_starts_with($field, 'cf:')) {
+                    $column = substr($field, 3);
+                    $allowed = \App\Models\CustomField::pluck('db_column')->filter()->all();
+                    if (in_array($column, $allowed, true)) {
+                        $query->where($column, $value);
+                    }
+                }
+        }
     }
 }
