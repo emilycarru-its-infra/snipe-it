@@ -799,28 +799,53 @@ class DeploymentsController extends Controller
         ]);
     }
 
-    public function edit(DeploymentWave $deploymentWave)
-    {
-        $this->authorize('deployments.edit');
+    /**
+     * Wave columns editable in place on the show page, and nowhere else —
+     * the dedicated edit page is gone. Anything not listed here (slug,
+     * sort_order, announced_at) is set by the system, not typed by a person.
+     */
+    public const INLINE_FIELDS = [
+        'name',
+        'fiscal_year',
+        'deployment_type_id',
+        'wave_state',
+        'arrival_window_start',
+        'arrival_window_end',
+        'target_start_date',
+        'target_end_date',
+        'location_id',
+        'storage_location_id',
+        'owner_id',
+        'purchase_order_id',
+        'color',
+        'notes',
+    ];
 
-        return view('deployment-waves.edit', [
-            'wave' => $deploymentWave,
-            'types' => DeploymentType::active()->ordered()->get(),
-        ]);
-    }
-
+    /**
+     * One field per request, from the inline pencils on the show page. The
+     * value itself is validated by the model's own $rules on save, so an
+     * unknown location id or a garbage date bounces the same way the old
+     * edit form did.
+     */
     public function update(Request $request, DeploymentWave $deploymentWave): RedirectResponse
     {
         $this->authorize('deployments.edit');
 
-        $deploymentWave->fill($request->all());
+        $back = redirect()->route('deployment-waves.show', $deploymentWave);
+        $field = (string) $request->input('field');
 
-        if (! $deploymentWave->save()) {
-            return redirect()->back()->withInput()->withErrors($deploymentWave->getErrors());
+        if (! in_array($field, self::INLINE_FIELDS, true)) {
+            return $back->with('error', trans('admin/deployments/general.update_field_rejected'));
         }
 
-        return redirect()->route('deployment-waves.show', $deploymentWave)
-            ->with('success', trans('admin/deployments/general.updated'));
+        $value = $request->input('value');
+        $deploymentWave->{$field} = ($value === '' ? null : $value);
+
+        if (! $deploymentWave->save()) {
+            return $back->withErrors($deploymentWave->getErrors());
+        }
+
+        return $back->with('success', trans('admin/deployments/general.updated'));
     }
 
     public function destroy(DeploymentWave $deploymentWave): RedirectResponse
