@@ -39,11 +39,13 @@ class AssetBuyoutQuote extends Model
         'quoted_at' => 'date',
     ];
 
+    /** @return BelongsTo<AssetBuyout, $this> */
     public function buyout(): BelongsTo
     {
         return $this->belongsTo(AssetBuyout::class, 'asset_buyout_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function recorder(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by')->withTrashed();
