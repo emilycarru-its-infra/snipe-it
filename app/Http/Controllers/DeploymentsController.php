@@ -879,7 +879,14 @@ class DeploymentsController extends Controller
 
         $forecast = new RefreshForecast;
         $fiscalYears = $forecast->availableFiscalYears();
-        $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: ($fiscalYears[0] ?? null);
+
+        // No explicit choice opens on the CURRENT fiscal year — the sorted
+        // list leads with the oldest year on record, which made the page
+        // greet its reader with FY2020-21's leftovers.
+        $currentStartYear = now()->month >= 4 ? now()->year : now()->year - 1;
+        $currentFy = sprintf('FY%d-%02d', $currentStartYear, ($currentStartYear + 1) % 100);
+        $fy = RefreshForecast::normalizeFy($request->query('fiscal_year'))
+            ?: (in_array($currentFy, $fiscalYears, true) ? $currentFy : ($fiscalYears[0] ?? null));
 
         // Early-renewal mode, absorbed from the retired procurement forecast
         // page: criteria replace the EOL/lease window entirely, so a subset
