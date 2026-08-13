@@ -59,7 +59,9 @@
         <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_request_title') }} — {{ $fy }}</h3>
         <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px;">
             @if ($remaining > 0)
-                <span class="label label-info">{{ trans('admin/purchase-orders/general.capital_remaining_chip', ['amount' => number_format($remaining, 2)]) }}</span>
+                {{-- Sized to the buttons it sits between — the bare label's
+                     own line-height made it a squashed pill in the flex row. --}}
+                <span class="label label-info capital-remaining-chip">{{ trans('admin/purchase-orders/general.capital_remaining_chip', ['amount' => number_format($remaining, 2)]) }}</span>
             @endif
             @can('create', \App\Models\Requisition::class)
                 <span class="nw-pop-wrap" style="position:relative; display:inline-block;">
@@ -152,91 +154,93 @@
                     <th style="width:40px;"></th>
                 </tr>
             </thead>
+            @php
+                // Lines already landed on a REQM cluster under it, the way
+                // Extension Watch nests units under their contract; lines
+                // still looking for paper stay flat at the top.
+                $reqmGroups = collect();
+                $plainRefresh = collect();
+                foreach ($refresh as $capitalRow) {
+                    if ($capitalRow['reqm']) {
+                        $g = $reqmGroups->get($capitalRow['reqm'], [
+                            'reqm' => $capitalRow['reqm'],
+                            'requisition_id' => $capitalRow['requisition_id'],
+                            'po' => $capitalRow['po'],
+                            'refresh' => collect(), 'asks' => collect(),
+                            'qty' => 0, 'cost' => 0.0,
+                        ]);
+                        $g['refresh']->push($capitalRow);
+                        $g['qty'] += $capitalRow['qty'];
+                        $g['cost'] += $capitalRow['cost'];
+                        $reqmGroups->put($capitalRow['reqm'], $g);
+                    } else {
+                        $plainRefresh->push($capitalRow);
+                    }
+                }
+                $plainAsks = collect();
+                foreach ($newAskLines as $askLine) {
+                    $askPaper = $newAskPaper[$askLine->id] ?? null;
+                    if ($askPaper && $askPaper['reqm']) {
+                        $g = $reqmGroups->get($askPaper['reqm'], [
+                            'reqm' => $askPaper['reqm'],
+                            'requisition_id' => $askPaper['requisition_id'],
+                            'po' => $askPaper['po'],
+                            'refresh' => collect(), 'asks' => collect(),
+                            'qty' => 0, 'cost' => 0.0,
+                        ]);
+                        $g['asks']->push($askLine);
+                        $g['qty'] += $askLine->quantity;
+                        $g['cost'] += $askLine->lineTotal();
+                        $reqmGroups->put($askPaper['reqm'], $g);
+                    } else {
+                        $plainAsks->push($askLine);
+                    }
+                }
+            @endphp
             <tbody>
-            @forelse ($refresh as $row)
-                <tr>
-                    <td>{{ trans('admin/purchase-orders/general.capital_need_refresh') }}</td>
-                    <td>
-                        <a href="{{ route('reports.procurement.lease-detail', $row['contract_id']) }}" class="js-lightbox"
-                           title="{{ $row['contract_name'] }}">{{ $row['contract_id'] }}</a>
-                    </td>
-                    <td>{{ $row['area'] }}</td>
-                    <td>{{ $row['preference'] }}</td>
-                    <td>{{ $row['type'] ?: '—' }}</td>
-                    <td class="text-right">{{ $row['qty'] }}</td>
-                    <td style="white-space:normal;">{{ $row['model'] }}</td>
-                    <td class="text-right">${{ number_format($row['cost'], 2) }}</td>
-                    <td class="text-right">
-                        ${{ number_format($row['unit'], 2) }}
-                        @if ($row['estimated'])<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
-                    </td>
-                    <td>
-                        @forelse ($row['waves'] as $waveId => $waveName)
-                            <a href="{{ route('deployment-waves.show', $waveId) }}">{{ $waveName }}</a>@if (! $loop->last), @endif
-                        @empty
-                            <span class="text-muted">&mdash;</span>
-                        @endforelse
-                    </td>
-                    <td>
-                        @if ($row['reqm'])
-                            <a href="{{ route('purchase-orders.builder', ['requisition' => $row['requisition_id']]) }}">{{ $row['reqm'] }}</a>
-                        @else
-                            <span class="text-muted">&mdash;</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if ($row['po'])
-                            <a href="{{ route('purchase-orders.show', $row['po']) }}">{{ $row['po'] }}</a>
-                        @else
-                            <span class="text-muted">&mdash;</span>
-                        @endif
-                    </td>
-                    <td></td>
-                </tr>
-            @empty
-                @if ($newAskLines->isEmpty())
-                    <tr><td colspan="13" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
-                @endif
-            @endforelse
-            @foreach ($newAskLines as $line)
-                @php($paper = $newAskPaper[$line->id] ?? null)
-                <tr>
-                    <td>{{ $line->need }}</td>
-                    <td></td>
-                    <td>{{ $line->area ?: '—' }}</td>
-                    <td>{{ $line->preference ?: '—' }}</td>
-                    <td>{{ $line->type ?: '—' }}</td>
-                    <td class="text-right">{{ $line->quantity }}</td>
-                    <td style="white-space:normal;">{{ $line->description }}</td>
-                    <td class="text-right">${{ number_format($line->lineTotal(), 2) }}</td>
-                    <td class="text-right">${{ number_format((float) $line->unit_cost, 2) }}</td>
-                    <td><span class="text-muted">&mdash;</span></td>
-                    <td>
-                        @if ($paper && $paper['reqm'])
-                            <a href="{{ route('purchase-orders.builder', ['requisition' => $paper['requisition_id']]) }}">{{ $paper['reqm'] }}</a>
-                        @else
-                            <span class="text-muted">&mdash;</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if ($paper && $paper['po'])
-                            <a href="{{ route('purchase-orders.show', $paper['po']) }}">{{ $paper['po'] }}</a>
-                        @else
-                            <span class="text-muted">&mdash;</span>
-                        @endif
-                    </td>
-                    <td class="text-right">
-                        @can('create', \App\Models\Requisition::class)
-                            <form method="POST" action="{{ route('reports.procurement.capital-request.lines.destroy', $line) }}" style="display:inline-block; margin:0;"
-                                  onsubmit="return confirm({{ json_encode(trans('general.sure_to_delete_var', ['item' => $line->need])) }});">
-                                {{ csrf_field() }}@method('DELETE')
-                                <button type="submit" class="btn btn-xs btn-danger"><i class="fas fa-trash"></i></button>
-                            </form>
-                        @endcan
-                    </td>
-                </tr>
+            @if ($plainRefresh->isEmpty() && $plainAsks->isEmpty() && $reqmGroups->isEmpty())
+                <tr><td colspan="13" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
+            @endif
+            @foreach ($plainRefresh as $row)
+                @include('reports.procurement._capital-refresh-row', ['row' => $row, 'inGroup' => false])
+            @endforeach
+            @foreach ($plainAsks as $line)
+                @include('reports.procurement._capital-ask-row', ['line' => $line, 'paper' => null, 'inGroup' => false])
             @endforeach
             </tbody>
+            @foreach ($reqmGroups as $group)
+                <tbody class="capital-reqm-group">
+                    <tr class="capital-group-head">
+                        <td colspan="5">
+                            <button type="button" class="btn btn-xs btn-default capital-group-toggle" aria-expanded="true">
+                                <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            <a href="{{ route('purchase-orders.builder', ['requisition' => $group['requisition_id']]) }}"><strong>{{ $group['reqm'] }}</strong></a>
+                            <span class="text-muted">· {{ $group['refresh']->count() + $group['asks']->count() }} {{ trans('admin/purchase-orders/general.capital_group_lines') }}</span>
+                        </td>
+                        <td class="text-right"><strong>{{ $group['qty'] }}</strong></td>
+                        <td></td>
+                        <td class="text-right"><strong>${{ number_format($group['cost'], 2) }}</strong></td>
+                        <td></td>
+                        <td></td>
+                        <td><a href="{{ route('purchase-orders.builder', ['requisition' => $group['requisition_id']]) }}">{{ $group['reqm'] }}</a></td>
+                        <td>
+                            @if ($group['po'])
+                                <a href="{{ route('purchase-orders.show', $group['po']) }}">{{ $group['po'] }}</a>
+                            @else
+                                <span class="text-muted">&mdash;</span>
+                            @endif
+                        </td>
+                        <td></td>
+                    </tr>
+                    @foreach ($group['refresh'] as $row)
+                        @include('reports.procurement._capital-refresh-row', ['row' => $row, 'inGroup' => true])
+                    @endforeach
+                    @foreach ($group['asks'] as $line)
+                        @include('reports.procurement._capital-ask-row', ['line' => $line, 'paper' => null, 'inGroup' => true])
+                    @endforeach
+                </tbody>
+            @endforeach
             @if ($refresh->isNotEmpty() || $newAskLines->isNotEmpty())
                 <tfoot>
                     <tr>
@@ -333,6 +337,21 @@
 
 <style>
     .capital-table td, .capital-table th { white-space: nowrap; }
+    .capital-group-head td {
+        background: color-mix(in srgb, var(--color-fg, #333) 5%, var(--box-bg, #fff));
+        border-top: 2px solid var(--box-header-bottom-border-color, #e4e9ee);
+    }
+    .capital-group-toggle { opacity: .7; margin-right: 6px; }
+    .capital-group-toggle:hover { opacity: 1; }
+    .capital-remaining-chip {
+        display: inline-flex;
+        align-items: center;
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+    }
     /* The popover pattern from the New Wave button, anchored right so it
        stays on screen when opened from box-tools. */
     .nw-pop {
@@ -366,6 +385,17 @@
     .nw-pop-right::before { left: auto; right: 24px; }
 </style>
 <script nonce="{{ csrf_token() }}">
+document.querySelectorAll('.capital-group-toggle').forEach(function (toggle) {
+    toggle.addEventListener('click', function () {
+        var body = toggle.closest('tbody');
+        var expanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        toggle.querySelector('i').className = expanded ? 'fas fa-chevron-right' : 'fas fa-chevron-down';
+        body.querySelectorAll('tr:not(.capital-group-head)').forEach(function (row) {
+            row.style.display = expanded ? 'none' : '';
+        });
+    });
+});
 document.addEventListener('click', function (e) {
     var toggle = e.target.closest('.nw-pop-toggle');
     if (toggle) {

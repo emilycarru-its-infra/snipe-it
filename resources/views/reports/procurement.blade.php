@@ -205,7 +205,6 @@
         ['route' => 'reports.procurement.rent-costs', 'name' => 'report_rent_costs', 'desc' => 'report_rent_costs_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'stage' => 'completed'],
-        ['route' => 'reports.procurement.forecast', 'name' => 'report_forecast', 'desc' => 'report_forecast_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.csi-reconciliation', 'name' => 'report_csi_reconciliation', 'desc' => 'report_csi_reconciliation_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.lease-data-health', 'name' => 'report_lease_data_health', 'desc' => 'report_lease_data_health_desc', 'stage' => 'reconciling'],

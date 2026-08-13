@@ -122,13 +122,19 @@ class ProcurementReportsTest extends TestCase
             ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
         $superuser = $this->superuser();
 
+        // One forecast page now: the procurement address redirects into
+        // the deployments planning hub, where the page and CSV both live.
         $this->actingAs($superuser)
             ->get(route('reports.procurement.forecast'))
+            ->assertRedirect(route('deployments.forecast'));
+
+        $this->actingAs($superuser)
+            ->get(route('deployments.forecast'))
             ->assertOk()
             ->assertSee('FORECAST-1');
 
         $csv = $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+            ->get(route('deployments.forecast', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringContainsString('FORECAST-1', $csv->streamedContent());
     }
@@ -288,7 +294,7 @@ class ProcurementReportsTest extends TestCase
 
         // The forecast table links the asset cells into the lightbox…
         $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast'))
+            ->get(route('deployments.forecast'))
             ->assertOk()
             ->assertSee('js-lightbox')
             ->assertSee(route('hardware.show', $asset->id), false)
@@ -298,7 +304,7 @@ class ProcurementReportsTest extends TestCase
 
         // The links map is render-time only — exports carry clean cells.
         $csv = $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+            ->get(route('deployments.forecast', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringNotContainsString('js-lightbox', $csv->streamedContent());
         $this->assertStringNotContainsString('href', $csv->streamedContent());
@@ -862,6 +868,56 @@ class ProcurementReportsTest extends TestCase
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
             ->assertSee('P0026150');
+    }
+
+    public function test_a_devices_request_year_follows_the_decision_not_the_paper()
+    {
+        // The faculty case: a 5-year lease ending in FY2027-28, refreshed
+        // at year 4 by a FY2026-27 wave. The wave is the decision, so the
+        // line belongs to FY2026-27's request — not the year the paper
+        // expires.
+        $waved = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 2100.00]);
+        $wave = \App\Models\DeploymentWave::create([
+            'name' => 'FY26-27 Faculty Wave', 'slug' => 'fy2627-early-'.uniqid(), 'fiscal_year' => 'FY2026-27',
+        ]);
+        \App\Models\DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $waved->id]);
+
+        // Same contract, no wave, but an End of Life WE set earlier than
+        // the lease end: the forecast's operative date wins. (Stamped after
+        // create — the factory's afterMaking overwrites asset_eol_date.)
+        $early = $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 1900.00]);
+        Asset::query()->whereKey($early->id)->update(['asset_eol_date' => '2026-10-01']);
+
+        // And one with nothing sharper decided: lease end stands.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2027-08-01',
+        ], ['purchase_cost' => 1700.00]);
+
+        // FY2026-27 carries the wave device and the early-EOL device…
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('$2,100.00')
+            ->assertSee('$1,900.00')
+            ->assertDontSee('$1,700.00');
+
+        // …and FY2027-28 keeps only the undecided one.
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2027-28')
+            ->assertOk()
+            ->assertSee('$1,700.00')
+            ->assertDontSee('$2,100.00')
+            ->assertDontSee('$1,900.00');
     }
 
     public function test_new_asks_are_entered_by_hand_and_join_the_draft()

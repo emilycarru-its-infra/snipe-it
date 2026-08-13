@@ -71,7 +71,11 @@ class ComparableReplacementTest extends TestCase
         $this->mappedAsset($this->catalogItem(2383.11));
         $this->mappedAsset(null, 999.99);
 
-        $response = $this->get(route('reports.procurement.forecast'));
+        // The old procurement address walks to the merged page.
+        $this->get(route('reports.procurement.forecast'))
+            ->assertRedirect(route('deployments.forecast'));
+
+        $response = $this->get(route('deployments.forecast'));
 
         $response->assertOk()
             ->assertSee('2,383.11')

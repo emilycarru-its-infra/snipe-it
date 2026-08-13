@@ -81,13 +81,13 @@ class ForecastPlannedOrderTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.forecast'))
+            ->get(route('deployments.forecast'))
             ->assertOk();
 
         // The open asset has a selection checkbox; the planned one shows a
         // "Planned" label in its place.
-        $response->assertSee('name="assets[]" value="'.$open->id.'"', false);
-        $response->assertDontSee('name="assets[]" value="'.$planned->id.'"', false);
+        $response->assertSee('name="asset_ids[]" value="'.$open->id.'"', false);
+        $response->assertDontSee('name="asset_ids[]" value="'.$planned->id.'"', false);
     }
 
     public function test_a_device_cannot_be_double_booked_into_two_planned_orders()
