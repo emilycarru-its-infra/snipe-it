@@ -91,26 +91,31 @@ class AssetBuyout extends Model
         'completed_at' => 'datetime',
     ];
 
+    /** @return BelongsTo<Asset, $this> */
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class, 'asset_id')->withTrashed();
     }
 
+    /** @return BelongsTo<Supplier, $this> */
     public function lessor(): BelongsTo
     {
         return $this->belongsTo(Supplier::class, 'lessor_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function buyer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'buyer_id')->withTrashed();
     }
 
+    /** @return BelongsTo<User, $this> */
     public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by')->withTrashed();
     }
 
+    /** @return HasMany<AssetBuyoutQuote, $this> */
     public function quotes(): HasMany
     {
         return $this->hasMany(AssetBuyoutQuote::class)->orderByDesc('quoted_at')->orderByDesc('id');

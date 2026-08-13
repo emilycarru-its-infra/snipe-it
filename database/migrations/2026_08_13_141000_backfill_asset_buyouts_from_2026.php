@@ -127,7 +127,7 @@ return new class extends Migration
                 continue;
             }
 
-            $quotes = $case['quotes'] ?? [];
+            $quotes = $case['quotes'];
             $live = $quotes ? end($quotes) : null;
             $total = $live ? (float) $live['amount'] + (float) $live['rent'] : null;
 
@@ -155,7 +155,7 @@ return new class extends Migration
                 'declined_at' => $case['declined_at'] ?? null,
                 'decline_reason' => $case['decline_reason'] ?? null,
                 'invoice_date' => $case['invoice_date'] ?? null,
-                'notes' => $case['notes'] ?? null,
+                'notes' => $case['notes'],
                 'updated_at' => now(),
             ];
 
@@ -176,7 +176,7 @@ return new class extends Migration
                     'remaining_rent' => $quote['rent'],
                     'quote_total' => (float) $quote['amount'] + (float) $quote['rent'],
                     'quoted_at' => $quote['date'],
-                    'notes' => $quote['notes'] ?? null,
+                    'notes' => $quote['notes'],
                     'created_at' => $quote['date'],
                     'updated_at' => now(),
                 ]);
