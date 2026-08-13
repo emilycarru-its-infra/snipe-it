@@ -5,6 +5,28 @@
      server-rendered rather than becoming a datatable because approving,
      declining and sending to the vendor are the point of it, and those are
      forms per order, not cells in a row. --}}
+@once
+@push('css')
+<style>
+{{-- Cards in a fluid two-up grid rather than one full-width box per
+     order: each order only ever needed half a big screen, and stacking
+     them full-width wasted the other half. auto-fill collapses to a
+     single column on anything too narrow for two 600px cards. --}}
+.pq-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(600px, 100%), 1fr));
+    gap: 14px;
+    align-items: start;
+}
+.pq-grid > .box { margin-bottom: 0; }
+.pq-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--box-border-color, #ebebee);
+}
+</style>
+@endpush
+@endonce
 @if ($orders->isEmpty())
     <div class="box box-default"><div class="box-body">
         <p class="text-muted">{{ trans('admin/store/general.queue_empty') }}</p>
@@ -34,6 +56,7 @@
             </div>
         @endif
 
+        <div class="pq-grid">
         @foreach ($orders as $order)
             <div class="box box-default">
                 <div class="box-header with-border">
@@ -96,8 +119,11 @@
                     @endif
                 </div>
                 <div class="box-body">
-                    <div class="row">
-                        <div class="col-md-7">
+                    {{-- Stacked, not a 7/5 column split: inside a half-width
+                         card the old columns crushed both the items table
+                         and the decision form into slivers. --}}
+                    <div>
+                        <div>
                             <table class="table table-condensed" style="margin-bottom:0;">
                                 <thead>
                                     <tr>
@@ -129,7 +155,7 @@
                                 <p class="text-muted" style="margin:8px 0 0; font-size:12px;">{{ trans('admin/store/general.queue_no_gl_code') }}</p>
                             @endif
                         </div>
-                        <div class="col-md-5">
+                        <div class="pq-actions">
                             @if ($order->status === 'pending')
                                 {{-- Decision form posts outside the pull form via the form attribute. --}}
                                 @include('procurement._queue-funding', ['order' => $order, 'formId' => 'pq-decide-'.$order->id])
@@ -182,7 +208,7 @@
                                  order is not placed until that sign-off, so
                                  the confirm button is the last step here. --}}
                             @if ($order->vendor_sent_at)
-                                <div style="margin-top:12px; padding-top:10px; border-top:1px solid #ebebee;">
+                                <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--box-border-color, #ebebee);">
                                     <strong style="font-size:12px;">{{ trans('admin/store/general.quote_heading') }}</strong>
                                     @if ($order->confirmed_at)
                                         <p class="text-muted" style="margin:4px 0 0; font-size:12px;">
@@ -239,6 +265,7 @@
                 </div>
             </div>
         @endforeach
+        </div>
     </form>
 
     {{-- One decision form per pending order, and vendor-send forms — one

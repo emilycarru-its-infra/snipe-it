@@ -474,4 +474,61 @@ class DeploymentsBoardTest extends TestCase
         }
         $this->assertSame('Printers', trans('admin/reports/general.nav_printers'));
     }
+
+    /**
+     * The dedicated Update page is gone: every human-typed wave field edits
+     * in place on the show page, one field per request, asset-page style.
+     */
+    public function test_wave_fields_edit_in_place_on_the_show_page()
+    {
+        $wave = DeploymentWave::create(['name' => 'Inline Wave', 'fiscal_year' => 'FY2026-27']);
+        $admin = $this->superuser();
+
+        $content = $this->actingAs($admin)
+            ->get(route('deployment-waves.show', $wave))
+            ->assertOk()
+            ->getContent();
+
+        // Pencils and their single-field forms are on the page; the old
+        // edit-page link is not (the route itself no longer exists).
+        $this->assertStringContainsString('wave-inline-pencil', $content);
+        $this->assertStringContainsString('wave-inline-'.$wave->id.'-notes-form', $content);
+        $this->assertStringNotContainsString('/deployments/waves/'.$wave->id.'/edit', $content);
+
+        $this->actingAs($admin)
+            ->patch(route('deployment-waves.update', $wave), [
+                'field' => 'notes', 'value' => 'Staged in B1120 first',
+            ])
+            ->assertRedirect(route('deployment-waves.show', $wave));
+        $this->assertSame('Staged in B1120 first', $wave->fresh()->notes);
+
+        // Blanking an optional field stores null rather than an empty string.
+        $this->actingAs($admin)
+            ->patch(route('deployment-waves.update', $wave), ['field' => 'notes', 'value' => '']);
+        $this->assertNull($wave->fresh()->notes);
+    }
+
+    public function test_inline_wave_edit_rejects_fields_off_the_whitelist_and_bad_values()
+    {
+        $wave = DeploymentWave::create(['name' => 'Guarded Wave', 'slug' => 'guarded-wave']);
+        $admin = $this->superuser();
+
+        // slug is system-owned; the endpoint refuses to touch it.
+        $this->actingAs($admin)
+            ->patch(route('deployment-waves.update', $wave), ['field' => 'slug', 'value' => 'hijacked'])
+            ->assertSessionHas('error');
+        $this->assertSame('guarded-wave', $wave->fresh()->slug);
+
+        // A value the model rules reject bounces without saving.
+        $this->actingAs($admin)
+            ->patch(route('deployment-waves.update', $wave), ['field' => 'location_id', 'value' => '999999'])
+            ->assertSessionHasErrors();
+        $this->assertNull($wave->fresh()->location_id);
+
+        // No deployments.edit permission, no edit.
+        $viewer = User::factory()->create();
+        $this->actingAs($viewer)
+            ->patch(route('deployment-waves.update', $wave), ['field' => 'notes', 'value' => 'nope'])
+            ->assertForbidden();
+    }
 }
