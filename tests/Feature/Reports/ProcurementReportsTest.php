@@ -122,13 +122,19 @@ class ProcurementReportsTest extends TestCase
             ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
         $superuser = $this->superuser();
 
+        // One forecast page now: the procurement address redirects into
+        // the deployments planning hub, where the page and CSV both live.
         $this->actingAs($superuser)
             ->get(route('reports.procurement.forecast'))
+            ->assertRedirect(route('deployments.forecast'));
+
+        $this->actingAs($superuser)
+            ->get(route('deployments.forecast'))
             ->assertOk()
             ->assertSee('FORECAST-1');
 
         $csv = $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+            ->get(route('deployments.forecast', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringContainsString('FORECAST-1', $csv->streamedContent());
     }
@@ -288,7 +294,7 @@ class ProcurementReportsTest extends TestCase
 
         // The forecast table links the asset cells into the lightbox…
         $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast'))
+            ->get(route('deployments.forecast'))
             ->assertOk()
             ->assertSee('js-lightbox')
             ->assertSee(route('hardware.show', $asset->id), false)
@@ -298,7 +304,7 @@ class ProcurementReportsTest extends TestCase
 
         // The links map is render-time only — exports carry clean cells.
         $csv = $this->actingAs($superuser)
-            ->get(route('reports.procurement.forecast', ['format' => 'csv']));
+            ->get(route('deployments.forecast', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringNotContainsString('js-lightbox', $csv->streamedContent());
         $this->assertStringNotContainsString('href', $csv->streamedContent());
