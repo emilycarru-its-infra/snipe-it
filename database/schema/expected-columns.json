@@ -1189,6 +1189,7 @@
         "vendor_sku"
     ],
     "requisitions": [
+        "capital_request_fy",
         "company_id",
         "cost_center",
         "created_at",
