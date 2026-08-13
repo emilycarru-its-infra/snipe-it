@@ -160,11 +160,21 @@
                     <tbody>
                     @forelse ($order->items as $lineItem)
                         <tr>
-                            <td>{{ $lineItem->item_type ? class_basename($lineItem->item_type) : trans('general.na') }}</td>
+                            {{-- A warranty line points at the device it covers, so it is
+                                 typed as an asset even though nothing shipped for it. Left
+                                 as "Asset" it reads as a second unit: order PVXX158 has
+                                 four Mac minis and eight lines, and looked like eight
+                                 machines. Name it for what it is and say which device it
+                                 covers. --}}
+                            <td>{{ $lineItem->itemTypeLabel() }}</td>
                             <td>
                                 @php $li = $lineItem->item; @endphp
                                 @if ($li && $lineItem->item_type === \App\Models\Asset::class)
-                                    <x-icon type="asset" />
+                                    @if ($lineItem->isSoftCostOnly())
+                                        <span class="text-muted">{{ trans('admin/orders/general.covers') }}</span>
+                                    @else
+                                        <x-icon type="asset" />
+                                    @endif
                                     <a href="{{ route('hardware.show', $li->id) }}">{{ $li->present()->fullName() }}</a>
                                 @elseif ($li)
                                     {!! $li->present()->nameUrl() !!}

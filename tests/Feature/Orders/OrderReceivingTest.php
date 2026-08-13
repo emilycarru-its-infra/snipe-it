@@ -6,6 +6,7 @@ use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Consumable;
 use App\Models\Order;
+use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\Statuslabel;
@@ -265,5 +266,70 @@ class OrderReceivingTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString('Item Type', $response->streamedContent());
+    }
+
+    public function test_a_soft_cost_only_line_is_received_when_it_is_invoiced()
+    {
+        // CDW bills the hardware, then the AppleCare for the same serials on
+        // its own invoice a day later. Nothing arrives in a box for the
+        // warranty line, so it must not sit as an outstanding receipt —
+        // PVXX158 read "4 of 8 received" with every Mac mini already in use.
+        $order = Order::factory()->create();
+        $invoice = OrderInvoice::factory()->create(['order_id' => $order->id]);
+        $asset = Asset::factory()->create();
+
+        $hardware = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'invoice_id' => $invoice->id,
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+            'unit_cost' => 4079.19,
+            'warranty_cost' => 0.85,
+            'received_at' => now(),
+        ]);
+
+        $applecare = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'invoice_id' => $invoice->id,
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+            'unit_cost' => 0,
+            'warranty_cost' => 155.00,
+        ]);
+
+        $this->assertTrue($applecare->isSoftCostOnly());
+        $this->assertFalse($hardware->fresh()->isSoftCostOnly());
+        $this->assertNotNull($applecare->fresh()->received_at);
+        $this->assertEquals('received', $order->fresh()->status);
+    }
+
+    public function test_an_uninvoiced_soft_cost_line_stays_outstanding()
+    {
+        // A planned or forecast warranty line has no vendor confirmation
+        // behind it, so it should still read as outstanding.
+        $order = Order::factory()->create();
+
+        OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'invoice_id' => null,
+            'unit_cost' => 0,
+            'warranty_cost' => 155.00,
+            'description' => 'AppleCare, not yet billed',
+        ]);
+
+        $this->assertNull(OrderItem::where('order_id', $order->id)->first()->received_at);
+    }
+
+    public function test_a_zero_cost_line_with_no_warranty_is_not_treated_as_soft_cost()
+    {
+        // A free-of-charge replacement is a real delivery, not a financial line.
+        $order = Order::factory()->create();
+        $item = OrderItem::factory()->make([
+            'order_id' => $order->id,
+            'unit_cost' => 0,
+            'warranty_cost' => 0,
+        ]);
+
+        $this->assertFalse($item->isSoftCostOnly());
     }
 }

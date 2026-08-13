@@ -84,4 +84,39 @@ class OrderItemsTest extends TestCase
             ->assertOk()
             ->assertSee('CDW INTERNAL INSTALLATION GENERAL');
     }
+
+    public function test_a_warranty_line_does_not_render_as_another_device()
+    {
+        // PVXX158: four Mac minis, eight lines, and it read as eight machines
+        // because the AppleCare lines point at the device they cover and so
+        // are typed as assets.
+        $order = Order::factory()->create();
+        $asset = Asset::factory()->create();
+
+        OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+            'unit_cost' => 4079.19,
+            'warranty_cost' => 0.85,
+            'description' => 'APPLE CTO MC< M4 64GB 2TB',
+        ]);
+        $warranty = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => Asset::class,
+            'item_id' => $asset->id,
+            'unit_cost' => 0,
+            'warranty_cost' => 155.00,
+            'description' => 'APPLE 4YR AC+ SCHOOLS - MAC MINI',
+        ]);
+
+        $this->assertEquals('Warranty', $warranty->itemTypeLabel());
+        $this->assertEquals('Asset', $order->items()->where('unit_cost', '>', 0)->first()->itemTypeLabel());
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('Warranty')
+            ->assertSee('APPLE 4YR AC+ SCHOOLS - MAC MINI');
+    }
 }
