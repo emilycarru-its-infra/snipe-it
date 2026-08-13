@@ -96,4 +96,5 @@ return [
     'collapse_all' => 'Collapse all',
     'received_progress' => ':received of :total received',
     'open_order' => 'Open',
+    'view_order' => 'View this order',
 ];

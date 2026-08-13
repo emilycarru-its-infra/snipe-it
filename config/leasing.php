@@ -21,6 +21,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Where a completed buyout lands the device
+    |--------------------------------------------------------------------------
+    |
+    | Completing a buyout parks the asset on this status label, which must be
+    | an archived one: that is the signal the management systems read to drop
+    | the device, and what keeps a sold machine out of the lease-return pool.
+    | Resolved by name, because status labels are data rather than schema.
+    |
+    | "Purchased" here is the existing archived status meaning *purchased by
+    | faculty* — the person bought it. It is not the `ownership_type` value of
+    | the same name, which means ECU bought the unit off its lease and still
+    | owns it. See App\Services\Leasing\BuyoutTracker.
+    |
+    */
+
+    'buyout_completed_status' => env('BUYOUT_COMPLETED_STATUS', 'Purchased'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Extra buyout recipients live on the lessor, not here
     |--------------------------------------------------------------------------
     |

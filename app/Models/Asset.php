@@ -894,6 +894,43 @@ class Asset extends Depreciable
     }
 
     /**
+     * The Order this asset's `order_number` names, if the Orders module holds
+     * one — so the number on the asset page can be clicked through to the
+     * order it refers to, instead of being read off and pasted into search.
+     *
+     * `order_number` is a free-text column that predates the Orders module and
+     * is written by the CDW webhook and by hand, so a match is a lookup rather
+     * than a foreign key, and a miss is ordinary: plenty of assets name an
+     * order that was never keyed in. Resolved through the line items first —
+     * that link is explicit — and only then by the number itself.
+     *
+     * Memoised because both the info panel and the group card ask for it while
+     * rendering one page.
+     */
+    public function linkedOrder(): ?Order
+    {
+        if (array_key_exists('linkedOrder', $this->relations)) {
+            return $this->relations['linkedOrder'];
+        }
+
+        $order = null;
+
+        if (filled($this->order_number)) {
+            $orderIds = $this->orderItems()->pluck('order_id')->unique();
+
+            $order = Order::query()
+                ->when($orderIds->isNotEmpty(), fn ($q) => $q->whereIn('id', $orderIds))
+                ->where('order_number', $this->order_number)
+                ->first()
+                ?? Order::where('order_number', $this->order_number)->first();
+        }
+
+        $this->relations['linkedOrder'] = $order;
+
+        return $order;
+    }
+
+    /**
      * Get depreciation attribute from associated asset model
      *
      * @todo Is this still needed?
