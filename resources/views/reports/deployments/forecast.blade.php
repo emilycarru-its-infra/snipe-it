@@ -105,6 +105,12 @@
         background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 8%, var(--box-bg, #fff));
     }
     .fc-scroll { max-height: 62vh; overflow: auto; }
+    .fc-money-chip {
+        display: inline-flex; align-items: center; height: 26px;
+        padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+        text-decoration: none;
+    }
+    .fc-money-chip:hover, .fc-money-chip:focus { text-decoration: none; opacity: .88; }
     .fc-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--box-bg, #fff); box-shadow: 0 1px 0 var(--box-border-color, #f4f4f4); }
 </style>
 
@@ -198,6 +204,24 @@
     <div class="box box-default">
         <div class="box-header with-border">
             <h3 class="box-title">{{ trans('admin/deployments/general.forecast_summary', ['count' => $candidates->count(), 'fy' => $fy]) }}</h3>
+            {{-- The budget beside the plan: lease-end funds, what the plan
+                 currently requests, and the gap — live from the capital
+                 request, linking into it. Adjust here, watch the money. --}}
+            @if ($capital)
+                <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <a href="{{ route('reports.procurement.capital-request', ['fiscal_year' => $capital['fy']]) }}" class="label label-default fc-money-chip">
+                        {{ trans('admin/deployments/general.forecast_funds_chip', ['amount' => number_format($capital['envelope'], 2)]) }}
+                    </a>
+                    <a href="{{ route('reports.procurement.capital-request', ['fiscal_year' => $capital['fy']]) }}" class="label label-primary fc-money-chip">
+                        {{ trans('admin/deployments/general.forecast_requested_chip', ['amount' => number_format($capital['requested'], 2)]) }}
+                    </a>
+                    <a href="{{ route('reports.procurement.capital-request', ['fiscal_year' => $capital['fy']]) }}" class="label {{ $capital['remaining'] < 0 ? 'label-danger' : 'label-info' }} fc-money-chip">
+                        {{ $capital['remaining'] < 0
+                            ? trans('admin/deployments/general.forecast_over_chip', ['amount' => number_format(abs($capital['remaining']), 2)])
+                            : trans('admin/purchase-orders/general.capital_remaining_chip', ['amount' => number_format($capital['remaining'], 2)]) }}
+                    </a>
+                </div>
+            @endif
             <span style="margin-left:16px; vertical-align:middle; white-space:nowrap;">
                 <span class="text-muted" style="font-size:12px; margin-right:4px;">{{ trans('admin/deployments/general.flow_group_label') }}</span>
                 <span class="btn-group" id="fc-group-btns" style="vertical-align:middle;">
