@@ -870,6 +870,24 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('P0026150');
     }
 
+    public function test_the_forecast_shows_the_capital_money_beside_the_plan()
+    {
+        // A contract ending in the year: the forecast's candidates header
+        // carries the envelope, the requested total and the gap, live from
+        // the capital request.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-STRIP-1',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 2500.00]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.forecast', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.forecast_funds_chip', ['amount' => '2,500.00']))
+            ->assertSee(trans('admin/deployments/general.forecast_requested_chip', ['amount' => '2,500.00']));
+    }
+
     public function test_a_self_contained_requisition_never_attaches_to_request_lines()
     {
         // The Foundation labs case: a stand-alone REQM buying the same
