@@ -31,6 +31,17 @@ class OrderInvoice extends Model
         'termination',
     ];
 
+    /**
+     * Invoice types that move money without shipping anything, so they carry
+     * no line items by design — the ingest endpoint explicitly exempts them
+     * from the items requirement.
+     */
+    public const ADJUSTMENT_TYPES = [
+        'buyout',
+        'credit',
+        'termination',
+    ];
+
     public const ATTESTATION_TYPES = [
         'vendor_invoice',
         'lessor_okp',
@@ -169,9 +180,20 @@ class OrderInvoice extends Model
      * Expected pre-tax amount derived from the line items billed on this
      * invoice. The CDW invoice subtotal should match this — the difference
      * is the "variance" finance asks about every month.
+     *
+     * A buyout, credit or termination commits or returns money without
+     * shipping a device, so it has no line items to derive anything from and
+     * its own subtotal is the expectation. Deriving zero for those made the
+     * approval queue flag all three of them in red every month for a variance
+     * equal to their whole amount, which is noise finance has to look past to
+     * find the invoices that are genuinely wrong.
      */
     public function expectedSubtotal(): float
     {
+        if ($this->isAdjustment()) {
+            return (float) $this->subtotal;
+        }
+
         return (float) $this->items->sum->lineTotal();
     }
 
@@ -182,6 +204,14 @@ class OrderInvoice extends Model
     public function variance(): float
     {
         return (float) $this->subtotal - $this->expectedSubtotal();
+    }
+
+    /**
+     * Whether this invoice moves money rather than recording a shipment.
+     */
+    public function isAdjustment(): bool
+    {
+        return in_array($this->invoice_type, self::ADJUSTMENT_TYPES, true);
     }
 
     public function isApproved(): bool
