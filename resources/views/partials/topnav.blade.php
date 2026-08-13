@@ -121,15 +121,20 @@
                         <li{!! (request()->is('procurement/leasing*') ? ' class="active"' : '') !!}>
                             <a href="{{ route('reports.lessor-breakdown') }}">{{ trans('admin/purchase-orders/general.leasing_title') }}</a>
                         </li>
+                        <li{!! (request()->is('procurement/capital') ? ' class="active"' : '') !!}>
+                            <a href="{{ route('reports.procurement.capital-request') }}">{{ trans('admin/purchase-orders/general.capital_nav') }}</a>
+                        </li>
                     @endcan
-                    <li{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('procurement.queue') }}">{{ trans('admin/store/general.queue') }}</a>
-                    </li>
                     <li class="divider"></li>
                 @endcan
                 <li{!! (request()->is('store') ? ' class="active"' : '') !!}>
                     <a href="{{ route('store.index') }}">{{ trans('admin/store/general.store') }}</a>
                 </li>
+                @can('view', \App\Models\Order::class)
+                    <li{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('procurement.queue') }}">{{ trans('admin/store/general.queue') }}</a>
+                    </li>
+                @endcan
                 @can('admin')
                     <li{!! (request()->is('procurement/store-admin*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('procurement.store-admin') }}">{{ trans('admin/store/general.store_admin') }}</a>
