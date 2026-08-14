@@ -1167,7 +1167,7 @@ class ProcurementReportsTest extends TestCase
         // In this year's refresh wave, via the device being replaced.
         $wave = DeploymentWave::create([
             'name' => 'Faculty refresh FY2026-27',
-            'slug' => 'faculty-refresh-fy2627',
+            'slug' => 'faculty-refresh-'.uniqid(),
             'fiscal_year' => 'FY2026-27',
         ]);
         $replaced = Asset::factory()->create(['purchase_date' => '2022-08-10']);
