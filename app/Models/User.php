@@ -548,6 +548,15 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
             }
         }
 
+        // Department-granted readers (Departments → Procurement access)
+        // hold no permission at all, but the procurement pages are open to
+        // them — end-user chrome would hide the very doors the grant
+        // opens.
+        if ($this->department_id
+            && Department::whereKey($this->department_id)->value('procurement_access')) {
+            return false;
+        }
+
         return true;
     }
 
