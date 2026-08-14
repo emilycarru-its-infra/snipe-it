@@ -108,3 +108,16 @@ After checkout, `Helper::getRedirectOption()` reads `$request->redirect_option`.
 ## Testing
 
 Tests live in `tests/Feature/` (organized by entity) and `tests/Unit/`. Feature tests hit the database; the test environment uses `array` cache/session/mail drivers. Tests use factories for data setup.
+
+**Give every worktree its own test database.** The default `snipeit_test_1` is shared, and two worktrees running tests at once will drop each other's tables mid-run — it surfaces as `Base table or view not found` for tables created moments earlier, which reads like a wedged database and is not. Three separate sessions have lost time to it, one of them rebuilding the container.
+
+```
+docker exec snipe-test-mysql mysql -uroot -e "CREATE DATABASE snipeit_test_<name>"
+```
+
+Then set `DB_DATABASE=snipeit_test_<name>` in that worktree's `.env.testing`, and drop the database when the worktree goes.
+
+Two consequences worth knowing:
+
+- **Regenerating `database/schema/expected-columns.json` on a shared server used to pick up other databases' tables** as phantom entries with empty column lists — silently, into a committed file. `SchemaCheck::baseTables()` now scopes to the connection's own database, so this is fixed, but check the table count against the previous snapshot if you regenerate it.
+- CI runs `php artisan test --parallel --processes=4`. Paratest distributes files by dynamic work-stealing, so which files share a worker depends on how long earlier files took — grouping is not reproducible between runs. A single clean run proves very little about an order-dependent failure; repeat before concluding anything.
