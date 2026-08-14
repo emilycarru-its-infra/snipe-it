@@ -60,7 +60,7 @@
                                         <td>{{ $row['snipe_schedule'] }}</td>
                                         <td>
                                             @if ($row['asset_id'])
-                                                <a href="{{ route('hardware.show', $row['asset_id']) }}">{{ $row['snipe_tag'] }}</a>
+                                                <a class="js-lightbox" href="{{ route('hardware.show', $row['asset_id']) }}">{{ $row['snipe_tag'] }}</a>
                                             @else — @endif
                                         </td>
                                         <td>{{ $row['snipe_status'] ?: '—' }}</td>
@@ -122,7 +122,7 @@
                                     <td>{{ $row['csi_schedule'] }}</td>
                                     <td>
                                         @if ($row['asset_id'])
-                                            <a href="{{ route('hardware.show', $row['asset_id']) }}">{{ $row['snipe_tag'] }}</a>
+                                            <a class="js-lightbox" href="{{ route('hardware.show', $row['asset_id']) }}">{{ $row['snipe_tag'] }}</a>
                                         @else {{ $row['snipe_tag'] }} @endif
                                     </td>
                                     <td>{{ $row['snipe_status'] ?: '—' }}</td>

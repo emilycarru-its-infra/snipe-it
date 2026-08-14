@@ -33,7 +33,7 @@
             <div class="col-md-7">
               <p class="form-control-static">
                 @if ($transaction->asset)
-                  <a href="{{ route('hardware.show', $transaction->asset->id) }}">{{ $transaction->asset->present()->name() }}</a>
+                  <a class="js-lightbox" href="{{ route('hardware.show', $transaction->asset->id) }}">{{ $transaction->asset->present()->name() }}</a>
                 @else
                   —
                 @endif

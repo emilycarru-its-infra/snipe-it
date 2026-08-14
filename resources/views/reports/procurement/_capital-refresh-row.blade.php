@@ -22,7 +22,7 @@
     </td>
     <td>
         @forelse ($row['waves'] as $waveId => $waveName)
-            <a href="{{ route('deployment-waves.show', $waveId) }}">{{ $waveName }}</a>@if (! $loop->last), @endif
+            <a class="js-lightbox" href="{{ route('deployment-waves.show', $waveId) }}">{{ $waveName }}</a>@if (! $loop->last), @endif
         @empty
             <span class="text-muted">&mdash;</span>
         @endforelse
@@ -36,7 +36,7 @@
     </td>
     <td>
         @if (! ($inGroup ?? false) && $row['po'])
-            <a href="{{ route('purchase-orders.show', $row['po']) }}">{{ $row['po'] }}</a>
+            <a class="js-lightbox" href="{{ route('purchase-orders.show', $row['po']) }}">{{ $row['po'] }}</a>
         @else
             <span class="text-muted">&mdash;</span>
         @endif

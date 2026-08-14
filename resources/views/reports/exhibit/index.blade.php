@@ -129,7 +129,7 @@
                     <td>@if ($project->submitted_file)<i class="fas fa-check text-success"></i>@endif</td>
                     <td>
                         @if ($project->user)
-                            <a href="{{ route('users.show', $project->user) }}">{{ $project->user->full_name }}</a>
+                            <a class="js-lightbox" href="{{ route('users.show', $project->user) }}">{{ $project->user->full_name }}</a>
                         @else
                             {{ $project->student_name ?: '—' }}
                         @endif
@@ -139,7 +139,7 @@
                     <td>{{ $project->requested_device }}</td>
                     <td>
                         @if ($project->asset)
-                            <a href="{{ route('hardware.show', $project->asset) }}">{{ $project->assignedDeviceLabel() }}</a>
+                            <a class="js-lightbox" href="{{ route('hardware.show', $project->asset) }}">{{ $project->assignedDeviceLabel() }}</a>
                         @endif
                     </td>
                     <td>@if ($project->approved)<i class="fas fa-check text-success"></i>@endif</td>
