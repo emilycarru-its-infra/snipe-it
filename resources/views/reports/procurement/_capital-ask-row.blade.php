@@ -19,7 +19,7 @@
     </td>
     <td>
         @if (! ($inGroup ?? false) && $paper && $paper['po'])
-            <a href="{{ route('purchase-orders.show', $paper['po']) }}">{{ $paper['po'] }}</a>
+            <a class="js-lightbox" href="{{ route('purchase-orders.show', $paper['po']) }}">{{ $paper['po'] }}</a>
         @else
             <span class="text-muted">&mdash;</span>
         @endif

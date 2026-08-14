@@ -18,7 +18,7 @@
                     <td>{{ $agreement->lifecycle_stage }}</td>
                     <td>
                         @if ($agreement->asset)
-                            <a href="{{ route('hardware.show', $agreement->asset->id) }}">
+                            <a class="js-lightbox" href="{{ route('hardware.show', $agreement->asset->id) }}">
                                 {{ $agreement->asset->asset_tag }}
                             </a>
                         @else

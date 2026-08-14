@@ -49,7 +49,7 @@
         @endif
         @if ($order->requisition)
             <p style="margin:8px 0 0;">
-                <a href="{{ route('requisitions.show', $order->requisition_id) }}" class="pq-chip pq-chip--link">{{ $order->requisition->display_name }}</a>
+                <a class="js-lightbox" href="{{ route('requisitions.show', $order->requisition_id) }}" class="pq-chip pq-chip--link">{{ $order->requisition->display_name }}</a>
             </p>
         @endif
     </div>

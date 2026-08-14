@@ -19,7 +19,7 @@
                     <dt>{{ trans('admin/exhibit-projects/general.student') }}</dt>
                     <dd>
                         @if ($project->user)
-                            <a href="{{ route('users.show', $project->user) }}">{{ $project->user->full_name }}</a>
+                            <a class="js-lightbox" href="{{ route('users.show', $project->user) }}">{{ $project->user->full_name }}</a>
                             @if ($project->user->email) <span class="text-muted">({{ $project->user->email }})</span> @endif
                         @else
                             {{ $project->student_name ?: '—' }}
@@ -28,7 +28,7 @@
                     <dt>{{ trans('admin/exhibit-projects/general.asset') }}</dt>
                     <dd>
                         @if ($project->asset)
-                            <a href="{{ route('hardware.show', $project->asset) }}">{{ $project->assignedDeviceLabel() }}</a>
+                            <a class="js-lightbox" href="{{ route('hardware.show', $project->asset) }}">{{ $project->assignedDeviceLabel() }}</a>
                         @else — @endif
                     </dd>
                     <dt>{{ trans('admin/exhibit-projects/general.project_type') }}</dt>

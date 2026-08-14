@@ -352,7 +352,7 @@
                     <ul class="procurement-list">
                         @foreach ($procurement['open_orders'] as $order)
                             <li>
-                                <a href="{{ route('orders.show', $order->id) }}">
+                                <a class="js-lightbox" href="{{ route('orders.show', $order->id) }}">
                                     <span class="po-number">{{ $order->order_number }}</span>
                                     <span class="po-supplier">{{ $order->supplier_name ?: '—' }}</span>
                                 </a>
@@ -368,7 +368,7 @@
                     <ul class="procurement-list">
                         @foreach ($procurement['recent_orders'] as $order)
                             <li>
-                                <a href="{{ route('orders.show', $order->id) }}">
+                                <a class="js-lightbox" href="{{ route('orders.show', $order->id) }}">
                                     <span class="po-number">{{ $order->order_number }}</span>
                                     <span class="po-date">{{ $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('M j') : '—' }}</span>
                                 </a>

@@ -49,7 +49,7 @@
                         </td></tr>
                         <tr><th>{{ trans('admin/contracts/general.admin_user') }}</th><td>
                             @if ($contract->owner)
-                                <a href="{{ route('users.show', $contract->owner) }}">{{ $contract->owner->present()->fullName }}</a>
+                                <a class="js-lightbox" href="{{ route('users.show', $contract->owner) }}">{{ $contract->owner->present()->fullName }}</a>
                                 @if ($contract->owner->email)
                                     <span class="text-muted">&lt;{{ $contract->owner->email }}&gt;</span>
                                 @endif
@@ -138,7 +138,7 @@
                 @if ($contract->parent)
                     <p>
                         <strong>{{ trans('admin/contracts/general.parent') }}:</strong>
-                        <a href="{{ route('contracts.show', $contract->parent) }}">{{ $contract->parent->name }}</a>
+                        <a class="js-lightbox" href="{{ route('contracts.show', $contract->parent) }}">{{ $contract->parent->name }}</a>
                     </p>
                 @endif
                 @if ($contract->children->isNotEmpty())
@@ -146,7 +146,7 @@
                     <ul>
                         @foreach ($contract->children as $child)
                             <li>
-                                <a href="{{ route('contracts.show', $child) }}">{{ $child->name }}</a>
+                                <a class="js-lightbox" href="{{ route('contracts.show', $child) }}">{{ $child->name }}</a>
                                 @if ($child->fiscal_year) <span class="text-muted">— {{ $child->fiscal_year }}</span> @endif
                             </li>
                         @endforeach
@@ -180,7 +180,7 @@
                 @if ($contract->assets->isNotEmpty())
                     <ul>
                         @foreach ($contract->assets->take(20) as $asset)
-                            <li><a href="{{ route('hardware.show', $asset) }}">{{ $asset->asset_tag }} — {{ $asset->name ?? $asset->serial }}</a></li>
+                            <li><a class="js-lightbox" href="{{ route('hardware.show', $asset) }}">{{ $asset->asset_tag }} — {{ $asset->name ?? $asset->serial }}</a></li>
                         @endforeach
                         @if ($contract->assets->count() > 20)
                             <li class="text-muted">+ {{ $contract->assets->count() - 20 }} {{ trans('general.more') }}</li>

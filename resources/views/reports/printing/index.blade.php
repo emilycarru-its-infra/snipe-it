@@ -35,7 +35,7 @@
             @forelse ($rows as $r)
                 <tr>
                     <td>
-                        <a href="{{ route('hardware.show', $r['asset']) }}#printing">
+                        <a class="js-lightbox" href="{{ route('hardware.show', $r['asset']) }}#printing">
                             {{ $r['asset']->name ?: $r['asset']->asset_tag }}
                         </a>
                         <small style="color:#999;">{{ $r['asset']->asset_tag }}</small>

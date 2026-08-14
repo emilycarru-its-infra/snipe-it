@@ -62,7 +62,7 @@
                         <p style="margin-bottom:4px;"><strong>{{ trans('admin/deployments/general.storage_waves_here') }}</strong></p>
                         <p>
                             @foreach ($wavesByStorage->get($row['location']->id) as $w)
-                                <a href="{{ route('deployment-waves.show', $w) }}"><span class="label" style="background-color: {{ $w->displayColor() }}; color:#fff;">{{ $w->name }}</span></a>
+                                <a class="js-lightbox" href="{{ route('deployment-waves.show', $w) }}"><span class="label" style="background-color: {{ $w->displayColor() }}; color:#fff;">{{ $w->name }}</span></a>
                             @endforeach
                         </p>
                     @endif
@@ -81,12 +81,12 @@
                             <tr>
                                 <td>
                                     @if ($item->asset)
-                                        <a href="{{ route('hardware.show', $item->asset) }}">{{ $item->deviceLabel() }}</a>
+                                        <a class="js-lightbox" href="{{ route('hardware.show', $item->asset) }}">{{ $item->deviceLabel() }}</a>
                                     @else
                                         {{ $item->deviceLabel() }}
                                     @endif
                                 </td>
-                                <td>@if ($item->wave)<a href="{{ route('deployment-waves.show', $item->wave) }}">{{ $item->wave->name }}</a>@else — @endif</td>
+                                <td>@if ($item->wave)<a class="js-lightbox" href="{{ route('deployment-waves.show', $item->wave) }}">{{ $item->wave->name }}</a>@else — @endif</td>
                                 <td><span class="label" style="background-color: {{ $item->stageColor() }}; color:#fff;">{{ $item->stageLabel() }}</span></td>
                             </tr>
                         @empty

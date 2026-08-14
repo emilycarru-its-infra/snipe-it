@@ -17,7 +17,7 @@
     @endif
 
     @if ($order->refreshAsset)
-        <a href="{{ route('hardware.show', $order->refreshAsset->id) }}" class="pq-chip pq-chip--link">
+        <a class="js-lightbox" href="{{ route('hardware.show', $order->refreshAsset->id) }}" class="pq-chip pq-chip--link">
             {{ trans('admin/store/general.queue_early_refresh', ['tag' => $order->refreshAsset->asset_tag]) }}
         </a>
     @endif
