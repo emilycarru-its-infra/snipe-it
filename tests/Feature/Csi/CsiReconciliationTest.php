@@ -105,6 +105,58 @@ class CsiReconciliationTest extends TestCase
         $this->assertStringContainsString('colspan="9"', $content);
     }
 
+    public function test_matches_fold_into_one_collapsed_group_and_discrepancies_stay_flat()
+    {
+        // One device that agrees, one that only the feed knows about.
+        $agreed = $this->snipeAsset('AGREES1', $this->leaseColumn(), '301452-007');
+        CsiAsset::create(['serial' => 'AGREES1', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'iPad']);
+        CsiAsset::create(['serial' => 'ONLYFEED', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'iPad']);
+
+        $content = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.csi-reconciliation', ['embed' => 1]))
+            ->assertOk()
+            ->getContent();
+
+        // The match group is present, folded, and its chevron points right.
+        $this->assertStringContainsString(
+            trans('admin/purchase-orders/general.csi_recon_match_fold', ['count' => 1]),
+            $content
+        );
+        $this->assertStringContainsString('aria-expanded="false"', $content);
+        $this->assertStringContainsString('fa-chevron-right', $content);
+        $this->assertStringContainsString('style="display:none;"', $content);
+
+        // The discrepancy is not inside the fold — it renders above it.
+        $foldAt = strpos($content, trans('admin/purchase-orders/general.csi_recon_match_fold', ['count' => 1]));
+        $this->assertLessThan(
+            $foldAt,
+            strpos($content, 'ONLYFEED'),
+            'a discrepancy must render above the folded matches'
+        );
+
+        // The matched device is still on the page, inside the fold.
+        $this->assertGreaterThan($foldAt, strpos($content, $agreed->serial));
+    }
+
+    public function test_the_csv_export_still_lists_every_matched_device_flat()
+    {
+        $this->snipeAsset('AGREES1', $this->leaseColumn(), '301452-007');
+        CsiAsset::create(['serial' => 'AGREES1', 'lease_number' => '301452', 'schedule_name' => '301452-007', 'model' => 'iPad']);
+
+        $response = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.csi-reconciliation', ['format' => 'csv']))
+            ->assertOk();
+
+        $csv = $response->streamedContent();
+
+        $this->assertStringContainsString('AGREES1', $csv);
+        $this->assertStringNotContainsString(
+            trans('admin/purchase-orders/general.csi_recon_match_fold', ['count' => 1]),
+            $csv,
+            'the on-screen fold must not leak into the export'
+        );
+    }
+
     private function leaseColumn(): string
     {
         // Reads are on the native column as of the F2·2 cutover.
