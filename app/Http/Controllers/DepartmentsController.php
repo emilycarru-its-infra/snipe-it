@@ -162,6 +162,8 @@ class DepartmentsController extends Controller
         $this->authorize('update', $department);
 
         $department->fill($request->all());
+        // Checkbox: absent means unchecked, and fill() cannot clear it.
+        $department->procurement_access = $request->boolean('procurement_access');
         $department->manager_id = ($request->filled('manager_id') ? $request->input('manager_id') : null);
         $department->location_id = ($request->filled('location_id') ? $request->input('location_id') : null);
         $department->company_id = ($request->filled('company_id') ? Company::getIdForCurrentUser($request->input('company_id')) : null);
