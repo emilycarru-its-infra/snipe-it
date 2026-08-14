@@ -12,6 +12,7 @@ use App\Models\CustomFieldset;
 use App\Models\Depreciation;
 use App\Models\License;
 use App\Models\Location;
+use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Models\Statuslabel;
 use Carbon\Carbon;
@@ -1901,9 +1902,35 @@ class Helper
      * Current ECU fiscal year in the `FY2026-27` shape. April → March,
      * matching ConsumableTransaction::fiscalYearFor() and BackfillOrders.
      */
-    public static function currentFiscalYear(?\Carbon\Carbon $date = null): string
+    /**
+     * The [start, end] bounds of a fiscal year label. ECU fiscal years run
+     * April to March, so FY2025-26 spans 2025-04-01 to 2026-03-31. Accepts the
+     * four-digit `FY2025-26` and two-digit `FY25-26` forms, and returns null
+     * for anything that is not a fiscal year label (including "all").
+     *
+     * @return array{0: Carbon, 1: Carbon}|null
+     */
+    public static function fiscalYearRange(?string $fy): ?array
     {
-        $date = $date ?? \Carbon\Carbon::now();
+        $fy = trim((string) $fy);
+
+        if (preg_match('/(\d{4})\s*-\s*\d{2}$/', $fy, $m)) {
+            $start = (int) $m[1];
+        } elseif (preg_match('/(\d{2})\s*-\s*\d{2}$/', $fy, $m)) {
+            $start = 2000 + (int) $m[1];
+        } else {
+            return null;
+        }
+
+        return [
+            Carbon::create($start, 4, 1)->startOfDay(),
+            Carbon::create($start + 1, 3, 31)->endOfDay(),
+        ];
+    }
+
+    public static function currentFiscalYear(?Carbon $date = null): string
+    {
+        $date = $date ?? Carbon::now();
         $startYear = $date->month >= 4 ? $date->year : $date->year - 1;
 
         return 'FY'.$startYear.'-'.substr((string) ($startYear + 1), -2);
@@ -1920,7 +1947,7 @@ class Helper
      */
     public static function fiscalYearOptions(): array
     {
-        $years = \App\Models\PurchaseOrder::whereNotNull('fiscal_year')
+        $years = PurchaseOrder::whereNotNull('fiscal_year')
             ->distinct()
             ->pluck('fiscal_year')
             ->all();
@@ -1954,11 +1981,11 @@ class Helper
 
         $patterns = [
             'canada post' => 'https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=',
-            'purolator'   => 'https://www.purolator.com/en/shipping/tracker?pin=',
-            'ups'         => 'https://www.ups.com/track?tracknum=',
-            'fedex'       => 'https://www.fedex.com/fedextrack/?trknbr=',
-            'usps'        => 'https://tools.usps.com/go/TrackConfirmAction?tLabels=',
-            'dhl'         => 'https://www.dhl.com/ca-en/home/tracking.html?tracking-id=',
+            'purolator' => 'https://www.purolator.com/en/shipping/tracker?pin=',
+            'ups' => 'https://www.ups.com/track?tracknum=',
+            'fedex' => 'https://www.fedex.com/fedextrack/?trknbr=',
+            'usps' => 'https://tools.usps.com/go/TrackConfirmAction?tLabels=',
+            'dhl' => 'https://www.dhl.com/ca-en/home/tracking.html?tracking-id=',
         ];
 
         $haystack = strtolower($carrier);
