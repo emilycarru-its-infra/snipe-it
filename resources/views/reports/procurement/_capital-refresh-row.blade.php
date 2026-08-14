@@ -3,8 +3,12 @@
 <tr>
     <td>{{ trans('admin/purchase-orders/general.capital_need_refresh') }}</td>
     <td>
-        <a href="{{ route('reports.procurement.lease-detail', $row['contract_id']) }}" class="js-lightbox"
-           title="{{ $row['contract_name'] }}">{{ $row['contract_id'] }}</a>
+        @if ($row['contract_id'])
+            <a href="{{ route('reports.procurement.lease-detail', $row['contract_id']) }}" class="js-lightbox"
+               title="{{ $row['contract_name'] }}">{{ $row['contract_id'] }}</a>
+        @else
+            <span class="text-muted">&mdash;</span>
+        @endif
     </td>
     <td>{{ $row['area'] }}</td>
     <td>{{ $row['preference'] }}</td>

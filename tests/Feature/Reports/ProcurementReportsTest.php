@@ -939,12 +939,71 @@ class ProcurementReportsTest extends TestCase
         $this->assertSame('FY2026-27', $draft->capital_request_fy);
         $draft->forceFill(['requisition_number' => '0018000'])->save();
 
+        // The paper replaces the derivation: flat requisition lines, no
+        // group scaffolding, and the foreign requisition still nowhere.
         $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
             ->assertSee('REQM 0018000')
-            ->assertSee('class="capital-group-head"', false)
+            ->assertDontSee('class="capital-group-head"', false)
             ->assertDontSee('REQM 0017859');
+    }
+
+    /**
+     * The approval read: once the request has been drafted, the table IS
+     * the requisition — same lines, same quantities, same total as the PO
+     * builder, with the derived device lines gone and the draft button
+     * replaced by the door into the builder.
+     */
+    public function test_a_drafted_request_reads_exactly_as_its_requisition()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-MATCH',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 1234.56]);
+
+        $requisition = \App\Models\Requisition::create([
+            'title' => 'Devices Capital Request FY2026-27',
+            'status' => 'draft',
+            'fiscal_year' => 'FY2026-27',
+            'capital_request_fy' => 'FY2026-27',
+        ]);
+        \App\Models\RequisitionItem::create([
+            'requisition_id' => $requisition->id,
+            'description' => 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver',
+            'quantity' => 32, 'unit_of_measure' => 'EA', 'unit_cost' => 2100,
+            'pst_applicable' => false, 'sort_order' => 0,
+        ]);
+        \App\Models\RequisitionItem::create([
+            'requisition_id' => $requisition->id,
+            'description' => 'Mac mini | M4 Pro | 48GB | 2TB',
+            'quantity' => 6, 'unit_of_measure' => 'EA', 'unit_cost' => 4500,
+            'pst_applicable' => false, 'sort_order' => 1,
+        ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            // The requisition's lines and total, to the cent.
+            ->assertSee('MacBook Air | 13&quot; | M5 | 16GB | 1TB | Silver', false)
+            ->assertSee('Mac mini | M4 Pro | 48GB | 2TB')
+            ->assertSee('$94,200.00')
+            // The draft button is gone; the builder door replaces it.
+            ->assertDontSee(trans('admin/purchase-orders/general.capital_draft_button'))
+            ->assertSee(route('purchase-orders.builder', ['requisition' => $requisition->id]), false)
+            ->getContent();
+
+        // The derived device line is gone: the contract appears exactly
+        // once — in the envelope table below, whose story is untouched by
+        // how the ask is rendered.
+        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-MATCH</a>'));
+
+        // Drafting again is refused — the paper already exists.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27'])
+            ->assertSessionHas('error');
+        $this->assertSame(1, \App\Models\Requisition::where('capital_request_fy', 'FY2026-27')->count());
     }
 
     public function test_a_devices_request_year_follows_the_decision_not_the_paper()

@@ -208,6 +208,20 @@
 
                     <table class="table table-condensed pob-totals">
                         <tbody>
+                            @if ($capital ?? null)
+                                {{-- A capital-request basket edits against the
+                                     FY's ending-schedule envelope: the budget
+                                     row and the live gap under it are the
+                                     comparison this page exists to make. --}}
+                                <tr>
+                                    <td>{{ trans('admin/purchase-orders/general.capital_envelope_row', ['fy' => $capital['fy']]) }}</td>
+                                    <td class="pob-num" id="pob-envelope" data-envelope="{{ $capital['envelope'] }}">${{ number_format($capital['envelope'], 2) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ trans('admin/purchase-orders/general.capital_envelope_gap') }}</td>
+                                    <td class="pob-num" id="pob-envelope-gap">—</td>
+                                </tr>
+                            @endif
                             <tr>
                                 <td>{{ trans('admin/purchase-orders/general.builder_subtotal') }}</td>
                                 <td class="pob-num" id="pob-subtotal">—</td>
