@@ -229,6 +229,11 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('procurement.queue.funding');
     Route::post('procurement/approvals/{order}/quote', [ProcurementController::class, 'recordQuote'])
         ->name('procurement.queue.quote');
+    // Throwing away dead requests — declined or cancelled, one or all.
+    Route::delete('procurement/approvals/{order}', [ProcurementController::class, 'destroyOrder'])
+        ->name('procurement.queue.destroy');
+    Route::post('procurement/approvals/clear', [ProcurementController::class, 'clearDecided'])
+        ->name('procurement.queue.clear');
     Route::post('procurement/approvers', [ProcurementController::class, 'saveApprovers'])
         ->name('procurement.approvers.save');
     Route::get('procurement/store', [ProcurementController::class, 'storeAdmin'])

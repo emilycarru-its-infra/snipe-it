@@ -11,10 +11,10 @@
 
 @push('css')
 <style>
-{{-- Left with the content it filters, not floating off in the page
-     header; and colored from the theme tokens — the hard-coded white
-     pills were unreadable chips in dark mode. --}}
-.ap-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+{{-- Left with the content it filters, not floating off in the page header;
+     and colored from the theme tokens — the hard-coded white pills were
+     unreadable chips in dark mode. --}}
+.ap-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .ap-pill {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 4px 12px; border-radius: 999px;
@@ -43,22 +43,61 @@
 
 <p class="text-muted">{{ trans('admin/store/general.queue_intro') }}</p>
 
-{{-- Pills rather than a select. The state of this page is the question
-     it answers — how many are waiting on me, how many are approved and
-     still to go out — and a closed dropdown showed neither: it hid both
-     the counts and the fact that other states existed at all. --}}
-<nav class="ap-filters" aria-label="{{ trans('admin/store/general.queue_filter_label') }}">
-    @foreach (array_merge(['all'], $statuses) as $status)
-        <a href="{{ route('procurement.approvals', $status === 'all' ? [] : ['status' => $status]) }}"
-           class="ap-pill {{ $selectedStatus === $status ? 'is-on' : '' }}"
-           @if ($selectedStatus === $status) aria-current="page" @endif>
-            {{ trans('admin/store/general.queue_status_'.$status) }}
-            @if (($statusCounts[$status] ?? 0) > 0)
-                <span class="ap-count">{{ $statusCounts[$status] }}</span>
-            @endif
-        </a>
-    @endforeach
-</nav>
+{{-- What is actually waiting, before any of the cards. The page used to open
+     with fourteen equal-weight boxes and no way to tell how big the job was
+     without adding them up by eye. --}}
+<div class="pq-summary">
+    <div>
+        <span class="pq-summary-figure">{{ $statusCounts['pending'] ?? 0 }}</span>
+        <span class="pq-summary-label">{{ trans('admin/store/general.queue_summary_awaiting') }}</span>
+    </div>
+    <div>
+        <span class="pq-summary-figure">${{ \App\Helpers\Helper::formatCurrencyOutput($pendingValue) }}</span>
+        <span class="pq-summary-label">{{ trans('admin/store/general.queue_summary_value') }}</span>
+    </div>
+    <div class="pq-summary-spacer"></div>
+    @if ($clearableCount > 0)
+        <form method="POST" action="{{ route('procurement.queue.clear') }}"
+              onsubmit="return confirm(@js(trans('admin/store/general.queue_clear_confirm', ['count' => $clearableCount])));">
+            {{ csrf_field() }}
+            <button type="submit" class="pq-btn pq-btn--danger">
+                {{ trans('admin/store/general.queue_clear_all', ['count' => $clearableCount]) }}
+            </button>
+        </form>
+    @endif
+</div>
+
+<div class="pq-toolbar">
+    {{-- Pills rather than a select. The state of this page is the question it
+         answers — how many are waiting on me, how many are approved and still
+         to go out — and a closed dropdown showed neither: it hid both the
+         counts and the fact that other states existed at all. --}}
+    <nav class="ap-filters" aria-label="{{ trans('admin/store/general.queue_filter_label') }}">
+        @foreach (array_merge(['all'], $statuses) as $status)
+            <a href="{{ route('procurement.approvals', array_filter(['status' => $status === 'all' ? null : $status, 'view' => $selectedView === 'table' ? 'table' : null])) }}"
+               class="ap-pill {{ $selectedStatus === $status ? 'is-on' : '' }}"
+               @if ($selectedStatus === $status) aria-current="page" @endif>
+                {{ trans('admin/store/general.queue_status_'.$status) }}
+                @if (($statusCounts[$status] ?? 0) > 0)
+                    <span class="ap-count">{{ $statusCounts[$status] }}</span>
+                @endif
+            </a>
+        @endforeach
+    </nav>
+
+    {{-- Cards are the default because deciding needs the whole order in front
+         of you; the table is for reading down the list of what happened. --}}
+    <div class="pq-toolbar-end">
+        <div class="pq-viewswitch" role="group" aria-label="{{ trans('admin/store/general.queue_view_label') }}">
+            <a href="{{ route('procurement.approvals', array_filter(['status' => $selectedStatus === 'all' ? null : $selectedStatus])) }}"
+               class="{{ $selectedView === 'cards' ? 'is-on' : '' }}"
+               @if ($selectedView === 'cards') aria-current="true" @endif>{{ trans('admin/store/general.queue_view_cards') }}</a>
+            <a href="{{ route('procurement.approvals', array_filter(['status' => $selectedStatus === 'all' ? null : $selectedStatus, 'view' => 'table'])) }}"
+               class="{{ $selectedView === 'table' ? 'is-on' : '' }}"
+               @if ($selectedView === 'table') aria-current="true" @endif>{{ trans('admin/store/general.queue_view_table') }}</a>
+        </div>
+    </div>
+</div>
 
 @include('procurement._queue-list')
 @stop

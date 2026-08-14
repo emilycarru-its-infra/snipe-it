@@ -17,6 +17,26 @@ return [
     'queue_status_ordered' => 'Ordered',
     'queue_status_declined' => 'Declined',
     'queue_status_cancelled' => 'Cancelled',
+    // Summary strip: the size of the job, before any of the orders.
+    'queue_summary_awaiting' => 'awaiting review',
+    'queue_summary_value' => 'pending value',
+    // Cards to decide in, a table to scan. Cards are the default.
+    'queue_view_label' => 'View',
+    'queue_view_cards' => 'Cards',
+    'queue_view_table' => 'List',
+    'queue_order' => 'Order',
+    'queue_col_status' => 'Status',
+    'queue_col_age' => 'Age',
+    'queue_decide_in_cards' => 'Decide',
+    // Clearing out dead requests.
+    'queue_clear_all' => 'Clear :count declined & cancelled',
+    'queue_clear_confirm' => 'Permanently delete :count declined and cancelled request(s)? This cannot be undone.',
+    'queue_clear_one' => 'Delete',
+    'queue_clear_one_confirm' => 'Permanently delete this request? This cannot be undone.',
+    'queue_cleared' => 'Cleared :count dead request(s).',
+    'queue_cleared_one' => 'Request deleted.',
+    'queue_nothing_to_clear' => 'Nothing to clear.',
+    'queue_not_clearable' => 'Only declined or cancelled requests that never reached a requisition can be deleted.',
     'queue_read_only' => 'Approvals need the Manage Procurement permission.',
     'store_admin' => 'Catalog',
 
