@@ -136,4 +136,111 @@ class PurchaseOrderTest extends TestCase
         $this->assertTrue($po->isOverBudget());
         $this->assertEquals(-1000.0, $po->remaining());
     }
+
+    public function test_a_credit_hands_budget_room_back()
+    {
+        $po = PurchaseOrder::factory()->create(['budget' => 10000]);
+        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        OrderItem::factory()->create([
+            'order_id' => $order->id, 'purchase_order_id' => $po->id,
+            'quantity' => 1, 'unit_cost' => 9000, 'warranty_cost' => 0,
+        ]);
+
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'purchase_order_id' => $po->id,
+            'invoice_type' => 'credit',
+            'invoice_date' => '2025-10-01',
+            'subtotal' => 2000,
+        ]);
+
+        // The credit is money back on the purchase order, so it buys room for
+        // the next order rather than sitting only on the invoice. A credit
+        // subtracts however its subtotal was keyed.
+        $this->assertEquals(7000.0, $po->committedTotal());
+        $this->assertEquals(3000.0, $po->remaining());
+        $this->assertFalse($po->isOverBudget());
+    }
+
+    public function test_a_credit_keyed_negative_still_subtracts_once()
+    {
+        $po = PurchaseOrder::factory()->create(['budget' => 10000]);
+        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'purchase_order_id' => $po->id,
+            'invoice_type' => 'credit', 'invoice_date' => '2025-10-01', 'subtotal' => -2000,
+        ]);
+
+        $this->assertEquals(-2000.0, $po->committedTotal());
+    }
+
+    public function test_a_buyout_commits_against_the_po_without_a_line_item()
+    {
+        $po = PurchaseOrder::factory()->create(['budget' => 10000]);
+        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+
+        // Nothing is delivered by a buyout — we already hold the equipment —
+        // so there is no line item to carry the cost.
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'purchase_order_id' => $po->id,
+            'invoice_type' => 'buyout',
+            'invoice_date' => '2025-10-01',
+            'subtotal' => 4000,
+        ]);
+
+        $this->assertEquals(4000.0, $po->committedTotal());
+        $this->assertEquals(6000.0, $po->remaining());
+    }
+
+    public function test_a_regular_invoice_without_line_items_is_not_committed_twice()
+    {
+        $po = PurchaseOrder::factory()->create(['budget' => 10000]);
+        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+
+        OrderItem::factory()->create([
+            'order_id' => $order->id, 'purchase_order_id' => $po->id,
+            'quantity' => 1, 'unit_cost' => 3000, 'warranty_cost' => 0,
+        ]);
+        // A regular invoice describes the same money the line items do.
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'purchase_order_id' => $po->id, 'subtotal' => 3000,
+        ]);
+
+        $this->assertEquals(3000.0, $po->committedTotal());
+    }
+
+    public function test_an_adjustment_lands_in_the_fiscal_year_of_its_invoice_date()
+    {
+        $po = PurchaseOrder::factory()->create(['budget' => 10000]);
+        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'purchase_order_id' => $po->id,
+            'invoice_type' => 'credit', 'invoice_date' => '2025-10-01', 'subtotal' => 2000,
+        ]);
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'purchase_order_id' => $po->id,
+            'invoice_type' => 'buyout', 'invoice_date' => '2026-10-01', 'subtotal' => 500,
+        ]);
+
+        $this->assertEquals(-2000.0, $po->committedTotalForFy('FY2025-26'));
+        $this->assertEquals(500.0, $po->committedTotalForFy('FY2026-27'));
+        $this->assertEquals(-1500.0, $po->committedTotalForFy(null));
+    }
+
+    public function test_a_dateless_adjustment_leaves_the_budget_alone()
+    {
+        $po = PurchaseOrder::factory()->create(['budget' => 10000]);
+        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'purchase_order_id' => $po->id,
+            'invoice_type' => 'buyout', 'invoice_date' => null, 'subtotal' => 4000,
+        ]);
+
+        $this->assertEquals(0.0, $po->committedTotal());
+        $this->assertEquals(10000.0, $po->remaining());
+    }
 }
