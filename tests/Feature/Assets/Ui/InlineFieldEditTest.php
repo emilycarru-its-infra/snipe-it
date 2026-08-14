@@ -42,12 +42,19 @@ class InlineFieldEditTest extends TestCase
 
     public function test_inline_core_field_edit_rejects_a_non_whitelisted_column()
     {
+        // status_id joined the whitelist for the decommissioning cards, so
+        // the canonical system-owned rejection example is assigned_to.
         $asset = Asset::factory()->create();
         $originalStatus = $asset->status_id;
 
         $this->actingAs(User::factory()->editAssets()->create())
-            ->patch(route('hardware.corefield.update', $asset), ['field' => 'status_id', 'value' => '99999'])
+            ->patch(route('hardware.corefield.update', $asset), ['field' => 'assigned_to', 'value' => '99999'])
             ->assertSessionHas('error');
+
+        // And a whitelisted FK still refuses a row that does not exist.
+        $this->actingAs(User::factory()->editAssets()->create())
+            ->patch(route('hardware.corefield.update', $asset), ['field' => 'status_id', 'value' => '99999'])
+            ->assertSessionHasErrors();
 
         $this->assertEquals($originalStatus, $asset->fresh()->status_id);
     }

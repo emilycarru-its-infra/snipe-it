@@ -1,14 +1,52 @@
 {{-- The decommissioning lane — included by the board (bottom section)
      and by the dedicated /deployments/decommissioning page. Needs
      $decommission, $isPast and $fy; the dp-* rail/scroll styles come
-     from the host page. --}}
-{{-- Decommissioning — the reverse flow, current + past years only (a
-     future year has no outgoing work yet). Collecting is split into
-     buckets per Processing kind — returns, donations and recycling are
-     handled by different parties. The pickups register groups
-     decommissioned devices by decommission date: each date is one
-     physical run, with its own targeted CSV. --}}
+     from the host page.
+
+     Distinct cards, one per flow, in reading order: Buyouts, Returns,
+     Donations, Recycling — then the pickups register. Every device row
+     edits in place with the asset-page pencil pattern (status, home
+     location, lease end), so working the lane never means leaving it. --}}
 @if ($decommission)
+@once
+@push('css')
+<style>
+    {{-- Pencils hide until their row is hovered — the same affordance as
+         the asset page's cards, retargeted at these tables' rows. --}}
+    .decom-card tbody tr:hover .inline-core-pencil { opacity: .6; }
+    .decom-card tbody tr:hover .inline-core-pencil:hover { opacity: 1; }
+    .decom-card .js-inline-edit-form { white-space: nowrap; }
+</style>
+@endpush
+@push('js')
+<script nonce="{{ csrf_token() }}">
+    // Pencil swaps the value for its single-field form; cancel swaps back.
+    // Same contract as the asset page's inline editors.
+    $(function () {
+        $(document).on('click', '.js-inline-edit-toggle', function (e) {
+            e.preventDefault();
+            var target = $(this).data('target');
+            $('#' + target + '-display').hide();
+            $('#' + target + '-form').show()
+                .find('input[name="value"], textarea[name="value"], select[name="value"]').first().trigger('focus');
+        });
+        $(document).on('click', '.js-inline-edit-cancel', function (e) {
+            e.preventDefault();
+            var target = $(this).data('target');
+            $('#' + target + '-form').hide();
+            $('#' + target + '-display').show();
+        });
+    });
+</script>
+@endpush
+@endonce
+@php
+    $decomStatusOptions = \App\Models\Statuslabel::orderBy('name')->pluck('name', 'id');
+    $decomLocationOptions = \App\Models\Location::orderBy('name')->pluck('name', 'id');
+@endphp
+
+{{-- The rollup: stage chevrons, where the outgoing devices sit, and the
+     Processing statuses in play. --}}
 <div class="box box-default" id="decommissioning" style="scroll-margin-top:64px;">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.decom_title') }}
@@ -44,88 +82,110 @@
             </p>
         @endif
 
-        @if (! $isPast)
-            @if ($decommission['collectingCount'] === 0)
-                <p class="text-muted" style="margin:10px 0 0;">{{ trans('admin/deployments/general.decom_none') }}</p>
-            @else
-                <div class="row" style="margin-top:15px;">
-                    <div class="col-md-9">
-                        @foreach ($decommission['buckets'] as $bucket)
-                            <form method="POST" action="{{ route('deployments.decommission.location') }}">
-                                @csrf
-                                <h5 style="font-weight:700; margin:{{ $loop->first ? '0' : '18px' }} 0 6px;">
-                                    {{ $bucket['label'] }}
-                                    <span class="text-muted" style="font-weight:normal;">· {{ $bucket['count'] }}</span>
-                                    <span class="pull-right" style="font-weight:normal;">
-                                        <select class="js-data-ajax input-sm" data-endpoint="locations" data-placeholder="{{ trans('admin/deployments/general.holding_location_label') }}" name="location_id" style="min-width:220px;"></select>
-                                        <button type="submit" class="btn btn-xs btn-default">{{ trans('admin/deployments/general.holding_location_apply') }}</button>
-                                    </span>
-                                </h5>
-                                <div class="dp-scroll" style="max-height:360px;">
-                                    <table class="table table-striped table-condensed" style="margin-bottom:0;">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:28px;"></th>
-                                                <th>{{ trans('admin/deployments/general.decom_col_asset') }}</th>
-                                                <th>{{ trans('admin/deployments/general.decom_col_model') }}</th>
-                                                <th>{{ trans('admin/deployments/general.decom_col_status') }}</th>
-                                                <th>{{ trans('admin/deployments/general.decom_col_location') }}</th>
-                                                <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
-                                                <th>{{ trans('admin/deployments/general.decom_col_lease_end') }}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach ($bucket['rows'] as $row)
-                                                <tr>
-                                                    <td><input type="checkbox" name="asset_ids[]" value="{{ $row['id'] }}"></td>
-                                                    <td><a href="{{ route('hardware.show', $row['id']) }}" class="js-lightbox">{{ $row['asset_tag'] }}</a></td>
-                                                    <td>{{ $row['model'] ?: '—' }}</td>
-                                                    <td>{{ $row['status'] ?: '—' }}</td>
-                                                    <td>{{ $row['location'] ?: '—' }}</td>
-                                                    <td>{{ $row['lessor'] ?: '—' }}</td>
-                                                    <td>{{ $row['lease_end_date'] ?: '—' }}</td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </form>
-                        @endforeach
-                    </div>
-                    <div class="col-md-3">
-                        <h5 style="margin-top:0; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
-                        <table class="table table-condensed" style="margin-bottom:10px;">
-                            <tbody>
-                                @foreach ($decommission['byLocation'] as $loc)
-                                    <tr>
-                                        <td>{{ $loc['location'] }}</td>
-                                        <td class="text-right"><strong>{{ $loc['count'] }}</strong></td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                        @foreach ($decommission['statuses'] as $status)
-                            @if ($status['count'] > 0)
-                                <span class="label" style="background-color:#1f9e8e; color:#fff; display:inline-block; margin:0 4px 4px 0;">
-                                    {{ $status['name'] }} · {{ $status['count'] }}
-                                </span>
-                            @endif
-                        @endforeach
-                    </div>
+        @unless ($isPast)
+            <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start;">
+                <div>
+                    <h5 style="margin:0 0 6px; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
+                    @forelse ($decommission['byLocation'] as $loc)
+                        <span class="label label-default" style="display:inline-block; margin:0 4px 4px 0;">{{ $loc['location'] }} · {{ $loc['count'] }}</span>
+                    @empty
+                        <span class="text-muted">{{ trans('admin/deployments/general.decom_none') }}</span>
+                    @endforelse
                 </div>
-            @endif
-        @endif
+                <div>
+                    @foreach ($decommission['statuses'] as $status)
+                        @if ($status['count'] > 0)
+                            <span class="label" style="background-color:#1f9e8e; color:#fff; display:inline-block; margin:0 4px 4px 0;">
+                                {{ $status['name'] }} · {{ $status['count'] }}
+                            </span>
+                        @endif
+                    @endforeach
+                </div>
+            </div>
+        @endunless
+    </div>
+</div>
 
-        {{-- Buyouts: the devices leaving by purchase rather than by pickup. --}}
-        @include('reports.deployments._buyouts', ['buyouts' => $decommission['buyouts']])
+{{-- Buyouts: the devices leaving by purchase rather than by pickup. --}}
+@include('reports.deployments._buyouts', ['buyouts' => $decommission['buyouts']])
 
-        {{-- Pickups register: the way back through what actually left. --}}
-        <h5 style="margin-top:18px; font-weight:700;">
-            {{ trans('admin/deployments/general.decom_pickups_title') }}
-            <span class="text-muted" style="font-weight:normal; font-size:12px; margin-left:6px;">{{ trans('admin/deployments/general.decom_pickups_hint') }}</span>
-        </h5>
+{{-- One card per collecting flow — returns, donations, recycling are
+     handled by different parties, so each reads as its own register. --}}
+@unless ($isPast)
+    @foreach ($decommission['buckets'] as $bucket)
+        {{-- The bulk holding-location form lives outside the table so the
+             row-level inline-edit forms never nest inside it; checkboxes
+             reach it through the form attribute, queue-page style. --}}
+        <form method="POST" action="{{ route('deployments.decommission.location') }}" id="decom-loc-{{ $bucket['key'] }}">
+            @csrf
+        </form>
+        <div class="box box-default decom-card">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ $bucket['label'] }}
+                    <span class="text-muted" style="font-weight:normal; font-size:13px;">· {{ $bucket['count'] }}</span>
+                </h3>
+                <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px;">
+                    <select class="js-data-ajax input-sm" data-endpoint="locations" form="decom-loc-{{ $bucket['key'] }}"
+                            data-placeholder="{{ trans('admin/deployments/general.holding_location_label') }}" name="location_id" style="min-width:220px;"></select>
+                    <button type="submit" form="decom-loc-{{ $bucket['key'] }}" class="btn btn-xs btn-default">{{ trans('admin/deployments/general.holding_location_apply') }}</button>
+                </div>
+            </div>
+            <div class="box-body table-responsive no-padding">
+                <div class="dp-scroll" style="max-height:420px;">
+                    <table class="table table-striped table-condensed" style="margin-bottom:0;">
+                        <thead>
+                            <tr>
+                                <th style="width:28px;"></th>
+                                <th>{{ trans('admin/deployments/general.decom_col_asset') }}</th>
+                                <th>{{ trans('admin/deployments/general.decom_col_status') }}</th>
+                                <th>{{ trans('admin/deployments/general.decom_col_location') }}</th>
+                                <th>{{ trans('admin/purchase-orders/general.lease_provider') }}</th>
+                                <th>{{ trans('admin/deployments/general.decom_col_lease_end') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($bucket['rows'] as $row)
+                                <tr>
+                                    <td><input type="checkbox" name="asset_ids[]" value="{{ $row['id'] }}" form="decom-loc-{{ $bucket['key'] }}"></td>
+                                    <td>
+                                        <a href="{{ route('hardware.show', $row['id']) }}" class="js-lightbox">{{ $row['asset_tag'] }}</a>
+                                        <span class="text-muted" style="font-size:11.5px;">{{ $row['model'] ?: '' }}</span>
+                                    </td>
+                                    <td>
+                                        <x-inline-core-field :asset="$row['asset']" column="status_id" element="select" :options="$decomStatusOptions">{{ $row['status'] ?: '—' }}</x-inline-core-field>
+                                    </td>
+                                    <td>
+                                        <x-inline-core-field :asset="$row['asset']" column="rtd_location_id" element="select" :options="$decomLocationOptions">{{ $row['location'] ?: '—' }}</x-inline-core-field>
+                                    </td>
+                                    <td>{{ $row['lessor'] ?: '—' }}</td>
+                                    <td>
+                                        <x-inline-core-field :asset="$row['asset']" column="lease_end_date" element="date">{{ $row['lease_end_date'] ?: '—' }}</x-inline-core-field>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endforeach
+    @if ($decommission['collectingCount'] === 0)
+        <div class="box box-default decom-card">
+            <div class="box-body"><p class="text-muted" style="margin:0;">{{ trans('admin/deployments/general.decom_none') }}</p></div>
+        </div>
+    @endif
+@endunless
+
+{{-- Pickups register: the way back through what actually left. --}}
+<div class="box box-default decom-card">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.decom_pickups_title') }}
+            <span class="text-muted" style="font-weight:normal; font-size:12px; margin-left:8px;">{{ trans('admin/deployments/general.decom_pickups_hint') }}</span>
+        </h3>
+    </div>
+    <div class="box-body table-responsive no-padding">
         @if (count($decommission['pickups']) === 0)
-            <p class="text-muted" style="margin:6px 0 0;">{{ trans('admin/deployments/general.decom_no_pickups') }}</p>
+            <p class="text-muted" style="margin:10px;">{{ trans('admin/deployments/general.decom_no_pickups') }}</p>
         @else
             <div class="dp-scroll" style="max-height:360px;">
                 <table class="table table-striped table-condensed" style="margin-bottom:0;">
@@ -161,4 +221,3 @@
     </div>
 </div>
 @endif
-

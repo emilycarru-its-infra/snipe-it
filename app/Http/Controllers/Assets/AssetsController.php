@@ -616,7 +616,7 @@ class AssetsController extends Controller
         $value = $request->input('value');
 
         // FK selects must reference a real row (model_id is required).
-        $fkTables = ['model_id' => 'models', 'rtd_location_id' => 'locations'];
+        $fkTables = ['model_id' => 'models', 'rtd_location_id' => 'locations', 'status_id' => 'status_labels'];
         if (array_key_exists($column, $fkTables)) {
             $request->validate([
                 'value' => [$column === 'model_id' ? 'required' : 'nullable', "exists:{$fkTables[$column]},id"],
@@ -646,6 +646,13 @@ class AssetsController extends Controller
         $asset->{$column} = ($value === '') ? null : $value;
 
         if ($asset->save()) {
+            // Inline editors live on more pages than the asset view now
+            // (decommissioning cards); land back where the pencil was.
+            if ($request->headers->get('referer')) {
+                return redirect()->back()
+                    ->with('success', trans('admin/hardware/message.update.success'));
+            }
+
             return redirect()->route('hardware.show', $asset->id)
                 ->with('success', trans('admin/hardware/message.update.success'));
         }
