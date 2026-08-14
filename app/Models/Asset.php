@@ -427,9 +427,11 @@ class Asset extends Depreciable
             'order_number' => 'text',
             'gl_code' => 'text',
             'notes' => 'textarea',
-            // FK selects — the model and home location are editable inline too.
+            // FK selects — the model, home location and status are editable
+            // inline too (status powers the decommissioning cards).
             'model_id' => 'select',
             'rtd_location_id' => 'select',
+            'status_id' => 'select',
             // Date columns editable inline from the sidebar.
             'expected_checkin' => 'date',
             'last_audit_date' => 'date',

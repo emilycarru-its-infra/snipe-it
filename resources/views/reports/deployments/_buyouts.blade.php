@@ -5,13 +5,15 @@
      split between buyer and ECU, and advancing the stage. Needs $buyouts. --}}
 @php($canEdit = auth()->user()?->can('requestBuyout', \App\Models\Asset::class))
 
-<h5 style="margin-top:18px; font-weight:700;">
-    {{ trans('admin/deployments/general.buyouts_title') }}
-    <span class="text-muted" style="font-weight:normal; font-size:12px; margin-left:6px;">{{ trans('admin/deployments/general.buyouts_hint') }}</span>
-</h5>
-
+<div class="box box-default decom-card">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.buyouts_title') }}
+            <span class="text-muted" style="font-weight:normal; font-size:12px; margin-left:8px;">{{ trans('admin/deployments/general.buyouts_hint') }}</span>
+        </h3>
+    </div>
+    <div class="box-body">
 @if (count($buyouts['rows']) === 0)
-    <p class="text-muted" style="margin:6px 0 0;">{{ trans('admin/deployments/general.buyouts_none') }}</p>
+    <p class="text-muted" style="margin:0;">{{ trans('admin/deployments/general.buyouts_none') }}</p>
 @else
     <p class="text-muted" style="font-size:12px; margin:0 0 8px;">
         {{ trans('admin/deployments/general.buyouts_carrying', [
@@ -49,7 +51,7 @@
                         </td>
                         <td>
                             @if ($row['asset_id'])
-                                <a href="{{ route('hardware.show', $row['asset_id']) }}">{{ $row['asset_tag'] ?: $row['serial'] }}</a>
+                                <a href="{{ route('hardware.show', $row['asset_id']) }}" class="js-lightbox">{{ $row['asset_tag'] ?: $row['serial'] }}</a>
                             @else
                                 {{ $row['asset_tag'] ?: '—' }}
                             @endif
@@ -91,3 +93,5 @@
         </table>
     </div>
 @endif
+    </div>
+</div>

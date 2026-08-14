@@ -71,6 +71,9 @@ class DecommissionLane
                 $buckets[$kind['key']] = ['key' => $kind['key'], 'label' => $kind['label'], 'rows' => [], 'count' => 0];
             }
             $buckets[$kind['key']]['rows'][] = [
+                // The model itself rides along so the card can hang inline
+                // editors (status, location, lease end) off the real asset.
+                'asset' => $asset,
                 'id' => $asset->id,
                 'asset_tag' => $asset->asset_tag,
                 'model' => $asset->model?->name,
@@ -83,7 +86,13 @@ class DecommissionLane
             ];
             $buckets[$kind['key']]['count']++;
         }
-        $buckets = array_values($buckets);
+        // Fixed reading order: returns, donations, recycling, then any
+        // stray Processing kind under its own name.
+        $bucketOrder = ['returns' => 0, 'donations' => 1, 'recycling' => 2];
+        $buckets = collect($buckets)
+            ->sortBy(fn ($b) => $bucketOrder[$b['key']] ?? 9)
+            ->values()
+            ->all();
 
         // Where the outgoing devices physically sit — the holding rooms the
         // pickup truck (or the donation run) has to visit.
