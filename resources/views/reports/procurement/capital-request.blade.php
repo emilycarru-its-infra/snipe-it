@@ -121,7 +121,15 @@
                         </form>
                     </div>
                 </span>
-                @if ($refresh->isNotEmpty() || $newAskLines->isNotEmpty())
+                @if ($requisitionBacked)
+                    {{-- The request became paper; the button is the paper. --}}
+                    @foreach ($capitalRequisitions as $capReq)
+                        <a href="{{ route('purchase-orders.builder', ['requisition' => $capReq->id]) }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-file-invoice" aria-hidden="true"></i>
+                            {{ $capReq->requisition_number ? 'REQM '.$capReq->requisition_number : trans('admin/purchase-orders/general.capital_view_requisition') }}
+                        </a>
+                    @endforeach
+                @elseif ($refresh->isNotEmpty() || $newAskLines->isNotEmpty())
                     <form method="POST" action="{{ route('reports.procurement.capital-request.draft') }}" style="margin:0;"
                           onsubmit="return confirm({{ json_encode(trans('admin/purchase-orders/general.capital_draft_confirm', ['fy' => $fy])) }});">
                         {{ csrf_field() }}
@@ -155,12 +163,17 @@
                 </tr>
             </thead>
             @php
-                // Lines already landed on a REQM cluster under it, the way
-                // Extension Watch nests units under their contract; lines
-                // still looking for paper stay flat at the top.
+                // Requisition-backed: the table IS the paper — every row
+                // already names its REQM/PO, so grouping under a header
+                // would only add a line that isn't on the PO. Flat, exact,
+                // visibly a match.
+                // Otherwise: lines already landed on a REQM cluster under
+                // it, the way Extension Watch nests units under their
+                // contract; lines still looking for paper stay flat at the
+                // top.
                 $reqmGroups = collect();
-                $plainRefresh = collect();
-                foreach ($refresh as $capitalRow) {
+                $plainRefresh = $requisitionBacked ? collect($refresh) : collect();
+                foreach ($requisitionBacked ? [] : $refresh as $capitalRow) {
                     if ($capitalRow['reqm']) {
                         $g = $reqmGroups->get($capitalRow['reqm'], [
                             'reqm' => $capitalRow['reqm'],
@@ -177,8 +190,8 @@
                         $plainRefresh->push($capitalRow);
                     }
                 }
-                $plainAsks = collect();
-                foreach ($newAskLines as $askLine) {
+                $plainAsks = $requisitionBacked ? collect($newAskLines) : collect();
+                foreach ($requisitionBacked ? [] : $newAskLines as $askLine) {
                     $askPaper = $newAskPaper[$askLine->id] ?? null;
                     if ($askPaper && $askPaper['reqm']) {
                         $g = $reqmGroups->get($askPaper['reqm'], [

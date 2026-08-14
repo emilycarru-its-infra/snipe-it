@@ -258,6 +258,19 @@
         document.getElementById('pob-pst').textContent = money(t.pst);
         document.getElementById('pob-total').textContent = money(t.total);
 
+        // Capital-request basket: the live gap against the FY envelope,
+        // compared on the pre-tax subtotal (the envelope is contract value,
+        // not a taxed figure). Negative = over budget, painted as such.
+        var envelopeEl = document.getElementById('pob-envelope');
+        var gapEl = document.getElementById('pob-envelope-gap');
+        if (envelopeEl && gapEl) {
+            var envelope = parseFloat(envelopeEl.dataset.envelope || '0');
+            var gap = envelope - t.subtotal;
+            gapEl.textContent = money(gap);
+            gapEl.style.color = gap < 0 ? '#dd4b39' : '#00a65a';
+            gapEl.style.fontWeight = '700';
+        }
+
         if (estimateAlert) { estimateAlert.hidden = ! t.anyEstimate; }
     }
 
