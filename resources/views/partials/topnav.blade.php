@@ -92,7 +92,7 @@
     @endif
     @endcan
 
-    @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class))
+    @if (Gate::allows('view', \App\Models\Order::class) || Gate::allows('view', \App\Models\Supplier::class) || Gate::allows('view', \App\Models\Depreciation::class) || Gate::allows('procurement.view'))
         @if (\App\Helpers\ToolbarConfig::visible('procurement'))
     <li style="order: {{ \App\Helpers\ToolbarConfig::order('procurement') }}" class="dropdown topnav-item topnav-procurement{!! (request()->is(App\Helpers\Helper::ProcurementUrls()) ? ' active' : '') !!}">
             <a href="{{ route('procurement.index') }}">
@@ -113,7 +113,7 @@
                     <li{!! (request()->is('procurement/requisitions*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('requisitions.index') }}">{{ trans('admin/purchase-orders/general.requisitions') }}</a>
                     </li>
-                    @can('reports.procurement.view')
+                    @can('procurement.view')
                         <li{!! (request()->is('procurement/leasing*') ? ' class="active"' : '') !!}>
                             <a href="{{ route('reports.lessor-breakdown') }}">{{ trans('admin/purchase-orders/general.leasing_title') }}</a>
                         </li>
@@ -141,7 +141,7 @@
                         <a href="{{ route('forms.index') }}">{{ trans('admin/forms/general.menu_link') }}</a>
                     </li>
                 @endif
-                @can('reports.procurement.view')
+                @can('procurement.view')
                     <li{!! (request()->is('procurement/agreements*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.procurement.user-agreement-ledger') }}">{{ trans('admin/store/general.tab_agreements') }}</a>
                     </li>

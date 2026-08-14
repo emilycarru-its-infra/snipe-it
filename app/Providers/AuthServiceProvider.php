@@ -279,6 +279,16 @@ class AuthServiceProvider extends ServiceProvider
             if ($user->hasAccess('admin') || $user->hasAccess('procurement.view') || $user->hasAccess('procurement.edit') || $user->hasAccess('reports.procurement.view') || $user->hasAccess('orders.view')) {
                 return true;
             }
+
+            // Department-based read access: a department flagged on its own
+            // edit page (Departments → Procurement access) grants its
+            // members the procurement pages by membership alone. The Entra
+            // sync maintains departments, so access follows the org chart —
+            // nothing hardcoded. View only; edit stays permission-gated.
+            if ($user->department_id
+                && \App\Models\Department::whereKey($user->department_id)->value('procurement_access')) {
+                return true;
+            }
         });
         Gate::define('procurement.edit', function ($user) {
             if ($user->hasAccess('admin') || $user->hasAccess('procurement.edit') || $user->hasAccess('orders.edit')) {
