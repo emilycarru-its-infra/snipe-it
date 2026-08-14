@@ -292,4 +292,167 @@ class AssetBuyoutTrackerTest extends TestCase
         $this->assertNull($lane['rows'][0]['asset_tag']);
         $this->assertSame($buyer->getFullNameAttribute(), $lane['rows'][0]['buyer']);
     }
+
+    /**
+     * The case the lane was opened for: a record raised against a person
+     * before anyone worked out which device it is. Authorizing on the linked
+     * asset used to hand the gate a null it could not resolve, so the one row
+     * that most needed correcting was the one row that could not be.
+     */
+    public function test_a_buyout_with_no_asset_can_still_be_edited(): void
+    {
+        $admin = User::factory()->superuser()->create();
+        $buyer = User::factory()->create();
+        $asset = $this->leasedAsset();
+        $buyout = AssetBuyout::create(['asset_id' => null, 'buyer_id' => $buyer->id, 'status' => 'approved', 'requested_at' => now()]);
+
+        $this->actingAs($admin)->patch(route('buyouts.update', $buyout->id), [
+            'asset_id' => $asset->id,
+            'lessor_id' => $asset->lessor_id,
+            'quote_amount' => 899.99,
+            'remaining_rent' => 872.01,
+            'buyer_amount' => 899.99,
+            'ecu_amount' => 872.01,
+        ])->assertRedirect();
+
+        $buyout->refresh();
+
+        $this->assertSame($asset->id, $buyout->asset_id);
+        $this->assertEquals(899.99, (float) $buyout->buyer_amount);
+        $this->assertEquals(872.01, (float) $buyout->ecu_amount);
+        // The total is derived, never typed: price plus remaining rent.
+        $this->assertEquals(1772.00, (float) $buyout->quote_total);
+    }
+
+    /** A field the edit did not send is left alone, not nulled. */
+    public function test_editing_one_field_leaves_the_others_alone(): void
+    {
+        $admin = User::factory()->superuser()->create();
+        $buyout = AssetBuyout::create([
+            'asset_id' => $this->leasedAsset()->id,
+            'status' => 'quoted',
+            'requested_at' => now(),
+            'invoice_number' => 'CCA-11111',
+            'buyer_amount' => 675.00,
+        ]);
+
+        $this->actingAs($admin)->patch(route('buyouts.update', $buyout->id), ['ecu_amount' => 642.25]);
+
+        $buyout->refresh();
+
+        $this->assertSame('CCA-11111', $buyout->invoice_number);
+        $this->assertEquals(675.00, (float) $buyout->buyer_amount);
+        $this->assertEquals(642.25, (float) $buyout->ecu_amount);
+    }
+
+    /**
+     * The stage select in the expanded row is a real transition, not a column
+     * write — otherwise completing a buyout from there would leave the device
+     * on the fleet.
+     */
+    public function test_setting_the_stage_in_the_editor_runs_the_transition(): void
+    {
+        $admin = User::factory()->superuser()->create();
+        $asset = $this->leasedAsset();
+        $purchased = Statuslabel::factory()->archived()->create(['name' => 'Purchased']);
+        $buyout = AssetBuyout::create(['asset_id' => $asset->id, 'status' => 'paid', 'requested_at' => now()]);
+
+        $this->actingAs($admin)->patch(route('buyouts.update', $buyout->id), ['status' => 'completed']);
+
+        $asset->refresh();
+
+        $this->assertSame($purchased->id, $asset->status_id);
+        $this->assertNotNull($asset->decommission_date);
+        $this->assertNotNull($buyout->fresh()->completed_at);
+    }
+
+    /** Advancing through the editor must not wipe what the same save wrote. */
+    public function test_advancing_through_the_editor_keeps_the_invoice_it_just_saved(): void
+    {
+        $admin = User::factory()->superuser()->create();
+        $buyout = AssetBuyout::create(['asset_id' => $this->leasedAsset()->id, 'status' => 'approved', 'requested_at' => now()]);
+
+        $this->actingAs($admin)->patch(route('buyouts.update', $buyout->id), [
+            'status' => 'invoiced',
+            'invoice_number' => 'CCA-42',
+            'invoice_due_date' => '2026-09-30',
+        ]);
+
+        $buyout->refresh();
+
+        $this->assertSame('invoiced', $buyout->status);
+        $this->assertSame('CCA-42', $buyout->invoice_number);
+        $this->assertSame('2026-09-30', $buyout->invoice_due_date->toDateString());
+    }
+
+    public function test_the_api_lists_and_edits_buyouts(): void
+    {
+        $admin = User::factory()->superuser()->create();
+        $asset = $this->leasedAsset();
+        $buyout = AssetBuyout::create(['asset_id' => $asset->id, 'status' => 'quoted', 'requested_at' => now()]);
+
+        $this->actingAsForApi($admin)
+            ->getJson(route('api.buyouts.index', ['open' => 1]))
+            ->assertOk()
+            ->assertJsonPath('payload.total', 1)
+            ->assertJsonPath('payload.rows.0.asset_tag', $asset->asset_tag);
+
+        $this->actingAsForApi($admin)
+            ->patchJson(route('api.buyouts.update', $buyout->id), [
+                'quote_amount' => 899.99,
+                'remaining_rent' => 872.01,
+                'buyer_amount' => 899.99,
+                'ecu_amount' => 872.01,
+            ])
+            ->assertOk()
+            ->assertJsonPath('payload.quote_total', '1772.00');
+
+        $this->assertEquals(899.99, (float) $buyout->fresh()->buyer_amount);
+    }
+
+    public function test_the_api_opens_a_buyout_with_no_asset(): void
+    {
+        $admin = User::factory()->superuser()->create();
+        $buyer = User::factory()->create();
+
+        $this->actingAsForApi($admin)
+            ->postJson(route('api.buyouts.store'), ['buyer_id' => $buyer->id])
+            ->assertOk()
+            ->assertJsonPath('payload.asset_id', null)
+            ->assertJsonPath('payload.buyer_id', $buyer->id)
+            ->assertJsonPath('payload.status', 'requested');
+    }
+
+    /**
+     * The Bishko record: transcribed from a thread that named neither the
+     * device nor the split, and corrected once the offboarding checkin
+     * identified it.
+     */
+    public function test_the_bishko_correction_links_the_device_and_the_split(): void
+    {
+        $buyer = User::factory()->create(['email' => 'lbishko@ecuad.ca']);
+        $asset = $this->leasedAsset();
+        DB::table('assets')->where('id', $asset->id)->update(['asset_tag' => 'L003565', 'serial' => 'MV64N0YJ4L']);
+
+        $buyout = AssetBuyout::create([
+            'asset_id' => null,
+            'buyer_id' => $buyer->id,
+            'status' => 'approved',
+            'requested_at' => '2026-04-24 16:38:00',
+            'quote_amount' => 899.00,
+            'remaining_rent' => 0.00,
+            'quote_total' => 899.00,
+            'buyer_amount' => 899.00,
+            'ecu_amount' => 0.00,
+        ]);
+
+        (require database_path('migrations/2026_08_14_120000_correct_the_bishko_buyout.php'))->up();
+
+        $buyout->refresh();
+
+        $this->assertSame($asset->id, $buyout->asset_id);
+        $this->assertEquals(899.99, (float) $buyout->buyer_amount);
+        $this->assertEquals(872.01, (float) $buyout->ecu_amount);
+        $this->assertEquals(1772.00, (float) $buyout->quote_total);
+    }
 }
