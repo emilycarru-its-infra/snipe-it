@@ -225,6 +225,25 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
 
     });
 
+    /**
+     * Buyouts — the decommissioning lane's purchase path, fully writable, so
+     * chasing a stalled one does not have to happen in the browser.
+     */
+    Route::group(['prefix' => 'buyouts'], function () {
+        Route::get('/', [Api\AssetBuyoutsController::class, 'index'])
+            ->name('api.buyouts.index');
+        Route::post('/', [Api\AssetBuyoutsController::class, 'store'])
+            ->name('api.buyouts.store');
+        Route::get('{buyout}', [Api\AssetBuyoutsController::class, 'show'])
+            ->name('api.buyouts.show');
+        Route::patch('{buyout}', [Api\AssetBuyoutsController::class, 'update'])
+            ->name('api.buyouts.update');
+        Route::post('{buyout}/quote', [Api\AssetBuyoutsController::class, 'quote'])
+            ->name('api.buyouts.quote');
+        Route::delete('{buyout}', [Api\AssetBuyoutsController::class, 'destroy'])
+            ->name('api.buyouts.destroy');
+    });
+
     // GUI-editable toolbar — readable and writable by admins, so the
     // chrome itself can be reshaped agentically.
     Route::get('settings/toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'apiShow'])

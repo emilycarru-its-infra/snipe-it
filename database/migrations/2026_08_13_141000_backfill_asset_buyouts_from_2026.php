@@ -27,20 +27,24 @@ return new class extends Migration
      */
     private const CASES = [
         [
-            // Leslie Bishko, retiring September. Quoted mid-lease at $899 on
-            // the day HR asked; she confirmed she was keeping it at her
-            // offboarding on 2026-08-13, and no invoice or payment followed.
-            // The device was never named in the thread.
-            'tag' => null,
-            'serial' => null,
+            // Leslie Bishko, retiring September. The thread never named the
+            // device, but the checkin that closed her offboarding on
+            // 2026-08-13 did: L003565, the MacBook Pro she had held since
+            // 2024-05-27. Same shape as the Bussigel case below — the buyer
+            // pays the buyout price by payroll deduction and ECU absorbs the
+            // remaining rent, because the lease runs to 2027-09-01.
+            'tag' => 'L003565',
+            'serial' => 'MV64N0YJ4L',
             'buyer' => 'lbishko@ecuad.ca',
             'status' => 'approved',
             'requested_at' => '2026-04-24 16:38:00',
             'approved_at' => '2026-08-13 13:31:00',
+            'buyer_amount' => 899.99,
+            'ecu_amount' => 872.01,
             'quotes' => [
-                ['amount' => 899.00, 'rent' => 0.00, 'date' => '2026-04-24', 'notes' => 'Quoted mid-lease-cycle by Device Services; no lessor quote on file.'],
+                ['amount' => 899.99, 'rent' => 872.01, 'date' => '2026-04-24', 'notes' => 'Quoted mid-lease-cycle by Device Services; no lessor quote on file.'],
             ],
-            'notes' => 'Opened by HR for a September retirement. Buyout confirmed at offboarding on 2026-08-13; payment never confirmed. Device not identified in the thread.',
+            'notes' => 'Opened by HR for a September retirement. Buyout confirmed at offboarding on 2026-08-13. Buyer pays $899.99 by payroll deduction; ECU absorbs the $872.01 remaining rent on a lease running to 2027-09-01. Payment never confirmed.',
         ],
         [
             // John Li, resigned 2026-05-01. HR asked the balance, then chose

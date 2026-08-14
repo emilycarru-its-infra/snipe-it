@@ -37,7 +37,7 @@
 </style>
 
 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
-    <form method="get" style="margin:0 0 0 auto;">
+    <form method="get" style="margin:0;">
         <select name="fiscal_year" class="form-control" style="width:auto; font-weight:700;" onchange="this.form.submit()">
             @foreach ($fiscalYears as $fyOption)
                 <option value="{{ $fyOption }}" @selected($fyOption === $fy)>{{ $fyOption }}</option>
