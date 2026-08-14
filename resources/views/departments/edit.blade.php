@@ -42,6 +42,20 @@
         </div>
     </div>
 
+    {{-- Department-scoped procurement read access: members of a flagged
+         department can view the procurement pages by membership alone.
+         The gate reads this flag, so access follows the org chart the
+         Entra sync maintains — nothing hardcoded anywhere. --}}
+    <div class="form-group">
+        <div class="col-md-8 col-md-offset-3">
+            <label class="form-control">
+                <input type="checkbox" name="procurement_access" value="1" @checked(old('procurement_access', $item->procurement_access))>
+                {{ trans('admin/departments/table.procurement_access') }}
+            </label>
+            <p class="help-block">{{ trans('admin/departments/table.procurement_access_help') }}</p>
+        </div>
+    </div>
+
     <fieldset name="color-preferences">
         <x-form.legend help_text="{{ trans('general.tag_color_help') }}">
             {{ trans('general.tag_color') }}

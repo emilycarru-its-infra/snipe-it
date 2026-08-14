@@ -51,6 +51,7 @@ class Department extends SnipeModel
         'phone' => 'string|max:255|nullable',
         'fax' => 'string|max:255|nullable',
         'notes' => 'string|max:255|nullable',
+        'procurement_access' => 'boolean|nullable',
     ];
 
     /**
@@ -68,6 +69,7 @@ class Department extends SnipeModel
         'manager_id',
         'tag_color',
         'notes',
+        'procurement_access',
     ];
 
     use Searchable;
