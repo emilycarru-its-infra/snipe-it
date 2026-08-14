@@ -170,9 +170,20 @@
         @endif
 
         @if ($g && $g->slug === 'procurement')
+            {{-- The order number opens the order it names, when the Orders
+                 module holds one. It is free text written by the CDW webhook
+                 and by hand, so plenty of assets name an order that was never
+                 keyed in — those stay plain text rather than dead links. --}}
+            @php
+                $linkedOrder = $asset->linkedOrder();
+            @endphp
             <div class="asset-card-row">
                 <div class="asset-card-lbl">{{ trans('general.order_number') }}</div>
-                <div class="asset-card-val"><x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"/></div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"
+                        :link="$linkedOrder ? route('orders.show', $linkedOrder->id) : null"
+                        :link_title="$linkedOrder ? trans('admin/orders/general.view_order') : null"/>
+                </div>
             </div>
         @endif
     </div>

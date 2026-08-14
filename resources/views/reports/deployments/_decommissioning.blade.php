@@ -26,6 +26,7 @@
             <div class="dp-rail" style="min-width:520px;">
                 @php($decomStages = array_values(array_filter([
                     $isPast ? null : ['label' => trans('admin/deployments/general.decom_collecting'), 'note' => trans('admin/deployments/general.decom_collecting_note'), 'count' => $decommission['collectingCount'], 'color' => '#1f9e8e'],
+                    ['label' => trans('admin/deployments/general.decom_buyouts'), 'note' => trans('admin/deployments/general.decom_buyouts_note'), 'count' => $decommission['buyouts']['openCount'], 'color' => '#4f6d7a'],
                     ['label' => trans('admin/deployments/general.decom_decommissioned'), 'note' => trans('admin/deployments/general.decom_decommissioned_note'), 'count' => $decommission['decommissionedCount'], 'color' => '#c8860a'],
                 ])))
                 @foreach ($decomStages as $ds)
@@ -114,6 +115,9 @@
                 </div>
             @endif
         @endif
+
+        {{-- Buyouts: the devices leaving by purchase rather than by pickup. --}}
+        @include('reports.deployments._buyouts', ['buyouts' => $decommission['buyouts']])
 
         {{-- Pickups register: the way back through what actually left. --}}
         <h5 style="margin-top:18px; font-weight:700;">

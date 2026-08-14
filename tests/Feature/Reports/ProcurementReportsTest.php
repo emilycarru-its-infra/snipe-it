@@ -1533,6 +1533,39 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('$1,200.00');
     }
 
+    public function test_rent_costs_rests_in_natural_contract_name_order_and_offers_column_sorting()
+    {
+        // Three contracts whose rents rank the opposite way to their names,
+        // and a "#10" that a plain string sort would file before "#9".
+        foreach ([['#9', '100'], ['#10', '300'], ['#2', '200']] as [$suffix, $rent]) {
+            $this->seedLeaseAsset([
+                'Lease Contract ID' => 'ECI-ORDER'.$suffix,
+                'Lease Contract Name' => 'Devices Leases FY26-27 '.$suffix,
+                'Lease Rent' => $rent,
+                'Lease End Date' => now()->startOfYear()->addYears(3)->format('Y-m-d'),
+            ], ['purchase_date' => now()->subYear()->format('Y-m-d')]);
+        }
+
+        $fy = now()->month >= 4 ? now()->year : now()->year - 1;
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.rent-costs', ['fiscal_year' => sprintf('FY%d-%02d', $fy, ($fy + 1) % 100)]))
+            ->assertOk()
+            ->getContent();
+
+        $positions = array_map(
+            fn ($name) => strpos($content, 'Devices Leases FY26-27 '.$name),
+            ['#2', '#9', '#10'],
+        );
+        $this->assertNotContains(false, $positions);
+        $sorted = $positions;
+        sort($sorted);
+        $this->assertSame($sorted, $positions, 'contracts rest in natural name order, not by rent');
+
+        // Every column is sortable in the browser from here.
+        $this->assertStringContainsString('data-sortable="1"', $content);
+    }
+
     public function test_procurement_dashboard_leads_with_the_new_report_order_and_drops_lessor_breakdown()
     {
         $content = $this->actingAs($this->superuser())

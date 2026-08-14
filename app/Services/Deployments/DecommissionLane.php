@@ -3,6 +3,7 @@
 namespace App\Services\Deployments;
 
 use App\Models\Asset;
+use App\Models\AssetBuyout;
 use App\Models\Statuslabel;
 use Illuminate\Support\Str;
 
@@ -125,12 +126,60 @@ class DecommissionLane
                 'count' => $collecting->where('status_id', $status->id)->count(),
             ])->values()->all(),
             'collectingCount' => $collecting->count(),
+            'buyouts' => $this->buyouts(),
             'buckets' => $buckets,
             'byLocation' => $byLocation,
             'decommissionedCount' => $decommissioned->count(),
             'archivedCount' => $archivedCount,
             'unarchivedCount' => max($decommissioned->count() - $archivedCount, 0),
             'pickups' => $pickups,
+        ];
+    }
+
+    /**
+     * Devices leaving by purchase rather than by pickup.
+     *
+     * Deliberately NOT fiscal-year scoped: a buyout that opened last April and
+     * is still unpaid is exactly the thing the lane exists to surface, and
+     * scoping it to the current year is how it went unnoticed the first time.
+     * Open ones are ordered oldest-first — the top row is the one stalling.
+     */
+    private function buyouts(): array
+    {
+        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes'])
+            ->orderByRaw('CASE WHEN status IN ("completed", "declined") THEN 1 ELSE 0 END')
+            ->orderBy('requested_at')
+            ->get();
+
+        $open = $buyouts->filter->isOpen();
+
+        return [
+            'openCount' => $open->count(),
+            'overdueCount' => $open->filter->isOverdue()->count(),
+            // What ECU is carrying on open buyouts, and what is owed back.
+            'buyerTotal' => (float) $open->sum(fn ($buyout) => (float) $buyout->buyer_amount),
+            'ecuTotal' => (float) $open->sum(fn ($buyout) => (float) $buyout->ecu_amount),
+            'rows' => $buyouts->map(fn ($buyout) => [
+                'id' => $buyout->id,
+                'asset_id' => $buyout->asset_id,
+                'asset_tag' => $buyout->asset?->asset_tag,
+                'model' => $buyout->asset?->model?->name,
+                'serial' => $buyout->asset?->serial,
+                'lessor' => $buyout->lessor?->name,
+                'buyer' => $buyout->buyer?->getFullNameAttribute(),
+                'status' => $buyout->status,
+                'waiting_on' => $buyout->waitingOn(),
+                'requested_at' => $buyout->requested_at?->toDateString(),
+                'age' => $buyout->age(),
+                'quote_total' => $buyout->quote_total,
+                'buyer_amount' => $buyout->buyer_amount,
+                'ecu_amount' => $buyout->ecu_amount,
+                'invoice_number' => $buyout->invoice_number,
+                'invoice_due_date' => $buyout->invoice_due_date?->toDateString(),
+                'overdue' => $buyout->isOverdue(),
+                'quote_count' => $buyout->quotes->count(),
+                'open' => $buyout->isOpen(),
+            ])->values()->all(),
         ];
     }
 

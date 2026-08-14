@@ -635,7 +635,7 @@ class ProcurementReportsController extends Controller
         ];
         $grouped = ['discrepancies' => [], 'matches' => [], 'unserialized' => []];
 
-        $records = [];
+        $records = ['discrepancies' => [], 'matches' => [], 'unserialized' => []];
         $tally = ['match' => 0, 'schedule_mismatch' => 0, 'missing_in_snipe' => 0, 'extra_in_snipe' => 0, 'unserialized' => 0];
 
         foreach ((new CsiReconciliation)->assetDiff() as $row) {
@@ -649,7 +649,7 @@ class ProcurementReportsController extends Controller
             $bucket = $row['status'] === 'match' ? 'matches'
                 : ($row['status'] === 'unserialized' ? 'unserialized' : 'discrepancies');
             $grouped[$bucket][] = $row;
-            $records[] = [
+            $records[$bucket][] = [
                 'class' => in_array($row['status'], ['match', 'unserialized'], true) ? '' : 'danger',
                 'cells' => [
                     $t('csi_recon_'.$row['status']),
@@ -661,6 +661,36 @@ class ProcurementReportsController extends Controller
                     $row['snipe_status'],
                     $row['snipe_assigned'] ?? null,
                     $row['snipe_location'] ?? null,
+                ],
+            ];
+        }
+
+        // `records` stays flat and in bucket order so the CSV export keeps
+        // every device on its own line.
+        $flat = array_merge($records['discrepancies'], $records['unserialized'], $records['matches']);
+
+        // On screen it reads the other way round. Matches are the bulk and the
+        // least interesting thing here — a reconciliation is read for what did
+        // NOT line up — so discrepancies and unserialized lines stay flat and
+        // on top, and every match folds into one collapsed group beneath them.
+        $display = array_merge($records['discrepancies'], $records['unserialized']);
+
+        if (! empty($records['matches'])) {
+            $display[] = [
+                'class' => '',
+                'children_collapsed' => true,
+                'cells' => array_merge(
+                    [$t('csi_recon_match'), trans('admin/purchase-orders/general.csi_recon_match_fold', ['count' => count($records['matches'])])],
+                    array_fill(0, count($columns) - 2, '')
+                ),
+                'children' => [
+                    // The status column is dropped inside the group: every row
+                    // in it is a match, which is what the heading already says.
+                    'columns' => array_slice($columns, 1),
+                    'rows' => array_map(
+                        fn ($record) => ['cells' => array_slice($record['cells'], 1)],
+                        $records['matches']
+                    ),
                 ],
             ];
         }
@@ -684,7 +714,8 @@ class ProcurementReportsController extends Controller
 
         return [
             'columns' => $columns,
-            'records' => $records,
+            'records' => $flat,
+            'records_display' => $display,
             'grouped' => $grouped,
             'footer' => [$summary, '', '', '', '', '', '', '', ''],
         ];
@@ -5118,8 +5149,11 @@ class ProcurementReportsController extends Controller
             ];
         }
 
-        // Biggest line first — that is the order the number gets asked in.
-        usort($records, fn ($a, $b) => $this->parseMoney($b['cells'][3]) <=> $this->parseMoney($a['cells'][3]));
+        // Contract name first, naturally ordered so "#2" sorts before "#10".
+        // The table is sortable in the browser, so this is the resting order
+        // rather than the only one: the register reads as a list of contracts,
+        // and biggest-line-first is one click on the rent column.
+        usort($records, fn ($a, $b) => strnatcasecmp((string) $a['cells'][0], (string) $b['cells'][0]));
 
         $footer = [
             trans('admin/orders/general.total'), '', '',
@@ -5127,8 +5161,10 @@ class ProcurementReportsController extends Controller
         ];
 
         // 'fy' rides along so the page can say which year it resolved to
-        // when the caller passed nothing.
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'fy' => $fyLabel];
+        // when the caller passed nothing. 'sortable' opts the table into
+        // in-browser column sorting, which is safe here because a register of
+        // contracts is a page of rows, not a paginated set.
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'fy' => $fyLabel, 'sortable' => true];
     }
 
     /**
@@ -5429,6 +5465,7 @@ class ProcurementReportsController extends Controller
             'footer' => $report['footer'] ?? null,
             'reportCharts' => $report['charts'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
+            'sortable' => $report['sortable'] ?? false,
             'controls' => $controls,
             'downloadUrl' => route($routeName, array_filter($downloadParams, fn ($v) => $v !== null && $v !== '')),
             'reportParams' => $extraParams,
@@ -5448,9 +5485,13 @@ class ProcurementReportsController extends Controller
     {
         return view('reports/procurement/_report-table', [
             'columns' => $report['columns'],
-            'rows' => $report['records'],
+            // A report may render differently from how it exports — Lease
+            // Reconciliation folds its matches on screen and lists every one
+            // in the CSV.
+            'rows' => $report['records_display'] ?? $report['records'],
             'footer' => $report['footer'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
+            'sortable' => $report['sortable'] ?? false,
             'canEditNotes' => auth()->user()?->can('create', Order::class) ?? false,
         ]);
     }
