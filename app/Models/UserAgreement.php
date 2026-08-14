@@ -6,8 +6,10 @@ use App\Helpers\Helper;
 use App\Mail\UserAgreementSignatureRequestMail;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
+use App\Services\UserAgreements\PdfRenderer;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -55,16 +57,16 @@ class UserAgreement extends SnipeModel
     ];
 
     public const STAGE_LABEL_CLASS = [
-        'eligible'         => 'default',
-        'quoted'           => 'info',
-        'agreement_sent'   => 'warning',
+        'eligible' => 'default',
+        'quoted' => 'info',
+        'agreement_sent' => 'warning',
         'agreement_signed' => 'primary',
-        'deployed'         => 'success',
-        'in_repayment'     => 'primary',
-        'paid_off'         => 'success',
-        'closed_buyout'    => 'success',
-        'closed'           => 'default',
-        'cancelled'        => 'danger',
+        'deployed' => 'success',
+        'in_repayment' => 'primary',
+        'paid_off' => 'success',
+        'closed_buyout' => 'success',
+        'closed' => 'default',
+        'cancelled' => 'danger',
     ];
 
     /**
@@ -168,7 +170,7 @@ class UserAgreement extends SnipeModel
     ];
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this>
+     * @return BelongsTo<User, $this>
      */
     public function user()
     {
@@ -176,11 +178,83 @@ class UserAgreement extends SnipeModel
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Asset, $this>
+     * @return BelongsTo<Asset, $this>
      */
     public function asset()
     {
         return $this->belongsTo(Asset::class, 'asset_id');
+    }
+
+    /**
+     * Scope the ledger to a programme fiscal year.
+     *
+     * An agreement's own timestamps cannot answer this. Every one of the 70
+     * agreements on prod was written by the 2026-05 backfill, and none carries
+     * a signed_at, deployed_at or closed_at date, so filtering on created_at
+     * matched all of them and the year filter selected nothing at all — the
+     * FY2026-27 ledger showed agreements for devices bought as far back as
+     * 2021.
+     *
+     * What dates an agreement is the refresh cycle it belongs to, so resolve
+     * it in that order:
+     *
+     *   1. The fiscal year of the deployment wave the device is in — either as
+     *      the machine being issued or the one being replaced. A faculty
+     *      pickup is an event in a wave, and that is the truest answer.
+     *   2. Failing that, the fiscal year the device was bought in.
+     *   3. Failing that, when the agreement row was written, which is all that
+     *      is left for a record with no device attached.
+     */
+    public function scopeForProgramFiscalYear($query, ?string $fy)
+    {
+        if ($fy === null || trim($fy) === '' || strtolower(trim($fy)) === 'all') {
+            return $query;
+        }
+
+        $range = Helper::fiscalYearRange($fy);
+
+        // Whether the device sits in any wave at all, used to keep the
+        // fallbacks from firing for a device a wave has already dated.
+        $inAnyWave = function ($q) {
+            $q->whereExists(fn ($sub) => $sub
+                ->selectRaw('1')
+                ->from('deployment_items as di')
+                ->join('deployment_waves as dw', 'dw.id', '=', 'di.wave_id')
+                ->whereNull('dw.deleted_at')
+                ->where(fn ($c) => $c
+                    ->whereColumn('di.asset_id', 'user_agreements.asset_id')
+                    ->orWhereColumn('di.replaces_asset_id', 'user_agreements.asset_id')));
+        };
+
+        return $query->where(function ($q) use ($fy, $range, $inAnyWave) {
+            // 1. the wave says which cycle this is
+            $q->whereExists(fn ($sub) => $sub
+                ->selectRaw('1')
+                ->from('deployment_items as di')
+                ->join('deployment_waves as dw', 'dw.id', '=', 'di.wave_id')
+                ->where('dw.fiscal_year', $fy)
+                ->whereNull('dw.deleted_at')
+                ->where(fn ($c) => $c
+                    ->whereColumn('di.asset_id', 'user_agreements.asset_id')
+                    ->orWhereColumn('di.replaces_asset_id', 'user_agreements.asset_id')));
+
+            if (! $range) {
+                return;
+            }
+
+            // 2. no wave: fall back to when the device was bought
+            $q->orWhere(fn ($alt) => $alt
+                ->whereNot($inAnyWave)
+                ->whereHas('asset', fn ($a) => $a->whereBetween('purchase_date', $range)));
+
+            // 3. no wave and no purchase date: when the row was written
+            $q->orWhere(fn ($alt) => $alt
+                ->whereNot($inAnyWave)
+                ->where(fn ($noDate) => $noDate
+                    ->whereDoesntHave('asset')
+                    ->orWhereHas('asset', fn ($a) => $a->whereNull('purchase_date')))
+                ->whereBetween('user_agreements.created_at', $range));
+        });
     }
 
     public function adminuser()
@@ -216,9 +290,9 @@ class UserAgreement extends SnipeModel
 
     public function cancel(?int $cancelledById, ?string $reason = null): bool
     {
-        $this->lifecycle_stage     = 'cancelled';
-        $this->cancelled_at        = now();
-        $this->cancelled_by_id     = $cancelledById;
+        $this->lifecycle_stage = 'cancelled';
+        $this->cancelled_at = now();
+        $this->cancelled_by_id = $cancelledById;
         $this->cancellation_reason = $reason;
 
         return $this->save();
@@ -226,7 +300,7 @@ class UserAgreement extends SnipeModel
 
     public function markSentToPayroll(?int $byUserId): bool
     {
-        $this->sent_to_payroll_at    = now();
+        $this->sent_to_payroll_at = now();
         $this->sent_to_payroll_by_id = $byUserId;
 
         return $this->save();
@@ -338,9 +412,9 @@ class UserAgreement extends SnipeModel
     private function paymentPhrase(): string
     {
         return match ($this->payment_method) {
-            'pay_in_full'        => 'via a one-time payment',
-            'payroll_deduction'  => 'via payroll deductions',
-            default              => 'as agreed',
+            'pay_in_full' => 'via a one-time payment',
+            'payroll_deduction' => 'via payroll deductions',
+            default => 'as agreed',
         };
     }
 
@@ -460,13 +534,13 @@ class UserAgreement extends SnipeModel
 
     /**
      * Render the unsigned agreement as PDF bytes (in-memory). Branded
-     * per-type layouts live in {@see \App\Services\UserAgreements\PdfRenderer};
+     * per-type layouts live in {@see PdfRenderer};
      * this method is the single entry point for the controller's
      * preview/download endpoint and the bulk pre-gen artisan command.
      */
     public function renderUnsignedPdfBytes(): string
     {
-        return app(\App\Services\UserAgreements\PdfRenderer::class)->render($this);
+        return app(PdfRenderer::class)->render($this);
     }
 
     /**

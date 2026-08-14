@@ -8,14 +8,11 @@ use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
 use App\Models\CapitalRequestLine;
 use App\Models\Category;
-use App\Models\Company;
 use App\Models\Contract;
-use App\Models\CustomField;
 use App\Models\DeploymentItem;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
 use App\Models\Location;
-use App\Models\Manufacturer;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -23,6 +20,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\Statuslabel;
+use App\Models\StoreApprover;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserAgreement;
@@ -30,13 +28,13 @@ use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
 use App\Services\Leasing\LeaseClosure;
+use App\Services\LegacyFleet;
 use App\Services\ProcurementPipeline;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Gate;
 use League\Csv\EscapeFormula;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
@@ -64,7 +62,6 @@ class ProcurementReportsController extends Controller
      * as opposed to "Active (Legacy)", which marks one that wants replacing but
      * has no plan or money behind it.
      */
-
     private const EXTENSION_LOOKAHEAD_MONTHS = 3;
 
     /**
@@ -297,8 +294,8 @@ class ProcurementReportsController extends Controller
 
         return view('reports/procurement', [
             'pipeline' => ProcurementPipeline::build($selectedFy),
-            'legacyFleet' => \App\Services\LegacyFleet::summary(),
-            'approvers' => \App\Models\StoreApprover::with('user')->get(),
+            'legacyFleet' => LegacyFleet::summary(),
+            'approvers' => StoreApprover::with('user')->get(),
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
             'userAgreementsAwaitingSignatureCount' => $userAgreementsAwaitingSignatureCount,
@@ -1661,7 +1658,7 @@ class ProcurementReportsController extends Controller
                 $waveFy = $this->normalizeFy((string) $deviceWaveItem?->wave?->fiscal_year);
 
                 $eolStr = $asset->asset_eol_date
-                    ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString()
+                    ? Carbon::parse($asset->asset_eol_date)->toDateString()
                     : '';
                 $leaseStr = (string) ($asset->lease_end_date ?? '');
                 $operativeDate = match (true) {
@@ -3584,7 +3581,10 @@ class ProcurementReportsController extends Controller
             ]))
             ->orderBy('updated_at', 'desc');
 
-        $this->scopeDateToFiscalYear($query, $fy, 'created_at');
+        // Not created_at: every agreement was written by the same backfill, so
+        // that column dates the import rather than the programme cycle and the
+        // year filter selected nothing. See UserAgreement::scopeForProgramFiscalYear.
+        $query->forProgramFiscalYear($fy);
 
         if ($typeFilter && in_array($typeFilter, UserAgreement::AGREEMENT_TYPES, true)) {
             $query->where('agreement_type', $typeFilter);
@@ -4039,7 +4039,7 @@ class ProcurementReportsController extends Controller
      * How many of these assets carry a Lease Rent value — the test for whether
      * a summed rent figure describes the whole contract or only part of it.
      *
-     * @param  iterable<\App\Models\Asset>  $assets
+     * @param  iterable<Asset>  $assets
      */
     private function assetsWithRent(iterable $assets): int
     {
@@ -5026,7 +5026,7 @@ class ProcurementReportsController extends Controller
      * one and a total on the other can never disagree.
      *
      * @param  array<string, mixed>  $group
-     * @return array{start: \Carbon\Carbon, end: \Carbon\Carbon, monthly: float, estimated: bool}|null
+     * @return array{start: Carbon, end: Carbon, monthly: float, estimated: bool}|null
      */
     private function leaseRentBasis(array $group): ?array
     {
@@ -5034,8 +5034,8 @@ class ProcurementReportsController extends Controller
         foreach ($group['assets'] as $asset) {
             if ($asset->purchase_date) {
                 $purchase = $asset->purchase_date instanceof \DateTimeInterface
-                    ? \Carbon\Carbon::instance(new \DateTime($asset->purchase_date->format('Y-m-d')))
-                    : \Carbon\Carbon::parse((string) $asset->purchase_date);
+                    ? Carbon::instance(new \DateTime($asset->purchase_date->format('Y-m-d')))
+                    : Carbon::parse((string) $asset->purchase_date);
                 if ($start === null || $purchase->lessThan($start)) {
                     $start = $purchase;
                 }
@@ -5053,7 +5053,7 @@ class ProcurementReportsController extends Controller
             foreach (['Y-m-d', 'm/d/Y'] as $fmt) {
                 $parsed = \DateTime::createFromFormat($fmt, $group['lease_end_date']);
                 if ($parsed !== false) {
-                    $end = \Carbon\Carbon::instance($parsed);
+                    $end = Carbon::instance($parsed);
                     break;
                 }
             }
@@ -5094,7 +5094,7 @@ class ProcurementReportsController extends Controller
             $startYear = (int) $m[1];
         }
         $fyLabel = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
-        $fyStart = \Carbon\Carbon::create($startYear, 4, 1);
+        $fyStart = Carbon::create($startYear, 4, 1);
         $fyEnd = $fyStart->copy()->addYear();
 
         $columns = [
