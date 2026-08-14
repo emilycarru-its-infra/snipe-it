@@ -51,7 +51,7 @@
                         </td>
                         <td>
                             @if ($row['asset_id'])
-                                <a href="{{ route('hardware.show', $row['asset_id']) }}">{{ $row['asset_tag'] ?: $row['serial'] }}</a>
+                                <a href="{{ route('hardware.show', $row['asset_id']) }}" class="js-lightbox">{{ $row['asset_tag'] ?: $row['serial'] }}</a>
                             @else
                                 {{ $row['asset_tag'] ?: '—' }}
                             @endif
