@@ -52,6 +52,63 @@
 </div>
 @endif
 
+{{-- The budget first: every schedule ending in the year at its full
+     original value — the pre-approved envelope the request below
+     distributes. Approvers read the money, then the ask against it. --}}
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_envelope_title') }} — {{ $fy }}</h3>
+    </div>
+    <div class="box-body table-responsive no-padding">
+        <table class="table table-striped capital-table">
+            <thead>
+                <tr>
+                    <th>{{ trans('admin/purchase-orders/general.lease_contract_id') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.lease_end_ownership') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.lease_end_date') }}</th>
+                    <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_devices') }}</th>
+                    <th class="text-right">{{ trans('admin/purchase-orders/general.capital_envelope_value') }}</th>
+                    <th>{{ trans('admin/purchase-orders/general.lease_end_plan') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse ($endingSchedules as $schedule)
+                <tr>
+                    <td>
+                        <a href="{{ route('reports.procurement.lease-detail', $schedule['contract_id']) }}" class="js-lightbox">{{ $schedule['contract_id'] }}</a>
+                    </td>
+                    <td>{{ collect($schedule['ownership_counts'])->keys()->implode(', ') ?: '—' }}</td>
+                    <td>{{ $schedule['lease_end_date'] }}</td>
+                    <td class="text-right">{{ $schedule['count'] }}</td>
+                    <td class="text-right">${{ number_format($schedule['cost'], 2) }}</td>
+                    <td style="white-space:normal;">
+                        @if ($schedule['is_lease_to_own'])
+                            {{ trans('admin/purchase-orders/general.lease_end_retained') }}
+                        @elseif ($schedule['decision'])
+                            {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
+                        @else
+                            {{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
+            @endforelse
+            </tbody>
+            @if ($endingSchedules->isNotEmpty())
+                <tfoot>
+                    <tr>
+                        <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
+                        <th class="text-right">{{ $endingSchedules->sum('count') }}</th>
+                        <th class="text-right">${{ number_format($envelope, 2) }}</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            @endif
+        </table>
+    </div>
+</div>
+
 {{-- The request itself — one table, refresh and new asks together,
      exactly as the workbook read. --}}
 <div class="box box-default">
@@ -262,63 +319,6 @@
                         <th></th>
                         <th class="text-right">${{ number_format($refreshTotal + $newAskTotal, 2) }}</th>
                         <th colspan="5"></th>
-                    </tr>
-                </tfoot>
-            @endif
-        </table>
-    </div>
-</div>
-
-{{-- The budget's source, beneath the request it funds: every schedule
-     ending in the year at its full original value — the pre-approved
-     envelope the lines above distribute. --}}
-<div class="box box-default">
-    <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/purchase-orders/general.capital_envelope_title') }} — {{ $fy }}</h3>
-    </div>
-    <div class="box-body table-responsive no-padding">
-        <table class="table table-striped capital-table">
-            <thead>
-                <tr>
-                    <th>{{ trans('admin/purchase-orders/general.lease_contract_id') }}</th>
-                    <th>{{ trans('admin/purchase-orders/general.lease_end_ownership') }}</th>
-                    <th>{{ trans('admin/purchase-orders/general.lease_end_date') }}</th>
-                    <th class="text-right">{{ trans('admin/purchase-orders/general.lease_end_devices') }}</th>
-                    <th class="text-right">{{ trans('admin/purchase-orders/general.capital_envelope_value') }}</th>
-                    <th>{{ trans('admin/purchase-orders/general.lease_end_plan') }}</th>
-                </tr>
-            </thead>
-            <tbody>
-            @forelse ($endingSchedules as $schedule)
-                <tr>
-                    <td>
-                        <a href="{{ route('reports.procurement.lease-detail', $schedule['contract_id']) }}" class="js-lightbox">{{ $schedule['contract_id'] }}</a>
-                    </td>
-                    <td>{{ collect($schedule['ownership_counts'])->keys()->implode(', ') ?: '—' }}</td>
-                    <td>{{ $schedule['lease_end_date'] }}</td>
-                    <td class="text-right">{{ $schedule['count'] }}</td>
-                    <td class="text-right">${{ number_format($schedule['cost'], 2) }}</td>
-                    <td style="white-space:normal;">
-                        @if ($schedule['is_lease_to_own'])
-                            {{ trans('admin/purchase-orders/general.lease_end_retained') }}
-                        @elseif ($schedule['decision'])
-                            {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
-                        @else
-                            {{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}
-                        @endif
-                    </td>
-                </tr>
-            @empty
-                <tr><td colspan="6" class="text-center text-muted">{{ trans('general.no_results') }}</td></tr>
-            @endforelse
-            </tbody>
-            @if ($endingSchedules->isNotEmpty())
-                <tfoot>
-                    <tr>
-                        <th colspan="3">{{ trans('admin/purchase-orders/general.lease_end_totals_preapproved') }}</th>
-                        <th class="text-right">{{ $endingSchedules->sum('count') }}</th>
-                        <th class="text-right">${{ number_format($envelope, 2) }}</th>
-                        <th></th>
                     </tr>
                 </tfoot>
             @endif
