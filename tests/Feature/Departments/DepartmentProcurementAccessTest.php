@@ -35,6 +35,43 @@ class DepartmentProcurementAccessTest extends TestCase
         $this->assertFalse($member->can('procurement.edit'));
     }
 
+    public function test_a_granted_member_gets_the_full_chrome_not_the_end_user_view()
+    {
+        $finance = Department::factory()->create(['name' => 'Chrome Test', 'procurement_access' => true]);
+        $member = User::factory()->create(['department_id' => $finance->id, 'activated' => 1]);
+
+        // Without the grant this user would be an end user (no permissions
+        // at all); the department grant must open the full chrome or the
+        // pages it unlocks have no door.
+        $this->assertFalse($member->isEndUser());
+
+        $this->actingAs($member)->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertSee(route('reports.procurement.capital-request'), false);
+    }
+
+    public function test_the_flag_is_readable_and_writable_over_the_api()
+    {
+        $admin = User::factory()->superuser()->create();
+        $department = Department::factory()->create(['name' => 'API Toggle Test']);
+
+        $this->actingAsForApi($admin)->patchJson(route('api.departments.update', $department->id), [
+            'name' => 'API Toggle Test',
+            'procurement_access' => true,
+        ])->assertOk();
+        $this->assertTrue((bool) $department->fresh()->procurement_access);
+
+        $this->actingAsForApi($admin)->getJson(route('api.departments.show', $department->id))
+            ->assertOk()
+            ->assertJsonPath('procurement_access', true);
+
+        $this->actingAsForApi($admin)->patchJson(route('api.departments.update', $department->id), [
+            'name' => 'API Toggle Test',
+            'procurement_access' => false,
+        ])->assertOk();
+        $this->assertFalse((bool) $department->fresh()->procurement_access);
+    }
+
     public function test_the_department_form_saves_and_clears_the_flag()
     {
         $admin = User::factory()->superuser()->create();
