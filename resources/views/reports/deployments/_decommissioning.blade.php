@@ -16,6 +16,28 @@
     .decom-card tbody tr:hover .inline-core-pencil { opacity: .6; }
     .decom-card tbody tr:hover .inline-core-pencil:hover { opacity: 1; }
     .decom-card .js-inline-edit-form { white-space: nowrap; }
+
+    {{-- Holding rooms read as quiet chips, not as status badges: they label a
+         place, they do not signal a state, and a saturated pill claimed more
+         attention than a room number is worth. --}}
+    .decom-chip {
+        display: inline-block; margin: 0 6px 6px 0; padding: 3px 6px 3px 9px;
+        border: 1px solid var(--box-border-color, #e3e3e3); border-radius: 3px;
+        background: var(--box-bg, #fff); font-size: 12px; line-height: 1.5;
+        color: var(--color-fg, #444);
+    }
+    .decom-chip-n {
+        display: inline-block; margin-left: 5px; padding: 0 6px;
+        border-radius: 2px; background: rgba(127, 127, 127, .14);
+        font-variant-numeric: tabular-nums; font-weight: 700;
+    }
+
+    {{-- The bulk holding-location control sits with the card title on the
+         left, where the eye already is after reading the count. --}}
+    .decom-card .decom-card-head {
+        display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    }
+    .decom-card .decom-card-head .box-title { margin-right: 4px; }
 </style>
 @endpush
 @push('js')
@@ -45,8 +67,7 @@
     $decomLocationOptions = \App\Models\Location::orderBy('name')->pluck('name', 'id');
 @endphp
 
-{{-- The rollup: stage chevrons, where the outgoing devices sit, and the
-     Processing statuses in play. --}}
+{{-- The rollup: stage chevrons, and where the outgoing devices sit. --}}
 <div class="box box-default" id="decommissioning" style="scroll-margin-top:64px;">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.decom_title') }}
@@ -82,25 +103,17 @@
             </p>
         @endif
 
+        {{-- Only the holding rooms. The Processing-status counts that used to
+             sit beside them are the same numbers the per-flow cards below
+             already carry in their own headers, said twice. --}}
         @unless ($isPast)
-            <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start;">
-                <div>
-                    <h5 style="margin:0 0 6px; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
-                    @forelse ($decommission['byLocation'] as $loc)
-                        <span class="label label-default" style="display:inline-block; margin:0 4px 4px 0;">{{ $loc['location'] }} · {{ $loc['count'] }}</span>
-                    @empty
-                        <span class="text-muted">{{ trans('admin/deployments/general.decom_none') }}</span>
-                    @endforelse
-                </div>
-                <div>
-                    @foreach ($decommission['statuses'] as $status)
-                        @if ($status['count'] > 0)
-                            <span class="label" style="background-color:#1f9e8e; color:#fff; display:inline-block; margin:0 4px 4px 0;">
-                                {{ $status['name'] }} · {{ $status['count'] }}
-                            </span>
-                        @endif
-                    @endforeach
-                </div>
+            <div style="margin-top:12px;">
+                <h5 style="margin:0 0 6px; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
+                @forelse ($decommission['byLocation'] as $loc)
+                    <span class="decom-chip">{{ $loc['location'] }} <span class="decom-chip-n">{{ $loc['count'] }}</span></span>
+                @empty
+                    <span class="text-muted">{{ trans('admin/deployments/general.decom_none') }}</span>
+                @endforelse
             </div>
         @endunless
     </div>
@@ -120,15 +133,13 @@
             @csrf
         </form>
         <div class="box box-default decom-card">
-            <div class="box-header with-border">
+            <div class="box-header with-border decom-card-head">
                 <h3 class="box-title">{{ $bucket['label'] }}
                     <span class="text-muted" style="font-weight:normal; font-size:13px;">· {{ $bucket['count'] }}</span>
                 </h3>
-                <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px;">
-                    <select class="js-data-ajax input-sm" data-endpoint="locations" form="decom-loc-{{ $bucket['key'] }}"
-                            data-placeholder="{{ trans('admin/deployments/general.holding_location_label') }}" name="location_id" style="min-width:220px;"></select>
-                    <button type="submit" form="decom-loc-{{ $bucket['key'] }}" class="btn btn-xs btn-default">{{ trans('admin/deployments/general.holding_location_apply') }}</button>
-                </div>
+                <select class="js-data-ajax input-sm" data-endpoint="locations" form="decom-loc-{{ $bucket['key'] }}"
+                        data-placeholder="{{ trans('admin/deployments/general.holding_location_label') }}" name="location_id" style="min-width:220px;"></select>
+                <button type="submit" form="decom-loc-{{ $bucket['key'] }}" class="btn btn-xs btn-default">{{ trans('admin/deployments/general.holding_location_apply') }}</button>
             </div>
             <div class="box-body table-responsive no-padding">
                 <div class="dp-scroll" style="max-height:420px;">
