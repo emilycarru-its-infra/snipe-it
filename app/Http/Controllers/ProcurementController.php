@@ -6,12 +6,11 @@ use App\Mail\StoreVendorOrderMail;
 use App\Models\CatalogItem;
 use App\Models\CsiSchedule;
 use App\Models\EmailTemplate;
-use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
-use App\Models\Supplier;
+use App\Models\StoreOrderItem;
 use App\Services\StoreOrderAssetProvisioner;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
@@ -92,14 +91,78 @@ class ProcurementController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
+        // Cards by default — the decision needs the whole order in front of
+        // you. The table is for the other job this page does: scanning what
+        // has already happened, where one row per order beats one card.
+        $view = $request->query('view') === 'table' ? 'table' : 'cards';
+
         return view('procurement.queue', [
             'orders' => $orders,
             'selectedStatus' => $status,
+            'selectedView' => $view,
             'statuses' => StoreOrder::STATUSES,
             'statusCounts' => $counts->put('all', $counts->sum())->all(),
             'fundingAccounts' => StoreOrder::FUNDING_ACCOUNTS,
             'leaseSchedules' => CsiSchedule::openScheduleNames(),
+            // What is actually waiting on somebody, in count and in money, so
+            // the page opens with the size of the job rather than making you
+            // add up fourteen cards to find it.
+            'pendingValue' => StoreOrder::where('status', 'pending')->with('items')->get()
+                ->sum(fn (StoreOrder $order) => $order->total()),
+            'clearableCount' => $this->clearable()->count(),
         ]);
+    }
+
+    /**
+     * Orders that may be thrown away: declined or cancelled, and not already
+     * pulled onto a requisition.
+     *
+     * Both statuses are dead ends — declining already released whatever the
+     * order had provisioned (see decide()), and a cancelled one never got
+     * that far — so nothing downstream points at these. The requisition guard
+     * is belt and braces: an order that reached a requisition is part of a
+     * paper trail regardless of what its status says.
+     */
+    private function clearable()
+    {
+        return StoreOrder::whereIn('status', ['declined', 'cancelled'])->whereNull('requisition_id');
+    }
+
+    /** Throw away one dead request. */
+    public function destroyOrder(StoreOrder $order): RedirectResponse
+    {
+        abort_unless(StoreApprover::allows(auth()->user()), 403);
+
+        if (! in_array($order->status, ['declined', 'cancelled'], true) || $order->requisition_id) {
+            return redirect()->back()->with('error', trans('admin/store/general.queue_not_clearable'));
+        }
+
+        $order->items()->delete();
+        $order->delete();
+
+        return redirect()->back()->with('success', trans('admin/store/general.queue_cleared_one'));
+    }
+
+    /**
+     * Clear the lot. The queue accumulates declined and cancelled requests
+     * that no one will ever act on again, and they crowd out the ones that
+     * still need a decision.
+     */
+    public function clearDecided(): RedirectResponse
+    {
+        abort_unless(StoreApprover::allows(auth()->user()), 403);
+
+        $ids = $this->clearable()->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return redirect()->back()->with('error', trans('admin/store/general.queue_nothing_to_clear'));
+        }
+
+        StoreOrderItem::whereIn('store_order_id', $ids)->delete();
+        StoreOrder::whereIn('id', $ids)->delete();
+
+        return redirect()->route('procurement.approvals')
+            ->with('success', trans('admin/store/general.queue_cleared', ['count' => $ids->count()]));
     }
 
     /**
