@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasUploads;
+use App\Services\AssetCommitted;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\PlacesVendorOrders;
 use App\Models\Traits\Searchable;
@@ -284,12 +285,38 @@ class PurchaseOrder extends SnipeModel
     }
 
     /**
+     * Money moved against this PO by adjustment alone — negative for a credit.
+     *
+     * Buyouts, terminations and credits change what a purchase order has left
+     * without anything arriving: a buyout converts equipment we already hold,
+     * a credit hands budget room back. They carry no line items, because there
+     * is no delivery to receive and no device to link, which is exactly what
+     * makes them invisible to a line-item sum — so a credit that should return
+     * room to the PO never reached the budget it was meant to restore.
+     *
+     * Delegated to AssetCommitted rather than re-summed here: it is what the
+     * dashboard, the PO reports and the budget carry-forward already read, and
+     * it owns the conventions that matter (sign forced by type however the
+     * subtotal was keyed, fiscal year taken from the invoice date, a dateless
+     * adjustment counting nowhere). A second implementation here would be a
+     * second answer to "what is left on this PO".
+     */
+    public function adjustmentTotal(?string $fy = null): float
+    {
+        $po = trim((string) $this->po_number);
+
+        return $po === '' ? 0.0 : (float) (AssetCommitted::invoiceAdjustmentsByPo($fy)[$po] ?? 0.0);
+    }
+
+    /**
      * Committed spend: the cost of every line item charged to this PO,
-     * invoiced or not. This is the figure compared against the budget.
+     * invoiced or not, plus any adjustment booked straight against it.
+     * This is the figure compared against the budget.
      */
     public function committedTotal(): float
     {
-        return (float) $this->lineItems()->get()->sum->lineTotal();
+        return (float) $this->lineItems()->get()->sum->lineTotal()
+            + $this->adjustmentTotal();
     }
 
     /**
@@ -307,7 +334,8 @@ class PurchaseOrder extends SnipeModel
 
         return (float) $this->lineItems()
             ->whereHas('order', fn ($query) => $query->where('fiscal_year', $fy))
-            ->get()->sum->lineTotal();
+            ->get()->sum->lineTotal()
+            + $this->adjustmentTotal($fy);
     }
 
     /**
