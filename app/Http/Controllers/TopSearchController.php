@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\Contract;
 use App\Models\License;
 use App\Models\Location;
+use App\Models\Order;
+use App\Models\OrderInvoice;
+use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\User;
-use App\Models\Company;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -49,6 +52,13 @@ class TopSearchController extends Controller
             $this->assets($query),
             $this->users($query),
             $this->contracts($query),
+            // The paper trail. A number copied off an invoice, a CDW order
+            // confirmation or a lease schedule is exactly the sort of thing
+            // typed in here, and until now every one of them came back with
+            // "No Results" — the record existed, the search just did not look.
+            $this->orders($query),
+            $this->purchaseOrders($query),
+            $this->invoices($query),
             $this->licenses($query),
             $this->accessories($query),
             $this->consumables($query),
@@ -187,15 +197,92 @@ class TopSearchController extends Controller
     private function contracts(string $query): ?array
     {
         return $this->group('view', Contract::class, 'contracts', trans('admin/contracts/general.contracts'), 'contracts.index', function () use ($query) {
-            $builder = $this->like(Contract::query(), ['name', 'contract_number'], $query);
+            // schedule_number is how a lease is named everywhere outside this
+            // app — it is what the lessor puts on the quote and the invoice,
+            // and what gets typed in here ("301452-007").
+            $builder = $this->like(Contract::query(), ['name', 'contract_number', 'schedule_number'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderBy('name')->limit(self::PER_GROUP)->get()
                 ->map(fn (Contract $contract) => [
-                    'title' => $contract->name ?: $contract->contract_number,
-                    'subtitle' => (string) $contract->contract_number,
+                    'title' => $contract->name ?: ($contract->contract_number ?: $contract->schedule_number),
+                    'subtitle' => trim(collect([$contract->contract_number, $contract->schedule_number])
+                        ->filter()->unique()->implode(' · ')),
                     'url' => route('contracts.show', $contract->id),
                 ])->all();
+
+            return [$rows, $count];
+        });
+    }
+
+    private function orders(string $query): ?array
+    {
+        return $this->group('view', Order::class, 'orders', trans('admin/orders/general.orders'), 'orders.index', function () use ($query) {
+            $builder = $this->like($this->scoped(Order::query(), 'orders')->with('supplier'), ['order_number'], $query);
+            $count = (clone $builder)->count();
+
+            $rows = $builder->orderByDesc('order_date')->limit(self::PER_GROUP)->get()
+                ->map(fn (Order $order) => [
+                    'title' => $order->order_number,
+                    'subtitle' => trim(collect([
+                        $order->supplier?->name,
+                        $order->status ? trans('admin/orders/general.status_'.$order->status) : null,
+                    ])->filter()->implode(' · ')),
+                    'url' => route('orders.show', $order->id),
+                ])->all();
+
+            return [$rows, $count];
+        });
+    }
+
+    private function purchaseOrders(string $query): ?array
+    {
+        return $this->group('view', PurchaseOrder::class, 'purchase_orders', trans('admin/purchase-orders/general.purchase_orders'), 'purchase-orders.index', function () use ($query) {
+            $builder = $this->like($this->scoped(PurchaseOrder::query(), 'purchase_orders')->with('supplier'), ['po_number', 'title'], $query);
+            $count = (clone $builder)->count();
+
+            $rows = $builder->orderByDesc('id')->limit(self::PER_GROUP)->get()
+                ->map(fn (PurchaseOrder $po) => [
+                    'title' => $po->po_number,
+                    'subtitle' => trim(collect([$po->title, $po->supplier?->name])->filter()->implode(' · ')),
+                    'url' => route('purchase-orders.show', $po->id),
+                ])->all();
+
+            return [$rows, $count];
+        });
+    }
+
+    /**
+     * Invoices have no page of their own — they are rows on the order or the
+     * purchase order that carries them — so a hit opens its parent. Gated on
+     * orders: an invoice is an order's document, and anyone who cannot see
+     * the order has no business being handed its invoice number.
+     */
+    private function invoices(string $query): ?array
+    {
+        return $this->group('view', Order::class, 'invoices', trans('admin/purchase-orders/general.search_group_invoices'), 'reports.procurement.invoices', function () use ($query) {
+            $builder = $this->like(OrderInvoice::query()->with(['order', 'purchaseOrder']), ['invoice_number'], $query);
+            $count = (clone $builder)->count();
+
+            $rows = $builder->orderByDesc('id')->limit(self::PER_GROUP)->get()
+                ->map(function (OrderInvoice $invoice) {
+                    $parent = $invoice->order
+                        ? route('orders.show', $invoice->order->id)
+                        : ($invoice->purchaseOrder ? route('purchase-orders.show', $invoice->purchaseOrder->id) : null);
+
+                    return [
+                        'title' => $invoice->invoice_number,
+                        'subtitle' => trim(collect([
+                            $invoice->order?->order_number,
+                            $invoice->purchaseOrder?->po_number,
+                        ])->filter()->unique()->implode(' · ')),
+                        'url' => $parent,
+                    ];
+                })
+                // An invoice orphaned from both parents has nowhere to open.
+                ->filter(fn ($row) => $row['url'] !== null)
+                ->values()
+                ->all();
 
             return [$rows, $count];
         });

@@ -74,8 +74,17 @@ class RequisitionsController extends Controller
             array_unshift($fiscalYears, $selectedFiscalYear);
         }
 
+        // A capital-request basket edits against a budget: surface the
+        // FY's ending-schedule envelope so the builder's live total reads
+        // directly against it — the whole point of editing the request
+        // here is comparing it to the money while adjusting.
+        $capital = $requisition?->capital_request_fy
+            ? app(ProcurementReportsController::class)->capitalSummary($requisition->capital_request_fy)
+            : null;
+
         return view('reports/procurement/po-builder', [
             'reportTitle' => trans('admin/purchase-orders/general.report_po_builder'),
+            'capital' => $capital,
             'requisition' => $requisition,
             'catalog' => $catalog->map(fn (CatalogItem $item) => $this->catalogPayload($item)),
             'basket' => $requisition
@@ -154,6 +163,14 @@ class RequisitionsController extends Controller
             $requisition = $basket->save($validated);
         } catch (\RuntimeException $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
+        // Capital mode: the basket IS the FY's Devices Capital Request, so
+        // saving lands back on the capital page where the request reads
+        // against its envelope — the builder was just the editor.
+        if ($requisition->capital_request_fy) {
+            return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $requisition->capital_request_fy])
+                ->with('success', trans('admin/purchase-orders/general.requisition_saved'));
         }
 
         return redirect()->route('requisitions.show', $requisition->id)

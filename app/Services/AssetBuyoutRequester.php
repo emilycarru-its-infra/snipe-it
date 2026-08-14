@@ -9,6 +9,7 @@ use App\Models\Asset;
 use App\Models\EmailTemplate;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Leasing\BuyoutTracker;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -87,6 +88,10 @@ class AssetBuyoutRequester
         Mail::to($to)
             ->cc($cc)
             ->send(new AssetBuyoutRequestMail($asset, $requester));
+
+        // Open (or re-stamp) the tracked buyout, so the request appears on the
+        // decommissioning lane rather than only in this mail thread.
+        app(BuyoutTracker::class)->opened($asset, $requester);
 
         // Record the request on the asset's activity timeline.
         $log = new Actionlog;

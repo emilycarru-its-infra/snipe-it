@@ -28,6 +28,7 @@ class RequisitionBasket
         return [
             'requisition_id' => 'nullable|integer|exists:requisitions,id',
             'title' => 'required|string|max:191',
+            'capital_request_fy' => 'nullable|string|max:16',
             'supplier_id' => 'nullable|integer|exists:suppliers,id',
             'company_id' => 'nullable|integer|exists:companies,id',
             'fiscal_year' => 'nullable|string|max:16',
@@ -89,6 +90,14 @@ class RequisitionBasket
             'supplier_id' => $validated['supplier_id'] ?? null,
             'company_id' => $validated['company_id'] ?? null,
             'fiscal_year' => $validated['fiscal_year'] ?? null,
+            // The capital lineage: a basket carrying this IS the FY's
+            // Devices Capital Request, and the capital page renders it as
+            // such. Settable here so agent sessions drive planning over the
+            // API without touching the database (AB#4490). Absent key
+            // leaves an existing stamp alone.
+            'capital_request_fy' => array_key_exists('capital_request_fy', $validated)
+                ? ($validated['capital_request_fy'] ?: null)
+                : $requisition->capital_request_fy,
             'cost_center' => $validated['cost_center'] ?? null,
             'default_gl_number' => $validated['default_gl_number'] ?? null,
             'needed_by' => $validated['needed_by'] ?? null,

@@ -25,6 +25,8 @@ return [
     'type_license' => 'License',
     'type_accessory' => 'Accessory',
     'type_consumable' => 'Consumable',
+    'type_warranty' => 'Warranty',
+    'covers' => 'covers',
     'type_component' => 'Component',
     'status' => 'Status',
     'status_help' => 'Where this order sits in its lifecycle, from being placed through to being received.',
@@ -94,4 +96,5 @@ return [
     'collapse_all' => 'Collapse all',
     'received_progress' => ':received of :total received',
     'open_order' => 'Open',
+    'view_order' => 'View this order',
 ];

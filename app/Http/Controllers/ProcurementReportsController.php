@@ -632,7 +632,7 @@ class ProcurementReportsController extends Controller
         ];
         $grouped = ['discrepancies' => [], 'matches' => [], 'unserialized' => []];
 
-        $records = [];
+        $records = ['discrepancies' => [], 'matches' => [], 'unserialized' => []];
         $tally = ['match' => 0, 'schedule_mismatch' => 0, 'missing_in_snipe' => 0, 'extra_in_snipe' => 0, 'unserialized' => 0];
 
         foreach ((new CsiReconciliation)->assetDiff() as $row) {
@@ -646,7 +646,7 @@ class ProcurementReportsController extends Controller
             $bucket = $row['status'] === 'match' ? 'matches'
                 : ($row['status'] === 'unserialized' ? 'unserialized' : 'discrepancies');
             $grouped[$bucket][] = $row;
-            $records[] = [
+            $records[$bucket][] = [
                 'class' => in_array($row['status'], ['match', 'unserialized'], true) ? '' : 'danger',
                 'cells' => [
                     $t('csi_recon_'.$row['status']),
@@ -658,6 +658,36 @@ class ProcurementReportsController extends Controller
                     $row['snipe_status'],
                     $row['snipe_assigned'] ?? null,
                     $row['snipe_location'] ?? null,
+                ],
+            ];
+        }
+
+        // `records` stays flat and in bucket order so the CSV export keeps
+        // every device on its own line.
+        $flat = array_merge($records['discrepancies'], $records['unserialized'], $records['matches']);
+
+        // On screen it reads the other way round. Matches are the bulk and the
+        // least interesting thing here — a reconciliation is read for what did
+        // NOT line up — so discrepancies and unserialized lines stay flat and
+        // on top, and every match folds into one collapsed group beneath them.
+        $display = array_merge($records['discrepancies'], $records['unserialized']);
+
+        if (! empty($records['matches'])) {
+            $display[] = [
+                'class' => '',
+                'children_collapsed' => true,
+                'cells' => array_merge(
+                    [$t('csi_recon_match'), trans('admin/purchase-orders/general.csi_recon_match_fold', ['count' => count($records['matches'])])],
+                    array_fill(0, count($columns) - 2, '')
+                ),
+                'children' => [
+                    // The status column is dropped inside the group: every row
+                    // in it is a match, which is what the heading already says.
+                    'columns' => array_slice($columns, 1),
+                    'rows' => array_map(
+                        fn ($record) => ['cells' => array_slice($record['cells'], 1)],
+                        $records['matches']
+                    ),
                 ],
             ];
         }
@@ -681,7 +711,8 @@ class ProcurementReportsController extends Controller
 
         return [
             'columns' => $columns,
-            'records' => $records,
+            'records' => $flat,
+            'records_display' => $display,
             'grouped' => $grouped,
             'footer' => [$summary, '', '', '', '', '', '', '', ''],
         ];
@@ -1414,6 +1445,13 @@ class ProcurementReportsController extends Controller
 
         $data = $this->capitalRequestData($request->input('fiscal_year'));
 
+        // The request already became paper: drafting again would clone the
+        // requisition back onto itself.
+        if ($data['requisitionBacked']) {
+            return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $data['fy']])
+                ->with('error', trans('admin/purchase-orders/general.capital_already_drafted'));
+        }
+
         $lines = $data['refresh']->values();
 
         if ($lines->isEmpty() && $data['newAskLines']->isEmpty()) {
@@ -1504,8 +1542,17 @@ class ProcurementReportsController extends Controller
         // wave board shows. Devices on no wave fall back to the forecast's
         // like-for-like mapping. The wave rides along on the row, so the
         // request reads straight back to the board it came from.
+        // Scoped to the assets this request actually iterates — an
+        // unscoped read of every deployment item let any stray row that
+        // shared a replaces_asset_id silently win the keyBy and flip a
+        // device's request year (AB#4489).
+        $leaseGroups = $this->groupedLeaseAssets(null);
+        $leaseAssetIds = collect($leaseGroups)
+            ->flatMap(fn ($g) => collect($g['assets'])->pluck('id'))
+            ->filter()->values()->all();
         $waveItems = DeploymentItem::with(['wave:id,name,fiscal_year', 'model.refreshCatalogItem', 'model.category'])
             ->whereNotNull('replaces_asset_id')
+            ->whereIn('replaces_asset_id', $leaseAssetIds ?: [0])
             ->get()
             ->keyBy('replaces_asset_id');
 
@@ -1517,7 +1564,7 @@ class ProcurementReportsController extends Controller
         // self-contained purchase is not this request's paper.
         $reqByCatalog = [];
         $reqByDescription = [];
-        $fyRequisitions = Requisition::with(['purchaseOrder:id,po_number', 'items:id,requisition_id,catalog_item_id,description'])
+        $fyRequisitions = Requisition::with(['purchaseOrder:id,po_number', 'items.catalogItem'])
             ->where('capital_request_fy', $fyLabel)
             ->orderBy('created_at')
             ->get();
@@ -1551,7 +1598,51 @@ class ProcurementReportsController extends Controller
         $refreshTotal = 0.0;
         $refreshDevices = 0;
 
-        foreach ($this->groupedLeaseAssets(null) as $group) {
+        // ── Once the request has been drafted into a requisition, the
+        // paper IS the request. The derived device lines are planning
+        // scaffolding for composing the ask; the approvers compare this
+        // table against the PO, so from the moment lineage exists the
+        // table must read exactly as the requisition — same lines, same
+        // quantities, same total, nothing extra.
+        $requisitionBacked = $fyRequisitions->isNotEmpty();
+
+        if ($requisitionBacked) {
+            foreach ($fyRequisitions as $req) {
+                foreach ($req->items as $reqItem) {
+                    $catalog = $reqItem->catalogItem;
+                    $qty = (int) $reqItem->quantity;
+                    $unit = (float) $reqItem->unit_cost;
+
+                    $refresh['paper-'.$req->id.'-'.$reqItem->id] = [
+                        'area' => '—',
+                        'contract_id' => null,
+                        'contract_name' => '',
+                        'qty' => $qty,
+                        'type' => (string) ($catalog?->category ?: '—'),
+                        'model' => (string) $reqItem->description,
+                        'unit' => $unit,
+                        'estimated' => $catalog === null || $catalog->isEstimate(),
+                        'cost' => $qty * $unit,
+                        'preference' => '—',
+                        'waves' => [],
+                        'requisition_id' => $req->id,
+                        'reqm' => $req->requisition_number ? 'REQM '.$req->requisition_number : $req->title,
+                        'po' => $req->purchaseOrder?->po_number,
+                        'retained' => false,
+                        'note' => '',
+                        'catalog_item_id' => $catalog?->id,
+                        'vendor_sku' => $reqItem->vendor_sku,
+                        'mfr_part_number' => $reqItem->mfr_part_number,
+                        'supplier_id' => $catalog?->supplier_id,
+                    ];
+
+                    $refreshTotal += $qty * $unit;
+                    $refreshDevices += $qty;
+                }
+            }
+        }
+
+        foreach ($requisitionBacked ? [] : $leaseGroups as $group) {
             $decision = $decisions[$group['contract_id']] ?? null;
             if ($decision && $decision->decision_type === 'buyout'
                 && in_array($decision->status, ['approved', 'completed'], true)) {
@@ -1654,17 +1745,21 @@ class ProcurementReportsController extends Controller
         }
 
         // Attach the paper trail per line, then read in contract order.
-        foreach ($refresh as &$row) {
-            $paper = $reqByCatalog[$row['catalog_item_id']] ?? $reqByDescription[$row['model']] ?? null;
-            $row['requisition_id'] = $paper['requisition_id'] ?? null;
-            $row['reqm'] = $paper['reqm'] ?? null;
-            $row['po'] = $paper['po'] ?? null;
+        // Requisition-backed rows already carry their own paper — catalog
+        // matching would only re-derive what is literally on the row.
+        if (! $requisitionBacked) {
+            foreach ($refresh as &$row) {
+                $paper = $reqByCatalog[$row['catalog_item_id']] ?? $reqByDescription[$row['model']] ?? null;
+                $row['requisition_id'] = $paper['requisition_id'] ?? null;
+                $row['reqm'] = $paper['reqm'] ?? null;
+                $row['po'] = $paper['po'] ?? null;
+            }
+            unset($row);
         }
-        unset($row);
 
-        $refresh = collect($refresh)
-            ->sortBy([['contract_id', 'asc'], ['cost', 'desc']])
-            ->values();
+        $refresh = $requisitionBacked
+            ? collect($refresh)->values()
+            : collect($refresh)->sortBy([['contract_id', 'asc'], ['cost', 'desc']])->values();
 
         // ── The new asks: entered by hand, exactly as the workbook's "New
         // Ask" rows were. A new ask is a decision, not a derivation — this
@@ -1724,6 +1819,8 @@ class ProcurementReportsController extends Controller
             'allFiscalYears' => $this->availableFiscalYears(),
             'envelope' => $envelope,
             'endingSchedules' => $endingSchedules,
+            'requisitionBacked' => $requisitionBacked,
+            'capitalRequisitions' => $fyRequisitions,
             'refresh' => $refresh,
             'refreshTotal' => $refreshTotal,
             'refreshDevices' => $refreshDevices,
@@ -5052,8 +5149,11 @@ class ProcurementReportsController extends Controller
             ];
         }
 
-        // Biggest line first — that is the order the number gets asked in.
-        usort($records, fn ($a, $b) => $this->parseMoney($b['cells'][3]) <=> $this->parseMoney($a['cells'][3]));
+        // Contract name first, naturally ordered so "#2" sorts before "#10".
+        // The table is sortable in the browser, so this is the resting order
+        // rather than the only one: the register reads as a list of contracts,
+        // and biggest-line-first is one click on the rent column.
+        usort($records, fn ($a, $b) => strnatcasecmp((string) $a['cells'][0], (string) $b['cells'][0]));
 
         $footer = [
             trans('admin/orders/general.total'), '', '',
@@ -5061,8 +5161,10 @@ class ProcurementReportsController extends Controller
         ];
 
         // 'fy' rides along so the page can say which year it resolved to
-        // when the caller passed nothing.
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'fy' => $fyLabel];
+        // when the caller passed nothing. 'sortable' opts the table into
+        // in-browser column sorting, which is safe here because a register of
+        // contracts is a page of rows, not a paginated set.
+        return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'fy' => $fyLabel, 'sortable' => true];
     }
 
     /**
@@ -5363,6 +5465,7 @@ class ProcurementReportsController extends Controller
             'footer' => $report['footer'] ?? null,
             'reportCharts' => $report['charts'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
+            'sortable' => $report['sortable'] ?? false,
             'controls' => $controls,
             'downloadUrl' => route($routeName, array_filter($downloadParams, fn ($v) => $v !== null && $v !== '')),
             'reportParams' => $extraParams,
@@ -5382,9 +5485,13 @@ class ProcurementReportsController extends Controller
     {
         return view('reports/procurement/_report-table', [
             'columns' => $report['columns'],
-            'rows' => $report['records'],
+            // A report may render differently from how it exports — Lease
+            // Reconciliation folds its matches on screen and lists every one
+            // in the CSV.
+            'rows' => $report['records_display'] ?? $report['records'],
             'footer' => $report['footer'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
+            'sortable' => $report['sortable'] ?? false,
             'canEditNotes' => auth()->user()?->can('create', Order::class) ?? false,
         ]);
     }

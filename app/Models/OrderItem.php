@@ -41,6 +41,22 @@ class OrderItem extends Model
                 return;
             }
 
+            // Soft cost billed against hardware that shipped earlier — an
+            // AppleCare or onsite-support line carrying warranty cost and no
+            // equipment cost. There is nothing in the box to receive, so the
+            // line can never be ticked off and the order never completes.
+            // Order PVXX158 read "4 of 8 received" with all four Mac minis
+            // sitting on a desk since June, and PMZP706 sat at
+            // partially_received on 40 AppleCare lines against a single
+            // genuine outstanding item.
+            if ($item->isSoftCostOnly()) {
+                if ($item->invoice_id) {
+                    $item->received_at = now();
+                }
+
+                return;
+            }
+
             if ($item->item_type === Asset::class && $item->item_id) {
                 $asset = Asset::find($item->item_id);
                 if ($asset && $asset->status && $asset->status->deployable) {
@@ -112,6 +128,35 @@ class OrderItem extends Model
     public function lineTotal(): float
     {
         return ((float) $this->unit_cost * (int) $this->quantity) + (float) $this->warranty_cost;
+    }
+
+    /**
+     * Whether this line bills soft cost only — warranty, support or a service
+     * plan against equipment invoiced elsewhere, with no equipment cost of its
+     * own. CDW routinely bills these a day after the hardware, on their own
+     * invoice against the same serials.
+     *
+     * Nothing physical arrives for such a line, so it must not be counted as
+     * an outstanding receipt.
+     */
+    /**
+     * What this line is, for display. A warranty line points at the device it
+     * covers, so its item_type is Asset even though nothing shipped for it —
+     * labelling it "Asset" makes an order of four Mac minis read as eight
+     * machines, which is how PVXX158 came to look duplicated.
+     */
+    public function itemTypeLabel(): string
+    {
+        if ($this->isSoftCostOnly()) {
+            return trans('admin/orders/general.type_warranty');
+        }
+
+        return $this->item_type ? class_basename($this->item_type) : trans('general.na');
+    }
+
+    public function isSoftCostOnly(): bool
+    {
+        return (float) $this->unit_cost === 0.0 && (float) $this->warranty_cost > 0.0;
     }
 
     /**

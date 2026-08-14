@@ -947,12 +947,71 @@ class ProcurementReportsTest extends TestCase
         $this->assertSame('FY2026-27', $draft->capital_request_fy);
         $draft->forceFill(['requisition_number' => '0018000'])->save();
 
+        // The paper replaces the derivation: flat requisition lines, no
+        // group scaffolding, and the foreign requisition still nowhere.
         $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
             ->assertSee('REQM 0018000')
-            ->assertSee('class="capital-group-head"', false)
+            ->assertDontSee('class="capital-group-head"', false)
             ->assertDontSee('REQM 0017859');
+    }
+
+    /**
+     * The approval read: once the request has been drafted, the table IS
+     * the requisition — same lines, same quantities, same total as the PO
+     * builder, with the derived device lines gone and the draft button
+     * replaced by the door into the builder.
+     */
+    public function test_a_drafted_request_reads_exactly_as_its_requisition()
+    {
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI-CAPREQ-MATCH',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 1234.56]);
+
+        $requisition = \App\Models\Requisition::create([
+            'title' => 'Devices Capital Request FY2026-27',
+            'status' => 'draft',
+            'fiscal_year' => 'FY2026-27',
+            'capital_request_fy' => 'FY2026-27',
+        ]);
+        \App\Models\RequisitionItem::create([
+            'requisition_id' => $requisition->id,
+            'description' => 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver',
+            'quantity' => 32, 'unit_of_measure' => 'EA', 'unit_cost' => 2100,
+            'pst_applicable' => false, 'sort_order' => 0,
+        ]);
+        \App\Models\RequisitionItem::create([
+            'requisition_id' => $requisition->id,
+            'description' => 'Mac mini | M4 Pro | 48GB | 2TB',
+            'quantity' => 6, 'unit_of_measure' => 'EA', 'unit_cost' => 4500,
+            'pst_applicable' => false, 'sort_order' => 1,
+        ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            // The requisition's lines and total, to the cent.
+            ->assertSee('MacBook Air | 13&quot; | M5 | 16GB | 1TB | Silver', false)
+            ->assertSee('Mac mini | M4 Pro | 48GB | 2TB')
+            ->assertSee('$94,200.00')
+            // The draft button is gone; the builder door replaces it.
+            ->assertDontSee(trans('admin/purchase-orders/general.capital_draft_button'))
+            ->assertSee(route('purchase-orders.builder', ['requisition' => $requisition->id]), false)
+            ->getContent();
+
+        // The derived device line is gone: the contract appears exactly
+        // once — in the envelope table below, whose story is untouched by
+        // how the ask is rendered.
+        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-MATCH</a>'));
+
+        // Drafting again is refused — the paper already exists.
+        $this->actingAs($this->superuser())
+            ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27'])
+            ->assertSessionHas('error');
+        $this->assertSame(1, \App\Models\Requisition::where('capital_request_fy', 'FY2026-27')->count());
     }
 
     public function test_a_devices_request_year_follows_the_decision_not_the_paper()
@@ -1531,6 +1590,39 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('ECI-RENT-1')
             ->assertSee('Devices Leases FY26-27 #9')
             ->assertSee('$1,200.00');
+    }
+
+    public function test_rent_costs_rests_in_natural_contract_name_order_and_offers_column_sorting()
+    {
+        // Three contracts whose rents rank the opposite way to their names,
+        // and a "#10" that a plain string sort would file before "#9".
+        foreach ([['#9', '100'], ['#10', '300'], ['#2', '200']] as [$suffix, $rent]) {
+            $this->seedLeaseAsset([
+                'Lease Contract ID' => 'ECI-ORDER'.$suffix,
+                'Lease Contract Name' => 'Devices Leases FY26-27 '.$suffix,
+                'Lease Rent' => $rent,
+                'Lease End Date' => now()->startOfYear()->addYears(3)->format('Y-m-d'),
+            ], ['purchase_date' => now()->subYear()->format('Y-m-d')]);
+        }
+
+        $fy = now()->month >= 4 ? now()->year : now()->year - 1;
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.rent-costs', ['fiscal_year' => sprintf('FY%d-%02d', $fy, ($fy + 1) % 100)]))
+            ->assertOk()
+            ->getContent();
+
+        $positions = array_map(
+            fn ($name) => strpos($content, 'Devices Leases FY26-27 '.$name),
+            ['#2', '#9', '#10'],
+        );
+        $this->assertNotContains(false, $positions);
+        $sorted = $positions;
+        sort($sorted);
+        $this->assertSame($sorted, $positions, 'contracts rest in natural name order, not by rent');
+
+        // Every column is sortable in the browser from here.
+        $this->assertStringContainsString('data-sortable="1"', $content);
     }
 
     public function test_procurement_dashboard_leads_with_the_new_report_order_and_drops_lessor_breakdown()
