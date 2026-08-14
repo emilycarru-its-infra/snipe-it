@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -119,11 +120,34 @@ class SchemaCheck extends Command
         return self::FAILURE;
     }
 
-    /** @return string[] base table names (excludes views) */
+    /**
+     * Base table names in *this connection's* database, excluding views.
+     *
+     * `Schema::getTables()` is not scoped to the connection's schema — on
+     * MySQL it returns every table the server can see, across all databases.
+     * On a shared server that silently poisons the snapshot: a table living
+     * only in somebody else's database is recorded here as one of ours with
+     * an empty column list, and `schema:check` then reports drift for a table
+     * that was never ours, or passes a snapshot that is quietly wrong.
+     *
+     * It bit us for real. A snapshot regenerated against the shared local test
+     * server came out at 104 tables, two of them phantoms from another
+     * worktree's `snipeit_test_*` database, and the artefact was committed
+     * before anyone noticed. Nothing errors; the file is just wrong.
+     *
+     * Laravel returns a `schema` key per table on connections that support it,
+     * so filter on that where present and fall back to the unfiltered list on
+     * drivers that omit it (SQLite, which has a single schema anyway).
+     */
     private function baseTables(): array
     {
+        $database = DB::connection()->getDatabaseName();
+
         return collect(Schema::getTables())
             ->filter(fn ($t) => ($t['type'] ?? 'table') === 'table')
+            ->filter(fn ($t) => ! array_key_exists('schema', $t)
+                || $t['schema'] === null
+                || $t['schema'] === $database)
             ->map(fn ($t) => $t['name'])
             ->sort()
             ->values()
