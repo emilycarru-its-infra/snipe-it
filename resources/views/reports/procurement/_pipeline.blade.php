@@ -513,7 +513,7 @@
                 </table>
             </div>
             <div style="margin-top:10px;">
-                <a class="btn btn-primary btn-sm" href="{{ route('requisitions.show', $reqCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+                <a class="btn btn-primary btn-sm js-lightbox" href="{{ route('requisitions.show', $reqCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
             </div>
         </div>
     @endforeach
@@ -549,7 +549,7 @@
                 </table>
             </div>
             <div style="margin-top:10px;">
-                <a class="btn btn-primary btn-sm" href="{{ route('requisitions.show', $sentCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+                <a class="btn btn-primary btn-sm js-lightbox" href="{{ route('requisitions.show', $sentCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
             </div>
         </div>
     @endforeach
@@ -637,7 +637,7 @@
                     </p>
                 @endif
                 <div data-pp-actions>
-                    <a href="{{ route('orders.show', $card['id']) }}" class="btn btn-primary btn-sm">
+                    <a href="{{ route('orders.show', $card['id']) }}" class="btn btn-primary btn-sm js-lightbox">
                         {{ trans('admin/purchase-orders/general.pipeline_open_order') }}
                     </a>
                 </div>

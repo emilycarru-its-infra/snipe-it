@@ -135,7 +135,7 @@
                             @if (count($r['collisions'] ?? []) > 0)
                                 <i class="fas fa-exclamation-triangle text-yellow" title="{{ trans('admin/deployments/general.timeline_collision_tooltip') }}: {{ collect($r['collisions'])->map(fn ($c) => $c['name'].' ('.$c['label'].')')->implode(', ') }}"></i>
                             @endif
-                            <a href="{{ route('deployment-waves.show', $r['wave']) }}" style="min-width:0;">
+                            <a class="js-lightbox" href="{{ route('deployment-waves.show', $r['wave']) }}" style="min-width:0;">
                                 <span class="label" style="background-color: {{ $r['wave']->displayColor() }}; color:#fff; display:inline-block; max-width:100%;">{{ $r['wave']->name }}</span>
                             </a>
                         </div>

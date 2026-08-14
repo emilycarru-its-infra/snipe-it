@@ -296,7 +296,7 @@
                         <td><a href="{{ route('purchase-orders.builder', ['requisition' => $group['requisition_id']]) }}">{{ $group['reqm'] }}</a></td>
                         <td>
                             @if ($group['po'])
-                                <a href="{{ route('purchase-orders.show', $group['po']) }}">{{ $group['po'] }}</a>
+                                <a class="js-lightbox" href="{{ route('purchase-orders.show', $group['po']) }}">{{ $group['po'] }}</a>
                             @else
                                 <span class="text-muted">&mdash;</span>
                             @endif
@@ -336,7 +336,7 @@
         <ul class="list-unstyled" style="margin:0;">
             @foreach ($purchaseOrders as $po)
                 <li style="margin-bottom:4px;">
-                    <a href="{{ route('purchase-orders.show', $po) }}">{{ $po->po_number }}</a>
+                    <a class="js-lightbox" href="{{ route('purchase-orders.show', $po) }}">{{ $po->po_number }}</a>
                     @if ($po->title)<span class="text-muted">· {{ $po->title }}</span>@endif
                     @if ($po->budget)<span class="text-muted">· ${{ number_format((float) $po->budget, 2) }}</span>@endif
                 </li>

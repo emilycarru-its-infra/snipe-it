@@ -68,7 +68,7 @@
                     <dt>{{ trans('admin/purchase-orders/general.lease_pos') }}</dt>
                     <dd>
                         @forelse ($poNumbers as $poNumber)
-                            <a href="{{ route('purchase-orders.show', $poNumber) }}">{{ $poNumber }}</a>@if (! $loop->last), @endif
+                            <a class="js-lightbox" href="{{ route('purchase-orders.show', $poNumber) }}">{{ $poNumber }}</a>@if (! $loop->last), @endif
                         @empty — @endforelse
                     </dd>
                     <dt>{{ trans('admin/purchase-orders/general.lease_cdw_orders') }}</dt>
@@ -122,14 +122,14 @@
             @foreach ($devices as $device)
                 @php($asset = $device['asset'])
                 <tr>
-                    <td><a href="{{ route('hardware.show', $asset->id) }}" class="js-lightbox">{{ $asset->serial ?: '—' }}</a></td>
+                    <td><a class="js-lightbox" href="{{ route('hardware.show', $asset->id) }}" class="js-lightbox">{{ $asset->serial ?: '—' }}</a></td>
                     <td>{{ $asset->asset_tag }}</td>
                     <td>{{ $asset->model?->name ?: '—' }}</td>
                     <td>
                         @php($holder = $asset->holderUser())
                         @php($holderLocation = $asset->holderLocation())
                         @if ($holder)
-                            <a href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
+                            <a class="js-lightbox" href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
                         @elseif ($holderLocation)
                             {{ $holderLocation->name }}
                         @else

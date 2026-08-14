@@ -186,7 +186,7 @@
                 </div>
                 <div class="box-body">
                     <p>
-                        <a href="{{ route('purchase-orders.show', $requisition->purchase_order_id) }}">
+                        <a class="js-lightbox" href="{{ route('purchase-orders.show', $requisition->purchase_order_id) }}">
                             {{ $requisition->purchaseOrder?->po_number }}
                         </a>
                     </p>
@@ -201,7 +201,7 @@
             <div class="box box-primary">
                 <div class="box-body">
                     <p>{{ trans('admin/purchase-orders/general.order_from_po_help') }}</p>
-                    <a href="{{ route('purchase-orders.show', $requisition->purchaseOrder) }}" class="btn btn-primary btn-block">
+                    <a class="js-lightbox" href="{{ route('purchase-orders.show', $requisition->purchaseOrder) }}" class="btn btn-primary btn-block">
                         {{ trans('admin/purchase-orders/general.order_from_po_link', ['po' => $requisition->purchaseOrder?->po_number]) }}
                     </a>
                 </div>

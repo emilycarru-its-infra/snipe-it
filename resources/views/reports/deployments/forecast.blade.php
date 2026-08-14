@@ -147,7 +147,7 @@
             <tbody>
             @forelse ($waves as $wave)
                 <tr>
-                    <td><a href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a></td>
+                    <td><a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a></td>
                     <td>{{ $wave->typeLabel() }}</td>
                     <td>{{ ucfirst($wave->wave_state) }}</td>
                     <td class="text-right">{{ $wave->items_count }}</td>

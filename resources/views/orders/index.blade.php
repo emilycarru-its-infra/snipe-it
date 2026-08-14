@@ -137,7 +137,7 @@
                     <tr>
                         <td>
                             @if ($line->item_type === \App\Models\Asset::class && $line->item)
-                                <a href="{{ route('hardware.show', $line->item_id) }}">
+                                <a class="js-lightbox" href="{{ route('hardware.show', $line->item_id) }}">
                                     {{ $line->item->asset_tag }} — {{ $line->item->name ?: ($line->item->model->name ?? '') }}
                                 </a>
                             @else
@@ -165,7 +165,7 @@
             @endif
 
             <p style="margin:10px 0 0;">
-                <a href="{{ route('orders.show', $order->id) }}" class="btn btn-xs btn-default">{{ trans('admin/orders/general.open_order') }}</a>
+                <a class="js-lightbox" href="{{ route('orders.show', $order->id) }}" class="btn btn-xs btn-default">{{ trans('admin/orders/general.open_order') }}</a>
             </p>
         </div>
     </details>
