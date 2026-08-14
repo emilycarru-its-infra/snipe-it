@@ -1417,6 +1417,13 @@ class ProcurementReportsController extends Controller
 
         $data = $this->capitalRequestData($request->input('fiscal_year'));
 
+        // The request already became paper: drafting again would clone the
+        // requisition back onto itself.
+        if ($data['requisitionBacked']) {
+            return redirect()->route('reports.procurement.capital-request', ['fiscal_year' => $data['fy']])
+                ->with('error', trans('admin/purchase-orders/general.capital_already_drafted'));
+        }
+
         $lines = $data['refresh']->values();
 
         if ($lines->isEmpty() && $data['newAskLines']->isEmpty()) {
@@ -1507,8 +1514,17 @@ class ProcurementReportsController extends Controller
         // wave board shows. Devices on no wave fall back to the forecast's
         // like-for-like mapping. The wave rides along on the row, so the
         // request reads straight back to the board it came from.
+        // Scoped to the assets this request actually iterates — an
+        // unscoped read of every deployment item let any stray row that
+        // shared a replaces_asset_id silently win the keyBy and flip a
+        // device's request year (AB#4489).
+        $leaseGroups = $this->groupedLeaseAssets(null);
+        $leaseAssetIds = collect($leaseGroups)
+            ->flatMap(fn ($g) => collect($g['assets'])->pluck('id'))
+            ->filter()->values()->all();
         $waveItems = DeploymentItem::with(['wave:id,name,fiscal_year', 'model.refreshCatalogItem', 'model.category'])
             ->whereNotNull('replaces_asset_id')
+            ->whereIn('replaces_asset_id', $leaseAssetIds ?: [0])
             ->get()
             ->keyBy('replaces_asset_id');
 
@@ -1520,7 +1536,7 @@ class ProcurementReportsController extends Controller
         // self-contained purchase is not this request's paper.
         $reqByCatalog = [];
         $reqByDescription = [];
-        $fyRequisitions = Requisition::with(['purchaseOrder:id,po_number', 'items:id,requisition_id,catalog_item_id,description'])
+        $fyRequisitions = Requisition::with(['purchaseOrder:id,po_number', 'items.catalogItem'])
             ->where('capital_request_fy', $fyLabel)
             ->orderBy('created_at')
             ->get();
@@ -1554,7 +1570,51 @@ class ProcurementReportsController extends Controller
         $refreshTotal = 0.0;
         $refreshDevices = 0;
 
-        foreach ($this->groupedLeaseAssets(null) as $group) {
+        // ── Once the request has been drafted into a requisition, the
+        // paper IS the request. The derived device lines are planning
+        // scaffolding for composing the ask; the approvers compare this
+        // table against the PO, so from the moment lineage exists the
+        // table must read exactly as the requisition — same lines, same
+        // quantities, same total, nothing extra.
+        $requisitionBacked = $fyRequisitions->isNotEmpty();
+
+        if ($requisitionBacked) {
+            foreach ($fyRequisitions as $req) {
+                foreach ($req->items as $reqItem) {
+                    $catalog = $reqItem->catalogItem;
+                    $qty = (int) $reqItem->quantity;
+                    $unit = (float) $reqItem->unit_cost;
+
+                    $refresh['paper-'.$req->id.'-'.$reqItem->id] = [
+                        'area' => '—',
+                        'contract_id' => null,
+                        'contract_name' => '',
+                        'qty' => $qty,
+                        'type' => (string) ($catalog?->category ?: '—'),
+                        'model' => (string) $reqItem->description,
+                        'unit' => $unit,
+                        'estimated' => $catalog === null || $catalog->isEstimate(),
+                        'cost' => $qty * $unit,
+                        'preference' => '—',
+                        'waves' => [],
+                        'requisition_id' => $req->id,
+                        'reqm' => $req->requisition_number ? 'REQM '.$req->requisition_number : $req->title,
+                        'po' => $req->purchaseOrder?->po_number,
+                        'retained' => false,
+                        'note' => '',
+                        'catalog_item_id' => $catalog?->id,
+                        'vendor_sku' => $reqItem->vendor_sku,
+                        'mfr_part_number' => $reqItem->mfr_part_number,
+                        'supplier_id' => $catalog?->supplier_id,
+                    ];
+
+                    $refreshTotal += $qty * $unit;
+                    $refreshDevices += $qty;
+                }
+            }
+        }
+
+        foreach ($requisitionBacked ? [] : $leaseGroups as $group) {
             $decision = $decisions[$group['contract_id']] ?? null;
             if ($decision && $decision->decision_type === 'buyout'
                 && in_array($decision->status, ['approved', 'completed'], true)) {
@@ -1657,17 +1717,21 @@ class ProcurementReportsController extends Controller
         }
 
         // Attach the paper trail per line, then read in contract order.
-        foreach ($refresh as &$row) {
-            $paper = $reqByCatalog[$row['catalog_item_id']] ?? $reqByDescription[$row['model']] ?? null;
-            $row['requisition_id'] = $paper['requisition_id'] ?? null;
-            $row['reqm'] = $paper['reqm'] ?? null;
-            $row['po'] = $paper['po'] ?? null;
+        // Requisition-backed rows already carry their own paper — catalog
+        // matching would only re-derive what is literally on the row.
+        if (! $requisitionBacked) {
+            foreach ($refresh as &$row) {
+                $paper = $reqByCatalog[$row['catalog_item_id']] ?? $reqByDescription[$row['model']] ?? null;
+                $row['requisition_id'] = $paper['requisition_id'] ?? null;
+                $row['reqm'] = $paper['reqm'] ?? null;
+                $row['po'] = $paper['po'] ?? null;
+            }
+            unset($row);
         }
-        unset($row);
 
-        $refresh = collect($refresh)
-            ->sortBy([['contract_id', 'asc'], ['cost', 'desc']])
-            ->values();
+        $refresh = $requisitionBacked
+            ? collect($refresh)->values()
+            : collect($refresh)->sortBy([['contract_id', 'asc'], ['cost', 'desc']])->values();
 
         // ── The new asks: entered by hand, exactly as the workbook's "New
         // Ask" rows were. A new ask is a decision, not a derivation — this
@@ -1727,6 +1791,8 @@ class ProcurementReportsController extends Controller
             'allFiscalYears' => $this->availableFiscalYears(),
             'envelope' => $envelope,
             'endingSchedules' => $endingSchedules,
+            'requisitionBacked' => $requisitionBacked,
+            'capitalRequisitions' => $fyRequisitions,
             'refresh' => $refresh,
             'refreshTotal' => $refreshTotal,
             'refreshDevices' => $refreshDevices,
