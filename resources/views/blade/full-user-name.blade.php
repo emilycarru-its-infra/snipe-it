@@ -6,10 +6,10 @@
     @can('view', $user)
         @if(! $user->trashed())
             {{-- if the user is in database, the viewer CAN see them, and the user is not deleted --}}
-            <a href="{{ route('users.show', $user->id) }}">{{ $user->display_name }}</a>
+            <a class="js-lightbox" href="{{ route('users.show', $user->id) }}">{{ $user->display_name }}</a>
         @else
             {{-- if the user is soft deleted, but the viewer can see them, add a strikethrough --}}
-            <s><a href="{{ route('users.show', $user->id) }}">{{ $user->display_name }}</a></s>
+            <s><a class="js-lightbox" href="{{ route('users.show', $user->id) }}">{{ $user->display_name }}</a></s>
         @endif
     @else
         @if(! $user->trashed())

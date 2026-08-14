@@ -99,7 +99,7 @@
                     </td>
                     <td>
                         @if ($holder)
-                            <a href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
+                            <a class="js-lightbox" href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
                             @if ($flagged)
                                 <i class="fas fa-triangle-exclamation text-warning" aria-hidden="true"
                                    title="{{ trans('admin/deployments/general.roster_reason_'.$ineligibleReasons[$holder->id]['reason']) }}"></i>
@@ -113,7 +113,7 @@
                     </td>
                     <td>
                         @if ($current)
-                            <a href="{{ route('hardware.show', $current) }}">{{ $current->asset_tag ?: $current->name }}</a>
+                            <a class="js-lightbox" href="{{ route('hardware.show', $current) }}">{{ $current->asset_tag ?: $current->name }}</a>
                         @else — @endif
                     </td>
                     <td>
@@ -234,7 +234,7 @@
                                 $holderLocation = $item->replacesAsset?->holderLocation() ?? $item->asset?->holderLocation();
                             @endphp
                             @if ($holder)
-                                <a href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
+                                <a class="js-lightbox" href="{{ route('users.show', $holder) }}">{{ $holder->present()->fullName }}</a>
                             @elseif ($holderLocation)
                                 <i class="fas fa-location-dot text-muted" aria-hidden="true"></i>
                                 <a href="{{ route('locations.show', $holderLocation) }}">{{ $holderLocation->name }}</a>
@@ -244,7 +244,7 @@
                         </td>
                         <td>
                             @if ($item->replacesAsset)
-                                <a href="{{ route('hardware.show', $item->replacesAsset) }}">{{ $item->replacesAsset->asset_tag ?: $item->replacesAsset->name }}</a>
+                                <a class="js-lightbox" href="{{ route('hardware.show', $item->replacesAsset) }}">{{ $item->replacesAsset->asset_tag ?: $item->replacesAsset->name }}</a>
                                 @if ($item->replacesAsset->serial)<span class="text-muted">· {{ $item->replacesAsset->serial }}</span>@endif
                             @else — @endif
                         </td>

@@ -415,7 +415,7 @@
                                                 </td>
                                                 <td>
                                                     @if ($agreement->user)
-                                                        <a href="{{ route('users.show', $agreement->user) }}">{{ $agreement->user->full_name }}</a>
+                                                        <a class="js-lightbox" href="{{ route('users.show', $agreement->user) }}">{{ $agreement->user->full_name }}</a>
                                                     @else — @endif
                                                 </td>
                                                 <td>{{ trans('admin/purchase-orders/general.user_agreement_stage_value_'.$agreement->lifecycle_stage) }}</td>
@@ -491,7 +491,7 @@
                                 <tbody>
                                 @forelse ($assetOrders as $assetOrder)
                                     <tr>
-                                        <td><a href="{{ route('orders.show', $assetOrder->id) }}">{{ $assetOrder->order_number }}</a></td>
+                                        <td><a class="js-lightbox" href="{{ route('orders.show', $assetOrder->id) }}">{{ $assetOrder->order_number }}</a></td>
                                         <td>{{ trans('admin/orders/general.status_'.$assetOrder->status) }}</td>
                                         <td>{{ $assetOrder->supplier?->name }}</td>
                                         <td>{{ $assetOrder->order_date ? $assetOrder->order_date->format('Y-m-d') : '' }}</td>

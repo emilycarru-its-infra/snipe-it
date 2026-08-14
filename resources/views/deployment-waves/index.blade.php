@@ -39,7 +39,7 @@
             <tbody>
             @forelse ($waves as $wave)
                 <tr>
-                    <td><a href="{{ route('deployment-waves.show', $wave) }}">{{ $wave->name }}</a></td>
+                    <td><a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}">{{ $wave->name }}</a></td>
                     <td><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->typeLabel() }}</span></td>
                     <td>{{ $wave->fiscal_year ?: '—' }}</td>
                     <td>{{ ucfirst($wave->wave_state ?: '—') }}</td>

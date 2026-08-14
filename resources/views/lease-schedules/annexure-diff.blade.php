@@ -58,7 +58,7 @@
                         @foreach ($matched as $row)
                             <tr>
                                 <td><code>{{ $row['serial'] }}</code></td>
-                                <td><a href="{{ route('hardware.show', $row['asset']->id) }}">{{ $row['asset']->asset_tag }}</a></td>
+                                <td><a class="js-lightbox" href="{{ route('hardware.show', $row['asset']->id) }}">{{ $row['asset']->asset_tag }}</a></td>
                             </tr>
                         @endforeach
                         </tbody>
@@ -110,7 +110,7 @@
                         @foreach ($missingInAnnexure as $asset)
                             <tr>
                                 <td><code>{{ $asset->serial }}</code></td>
-                                <td><a href="{{ route('hardware.show', $asset->id) }}">{{ $asset->asset_tag }}</a></td>
+                                <td><a class="js-lightbox" href="{{ route('hardware.show', $asset->id) }}">{{ $asset->asset_tag }}</a></td>
                             </tr>
                         @endforeach
                         </tbody>

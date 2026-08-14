@@ -99,7 +99,7 @@
                     <div class="wave-meta-label">{{ trans('admin/deployments/general.purchase_order') }}</div>
                     @include('deployment-waves._inline-field', ['wave' => $wave, 'field' => 'purchase_order_id', 'element' => 'select', 'options' => $wavePos, 'display' => $wave->purchaseOrder?->po_number])
                     @if ($wave->purchaseOrder)
-                        <a href="{{ route('purchase-orders.show', $wave->purchaseOrder) }}" class="wave-meta-follow" title="{{ trans('general.view') }}"><i class="fas fa-external-link-alt" aria-hidden="true"></i></a>
+                        <a class="js-lightbox" href="{{ route('purchase-orders.show', $wave->purchaseOrder) }}" class="wave-meta-follow" title="{{ trans('general.view') }}"><i class="fas fa-external-link-alt" aria-hidden="true"></i></a>
                     @endif
                 </div>
             </div>

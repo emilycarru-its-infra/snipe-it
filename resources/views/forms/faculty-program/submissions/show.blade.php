@@ -29,7 +29,7 @@
                     <dt>{{ trans('admin/forms/faculty-program.submission_asset') }}</dt>
                     <dd>
                         @if ($agreement->asset)
-                            <a href="{{ route('hardware.show', $agreement->asset->id) }}">
+                            <a class="js-lightbox" href="{{ route('hardware.show', $agreement->asset->id) }}">
                                 {{ $agreement->asset->asset_tag }}
                             </a>
                         @else

@@ -169,7 +169,7 @@
                     @foreach ($purchaseOrder->requisitions as $requisition)
                         <p class="text-muted">
                             {{ trans('admin/purchase-orders/general.order_lines_from', ['reqm' => $requisition->requisition_number ?: ('REQ-'.$requisition->id)]) }}
-                            <a href="{{ route('requisitions.show', $requisition->id) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+                            <a class="js-lightbox" href="{{ route('requisitions.show', $requisition->id) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
                         </p>
                     @endforeach
                 @endif
@@ -188,7 +188,7 @@
                     <tbody>
                     @forelse ($purchaseOrder->orders as $childOrder)
                         <tr>
-                            <td><a href="{{ route('orders.show', $childOrder->id) }}">{{ $childOrder->order_number }}</a></td>
+                            <td><a class="js-lightbox" href="{{ route('orders.show', $childOrder->id) }}">{{ $childOrder->order_number }}</a></td>
                             <td>{{ trans('admin/orders/general.status_'.$childOrder->status) }}</td>
                             <td>{{ $childOrder->supplier?->name }}</td>
                             <td>{{ $childOrder->order_date ? $childOrder->order_date->format('Y-m-d') : '' }}</td>

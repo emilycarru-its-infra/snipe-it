@@ -89,7 +89,7 @@
                         <span class="order-fact-label">{{ trans('admin/purchase-orders/general.purchase_order') }}</span>
                         <span class="order-fact-value">
                             @if ($order->purchaseOrder)
-                                <a href="{{ route('purchase-orders.show', ['purchase_order' => $order->purchaseOrder->id]) }}">{{ $order->purchaseOrder->po_number }}</a>
+                                <a class="js-lightbox" href="{{ route('purchase-orders.show', ['purchase_order' => $order->purchaseOrder->id]) }}">{{ $order->purchaseOrder->po_number }}</a>
                             @else
                                 —
                             @endif
@@ -175,7 +175,7 @@
                                     @else
                                         <x-icon type="asset" />
                                     @endif
-                                    <a href="{{ route('hardware.show', $li->id) }}">{{ $li->present()->fullName() }}</a>
+                                    <a class="js-lightbox" href="{{ route('hardware.show', $li->id) }}">{{ $li->present()->fullName() }}</a>
                                 @elseif ($li)
                                     {!! $li->present()->nameUrl() !!}
                                 @else
