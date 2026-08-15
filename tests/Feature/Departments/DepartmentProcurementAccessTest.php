@@ -72,6 +72,35 @@ class DepartmentProcurementAccessTest extends TestCase
         $this->assertFalse((bool) $department->fresh()->procurement_access);
     }
 
+    public function test_a_granted_member_sees_the_full_procurement_menu_and_their_assets_button()
+    {
+        $finance = Department::factory()->create(['name' => 'Menu Test', 'procurement_access' => true]);
+        $member = User::factory()->create(['department_id' => $finance->id, 'activated' => 1]);
+
+        $content = $this->actingAs($member)->get(route('my'))->assertOk()->getContent();
+
+        // The whole menu, not two entries: the paper trail links and the
+        // reports, plus the Assets tab pointing at their own equipment.
+        foreach ([
+            route('orders.index'), route('purchase-orders.index'), route('requisitions.index'),
+            route('reports.lessor-breakdown'), route('reports.procurement.capital-request'),
+            route('reports.procurement.user-agreement-ledger'), route('my'),
+        ] as $link) {
+            $this->assertStringContainsString($link, $content, "missing: $link");
+        }
+
+        // Read is real: the indexes open...
+        $this->actingAs($member)->get(route('requisitions.index'))->assertOk();
+        $this->actingAs($member)->get(route('purchase-orders.index'))->assertOk();
+        $this->actingAs($member)->get(route('orders.index'))->assertOk();
+
+        // ...and write is not: no drafting, no deciding.
+        $this->assertFalse($member->can('create', \App\Models\Requisition::class));
+        $this->actingAs($member)->post(route('procurement.queue.decide', \App\Models\StoreOrder::create([
+            'user_id' => $member->id, 'status' => 'pending',
+        ])->id), ['decision' => 'approved'])->assertForbidden();
+    }
+
     public function test_the_department_form_saves_and_clears_the_flag()
     {
         $admin = User::factory()->superuser()->create();
