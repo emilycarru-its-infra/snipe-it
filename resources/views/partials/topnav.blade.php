@@ -6,6 +6,18 @@
      the two navigations are never on screen at once. --}}
 <ul class="nav navbar-nav topnav">
 
+    {{-- Everyone owns their own equipment page. Users without the admin
+         assets grant (department-granted readers like Finance) get an
+         Assets tab pointing at /my, so gaining procurement access never
+         costs them the button end users always had. --}}
+    @cannot('index', \App\Models\Asset::class)
+        <li style="order: {{ \App\Helpers\ToolbarConfig::order('assets') }}" class="topnav-item{!! (request()->is('my') ? ' active' : '') !!}">
+            <a href="{{ route('my') }}">
+                <x-icon type="assets" class="fa-fw" />
+                <span class="topbar-nav-label">{{ trans('general.assets') }}</span>
+            </a>
+        </li>
+    @endcannot
     @can('index', \App\Models\Asset::class)
         @if (\App\Helpers\ToolbarConfig::visible('assets'))
     <li style="order: {{ \App\Helpers\ToolbarConfig::order('assets') }}" class="dropdown topnav-item topnav-assets{!! (request()->is('hardware*') || request()->is('statuslabels/*') || request()->is('maintenances*') ? ' active' : '') !!}">
