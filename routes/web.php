@@ -337,9 +337,9 @@ Route::group(['middleware' => 'auth'], function () {
 
     /*
     * Exhibit projects — Grad Show / exhibit equipment tracking board.
-    * GET routes carry breadcrumbs chained off the /reports/exhibit board.
+    * GET routes carry breadcrumbs chained off the /deployments/exhibits board.
     */
-    $exhibitCrumb = fn (Trail $trail) => $trail->parent('reports.exhibit');
+    $exhibitCrumb = fn (Trail $trail) => $trail->parent('deployments.exhibits');
 
     Route::get('exhibit-projects/create', [ExhibitProjectsController::class, 'create'])
         ->name('exhibit-projects.create')
@@ -356,8 +356,6 @@ Route::group(['middleware' => 'auth'], function () {
 
     Route::resource('exhibit-projects', ExhibitProjectsController::class)
         ->except(['index', 'create', 'edit', 'show']);
-    Route::post('exhibit-projects/send-bulk', [ExhibitProjectsController::class, 'sendBulk'])
-        ->name('exhibit-projects.send-bulk');
     Route::post('exhibit-projects/{exhibitProject}/email', [ExhibitProjectsController::class, 'sendEmail'])
         ->name('exhibit-projects.email');
 
@@ -452,6 +450,13 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployments.decommissioning')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.decom_nav'), route('deployments.decommissioning')));
+    Route::get('deployments/exhibits', [ExhibitProjectsController::class, 'report'])
+        ->name('deployments.exhibits')
+        ->middleware('can:view,App\Models\Order')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('deployments.exhibits')));
+    Route::post('deployments/exhibits/compose', [ExhibitProjectsController::class, 'compose'])
+        ->name('exhibit-projects.compose');
     Route::get('deployments/waves/create', [DeploymentsController::class, 'create'])
         ->name('deployment-waves.create')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
@@ -477,6 +482,11 @@ Route::group(['middleware' => 'auth'], function () {
     // Announcing a wave to the people in it — and thereby starting it.
     Route::post('deployments/waves/{deploymentWave}/announce', [DeploymentsController::class, 'announce'])
         ->name('deployment-waves.announce');
+
+    // Allocating equipment the university already owns to a wave — the
+    // relocation/exhibit shape, where nothing is purchased.
+    Route::post('deployments/waves/{deploymentWave}/items/existing', [DeploymentItemsController::class, 'storeExisting'])
+        ->name('deployment-items.store-existing');
 
     // Per-device item rows on a wave board.
     Route::post('deployment-items/bulk-stage', [DeploymentItemsController::class, 'bulkStage'])
@@ -1289,12 +1299,13 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/reports/printing.dashboard_title'), route('reports.printing')));
 
-    Route::get('exhibit', [ExhibitProjectsController::class, 'report'])
-        ->name('reports.exhibit')
-        ->middleware('can:view,App\Models\Order')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
-            ->push(trans('general.reports'), route('reports.index'))
-            ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('reports.exhibit')));
+    // The exhibit board moved out to /deployments/exhibits — it is a
+    // deployment of existing equipment, not a report.
+    Route::get('exhibit', function () {
+        $query = request()->getQueryString();
+
+        return redirect('/deployments/exhibits'.($query ? '?'.$query : ''), 301);
+    });
 
     // The Deployments board moved out to /deployments (route name kept).
     Route::get('deployments', function () {

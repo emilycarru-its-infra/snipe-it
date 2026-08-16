@@ -6,10 +6,13 @@
 
 @section('header_right')
     <a href="{{ route('exhibit-config.index', 'exhibits') }}" class="btn btn-sm btn-default"><i class="fas fa-cog"></i> {{ trans('admin/exhibit-projects/general.configure') }}</a>
-    <a href="{{ route('exhibit-email-templates.index') }}" class="btn btn-sm btn-default"><i class="fas fa-envelope"></i> {{ trans('admin/exhibit-projects/general.email_templates') }}</a>
+    <a href="{{ route('exhibit-email-templates.index') }}" class="btn btn-sm btn-default"><i class="fas fa-envelope-open-text"></i> {{ trans('admin/exhibit-projects/general.email_templates') }}</a>
     <a href="{{ route('exhibit-projects.import-form') }}" class="btn btn-sm btn-default"><i class="fas fa-upload"></i> {{ trans('admin/exhibit-projects/general.import_title') }}</a>
     <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('general.download') }}</a>
     <a href="{{ route('exhibit-projects.create') }}" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> {{ trans('admin/exhibit-projects/general.add_project') }}</a>
+    @if ($templates->isNotEmpty())
+        @include('exhibit-projects._compose')
+    @endif
 @stop
 
 @section('content')
@@ -17,7 +20,7 @@
 {{-- Filters --}}
 <div class="row">
     <div class="col-md-12">
-        <form method="GET" action="{{ route('reports.exhibit') }}" class="form-inline" style="margin-bottom:15px;">
+        <form method="GET" action="{{ route('deployments.exhibits') }}" class="form-inline" style="margin-bottom:15px;">
             <div class="form-group">
                 <label>{{ trans('admin/exhibit-projects/general.filter_show') }}</label>
                 <select name="exhibit" class="form-control" onchange="this.form.submit()">
@@ -81,27 +84,6 @@
         </div>
     @endforeach
 </div>
-
-{{-- Bulk confirmation email to all approved --}}
-@if ($templates->isNotEmpty())
-<div class="row">
-    <div class="col-md-12" style="margin-bottom:10px;">
-        <form method="POST" action="{{ route('exhibit-projects.send-bulk') }}" class="form-inline" onsubmit="return confirm('{{ trans('admin/exhibit-projects/general.send_to_approved') }}?');">
-            {{ csrf_field() }}
-            <input type="hidden" name="exhibit" value="{{ $exhibitId }}">
-            <input type="hidden" name="year" value="{{ $year }}">
-            <div class="form-group">
-                <select name="template_id" class="form-control">
-                    @foreach ($templates as $template)
-                        <option value="{{ $template->id }}">{{ $template->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <button type="submit" class="btn btn-default"><i class="fas fa-paper-plane"></i> {{ trans('admin/exhibit-projects/general.send_to_approved') }}</button>
-        </form>
-    </div>
-</div>
-@endif
 
 {{-- Project table --}}
 <div class="box box-default">

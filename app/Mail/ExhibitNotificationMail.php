@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\ExhibitEmailTemplate;
 use App\Models\ExhibitProject;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
@@ -11,9 +10,12 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Sends one editable exhibit email template to a student, with the
- * project's {{merge_variables}} substituted into the subject + body.
- * Goes out through the M365 SMTP relay.
+ * One exhibit email to one student, with the project's
+ * {{merge_variables}} substituted into the subject + body. The wording
+ * arrives as plain strings — a stored template, or whatever the composer
+ * sheet holds after the admin edited it — so the send path is the same
+ * whether the letter was saved first or not. Goes out through the M365
+ * SMTP relay.
  */
 class ExhibitNotificationMail extends BaseMailable
 {
@@ -21,27 +23,35 @@ class ExhibitNotificationMail extends BaseMailable
 
     public ExhibitProject $project;
 
-    public ExhibitEmailTemplate $template;
-
     public string $renderedSubject;
 
     public string $renderedBody;
 
-    public function __construct(ExhibitProject $project, ExhibitEmailTemplate $template)
+    public bool $test;
+
+    public function __construct(ExhibitProject $project, string $subject, string $body, bool $test = false)
     {
         $this->project = $project->loadMissing(['user', 'asset']);
-        $this->template = $template;
+        $this->test = $test;
 
-        $rendered = $template->render($this->project);
-        $this->renderedSubject = $rendered['subject'];
-        $this->renderedBody = $rendered['body'];
+        // Both token spellings resolve — {{var}} as the stored templates
+        // are written, {{ var }} as the composer's field inserter writes.
+        foreach ($this->project->mergeVariables() as $var => $value) {
+            $subject = str_replace(['{{'.$var.'}}', '{{ '.$var.' }}'], $value, $subject);
+            $body = str_replace(['{{'.$var.'}}', '{{ '.$var.' }}'], $value, $body);
+        }
+
+        $this->renderedSubject = $subject;
+        $this->renderedBody = $body;
     }
 
     public function envelope(): Envelope
     {
+        $subject = $this->renderedSubject !== '' ? $this->renderedSubject : 'Exhibit';
+
         return new Envelope(
             from: new Address(config('mail.from.address'), config('mail.from.name')),
-            subject: $this->renderedSubject !== '' ? $this->renderedSubject : ($this->template->name ?? 'Exhibit'),
+            subject: ($this->test ? '[TEST] ' : '').$subject,
         );
     }
 

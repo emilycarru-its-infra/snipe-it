@@ -19,6 +19,7 @@ use Watson\Validating\ValidatingTrait;
  * per-device stages.
  *
  * @property-read Collection<int, DeploymentItem> $items
+ * @property-read DeploymentType|null $type
  */
 class DeploymentWave extends SnipeModel
 {
