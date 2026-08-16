@@ -5,7 +5,7 @@
 @stop
 
 @section('header_right')
-    <a href="{{ route('reports.exhibit') }}" class="btn btn-sm btn-default">{{ trans('admin/exhibit-projects/general.dashboard_title') }}</a>
+    <a href="{{ route('deployments.exhibits') }}" class="btn btn-sm btn-default">{{ trans('admin/exhibit-projects/general.dashboard_title') }}</a>
     <a href="{{ route('exhibit-config.create', $catalog) }}" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i> {{ trans('button.add') }}</a>
 @stop
 

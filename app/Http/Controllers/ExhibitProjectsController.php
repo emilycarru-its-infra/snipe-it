@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * Exhibit equipment tracking board — the Grad Show Numbers-sheet
  * replacement. `report()` renders the donut+count widgets + the table at
- * /reports/exhibit; the rest is light CRUD, the in-app student emails,
+ * /deployments/exhibits; the rest is light CRUD, the in-app student emails,
  * and the historical CSV backfill. Exhibits / statuses / project types
  * are editable catalogs; this controller groups by their FKs.
  * Authorization reuses the Order policy.
@@ -30,7 +30,7 @@ class ExhibitProjectsController extends Controller
     private const DEVICE_PALETTE = ['#f39c12', '#2ecc71', '#f1c40f', '#1abc9c', '#9b59b6', '#e74c3c', '#3498db', '#34495e', '#16a085', '#e67e22'];
 
     /**
-     * The /reports/exhibit board: three donut+count widgets + the
+     * The /deployments/exhibits board: three donut+count widgets + the
      * filterable table. Supports ?exhibit=, ?year=, ?status= and
      * ?format=csv.
      */
@@ -61,7 +61,17 @@ class ExhibitProjectsController extends Controller
             return $this->streamCsv($projects, $exhibits->firstWhere('id', $exhibitId)?->name ?? 'exhibit', $year);
         }
 
-        return view('reports.exhibit.index', [
+        // Who the composer reaches: every approved project with somewhere
+        // to send — independent of the table's current status filter.
+        $composeRecipients = ExhibitProject::with('user')
+            ->where('exhibit_id', $exhibitId)
+            ->where('year', $year)
+            ->where('approved', true)
+            ->get()
+            ->filter(fn ($p) => $p->recipientEmail())
+            ->values();
+
+        return view('exhibit-projects.index', [
             'projects' => $projects,
             'exhibits' => $exhibits,
             'statuses' => $statuses,
@@ -71,7 +81,8 @@ class ExhibitProjectsController extends Controller
             'statusFilter' => $statusFilter,
             'widgets' => $this->buildWidgets($projects, $types, $statuses),
             'templates' => ExhibitEmailTemplate::where('enabled', true)->orderBy('name')->get(),
-            'downloadUrl' => route('reports.exhibit', ['exhibit' => $exhibitId, 'year' => $year, 'status' => $statusFilter, 'format' => 'csv']),
+            'composeRecipients' => $composeRecipients,
+            'downloadUrl' => route('deployments.exhibits', ['exhibit' => $exhibitId, 'year' => $year, 'status' => $statusFilter, 'format' => 'csv']),
         ]);
     }
 
@@ -187,7 +198,7 @@ class ExhibitProjectsController extends Controller
             return redirect()->back()->withInput()->withErrors($project->getErrors());
         }
 
-        return redirect()->route('reports.exhibit', ['exhibit' => $project->exhibit_id, 'year' => $project->year])
+        return redirect()->route('deployments.exhibits', ['exhibit' => $project->exhibit_id, 'year' => $project->year])
             ->with('success', trans('admin/exhibit-projects/general.created'));
     }
 
@@ -220,7 +231,7 @@ class ExhibitProjectsController extends Controller
             return redirect()->back()->withInput()->withErrors($exhibitProject->getErrors());
         }
 
-        return redirect()->route('reports.exhibit', ['exhibit' => $exhibitProject->exhibit_id, 'year' => $exhibitProject->year])
+        return redirect()->route('deployments.exhibits', ['exhibit' => $exhibitProject->exhibit_id, 'year' => $exhibitProject->year])
             ->with('success', trans('admin/exhibit-projects/general.updated'));
     }
 
@@ -232,7 +243,7 @@ class ExhibitProjectsController extends Controller
         $year = $exhibitProject->year;
         $exhibitProject->delete();
 
-        return redirect()->route('reports.exhibit', ['exhibit' => $exhibitId, 'year' => $year])
+        return redirect()->route('deployments.exhibits', ['exhibit' => $exhibitId, 'year' => $year])
             ->with('success', trans('admin/exhibit-projects/general.deleted'));
     }
 
@@ -242,14 +253,14 @@ class ExhibitProjectsController extends Controller
         $this->authorize('update', Order::class);
 
         $template = ExhibitEmailTemplate::findOrFail($request->input('template_id'));
-        $back = redirect()->route('reports.exhibit', ['exhibit' => $exhibitProject->exhibit_id, 'year' => $exhibitProject->year]);
+        $back = redirect()->route('deployments.exhibits', ['exhibit' => $exhibitProject->exhibit_id, 'year' => $exhibitProject->year]);
 
         if (! $exhibitProject->recipientEmail()) {
             return $back->with('error', trans('admin/exhibit-projects/general.email_no_recipient'));
         }
 
         try {
-            Mail::to($exhibitProject->recipientEmail())->send(new ExhibitNotificationMail($exhibitProject, $template));
+            Mail::to($exhibitProject->recipientEmail())->send(new ExhibitNotificationMail($exhibitProject, $template->subject, $template->body));
         } catch (\Throwable $e) {
             Log::error('exhibit notification email failed for project #'.$exhibitProject->id, ['exception' => $e]);
 
@@ -260,41 +271,95 @@ class ExhibitProjectsController extends Controller
     }
 
     /**
-     * Send a template to every approved project in an exhibit + year —
-     * the in-Snipe equivalent of the TDX "comment all approved" step.
+     * The composer sheet's send — the in-Snipe replacement for the TDX
+     * "comment all approved" step. The wording arrives edited (opened from
+     * a template, changed in place), so what goes out is what the sheet
+     * showed, not what the template stored. save_template writes the
+     * wording back to the chosen template for next cycle; test renders
+     * against the first real recipient and goes to the named readers.
      */
-    public function sendBulk(Request $request): RedirectResponse
+    public function compose(Request $request): RedirectResponse
     {
         $this->authorize('update', Order::class);
 
-        $template = ExhibitEmailTemplate::findOrFail($request->input('template_id'));
-        $exhibitId = (int) $request->input('exhibit');
-        $year = (int) $request->input('year');
+        $validated = $request->validate([
+            'exhibit' => 'required|integer|exists:exhibits,id',
+            'year' => 'required|integer',
+            'subject' => 'required|string|max:191',
+            'body' => 'required|string|max:65535',
+            'template_id' => 'nullable|integer|exists:exhibit_email_templates,id',
+            'cc' => 'nullable|array',
+            'cc.*' => 'integer|exists:users,id',
+            'test_recipients' => 'nullable|array',
+            'test_recipients.*' => 'integer|exists:users,id',
+            'test' => 'nullable|boolean',
+            'save_template' => 'nullable|boolean',
+        ]);
 
-        $projects = ExhibitProject::with('user')
-            ->where('exhibit_id', $exhibitId)
-            ->where('year', $year)
+        $back = redirect()->route('deployments.exhibits', [
+            'exhibit' => $validated['exhibit'], 'year' => $validated['year'],
+        ]);
+
+        // Saving the wording is its own decision, not a side effect of
+        // sending — same contract as the wave announce sheet.
+        if ($request->boolean('save_template')) {
+            if (empty($validated['template_id'])) {
+                return $back->with('error', trans('admin/exhibit-projects/general.compose_save_no_template'));
+            }
+
+            $template = ExhibitEmailTemplate::findOrFail($validated['template_id']);
+            $template->subject = $validated['subject'];
+            $template->body = $validated['body'];
+            $template->save();
+
+            return $back->with('success', trans('admin/exhibit-projects/general.template_updated'));
+        }
+
+        $projects = ExhibitProject::with('user', 'asset')
+            ->where('exhibit_id', (int) $validated['exhibit'])
+            ->where('year', (int) $validated['year'])
             ->where('approved', true)
-            ->get();
+            ->get()
+            ->filter(fn ($p) => $p->recipientEmail())
+            ->values();
+
+        if ($projects->isEmpty()) {
+            return $back->with('error', trans('admin/exhibit-projects/general.compose_no_recipients'));
+        }
+
+        if ($request->boolean('test')) {
+            // Rendered against the first real recipient's facts: a test with
+            // invented values would not show whether the merge fields resolve.
+            $to = \App\Models\User::whereIn('id', $validated['test_recipients'] ?? [])
+                ->pluck('email')->filter()->unique()->values()->all();
+            $to = $to === [] ? [auth()->user()->email] : $to;
+
+            Mail::to($to)->send(new ExhibitNotificationMail($projects->first(), $validated['subject'], $validated['body'], true));
+
+            return $back->with('success', trans('admin/exhibit-projects/general.compose_test_sent', ['email' => implode(', ', $to)]));
+        }
+
+        $cc = \App\Models\User::whereIn('id', $validated['cc'] ?? [])
+            ->pluck('email')->filter()->unique()->values()->all();
 
         $sent = 0;
         $skipped = 0;
         foreach ($projects as $project) {
-            if (! $project->recipientEmail()) {
-                $skipped++;
-                continue;
-            }
             try {
-                Mail::to($project->recipientEmail())->send(new ExhibitNotificationMail($project, $template));
+                $mail = Mail::to($project->recipientEmail());
+                if ($cc !== []) {
+                    $mail->cc($cc);
+                }
+                $mail->send(new ExhibitNotificationMail($project, $validated['subject'], $validated['body']));
                 $sent++;
             } catch (\Throwable $e) {
+                // One bad address must not stop the rest of a cohort.
                 $skipped++;
-                Log::error('exhibit bulk email failed for project #'.$project->id, ['exception' => $e]);
+                Log::error('exhibit compose email failed for project #'.$project->id, ['exception' => $e]);
             }
         }
 
-        return redirect()->route('reports.exhibit', ['exhibit' => $exhibitId, 'year' => $year])
-            ->with('success', trans('admin/exhibit-projects/general.email_bulk_done', ['sent' => $sent, 'skipped' => $skipped]));
+        return $back->with('success', trans('admin/exhibit-projects/general.email_bulk_done', ['sent' => $sent, 'skipped' => $skipped]));
     }
 
     /** CSV backfill upload form. */
@@ -333,7 +398,7 @@ class ExhibitProjectsController extends Controller
                 ->with('error', trans('admin/exhibit-projects/general.import_failed', ['error' => $e->getMessage()]));
         }
 
-        return redirect()->route('reports.exhibit', ['exhibit' => $exhibit->id, 'year' => $year])
+        return redirect()->route('deployments.exhibits', ['exhibit' => $exhibit->id, 'year' => $year])
             ->with('success', trans('admin/exhibit-projects/general.import_done', [
                 'imported' => $summary['imported'],
                 'skipped' => $summary['skipped'],

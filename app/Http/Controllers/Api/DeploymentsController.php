@@ -45,7 +45,7 @@ class DeploymentsController extends Controller
         $this->authorize('deployments.view');
 
         return response()->json(Helper::formatStandardApiResponse('success', DeploymentType::active()->ordered()->get(
-            ['id', 'name', 'slug', 'color', 'sort_order']
+            ['id', 'name', 'slug', 'color', 'moves_devices', 'sort_order']
         ), null));
     }
 
@@ -160,12 +160,15 @@ class DeploymentsController extends Controller
         $this->authorize('deployments.edit');
 
         // Stage moves through the generic update respect the same gate as
-        // the board: leaving Planned requires a linked order line.
+        // the board: leaving Planned requires a linked order line — unless
+        // the device already exists (stock-covered, relocation, exhibit),
+        // which has nothing to order.
         if ($request->filled('stage_id')) {
             $target = DeploymentStage::find((int) $request->input('stage_id'));
             $fromPlanned = ! $item->stage || $item->stage->slug === 'planned';
             $orderItemId = $request->input('order_item_id', $item->order_item_id);
-            if ($target && $fromPlanned && $target->slug !== 'planned' && ! $orderItemId) {
+            $assetId = $request->input('asset_id', $item->asset_id);
+            if ($target && $fromPlanned && $target->slug !== 'planned' && ! $orderItemId && ! $assetId) {
                 return response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/deployments/general.bulk_gated', ['count' => 1])), 422);
             }
         }
@@ -175,18 +178,20 @@ class DeploymentsController extends Controller
             'assigned_user_id', 'assigned_tech_id', 'storage_location_id', 'target_deploy_date', 'notes',
         ]));
 
+        $stage = null;
         if ($item->isDirty('stage_id')) {
             $stage = DeploymentStage::find($item->stage_id);
             if ($stage?->is_terminal) {
                 $item->deployed_at = now();
             }
-            if ($stage?->maps_to_status_id && $item->asset_id) {
-                Asset::whereKey($item->asset_id)->update(['status_id' => $stage->maps_to_status_id]);
-            }
         }
 
         if (! $item->save()) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $item->getErrors()), 422);
+        }
+
+        if ($stage) {
+            $item->applyStageEffects($stage);
         }
 
         return response()->json(Helper::formatStandardApiResponse('success', $this->itemJson($item->fresh(['stage', 'asset', 'replacesAsset', 'model'])), trans('admin/deployments/general.item_updated')));

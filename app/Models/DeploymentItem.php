@@ -152,4 +152,43 @@ class DeploymentItem extends SnipeModel
     {
         return (bool) ($this->stage?->is_terminal) || ! is_null($this->deployed_at);
     }
+
+    /**
+     * The bridges from a stage move to the real asset, applied identically
+     * by every path that advances a stage (board, bulk move, API):
+     * maps_to_status_id flips the asset's status, and — on a wave whose
+     * type declares moves_devices — a terminal stage moves the device to
+     * the wave's target location. That second bridge is what makes a
+     * relocation or exhibit wave finish as a fact in inventory: the room
+     * change is recorded by completing the wave, not as a separate chore.
+     */
+    public function applyStageEffects(DeploymentStage $stage): void
+    {
+        if (! $this->asset_id || ! ($asset = $this->asset)) {
+            return;
+        }
+
+        $dirty = false;
+
+        if ($stage->maps_to_status_id) {
+            $asset->status_id = $stage->maps_to_status_id;
+            $dirty = true;
+        }
+
+        $wave = $this->wave;
+        if ($stage->is_terminal && $wave && $wave->location_id && $wave->type?->moves_devices) {
+            $asset->rtd_location_id = $wave->location_id;
+            // A lab machine checked out to its room moves rooms with the
+            // wave; a device checked out to a person keeps its holder.
+            if ($asset->assigned_type === Location::class && $asset->assigned_to) {
+                $asset->assigned_to = $wave->location_id;
+                $asset->location_id = $wave->location_id;
+            }
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $asset->save();
+        }
+    }
 }

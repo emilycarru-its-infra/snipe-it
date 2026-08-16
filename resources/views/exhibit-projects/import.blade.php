@@ -33,7 +33,7 @@
                     </div>
                 </div>
                 <div class="box-footer text-right">
-                    <a class="btn btn-default" href="{{ route('reports.exhibit') }}">{{ trans('button.cancel') }}</a>
+                    <a class="btn btn-default" href="{{ route('deployments.exhibits') }}">{{ trans('button.cancel') }}</a>
                     <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> {{ trans('admin/exhibit-projects/general.import_run') }}</button>
                 </div>
             </div>

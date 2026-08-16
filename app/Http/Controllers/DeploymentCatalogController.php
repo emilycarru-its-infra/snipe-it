@@ -142,6 +142,10 @@ class DeploymentCatalogController extends Controller
             'active' => $request->boolean('active'),
         ];
 
+        if ($catalog === 'types') {
+            $data['moves_devices'] = $request->boolean('moves_devices');
+        }
+
         if ($catalog === 'stages') {
             $data['is_terminal'] = $request->boolean('is_terminal');
             $data['maps_to_status_id'] = $request->input('maps_to_status_id') ?: null;
