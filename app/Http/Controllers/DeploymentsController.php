@@ -14,6 +14,7 @@ use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\HistoricalFlow;
 use App\Services\Deployments\RefreshForecast;
+use App\Services\Deployments\StageAutomation;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use App\Services\Deployments\WaveAnnouncer;
@@ -73,6 +74,13 @@ class DeploymentsController extends Controller
             return $this->streamPickupCsv((string) $request->query('decom_pickup'));
         }
 
+        // Stages follow the facts before anything is counted: order lines
+        // claim their wave items, received lines advance them, checkouts
+        // deploy them. The buttons below are the fallback, not the path.
+        if (! $isPast) {
+            (new StageAutomation)->sync($fy);
+        }
+
         $wavesQuery = DeploymentWave::query()
             ->with(['type', 'owner', 'location'])
             ->withCount('items')
@@ -93,20 +101,21 @@ class DeploymentsController extends Controller
             return $this->streamWavesCsv($waves, $fy);
         }
 
-        // One row per device, whatever the source lens: tracked wave items,
-        // the refresh backlog (due this FY, on no wave — for a past FY that
-        // means never refreshed, so the plan is still open), the FY's
-        // procurement order lines not yet tracked (ordered → arrived →
-        // deployed straight from the money side), and — for past years —
-        // the reconstruction from asset history, each device at its
-        // furthest stage. The rail counts THESE rows, so the chevrons and
-        // the table can never disagree.
-        $deviceRows = $this->deviceRows($allItems, $forecast->forFiscalYear($fy));
+        // The board is the waves: one row per device on a wave, nothing
+        // else. The refresh backlog is Forecast's business (the note below
+        // points there), open requisitions live in /capital, and order
+        // lines on no wave sit in their own Incoming box rather than
+        // masquerading as waves in this table. Past years still merge the
+        // history reconstruction — those predate tracking entirely. The
+        // rail counts THESE rows, so the chevrons and the table can never
+        // disagree.
+        $deviceRows = $this->deviceRows($allItems);
         if ($isPast) {
             $deviceRows = array_merge($deviceRows, $this->historicalRows($fy, $allItems));
-        } else {
-            $deviceRows = array_merge($deviceRows, $this->orderRows($fy, $allItems), $this->requisitionRows($fy));
         }
+
+        $backlogCount = $forecast->forFiscalYear($fy)->count();
+        $incomingOrders = $isPast ? collect() : collect($this->orderRows($fy, $allItems))->groupBy('group');
 
         $rowCounts = collect($deviceRows)->countBy('stage_slug');
         $stageRail = $stages->map(fn ($stage) => [
@@ -129,7 +138,8 @@ class DeploymentsController extends Controller
             'typeFilter' => $typeFilter,
             'stageRail' => $stageRail,
             'deviceRows' => $deviceRows,
-            'backlogCount' => collect($deviceRows)->where('kind', 'backlog')->count(),
+            'incomingOrders' => $incomingOrders,
+            'backlogCount' => $backlogCount,
             'timeline' => (new DeploymentTimeline)->build($waves),
             'decommission' => $isFuture ? null : (new DecommissionLane)->build($fy, ! $isPast),
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'format' => 'csv']),
@@ -137,20 +147,12 @@ class DeploymentsController extends Controller
     }
 
     /**
-     * One row per device in the FY's flow — wave items first, then the
-     * refresh backlog (due this FY, on no wave yet) as Planned rows. The
-     * asset is the unit of measurement throughout; a backlog row carries
-     * asset_id (for add-to-wave), an item row carries item_id (for stage
-     * moves) plus has_order (whether the procurement gate is satisfied).
+     * One row per device on a wave — the item carries item_id for the
+     * manual stage fallback plus has_order (whether the procurement side
+     * has claimed it yet).
      */
-    private function deviceRows($allItems, $forecastAssets): array
+    private function deviceRows($allItems): array
     {
-        $reasonLabel = [
-            'eol' => trans('admin/deployments/general.reason_eol'),
-            'lease' => trans('admin/deployments/general.reason_lease'),
-            'both' => trans('admin/deployments/general.reason_both'),
-        ];
-
         $rows = [];
         foreach ($allItems as $item) {
             $subject = $item->asset ?: $item->replacesAsset;
@@ -182,31 +184,6 @@ class DeploymentsController extends Controller
                 'stage_name' => $item->stageLabel(),
                 'stage_color' => $item->stageColor(),
                 'has_order' => (bool) $item->order_item_id,
-            ];
-        }
-
-        foreach ($forecastAssets as $asset) {
-            $rows[] = [
-                'kind' => 'backlog',
-                'item_id' => null,
-                'asset_id' => $asset->id,
-                'device' => $asset->name ?: $asset->asset_tag ?: ('#'.$asset->id),
-                'device_url' => route('hardware.show', $asset->id),
-                'model' => $asset->model?->name ?: '—',
-                'wave' => null,
-                'wave_url' => null,
-                'wave_color' => null,
-                'type' => trans('admin/deployments/general.flow_backlog_chip'),
-                'group' => null,
-                'context' => ($reasonLabel[$asset->refresh_reason] ?? $asset->refresh_reason)
-                    .($asset->lease_decision_label ? ' · '.$asset->lease_decision_label : ''),
-                'due' => $asset->source_date ?: '—',
-                'status' => $asset->status?->name ?: '—',
-                'location' => $asset->location?->name ?: '—',
-                'stage_slug' => 'planned',
-                'stage_name' => trans('admin/deployments/general.flow_backlog_stage'),
-                'stage_color' => '#7f8c8d',
-                'has_order' => false,
             ];
         }
 
@@ -285,53 +262,6 @@ class DeploymentsController extends Controller
                     'stage_name' => $stageMeta[$slug]['name'],
                     'stage_color' => $stageMeta[$slug]['color'],
                     'has_order' => true,
-                ];
-            }
-        }
-
-        return $rows;
-    }
-
-    /**
-     * Unplanned capital requests: open requisitions (draft → requisitioned)
-     * are money asked for but not yet a PO — ministry funding and other
-     * ad-hoc asks. They surface as Planned lines so the flow shows work
-     * coming before procurement even issues the order; once finance issues
-     * the PO the requisition becomes an order and flows in as an order row.
-     */
-    private function requisitionRows(?string $fy): array
-    {
-        $requisitions = \App\Models\Requisition::query()
-            ->whereIn('status', ['draft', 'submitted', 'requisitioned'])
-            ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
-            ->with('items')
-            ->orderBy('requisition_number')
-            ->get();
-
-        $rows = [];
-        foreach ($requisitions as $requisition) {
-            foreach ($requisition->items as $line) {
-                $rows[] = [
-                    'kind' => 'requisition',
-                    'item_id' => null,
-                    'asset_id' => null,
-                    'device' => ($line->description ?: $requisition->title)
-                        .((int) $line->quantity > 1 ? ' ×'.(int) $line->quantity : ''),
-                    'device_url' => route('requisitions.show', $requisition->id),
-                    'model' => $line->description ?: '—',
-                    'wave' => $requisition->requisition_number ?: ('REQ-'.$requisition->id),
-                    'wave_url' => route('requisitions.show', $requisition->id),
-                    'wave_color' => '#8a63d2',
-                    'type' => trans('admin/deployments/general.flow_requisition_chip'),
-                    'group' => $requisition->requisition_number ?: ('REQ-'.$requisition->id),
-                    'context' => $requisition->title ?: ($requisition->cost_center ?: '—'),
-                    'due' => $requisition->needed_by?->toDateString() ?: '—',
-                    'status' => ucfirst((string) $requisition->status),
-                    'location' => '—',
-                    'stage_slug' => 'planned',
-                    'stage_name' => trans('admin/deployments/general.flow_requisition_stage'),
-                    'stage_color' => '#8a63d2',
-                    'has_order' => false,
                 ];
             }
         }
@@ -752,6 +682,10 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.view');
 
+        // Same contract as the board: the facts move the stages before
+        // the page reads them.
+        (new StageAutomation)->sync(null, $deploymentWave);
+
         $deploymentWave->load([
             'type', 'owner', 'location', 'storageLocation', 'purchaseOrder',
             'items.stage', 'items.asset', 'items.replacesAsset', 'items.model.refreshCatalogItem',
@@ -953,17 +887,8 @@ class DeploymentsController extends Controller
             ? DeploymentWave::where('fiscal_year', $fy)->withCount('items')->ordered()->get()
             : DeploymentWave::withCount('items')->ordered()->get();
 
-        // The money beside the plan: the capital request's envelope (lease
-        // ends' pre-approved funds), what the current plan requests, and
-        // the gap — so adjusting waves here shows its budget effect without
-        // a tab switch. Procurement numbers, so procurement's permission.
-        $capital = auth()->user()?->can('procurement.view')
-            ? app(ProcurementReportsController::class)->capitalSummary($fy)
-            : null;
-
         return view('reports.deployments.forecast', [
             'candidates' => $candidates,
-            'capital' => $capital,
             'fiscalYears' => $fiscalYears ?: [$fy],
             'fy' => $fy,
             'waves' => $waves,
