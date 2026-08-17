@@ -68,6 +68,7 @@ return [
     'storage_location' => 'Staging Location',
     'owner' => 'Owner',
     'purchase_order' => 'Purchase Order',
+    'wave_form' => 'Form',
     'color' => 'Color',
     'notes' => 'Notes',
 

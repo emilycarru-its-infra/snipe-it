@@ -759,6 +759,7 @@ class DeploymentsController extends Controller
         'storage_location_id',
         'owner_id',
         'purchase_order_id',
+        'form_key',
         'color',
         'notes',
     ];

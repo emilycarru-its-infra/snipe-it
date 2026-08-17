@@ -125,6 +125,12 @@ Route::group(['middleware' => 'auth'], function () {
     /*
     * Orders
     */
+    // Before the resource: {order} would otherwise swallow "unmatched".
+    Route::get('procurement/orders/unmatched', [OrdersController::class, 'unmatched'])
+        ->name('orders.unmatched')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('admin/orders/general.orders'), route('orders.index'))
+            ->push(trans('admin/orders/general.allocation_heading'), route('orders.unmatched')));
     Route::resource('procurement/orders', OrdersController::class);
     Route::post('procurement/orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
     Route::post('procurement/orders/allocate', [OrdersController::class, 'allocate'])->name('orders.allocate');
@@ -1057,7 +1063,18 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('notes', [NotesController::class, 'store'])->name('notes.store');
 });
 
-Route::group(['middleware' => ['auth'], 'prefix' => 'procurement/forms'], function () {
+// Forms moved from /procurement/forms to /admin/forms — the platform is
+// administration (forms attach to waves; there may be many). The old
+// prefix 301s below because form links live in sent announcement emails.
+Route::group(['middleware' => ['auth']], function () {
+    Route::get('procurement/forms/{path?}', function (?string $path = null) {
+        $query = request()->getQueryString();
+
+        return redirect('/admin/forms'.($path ? '/'.$path : '').($query ? '?'.$query : ''), 301);
+    })->where('path', '.*');
+});
+
+Route::group(['middleware' => ['auth'], 'prefix' => 'admin/forms'], function () {
     Route::get('/', [FormsController::class, 'index'])
         ->name('forms.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
