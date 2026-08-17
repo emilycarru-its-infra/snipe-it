@@ -31,6 +31,16 @@ class PageAccessAuditTest extends TestCase
             ->assertOk();
     }
 
+    public function test_the_roster_ships_with_a_filter_wired_to_it()
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('access-audit.show', ['path' => 'procurement']))
+            ->assertOk()
+            ->assertSee('id="access-audit-filter"', false)
+            ->assertSee('id="access-audit-people"', false)
+            ->assertSee('aria-controls="access-audit-people"', false);
+    }
+
     public function test_only_the_declared_sensitive_areas_are_auditable()
     {
         $this->assertTrue(PageAccessAudit::isAuditable('procurement'));

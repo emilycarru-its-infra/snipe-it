@@ -46,10 +46,26 @@
     </x-box>
 
     <x-box>
-        <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.everyone_header') }}</h3>
+        {{-- A roster is only useful if you can find one name in it. The
+             filter is client-side over the rows already rendered: the whole
+             answer is on the page, so a keystroke should never cost a
+             round trip. --}}
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+            <h3 style="margin: 0;">
+                {{ trans('admin/access-audit/general.everyone_header') }}
+                <span id="access-audit-count" class="text-muted" style="font-size: 14px; font-weight: normal;"></span>
+            </h3>
+            <input type="search"
+                   id="access-audit-filter"
+                   class="form-control"
+                   style="width: 280px; max-width: 100%;"
+                   autocomplete="off"
+                   aria-controls="access-audit-people"
+                   placeholder="{{ trans('admin/access-audit/general.filter_placeholder') }}">
+        </div>
 
         <div class="table-responsive">
-            <table class="table table-striped table-hover">
+            <table class="table table-striped table-hover" id="access-audit-people">
                 <thead>
                     <tr>
                         <th>{{ trans('admin/access-audit/general.col_name') }}</th>
@@ -69,16 +85,66 @@
                             <td>@include('access-audit._sources', ['sources' => $person['sources']])</td>
                         </tr>
                     @empty
-                        <tr>
+                        <tr data-audit-static>
                             <td colspan="4" class="text-muted">{{ trans('admin/access-audit/general.nobody') }}</td>
                         </tr>
                     @endforelse
+                    <tr data-audit-static data-audit-no-match style="display: none;">
+                        <td colspan="4" class="text-muted">{{ trans('admin/access-audit/general.filter_no_match') }}</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
 
         <p class="text-muted" style="margin-bottom: 0;">{{ trans('admin/access-audit/general.review_prompt') }}</p>
     </x-box>
+
+    <script nonce="{{ csrf_token() }}">
+    (function () {
+        var input = document.getElementById('access-audit-filter');
+        var table = document.getElementById('access-audit-people');
+        if (!input || !table || !table.tBodies.length) { return; }
+
+        var rows = Array.prototype.filter.call(table.tBodies[0].rows, function (row) {
+            return !row.hasAttribute('data-audit-static');
+        });
+        var noMatch = table.querySelector('[data-audit-no-match]');
+        var count = document.getElementById('access-audit-count');
+        var total = rows.length;
+
+        function apply() {
+            var query = input.value.trim().toLowerCase();
+            var shown = 0;
+
+            rows.forEach(function (row) {
+                var hit = query === '' || row.textContent.toLowerCase().indexOf(query) !== -1;
+                row.style.display = hit ? '' : 'none';
+                if (hit) { shown++; }
+            });
+
+            if (noMatch) {
+                noMatch.style.display = (total > 0 && shown === 0) ? '' : 'none';
+            }
+            if (count) {
+                count.textContent = (query === '' || shown === total)
+                    ? ''
+                    : '{{ trans('admin/access-audit/general.filter_showing', ['shown' => '__SHOWN__', 'total' => '__TOTAL__']) }}'
+                        .replace('__SHOWN__', shown).replace('__TOTAL__', total);
+            }
+        }
+
+        input.addEventListener('input', apply);
+        // Escape clears rather than closing anything: the lightbox listens on
+        // the parent document, so the key never reaches it from in here.
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && input.value !== '') {
+                e.preventDefault();
+                input.value = '';
+                apply();
+            }
+        });
+    })();
+    </script>
 
     <x-box>
         <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.groups_header') }}</h3>
