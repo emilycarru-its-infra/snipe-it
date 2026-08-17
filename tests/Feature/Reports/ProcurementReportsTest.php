@@ -878,11 +878,11 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('P0026150');
     }
 
-    public function test_the_forecast_shows_the_capital_money_beside_the_plan()
+    public function test_the_forecast_carries_no_capital_money()
     {
-        // A contract ending in the year: the forecast's candidates header
-        // carries the envelope, the requested total and the gap, live from
-        // the capital request.
+        // The forecast is the device-planning surface: no envelope, no
+        // requested total, no per-device dollars. The capital money lives
+        // at /capital and in the PO Builder.
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI-STRIP-1',
             'Ownership Type' => 'Lease to Return',
@@ -892,8 +892,8 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('deployments.forecast', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.forecast_funds_chip', ['amount' => '2,500.00']))
-            ->assertSee(trans('admin/deployments/general.forecast_requested_chip', ['amount' => '2,500.00']));
+            ->assertDontSee(trans('admin/deployments/general.forecast_funds_chip', ['amount' => '2,500.00']))
+            ->assertDontSee('2,500.00');
     }
 
     public function test_a_self_contained_requisition_never_attaches_to_request_lines()
