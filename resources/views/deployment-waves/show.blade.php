@@ -5,7 +5,7 @@
 @stop
 
 @section('header_right')
-    <a href="{{ route('deployments.forecast', ['fiscal_year' => $wave->fiscal_year]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.add_from_forecast') }}</a>
+    <a href="{{ route('deployments.planning', ['fiscal_year' => $wave->fiscal_year]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.add_from_forecast') }}</a>
     @include('deployment-waves._add-existing')
     <a href="{{ route('deployments.storage') }}" class="btn btn-sm btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ route('deployment-waves.export', $wave) }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('admin/deployments/general.download') }}</a>
@@ -123,15 +123,26 @@
         </div>
 
         <style>
+            /* Cells at their natural width, flowing into one dense row that
+               wraps only when it must — the grid's equal columns left the
+               right half of the box empty and pushed sparse cells onto a
+               second, mostly blank row. Notes takes whatever is left. */
             .wave-meta-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-                gap: 16px 24px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px 36px;
+                align-items: flex-start;
             }
             .wave-meta-cell { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
             .wave-meta-cell > i { color: var(--color-fg-muted, #999); margin-top: 3px; width: 16px; text-align: center; flex: 0 0 auto; }
-            .wave-meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--color-fg-muted, #999); margin-bottom: 2px; }
-            .wave-meta-notes { grid-column: 1 / -1; }
+            .wave-meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--color-fg-muted, #999); margin-bottom: 2px; white-space: nowrap; }
+            .wave-meta-notes { flex: 1 1 260px; }
+            /* Inside the lightbox, keep every row on one line — context
+               beats completeness there, so the Replacement column hides
+               and the rest scrolls sideways instead of wrapping. */
+            html.framed .wave-items-table th,
+            html.framed .wave-items-table td { white-space: nowrap; }
+            html.framed .col-repl { display: none; }
             .wave-color-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: baseline; margin: 0 2px 0 10px; }
             .wave-meta-follow { margin-left: 6px; font-size: 12px; }
             .wave-inline-value { overflow-wrap: anywhere; }

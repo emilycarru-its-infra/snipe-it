@@ -20,7 +20,7 @@
 
 {{-- FY selector --}}
 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
-    <form method="GET" action="{{ route('deployments.forecast') }}" style="display:flex; align-items:center; gap:8px; margin:0;">
+    <form method="GET" action="{{ route('deployments.planning') }}" style="display:flex; align-items:center; gap:8px; margin:0;">
         <label style="margin:0;">{{ trans('admin/deployments/general.filter_fiscal_year') }}</label>
         <select name="fiscal_year" class="form-control" style="width:auto;" onchange="this.form.submit()">
             @foreach ($fiscalYears as $y)
@@ -66,7 +66,7 @@
                     </button>
                     <span style="flex:1;"></span>
                     @if ($earlyRenewalMode ?? false)
-                        <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-link btn-sm">{{ trans('admin/purchase-orders/general.forecast_criteria_clear') }}</a>
+                        <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}" class="btn btn-link btn-sm">{{ trans('admin/purchase-orders/general.forecast_criteria_clear') }}</a>
                     @endif
                     <button type="submit" class="btn btn-primary btn-sm">{{ trans('admin/purchase-orders/general.forecast_criteria_apply') }}</button>
                 </div>
@@ -76,7 +76,7 @@
     @if ($earlyRenewalMode ?? false)
         <span class="label label-primary" style="align-self:center;">{{ trans('admin/purchase-orders/general.forecast_early_renewal_badge') }}</span>
     @endif
-    <a href="{{ route('deployments.forecast', array_filter(['fiscal_year' => $fy, 'format' => 'csv', 'criteria' => $activeCriteria])) }}" class="btn btn-default">
+    <a href="{{ route('deployments.planning', array_filter(['fiscal_year' => $fy, 'format' => 'csv', 'criteria' => $activeCriteria])) }}" class="btn btn-default">
         <x-icon type="download" /> {{ trans('general.download') }}
     </a>
     @can('deployments.edit')
@@ -168,7 +168,7 @@
 </div>
 @endif
 
-<form method="POST" action="{{ route('deployments.forecast.add') }}">
+<form method="POST" action="{{ route('deployments.planning.add') }}">
     {{ csrf_field() }}
     <input type="hidden" name="fiscal_year" value="{{ $fy }}">
 
@@ -212,6 +212,13 @@
                 <button type="submit" class="btn btn-sm btn-primary">
                     <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.forecast_send_submit') }} (<span id="fc-sel-count">0</span>)
                 </button>
+                @if ($nextFy)
+                    <button type="submit" class="btn btn-sm btn-default" formaction="{{ route('deployments.planning.defer') }}"
+                            title="{{ trans('admin/deployments/general.defer_help') }}"
+                            onclick="return confirm({!! json_encode(trans('admin/deployments/general.defer_confirm', ['fy' => $nextFy])) !!});">
+                        <i class="fas fa-forward"></i> {{ trans('admin/deployments/general.defer_submit', ['fy' => $nextFy]) }}
+                    </button>
+                @endif
             </span>
         </div>
         <div class="box-body no-padding fc-scroll">
@@ -229,7 +236,7 @@
                     </tr>
                 </thead>
                 <tbody id="fc-rows">
-                @php($reasonLabel = ['eol' => trans('admin/deployments/general.reason_eol'), 'lease' => trans('admin/deployments/general.reason_lease'), 'both' => trans('admin/deployments/general.reason_both'), 'funded' => trans('admin/deployments/general.reason_funded'), 'criteria' => trans('admin/deployments/general.reason_criteria')])
+                @php($reasonLabel = ['eol' => trans('admin/deployments/general.reason_eol'), 'lease' => trans('admin/deployments/general.reason_lease'), 'both' => trans('admin/deployments/general.reason_both'), 'funded' => trans('admin/deployments/general.reason_funded'), 'criteria' => trans('admin/deployments/general.reason_criteria'), 'deferred' => trans('admin/deployments/general.reason_deferred')])
                 @forelse ($candidates as $idx => $asset)
                     <tr data-idx="{{ $idx }}"
                         data-location="{{ $asset->location?->name ?: '—' }}"
@@ -279,6 +286,55 @@
         @endcan
     </div>
 </form>
+
+{{-- Incoming orders that no wave has claimed. These are procurement
+     facts headed for deployment — planning's business until a wave item
+     claims them (which the stage automation does the moment the joins
+     line up). Always expanded: an order you can't see is an order you
+     forget to plan. --}}
+@if ($incomingOrders->isNotEmpty())
+<div class="box box-default">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.incoming_orders_title', ['count' => $incomingOrders->flatten(1)->count()]) }}</h3>
+        <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.incoming_orders_hint') }}</span>
+    </div>
+    <div class="box-body no-padding">
+        <table class="table table-striped table-condensed" style="margin-bottom:0;">
+            <thead>
+                <tr>
+                    <th>{{ trans('admin/deployments/general.device') }}</th>
+                    <th>{{ trans('admin/deployments/general.model') }}</th>
+                    <th>{{ trans('admin/deployments/general.stage') }}</th>
+                    <th>{{ trans('admin/orders/general.order') }}</th>
+                    <th>{{ trans('general.status') }}</th>
+                    <th>{{ trans('admin/deployments/general.location') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach ($incomingOrders as $orderNumber => $lines)
+                <tr class="fc-group-head"><td colspan="6">{{ $orderNumber }} · {{ count($lines) }}</td></tr>
+                @foreach ($lines as $line)
+                    <tr>
+                        <td>
+                            @if ($line['device_url'])
+                                <a href="{{ $line['device_url'] }}" class="js-lightbox">{{ $line['device'] }}</a>
+                            @else
+                                {{ $line['device'] }}
+                            @endif
+                        </td>
+                        <td>{{ $line['model'] }}</td>
+                        <td><span class="label" style="background-color: {{ $line['stage_color'] }}; color:#fff;">{{ $line['stage_name'] }}</span></td>
+                        <td><a href="{{ $line['wave_url'] }}" class="js-lightbox">{{ $line['wave'] }}</a> <span class="text-muted" style="font-size:11.5px;">{{ $line['context'] }}</span></td>
+                        <td>{{ $line['status'] }}</td>
+                        <td>{{ $line['location'] }}</td>
+                    </tr>
+                @endforeach
+            @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
 
 <script nonce="{{ csrf_token() }}">
 (function () {

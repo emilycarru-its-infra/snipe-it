@@ -407,12 +407,21 @@ Route::group(['middleware' => 'auth'], function () {
     */
     $deploymentCrumb = fn (Trail $trail) => $trail->parent('reports.deployments');
 
-    Route::get('deployments/forecast', [DeploymentsController::class, 'forecast'])
-        ->name('deployments.forecast')
+    Route::get('deployments/planning', [DeploymentsController::class, 'forecast'])
+        ->name('deployments.planning')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.forecast'), route('deployments.forecast')));
-    Route::post('deployments/forecast/add', [DeploymentsController::class, 'addFromForecast'])
-        ->name('deployments.forecast.add');
+            ->push(trans('admin/deployments/general.forecast'), route('deployments.planning')));
+    Route::post('deployments/planning/add', [DeploymentsController::class, 'addFromForecast'])
+        ->name('deployments.planning.add');
+    Route::post('deployments/planning/defer', [DeploymentsController::class, 'deferFromPlanning'])
+        ->name('deployments.planning.defer');
+
+    // Forecast became Planning — the one place for all of it.
+    Route::get('deployments/forecast', function () {
+        $query = request()->getQueryString();
+
+        return redirect('/deployments/planning'.($query ? '?'.$query : ''), 301);
+    });
 
     Route::get('deployments/storage', [DeploymentsController::class, 'storage'])
         ->name('deployments.storage')

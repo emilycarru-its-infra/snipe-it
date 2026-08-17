@@ -81,7 +81,7 @@ class ForecastPlannedOrderTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast'))
+            ->get(route('deployments.planning'))
             ->assertOk();
 
         // The open asset has a selection checkbox; the planned one shows a
