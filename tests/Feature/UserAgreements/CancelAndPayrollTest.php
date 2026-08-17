@@ -110,7 +110,7 @@ class CancelAndPayrollTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->get(route('reports.procurement.user-agreement-ledger', ['agreement_type' => 'upgrade']));
+            ->get(route('reports.procurement.user-agreement-ledger', ['agreement_type' => 'upgrade', 'fiscal_year' => 'all']));
 
         $response->assertOk();
         $response->assertSee('Generated'); // renamed from "Quoted"
