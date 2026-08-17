@@ -328,13 +328,20 @@ class PageAccessAudit
     {
         $resolve ??= fn ($item) => $item;
 
-        return $users
-            ->sortBy(fn ($item) => mb_strtolower((string) $resolve($item)->display_name), SORT_NATURAL)
-            ->values();
+        // Rebuilt as a plain Collection rather than returned straight from
+        // sortBy()->values(): those preserve the concrete class they were
+        // handed, so callers passing an Eloquent collection would get one
+        // back and the declared return type would be a lie half the time.
+        return new Collection(
+            $users
+                ->sortBy(fn ($item) => mb_strtolower((string) $resolve($item)->display_name), SORT_NATURAL)
+                ->values()
+                ->all()
+        );
     }
 
     /**
-     * @return Collection<int, array{group: Group, members: \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>}>
+     * @return Collection<int, array{group: Group, members: Collection<int, \Illuminate\Database\Eloquent\Model>}>
      */
     private function describeGroups(Collection $groups): Collection
     {
@@ -347,7 +354,7 @@ class PageAccessAudit
     }
 
     /**
-     * @return Collection<int, array{department: \App\Models\Department, members: \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>}>
+     * @return Collection<int, array{department: \App\Models\Department, members: Collection<int, \Illuminate\Database\Eloquent\Model>}>
      */
     private function describeDepartments(Collection $departments): Collection
     {
