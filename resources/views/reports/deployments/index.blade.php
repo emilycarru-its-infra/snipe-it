@@ -25,23 +25,21 @@
         <select name="deployment_type" class="form-control" style="width:auto;" onchange="this.form.submit()">
             <option value="">{{ trans('admin/deployments/general.all_types') }}</option>
             @foreach ($types as $t)
-                <option value="{{ $t->id }}" {{ (string) $typeFilter === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
+                <option value="{{ $t->slug }}" {{ $typeFilter === $t->slug ? 'selected' : '' }}>{{ $t->name }}</option>
             @endforeach
         </select>
     </form>
     <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}" class="btn btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.forecast') }}</a>
-    <a href="{{ route('deployments.storage') }}" class="btn btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
     @can('deployments.edit')
         @include('reports.deployments._new-wave-popover', ['popoverId' => 'dp-new-wave', 'fy' => $fy, 'types' => $types])
     @endcan
 </div>
 
-{{-- Device-flow chevron rail. Counts are counts of ROWS in the device
-     table below — one row per device whatever its source (wave item,
-     refresh backlog, order line, past-year reconstruction) — so chevrons
-     and table can never disagree. A chevron click filters the table;
-     clicking the selected chevron again clears the filter. --}}
+{{-- Device-flow chevron rail. Counts are counts of device rows in the
+     unified table below, so chevrons and table can never disagree. A
+     chevron click filters the device rows; clicking the selected chevron
+     again clears the filter. --}}
 <style>
     .dp-rail-scroll { overflow-x: auto; margin-bottom: 15px; }
     .dp-rail { display: flex; min-width: 900px; padding: 2px 0; }
@@ -63,27 +61,62 @@
     .dp-chev .dp-stage { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dp-c); }
     .dp-chev .dp-big { font-size: 20px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; color: var(--color-fg, #333); }
     .dp-chev.selected .dp-stage, .dp-chev.selected .dp-big { color: #fff; }
-    .dp-scroll { max-height: 65vh; overflow: auto; }
+
+    .dp-scroll { max-height: 72vh; overflow: auto; }
+    .dp-scroll table { border-collapse: separate; border-spacing: 0; }
     .dp-scroll thead th {
         position: sticky; top: 0; z-index: 2;
         background: var(--box-bg, #fff);
         box-shadow: 0 1px 0 var(--box-border-color, #f4f4f4);
     }
-    .dp-group-head td {
-        font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+    #dp-rows tr[draggable="true"] { cursor: grab; }
+
+    /* ── The unified table: wave rows carrying their own gantt, device
+         rows nested beneath. One shared gantt width means every bar sits
+         on the same time axis and the right edge reads as a column. ── */
+    :root { --dp-gantt-w: 360px; }
+    .dp-wave-row td {
         background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 8%, var(--box-bg, #fff));
+        border-top: 2px solid var(--box-border-color, #e3e3e3);
         cursor: grab;
     }
-    #dp-rows tr[draggable="true"] { cursor: grab; }
-    /* Collapse chevron sits inside the group header, left of its checkbox. */
+    .dp-wave-inner { display: flex; align-items: center; gap: 10px; min-height: 26px; }
+    .dp-wave-inner .dp-group-check { margin: 0; flex: 0 0 auto; }
+    .dp-wave-meta { font-size: 12px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dp-group-toggle {
-        background: none; border: 0; padding: 0 8px 0 0; color: inherit;
+        background: none; border: 0; padding: 0 2px 0 0; color: inherit;
         cursor: pointer; font-size: 11px; opacity: .75;
     }
     .dp-group-toggle:hover { opacity: 1; }
-    .dp-group-inner { display: flex; align-items: center; gap: 8px; }
-    .dp-group-inner .dp-group-check { margin: 0; flex: 0 0 auto; }
-    .dp-group-label { flex: 1 1 auto; }
+
+    .dp-gantt {
+        position: relative; flex: 0 0 var(--dp-gantt-w); width: var(--dp-gantt-w);
+        height: 20px; margin-left: auto; border-radius: 4px;
+        background: color-mix(in srgb, var(--color-fg, #333) 5%, transparent);
+        overflow: hidden;
+    }
+    .dp-gantt-bar { position: absolute; height: 7px; border-radius: 3px; min-width: 3px; }
+    .dp-gantt-bar.arrival { top: 2px; }
+    .dp-gantt-bar.deploy { bottom: 2px; }
+    .dp-gantt-today { position: absolute; top: 0; bottom: 0; width: 1px; background: #e74c3c; opacity: .8; }
+    .dp-gantt-empty { font-size: 10.5px; opacity: .5; line-height: 20px; padding-left: 8px; }
+    .dp-scale-wrap { display: flex; align-items: center; gap: 14px; justify-content: flex-end; padding: 6px 8px 2px; }
+    .dp-scale { position: relative; width: var(--dp-gantt-w); height: 15px; }
+    .dp-scale-month {
+        position: absolute; top: 0; font-size: 10px; text-transform: uppercase;
+        letter-spacing: .05em; opacity: .6; border-left: 1px solid var(--box-border-color, #ddd);
+        padding-left: 4px; white-space: nowrap;
+    }
+    .dp-legend { font-size: 10.5px; opacity: .7; display: flex; gap: 10px; align-items: center; }
+    .dp-legend i { display: inline-block; width: 14px; height: 6px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
+
+    /* View modes: Waves collapses to just the wave rows; Timeline further
+       strips the meta so what remains is the name and its bars. */
+    #dp-table.dp-mode-waves tr.dp-item-row,
+    #dp-table.dp-mode-timeline tr.dp-item-row { display: none !important; }
+    #dp-table.dp-mode-timeline .dp-wave-meta { display: none; }
+    #dp-table.dp-mode-timeline .dp-gantt { flex-basis: 55%; width: 55%; }
+
     .dp-bulkbar { display: none; padding: 8px 10px; border-bottom: 1px solid var(--box-border-color, #f4f4f4); }
     .dp-bulkbar.active { display: block; }
     .dp-bulkbar .form-control { display: inline-block; width: auto; vertical-align: middle; }
@@ -107,73 +140,27 @@
     </div>
 </div>
 
-{{-- Waves and the timeline side by side — the list and its calendar are
-     one thought, and stacked they cost a screen each. --}}
-@if ($waves->isNotEmpty())
-<div class="row" style="display:flex; flex-wrap:wrap;">
-    <div class="col-md-6" style="display:flex;">
-<div class="box box-default" style="flex:1;">
-    <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/deployments/general.waves_title') }}</h3>
-    </div>
-    <div class="box-body table-responsive no-padding">
-        <table class="table table-hover table-striped">
-            <thead>
-                <tr>
-                    <th>{{ trans('admin/deployments/general.name') }}</th>
-                    <th>{{ trans('admin/deployments/general.deployment_type') }}</th>
-                    <th>{{ trans('admin/deployments/general.wave_state') }}</th>
-                    <th class="text-right">{{ trans('admin/deployments/general.device') }}s</th>
-                    <th>{{ trans('admin/deployments/general.waves_col_arrival') }}</th>
-                    <th>{{ trans('admin/deployments/general.waves_col_deploy') }}</th>
-                    <th>{{ trans('admin/deployments/general.owner') }}</th>
-                </tr>
-            </thead>
-            <tbody>
-            @forelse ($waves as $wave)
-                <tr>
-                    <td><a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a></td>
-                    <td>{{ $wave->typeLabel() }}</td>
-                    <td>{{ ucfirst($wave->wave_state) }}</td>
-                    <td class="text-right">{{ $wave->items_count }}</td>
-                    <td>{{ optional($wave->arrival_window_start)->toDateString() ?: '—' }}</td>
-                    <td>{{ optional($wave->target_start_date)->toDateString() ?: '—' }}</td>
-                    <td>{{ $wave->owner?->full_name ?: '—' }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="7" class="text-center text-muted">{{ trans('admin/deployments/general.no_waves') }}</td></tr>
-            @endforelse
-            </tbody>
-        </table>
-    </div>
-</div>
-    </div>
-    <div class="col-md-6" style="display:flex;">
-        <div style="flex:1; min-width:0;">
-            @include('reports.deployments._timeline')
-        </div>
-    </div>
-</div>
-@endif
-
-{{-- The unified device table: one row per physical device in the FY's
-     flow, whatever lens produced it. Chevrons filter it, Group regroups
-     it, checkboxes and drag drive bulk moves. --}}
+{{-- The one table. Waves are the top-level rows — each carrying its
+     meta and its own timeline bars on a shared axis — with the wave's
+     devices nested beneath. The Waves / Timeline views are the same
+     table with the device rows (and then the meta) folded away, so
+     there is exactly one place where a wave exists on this page. --}}
+@php
+    $rowsByWave = collect($deviceRows)->groupBy(fn ($r) => $r['wave_id'] ?? 0);
+    $tlByWave = collect($timeline['rows'] ?? [])->keyBy(fn ($r) => $r['wave']->id);
+    $todayPct = $timeline['today_pct'] ?? null;
+    $hasScale = ! empty($timeline['months']);
+    $looseRows = $rowsByWave->get(0, collect());
+@endphp
 <div class="box box-default" id="devices-flow">
-    <div class="box-header with-border">
-        <h3 class="box-title" id="dp-title">{{ trans('admin/deployments/general.flow_devices_title', ['count' => count($deviceRows), 'fy' => $fy]) }}</h3>
-        <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary" style="margin-left:12px; vertical-align:middle;">
+    <div class="box-header with-border" style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h3 class="box-title" id="dp-title" style="margin:0;">{{ trans('admin/deployments/general.unified_title', ['waves' => $waves->count(), 'count' => count($deviceRows), 'fy' => $fy]) }}</h3>
+        <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary">
             <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}</a>
-        <span style="margin-left:16px; vertical-align:middle; white-space:nowrap;">
-            <span class="text-muted" style="font-size:12px; margin-right:4px;">{{ trans('admin/deployments/general.flow_group_label') }}</span>
-            <span class="btn-group" id="dp-group-btns" style="vertical-align:middle;">
-                <button type="button" class="btn btn-xs btn-default active" data-group="">{{ trans('admin/deployments/general.flow_group_none') }}</button>
-                <button type="button" class="btn btn-xs btn-default" data-group="wave">{{ trans('admin/deployments/general.flow_group_wave') }}</button>
-                <button type="button" class="btn btn-xs btn-default" data-group="group">{{ trans('admin/deployments/general.flow_group_group') }}</button>
-                <button type="button" class="btn btn-xs btn-default" data-group="location">{{ trans('admin/deployments/general.flow_group_location') }}</button>
-                <button type="button" class="btn btn-xs btn-default" data-group="type">{{ trans('admin/deployments/general.flow_group_type') }}</button>
-                <button type="button" class="btn btn-xs btn-default" data-group="model">{{ trans('admin/deployments/general.flow_group_model') }}</button>
-            </span>
+        <span class="btn-group" id="dp-view-btns" style="margin-left:auto;">
+            <button type="button" class="btn btn-xs btn-default active" data-view="">{{ trans('admin/deployments/general.view_all') }}</button>
+            <button type="button" class="btn btn-xs btn-default" data-view="waves">{{ trans('admin/deployments/general.view_waves') }}</button>
+            <button type="button" class="btn btn-xs btn-default" data-view="timeline">{{ trans('admin/deployments/general.view_timeline') }}</button>
         </span>
     </div>
     @if ($backlogCount > 0)
@@ -187,8 +174,7 @@
 
     {{-- Bulk action bar: appears once anything is checked. Grouping is the
          everyday action; stage moves hide behind Manual override — the
-         stages follow order and checkout facts on their own, and pressing
-         the buttons is the exception, not the workflow. --}}
+         stages follow order and checkout facts on their own. --}}
     <div class="dp-bulkbar" id="dp-bulkbar">
         <strong id="dp-sel-count"></strong>
         <span id="dp-move-wrap" style="margin-left:12px; display:none;">
@@ -208,16 +194,33 @@
         </span>
     </div>
 
+    {{-- The shared time axis: month ticks and the legend, aligned over
+         the gantt column every wave row draws its bars in. --}}
+    @if ($hasScale)
+        <div class="dp-scale-wrap">
+            <span class="dp-legend">
+                <span><i style="background:#2f7fb8;"></i>{{ trans('admin/deployments/general.timeline_legend_arrival') }}</span>
+                <span><i style="background:#9ec7e3;"></i>{{ trans('admin/deployments/general.timeline_legend_deploy') }}</span>
+            </span>
+            <div class="dp-scale">
+                @foreach ($timeline['months'] as $month)
+                    <span class="dp-scale-month" style="left: {{ $month['offsetPct'] }}%;">{{ $month['label'] }}</span>
+                @endforeach
+                @if ($todayPct !== null)
+                    <span class="dp-gantt-today" style="left: {{ $todayPct }}%;" title="{{ trans('admin/deployments/general.timeline_today') }}"></span>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <div class="box-body no-padding dp-scroll">
-        <table class="table table-hover table-striped table-condensed" style="margin-bottom:0;">
+        <table class="table table-hover table-condensed" style="margin-bottom:0;" id="dp-table">
             <thead>
                 <tr>
                     <th style="width:28px;"><input type="checkbox" id="dp-select-all"></th>
                     <th>{{ trans('admin/deployments/general.device') }}</th>
                     <th>{{ trans('admin/deployments/general.model') }}</th>
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
-                    <th>{{ trans('admin/deployments/general.wave') }}</th>
-                    <th>{{ trans('admin/deployments/general.deployment_type') }}</th>
                     <th>{{ trans('admin/deployments/general.refresh_reason') }}</th>
                     <th>{{ trans('admin/deployments/general.source_date') }}</th>
                     <th>{{ trans('general.status') }}</th>
@@ -225,45 +228,108 @@
                 </tr>
             </thead>
             <tbody id="dp-rows">
-            @forelse ($deviceRows as $idx => $row)
-                <tr data-idx="{{ $idx }}"
-                    data-kind="{{ $row['kind'] }}"
-                    data-stage="{{ $row['stage_slug'] }}"
-                    data-type="{{ $row['type'] }}"
-                    data-wave="{{ $row['wave'] ?: trans('admin/deployments/general.flow_backlog_stage') }}"
-                    data-model="{{ $row['model'] }}"
-                    data-group="{{ $row['group'] ?: '—' }}"
-                    data-location="{{ $row['location'] }}"
-                    @if ($row['item_id']) data-item-id="{{ $row['item_id'] }}" @endif
-                    @if ($row['asset_id']) data-asset-id="{{ $row['asset_id'] }}" @endif>
-                    <td>
-                        @if ($row['item_id'] || $row['asset_id'])
-                            <input type="checkbox" class="dp-check">
-                        @endif
+            @forelse ($waves as $wave)
+                @php
+                    $waveRows = $rowsByWave->get($wave->id, collect());
+                    $tl = $tlByWave->get($wave->id);
+                @endphp
+                <tr class="dp-wave-row" data-wave-id="{{ $wave->id }}" draggable="true">
+                    <td colspan="8">
+                        <div class="dp-wave-inner">
+                            <button type="button" class="dp-group-toggle" aria-expanded="true" data-wave-id="{{ $wave->id }}">
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            <input type="checkbox" class="dp-group-check">
+                            <a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a>
+                            <span class="dp-wave-meta">
+                                {{ $wave->typeLabel() }} · {{ ucfirst($wave->wave_state) }} · {{ trans_choice('general.countable.assets', $waveRows->count(), ['count' => $waveRows->count()]) }}
+                                @if ($wave->arrival_window_start || $wave->target_start_date)
+                                    · {{ optional($wave->arrival_window_start)->format('M j') ?: '—' }} → {{ optional($wave->target_start_date)->format('M j') ?: '—' }}
+                                @endif
+                                @if ($wave->owner)
+                                    · {{ $wave->owner->full_name }}
+                                @endif
+                            </span>
+                            @if ($tl && count($tl['collisions'] ?? []))
+                                <span class="text-warning" title="{{ trans('admin/deployments/general.timeline_collision_tooltip') }}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></span>
+                            @endif
+                            <span class="dp-gantt">
+                                @if ($tl && ($tl['arrival'] || $tl['deploy']))
+                                    @if ($tl['arrival'])
+                                        <span class="dp-gantt-bar arrival" style="left: {{ $tl['arrival']['offsetPct'] }}%; width: {{ $tl['arrival']['widthPct'] }}%; background:#2f7fb8;" title="{{ $tl['arrival']['label'] }}"></span>
+                                    @endif
+                                    @if ($tl['deploy'])
+                                        <span class="dp-gantt-bar deploy" style="left: {{ $tl['deploy']['offsetPct'] }}%; width: {{ $tl['deploy']['widthPct'] }}%; background:#9ec7e3;" title="{{ $tl['deploy']['label'] }}"></span>
+                                    @endif
+                                    @if ($todayPct !== null)
+                                        <span class="dp-gantt-today" style="left: {{ $todayPct }}%;"></span>
+                                    @endif
+                                @else
+                                    <span class="dp-gantt-empty">{{ trans('admin/deployments/general.timeline_no_dates') }}</span>
+                                @endif
+                            </span>
+                        </div>
                     </td>
-                    <td>
-                        @if ($row['device_url'])
-                            <a href="{{ $row['device_url'] }}" class="js-lightbox">{{ $row['device'] }}</a>
-                        @else
-                            {{ $row['device'] }}
-                        @endif
-                    </td>
-                    <td>{{ $row['model'] }}</td>
-                    <td><span class="label" style="background-color: {{ $row['stage_color'] }}; color:#fff;">{{ $row['stage_name'] }}</span></td>
-                    <td>
-                        @if ($row['wave'])
-                            <a href="{{ $row['wave_url'] }}"><span class="label" style="background-color: {{ $row['wave_color'] }}; color:#fff;">{{ $row['wave'] }}</span></a>
-                        @else — @endif
-                    </td>
-                    <td>{{ $row['type'] }}</td>
-                    <td>{{ $row['context'] }}</td>
-                    <td>{{ $row['due'] }}</td>
-                    <td>{{ $row['status'] }}</td>
-                    <td>{{ $row['location'] }}</td>
                 </tr>
+                @foreach ($waveRows as $row)
+                    <tr class="dp-item-row"
+                        data-wave-id="{{ $wave->id }}"
+                        data-stage="{{ $row['stage_slug'] }}"
+                        @if ($row['item_id']) data-item-id="{{ $row['item_id'] }}" @endif>
+                        <td>
+                            @if ($row['item_id'])
+                                <input type="checkbox" class="dp-check">
+                            @endif
+                        </td>
+                        <td>
+                            @if ($row['device_url'])
+                                <a href="{{ $row['device_url'] }}" class="js-lightbox">{{ $row['device'] }}</a>
+                            @else
+                                {{ $row['device'] }}
+                            @endif
+                            @if ($row['group'])
+                                <span class="text-muted" style="font-size:11px;">· {{ $row['group'] }}</span>
+                            @endif
+                        </td>
+                        <td>{{ $row['model'] }}</td>
+                        <td><span class="label" style="background-color: {{ $row['stage_color'] }}; color:#fff;">{{ $row['stage_name'] }}</span></td>
+                        <td>{{ $row['context'] }}</td>
+                        <td>{{ $row['due'] }}</td>
+                        <td>{{ $row['status'] }}</td>
+                        <td>{{ $row['location'] }}</td>
+                    </tr>
+                @endforeach
             @empty
-                <tr><td colspan="10" class="text-center text-muted">{{ trans('admin/deployments/general.flow_empty') }}</td></tr>
+                <tr><td colspan="8" class="text-center text-muted">{{ trans('admin/deployments/general.no_waves') }}</td></tr>
             @endforelse
+
+            {{-- Past years reconstruct devices with no wave to nest under;
+                 they trail the plan as their own history block. --}}
+            @if ($looseRows->isNotEmpty())
+                <tr class="dp-wave-row">
+                    <td colspan="8"><div class="dp-wave-inner">
+                        <span style="font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.05em;">{{ trans('admin/deployments/general.flow_history_chip') }} · {{ $looseRows->count() }}</span>
+                    </div></td>
+                </tr>
+                @foreach ($looseRows as $row)
+                    <tr class="dp-item-row" data-stage="{{ $row['stage_slug'] }}">
+                        <td></td>
+                        <td>
+                            @if ($row['device_url'])
+                                <a href="{{ $row['device_url'] }}" class="js-lightbox">{{ $row['device'] }}</a>
+                            @else
+                                {{ $row['device'] }}
+                            @endif
+                        </td>
+                        <td>{{ $row['model'] }}</td>
+                        <td><span class="label" style="background-color: {{ $row['stage_color'] }}; color:#fff;">{{ $row['stage_name'] }}</span></td>
+                        <td>{{ $row['context'] }}</td>
+                        <td>{{ $row['due'] }}</td>
+                        <td>{{ $row['status'] }}</td>
+                        <td>{{ $row['location'] }}</td>
+                    </tr>
+                @endforeach
+            @endif
             </tbody>
         </table>
     </div>
@@ -289,143 +355,20 @@
     var tbody = document.getElementById('dp-rows');
     if (!tbody) { return; }
 
-    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-idx]'));
+    var table = document.getElementById('dp-table');
+    var itemRows = Array.prototype.slice.call(tbody.querySelectorAll('tr.dp-item-row'));
     var stageFilter = '';
-    var stageLabel = '';
-    var groupBy = '';
-    // Collapse state survives regrouping and stage filtering, keyed by
-    // dimension + group so switching Wave → Model does not carry it over.
-    var collapsedGroups = {};
-    var NO_WAVE_KEY = @json(trans('admin/deployments/general.flow_backlog_stage'));
-    var titleEl = document.getElementById('dp-title');
-    var titleTemplate = @json(trans('admin/deployments/general.flow_devices_title', ['count' => '__N__', 'fy' => $fy]));
-    var stageSuffix = @json(trans('admin/deployments/general.flow_stage_suffix', ['stage' => '__S__']));
-    var emptyText = @json(trans('admin/deployments/general.flow_stage_empty'));
+    var collapsedWaves = {};
 
-    function rebuild() {
-        Array.prototype.forEach.call(tbody.querySelectorAll('tr.dp-group-head, tr.dp-stage-empty'), function (h) { h.remove(); });
-
-        var visible = [];
-        rows.forEach(function (r) {
-            var show = !stageFilter || r.getAttribute('data-stage') === stageFilter;
-            r.style.display = show ? '' : 'none';
-            r.classList.remove('dp-collapsed');
-            if (show) { visible.push(r); }
-        });
-
-        // The title always tells the truth about what is on screen.
-        var title = titleTemplate.replace('__N__', visible.length);
-        if (stageFilter && stageLabel) { title += ' ' + stageSuffix.replace('__S__', stageLabel); }
-        titleEl.textContent = title;
-
-        if (visible.length === 0 && rows.length > 0) {
-            var emptyRow = document.createElement('tr');
-            emptyRow.className = 'dp-stage-empty';
-            var td = document.createElement('td');
-            td.colSpan = 10;
-            td.className = 'text-center text-muted';
-            td.textContent = emptyText;
-            emptyRow.appendChild(td);
-            tbody.appendChild(emptyRow);
-        }
-
-        if (!groupBy) {
-            // Ungrouped still sinks the unplanned tail: devices on no wave
-            // read as noise above the waves that are actually scheduled.
-            rows.slice().sort(function (a, b) {
-                var aNo = a.getAttribute('data-wave') === NO_WAVE_KEY ? 1 : 0;
-                var bNo = b.getAttribute('data-wave') === NO_WAVE_KEY ? 1 : 0;
-                if (aNo !== bNo) { return aNo - bNo; }
-                return (+a.getAttribute('data-idx')) - (+b.getAttribute('data-idx'));
-            }).forEach(function (r) { tbody.appendChild(r); });
-            return;
-        }
-
-        var groups = {};
-        var order = [];
-        visible.forEach(function (r) {
-            var key = r.getAttribute('data-' + groupBy) || '—';
-            if (!groups[key]) { groups[key] = []; order.push(key); }
-            groups[key].push(r);
-        });
-        // Biggest cohort first, except the devices on no wave at all: those
-        // are the unplanned tail, and reading them between real waves makes
-        // the plan look emptier than it is. They always sit last.
-        order.sort(function (a, b) {
-            if (a === NO_WAVE_KEY) { return 1; }
-            if (b === NO_WAVE_KEY) { return -1; }
-            return groups[b].length - groups[a].length;
-        });
-        order.forEach(function (key) {
-            var head = document.createElement('tr');
-            head.className = 'dp-group-head';
-            head.setAttribute('draggable', 'true');
-            head.setAttribute('data-group-key', key);
-            var td = document.createElement('td');
-            td.colSpan = 10;
-            // One flex row: the app styles checkboxes as display:grid, which
-            // would otherwise break chevron, box and label onto three lines.
-            var inner = document.createElement('div');
-            inner.className = 'dp-group-inner';
-            td.appendChild(inner);
-            var check = document.createElement('input');
-            check.type = 'checkbox';
-            check.className = 'dp-group-check';
-            inner.appendChild(check);
-            // Collapse control: a wave is a unit of work, and a 160-device
-            // wave otherwise buries every other wave on the page.
-            var collapsed = collapsedGroups[groupBy + '|' + key] === true;
-            var chev = document.createElement('button');
-            chev.type = 'button';
-            chev.className = 'dp-group-toggle';
-            chev.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-            chev.innerHTML = '<i class="fa-solid ' + (collapsed ? 'fa-chevron-right' : 'fa-chevron-down') + '" aria-hidden="true"></i>';
-            inner.insertBefore(chev, check);
-            var label = document.createElement('span');
-            label.className = 'dp-group-label';
-            label.textContent = key + ' · ' + groups[key].length;
-            inner.appendChild(label);
-            head.appendChild(td);
-            tbody.appendChild(head);
-            groups[key].forEach(function (r) {
-                tbody.appendChild(r);
-                if (collapsed) { r.style.display = 'none'; r.classList.add('dp-collapsed'); }
-            });
-
-            chev.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                var nowCollapsed = ! (collapsedGroups[groupBy + '|' + key] === true);
-                collapsedGroups[groupBy + '|' + key] = nowCollapsed;
-                chev.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
-                chev.innerHTML = '<i class="fa-solid ' + (nowCollapsed ? 'fa-chevron-right' : 'fa-chevron-down') + '" aria-hidden="true"></i>';
-                groups[key].forEach(function (r) {
-                    r.style.display = nowCollapsed ? 'none' : '';
-                    r.classList.toggle('dp-collapsed', nowCollapsed);
-                });
-                refreshBulkbar();
-            });
-
-            // A group is a unit: its checkbox selects every row in it, and
-            // dragging its header carries the whole cohort onto a chevron.
-            check.addEventListener('change', function () {
-                groups[key].forEach(function (r) {
-                    var box = r.querySelector('.dp-check');
-                    if (box) { box.checked = check.checked; }
-                });
-                refreshBulkbar();
-            });
-            head.addEventListener('dragstart', function (e) {
-                var ids = groups[key].map(function (r) { return r.getAttribute('data-item-id'); }).filter(Boolean);
-                e.dataTransfer.setData('text/plain', ids.join(','));
-                e.dataTransfer.effectAllowed = 'move';
-            });
-        });
-        rows.forEach(function (r) {
-            if (visible.indexOf(r) === -1) { tbody.appendChild(r); }
+    function applyVisibility() {
+        itemRows.forEach(function (r) {
+            var stageOk = !stageFilter || r.getAttribute('data-stage') === stageFilter;
+            var open = collapsedWaves[r.getAttribute('data-wave-id') || ''] !== true;
+            r.style.display = (stageOk && open) ? '' : 'none';
         });
     }
 
+    // ── Rail chevrons: same filters they have always been. ───────────
     Array.prototype.forEach.call(document.querySelectorAll('#dp-rail .dp-chev'), function (chev) {
         chev.addEventListener('click', function (e) {
             e.preventDefault();
@@ -433,44 +376,55 @@
             var wasSelected = chev.classList.contains('selected');
             Array.prototype.forEach.call(document.querySelectorAll('#dp-rail .dp-chev'), function (c) { c.classList.remove('selected'); });
             stageFilter = wasSelected ? '' : slug;
-            stageLabel = wasSelected ? '' : chev.querySelector('.dp-stage').textContent;
             if (!wasSelected) { chev.classList.add('selected'); }
-            rebuild();
+            applyVisibility();
         });
     });
 
-    Array.prototype.forEach.call(document.querySelectorAll('#dp-group-btns button'), function (btn) {
+    // ── View modes: All / Waves / Timeline. ──────────────────────────
+    Array.prototype.forEach.call(document.querySelectorAll('#dp-view-btns button'), function (btn) {
         btn.addEventListener('click', function () {
-            Array.prototype.forEach.call(document.querySelectorAll('#dp-group-btns button'), function (b) { b.classList.remove('active'); });
+            Array.prototype.forEach.call(document.querySelectorAll('#dp-view-btns button'), function (b) { b.classList.remove('active'); });
             btn.classList.add('active');
-            groupBy = btn.getAttribute('data-group');
-            rebuild();
+            table.classList.toggle('dp-mode-waves', btn.getAttribute('data-view') === 'waves');
+            table.classList.toggle('dp-mode-timeline', btn.getAttribute('data-view') === 'timeline');
         });
     });
 
-    // ── Selection + bulk actions ─────────────────────────────────────
+    // ── Per-wave collapse. ───────────────────────────────────────────
+    Array.prototype.forEach.call(document.querySelectorAll('.dp-group-toggle'), function (chev) {
+        chev.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var id = chev.getAttribute('data-wave-id');
+            var nowCollapsed = collapsedWaves[id] !== true;
+            collapsedWaves[id] = nowCollapsed;
+            chev.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
+            chev.innerHTML = '<i class="fa-solid ' + (nowCollapsed ? 'fa-chevron-right' : 'fa-chevron-down') + '" aria-hidden="true"></i>';
+            applyVisibility();
+            refreshBulkbar();
+        });
+    });
+
+    // ── Selection + bulk actions. ────────────────────────────────────
     var bulkbar = document.getElementById('dp-bulkbar');
     var selCount = document.getElementById('dp-sel-count');
     var moveWrap = document.getElementById('dp-move-wrap');
 
     function selected() {
-        return rows.filter(function (r) {
+        return itemRows.filter(function (r) {
             var box = r.querySelector('.dp-check');
-            var hiddenByFilter = r.style.display === 'none' && ! r.classList.contains('dp-collapsed');
-            return ! hiddenByFilter && box && box.checked;
+            return box && box.checked && r.style.display !== 'none';
         });
     }
 
     function refreshBulkbar() {
         var sel = selected();
-        var items = sel.filter(function (r) { return r.getAttribute('data-item-id'); });
         bulkbar.classList.toggle('active', sel.length > 0);
         selCount.textContent = @json(trans('admin/deployments/general.flow_selected', ['count' => '__N__'])).replace('__N__', sel.length);
-        moveWrap.style.display = items.length > 0 ? '' : 'none';
+        moveWrap.style.display = sel.length > 0 ? '' : 'none';
     }
 
-    // Manual stage moves stay available, but behind a deliberate click:
-    // the stages advance from order and checkout facts on their own.
     var manualToggle = document.getElementById('dp-manual-toggle');
     manualToggle?.addEventListener('click', function () {
         var stagesEl = document.getElementById('dp-manual-stages');
@@ -481,9 +435,23 @@
         if (e.target.classList.contains('dp-check')) { refreshBulkbar(); }
     });
 
+    // A wave's checkbox selects every visible device beneath it.
+    Array.prototype.forEach.call(document.querySelectorAll('.dp-wave-row .dp-group-check'), function (check) {
+        check.addEventListener('change', function () {
+            var waveId = check.closest('tr').getAttribute('data-wave-id');
+            itemRows.forEach(function (r) {
+                if (r.getAttribute('data-wave-id') === waveId && r.style.display !== 'none') {
+                    var box = r.querySelector('.dp-check');
+                    if (box) { box.checked = check.checked; }
+                }
+            });
+            refreshBulkbar();
+        });
+    });
+
     document.getElementById('dp-select-all').addEventListener('change', function () {
         var check = this.checked;
-        rows.forEach(function (r) {
+        itemRows.forEach(function (r) {
             var box = r.querySelector('.dp-check');
             if (box && r.style.display !== 'none') { box.checked = check; }
         });
@@ -522,11 +490,8 @@
         form.submit();
     });
 
-    // ── Drag rows (or whole groups) onto rail chevrons ───────────────
-    // Dragging a checked row carries the whole selection; an unchecked
-    // row moves alone. Backlog / derived rows carry no item id, and the
-    // server gate keeps Planned→beyond honest regardless.
-    rows.forEach(function (r) {
+    // ── Drag rows (or a whole wave) onto rail chevrons. ──────────────
+    itemRows.forEach(function (r) {
         if (!r.getAttribute('data-item-id')) { return; }
         r.setAttribute('draggable', 'true');
         r.addEventListener('dragstart', function (e) {
@@ -537,6 +502,18 @@
             } else {
                 ids = [r.getAttribute('data-item-id')];
             }
+            e.dataTransfer.setData('text/plain', ids.join(','));
+            e.dataTransfer.effectAllowed = 'move';
+        });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('.dp-wave-row[data-wave-id]'), function (row) {
+        row.addEventListener('dragstart', function (e) {
+            var waveId = row.getAttribute('data-wave-id');
+            var ids = itemRows
+                .filter(function (r) { return r.getAttribute('data-wave-id') === waveId; })
+                .map(function (r) { return r.getAttribute('data-item-id'); })
+                .filter(Boolean);
             e.dataTransfer.setData('text/plain', ids.join(','));
             e.dataTransfer.effectAllowed = 'move';
         });

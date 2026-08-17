@@ -87,8 +87,8 @@
                 <li{!! (request()->is('deployments/planning*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.planning') }}">{{ trans('admin/deployments/general.forecast') }}</a>
                 </li>
-                <li{!! (request()->is('deployments/storage*') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('deployments.storage') }}">{{ trans('admin/deployments/general.storage') }}</a>
+                <li{!! (request()->is('deployments/waves*') ? ' class="active"' : '') !!}>
+                    <a href="{{ route('deployment-waves.index') }}">{{ trans('admin/deployments/general.waves') }}</a>
                 </li>
                 <li{!! (request()->is('deployments/decommissioning*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/deployments/general.decom_nav') }}</a>
