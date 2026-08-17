@@ -6,24 +6,6 @@
 
 @section('content')
 
-@php($allRows = $rows)
-
-{{-- What the page counts, and the one control that changes it. The
-     configuration sits here rather than behind a location edit and five
-     wave edits, which is why none of it had ever been set. --}}
-<div style="display:flex; align-items:flex-start; gap:16px; margin-bottom:12px;">
-    <p class="text-muted" style="margin:0; flex:1;">{{ trans('admin/deployments/general.storage_counts_help') }}</p>
-    @can('deployments.edit')
-        @include('reports.deployments._storage-config')
-    @endcan
-</div>
-
-@if (count($rows) === 0 && $unassignedCount === 0)
-    <div class="callout callout-info">
-        <i class="fas fa-info-circle"></i> {{ trans('admin/deployments/general.storage_no_locations') }}
-    </div>
-@endif
-
 {{-- ── The inbox ────────────────────────────────────────────────────
      Staged devices that no room has claimed yet. Full width, first,
      and gone the moment it is empty. Check devices and move them in
@@ -90,105 +72,6 @@
 </div>
 @endif
 
-<div class="row">
-    @foreach ($allRows as $row)
-        <div class="col-md-6">
-            <div class="box box-default st-drop" @if ($row['location']) data-location-id="{{ $row['location']->id }}" @endif>
-                <div class="box-header with-border">
-                    <h3 class="box-title">
-                        <i class="fas fa-warehouse text-muted"></i>
-                        @if ($row['location'])
-                            <a href="{{ route('locations.show', $row['location']) }}">{{ $row['name'] }}</a>
-                        @else
-                            {{ $row['name'] }}
-                        @endif
-                    </h3>
-                    <div class="box-tools pull-right">
-                        @if ($row['capacity'])
-                            <span class="label {{ $row['over'] > 0 ? 'label-danger' : 'label-default' }}">
-                                {{ $row['count'] }} / {{ $row['capacity'] }}
-                            </span>
-                        @else
-                            <span class="label label-default">{{ $row['count'] }} {{ trans('admin/deployments/general.storage_staged') }}</span>
-                        @endif
-                    </div>
-                </div>
-                <div class="box-body">
-                    @if ($row['capacity'])
-                        <div class="progress" style="margin-bottom:6px;">
-                            <div class="progress-bar {{ $row['tone'] }}" role="progressbar"
-                                 style="width: {{ $row['pct'] }}%; min-width:2em;"
-                                 aria-valuenow="{{ $row['count'] }}" aria-valuemin="0" aria-valuemax="{{ $row['capacity'] }}">
-                                {{ $row['pct'] }}%
-                            </div>
-                        </div>
-                        @if ($row['over'] > 0)
-                            <p class="text-danger" style="margin-bottom:6px;"><i class="fas fa-exclamation-triangle"></i> {{ trans('admin/deployments/general.storage_over_capacity', ['count' => $row['over']]) }}</p>
-                        @endif
-                    @else
-                        <p class="text-muted" style="margin-bottom:6px;">{{ trans('admin/deployments/general.storage_uncapped') }}</p>
-                    @endif
-
-                    {{-- Waves staging here --}}
-                    @if ($row['location'] && $wavesByStorage->has($row['location']->id))
-                        <p style="margin-bottom:4px;"><strong>{{ trans('admin/deployments/general.storage_waves_here') }}</strong></p>
-                        <p>
-                            @foreach ($wavesByStorage->get($row['location']->id) as $w)
-                                <a class="js-lightbox" href="{{ route('deployment-waves.show', $w) }}"><span class="label" style="background-color: {{ $w->displayColor() }}; color:#fff;">{{ $w->name }}</span></a>
-                            @endforeach
-                        </p>
-                    @endif
-
-                    {{-- Device list --}}
-                    <table class="table table-condensed table-striped" style="margin-bottom:0;">
-                        <thead>
-                            <tr>
-                                <th>{{ trans('general.name') }}</th>
-                                <th>{{ trans('general.asset_tag') }}</th>
-                                <th>{{ trans('admin/deployments/general.model') }}</th>
-                                <th>{{ trans('admin/orders/general.order') }}</th>
-                                <th>{{ trans('admin/deployments/general.wave') }}</th>
-                                <th>{{ trans('admin/deployments/general.stage') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @forelse ($row['items'] as $item)
-                            <tr>
-                                {{-- The name is the name — an unnamed device reads
-                                     as blank here, with the tag column carrying the
-                                     identity. --}}
-                                <td>
-                                    @if ($item->asset)
-                                        <a class="js-lightbox" href="{{ route('hardware.show', $item->asset) }}">{{ $item->asset->name ?: '' }}</a>
-                                    @else
-                                        {{ $item->asset?->name ?: '' }}
-                                    @endif
-                                </td>
-                                <td>
-                                    @if ($item->asset)
-                                        <a class="js-lightbox" href="{{ route('hardware.show', $item->asset) }}">{{ $item->asset->asset_tag }}</a>
-                                    @else — @endif
-                                </td>
-                                <td>{{ $item->asset?->model?->name ?: $item->model?->name ?: '—' }}</td>
-                                <td>
-                                    @if ($item->orderItem?->order)
-                                        <a class="js-lightbox" href="{{ route('orders.show', $item->orderItem->order_id) }}">{{ $item->orderItem->order->order_number }}</a>
-                                    @else — @endif
-                                </td>
-                                <td>@if ($item->wave)<a class="js-lightbox" href="{{ route('deployment-waves.show', $item->wave) }}">{{ $item->wave->name }}</a>@else — @endif</td>
-                                <td><span class="label" style="background-color: {{ $item->stageColor() }}; color:#fff;">{{ $item->stageLabel() }}</span></td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="6" class="text-center text-muted">{{ trans('admin/deployments/general.storage_no_devices') }}</td></tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    @endforeach
-</div>
-
 {{-- ── The shelf itself ─────────────────────────────────────────────
      Every deployable-status device checked out to nobody and nothing is
      in storage, whether or not a wave knows about it. One table per
@@ -238,6 +121,7 @@
             <div class="st-grid">
                 @foreach ($holdingLocations as $room)
                     @php($shelfAssets = $assetsByLocation->get($room->id, collect()))
+                    @php($stagedHere = $stagedByLocation->get($room->id, collect()))
                     <div class="box box-default st-card" data-location-id="{{ $room->id }}" style="margin-bottom:0;">
                         <div class="box-header with-border">
                             @can('deployments.edit')
@@ -254,11 +138,38 @@
                             <h3 class="box-title" style="font-size:14px;">
                                 <a href="{{ route('locations.show', $room->id) }}" class="js-lightbox">{{ $room->name }}</a>
                             </h3>
-                            <span class="label label-default st-count" style="margin-left:auto;">{{ $shelfAssets->count() }}</span>
+                            @if ($room->storage_capacity)
+                                <span class="label {{ ($shelfAssets->count() + $stagedHere->count()) > $room->storage_capacity ? 'label-danger' : 'label-default' }}" style="margin-left:auto;">
+                                    <span class="st-count">{{ $shelfAssets->count() + $stagedHere->count() }}</span> / {{ $room->storage_capacity }}
+                                </span>
+                            @else
+                                <span class="label label-default st-count" style="margin-left:auto;">{{ $shelfAssets->count() + $stagedHere->count() }}</span>
+                            @endif
                         </div>
                         <div class="box-body no-padding st-scroll">
                             <table class="table table-striped table-condensed" style="margin-bottom:0;">
                                 <tbody>
+                                {{-- Wave devices physically staged in this
+                                     room sit with the rest of it — the room
+                                     is one shelf, the chip says why the
+                                     device is passing through. --}}
+                                @foreach ($stagedHere as $stagedItem)
+                                    <tr data-item-id="{{ $stagedItem->id }}">
+                                        <td class="st-handle" style="width:24px;" title="{{ trans('admin/deployments/general.storage_drag_hint') }}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></td>
+                                        <td style="width:110px;">
+                                            @if ($stagedItem->asset)
+                                                <a href="{{ route('hardware.show', $stagedItem->asset->id) }}" class="js-lightbox">{{ $stagedItem->asset->asset_tag }}</a>
+                                            @else — @endif
+                                        </td>
+                                        <td>{{ $stagedItem->asset?->name ?: '' }}</td>
+                                        <td class="text-muted" style="font-size:12px;">
+                                            {{ $stagedItem->asset?->model?->name ?: $stagedItem->model?->name }}
+                                            @if ($stagedItem->wave)
+                                                <a class="js-lightbox" href="{{ route('deployment-waves.show', $stagedItem->wave) }}"><span class="label" style="background-color: {{ $stagedItem->wave->displayColor() }}; color:#fff; font-size:10px;">{{ $stagedItem->wave->name }}</span></a>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
                                 @forelse ($shelfAssets as $shelfAsset)
                                     <tr data-asset-id="{{ $shelfAsset->id }}">
                                         <td class="st-handle" style="width:24px;" title="{{ trans('admin/deployments/general.storage_drag_hint') }}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></td>
@@ -267,7 +178,9 @@
                                         <td class="text-muted" style="font-size:12px;">{{ $shelfAsset->model?->name }}</td>
                                     </tr>
                                 @empty
-                                    <tr class="st-empty"><td colspan="4" class="text-center text-muted">{{ trans('admin/deployments/general.storage_no_devices') }}</td></tr>
+                                    @if ($stagedHere->isEmpty())
+                                        <tr class="st-empty"><td colspan="4" class="text-center text-muted">{{ trans('admin/deployments/general.storage_no_devices') }}</td></tr>
+                                    @endif
                                 @endforelse
                                 </tbody>
                             </table>

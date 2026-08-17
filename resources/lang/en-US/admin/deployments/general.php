@@ -160,6 +160,7 @@ return [
     'view_all' => 'All',
     'view_waves' => 'Waves',
     'view_timeline' => 'Timeline',
+    'view_storage' => 'Storage',
     'timeline_today' => 'Today',
     'waves_title' => 'Waves',
     'timeline_legend_arrival' => 'Arrival window',

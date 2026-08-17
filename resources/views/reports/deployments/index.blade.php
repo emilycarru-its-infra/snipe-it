@@ -114,7 +114,12 @@
        with their date labels shown, the device header gone — a real
        gantt, not a narrower table. */
     #devices-flow.dp-mode-waves tr.dp-item-row,
+    #devices-flow.dp-mode-storage tr.dp-item-row,
     #devices-flow.dp-mode-timeline tr.dp-item-row { display: none !important; }
+    .dp-wave-storage { display: none; font-size: 12.5px; }
+    #devices-flow.dp-mode-storage .dp-wave-storage { display: inline; }
+    #devices-flow.dp-mode-storage .dp-wave-meta,
+    #devices-flow.dp-mode-storage .dp-gantt { display: none; }
     #devices-flow.dp-mode-timeline .dp-wave-meta { display: none; }
     #devices-flow.dp-mode-timeline #dp-table thead { display: none; }
     .dp-wave-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -167,6 +172,7 @@
         <span class="btn-group" id="dp-view-btns">
             <button type="button" class="btn btn-sm btn-default" data-view="waves">{{ trans('admin/deployments/general.view_waves') }}</button>
             <button type="button" class="btn btn-sm btn-default" data-view="timeline">{{ trans('admin/deployments/general.view_timeline') }}</button>
+            <button type="button" class="btn btn-sm btn-default" data-view="storage">{{ trans('admin/deployments/general.view_storage') }}</button>
         </span>
     </div>
     {{-- Bulk action bar: appears once anything is checked. Grouping is the
@@ -239,6 +245,17 @@
                                 </button>
                                 <input type="checkbox" class="dp-group-check">
                                 <a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a>
+                            </span>
+                            <span class="dp-wave-storage">
+                                {{ trans('admin/deployments/general.storage_location') }}:
+                                @if ($wave->storageLocation)
+                                    <a href="{{ route('locations.show', $wave->storage_location_id) }}" class="js-lightbox">{{ $wave->storageLocation->name }}</a>
+                                @else — @endif
+                                <span class="text-muted" style="margin: 0 6px;">·</span>
+                                {{ trans('admin/deployments/general.location') }}:
+                                @if ($wave->location)
+                                    <a href="{{ route('locations.show', $wave->location_id) }}" class="js-lightbox">{{ $wave->location->name }}</a>
+                                @else — @endif
                             </span>
                             <span class="dp-wave-meta">
                                 {{ $wave->typeLabel() }} · {{ ucfirst($wave->wave_state) }} · {{ trans_choice('general.countable.assets', $waveRows->count(), ['count' => $waveRows->count()]) }}

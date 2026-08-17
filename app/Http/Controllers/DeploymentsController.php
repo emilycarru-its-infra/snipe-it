@@ -90,7 +90,7 @@ class DeploymentsController extends Controller
         }
 
         $wavesQuery = DeploymentWave::query()
-            ->with(['type', 'owner', 'location'])
+            ->with(['type', 'owner', 'location', 'storageLocation'])
             ->withCount('items')
             ->where('fiscal_year', $fy);
         if ($typeFilter) {
@@ -566,19 +566,6 @@ class DeploymentsController extends Controller
             ->orderBy('name')
             ->get();
 
-        $rows = [];
-        foreach ($locations as $location) {
-            $items = $byLocation->get($location->id, collect());
-            $rows[] = $this->storageRow($location->name, (int) $location->storage_capacity, $items, $location);
-        }
-
-        // Waves staging at each location (for the "waves staging here" line).
-        $wavesByStorage = DeploymentWave::query()
-            ->whereNotNull('storage_location_id')
-            ->ordered()
-            ->get()
-            ->groupBy('storage_location_id');
-
         // Unassigned: staged items with no storage location.
         $unassignedItems = $byLocation->get(null, collect());
         $unassigned = $this->storageRow(
@@ -613,16 +600,21 @@ class DeploymentsController extends Controller
             ->get();
         $assetsByLocation = $inStorageAssets->groupBy(fn ($a) => $a->rtd_location_id ?: 0);
 
+        // One set of rooms: flagged storage rooms, rooms holding shelf
+        // stock, rooms with a declared capacity, and rooms where wave
+        // devices are physically staged. Physical presence is one truth,
+        // told once, per room.
         $holdingLocations = Location::query()
             ->where(fn ($q) => $q->where('show_in_storage', true)
-                ->orWhereIn('id', $assetsByLocation->keys()->filter()->all()))
+                ->orWhereNotNull('storage_capacity')
+                ->orWhereIn('id', $assetsByLocation->keys()->filter()->all())
+                ->orWhereIn('id', $byLocation->keys()->filter()->all()))
             ->orderBy('name')
             ->get();
 
         return view('reports.deployments.storage', [
-            'rows' => $rows,
-            'wavesByStorage' => $wavesByStorage,
             'unassigned' => $unassigned,
+            'stagedByLocation' => $byLocation,
             'holdingLocations' => $holdingLocations,
             'assetsByLocation' => $assetsByLocation,
             'unassignedCount' => $unassignedItems->count(),
