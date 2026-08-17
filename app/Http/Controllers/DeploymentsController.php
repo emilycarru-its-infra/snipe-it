@@ -44,8 +44,6 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.view');
 
-        $forecast = new RefreshForecast;
-
         $types = DeploymentType::active()->ordered()->get();
         $stages = DeploymentStage::active()->ordered()->get();
 
@@ -124,8 +122,6 @@ class DeploymentsController extends Controller
             $deviceRows = array_merge($deviceRows, $this->historicalRows($fy, $allItems));
         }
 
-        $backlogCount = $forecast->forFiscalYear($fy)->count();
-
         $rowCounts = collect($deviceRows)->countBy('stage_slug');
         $stageRail = $stages->map(fn ($stage) => [
             'id' => $stage->id,
@@ -147,7 +143,6 @@ class DeploymentsController extends Controller
             'typeFilter' => $typeFilter,
             'stageRail' => $stageRail,
             'deviceRows' => $deviceRows,
-            'backlogCount' => $backlogCount,
             'timeline' => (new DeploymentTimeline)->build($waves),
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'format' => 'csv']),
         ]);
@@ -559,9 +554,17 @@ class DeploymentsController extends Controller
         // nobody and nothing — physically in a room, spoken for by no one.
         // Grouped by home location; holding rooms flagged from this page
         // stand as tables even when empty.
+        $transiting = DeploymentItem::query()
+            ->whereNotNull('asset_id')
+            ->whereNull('deployed_at')
+            ->pluck('asset_id')
+            ->all();
         $inStorageAssets = Asset::query()
             ->whereNull('assigned_to')
             ->whereHas('status', fn ($q) => $q->where('deployable', 1))
+            // A device a wave is still moving is not shelf stock — it is
+            // either staged above or not physically here at all.
+            ->when($transiting !== [], fn ($q) => $q->whereNotIn('id', $transiting))
             ->with(['model', 'location', 'defaultLoc'])
             ->orderBy('asset_tag')
             ->get();
