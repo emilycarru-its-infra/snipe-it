@@ -223,8 +223,36 @@ class DeploymentsController extends Controller
 
         $rows = [];
         foreach ($orders as $order) {
+            // A device and the warranty bought alongside it are two order lines
+            // pointing at the same asset — AppleCare, Lenovo Premier, HP care packs
+            // are all keyed to the machine they cover. Rendering a row per line
+            // therefore showed every covered device twice, once as itself and once
+            // as its warranty, and inflated the board's counts to match.
+            //
+            // Keep one line per asset: the dearest, which is the device rather than
+            // the rider (warranty lines carry their cost in warranty_cost and price
+            // the unit at zero). Ties resolve on the lowest line id so the choice is
+            // stable — items() has no ordering of its own.
+            $representativeLineIds = $order->items
+                ->filter(fn ($line) => $line->item instanceof Asset)
+                ->groupBy(fn ($line) => $line->item->id)
+                ->map(fn ($lines) => $lines
+                    ->sortBy([
+                        fn ($a, $b) => (float) $b->unit_cost <=> (float) $a->unit_cost,
+                        fn ($a, $b) => $a->id <=> $b->id,
+                    ])
+                    ->first()->id)
+                ->all();
+
             foreach ($order->items as $line) {
                 if (in_array($line->id, $linkedOrderItemIds, true)) {
+                    continue;
+                }
+
+                // Lines with no asset are untouched: an ordered-but-unreceived
+                // quantity still needs its own row.
+                if ($line->item instanceof Asset
+                    && ($representativeLineIds[$line->item->id] ?? $line->id) !== $line->id) {
                     continue;
                 }
 
