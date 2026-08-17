@@ -2861,7 +2861,7 @@
                                             </a>
                                         </li>
                                     @endcan
-                                    @can('view', App\Models\Asset::class)
+                                    @can('reports.printing.view')
                                         <li {{!! (request()->is('reports/printing*') ? ' class="active"' : '') !!}}>
                                             <a href="{{ route('reports.printing') }}">
                                                 {{ trans('admin/reports/general.nav_printers') }}
