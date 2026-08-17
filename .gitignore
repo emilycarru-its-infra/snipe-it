@@ -72,3 +72,7 @@ storage/ldap_client_tls.key
 
 /.phpunit.cache
 /.worktrees/
+# Test runs generate real-looking documents here; they never belong in git.
+storage/private_uploads/**/*.pdf
+storage/private_uploads/**/*.xlsx
+storage/private_uploads/**/*.csv
