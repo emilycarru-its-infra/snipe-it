@@ -54,6 +54,66 @@
         </p>
     </x-box>
 
+
+    <x-box>
+        <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.groups_header') }}</h3>
+        <p class="text-muted">{{ trans('admin/access-audit/general.groups_help') }}</p>
+
+        @forelse ($groups as $entry)
+            <h4 style="margin-bottom: 5px;">
+                {{ $entry['group']->name }}
+                <span class="text-muted" style="font-weight: normal;">&middot; {{ $entry['members']->count() }} {{ strtolower(trans('admin/access-audit/general.members')) }}</span>
+                @if ($canOpenGroups)
+                    <a href="{{ route('groups.edit', $entry['group']->id) }}" target="_blank" rel="noopener" class="btn btn-xs btn-default">{{ trans('admin/access-audit/general.open_group') }}</a>
+                @endif
+            </h4>
+            <p style="margin-bottom: 20px;">
+                @forelse ($entry['members'] as $member)
+                    @if ($canOpenUsers)<a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@else{{ $member->display_name }}@endif @if (! $loop->last), @endif
+                @empty
+                    <span class="text-muted">{{ trans('admin/access-audit/general.no_members') }}</span>
+                @endforelse
+            </p>
+        @empty
+            <p class="text-muted">{{ trans('admin/access-audit/general.none') }}</p>
+        @endforelse
+    </x-box>
+
+    @if ($departments->isNotEmpty())
+        <x-box>
+            <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.departments_header') }}</h3>
+            <p class="text-muted">{{ trans('admin/access-audit/general.departments_help') }}</p>
+
+            @foreach ($departments as $entry)
+                <h4 style="margin-bottom: 5px;">
+                    {{ $entry['department']->name }}
+                    <span class="text-muted" style="font-weight: normal;">&middot; {{ $entry['members']->count() }} {{ strtolower(trans('admin/access-audit/general.members')) }}</span>
+                </h4>
+                <p style="margin-bottom: 20px;">
+                    @forelse ($entry['members'] as $member)
+                        @if ($canOpenUsers)<a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@else{{ $member->display_name }}@endif @if (! $loop->last), @endif
+                    @empty
+                        <span class="text-muted">{{ trans('admin/access-audit/general.no_members') }}</span>
+                    @endforelse
+                </p>
+            @endforeach
+        </x-box>
+    @endif
+
+    <x-box>
+        <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.individuals_header') }}</h3>
+        <p class="text-muted">{{ trans('admin/access-audit/general.individuals_help') }}</p>
+
+        @forelse ($individuals as $user)
+            <p style="margin-bottom: 5px;">
+                @if ($canOpenUsers)<a href="{{ route('users.show', $user->id) }}" target="_blank" rel="noopener">{{ $user->display_name }}</a>@else{{ $user->display_name }}@endif
+                <span class="text-muted">{{ $user->email }}</span>
+            </p>
+        @empty
+            <p class="text-muted" style="margin-bottom: 0;">{{ trans('admin/access-audit/general.individuals_empty') }}</p>
+        @endforelse
+    </x-box>
+
     <x-box>
         {{-- A roster is only useful if you can find one name in it. The
              filter is client-side over the rows already rendered: the whole
@@ -158,65 +218,6 @@
         });
     })();
     </script>
-
-    <x-box>
-        <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.groups_header') }}</h3>
-        <p class="text-muted">{{ trans('admin/access-audit/general.groups_help') }}</p>
-
-        @forelse ($groups as $entry)
-            <h4 style="margin-bottom: 5px;">
-                {{ $entry['group']->name }}
-                <span class="text-muted" style="font-weight: normal;">&middot; {{ $entry['members']->count() }} {{ strtolower(trans('admin/access-audit/general.members')) }}</span>
-                @if ($canOpenGroups)
-                    <a href="{{ route('groups.edit', $entry['group']->id) }}" target="_blank" rel="noopener" class="btn btn-xs btn-default">{{ trans('admin/access-audit/general.open_group') }}</a>
-                @endif
-            </h4>
-            <p style="margin-bottom: 20px;">
-                @forelse ($entry['members'] as $member)
-                    @if ($canOpenUsers)<a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@else{{ $member->display_name }}@endif @if (! $loop->last), @endif
-                @empty
-                    <span class="text-muted">{{ trans('admin/access-audit/general.no_members') }}</span>
-                @endforelse
-            </p>
-        @empty
-            <p class="text-muted">{{ trans('admin/access-audit/general.none') }}</p>
-        @endforelse
-    </x-box>
-
-    @if ($departments->isNotEmpty())
-        <x-box>
-            <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.departments_header') }}</h3>
-            <p class="text-muted">{{ trans('admin/access-audit/general.departments_help') }}</p>
-
-            @foreach ($departments as $entry)
-                <h4 style="margin-bottom: 5px;">
-                    {{ $entry['department']->name }}
-                    <span class="text-muted" style="font-weight: normal;">&middot; {{ $entry['members']->count() }} {{ strtolower(trans('admin/access-audit/general.members')) }}</span>
-                </h4>
-                <p style="margin-bottom: 20px;">
-                    @forelse ($entry['members'] as $member)
-                        @if ($canOpenUsers)<a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@else{{ $member->display_name }}@endif @if (! $loop->last), @endif
-                    @empty
-                        <span class="text-muted">{{ trans('admin/access-audit/general.no_members') }}</span>
-                    @endforelse
-                </p>
-            @endforeach
-        </x-box>
-    @endif
-
-    <x-box>
-        <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.individuals_header') }}</h3>
-        <p class="text-muted">{{ trans('admin/access-audit/general.individuals_help') }}</p>
-
-        @forelse ($individuals as $user)
-            <p style="margin-bottom: 5px;">
-                @if ($canOpenUsers)<a href="{{ route('users.show', $user->id) }}" target="_blank" rel="noopener">{{ $user->display_name }}</a>@else{{ $user->display_name }}@endif
-                <span class="text-muted">{{ $user->email }}</span>
-            </p>
-        @empty
-            <p class="text-muted" style="margin-bottom: 0;">{{ trans('admin/access-audit/general.individuals_empty') }}</p>
-        @endforelse
-    </x-box>
 
     <x-box>
         <h3 style="margin-top: 0;">{{ trans('admin/access-audit/general.superusers_header') }}</h3>
