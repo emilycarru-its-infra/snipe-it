@@ -934,8 +934,9 @@ th.css-history > .th-inner::before {
 
 label.form-control {
   display: grid;
-  grid-template-columns: 1.8em auto;
+  grid-template-columns: @control-size auto;
   gap: 0.5em;
+  align-items: center;
   border: 0px;
   padding-left: 0px;
   background-color: inherit;
@@ -951,110 +952,165 @@ label.form-control--disabled {
 
 
 /** --------------------------------------- **/
-/** Start checkbox styles to replace iCheck **/
+/** Checkbox and radio controls             **/
 /** --------------------------------------- **/
-input[type="checkbox"] {
-  /* Add if not using autoprefixer */
+/**
+ * Replaces iCheck. Sized in px rather than em on purpose: these controls are
+ * inherited into tables, dropdowns and inline labels whose font-size varies,
+ * and an em-sized box grew to roughly 25px in the asset tables, where it
+ * dominated every row and set the row height. A control should be the same
+ * size everywhere regardless of the text it sits beside.
+ *
+ * One accent token drives checked, indeterminate and focus, so recolouring
+ * every control in the product is a one-line change.
+ */
+
+@control-size: 16px;
+@control-mark: 10px;
+@control-radius: 4px;
+@control-border: #c3c7cc;
+@control-border-hover: #8b9096;
+@control-accent: #337ab7;
+@control-disabled-bg: #f2f3f5;
+@control-disabled-border: #d8dbdf;
+@control-disabled-mark: #a9adb3;
+
+input[type="checkbox"],
+input[type="radio"] {
   -webkit-appearance: none;
   appearance: none;
-  /* For iOS < 15 to remove gradient background */
-  background-color: #fff;
-  /* Not removed via appearance */
+  /* Never let a flex or grid parent stretch a control out of square. */
+  flex: none;
+  width: @control-size;
+  height: @control-size;
   margin: 0;
+  padding: 0;
   font: inherit;
-  color: #959495;
-  width: 1.8em;
-  height: 1.8em;
-  border: 0.05em solid;
-  border-radius: 0em;
-  transform: translateY(-0.075em);
-  display: grid;
+  vertical-align: middle;
+  background-color: #fff;
+  border: 1px solid @control-border;
+  display: inline-grid;
   place-content: center;
-  /*Windows High Contrast Mode*/
+  cursor: pointer;
+  transition: background-color 120ms ease-in-out,
+              border-color 120ms ease-in-out,
+              box-shadow 120ms ease-in-out;
 }
 
-/** This sets the display of a checkbox, and what the "fill" checkmark should look like */
+input[type="checkbox"] {
+  border-radius: @control-radius;
+}
+
+input[type="radio"] {
+  border-radius: 50%;
+}
+
+input[type="checkbox"]:hover:not(:disabled),
+input[type="radio"]:hover:not(:disabled) {
+  border-color: @control-border-hover;
+}
+
+/**
+ * appearance:none removes the platform focus ring and nothing replaced it, so
+ * keyboard users had no visible focus on any checkbox in the product.
+ * :focus-visible restores it without putting a ring on every mouse click.
+ */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid @control-accent;
+  outline-offset: 2px;
+}
+
+/**
+ * Checked state fills the control and draws the mark in white. A coloured
+ * mark floating on a white field is hard to scan at this size; a filled box
+ * reads at a glance down a long column, which is how these are actually used.
+ */
+input[type="checkbox"]:checked,
+input[type="checkbox"]:indeterminate {
+  background-color: @control-accent;
+  border-color: @control-accent;
+}
 
 input[type="checkbox"]::before {
-
-  /** If you want to use the non-checkbox, filled square, use this instead **/
   content: "";
-  width: 1em;
-  height: 1em;
-  transform: scale(0);
-  transition: 120ms transform ease-in-out;
-  box-shadow: inset 1em 1em rgb(211, 211, 211);
-  content: "";
-  width: 1em;
-  height: 1em;
+  width: @control-mark;
+  height: @control-mark;
+  background-color: #fff;
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
   transform: scale(0);
-  transform-origin: bottom left;
-  transition: 120ms transform ease-in-out;
-  box-shadow: inset 1em 1em #428bca;
-  /* Windows High Contrast Mode */
-  background-color: CanvasText;
+  transform-origin: center;
+  transition: transform 120ms ease-in-out;
 }
 
-/** This sets the size of the scale up for the shape we defined above **/
 input[type="checkbox"]:checked::before {
   transform: scale(1);
 }
 
-/** This sets the scale and color of the DISABLED but CHECKED checkbox */
-input[type=checkbox]:disabled::before, input[type=radio]:disabled::before {
-  content: "";
-  width: 1em;
-  height: 1em;
+/**
+ * Indeterminate is the state a "select all" header takes when only some rows
+ * beneath it are selected. Left unstyled it renders as an empty box, which
+ * says "nothing selected" -- the opposite of what is true.
+ */
+input[type="checkbox"]:indeterminate::before {
+  clip-path: polygon(8% 42%, 92% 42%, 92% 58%, 8% 58%);
   transform: scale(1);
-  box-shadow: inset 1em 1em rgb(211, 211, 211);
-}
-
-/* This sets the scale and style of a DISABLED checkbox that is NOT checked */
-input[type=checkbox]:disabled:not(:checked)::before, input[type=radio]:disabled:not(:checked)::before {
-  content: "";
-  transform: scale(0);
-  cursor: not-allowed;
-  pointer-events:none;
-}
-
-/** this is the color of the checkbox and content on a disabled, checked box **/
-input[type=checkbox]:disabled, input[type=radio]:disabled {
-  --form-control-color: rgb(211, 211, 211);
-  color: #959495;
-  cursor: not-allowed;
-  pointer-events:none;
-}
-
-
-/** Radio styles to replace iCheck **/
-
-input[type="radio"] {
-  appearance: none;
-  background-color: #fff;
-  margin: 0;
-  font: inherit;
-  color: #959495;
-  width: 1.8em;
-  height: 1.8em;
-  border: 0.05em solid;
-  border-radius: 50%;
-  transform: translateY(-0.075em);
-  display: grid;
-  place-content: center;
 }
 
 input[type="radio"]::before {
   content: "";
-  width: 1em;
-  height: 1em;
+  width: @control-mark - 2;
+  height: @control-mark - 2;
   border-radius: 50%;
+  background-color: #fff;
   transform: scale(0);
-  transition: 120ms transform ease-in-out;
+  transition: transform 120ms ease-in-out;
+}
+
+input[type="radio"]:checked {
+  background-color: @control-accent;
+  border-color: @control-accent;
 }
 
 input[type="radio"]:checked::before {
   transform: scale(1);
+}
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  background-color: @control-disabled-bg;
+  border-color: @control-disabled-border;
+  color: @control-disabled-mark;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+input[type="checkbox"]:disabled::before,
+input[type="radio"]:disabled::before {
+  background-color: @control-disabled-mark;
+}
+
+/**
+ * Forced-colors mode strips author backgrounds, so the filled-box treatment
+ * disappears and a checked control would be indistinguishable from an empty
+ * one. Hand the mark back to the system palette.
+ */
+@media (forced-colors: active) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    border-color: CanvasText;
+  }
+
+  input[type="checkbox"]::before,
+  input[type="radio"]::before {
+    background-color: CanvasText;
+  }
+
+  input[type="checkbox"]:checked,
+  input[type="checkbox"]:indeterminate,
+  input[type="radio"]:checked {
+    background-color: Canvas;
+  }
 }
 
 
@@ -1063,15 +1119,12 @@ input[type="radio"]:checked::before {
 * checkbox and the <span></span> with the label text that BS tables generates will
 * end up on two different lines and it looks assy.
  */
-.dropdown-item-marker input[type=checkbox] {
-  font-size: 10px;
-}
-
 .bootstrap-table .fixed-table-toolbar li.dropdown-item-marker label {
   font-weight: normal;
   display: grid;
-  grid-template-columns: .1em auto;
-  gap: 1.5em;
+  grid-template-columns: @control-size auto;
+  gap: 0.5em;
+  align-items: center;
 }
 
 .container.row-striped .col-md-6 {
