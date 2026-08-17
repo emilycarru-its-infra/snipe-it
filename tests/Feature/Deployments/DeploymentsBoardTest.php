@@ -241,6 +241,13 @@ class DeploymentsBoardTest extends TestCase
         ]);
 
         $asset = \App\Models\Asset::factory()->create(['name' => 'Facilities Tablet 01']);
+        // Pin the dates out of the refresh window: the factory's computed
+        // EOL sometimes lands in the current FY, putting the device on the
+        // candidates list too and making this count flap.
+        \App\Models\Asset::query()->whereKey($asset->id)->update([
+            'asset_eol_date' => null,
+            'lease_end_date' => null,
+        ]);
 
         // The device, and the AppleCare bought to cover it. Both lines point at
         // the same machine, because the warranty is keyed to what it covers.
