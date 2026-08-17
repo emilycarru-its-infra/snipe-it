@@ -112,12 +112,9 @@
     {{-- Same collapse-vs-sticky Chrome bug the layout's .sticky-table
          guards against: without separate, rows bleed through the header. --}}
     .fc-scroll table { border-collapse: separate; border-spacing: 0; }
-    .fc-money-chip {
-        display: inline-flex; align-items: center; height: 26px;
-        padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
-        text-decoration: none;
-    }
-    .fc-money-chip:hover, .fc-money-chip:focus { text-decoration: none; opacity: .88; }
+    .fc-bulkbar { display: none; padding: 8px 10px; border-bottom: 1px solid var(--box-border-color, #f4f4f4); }
+    .fc-bulkbar.active { display: block; }
+    .fc-bulkbar .form-control { display: inline-block; width: auto; vertical-align: middle; }
     .fc-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--box-bg, #fff); box-shadow: 0 1px 0 var(--box-border-color, #f4f4f4); }
 </style>
 
@@ -140,8 +137,8 @@
                     <th>{{ trans('admin/deployments/general.deployment_type') }}</th>
                     <th>{{ trans('admin/deployments/general.wave_state') }}</th>
                     <th class="text-right">{{ trans('admin/deployments/general.device') }}s</th>
-                    <th>{{ trans('admin/deployments/general.arrival_window') }}</th>
-                    <th>{{ trans('admin/deployments/general.deploy_window') }}</th>
+                    <th>{{ trans('admin/deployments/general.waves_col_arrival') }}</th>
+                    <th>{{ trans('admin/deployments/general.waves_col_deploy') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -151,16 +148,8 @@
                     <td>{{ $wave->typeLabel() }}</td>
                     <td>{{ ucfirst($wave->wave_state) }}</td>
                     <td class="text-right">{{ $wave->items_count }}</td>
-                    <td>
-                        @if ($wave->arrival_window_start || $wave->arrival_window_end)
-                            {{ optional($wave->arrival_window_start)->toDateString() ?: '?' }} – {{ optional($wave->arrival_window_end)->toDateString() ?: '?' }}
-                        @else — @endif
-                    </td>
-                    <td>
-                        @if ($wave->target_start_date || $wave->target_end_date)
-                            {{ optional($wave->target_start_date)->toDateString() ?: '?' }} – {{ optional($wave->target_end_date)->toDateString() ?: '?' }}
-                        @else — @endif
-                    </td>
+                    <td>{{ optional($wave->arrival_window_start)->toDateString() ?: '—' }}</td>
+                    <td>{{ optional($wave->target_start_date)->toDateString() ?: '—' }}</td>
                 </tr>
             @empty
                 <tr><td colspan="6" class="text-center text-muted">{{ trans('admin/deployments/general.no_waves') }}</td></tr>
@@ -187,49 +176,6 @@
     <div class="box box-default">
         <div class="box-header with-border">
             <h3 class="box-title">{{ trans('admin/deployments/general.forecast_summary', ['count' => $candidates->count(), 'fy' => $fy]) }}</h3>
-            {{-- The budget beside the plan: lease-end funds, what the plan
-                 currently requests, and the gap — live from the capital
-                 request, linking into it. Adjust here, watch the money. --}}
-            <div class="box-tools pull-right" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                {{-- Add-to-wave is one action, not a box of its own: pick the
-                     target wave in the popover and the checked candidates go
-                     over. The submit rides the surrounding form, so the
-                     checkbox selection is exactly what gets added. --}}
-                <span class="nw-pop-wrap" style="position:relative; display:inline-block;">
-                    <button type="button" class="btn btn-sm btn-primary nw-pop-toggle" data-pop="fc-add-pop">
-                        <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}
-                        (<span id="fc-sel-count">0</span>)
-                    </button>
-                    <div class="nw-pop" id="fc-add-pop" style="width:300px;">
-                        <label style="display:block; margin-bottom:3px;">{{ trans('admin/deployments/general.target_wave') }}</label>
-                        <select name="wave_id" class="form-control" style="width:100%; margin-bottom:10px;">
-                            <option value="">—</option>
-                            @foreach ($waves as $w)
-                                <option value="{{ $w->id }}">{{ $w->name }} ({{ $w->items_count }})</option>
-                            @endforeach
-                        </select>
-                        <div class="text-right">
-                            <button type="button" class="btn btn-sm btn-default nw-pop-cancel" data-pop="fc-add-pop">{{ trans('button.cancel') }}</button>
-                            <button type="submit" class="btn btn-sm btn-primary">
-                                <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}
-                            </button>
-                        </div>
-                    </div>
-                </span>
-            @if ($capital)
-                    <a href="{{ route('reports.procurement.capital-request', ['fiscal_year' => $capital['fy']]) }}" class="label label-default fc-money-chip">
-                        {{ trans('admin/deployments/general.forecast_funds_chip', ['amount' => number_format($capital['envelope'], 2)]) }}
-                    </a>
-                    <a href="{{ route('reports.procurement.capital-request', ['fiscal_year' => $capital['fy']]) }}" class="label label-primary fc-money-chip">
-                        {{ trans('admin/deployments/general.forecast_requested_chip', ['amount' => number_format($capital['requested'], 2)]) }}
-                    </a>
-                    <a href="{{ route('reports.procurement.capital-request', ['fiscal_year' => $capital['fy']]) }}" class="label {{ $capital['remaining'] < 0 ? 'label-danger' : 'label-info' }} fc-money-chip">
-                        {{ $capital['remaining'] < 0
-                            ? trans('admin/deployments/general.forecast_over_chip', ['amount' => number_format(abs($capital['remaining']), 2)])
-                            : trans('admin/purchase-orders/general.capital_remaining_chip', ['amount' => number_format($capital['remaining'], 2)]) }}
-                    </a>
-            @endif
-                </div>
             <span style="margin-left:16px; vertical-align:middle; white-space:nowrap;">
                 <span class="text-muted" style="font-size:12px; margin-right:4px;">{{ trans('admin/deployments/general.flow_group_label') }}</span>
                 <span class="btn-group" id="fc-group-btns" style="vertical-align:middle;">
@@ -239,6 +185,33 @@
                     <button type="button" class="btn btn-xs btn-default" data-group="reason">{{ trans('admin/deployments/general.refresh_reason') }}</button>
                     <button type="button" class="btn btn-xs btn-default" data-group="decision">{{ trans('admin/deployments/general.forecast_col_decision') }}</button>
                 </span>
+            </span>
+        </div>
+
+        {{-- The selection bar: appears when devices are checked, and IS
+             the answer to "what do I do with this selection" — send it to
+             an existing wave, or name a new one right here and it is
+             created with the devices already on it. --}}
+        <div class="fc-bulkbar" id="fc-bulkbar">
+            <strong id="fc-sel-label"></strong>
+            <span style="margin-left:12px;">
+                {{ trans('admin/deployments/general.forecast_send_to_wave') }}:
+                <select name="wave_id" class="form-control input-sm">
+                    <option value="">—</option>
+                    @foreach ($waves as $w)
+                        <option value="{{ $w->id }}">{{ $w->name }} ({{ $w->items_count }})</option>
+                    @endforeach
+                </select>
+                <span class="text-muted" style="margin:0 6px;">{{ trans('admin/deployments/general.forecast_or_new_wave') }}</span>
+                <input type="text" name="new_wave_name" class="form-control input-sm" style="width:220px;" placeholder="{{ trans('admin/deployments/general.new_wave_name') }}">
+                <select name="deployment_type_id" class="form-control input-sm">
+                    @foreach ($types as $type)
+                        <option value="{{ $type->id }}">{{ $type->name }}</option>
+                    @endforeach
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.forecast_send_submit') }} (<span id="fc-sel-count">0</span>)
+                </button>
             </span>
         </div>
         <div class="box-body no-padding fc-scroll">
@@ -252,7 +225,6 @@
                         <th>{{ trans('admin/deployments/general.source_date') }}</th>
                         <th>{{ trans('general.status') }}</th>
                         <th>{{ trans('admin/deployments/general.location') }}</th>
-                        <th class="text-right">{{ trans('admin/purchase-orders/general.forecast_estimate') }}</th>
                         <th>{{ trans('admin/deployments/general.forecast_col_decision') }}</th>
                     </tr>
                 </thead>
@@ -277,11 +249,6 @@
                         <td>{{ $asset->source_date ?: '—' }}</td>
                         <td>{{ $asset->status?->name ?: '—' }}</td>
                         <td>{{ $asset->location?->name ?: '—' }}</td>
-                        @php($fcCatalog = $asset->model?->refreshCatalogItem)
-                        <td class="text-right" style="white-space:nowrap;">
-                            ${{ number_format($asset->replacementCostEstimate() ?? (float) ($asset->purchase_cost ?? 0), 2) }}
-                            @if (! $fcCatalog)<span class="label label-default" title="{{ trans('admin/purchase-orders/general.forecast_basis_original') }}">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
-                        </td>
                         <td>
                             @if ($asset->lease_decision_label)
                                 <span class="label label-warning" @if ($asset->lease_decision_note) title="{{ $asset->lease_decision_note }}" @endif>
@@ -291,18 +258,9 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="text-center text-muted">{{ trans('admin/deployments/general.forecast_no_candidates') }}</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted">{{ trans('admin/deployments/general.forecast_no_candidates') }}</td></tr>
                 @endforelse
                 </tbody>
-                @if ($candidates->isNotEmpty())
-                    <tfoot>
-                        <tr>
-                            <th colspan="7" class="text-right">{{ trans('admin/orders/general.total') }}</th>
-                            <th class="text-right">${{ number_format($totalEstimate, 2) }}</th>
-                            <th></th>
-                        </tr>
-                    </tfoot>
-                @endif
             </table>
         </div>
         @can('create', \App\Models\Order::class)
@@ -392,6 +350,10 @@
     var groupBy = '';
     var selCount = document.getElementById('fc-sel-count');
 
+    var bulkbar = document.getElementById('fc-bulkbar');
+    var selLabel = document.getElementById('fc-sel-label');
+    var selLabelTemplate = @json(trans('admin/deployments/general.flow_selected', ['count' => '__N__']));
+
     function refreshCount() {
         var n = rows.filter(function (r) {
             var check = r.querySelector('.fc-check');
@@ -399,6 +361,10 @@
         }).length;
         selCount.textContent = n;
         document.querySelectorAll('.fc-sel-count-mirror').forEach(function (el) { el.textContent = n; });
+        if (bulkbar) {
+            bulkbar.classList.toggle('active', n > 0);
+            selLabel.textContent = selLabelTemplate.replace('__N__', n);
+        }
     }
 
     function rebuild() {
@@ -423,7 +389,7 @@
             var head = document.createElement('tr');
             head.className = 'fc-group-head';
             var td = document.createElement('td');
-            td.colSpan = 9;
+            td.colSpan = 8;
             var check = document.createElement('input');
             check.type = 'checkbox';
             check.style.marginRight = '8px';

@@ -123,10 +123,9 @@
                     <th>{{ trans('admin/deployments/general.name') }}</th>
                     <th>{{ trans('admin/deployments/general.deployment_type') }}</th>
                     <th>{{ trans('admin/deployments/general.wave_state') }}</th>
-                    <th>{{ trans('admin/deployments/general.fiscal_year') }}</th>
                     <th class="text-right">{{ trans('admin/deployments/general.device') }}s</th>
-                    <th>{{ trans('admin/deployments/general.arrival_window') }}</th>
-                    <th>{{ trans('admin/deployments/general.deploy_window') }}</th>
+                    <th>{{ trans('admin/deployments/general.waves_col_arrival') }}</th>
+                    <th>{{ trans('admin/deployments/general.waves_col_deploy') }}</th>
                     <th>{{ trans('admin/deployments/general.owner') }}</th>
                 </tr>
             </thead>
@@ -136,22 +135,13 @@
                     <td><a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a></td>
                     <td>{{ $wave->typeLabel() }}</td>
                     <td>{{ ucfirst($wave->wave_state) }}</td>
-                    <td>{{ $wave->fiscal_year ?: '—' }}</td>
                     <td class="text-right">{{ $wave->items_count }}</td>
-                    <td>
-                        @if ($wave->arrival_window_start || $wave->arrival_window_end)
-                            {{ optional($wave->arrival_window_start)->toDateString() ?: '?' }} – {{ optional($wave->arrival_window_end)->toDateString() ?: '?' }}
-                        @else — @endif
-                    </td>
-                    <td>
-                        @if ($wave->target_start_date || $wave->target_end_date)
-                            {{ optional($wave->target_start_date)->toDateString() ?: '?' }} – {{ optional($wave->target_end_date)->toDateString() ?: '?' }}
-                        @else — @endif
-                    </td>
+                    <td>{{ optional($wave->arrival_window_start)->toDateString() ?: '—' }}</td>
+                    <td>{{ optional($wave->target_start_date)->toDateString() ?: '—' }}</td>
                     <td>{{ $wave->owner?->full_name ?: '—' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="text-center text-muted">{{ trans('admin/deployments/general.no_waves') }}</td></tr>
+                <tr><td colspan="7" class="text-center text-muted">{{ trans('admin/deployments/general.no_waves') }}</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -189,42 +179,32 @@
     @if ($backlogCount > 0)
         <div class="box-body" style="padding-top:8px; padding-bottom:8px; border-bottom:1px solid var(--box-border-color, #f4f4f4);">
             <span class="text-muted" style="font-size:12.5px;">
-                {{ $isPast
-                    ? trans('admin/deployments/general.flow_backlog_note_past', ['count' => $backlogCount, 'fy' => $fy])
-                    : trans('admin/deployments/general.flow_backlog_note', ['count' => $backlogCount]) }}
+                {{ trans('admin/deployments/general.flow_backlog_pointer', ['count' => $backlogCount]) }}
+                <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}">{{ trans('admin/deployments/general.flow_backlog_pointer_link') }}</a>
             </span>
         </div>
     @endif
 
-    {{-- Bulk action bar: appears once anything is checked. Stage moves and
-         grouping act on tracked (wave) rows; add-to-wave acts on backlog
-         rows. Derived rows (orders, history) carry no checkbox. --}}
+    {{-- Bulk action bar: appears once anything is checked. Grouping is the
+         everyday action; stage moves hide behind Manual override — the
+         stages follow order and checkout facts on their own, and pressing
+         the buttons is the exception, not the workflow. --}}
     <div class="dp-bulkbar" id="dp-bulkbar">
         <strong id="dp-sel-count"></strong>
         <span id="dp-move-wrap" style="margin-left:12px; display:none;">
-            {{ trans('admin/deployments/general.flow_move_to') }}:
-            @foreach ($stages as $stage)
-                <button type="button" class="btn btn-xs btn-default dp-move-btn" data-stage-id="{{ $stage->id }}"
-                        style="border-color: {{ $stage->color ?: '#bdc3c7' }};">
-                    {{ $stage->name }}
-                </button>
-            @endforeach
-            <span style="margin-left:10px;">
-                <input type="text" id="dp-group-input" class="form-control input-sm" style="width:160px;" placeholder="{{ trans('admin/deployments/general.flow_set_group') }}">
-                <button type="button" class="btn btn-xs btn-default" id="dp-group-apply">{{ trans('admin/deployments/general.flow_set_group') }}</button>
-            </span>
-            <span class="text-muted" style="font-size:12px; margin-left:8px;">{{ trans('admin/deployments/general.flow_gate_hint') }}</span>
-        </span>
-        <span id="dp-wave-wrap" style="margin-left:12px; display:none;">
-            {{ trans('admin/deployments/general.flow_add_to_wave') }}:
-            <select id="dp-wave-select" class="form-control input-sm">
-                <option value="">{{ trans('admin/deployments/general.catalog_none') }}</option>
-                @foreach ($waves as $wave)
-                    <option value="{{ $wave->id }}">{{ $wave->name }}</option>
+            <input type="text" id="dp-group-input" class="form-control input-sm" style="width:160px;" placeholder="{{ trans('admin/deployments/general.flow_set_group') }}">
+            <button type="button" class="btn btn-xs btn-default" id="dp-group-apply">{{ trans('admin/deployments/general.flow_set_group') }}</button>
+            <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.flow_auto_hint') }}</span>
+            <button type="button" class="btn btn-xs btn-link" id="dp-manual-toggle">{{ trans('admin/deployments/general.flow_manual_override') }}</button>
+            <span id="dp-manual-stages" style="display:none; margin-left:4px;">
+                @foreach ($stages as $stage)
+                    <button type="button" class="btn btn-xs btn-default dp-move-btn" data-stage-id="{{ $stage->id }}"
+                            style="border-color: {{ $stage->color ?: '#bdc3c7' }};">
+                        {{ $stage->name }}
+                    </button>
                 @endforeach
-            </select>
-            <input type="text" id="dp-wave-new" class="form-control input-sm" placeholder="{{ trans('admin/deployments/general.new_wave_name') }}">
-            <button type="button" class="btn btn-xs btn-primary" id="dp-wave-go">{{ trans('admin/deployments/general.add_from_forecast') }}</button>
+                <span class="text-muted" style="font-size:12px; margin-left:8px;">{{ trans('admin/deployments/general.flow_gate_hint') }}</span>
+            </span>
         </span>
     </div>
 
@@ -299,13 +279,59 @@
     <input type="hidden" name="group_label" value="">
     <span id="dp-group-ids"></span>
 </form>
-<form id="dp-wave-form" method="POST" action="{{ route('deployments.forecast.add') }}" style="display:none;">
-    @csrf
-    <input type="hidden" name="fiscal_year" value="{{ $fy }}">
-    <input type="hidden" name="wave_id" value="">
-    <input type="hidden" name="new_wave_name" value="">
-    <span id="dp-wave-ids"></span>
-</form>
+
+{{-- Incoming orders that no wave has claimed. These are procurement
+     facts, not waves — they used to render inside the device table with
+     the order number dressed up as a wave chip, which read as waves
+     nobody created and nobody could edit. Here they are what they are:
+     order lines, grouped by order, linked to the order they belong to.
+     They join the board the moment a wave item claims them. --}}
+@if ($incomingOrders->isNotEmpty())
+<div class="box box-default collapsed-box">
+    <div class="box-header with-border">
+        <h3 class="box-title">{{ trans('admin/deployments/general.incoming_orders_title', ['count' => $incomingOrders->flatten(1)->count()]) }}</h3>
+        <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.incoming_orders_hint') }}</span>
+        <div class="box-tools pull-right">
+            <button type="button" class="btn btn-box-tool" data-widget="collapse"><i class="fas fa-plus"></i></button>
+        </div>
+    </div>
+    <div class="box-body no-padding" style="display:none;">
+        <table class="table table-striped table-condensed" style="margin-bottom:0;">
+            <thead>
+                <tr>
+                    <th>{{ trans('admin/deployments/general.device') }}</th>
+                    <th>{{ trans('admin/deployments/general.model') }}</th>
+                    <th>{{ trans('admin/deployments/general.stage') }}</th>
+                    <th>{{ trans('admin/orders/general.order') }}</th>
+                    <th>{{ trans('general.status') }}</th>
+                    <th>{{ trans('admin/deployments/general.location') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach ($incomingOrders as $orderNumber => $lines)
+                <tr class="dp-group-head"><td colspan="6" style="font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.05em;">{{ $orderNumber }} · {{ count($lines) }}</td></tr>
+                @foreach ($lines as $line)
+                    <tr>
+                        <td>
+                            @if ($line['device_url'])
+                                <a href="{{ $line['device_url'] }}" class="js-lightbox">{{ $line['device'] }}</a>
+                            @else
+                                {{ $line['device'] }}
+                            @endif
+                        </td>
+                        <td>{{ $line['model'] }}</td>
+                        <td><span class="label" style="background-color: {{ $line['stage_color'] }}; color:#fff;">{{ $line['stage_name'] }}</span></td>
+                        <td><a href="{{ $line['wave_url'] }}" class="js-lightbox">{{ $line['wave'] }}</a> <span class="text-muted" style="font-size:11.5px;">{{ $line['context'] }}</span></td>
+                        <td>{{ $line['status'] }}</td>
+                        <td>{{ $line['location'] }}</td>
+                    </tr>
+                @endforeach
+            @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
 
 {{-- Agreements live at /procurement/agreements — one hub, not a copy of
      the ledger on every page that touches the program. --}}
@@ -480,7 +506,6 @@
     var bulkbar = document.getElementById('dp-bulkbar');
     var selCount = document.getElementById('dp-sel-count');
     var moveWrap = document.getElementById('dp-move-wrap');
-    var waveWrap = document.getElementById('dp-wave-wrap');
 
     function selected() {
         return rows.filter(function (r) {
@@ -493,12 +518,18 @@
     function refreshBulkbar() {
         var sel = selected();
         var items = sel.filter(function (r) { return r.getAttribute('data-item-id'); });
-        var assets = sel.filter(function (r) { return r.getAttribute('data-asset-id'); });
         bulkbar.classList.toggle('active', sel.length > 0);
         selCount.textContent = @json(trans('admin/deployments/general.flow_selected', ['count' => '__N__'])).replace('__N__', sel.length);
         moveWrap.style.display = items.length > 0 ? '' : 'none';
-        waveWrap.style.display = assets.length > 0 ? '' : 'none';
     }
+
+    // Manual stage moves stay available, but behind a deliberate click:
+    // the stages advance from order and checkout facts on their own.
+    var manualToggle = document.getElementById('dp-manual-toggle');
+    manualToggle?.addEventListener('click', function () {
+        var stagesEl = document.getElementById('dp-manual-stages');
+        stagesEl.style.display = stagesEl.style.display === 'none' ? '' : 'none';
+    });
 
     tbody.addEventListener('change', function (e) {
         if (e.target.classList.contains('dp-check')) { refreshBulkbar(); }
