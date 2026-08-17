@@ -29,7 +29,7 @@ class DeploymentsBoardTest extends TestCase
             // Staffing sits on this page, right below the wave list; the
             // catalogs moved to their admin page.
             ->assertSee(trans('admin/deployments/general.blackouts_title'))
-            ->assertDontSee(trans('admin/deployments/general.catalog_types'));
+            ->assertDontSee(trans('admin/deployments/general.catalog_new_type'));
 
         $this->actingAs($this->superuser())
             ->get(route('deployment-config.admin'))
@@ -153,12 +153,10 @@ class DeploymentsBoardTest extends TestCase
             'asset_eol_date' => null,
         ]);
 
-        // Waves-only board: the lookahead device is counted in the pointer
-        // to Forecast rather than rendered as a row.
+        // Waves-only board: the backlog lives in Planning, not here.
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments', ['fiscal_year' => $nextFy]))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.flow_backlog_pointer', ['count' => 1]))
             ->assertDontSee('PLAN-2728');
     }
 
@@ -409,12 +407,11 @@ class DeploymentsBoardTest extends TestCase
             'asset_eol_date' => null,
         ]);
 
-        // The board is waves-only now: the missed device is counted in the
-        // pointer to Forecast, not rendered as a row.
+        // The board is waves-only: the missed device belongs to Planning's
+        // list for that year, not to a row or a banner here.
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments', ['fiscal_year' => 'FY2023-24']))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.flow_backlog_pointer', ['count' => 1]))
             ->assertDontSee('MISSED-2324');
     }
 
