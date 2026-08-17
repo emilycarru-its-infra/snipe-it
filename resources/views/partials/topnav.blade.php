@@ -93,6 +93,9 @@
                 <li{!! (request()->is('deployments/decommissioning*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/deployments/general.decom_nav') }}</a>
                 </li>
+                <li{!! (request()->is('deployments/storage*') ? ' class="active"' : '') !!}>
+                    <a href="{{ route('deployments.storage') }}">{{ trans('admin/deployments/general.storage') }}</a>
+                </li>
                 @can('view', App\Models\Asset::class)
                     <li class="divider"></li>
                     <li{!! (request()->is('deployments/exhibits*') ? ' class="active"' : '') !!}>
