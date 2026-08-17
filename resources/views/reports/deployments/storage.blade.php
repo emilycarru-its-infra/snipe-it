@@ -12,6 +12,8 @@
 
 @php($allRows = array_merge($rows, $unassignedCount > 0 ? [$unassigned] : []))
 
+<p class="text-muted" style="margin-bottom:12px;">{{ trans('admin/deployments/general.storage_counts_help') }}</p>
+
 @if (count($rows) === 0 && $unassignedCount === 0)
     <div class="callout callout-info">
         <i class="fas fa-info-circle"></i> {{ trans('admin/deployments/general.storage_no_locations') }}
