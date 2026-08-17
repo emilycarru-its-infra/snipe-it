@@ -49,6 +49,11 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label for="filter-q" style="display:block;">{{ trans('general.search') }}</label>
+                        <input type="text" id="filter-q" name="q" class="form-control" value="{{ $searchFilter ?? '' }}"
+                               placeholder="{{ trans('admin/user-agreements/general.search_placeholder') }}">
+                    </div>
+                    <div class="form-group">
                         <label for="filter-fy" style="display:block;">{{ trans('admin/purchase-orders/general.fiscal_year') }}</label>
                         <select id="filter-fy" name="fiscal_year" class="form-control">
                             <option value="all" {{ ($selectedFy ?? null) === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>

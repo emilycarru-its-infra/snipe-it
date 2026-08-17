@@ -49,7 +49,6 @@ class OrdersController extends Controller
 
         $allocator = app(ArrivalAllocator::class);
         $arrivals = $allocator->unallocatedArrivals();
-        $waiting = $allocator->waitingRequests();
 
         if ($request->boolean('needs_allocation')) {
             $arrivalIds = $arrivals->pluck('id')->flip();
@@ -65,8 +64,24 @@ class OrdersController extends Controller
             'orders' => $orders,
             'selectedStatus' => $status,
             'needsAllocation' => $request->boolean('needs_allocation'),
-            'arrivals' => $arrivals,
-            'waiting' => $waiting,
+            'unmatchedCount' => $arrivals->count(),
+        ]);
+    }
+
+    /**
+     * The allocation workbench on its own page: hardware that arrived
+     * without a matching request, paired to the waiting requests for the
+     * same model. The orders list carries only a doorway with a count.
+     */
+    public function unmatched(): View
+    {
+        $this->authorize('view', Order::class);
+
+        $allocator = app(ArrivalAllocator::class);
+
+        return view('orders/unmatched', [
+            'arrivals' => $allocator->unallocatedArrivals(),
+            'waiting' => $allocator->waitingRequests(),
         ]);
     }
 
@@ -91,10 +106,10 @@ class OrdersController extends Controller
                 Asset::findOrFail($validated['waiting_id']),
             );
         } catch (\InvalidArgumentException $e) {
-            return redirect()->route('orders.index')->with('error', $e->getMessage());
+            return redirect()->back(fallback: route('orders.unmatched'))->with('error', $e->getMessage());
         }
 
-        return redirect()->route('orders.index')->with('success',
+        return redirect()->back(fallback: route('orders.unmatched'))->with('success',
             trans('admin/orders/general.allocated', ['tag' => $result['asset']->asset_tag]));
     }
 

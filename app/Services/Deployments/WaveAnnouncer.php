@@ -167,7 +167,9 @@ class WaveAnnouncer
             'device_count' => $assets->count(),
             'lease_end' => $leaseEnd ? \Carbon\Carbon::parse($leaseEnd)->format('F j, Y') : '',
             'lease_end_year' => $leaseEnd ? \Carbon\Carbon::parse($leaseEnd)->format('Y') : '',
-            'form_url' => route('forms.show', 'faculty-program'),
+            // The wave names its own form; the faculty program's is the
+            // default so existing waves keep the link they always sent.
+            'form_url' => route('forms.show', $wave->form_key ?: 'faculty-program'),
             'store_url' => route('store.index'),
         ], $extra);
     }

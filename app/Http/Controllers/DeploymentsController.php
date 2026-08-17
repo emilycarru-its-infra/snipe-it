@@ -787,6 +787,7 @@ class DeploymentsController extends Controller
         'storage_location_id',
         'owner_id',
         'purchase_order_id',
+        'form_key',
         'color',
         'notes',
     ];
@@ -1125,6 +1126,69 @@ class DeploymentsController extends Controller
 
         return redirect()->route('deployments.planning', ['fiscal_year' => $fy])
             ->with('success', trans('admin/deployments/general.defer_done', ['count' => $deferred, 'fy' => $targetFy]));
+    }
+
+    /**
+     * Decide buyouts from the planning page: the selected devices are
+     * being kept, not replaced, at an estimated per-device cost. Two
+     * records per device, so every calculation sees the decision: an
+     * approved buyout lease decision carrying the estimate (what drops
+     * the device off the refresh list and feeds the financial reports),
+     * and an in-flight asset buyout with the estimate as its buyout
+     * price — superseded by the lessor's real quote when it arrives.
+     */
+    public function buyoutFromPlanning(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $validated = $request->validate([
+            'asset_ids' => 'required|array|min:1',
+            'asset_ids.*' => 'integer',
+            'fiscal_year' => 'required|string',
+            'buyout_estimate' => 'required|numeric|min:0',
+        ], [
+            'buyout_estimate.required' => trans('admin/deployments/general.buyout_estimate_required'),
+        ]);
+
+        $fy = RefreshForecast::normalizeFy($validated['fiscal_year']);
+        $estimate = (float) $validated['buyout_estimate'];
+
+        $decided = 0;
+        foreach ($validated['asset_ids'] as $assetId) {
+            $asset = Asset::find((int) $assetId);
+            if (! $asset) {
+                continue;
+            }
+
+            \App\Models\LeaseDecision::updateOrCreate(
+                ['asset_id' => $asset->id, 'decision_type' => 'buyout'],
+                [
+                    'contract_reference' => $asset->lease_contract_id ?: ($asset->asset_tag ?: ('ASSET-'.$asset->id)),
+                    'status' => 'approved',
+                    'decision_date' => now()->toDateString(),
+                    'amount' => $estimate,
+                    'notes' => trans('admin/deployments/general.buyout_decision_note', ['fy' => $fy]),
+                ]
+            );
+
+            if (! \App\Models\AssetBuyout::where('asset_id', $asset->id)->open()->exists()) {
+                \App\Models\AssetBuyout::create([
+                    'asset_id' => $asset->id,
+                    'lessor_id' => $asset->lessor_id ?? null,
+                    'buyer_id' => $asset->assigned_type === \App\Models\User::class ? $asset->assigned_to : null,
+                    'status' => 'requested',
+                    'requested_at' => now(),
+                    'requested_by' => auth()->id(),
+                    'quote_amount' => $estimate,
+                    'notes' => trans('admin/deployments/general.buyout_decision_note', ['fy' => $fy]),
+                ]);
+            }
+
+            $decided++;
+        }
+
+        return redirect()->route('deployments.planning', ['fiscal_year' => $fy])
+            ->with('success', trans('admin/deployments/general.buyout_decided', ['count' => $decided, 'amount' => number_format($estimate, 2)]));
     }
 
     /** Default FY label for a new wave (current ECU fiscal year). */
