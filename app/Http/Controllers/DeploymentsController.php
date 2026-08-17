@@ -235,7 +235,7 @@ class DeploymentsController extends Controller
             // stable — items() has no ordering of its own.
             $representativeLineIds = $order->items
                 ->filter(fn ($line) => $line->item instanceof Asset)
-                ->groupBy(fn ($line) => $line->item->id)
+                ->groupBy(fn ($line) => $line->item_id)
                 ->map(fn ($lines) => $lines
                     ->sortBy([
                         fn ($a, $b) => (float) $b->unit_cost <=> (float) $a->unit_cost,
