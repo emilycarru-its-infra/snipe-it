@@ -593,9 +593,14 @@ class DeploymentsController extends Controller
         // Grouped by home location; holding rooms flagged from this page
         // stand as tables even when empty.
         $transiting = DeploymentItem::query()
-            ->whereNotNull('asset_id')
             ->whereNull('deployed_at')
+            ->whereNotNull('asset_id')
             ->pluck('asset_id')
+            ->merge(DeploymentItem::query()
+                ->whereNull('deployed_at')
+                ->whereNotNull('replaces_asset_id')
+                ->pluck('replaces_asset_id'))
+            ->unique()
             ->all();
         $inStorageAssets = Asset::query()
             ->whereNull('assigned_to')
