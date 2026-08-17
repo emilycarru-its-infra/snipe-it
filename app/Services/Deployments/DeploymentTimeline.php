@@ -70,9 +70,26 @@ class DeploymentTimeline
             // Collision: this wave's DEPLOY window overlapping any blackout.
             $collisions = $this->deployCollisions($wave, $blackouts);
 
+            // A wave whose dates all fell behind the axis clamp draws no
+            // bars, but "no dates set" would be a lie — show when it ran.
+            $pastLabel = null;
+            if ($arrival === null && $deploy === null) {
+                $fieldDates = array_values(array_filter([
+                    $wave->arrival_window_start, $wave->arrival_window_end,
+                    $wave->target_start_date, $wave->target_end_date,
+                ]));
+                if ($fieldDates !== []) {
+                    $parsed = array_map(fn ($d) => Carbon::parse($d), $fieldDates);
+                    $first = min($parsed)->format('M j, Y');
+                    $last = max($parsed)->format('M j, Y');
+                    $pastLabel = $first === $last ? $first : "$first – $last";
+                }
+            }
+
             $rows[] = [
                 'wave' => $wave,
                 'has_dates' => $arrival !== null || $deploy !== null,
+                'past_label' => $pastLabel,
                 'arrival' => $arrival ? array_merge($arrival, [
                     'label' => $this->rangeLabel($wave->arrival_window_start, $wave->arrival_window_end),
                     'color' => $wave->displayColor(),
@@ -165,7 +182,14 @@ class DeploymentTimeline
         return $hits;
     }
 
-    /** Earliest start and latest end across all four date fields of all waves. */
+    /**
+     * Earliest start and latest end across all four date fields of all
+     * waves — with the start clamped to three months back. The chart is
+     * forward-looking planning: one wave dated a year ago would stretch
+     * the month grid until the labels collide, to show history nobody is
+     * planning around. Bars that fall entirely behind the clamp drop off
+     * the axis instead.
+     */
     private function bounds(Collection $waves): array
     {
         $dates = collect();
@@ -181,10 +205,19 @@ class DeploymentTimeline
             return [null, null];
         }
 
-        return [
-            $dates->min()->copy()->startOfMonth(),
-            $dates->max()->copy()->endOfMonth(),
-        ];
+        $floor = Carbon::today()->subMonthsNoOverflow(3)->startOfMonth();
+
+        $min = $dates->min()->copy()->startOfMonth();
+        if ($min->lessThan($floor)) {
+            $min = $floor;
+        }
+
+        $max = $dates->max()->copy()->endOfMonth();
+        if ($max->lessThan($min)) {
+            $max = $min->copy()->endOfMonth();
+        }
+
+        return [$min, $max];
     }
 
     /**
@@ -229,6 +262,12 @@ class DeploymentTimeline
         $endC = Carbon::parse($end ?: $start);
         if ($startC->gt($endC)) {
             [$startC, $endC] = [$endC, $startC];
+        }
+
+        // A window that ended before the axis begins has nothing to draw —
+        // painting it clamped to the left edge would read as a current bar.
+        if ($endC->lessThan($gridStart)) {
+            return null;
         }
 
         $offsetDays = max(0, min((int) $gridStart->diffInDays($startC, false), $totalDays));
