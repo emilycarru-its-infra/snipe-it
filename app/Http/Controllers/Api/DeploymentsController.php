@@ -88,7 +88,7 @@ class DeploymentsController extends Controller
         $wave = new DeploymentWave;
         $wave->fill($request->only([
             'name', 'fiscal_year', 'wave_state', 'deployment_type_id', 'location_id',
-            'storage_location_id', 'owner_id', 'purchase_order_id', 'color', 'notes',
+            'storage_location_id', 'owner_id', 'purchase_order_id', 'form_key', 'color', 'notes',
             'arrival_window_start', 'arrival_window_end', 'target_start_date', 'target_end_date',
         ]));
         $wave->fiscal_year = RefreshForecast::normalizeFy($wave->fiscal_year) ?: $wave->fiscal_year;
@@ -108,7 +108,7 @@ class DeploymentsController extends Controller
 
         $wave->fill($request->only([
             'name', 'fiscal_year', 'wave_state', 'deployment_type_id', 'location_id',
-            'storage_location_id', 'owner_id', 'purchase_order_id', 'color', 'notes',
+            'storage_location_id', 'owner_id', 'purchase_order_id', 'form_key', 'color', 'notes',
             'arrival_window_start', 'arrival_window_end', 'target_start_date', 'target_end_date',
         ]));
 
@@ -257,6 +257,7 @@ class DeploymentsController extends Controller
             'name' => $wave->name,
             'fiscal_year' => $wave->fiscal_year,
             'wave_state' => $wave->wave_state,
+            'form_key' => $wave->form_key,
             'type' => $wave->typeLabel(),
             'deployment_type_id' => $wave->deployment_type_id,
             'items_count' => $wave->items_count ?? $wave->items()->count(),
