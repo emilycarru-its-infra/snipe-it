@@ -297,6 +297,8 @@ return [
     'announce_template_saved' => 'Saved wording (last used)',
     'announce_template_saved_confirm' => 'Template saved. The next announcement opens on this wording, and the shipped defaults are still in the picker.',
     'announce_template_replace' => 'Replace what you have written with this template?',
+    'announce_confirm_send' => 'Send this email to :count real inbox(es) now? The wording in the sheet goes out exactly as it reads.',
+    'announce_confirm_chase' => 'Send this as a chase to :count person(s) now? Make sure the wording reads as a reminder, not the annual announcement.',
     'announce_title' => 'Email the People in This Wave',
     'announce_help' => 'One email per person, written against their own device and lease dates. Sending it starts the wave.',
     'announce_recipients' => 'Goes to :count people in this wave',

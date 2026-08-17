@@ -111,15 +111,19 @@
                      it is the thing you want to know before pressing it, and
                      a zero disables it: there is nobody to chase, which is
                      the good outcome rather than an empty send. --}}
+                {{-- Every button that reaches a real inbox confirms first —
+                     the wording in the sheet is what goes out, verbatim. --}}
                 @foreach (['no_application', 'no_order'] as $audience)
                     @php($stalled = $announceStalled[$audience] ?? 0)
                     <button type="submit" name="audience" value="{{ $audience }}"
                             class="btn btn-default" {{ $stalled === 0 ? 'disabled' : '' }}
-                            title="{{ trans('admin/deployments/general.announce_chase_'.$audience.'_help') }}">
+                            title="{{ trans('admin/deployments/general.announce_chase_'.$audience.'_help') }}"
+                            onclick="return confirm({!! json_encode(trans('admin/deployments/general.announce_confirm_chase', ['count' => $stalled])) !!});">
                         {{ trans('admin/deployments/general.announce_chase_'.$audience, ['count' => $stalled]) }}
                     </button>
                 @endforeach
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary"
+                        onclick="return confirm({!! json_encode(trans('admin/deployments/general.announce_confirm_send', ['count' => $announceRecipients->count()])) !!});">
                     {{ trans('admin/deployments/general.announce_submit', ['count' => $announceRecipients->count()]) }}
                 </button>
             </footer>
