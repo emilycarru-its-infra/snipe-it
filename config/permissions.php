@@ -107,6 +107,14 @@ return [
             'permission' => 'reports.fleet-health.view',
             'display' => true,
         ],
+        // The printing dashboard used to ride on assets.view, which every
+        // group needing the asset pages carries — so the report was visible
+        // far wider than its audience. Its own key lets it be granted to the
+        // teams that actually run printing.
+        [
+            'permission' => 'reports.printing.view',
+            'display' => true,
+        ],
         [
             'permission' => 'reports.transactions.view',
             'display' => true,
