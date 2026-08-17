@@ -56,6 +56,12 @@ class Kernel extends ConsoleKernel
         // propagates instead of leaving the fleet on a stale name.
         $schedule->command('snipeit:sync-lease-names', ['--write' => true])->dailyAt('03:25');
 
+        // Weekly sweep of the legacy LIC-* license-migration contracts. New
+        // TDX contracts keep landing for products that still have legacy rows
+        // on file, and each pair renews as two contracts until one is retired
+        // — so this has to keep running, not just clear the original backlog.
+        $schedule->command('contracts:reconcile-legacy-licenses', ['--write' => true])->weeklyOn(1, '03:30');
+
         // Weekly catalog refresh from Apple's Canadian store: retail
         // prices land as estimates (quotes always outrank them) and spec
         // columns are corrected from Apple's own configuration data.
