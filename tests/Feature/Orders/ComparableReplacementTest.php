@@ -65,7 +65,7 @@ class ComparableReplacementTest extends TestCase
         $this->assertNull($asset->replacementCostEstimate());
     }
 
-    public function test_the_forecast_projects_catalog_prices_with_basis()
+    public function test_the_forecast_shows_no_financial_information()
     {
         $this->actingAs(User::factory()->superuser()->create());
         $this->mappedAsset($this->catalogItem(2383.11));
@@ -75,12 +75,13 @@ class ComparableReplacementTest extends TestCase
         $this->get(route('reports.procurement.forecast'))
             ->assertRedirect(route('deployments.forecast'));
 
-        $response = $this->get(route('deployments.forecast'));
-
-        $response->assertOk()
-            ->assertSee('2,383.11')
-            ->assertSee('999.99')
-            ->assertSee(trans('admin/purchase-orders/general.forecast_basis_original'));
+        // The forecast is the device-planning surface; the money
+        // conversation lives in /capital and the PO Builder. Catalog
+        // projections still price the CSV export and planned orders.
+        $this->get(route('deployments.forecast'))
+            ->assertOk()
+            ->assertDontSee('2,383.11')
+            ->assertDontSee('999.99');
     }
 
     public function test_planned_orders_quote_the_replacement_at_catalog_price()
