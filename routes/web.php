@@ -434,6 +434,10 @@ Route::group(['middleware' => 'auth'], function () {
         return redirect('/deployments/planning'.($query ? '?'.$query : ''), 301);
     });
 
+    Route::post('deployments/storage/location', [DeploymentsController::class, 'storageLocationToggle'])
+        ->name('deployments.storage.location');
+    Route::post('deployments/storage/move', [DeploymentsController::class, 'storageMove'])
+        ->name('deployments.storage.move');
     Route::get('deployments/storage', [DeploymentsController::class, 'storage'])
         ->name('deployments.storage')
         ->middleware('can:view,App\Models\Order')

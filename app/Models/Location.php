@@ -85,6 +85,7 @@ class Location extends SnipeModel
         'tag_color',
         'notes',
         'storage_capacity',
+        'show_in_storage',
     ];
 
     protected $hidden = ['user_id'];
