@@ -5,7 +5,6 @@
 @stop
 
 @section('header_right')
-    <a href="{{ route('deployment-config.index', 'types') }}" class="btn btn-sm btn-default"><i class="fas fa-cog"></i> {{ trans('admin/deployments/general.configure') }}</a>
     <a href="{{ $downloadUrl }}" class="btn btn-sm btn-default"><i class="fas fa-download"></i> {{ trans('admin/deployments/general.download') }}</a>
 @stop
 
@@ -110,12 +109,22 @@
     .dp-legend { font-size: 10.5px; opacity: .7; display: flex; gap: 10px; align-items: center; }
     .dp-legend i { display: inline-block; width: 14px; height: 6px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
 
-    /* View modes: Waves collapses to just the wave rows; Timeline further
-       strips the meta so what remains is the name and its bars. */
-    #dp-table.dp-mode-waves tr.dp-item-row,
-    #dp-table.dp-mode-timeline tr.dp-item-row { display: none !important; }
-    #dp-table.dp-mode-timeline .dp-wave-meta { display: none; }
-    #dp-table.dp-mode-timeline .dp-gantt { flex-basis: 55%; width: 55%; }
+    /* View modes. Waves folds the device rows away. Timeline takes the
+       table over: a fixed name rail, the bars stretched across the rest
+       with their date labels shown, the device header gone — a real
+       gantt, not a narrower table. */
+    #devices-flow.dp-mode-waves tr.dp-item-row,
+    #devices-flow.dp-mode-timeline tr.dp-item-row { display: none !important; }
+    #devices-flow.dp-mode-timeline .dp-wave-meta { display: none; }
+    #devices-flow.dp-mode-timeline #dp-table thead { display: none; }
+    .dp-wave-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    #devices-flow.dp-mode-timeline .dp-wave-name { flex: 0 0 250px; overflow: hidden; }
+    #devices-flow.dp-mode-timeline .dp-gantt { flex: 1 1 auto; width: auto; height: 26px; }
+    .dp-gantt-lab { display: none; position: absolute; font-size: 10px; opacity: .75; top: 50%; transform: translateY(-50%); white-space: nowrap; padding-left: 5px; }
+    #devices-flow.dp-mode-timeline .dp-gantt-lab { display: block; }
+    #devices-flow.dp-mode-timeline .dp-scale-wrap { padding-left: calc(250px + 28px); }
+    #devices-flow.dp-mode-timeline .dp-scale { flex: 1 1 auto; width: auto; }
+    #devices-flow.dp-mode-timeline .dp-legend { order: 2; margin-left: 10px; }
 
     .dp-bulkbar { display: none; padding: 8px 10px; border-bottom: 1px solid var(--box-border-color, #f4f4f4); }
     .dp-bulkbar.active { display: block; }
@@ -155,23 +164,11 @@
 <div class="box box-default" id="devices-flow">
     <div class="box-header with-border" style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
         <h3 class="box-title" id="dp-title" style="margin:0;">{{ trans('admin/deployments/general.unified_title', ['waves' => $waves->count(), 'count' => count($deviceRows), 'fy' => $fy]) }}</h3>
-        <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary">
-            <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}</a>
-        <span class="btn-group" id="dp-view-btns" style="margin-left:auto;">
-            <button type="button" class="btn btn-xs btn-default active" data-view="">{{ trans('admin/deployments/general.view_all') }}</button>
-            <button type="button" class="btn btn-xs btn-default" data-view="waves">{{ trans('admin/deployments/general.view_waves') }}</button>
-            <button type="button" class="btn btn-xs btn-default" data-view="timeline">{{ trans('admin/deployments/general.view_timeline') }}</button>
+        <span class="btn-group" id="dp-view-btns">
+            <button type="button" class="btn btn-sm btn-default" data-view="waves">{{ trans('admin/deployments/general.view_waves') }}</button>
+            <button type="button" class="btn btn-sm btn-default" data-view="timeline">{{ trans('admin/deployments/general.view_timeline') }}</button>
         </span>
     </div>
-    @if ($backlogCount > 0)
-        <div class="box-body" style="padding-top:8px; padding-bottom:8px; border-bottom:1px solid var(--box-border-color, #f4f4f4);">
-            <span class="text-muted" style="font-size:12.5px;">
-                {{ trans('admin/deployments/general.flow_backlog_pointer', ['count' => $backlogCount]) }}
-                <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}">{{ trans('admin/deployments/general.flow_backlog_pointer_link') }}</a>
-            </span>
-        </div>
-    @endif
-
     {{-- Bulk action bar: appears once anything is checked. Grouping is the
          everyday action; stage moves hide behind Manual override — the
          stages follow order and checkout facts on their own. --}}
@@ -236,11 +233,13 @@
                 <tr class="dp-wave-row" data-wave-id="{{ $wave->id }}" draggable="true">
                     <td colspan="8">
                         <div class="dp-wave-inner">
-                            <button type="button" class="dp-group-toggle" aria-expanded="true" data-wave-id="{{ $wave->id }}">
-                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-                            </button>
-                            <input type="checkbox" class="dp-group-check">
-                            <a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a>
+                            <span class="dp-wave-name">
+                                <button type="button" class="dp-group-toggle" aria-expanded="true" data-wave-id="{{ $wave->id }}">
+                                    <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                                </button>
+                                <input type="checkbox" class="dp-group-check">
+                                <a class="js-lightbox" href="{{ route('deployment-waves.show', $wave) }}"><span class="label" style="background-color: {{ $wave->displayColor() }}; color:#fff;">{{ $wave->name }}</span></a>
+                            </span>
                             <span class="dp-wave-meta">
                                 {{ $wave->typeLabel() }} · {{ ucfirst($wave->wave_state) }} · {{ trans_choice('general.countable.assets', $waveRows->count(), ['count' => $waveRows->count()]) }}
                                 @if ($wave->arrival_window_start || $wave->target_start_date)
@@ -261,6 +260,8 @@
                                     @if ($tl['deploy'])
                                         <span class="dp-gantt-bar deploy" style="left: {{ $tl['deploy']['offsetPct'] }}%; width: {{ $tl['deploy']['widthPct'] }}%; background:#9ec7e3;" title="{{ $tl['deploy']['label'] }}"></span>
                                     @endif
+                                    @php($labBar = $tl['deploy'] ?: $tl['arrival'])
+                                    <span class="dp-gantt-lab" style="left: {{ min($labBar['offsetPct'] + $labBar['widthPct'], 80) }}%;">{{ trim(($tl['arrival']['label'] ?? '').($tl['arrival'] && $tl['deploy'] ? ' · ' : '').($tl['deploy']['label'] ?? '')) }}</span>
                                     @if ($todayPct !== null)
                                         <span class="dp-gantt-today" style="left: {{ $todayPct }}%;"></span>
                                     @endif
@@ -381,13 +382,19 @@
         });
     });
 
-    // ── View modes: All / Waves / Timeline. ──────────────────────────
+    // ── View toggles: click folds the table to that view, clicking the
+    //    active one unfolds back to everything. ─────────────────────────
+    var box = document.getElementById('devices-flow');
     Array.prototype.forEach.call(document.querySelectorAll('#dp-view-btns button'), function (btn) {
         btn.addEventListener('click', function () {
+            var view = btn.getAttribute('data-view');
+            var wasActive = btn.classList.contains('active');
             Array.prototype.forEach.call(document.querySelectorAll('#dp-view-btns button'), function (b) { b.classList.remove('active'); });
-            btn.classList.add('active');
-            table.classList.toggle('dp-mode-waves', btn.getAttribute('data-view') === 'waves');
-            table.classList.toggle('dp-mode-timeline', btn.getAttribute('data-view') === 'timeline');
+            box.classList.remove('dp-mode-waves', 'dp-mode-timeline');
+            if (! wasActive) {
+                btn.classList.add('active');
+                box.classList.add('dp-mode-' + view);
+            }
         });
     });
 

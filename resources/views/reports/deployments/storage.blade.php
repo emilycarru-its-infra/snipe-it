@@ -81,7 +81,10 @@
                     <table class="table table-condensed table-striped" style="margin-bottom:0;">
                         <thead>
                             <tr>
-                                <th>{{ trans('admin/deployments/general.device') }}</th>
+                                <th>{{ trans('general.name') }}</th>
+                                <th>{{ trans('general.asset_tag') }}</th>
+                                <th>{{ trans('admin/deployments/general.model') }}</th>
+                                <th>{{ trans('admin/orders/general.order') }}</th>
                                 <th>{{ trans('admin/deployments/general.wave') }}</th>
                                 <th>{{ trans('admin/deployments/general.stage') }}</th>
                             </tr>
@@ -89,18 +92,32 @@
                         <tbody>
                         @forelse ($row['items'] as $item)
                             <tr>
+                                {{-- The name is the name — an unnamed device reads
+                                     as blank here, with the tag column carrying the
+                                     identity. --}}
                                 <td>
                                     @if ($item->asset)
-                                        <a class="js-lightbox" href="{{ route('hardware.show', $item->asset) }}">{{ $item->deviceLabel() }}</a>
+                                        <a class="js-lightbox" href="{{ route('hardware.show', $item->asset) }}">{{ $item->asset->name ?: '' }}</a>
                                     @else
-                                        {{ $item->deviceLabel() }}
+                                        {{ $item->asset?->name ?: '' }}
                                     @endif
+                                </td>
+                                <td>
+                                    @if ($item->asset)
+                                        <a class="js-lightbox" href="{{ route('hardware.show', $item->asset) }}">{{ $item->asset->asset_tag }}</a>
+                                    @else — @endif
+                                </td>
+                                <td>{{ $item->asset?->model?->name ?: $item->model?->name ?: '—' }}</td>
+                                <td>
+                                    @if ($item->orderItem?->order)
+                                        <a class="js-lightbox" href="{{ route('orders.show', $item->orderItem->order_id) }}">{{ $item->orderItem->order->order_number }}</a>
+                                    @else — @endif
                                 </td>
                                 <td>@if ($item->wave)<a class="js-lightbox" href="{{ route('deployment-waves.show', $item->wave) }}">{{ $item->wave->name }}</a>@else — @endif</td>
                                 <td><span class="label" style="background-color: {{ $item->stageColor() }}; color:#fff;">{{ $item->stageLabel() }}</span></td>
                             </tr>
                         @empty
-                            <tr><td colspan="3" class="text-center text-muted">{{ trans('admin/deployments/general.storage_no_devices') }}</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted">{{ trans('admin/deployments/general.storage_no_devices') }}</td></tr>
                         @endforelse
                         </tbody>
                     </table>

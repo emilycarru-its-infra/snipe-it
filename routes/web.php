@@ -483,10 +483,10 @@ Route::group(['middleware' => 'auth'], function () {
             ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('deployments.exhibits')));
     Route::post('deployments/exhibits/compose', [ExhibitProjectsController::class, 'compose'])
         ->name('exhibit-projects.compose');
-    Route::get('deployments/waves/create', [DeploymentsController::class, 'create'])
-        ->name('deployment-waves.create')
-        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.create'), route('deployment-waves.create')));
+    // Creating a wave is a popover on the pages that need one, not a
+    // full-screen page; the old address walks to the list.
+    Route::get('deployments/waves/create', fn () => redirect()->route('deployment-waves.index', [], 301))
+        ->name('deployment-waves.create');
     Route::get('deployments/waves/{deploymentWave}', [DeploymentsController::class, 'show'])
         ->name('deployment-waves.show')
         ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
@@ -547,21 +547,21 @@ Route::group(['middleware' => 'auth'], function () {
     Route::delete('deployment-items/{deploymentItem}', [DeploymentItemsController::class, 'destroy'])
         ->name('deployment-items.destroy');
 
-    // Editable catalogs (wave types / per-device stages).
-    Route::get('deployment-config/{catalog}', [DeploymentCatalogController::class, 'index'])
-        ->name('deployment-config.index')
-        ->breadcrumbs(fn (Trail $trail, $catalog) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
-    Route::get('deployment-config/{catalog}/create', [DeploymentCatalogController::class, 'create'])
-        ->name('deployment-config.create')
-        ->breadcrumbs(fn (Trail $trail, $catalog) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
+    // The wave-type / stage catalogs live under admin now — set once,
+    // rarely touched. The write endpoints keep their names; the old GET
+    // pages walk to the admin page.
+    Route::get('admin/deployment-catalogs', [DeploymentCatalogController::class, 'adminIndex'])
+        ->name('deployment-config.admin')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('admin/deployments/general.catalogs_admin_title'), route('deployment-config.admin')));
+    Route::get('deployment-config/{catalog}', fn () => redirect()->route('deployment-config.admin', [], 301))
+        ->name('deployment-config.index');
+    Route::get('deployment-config/{catalog}/create', fn () => redirect()->route('deployment-config.admin', [], 301))
+        ->name('deployment-config.create');
     Route::post('deployment-config/{catalog}', [DeploymentCatalogController::class, 'store'])
         ->name('deployment-config.store');
-    Route::get('deployment-config/{catalog}/{id}/edit', [DeploymentCatalogController::class, 'edit'])
-        ->name('deployment-config.edit')
-        ->breadcrumbs(fn (Trail $trail, $catalog, $id) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
+    Route::get('deployment-config/{catalog}/{id}/edit', fn () => redirect()->route('deployment-config.admin', [], 301))
+        ->name('deployment-config.edit');
     Route::put('deployment-config/{catalog}/{id}', [DeploymentCatalogController::class, 'update'])
         ->name('deployment-config.update');
     Route::delete('deployment-config/{catalog}/{id}', [DeploymentCatalogController::class, 'destroy'])

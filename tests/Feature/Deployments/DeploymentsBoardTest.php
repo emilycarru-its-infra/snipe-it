@@ -26,7 +26,14 @@ class DeploymentsBoardTest extends TestCase
             ->assertOk()
             ->assertSee('FY26 Faculty Refresh')
             ->assertSee('FY24 Lab Rollout')
-            // The catalogs are managed here, not behind a Configure page.
+            // Staffing sits on this page, right below the wave list; the
+            // catalogs moved to their admin page.
+            ->assertSee(trans('admin/deployments/general.blackouts_title'))
+            ->assertDontSee(trans('admin/deployments/general.catalog_types'));
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployment-config.admin'))
+            ->assertOk()
             ->assertSee(trans('admin/deployments/general.catalog_types'))
             ->assertSee(trans('admin/deployments/general.catalog_stages'));
     }

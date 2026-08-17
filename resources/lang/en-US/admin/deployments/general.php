@@ -128,6 +128,7 @@ return [
     'buyout_opened' => 'Buyout opened.',
     'buyout_previous' => 'Previous buyouts (:count)',
 
+    'catalogs_admin_title' => 'Wave Types & Stages',
     'catalog_types' => 'Wave Types',
     'catalog_stages' => 'Stages',
     'catalog_name' => 'Name',
