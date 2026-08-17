@@ -474,7 +474,7 @@ class DeploymentsController extends Controller
             ->get();
 
         $stagedItems = DeploymentItem::query()
-            ->with(['stage', 'wave', 'asset', 'model.refreshCatalogItem'])
+            ->with(['stage', 'wave', 'asset.model', 'model.refreshCatalogItem', 'orderItem.order'])
             ->inStorage()
             ->get();
 

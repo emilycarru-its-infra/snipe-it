@@ -2686,6 +2686,11 @@
                                                 <a href="{{ route('forms.index') }}">{{ trans('admin/forms/general.menu_link') }}</a>
                                             </li>
                                         @endif
+                                        @can('deployments.edit')
+                                            <li{!! (request()->is('admin/deployment-catalogs*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('deployment-config.admin') }}">{{ trans('admin/deployments/general.catalogs_admin_title') }}</a>
+                                            </li>
+                                        @endcan
 
                                         @canany(['audit', 'checkin', 'checkout'], \App\Models\Asset::class)
                                             <li class="dropdown-header">{{ trans('general.nav_group_operations') }}</li>
