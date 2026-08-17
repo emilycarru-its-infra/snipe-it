@@ -54,13 +54,18 @@ class ImpersonateController extends Controller
             return redirect()->back()->with('error', trans('admin/users/general.impersonate_already'));
         }
 
-        abort_unless($actor && $actor->isSuperUser(), 403);
+        abort_unless($actor && $actor->hasAccess('users.impersonate'), 403);
 
         if ($user->id === $actor->id) {
             return redirect()->back()->with('error', trans('admin/users/general.impersonate_self'));
         }
 
-        if ($user->isSuperUser()) {
+        // Never borrow an account that outranks the borrower. superuser passes
+        // every check in the application and `admin` is a policy-wide before()
+        // hook, so either would hand the borrower more than they hold — which
+        // is escalation dressed up as support. A superuser may still borrow an
+        // admin, having nothing to gain by it.
+        if ($user->isSuperUser() || ($user->hasAccess('admin') && ! $actor->isSuperUser())) {
             return redirect()->back()->with('error', trans('admin/users/general.impersonate_superuser'));
         }
 

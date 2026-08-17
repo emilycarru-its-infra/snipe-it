@@ -400,6 +400,14 @@ return [
             'permission' => 'users.files',
             'display' => true,
         ],
+        // View-as. Held apart from users.edit because it is a different kind
+        // of power: it does not change a record, it changes who you are for
+        // the session. The controller still refuses to borrow an account that
+        // outranks the borrower, so this grants reach over ordinary users only.
+        [
+            'permission' => 'users.impersonate',
+            'display' => true,
+        ],
 
     ],
 

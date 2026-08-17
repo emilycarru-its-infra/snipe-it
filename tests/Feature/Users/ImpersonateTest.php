@@ -80,6 +80,34 @@ class ImpersonateTest extends TestCase
         $this->assertSame($plain->id, auth()->id());
     }
 
+    public function test_the_impersonate_permission_is_enough_without_superuser()
+    {
+        $helper = User::factory()->canImpersonate()->create(['activated' => 1]);
+        $target = $this->faculty();
+
+        $this->actingAs($helper)
+            ->post(route('users.impersonate', $target->id))
+            ->assertRedirect(route('home'));
+
+        $this->assertSame($target->id, auth()->id());
+    }
+
+    public function test_the_permission_does_not_reach_an_account_that_outranks_the_borrower()
+    {
+        // `admin` is a policy-wide before() hook. Borrowing an account that
+        // holds it would hand a plain helper every ability in the product.
+        $helper = User::factory()->canImpersonate()->create(['activated' => 1]);
+        $powerful = User::factory()->admin()->create(['activated' => 1]);
+
+        $this->actingAs($helper)
+            ->from(route('users.show', $powerful->id))
+            ->post(route('users.impersonate', $powerful->id))
+            ->assertRedirect(route('users.show', $powerful->id))
+            ->assertSessionHas('error');
+
+        $this->assertSame($helper->id, auth()->id());
+    }
+
     public function test_a_superuser_cannot_be_viewed_as()
     {
         $admin = User::factory()->superuser()->create();
