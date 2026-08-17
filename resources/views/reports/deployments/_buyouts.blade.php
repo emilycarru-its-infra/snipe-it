@@ -64,7 +64,7 @@
         <table class="table table-striped table-condensed" style="margin-bottom:0;">
             <thead>
                 <tr>
-                    <th style="width:24px;"></th>
+                    <th style="width:44px;"></th>
                     <th>{{ trans('admin/deployments/general.buyout_col_buyer') }}</th>
                     <th>{{ trans('admin/deployments/general.buyout_col_asset') }}</th>
                     <th>{{ trans('admin/deployments/general.buyout_col_lessor') }}</th>
@@ -74,18 +74,24 @@
                     <th class="text-right">{{ trans('admin/deployments/general.buyout_col_quote') }}</th>
                     <th class="text-right">{{ trans('admin/deployments/general.buyout_col_split') }}</th>
                     <th>{{ trans('admin/deployments/general.buyout_col_invoice') }}</th>
-                    <th style="width:28px;"></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($buyouts['rows'] as $row)
                     <tr @unless ($row['open']) class="text-muted" @endunless>
-                        <td>
+                        {{-- Actions on the left: expand-in-place, and the
+                             device's own buyout page. --}}
+                        <td style="white-space:nowrap;">
                             <a href="#buyout-{{ $row['id'] }}" class="buyout-toggle" role="button"
                                aria-expanded="false" aria-controls="buyout-{{ $row['id'] }}"
                                title="{{ trans('admin/deployments/general.buyout_edit') }}">
                                 <i class="fas fa-caret-down buyout-caret" aria-hidden="true"></i>
                             </a>
+                            @if ($row['asset_tag'])
+                                <a href="{{ route('buyouts.show', $row['asset_tag']) }}" title="{{ trans('admin/deployments/general.buyout_permalink') }}" style="margin-left:6px;">
+                                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                                </a>
+                            @endif
                         </td>
                         <td>{{ $row['buyer'] ?: '—' }}</td>
                         <td>
@@ -116,19 +122,9 @@
                                 <span style="font-size:11.5px;">{{ $row['invoice_due_date'] }}</span>
                             @endif
                         </td>
-                        <td>
-                            {{-- The link handed around the lessor thread: this
-                                 buyout on its own page. Only device-linked
-                                 records have one — the page is the device's. --}}
-                            @if ($row['asset_tag'])
-                                <a href="{{ route('buyouts.show', $row['asset_tag']) }}" title="{{ trans('admin/deployments/general.buyout_permalink') }}">
-                                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
-                                </a>
-                            @endif
-                        </td>
                     </tr>
                     <tr id="buyout-{{ $row['id'] }}" style="display:none;">
-                        <td colspan="11" style="background:rgba(127,127,127,.06);">
+                        <td colspan="10" style="background:rgba(127,127,127,.06);">
                             @if (! $canEdit)
                                 <p class="text-muted" style="margin:0;">{{ trans('general.insufficient_permissions') }}</p>
                             @else

@@ -155,7 +155,7 @@ class DeploymentStorageTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('deployments.storage'))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.storage_unassigned'));
+            ->assertSee(trans('admin/deployments/general.storage_inbox_title', ['count' => 1]));
 
         $this->actingAs($this->superuser())
             ->post(route('deployments.storage.config'), [

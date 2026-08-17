@@ -34,20 +34,20 @@
     .add-existing-sheet {
         border: 0; padding: 0; margin: auto; width: min(560px, 94vw);
         border-radius: 10px; overflow: visible;
-        background: var(--surface, #fff); color: inherit;
+        background: var(--box-bg, #fff); color: inherit;
         box-shadow: 0 8px 40px rgba(0, 0, 0, .28);
     }
     .add-existing-sheet::backdrop { background: rgba(0, 0, 0, .38); }
     .add-existing-head {
         display: flex; align-items: center; gap: 10px;
-        padding: 12px 16px; border-bottom: 1px solid var(--surface-border, #e4e9ee);
+        padding: 12px 16px; border-bottom: 1px solid var(--box-border-color, #e4e9ee);
     }
     .add-existing-head h3 { margin: 0; font-size: 16px; flex: 1; }
     .add-existing-head .close { font-size: 22px; line-height: 1; background: none; border: 0; opacity: .5; }
     .add-existing-body { padding: 14px 16px; }
     .add-existing-foot {
         display: flex; justify-content: flex-end; gap: 8px;
-        padding: 12px 16px; border-top: 1px solid var(--surface-border, #e4e9ee);
+        padding: 12px 16px; border-top: 1px solid var(--box-border-color, #e4e9ee);
     }
 </style>
 
