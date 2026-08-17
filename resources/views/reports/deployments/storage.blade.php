@@ -29,7 +29,7 @@
      and gone the moment it is empty. Check devices and move them in
      bulk, or drag a row by its handle onto any room below. --}}
 @if ($unassignedCount > 0)
-<div class="box box-warning" id="st-inbox">
+<div class="box box-default" id="st-inbox">
     <div class="box-header with-border" style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
         <h3 class="box-title" style="margin:0;">
             <i class="fas fa-inbox text-muted"></i>

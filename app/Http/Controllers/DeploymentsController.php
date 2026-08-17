@@ -547,11 +547,6 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.view');
 
-        $locations = Location::query()
-            ->whereNotNull('storage_capacity')
-            ->orderBy('name')
-            ->get();
-
         $stagedItems = DeploymentItem::query()
             ->with(['stage', 'wave', 'asset.model', 'model.refreshCatalogItem', 'orderItem.order'])
             ->inStorage()
@@ -561,6 +556,15 @@ class DeploymentsController extends Controller
         // failing that its wave's. Configuring the wave is the normal act, so
         // items inherit from it rather than each needing to be set by hand.
         $byLocation = $stagedItems->groupBy(fn ($item) => $item->storageLocationId());
+
+        // Every room that either declares a capacity OR actually holds a
+        // staged device. Filtering on capacity alone made a device staged
+        // into an uncapped room vanish from the page entirely.
+        $locations = Location::query()
+            ->where(fn ($q) => $q->whereNotNull('storage_capacity')
+                ->orWhereIn('id', $byLocation->keys()->filter()->all()))
+            ->orderBy('name')
+            ->get();
 
         $rows = [];
         foreach ($locations as $location) {
