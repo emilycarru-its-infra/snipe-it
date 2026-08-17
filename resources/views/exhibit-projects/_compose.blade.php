@@ -139,7 +139,7 @@
     .announce-head .close { font-size: 22px; line-height: 1; background: none; border: 0; opacity: .5; }
     .announce-body { padding: 14px 16px; overflow-y: auto; }
     .announce-foot {
-        display: flex; justify-content: flex-end; gap: 8px;
+        display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;
         padding: 12px 16px; border-top: 1px solid var(--box-border-color, #e4e9ee);
     }
     .announce-code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; }
