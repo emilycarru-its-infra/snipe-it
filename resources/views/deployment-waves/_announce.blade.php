@@ -134,7 +134,7 @@
         border: 0; padding: 0; margin: 0 auto auto; width: min(920px, 96vw);
         max-height: 92vh; position: fixed; inset: auto 0 0 0;
         border-radius: 14px 14px 0 0; overflow: hidden;
-        background: var(--surface, #fff); color: inherit;
+        background: var(--box-bg, #fff); color: inherit;
         box-shadow: 0 -8px 40px rgba(0, 0, 0, .28);
     }
     .announce-sheet::backdrop { background: rgba(0, 0, 0, .38); }
@@ -145,14 +145,14 @@
     .announce-sheet-inner { display: flex; flex-direction: column; max-height: 92vh; }
     .announce-head {
         display: flex; align-items: center; gap: 10px;
-        padding: 12px 16px; border-bottom: 1px solid var(--surface-border, #e4e9ee);
+        padding: 12px 16px; border-bottom: 1px solid var(--box-border-color, #e4e9ee);
     }
     .announce-head h3 { margin: 0; font-size: 16px; flex: 1; }
     .announce-head .close { font-size: 22px; line-height: 1; background: none; border: 0; opacity: .5; }
     .announce-body { padding: 14px 16px; overflow-y: auto; }
     .announce-foot {
         display: flex; justify-content: flex-end; gap: 8px;
-        padding: 12px 16px; border-top: 1px solid var(--surface-border, #e4e9ee);
+        padding: 12px 16px; border-top: 1px solid var(--box-border-color, #e4e9ee);
     }
     .announce-code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; }
     /* The app marks every required field with a thick orange right border. It
@@ -161,7 +161,7 @@
     .announce-sheet input:required,
     .announce-sheet textarea:required,
     .announce-sheet select:required {
-        border-right: 1px solid var(--surface-border, #d2d6de);
+        border-right: 1px solid var(--box-border-color, #d2d6de);
     }
     .announce-recipient-list { margin-top: 6px; columns: 2; }
     @media (max-width: 700px) {

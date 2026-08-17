@@ -291,7 +291,7 @@
         </div>
 
         @unless ($purchaseOrder->vendor_order_number)
-            <div class="box-body" style="border-top: 1px solid var(--surface-border, #e4e9ee);">
+            <div class="box-body" style="border-top: 1px solid var(--box-border-color, #e4e9ee);">
                 <form method="POST" action="{{ route('purchase-orders.vendor-response', $purchaseOrder) }}">
                     {{ csrf_field() }}
                     <input type="hidden" name="step" value="changes">
@@ -307,7 +307,7 @@
             </div>
 
             @unless ($purchaseOrder->quote_confirmed_at)
-                <div class="box-body" style="border-top: 1px solid var(--surface-border, #e4e9ee);">
+                <div class="box-body" style="border-top: 1px solid var(--box-border-color, #e4e9ee);">
                     <form method="POST" action="{{ route('purchase-orders.vendor-response', $purchaseOrder) }}">
                         {{ csrf_field() }}
                         <input type="hidden" name="step" value="confirm">
@@ -318,7 +318,7 @@
                 </div>
             @endunless
 
-            <div class="box-body" style="border-top: 1px solid var(--surface-border, #e4e9ee);">
+            <div class="box-body" style="border-top: 1px solid var(--box-border-color, #e4e9ee);">
                 <form method="POST" action="{{ route('purchase-orders.vendor-response', $purchaseOrder) }}">
                     {{ csrf_field() }}
                     <input type="hidden" name="step" value="order_number">
@@ -351,8 +351,8 @@
     }
     .po-combo-button {
         width: 100%; display: flex; align-items: center; gap: 8px;
-        background: var(--surface, #fff); color: inherit;
-        border: 1px solid var(--surface-border, #d2d6de); border-radius: 3px;
+        background: var(--box-bg, #fff); color: inherit;
+        border: 1px solid var(--box-border-color, #d2d6de); border-radius: 3px;
         padding: 6px 10px; font-size: 13px; line-height: 1.5;
     }
     .po-combo-button:focus { outline: 2px solid rgba(60, 141, 188, .5); outline-offset: 1px; }
@@ -360,15 +360,15 @@
     .po-combo-empty { opacity: .6; }
     .po-combo-menu {
         position: absolute; z-index: 1000; left: 0; right: 0; top: calc(100% + 2px);
-        background: var(--surface, #fff);
-        border: 1px solid var(--surface-border, #d2d6de); border-radius: 4px;
+        background: var(--box-bg, #fff);
+        border: 1px solid var(--box-border-color, #d2d6de); border-radius: 4px;
         box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
         max-height: 280px; overflow-y: auto; padding: 4px 0;
     }
     .po-combo-head {
         padding: 6px 10px 4px; font-size: 10.5px; letter-spacing: .06em;
         text-transform: uppercase; opacity: .6;
-        border-bottom: 1px solid var(--surface-border, #ebebee);
+        border-bottom: 1px solid var(--box-border-color, #d2d6de);
     }
     .po-combo-option {
         width: 100%; background: none; border: 0; padding: 7px 10px; font-size: 13px;
