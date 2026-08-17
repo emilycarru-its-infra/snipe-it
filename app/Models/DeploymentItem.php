@@ -173,8 +173,27 @@ class DeploymentItem extends SnipeModel
     }
 
     /**
+     * What this row is planned to become.
+     *
+     * `model_id` holds the model of the device being replaced, not of its
+     * successor — the successor has no asset and no model of its own until
+     * somebody orders one. The link to what it becomes runs through the
+     * catalog: each model names the catalog item it refreshes to, and that
+     * item carries the estimate the projection is already built on. Naming
+     * the model directly advertises a machine years old as this year's
+     * replacement, which is the incumbent, not the plan.
+     *
+     * Falls back to the model when nothing is mapped — a gap in the catalog
+     * mapping should read as a stale name, not as a blank.
+     */
+    public function plannedDeviceLabel(): ?string
+    {
+        return $this->model?->refreshCatalogItem?->name ?: $this->model?->name;
+    }
+
+    /**
      * Human label for the (incoming) device — its name if set, else the
-     * asset tag, else the planned model name, else a dash.
+     * asset tag, else what it is planned to become, else a dash.
      */
     public function deviceLabel(): string
     {
@@ -182,7 +201,7 @@ class DeploymentItem extends SnipeModel
             return $this->asset->name ?: $this->asset->asset_tag ?: ('#'.$this->asset->id);
         }
 
-        return $this->model?->name ?: '—';
+        return $this->plannedDeviceLabel() ?: '—';
     }
 
     /** Whether this device has reached a terminal (deployed) stage. */
