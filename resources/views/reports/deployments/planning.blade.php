@@ -302,15 +302,44 @@
      line up). Always expanded: an order you can't see is an order you
      forget to plan. --}}
 @if ($incomingOrders->isNotEmpty())
+<form method="POST" action="{{ route('deployments.planning.claim') }}">
+{{ csrf_field() }}
+<input type="hidden" name="fiscal_year" value="{{ $fy }}">
 <div class="box box-default">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.incoming_orders_title', ['count' => $incomingOrders->flatten(1)->count()]) }}</h3>
         <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.incoming_orders_hint') }}</span>
     </div>
+    {{-- Same bar as the candidates above: check lines, pick or name a
+         wave, and the claim makes them wave items — automation then
+         advances each from its order facts. --}}
+    <div class="fc-bulkbar" id="io-bulkbar">
+        <strong id="io-sel-label"></strong>
+        <span style="margin-left:12px;">
+            {{ trans('admin/deployments/general.forecast_send_to_wave') }}:
+            <select name="wave_id" class="form-control input-sm">
+                <option value="">—</option>
+                @foreach ($waves as $w)
+                    <option value="{{ $w->id }}">{{ $w->name }} ({{ $w->items_count }})</option>
+                @endforeach
+            </select>
+            <span class="text-muted" style="margin:0 6px;">{{ trans('admin/deployments/general.forecast_or_new_wave') }}</span>
+            <input type="text" name="new_wave_name" class="form-control input-sm" style="width:220px;" placeholder="{{ trans('admin/deployments/general.new_wave_name') }}">
+            <select name="deployment_type_id" class="form-control input-sm">
+                @foreach ($types as $type)
+                    <option value="{{ $type->id }}">{{ $type->name }}</option>
+                @endforeach
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.forecast_send_submit') }} (<span id="io-sel-count">0</span>)
+            </button>
+        </span>
+    </div>
     <div class="box-body no-padding">
         <table class="table table-striped table-condensed" style="margin-bottom:0;">
             <thead>
                 <tr>
+                    <th style="width:30px;"><input type="checkbox" id="io-select-all"></th>
                     <th>{{ trans('admin/deployments/general.device') }}</th>
                     <th>{{ trans('admin/deployments/general.model') }}</th>
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
@@ -321,9 +350,10 @@
             </thead>
             <tbody>
             @foreach ($incomingOrders as $orderNumber => $lines)
-                <tr class="fc-group-head"><td colspan="6">{{ $orderNumber }} · {{ count($lines) }}</td></tr>
+                <tr class="fc-group-head"><td colspan="7">{{ $orderNumber }} · {{ count($lines) }}</td></tr>
                 @foreach ($lines as $line)
                     <tr>
+                        <td><input type="checkbox" class="io-check" name="order_item_ids[]" value="{{ $line['order_item_id'] }}"></td>
                         <td>
                             @if ($line['device_url'])
                                 <a href="{{ $line['device_url'] }}" class="js-lightbox">{{ $line['device'] }}</a>
@@ -343,6 +373,31 @@
         </table>
     </div>
 </div>
+</form>
+<script nonce="{{ csrf_token() }}">
+(function () {
+    var bar = document.getElementById('io-bulkbar');
+    if (! bar) { return; }
+    var checks = Array.prototype.slice.call(document.querySelectorAll('.io-check'));
+    var count = document.getElementById('io-sel-count');
+    var label = document.getElementById('io-sel-label');
+    var template = @json(trans('admin/deployments/general.flow_selected', ['count' => '__N__']));
+
+    function refresh() {
+        var n = checks.filter(function (c) { return c.checked; }).length;
+        count.textContent = n;
+        label.textContent = template.replace('__N__', n);
+        bar.classList.toggle('active', n > 0);
+    }
+
+    checks.forEach(function (c) { c.addEventListener('change', refresh); });
+    document.getElementById('io-select-all')?.addEventListener('change', function () {
+        var on = this.checked;
+        checks.forEach(function (c) { c.checked = on; });
+        refresh();
+    });
+})();
+</script>
 @endif
 
 <script nonce="{{ csrf_token() }}">

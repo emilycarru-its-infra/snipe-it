@@ -155,6 +155,10 @@ return [
 
     // Timeline (P2a)
     'timeline_title' => 'Timeline',
+    'unified_title' => ':waves wave(s) · :count device(s) · :fy',
+    'view_all' => 'All',
+    'view_waves' => 'Waves',
+    'view_timeline' => 'Timeline',
     'timeline_today' => 'Today',
     'waves_title' => 'Waves',
     'timeline_legend_arrival' => 'Arrival window',
@@ -355,6 +359,7 @@ Reply to this email if the device above is not the one you are using, or if ther
     'flow_backlog_pointer' => ':count device(s) are due for refresh and not on a wave yet.',
     'flow_backlog_pointer_link' => 'Plan them in Planning',
     'incoming_orders_title' => 'Incoming orders — :count line(s) not on a wave',
+    'orders_claimed' => 'Claimed :count order line(s) onto :wave.',
     'incoming_orders_hint' => 'Order lines no wave has claimed yet. They join the deployments board automatically once a wave item links to them.',
     'waves_col_arrival' => 'Arrival',
     'waves_col_deploy' => 'Deploy',
