@@ -73,12 +73,12 @@ class ComparableReplacementTest extends TestCase
 
         // The old procurement address walks to the merged page.
         $this->get(route('reports.procurement.forecast'))
-            ->assertRedirect(route('deployments.forecast'));
+            ->assertRedirect(route('deployments.planning'));
 
         // The forecast is the device-planning surface; the money
         // conversation lives in /capital and the PO Builder. Catalog
         // projections still price the CSV export and planned orders.
-        $this->get(route('deployments.forecast'))
+        $this->get(route('deployments.planning'))
             ->assertOk()
             ->assertDontSee('2,383.11')
             ->assertDontSee('999.99');

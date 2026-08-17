@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Auto-collection of devices due for refresh in a fiscal year — the
- * headline E1 feature behind /reports/deployments/forecast. Replaces Rod
+ * headline E1 feature behind /reports/deployments/planning. Replaces Rod
  * manually flipping devices to a stopgap "Active (Lease End)" status: it
  * sweeps assets whose native EOL date OR (if present) "Lease End Date"
  * custom field lands inside an ECU fiscal year (April 1 -> March 31), and
@@ -290,7 +290,37 @@ class RefreshForecast
             $query->whereNotIn('assets.id', $tracked);
         }
 
+        // Deferrals move a device between planning years: an active extend
+        // decision stamped with a target FY takes the device out of the
+        // year its dates put it in, and drops it into the target year's
+        // list instead — where it surfaces with reason "deferred".
+        $deferrals = \App\Models\LeaseDecision::query()
+            ->where('decision_type', 'extend')
+            ->whereNotNull('deferred_to_fy')
+            ->whereNotNull('asset_id')
+            ->whereIn('status', ['pending', 'approved'])
+            ->pluck('deferred_to_fy', 'asset_id');
+
+        $deferredAway = $deferrals->reject(fn ($target) => $target === self::normalizeFy($fy))->keys()->all();
+        if (! empty($deferredAway)) {
+            $query->whereNotIn('assets.id', $deferredAway);
+        }
+
         $assets = $query->orderBy('asset_eol_date')->orderBy('name')->get();
+
+        // Devices pushed INTO this year join the list even though their
+        // own dates point elsewhere.
+        $deferredHereIds = $deferrals->filter(fn ($target) => $target === self::normalizeFy($fy))->keys()
+            ->diff($assets->pluck('id'))->diff(collect($tracked))->values()->all();
+        if (! empty($deferredHereIds)) {
+            $deferredIn = Asset::query()
+                ->NotArchived()
+                ->tap(fn ($q) => $this->excludeNonPlanCategories($q))
+                ->with(['model.refreshCatalogItem', 'model.category', 'status', 'location', 'supplier'])
+                ->whereIn('assets.id', $deferredHereIds)
+                ->get();
+            $assets = $assets->concat($deferredIn);
+        }
 
         // Tie the money side in: a lease decision recorded in procurement
         // (per asset, or for the device's whole lease contract via
@@ -349,6 +379,13 @@ class RefreshForecast
             $asset->lease_decision_note = $decision?->notes;
 
             return $asset;
+        })->each(function (Asset $asset) use ($deferrals, $fy) {
+            // A device pushed into this year carries the deferral as its
+            // reason — its own dates say another year, the decision says
+            // this one, and the decision is what the planner is reading.
+            if (($deferrals[$asset->id] ?? null) === self::normalizeFy($fy)) {
+                $asset->refresh_reason = 'deferred';
+            }
         });
     }
 

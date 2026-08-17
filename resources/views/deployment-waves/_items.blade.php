@@ -59,7 +59,7 @@
 
     <div class="box-body table-responsive no-padding">
     @if ($isAssigned)
-        <table class="table table-hover table-striped">
+        <table class="table table-hover table-striped wave-items-table">
             <thead>
                 <tr>
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
@@ -69,7 +69,7 @@
                     <th>{{ trans('admin/deployments/general.roster_said') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_actual') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_ordered') }}</th>
-                    <th>{{ trans('admin/deployments/general.replacement') }}</th>
+                    <th class="col-repl">{{ trans('admin/deployments/general.replacement') }}</th>
                     <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
                     <th>{{ trans('admin/deployments/general.target_deploy_date') }}</th>
                     <th></th>
@@ -148,7 +148,7 @@
                             <span class="text-muted">{{ trans('admin/deployments/general.roster_not_ordered') }}</span>
                         @endif
                     </td>
-                    <td>
+                    <td class="col-repl">
                         {{-- Block-form @php only: Blade pairs every @php with
                              the next @endphp file-wide, so one inline form
                              here silently swallows the next block. --}}
@@ -181,7 +181,7 @@
         {{-- Shared fleet: grouped by model, units nested under a chevron,
              open by default — the group line is the summary, the units are
              the work. --}}
-        <table class="table table-hover">
+        <table class="table table-hover wave-items-table">
             <thead>
                 <tr>
                     <th style="width:34px;"></th>

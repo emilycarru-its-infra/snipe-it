@@ -89,7 +89,7 @@ class DeploymentsApiTest extends TestCase
         $this->assertSame('planned', collect($stages['payload'])->firstWhere('slug', 'planned')['slug']);
 
         $this->actingAsForApi($user)
-            ->getJson(route('api.deployments.forecast', ['fiscal_year' => 'FY2027-28']))
+            ->getJson(route('api.deployments.planning', ['fiscal_year' => 'FY2027-28']))
             ->assertOk()
             ->assertJsonPath('payload.fiscal_year', 'FY2027-28');
 
