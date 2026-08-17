@@ -638,6 +638,7 @@
         "color",
         "created_at",
         "id",
+        "moves_devices",
         "name",
         "slug",
         "sort_order",

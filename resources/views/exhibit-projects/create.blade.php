@@ -14,7 +14,7 @@
                     @include('exhibit-projects/_form', ['project' => $project])
                 </div>
                 <div class="box-footer text-right">
-                    <a class="btn btn-default" href="{{ route('reports.exhibit') }}">{{ trans('button.cancel') }}</a>
+                    <a class="btn btn-default" href="{{ route('deployments.exhibits') }}">{{ trans('button.cancel') }}</a>
                     <button type="submit" class="btn btn-primary">{{ trans('general.save') }}</button>
                 </div>
             </div>

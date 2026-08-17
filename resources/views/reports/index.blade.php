@@ -88,20 +88,6 @@
     </div>
     @endcan
 
-    @can('view', \App\Models\Order::class)
-    <div class="col-md-3 col-sm-6">
-        <a href="{{ route('reports.exhibit') }}" class="small-box-link" style="text-decoration:none;">
-            <div class="small-box bg-purple">
-                <div class="inner">
-                    <h3 style="font-size:22px;">{{ trans('admin/reports/general.hub_tile_exhibit') }}</h3>
-                    <p>{{ trans('admin/reports/general.hub_tile_exhibit_help') }}</p>
-                </div>
-                <div class="icon"><i class="fas fa-palette" aria-hidden="true"></i></div>
-            </div>
-        </a>
-    </div>
-    @endcan
-
 </div>
 
 {{-- Middle: cross-cutting graphs --}}

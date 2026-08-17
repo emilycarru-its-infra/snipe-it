@@ -27,17 +27,17 @@ class ReportDashboardsSmokeTest extends TestCase
             ->assertOk();
     }
 
-    public function test_landing_promotes_exhibit_tile_and_demotes_fleet_health()
+    public function test_exhibit_board_moved_to_deployments()
     {
+        // The exhibit board lives at /deployments/exhibits now; the old
+        // reports URL forwards, filters intact.
         $this->actingAs($this->superuser())
-            ->get(route('reports.index'))
-            ->assertOk()
-            // Exhibit is a top-row dashboard tile; Fleet Health sits below it
-            // in the standard-reports row.
-            ->assertSeeInOrder([
-                route('reports.exhibit', [], false),
-                route('reports.fleet-health', [], false),
-            ], false);
+            ->get('/reports/exhibit?year=2026')
+            ->assertRedirect('/deployments/exhibits?year=2026');
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.exhibits'))
+            ->assertOk();
     }
 
     public function test_contracts_report_redirects_to_the_merged_page()

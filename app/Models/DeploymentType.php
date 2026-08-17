@@ -24,12 +24,13 @@ class DeploymentType extends SnipeModel
         'slug' => 'nullable|string|max:191',
         'color' => 'nullable|string|max:32',
         'sort_order' => 'nullable|integer',
+        'moves_devices' => 'boolean',
         'active' => 'boolean',
     ];
 
-    protected $fillable = ['name', 'slug', 'color', 'sort_order', 'active'];
+    protected $fillable = ['name', 'slug', 'color', 'moves_devices', 'sort_order', 'active'];
 
-    protected $casts = ['active' => 'boolean', 'sort_order' => 'integer'];
+    protected $casts = ['active' => 'boolean', 'moves_devices' => 'boolean', 'sort_order' => 'integer'];
 
     protected static function booted(): void
     {
