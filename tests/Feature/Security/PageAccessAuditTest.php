@@ -104,6 +104,36 @@ class PageAccessAuditTest extends TestCase
         $this->assertSame('Procurement Readers', $sources[0]['name']);
     }
 
+    public function test_the_roster_reads_alphabetically_by_the_displayed_name()
+    {
+        $group = Group::factory()->create([
+            'name' => 'Procurement Readers',
+            'permissions' => json_encode(['procurement.view' => '1']),
+        ]);
+
+        // Surnames deliberately run backwards against first names: ordering
+        // on last_name would put Zeller first, which is not what the Name
+        // column shows.
+        foreach ([['Aaron', 'Zeller'], ['Mabel', 'Marsh'], ['Zara', 'Abbott']] as [$first, $last]) {
+            $user = User::factory()->create([
+                'first_name' => $first,
+                'last_name' => $last,
+                'display_name' => null,
+            ]);
+            $user->groups()->attach($group->id);
+        }
+
+        $result = (new PageAccessAudit)->audit('procurement');
+
+        $names = $result['people']
+            ->pluck('user.display_name')
+            ->filter(fn ($name) => in_array($name, ['Aaron Zeller', 'Mabel Marsh', 'Zara Abbott'], true))
+            ->values()
+            ->all();
+
+        $this->assertSame(['Aaron Zeller', 'Mabel Marsh', 'Zara Abbott'], $names);
+    }
+
     public function test_an_individual_denial_beats_the_group_grant()
     {
         $group = Group::factory()->create([
