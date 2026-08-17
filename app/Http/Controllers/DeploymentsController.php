@@ -355,6 +355,32 @@ class DeploymentsController extends Controller
         return $rows;
     }
 
+    /**
+     * Stage one or more wave items into a room — the inbox's drop and its
+     * bulk move. Answers JSON for the page's fetch so a drop never costs
+     * the reader their scroll position.
+     */
+    public function stageMove(Request $request)
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'item_ids' => 'required|array|min:1',
+            'item_ids.*' => 'integer',
+            'location_id' => 'required|integer|exists:locations,id',
+        ]);
+
+        $moved = DeploymentItem::whereIn('id', $request->input('item_ids'))
+            ->update(['storage_location_id' => (int) $request->input('location_id')]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'moved' => $moved]);
+        }
+
+        return redirect()->route('deployments.storage')
+            ->with('success', trans('admin/deployments/general.storage_staged_moved', ['count' => $moved]));
+    }
+
     /** Flag or unflag a location as a standing storage room. */
     public function storageLocationToggle(Request $request): RedirectResponse
     {
@@ -379,7 +405,7 @@ class DeploymentsController extends Controller
      * page's drag. Only an unassigned device moves this way: a checked-out
      * device's location is wherever its holder is.
      */
-    public function storageMove(Request $request): RedirectResponse
+    public function storageMove(Request $request)
     {
         $this->authorize('deployments.edit');
 
@@ -390,6 +416,10 @@ class DeploymentsController extends Controller
 
         $asset = Asset::findOrFail((int) $request->input('asset_id'));
         if ($asset->assigned_to !== null) {
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'error' => trans('admin/deployments/general.storage_move_assigned')], 422);
+            }
+
             return redirect()->route('deployments.storage')
                 ->with('error', trans('admin/deployments/general.storage_move_assigned'));
         }
@@ -398,6 +428,10 @@ class DeploymentsController extends Controller
             'rtd_location_id' => (int) $request->input('location_id'),
             'location_id' => (int) $request->input('location_id'),
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
 
         return redirect()->route('deployments.storage')
             ->with('success', trans('admin/deployments/general.storage_moved', [

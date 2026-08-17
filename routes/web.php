@@ -438,6 +438,8 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployments.storage.location');
     Route::post('deployments/storage/move', [DeploymentsController::class, 'storageMove'])
         ->name('deployments.storage.move');
+    Route::post('deployments/storage/stage-move', [DeploymentsController::class, 'stageMove'])
+        ->name('deployments.storage.stage-move');
     Route::get('deployments/storage', [DeploymentsController::class, 'storage'])
         ->name('deployments.storage')
         ->middleware('can:view,App\Models\Order')
