@@ -150,6 +150,58 @@ class DeploymentItem extends SnipeModel
     }
 
     /**
+     * The wave's existing row for a device, if it already has one.
+     *
+     * The asset is the unit of work here as it is everywhere else in Snipe:
+     * a device is on a wave once, or not at all. Every path that puts an
+     * asset on a wave asks this first, so a second description of the same
+     * device — a claimed order line, a hand-added row — enriches the plan
+     * rather than standing beside it as a twin with its own stage.
+     */
+    public static function onWave(int $waveId, ?int $assetId): ?self
+    {
+        return $assetId
+            ? static::where('wave_id', $waveId)->where('asset_id', $assetId)->first()
+            : null;
+    }
+
+    /**
+     * Whether another row on this wave already tracks the given asset —
+     * the same rule as onWave(), asked by the paths that move an existing
+     * row onto a device rather than creating one.
+     */
+    public function conflictsOnWave(?int $assetId): bool
+    {
+        return (bool) $assetId && static::where('wave_id', $this->wave_id)
+            ->where('asset_id', $assetId)
+            ->where('id', '!=', $this->id)
+            ->exists();
+    }
+
+    /**
+     * Fold another description of this same device into the row: fill the
+     * blanks, never overwrite. What is already recorded came from someone
+     * who knew more than the caller does — the device being replaced, the
+     * stage the pipeline advanced to, the note a technician typed — and a
+     * later, thinner account of the same device must not flatten it.
+     */
+    public function absorb(array $attributes): bool
+    {
+        foreach ($attributes as $field => $value) {
+            if ($value === null || $value === '' || ! in_array($field, $this->fillable, true)) {
+                continue;
+            }
+            if (! is_null($this->{$field})) {
+                continue;
+            }
+
+            $this->{$field} = $value;
+        }
+
+        return $this->isDirty() ? $this->save() : true;
+    }
+
+    /**
      * Where this device is being staged — its own storage location if one was
      * set, otherwise the room its wave stages in. Setting the wave's location
      * is the normal act; setting it per device is the exception for the unit

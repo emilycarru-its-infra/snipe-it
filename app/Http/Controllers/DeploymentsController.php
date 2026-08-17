@@ -1203,6 +1203,18 @@ class DeploymentsController extends Controller
 
             $lineAsset = $line->item instanceof Asset ? $line->item : null;
 
+            // The wave may already be tracking this device from the
+            // planning side, with the replaced device and the notes on it.
+            // The line belongs on that row: claiming is how the money side
+            // joins a device already being planned, not a second copy of it.
+            if ($existing = DeploymentItem::onWave($wave->id, $lineAsset?->id)) {
+                if ($existing->absorb(['order_item_id' => $line->id, 'model_id' => $lineAsset?->model_id])) {
+                    $added++;
+                }
+
+                continue;
+            }
+
             $item = new DeploymentItem([
                 'wave_id' => $wave->id,
                 'order_item_id' => $line->id,
