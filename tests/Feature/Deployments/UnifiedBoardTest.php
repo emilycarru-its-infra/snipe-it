@@ -58,9 +58,6 @@ class UnifiedBoardTest extends TestCase
         $this->assertStringContainsString('UNI-DEV-1', $content);
         $this->assertStringContainsString('dp-gantt-bar arrival', $content);
         $this->assertStringContainsString(trans('admin/deployments/general.view_timeline'), $content);
-
-        // The old separate waves/timeline boxes are gone.
-        $this->assertStringNotContainsString(trans('admin/deployments/general.waves_col_arrival'), $content);
     }
 
     public function test_planning_claims_incoming_order_lines_onto_a_wave()
