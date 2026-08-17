@@ -163,6 +163,7 @@ return [
     'view_waves' => 'Waves',
     'view_timeline' => 'Timeline',
     'view_storage' => 'Locations',
+    'filter_placeholder' => 'Filter by device, user or asset tag',
     'timeline_today' => 'Today',
     'waves_title' => 'Waves',
     'timeline_legend_arrival' => 'Arrival window',
