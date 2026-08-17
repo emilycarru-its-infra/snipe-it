@@ -29,7 +29,7 @@
             @endforeach
         </select>
     </form>
-    <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.forecast') }}</a>
+    <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}" class="btn btn-default"><i class="fas fa-calendar-alt"></i> {{ trans('admin/deployments/general.forecast') }}</a>
     <a href="{{ route('deployments.storage') }}" class="btn btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     <a href="{{ route('deployments.blackouts.index') }}" class="btn btn-default"><i class="fas fa-user-clock"></i> {{ trans('admin/deployments/general.blackouts_button') }}</a>
     @can('deployments.edit')
@@ -162,7 +162,7 @@
 <div class="box box-default" id="devices-flow">
     <div class="box-header with-border">
         <h3 class="box-title" id="dp-title">{{ trans('admin/deployments/general.flow_devices_title', ['count' => count($deviceRows), 'fy' => $fy]) }}</h3>
-        <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary" style="margin-left:12px; vertical-align:middle;">
+        <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}" class="btn btn-sm btn-primary" style="margin-left:12px; vertical-align:middle;">
             <i class="fas fa-plus"></i> {{ trans('admin/deployments/general.add_from_forecast') }}</a>
         <span style="margin-left:16px; vertical-align:middle; white-space:nowrap;">
             <span class="text-muted" style="font-size:12px; margin-right:4px;">{{ trans('admin/deployments/general.flow_group_label') }}</span>
@@ -180,7 +180,7 @@
         <div class="box-body" style="padding-top:8px; padding-bottom:8px; border-bottom:1px solid var(--box-border-color, #f4f4f4);">
             <span class="text-muted" style="font-size:12.5px;">
                 {{ trans('admin/deployments/general.flow_backlog_pointer', ['count' => $backlogCount]) }}
-                <a href="{{ route('deployments.forecast', ['fiscal_year' => $fy]) }}">{{ trans('admin/deployments/general.flow_backlog_pointer_link') }}</a>
+                <a href="{{ route('deployments.planning', ['fiscal_year' => $fy]) }}">{{ trans('admin/deployments/general.flow_backlog_pointer_link') }}</a>
             </span>
         </div>
     @endif
@@ -280,63 +280,9 @@
     <span id="dp-group-ids"></span>
 </form>
 
-{{-- Incoming orders that no wave has claimed. These are procurement
-     facts, not waves — they used to render inside the device table with
-     the order number dressed up as a wave chip, which read as waves
-     nobody created and nobody could edit. Here they are what they are:
-     order lines, grouped by order, linked to the order they belong to.
-     They join the board the moment a wave item claims them. --}}
-@if ($incomingOrders->isNotEmpty())
-<div class="box box-default collapsed-box">
-    <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/deployments/general.incoming_orders_title', ['count' => $incomingOrders->flatten(1)->count()]) }}</h3>
-        <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.incoming_orders_hint') }}</span>
-        <div class="box-tools pull-right">
-            <button type="button" class="btn btn-box-tool" data-widget="collapse"><i class="fas fa-plus"></i></button>
-        </div>
-    </div>
-    <div class="box-body no-padding" style="display:none;">
-        <table class="table table-striped table-condensed" style="margin-bottom:0;">
-            <thead>
-                <tr>
-                    <th>{{ trans('admin/deployments/general.device') }}</th>
-                    <th>{{ trans('admin/deployments/general.model') }}</th>
-                    <th>{{ trans('admin/deployments/general.stage') }}</th>
-                    <th>{{ trans('admin/orders/general.order') }}</th>
-                    <th>{{ trans('general.status') }}</th>
-                    <th>{{ trans('admin/deployments/general.location') }}</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach ($incomingOrders as $orderNumber => $lines)
-                <tr class="dp-group-head"><td colspan="6" style="font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.05em;">{{ $orderNumber }} · {{ count($lines) }}</td></tr>
-                @foreach ($lines as $line)
-                    <tr>
-                        <td>
-                            @if ($line['device_url'])
-                                <a href="{{ $line['device_url'] }}" class="js-lightbox">{{ $line['device'] }}</a>
-                            @else
-                                {{ $line['device'] }}
-                            @endif
-                        </td>
-                        <td>{{ $line['model'] }}</td>
-                        <td><span class="label" style="background-color: {{ $line['stage_color'] }}; color:#fff;">{{ $line['stage_name'] }}</span></td>
-                        <td><a href="{{ $line['wave_url'] }}" class="js-lightbox">{{ $line['wave'] }}</a> <span class="text-muted" style="font-size:11.5px;">{{ $line['context'] }}</span></td>
-                        <td>{{ $line['status'] }}</td>
-                        <td>{{ $line['location'] }}</td>
-                    </tr>
-                @endforeach
-            @endforeach
-            </tbody>
-        </table>
-    </div>
-</div>
-@endif
-
-{{-- Agreements live at /procurement/agreements — one hub, not a copy of
-     the ledger on every page that touches the program. --}}
-
-@include('reports.deployments._decommissioning')
+{{-- Decommissioning lives at /deployments/decommissioning — one page,
+     not a copy at the bottom of the board. Agreements likewise live at
+     /procurement/agreements. --}}
 
 <script nonce="{{ csrf_token() }}">
 (function () {

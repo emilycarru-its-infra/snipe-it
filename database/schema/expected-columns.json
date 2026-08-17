@@ -833,6 +833,7 @@
         "created_by",
         "decision_date",
         "decision_type",
+        "deferred_to_fy",
         "deleted_at",
         "id",
         "notes",

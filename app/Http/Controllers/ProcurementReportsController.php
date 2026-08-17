@@ -393,7 +393,7 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('procurement.view');
 
-        return redirect()->route('deployments.forecast', array_filter([
+        return redirect()->route('deployments.planning', array_filter([
             'fiscal_year' => $request->query('fiscal_year'),
             'criteria' => $request->query('criteria'),
             'format' => $request->query('format'),
@@ -434,7 +434,7 @@ class ProcurementReportsController extends Controller
             ->get();
 
         if ($assets->isEmpty()) {
-            return redirect()->route('deployments.forecast', array_filter(['fiscal_year' => $validated['fiscal_year'] ?? null]))
+            return redirect()->route('deployments.planning', array_filter(['fiscal_year' => $validated['fiscal_year'] ?? null]))
                 ->with('error', trans('admin/purchase-orders/general.forecast_none_selected'));
         }
 
@@ -446,7 +446,7 @@ class ProcurementReportsController extends Controller
         $order->created_by = auth()->id();
 
         if (! $order->save()) {
-            return redirect()->route('deployments.forecast', array_filter(['fiscal_year' => $validated['fiscal_year'] ?? null]))
+            return redirect()->route('deployments.planning', array_filter(['fiscal_year' => $validated['fiscal_year'] ?? null]))
                 ->withInput()->withErrors($order->getErrors());
         }
 

@@ -72,8 +72,14 @@ class DeploymentsBoardTest extends TestCase
             'decommission_date' => now()->format('Y-m-d'),
         ]);
 
+        // The lane lives on its own page now, not at the bottom of the board.
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments'))
+            ->assertOk()
+            ->assertDontSee('DECOM-1');
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.decommissioning'))
             ->assertOk()
             ->assertSee(trans('admin/deployments/general.decom_title'))
             ->assertSee('DECOM-1')
@@ -98,7 +104,7 @@ class DeploymentsBoardTest extends TestCase
         // A stamped decommission date means the device left our management —
         // it must not linger on the collecting table.
         $content = $this->actingAs($this->superuser())
-            ->get(route('reports.deployments'))
+            ->get(route('deployments.decommissioning'))
             ->assertOk()
             ->getContent();
 
@@ -204,13 +210,19 @@ class DeploymentsBoardTest extends TestCase
             'quantity' => 3,
         ]);
 
-        $content = $this->actingAs($this->superuser())
+        // Order lines with no wave are planning's business — the Incoming
+        // orders table there carries them; the board stays waves-only.
+        $boardContent = $this->actingAs($this->superuser())
             ->get(route('reports.deployments'))
             ->assertOk()
             ->getContent();
+        $this->assertStringNotContainsString('PVTEST99', $boardContent);
 
-        // The money side and the physical side are the same devices: the
-        // order line shows on the flow at Ordered, tagged with its order.
+        $content = $this->actingAs($this->superuser())
+            ->get(route('deployments.planning'))
+            ->assertOk()
+            ->getContent();
+
         $this->assertStringContainsString('PVTEST99', $content);
         $this->assertStringContainsString('Latitude 5560 Refresh Line', $content);
         $this->assertStringContainsString(e('Latitude 5560 Refresh Line ×3'), $content);
@@ -268,7 +280,7 @@ class DeploymentsBoardTest extends TestCase
         ]);
 
         $content = $this->actingAs($this->superuser())
-            ->get(route('reports.deployments', ['fiscal_year' => 'FY2023-24']))
+            ->get(route('deployments.decommissioning', ['fiscal_year' => 'FY2023-24']))
             ->assertOk()
             ->getContent();
 
@@ -503,7 +515,7 @@ class DeploymentsBoardTest extends TestCase
         ]);
 
         $this->actingAs($this->superuser())
-            ->get(route('reports.deployments', ['fiscal_year' => 'FY2026-27']))
+            ->get(route('deployments.planning', ['fiscal_year' => 'FY2026-27']))
             ->assertOk();
     }
 
@@ -565,7 +577,7 @@ class DeploymentsBoardTest extends TestCase
 
         // And the page renders the grid.
         $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast', ['fiscal_year' => 'FY2026-27']))
+            ->get(route('deployments.planning', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('gantt-gridlines', false)
             ->assertSee('Sep 8 – Sep 18');

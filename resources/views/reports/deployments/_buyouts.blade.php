@@ -23,6 +23,22 @@
     .buyout-toggle[aria-expanded="true"] .buyout-caret { transform: rotate(180deg); }
 </style>
 @endpush
+@push('js')
+<script nonce="{{ csrf_token() }}">
+    // Explicit row toggling. Bootstrap's collapse shows a <tr> as
+    // display:block, which breaks table layout — the editor looked dead.
+    $(function () {
+        $(document).on('click', '.buyout-toggle', function (e) {
+            e.preventDefault();
+            var target = document.getElementById(this.getAttribute('aria-controls'));
+            if (! target) { return; }
+            var open = target.style.display !== 'none';
+            target.style.display = open ? 'none' : 'table-row';
+            this.setAttribute('aria-expanded', open ? 'false' : 'true');
+        });
+    });
+</script>
+@endpush
 
 <div class="box box-default decom-card">
     <div class="box-header with-border">
@@ -64,7 +80,7 @@
                 @foreach ($buyouts['rows'] as $row)
                     <tr @unless ($row['open']) class="text-muted" @endunless>
                         <td>
-                            <a href="#buyout-{{ $row['id'] }}" class="buyout-toggle" data-toggle="collapse" role="button"
+                            <a href="#buyout-{{ $row['id'] }}" class="buyout-toggle" role="button"
                                aria-expanded="false" aria-controls="buyout-{{ $row['id'] }}"
                                title="{{ trans('admin/deployments/general.buyout_edit') }}">
                                 <i class="fas fa-caret-down buyout-caret" aria-hidden="true"></i>
@@ -100,7 +116,7 @@
                             @endif
                         </td>
                     </tr>
-                    <tr class="collapse" id="buyout-{{ $row['id'] }}">
+                    <tr id="buyout-{{ $row['id'] }}" style="display:none;">
                         <td colspan="10" style="background:rgba(127,127,127,.06);">
                             @if (! $canEdit)
                                 <p class="text-muted" style="margin:0;">{{ trans('general.insufficient_permissions') }}</p>
