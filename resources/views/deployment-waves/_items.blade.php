@@ -155,7 +155,7 @@
                         @php
                             $catalog = $item->model?->refreshCatalogItem;
                         @endphp
-                        {{ $item->model?->name ?: '—' }}
+                        {{ $item->plannedDeviceLabel() ?: '—' }}
                         @if ($catalog)
                             <span class="text-muted">${{ number_format($catalog->effectiveCost(), 2) }}</span>
                             @if ($catalog->isEstimate())<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
@@ -194,7 +194,7 @@
                     <th></th>
                 </tr>
             </thead>
-            @foreach ($wave->items->groupBy(fn ($item) => $item->model?->name ?: '—') as $modelName => $group)
+            @foreach ($wave->items->groupBy(fn ($item) => $item->plannedDeviceLabel() ?: '—') as $modelName => $group)
                 <tbody class="wave-model-group">
                     <tr class="wave-group-head active">
                         <td>

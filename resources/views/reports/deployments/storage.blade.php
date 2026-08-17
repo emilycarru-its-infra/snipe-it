@@ -12,6 +12,16 @@
 
 @php($allRows = array_merge($rows, $unassignedCount > 0 ? [$unassigned] : []))
 
+{{-- What the page counts, and the one control that changes it. The
+     configuration sits here rather than behind a location edit and five
+     wave edits, which is why none of it had ever been set. --}}
+<div style="display:flex; align-items:flex-start; gap:16px; margin-bottom:12px;">
+    <p class="text-muted" style="margin:0; flex:1;">{{ trans('admin/deployments/general.storage_counts_help') }}</p>
+    @can('deployments.edit')
+        @include('reports.deployments._storage-config')
+    @endcan
+</div>
+
 @if (count($rows) === 0 && $unassignedCount === 0)
     <div class="callout callout-info">
         <i class="fas fa-info-circle"></i> {{ trans('admin/deployments/general.storage_no_locations') }}

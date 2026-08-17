@@ -93,7 +93,7 @@ class DeploymentsController extends Controller
         // Every tracked device on the FY's waves.
         $waveIds = $waves->pluck('id')->all();
         $allItems = DeploymentItem::query()
-            ->with(['stage', 'wave.type', 'model', 'asset.location', 'asset.status', 'asset.model', 'replacesAsset.location', 'replacesAsset.status', 'replacesAsset.model'])
+            ->with(['stage', 'wave.type', 'model.refreshCatalogItem', 'asset.location', 'asset.status', 'asset.model', 'replacesAsset.location', 'replacesAsset.status', 'replacesAsset.model'])
             ->whereIn('wave_id', $waveIds ?: [0])
             ->get();
 
@@ -165,7 +165,11 @@ class DeploymentsController extends Controller
                 'asset_id' => null,
                 'device' => $device,
                 'device_url' => $subject ? route('hardware.show', $subject->id) : null,
-                'model' => $item->model?->name ?: $subject?->model?->name ?: '—',
+                // Once the machine exists it names itself. Until then the row
+                // is a plan, and the plan is the catalog item the incumbent's
+                // model refreshes to — never the incumbent's own model, which
+                // would advertise a device years old as this year's purchase.
+                'model' => $item->asset?->model?->name ?: $item->plannedDeviceLabel() ?: $subject?->model?->name ?: '—',
                 'wave' => $item->wave?->name,
                 'wave_url' => $item->wave ? route('deployment-waves.show', $item->wave) : null,
                 'wave_color' => $item->wave?->displayColor(),
@@ -437,9 +441,16 @@ class DeploymentsController extends Controller
 
     /**
      * The storage view: every Location with a storage_capacity, its current
-     * staged-device count (deployment_items pointing at it that aren't yet
-     * deployed), a fill bar, the device list, and any waves staging there.
-     * Plus an "Unassigned" bucket for staged devices with no storage location.
+     * staged-device count, a fill bar, the device list, and any waves staging
+     * there. Plus an "Unassigned" bucket for staged devices with no storage
+     * location.
+     *
+     * "Staged" here means physically on a shelf, which is narrower than
+     * "not finished" — see DeploymentItem::scopeInStorage(). A room's count is
+     * a claim about floor space, so a planned refresh, an order in transit, a
+     * device already in somebody's hands and a row left behind by a deleted
+     * asset all have to stay out of it, or the fill bar measures intent
+     * instead of occupancy.
      */
     public function storage(Request $request)
     {
@@ -450,19 +461,15 @@ class DeploymentsController extends Controller
             ->orderBy('name')
             ->get();
 
-        // All not-yet-deployed items, grouped by storage_location_id. "Staged"
-        // = deployed_at is null AND the stage isn't terminal (a missing stage
-        // row counts as not-yet-deployed too).
         $stagedItems = DeploymentItem::query()
-            ->with(['stage', 'wave', 'asset', 'model'])
-            ->whereNull('deployed_at')
-            ->where(function ($q) {
-                $q->whereNull('stage_id')
-                    ->orWhereHas('stage', fn ($s) => $s->where('is_terminal', false));
-            })
+            ->with(['stage', 'wave', 'asset', 'model.refreshCatalogItem'])
+            ->inStorage()
             ->get();
 
-        $byLocation = $stagedItems->groupBy('storage_location_id');
+        // Grouped by where the device is actually staged: its own location, or
+        // failing that its wave's. Configuring the wave is the normal act, so
+        // items inherit from it rather than each needing to be set by hand.
+        $byLocation = $stagedItems->groupBy(fn ($item) => $item->storageLocationId());
 
         $rows = [];
         foreach ($locations as $location) {
@@ -491,7 +498,59 @@ class DeploymentsController extends Controller
             'wavesByStorage' => $wavesByStorage,
             'unassigned' => $unassigned,
             'unassignedCount' => $unassignedItems->count(),
+            // Everything the Config panel edits. Which rooms are storage and
+            // where a wave stages are both settings, not code, and they belong
+            // on the page whose numbers they decide.
+            'configRooms' => $locations,
+            'configWaves' => DeploymentWave::query()
+                ->where(fn ($q) => $q->whereNull('wave_state')->orWhere('wave_state', '!=', 'done'))
+                ->ordered()
+                ->get(),
+            'allLocations' => Location::orderBy('name')->get(['id', 'name']),
         ]);
+    }
+
+    /**
+     * Save the storage configuration: which rooms hold staged devices and how
+     * many each takes, plus the room each wave stages in.
+     *
+     * A room IS a location carrying a capacity, so the submitted rows are the
+     * whole truth — a room dropped from the list loses its capacity and stops
+     * being one. That keeps removal to deleting a row, rather than a separate
+     * gesture nobody would find.
+     */
+    public function storageConfig(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $validated = $request->validate([
+            'rooms' => 'nullable|array',
+            'rooms.*.location_id' => 'nullable|integer|exists:locations,id',
+            'rooms.*.capacity' => 'nullable|integer|min:0|max:100000',
+            'waves' => 'nullable|array',
+            'waves.*' => 'nullable|integer|exists:locations,id',
+        ]);
+
+        // Last row wins if somebody picks the same room twice — one capacity
+        // per room is the only thing the column can mean.
+        $rooms = collect($validated['rooms'] ?? [])
+            ->filter(fn ($row) => filled($row['location_id'] ?? null) && filled($row['capacity'] ?? null))
+            ->mapWithKeys(fn ($row) => [(int) $row['location_id'] => (int) $row['capacity']]);
+
+        Location::whereNotNull('storage_capacity')
+            ->whereNotIn('id', $rooms->keys()->all() ?: [0])
+            ->update(['storage_capacity' => null]);
+
+        foreach ($rooms as $locationId => $capacity) {
+            Location::whereKey($locationId)->update(['storage_capacity' => $capacity]);
+        }
+
+        foreach ($validated['waves'] ?? [] as $waveId => $locationId) {
+            DeploymentWave::whereKey((int) $waveId)->update(['storage_location_id' => $locationId ?: null]);
+        }
+
+        return redirect()->route('deployments.storage')
+            ->with('success', trans('admin/deployments/general.storage_config_saved'));
     }
 
     /** Build one storage row: capacity, staged count, fill %, bar tone, items. */

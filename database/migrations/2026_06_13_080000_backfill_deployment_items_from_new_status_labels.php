@@ -64,7 +64,11 @@ class BackfillDeploymentItemsFromNewStatusLabels extends Migration
                 continue;
             }
 
-            Asset::withTrashed()
+            // Live assets only. A deleted device parked on an intake label is
+            // not work anybody is going to do, and tracking it produces a row
+            // whose asset relation resolves to null — unopenable, unadvanceable,
+            // and indistinguishable on screen from a device with no record yet.
+            Asset::query()
                 ->where('status_id', $label->id)
                 ->orderBy('id')
                 ->chunkById(200, function ($assets) use ($wave, $stage) {

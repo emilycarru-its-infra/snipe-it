@@ -25,6 +25,7 @@
                     <th>{{ trans('admin/deployments/general.catalog_color') }}</th>
                     @if ($catalog === 'stages')
                         <th>{{ trans('admin/deployments/general.catalog_terminal') }}</th>
+                        <th>{{ trans('admin/deployments/general.catalog_on_hand') }}</th>
                         <th>{{ trans('admin/deployments/general.catalog_maps_to_status') }}</th>
                     @endif
                     <th>{{ trans('admin/deployments/general.catalog_sort') }}</th>
@@ -39,6 +40,7 @@
                     <td><code>{{ $item->color }}</code></td>
                     @if ($catalog === 'stages')
                         <td>@if ($item->is_terminal)<i class="fas fa-check text-success"></i>@else <i class="fas fa-times text-muted"></i> @endif</td>
+                        <td>@if ($item->is_on_hand)<i class="fas fa-check text-success"></i>@else <i class="fas fa-times text-muted"></i> @endif</td>
                         <td>{{ $item->statusLabel?->name ?: '—' }}</td>
                     @endif
                     <td>{{ $item->sort_order }}</td>
@@ -52,7 +54,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="{{ $catalog === 'stages' ? 7 : 5 }}" class="text-center text-muted">—</td></tr>
+                <tr><td colspan="{{ $catalog === 'stages' ? 8 : 5 }}" class="text-center text-muted">—</td></tr>
             @endforelse
             </tbody>
         </table>
