@@ -421,6 +421,8 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployments.planning.add');
     Route::post('deployments/planning/defer', [DeploymentsController::class, 'deferFromPlanning'])
         ->name('deployments.planning.defer');
+    Route::post('deployments/planning/buyout', [DeploymentsController::class, 'buyoutFromPlanning'])
+        ->name('deployments.planning.buyout');
 
     // Forecast became Planning — the one place for all of it.
     Route::get('deployments/forecast', function () {
@@ -512,7 +514,15 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployments.decommission.location');
 
     // A device leaving by purchase rather than pickup: the quote, the split,
-    // the decision, the invoice, the payment.
+    // the decision, the invoice, the payment. The per-device page is the
+    // link handed around the lessor thread.
+    Route::get('deployments/decommissioning/{assetTag}', [AssetBuyoutsController::class, 'show'])
+        ->name('buyouts.show')
+        ->breadcrumbs(fn (Trail $trail, $assetTag) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.decom_nav'), route('deployments.decommissioning'))
+            ->push($assetTag, route('buyouts.show', $assetTag)));
+    Route::post('buyouts/open', [AssetBuyoutsController::class, 'open'])
+        ->name('buyouts.open');
     Route::post('buyouts/{buyout}/quote', [AssetBuyoutsController::class, 'quote'])
         ->name('buyouts.quote');
     Route::post('buyouts/{buyout}/status', [AssetBuyoutsController::class, 'transition'])
@@ -759,12 +769,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
     Route::post('ldap', [SettingsController::class, 'postLdapSettings'])
         ->name('settings.ldap.save');
 
-    Route::get('forms', [SettingsController::class, 'getForms'])
+    // URI form-settings, not forms: /admin/forms belongs to the forms
+    // platform itself; this is the Settings copy editor for them.
+    Route::get('form-settings', [SettingsController::class, 'getForms'])
         ->name('settings.forms.index')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
             ->push(trans('admin/forms/general.settings_title'), route('settings.forms.index')));
 
-    Route::post('forms', [SettingsController::class, 'postForms'])
+    Route::post('form-settings', [SettingsController::class, 'postForms'])
         ->name('settings.forms.save');
 
     Route::get('phpinfo', [SettingsController::class, 'getPhpInfo'])
