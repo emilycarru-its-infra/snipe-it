@@ -77,6 +77,7 @@ return [
     // Allocation: pairing an arrival that has no request with the request
     // that has no hardware.
     'allocation_heading' => 'Awaiting allocation',
+    'allocation_all_clear' => 'Nothing awaiting allocation — every arrived unit has a request.',
     'allocation_intro' => 'Hardware that arrived without a matching request. Pick the waiting request each unit should fill — only requests for the same model are offered.',
     'allocation_none_waiting' => 'No waiting request for this model — it stays as stock.',
     'allocate_button' => 'Allocate',

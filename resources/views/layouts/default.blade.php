@@ -2279,7 +2279,7 @@
                                 <a href="{{ route('my') }}"><i class="fa-solid fa-laptop fa-fw" aria-hidden="true"></i> {{ trans('general.assets') }}</a>
                             </li>
                             @if (! empty($formsAccessible))
-                                <li {!! request()->is('procurement/forms*') ? 'class="active"' : '' !!}>
+                                <li {!! request()->is('admin/forms*') ? 'class="active"' : '' !!}>
                                     <a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw" aria-hidden="true"></i> {{ trans('admin/forms/general.menu_link') }}</a>
                                 </li>
                             @endif
@@ -2521,7 +2521,7 @@
                                         @endcan
 
                                         @if (! empty($formsAccessible))
-                                            <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
+                                            <li {!! (request()->is('admin/forms*') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('forms.index') }}">
                                                     <i class="fas fa-file-alt fa-fw" aria-hidden="true"></i>
                                                     {{ trans('admin/forms/general.menu_link') }}
@@ -2659,6 +2659,16 @@
                                                 <a href="{{ route('imports.index') }}">{{ trans('general.import') }}</a>
                                             </li>
                                         @endcan
+                                        {{-- The forms platform is administration, not
+                                             procurement: forms attach to deployment
+                                             waves and there may be many of them. End
+                                             users still reach their own forms through
+                                             their Forms tab and emailed links. --}}
+                                        @if (! empty($formsAccessible))
+                                            <li{!! (request()->is('admin/forms*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('forms.index') }}">{{ trans('admin/forms/general.menu_link') }}</a>
+                                            </li>
+                                        @endif
 
                                         @canany(['audit', 'checkin', 'checkout'], \App\Models\Asset::class)
                                             <li class="dropdown-header">{{ trans('general.nav_group_operations') }}</li>
@@ -3240,7 +3250,7 @@
                                          procurement flow it now lives under. Shown
                                          only to someone a form is open to. --}}
                                     @if (! empty($formsAccessible))
-                                        <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
+                                        <li {!! (request()->is('admin/forms*') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('forms.index') }}">
                                                 {{ trans('admin/forms/general.menu_link') }}
                                             </a>
