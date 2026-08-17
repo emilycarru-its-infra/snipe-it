@@ -10,12 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common Commands
 
-```bash
-# Run all tests
-php artisan test
-# or
-vendor/bin/phpunit
+Run tests one file, or one method, at a time. **Never run the bare suite or a
+multi-directory sweep** — it takes many minutes, buries the result you were
+after, and surfaces unrelated environment failures. CI runs the whole thing on
+every push; that is what it is for.
 
+```bash
 # Run a single test file
 php artisan test tests/Feature/Assets/AssetsTest.php
 
@@ -45,6 +45,7 @@ Dev server is served via **Laravel Herd** (`herd coverage` for coverage reports)
 ### Controllers
 
 Two parallel controller trees:
+
 - `app/Http/Controllers/` — web/UI controllers (Blade views)
 - `app/Http/Controllers/Api/` — REST API controllers (JSON, used by datatables + select2)
 
@@ -91,6 +92,7 @@ String keys live in `resources/lang/en-US/general.php` (and other files in that 
 ### Checkout Redirect Flow
 
 After checkout, `Helper::getRedirectOption()` reads `$request->redirect_option`. For redirecting back to the assigned user after checkout:
+
 - Set `redirect_option=target` in the form
 - Set `checkout_to_type=user` in the form
 - Set `assigned_user={{ $user->id }}` in the form
