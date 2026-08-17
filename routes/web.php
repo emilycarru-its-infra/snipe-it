@@ -424,6 +424,8 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployments.planning.defer');
     Route::post('deployments/planning/buyout', [DeploymentsController::class, 'buyoutFromPlanning'])
         ->name('deployments.planning.buyout');
+    Route::post('deployments/planning/claim', [DeploymentsController::class, 'claimFromPlanning'])
+        ->name('deployments.planning.claim');
 
     // Forecast became Planning — the one place for all of it.
     Route::get('deployments/forecast', function () {

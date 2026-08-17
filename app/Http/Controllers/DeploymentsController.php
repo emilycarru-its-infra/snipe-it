@@ -162,6 +162,7 @@ class DeploymentsController extends Controller
             $rows[] = [
                 'kind' => 'item',
                 'item_id' => $item->id,
+                'wave_id' => $item->wave_id,
                 'asset_id' => null,
                 'device' => $device,
                 'device_url' => $subject ? route('hardware.show', $subject->id) : null,
@@ -275,6 +276,7 @@ class DeploymentsController extends Controller
                     'kind' => 'order',
                     'item_id' => null,
                     'asset_id' => null,
+                    'order_item_id' => $line->id,
                     'device' => $device,
                     'device_url' => $asset ? route('hardware.show', $asset->id) : route('orders.show', $order->id),
                     'model' => $asset?->model?->name ?: ($line->description ?: '—'),
@@ -1132,6 +1134,83 @@ class DeploymentsController extends Controller
 
         return redirect()->route('deployment-waves.show', $wave)
             ->with('success', trans('admin/deployments/general.forecast_added', ['count' => $added]));
+    }
+
+    /**
+     * Claim incoming order lines onto a wave from the planning page — the
+     * manual pairing for orders the automation has no join for. Each
+     * claimed line becomes a wave item carrying the line (and its asset,
+     * if the unit exists); the stage sync then advances it from the facts.
+     */
+    public function claimFromPlanning(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'order_item_ids' => 'required|array|min:1',
+            'order_item_ids.*' => 'integer',
+            'fiscal_year' => 'nullable|string',
+        ]);
+
+        $fy = RefreshForecast::normalizeFy($request->input('fiscal_year'));
+        $waveId = $request->input('wave_id');
+        $newWaveName = trim((string) $request->input('new_wave_name'));
+
+        if ($waveId) {
+            $wave = DeploymentWave::findOrFail((int) $waveId);
+        } elseif ($newWaveName !== '') {
+            $wave = new DeploymentWave([
+                'name' => $newWaveName,
+                'fiscal_year' => $fy,
+                'wave_state' => 'planned',
+                'deployment_type_id' => (int) $request->input('deployment_type_id')
+                    ?: DeploymentType::where('slug', 'refresh')->value('id'),
+            ]);
+            $wave->created_by = auth()->id();
+            $wave->save();
+        } else {
+            return redirect()->back()->withInput()
+                ->with('error', trans('admin/deployments/general.forecast_no_wave'));
+        }
+
+        $plannedStageId = DeploymentStage::where('slug', 'planned')->value('id');
+        $claimed = DeploymentItem::query()
+            ->whereIn('order_item_id', $request->input('order_item_ids'))
+            ->pluck('order_item_id')
+            ->all();
+
+        $added = 0;
+        foreach ($request->input('order_item_ids') as $lineId) {
+            $lineId = (int) $lineId;
+            if (in_array($lineId, $claimed, true)) {
+                continue;
+            }
+
+            $line = \App\Models\OrderItem::find($lineId);
+            if (! $line) {
+                continue;
+            }
+
+            $lineAsset = $line->item instanceof Asset ? $line->item : null;
+
+            $item = new DeploymentItem([
+                'wave_id' => $wave->id,
+                'order_item_id' => $line->id,
+                'asset_id' => $lineAsset?->id,
+                'model_id' => $lineAsset?->model_id,
+                'stage_id' => $plannedStageId,
+            ]);
+            if ($item->save()) {
+                $added++;
+            }
+        }
+
+        // The facts advance what they can immediately — a received line
+        // lands on the board at Arrived, not Planned.
+        (new StageAutomation)->sync(null, $wave);
+
+        return redirect()->route('deployments.planning', array_filter(['fiscal_year' => $fy]))
+            ->with('success', trans('admin/deployments/general.orders_claimed', ['count' => $added, 'wave' => $wave->name]));
     }
 
     /** The fiscal year after the given one — FY2026-27 → FY2027-28. */
