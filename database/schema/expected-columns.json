@@ -626,6 +626,7 @@
         "color",
         "created_at",
         "id",
+        "is_on_hand",
         "is_terminal",
         "maps_to_status_id",
         "name",

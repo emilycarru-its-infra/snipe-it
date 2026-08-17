@@ -27,6 +27,13 @@
                             <div class="col-md-7"><label class="checkbox-inline"><input type="checkbox" name="is_terminal" value="1" {{ old('is_terminal', $item->is_terminal ?? false) ? 'checked' : '' }}></label></div>
                         </div>
                         <div class="form-group">
+                            <label class="col-md-3 control-label">{{ trans('admin/deployments/general.catalog_on_hand') }}</label>
+                            <div class="col-md-7">
+                                <label class="checkbox-inline"><input type="checkbox" name="is_on_hand" value="1" {{ old('is_on_hand', $item->is_on_hand ?? false) ? 'checked' : '' }}></label>
+                                <p class="help-block">{{ trans('admin/deployments/general.catalog_on_hand_help') }}</p>
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label for="maps_to_status_id" class="col-md-3 control-label">{{ trans('admin/deployments/general.catalog_maps_to_status') }}</label>
                             <div class="col-md-7">
                                 <select id="maps_to_status_id" name="maps_to_status_id" class="form-control select2">

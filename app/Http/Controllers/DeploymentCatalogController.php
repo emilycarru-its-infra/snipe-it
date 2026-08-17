@@ -13,7 +13,9 @@ use Illuminate\Http\Request;
 /**
  * One small CRUD surface for the two editable deployment catalogs (wave
  * types, per-device stages), dispatched on the {catalog} route segment.
- * Stages additionally expose is_terminal + maps_to_status_id (the bridge to
+ * Stages additionally expose is_terminal, is_on_hand (whether the device is
+ * physically here at that stage, which is what storage counts) and
+ * maps_to_status_id (the bridge to
  * a Snipe status_label). Gated by the deployments module permission, mirroring
  * the exhibit catalog controller.
  */
@@ -148,6 +150,7 @@ class DeploymentCatalogController extends Controller
 
         if ($catalog === 'stages') {
             $data['is_terminal'] = $request->boolean('is_terminal');
+            $data['is_on_hand'] = $request->boolean('is_on_hand');
             $data['maps_to_status_id'] = $request->input('maps_to_status_id') ?: null;
         }
 
