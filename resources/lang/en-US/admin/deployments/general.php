@@ -118,6 +118,8 @@ return [
     'catalog_moves_devices' => 'Moves',
     'catalog_moves_devices_help' => 'Waves of this type relocate their devices: a terminal stage moves each device to the wave\'s target location.',
     'catalog_terminal' => 'Terminal (deployed)',
+    'catalog_on_hand' => 'On hand',
+    'catalog_on_hand_help' => 'Devices at this stage are physically here and take up room in storage. Leave off for stages where the device has not arrived yet, or has already left.',
     'catalog_maps_to_status' => 'Maps to Snipe status',
     'catalog_maps_to_status_help' => 'Optional. Advancing a device to this stage flips its asset status to this label.',
     'catalog_none' => '— none —',
@@ -159,6 +161,7 @@ return [
     'storage_uncapped' => 'No capacity set',
     'storage_unassigned' => 'Unassigned (no storage location)',
     'storage_no_locations' => 'No locations have a storage capacity set. Set one on a location to track staging here.',
+    'storage_counts_help' => 'Counts devices physically on hand — arrived, inventoried or provisioned, and not yet checked out. Planned and ordered devices are not here yet, so they are not counted.',
     'storage_waves_here' => 'Waves staging here',
     'storage_no_devices' => 'No staged devices here.',
 

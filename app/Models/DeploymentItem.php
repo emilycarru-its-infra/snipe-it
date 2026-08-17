@@ -123,6 +123,44 @@ class DeploymentItem extends SnipeModel
         return $this->belongsTo(Location::class, 'storage_location_id');
     }
 
+    /**
+     * The devices actually occupying a storage room right now.
+     *
+     * Three things have to be true, and each rules out a different way the
+     * pipeline lies about the shelf. The stage has to be one the catalog marks
+     * `is_on_hand` — a planned refresh and an order in transit are both real
+     * work, but neither takes up space. The asset has to still exist: a
+     * deleted one leaves a row whose device column falls back to a model name,
+     * which reads as a device awaiting intake and is nothing at all. And it
+     * cannot be checked out to somebody, because a device in a person's hands
+     * left the room whether or not anyone stamped the item deployed.
+     *
+     * An item with no stage at all is out too: elsewhere a missing stage reads
+     * as "not finished yet", but a shelf is a physical claim and nothing about
+     * a blank stage supports it.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     */
+    public function scopeInStorage($query)
+    {
+        return $query
+            ->whereNull('deployed_at')
+            ->whereHas('stage', fn ($s) => $s->where('is_terminal', false)->where('is_on_hand', true))
+            ->where(fn ($q) => $q->whereNull('asset_id')->orWhereHas('asset', fn ($a) => $a->whereNull('assigned_to')));
+    }
+
+    /**
+     * Where this device is being staged — its own storage location if one was
+     * set, otherwise the room its wave stages in. Setting the wave's location
+     * is the normal act; setting it per device is the exception for the unit
+     * that ended up somewhere else, so the wave has to be the fallback or
+     * every correctly-configured wave still reports as unassigned.
+     */
+    public function storageLocationId(): ?int
+    {
+        return $this->storage_location_id ?: $this->wave?->storage_location_id;
+    }
+
     /** Hex color for this row's stage (from the catalog). */
     public function stageColor(): string
     {

@@ -409,9 +409,16 @@ class DeploymentsController extends Controller
 
     /**
      * The storage view: every Location with a storage_capacity, its current
-     * staged-device count (deployment_items pointing at it that aren't yet
-     * deployed), a fill bar, the device list, and any waves staging there.
-     * Plus an "Unassigned" bucket for staged devices with no storage location.
+     * staged-device count, a fill bar, the device list, and any waves staging
+     * there. Plus an "Unassigned" bucket for staged devices with no storage
+     * location.
+     *
+     * "Staged" here means physically on a shelf, which is narrower than
+     * "not finished" — see DeploymentItem::scopeInStorage(). A room's count is
+     * a claim about floor space, so a planned refresh, an order in transit, a
+     * device already in somebody's hands and a row left behind by a deleted
+     * asset all have to stay out of it, or the fill bar measures intent
+     * instead of occupancy.
      */
     public function storage(Request $request)
     {
@@ -422,19 +429,15 @@ class DeploymentsController extends Controller
             ->orderBy('name')
             ->get();
 
-        // All not-yet-deployed items, grouped by storage_location_id. "Staged"
-        // = deployed_at is null AND the stage isn't terminal (a missing stage
-        // row counts as not-yet-deployed too).
         $stagedItems = DeploymentItem::query()
             ->with(['stage', 'wave', 'asset', 'model'])
-            ->whereNull('deployed_at')
-            ->where(function ($q) {
-                $q->whereNull('stage_id')
-                    ->orWhereHas('stage', fn ($s) => $s->where('is_terminal', false));
-            })
+            ->inStorage()
             ->get();
 
-        $byLocation = $stagedItems->groupBy('storage_location_id');
+        // Grouped by where the device is actually staged: its own location, or
+        // failing that its wave's. Configuring the wave is the normal act, so
+        // items inherit from it rather than each needing to be set by hand.
+        $byLocation = $stagedItems->groupBy(fn ($item) => $item->storageLocationId());
 
         $rows = [];
         foreach ($locations as $location) {

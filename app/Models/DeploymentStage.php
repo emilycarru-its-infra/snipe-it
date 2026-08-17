@@ -10,9 +10,11 @@ use Watson\Validating\ValidatingTrait;
  * Editable catalog of deployment stages — the per-device intake pipeline
  * (Planned → Ordered → Arrived → Inventoried → Provisioned → Deployed),
  * a first-class replacement for the old "New (*)" Snipe status labels.
- * `is_terminal` marks the device graduated; `maps_to_status_id` optionally
- * links a stage to a real status_label so advancing a device's stage can
- * flip its Snipe status. The `color` drives the stage donut + board labels.
+ * `is_terminal` marks the device graduated; `is_on_hand` marks the stages
+ * where the device is physically in our possession, which is what the storage
+ * view counts; `maps_to_status_id` optionally links a stage to a real
+ * status_label so advancing a device's stage can flip its Snipe status. The
+ * `color` drives the stage donut + board labels.
  */
 class DeploymentStage extends SnipeModel
 {
@@ -27,15 +29,17 @@ class DeploymentStage extends SnipeModel
         'color' => 'nullable|string|max:32',
         'sort_order' => 'nullable|integer',
         'is_terminal' => 'boolean',
+        'is_on_hand' => 'boolean',
         'maps_to_status_id' => 'nullable|exists:status_labels,id',
         'active' => 'boolean',
     ];
 
-    protected $fillable = ['name', 'slug', 'color', 'sort_order', 'is_terminal', 'maps_to_status_id', 'active'];
+    protected $fillable = ['name', 'slug', 'color', 'sort_order', 'is_terminal', 'is_on_hand', 'maps_to_status_id', 'active'];
 
     protected $casts = [
         'active' => 'boolean',
         'is_terminal' => 'boolean',
+        'is_on_hand' => 'boolean',
         'sort_order' => 'integer',
     ];
 
