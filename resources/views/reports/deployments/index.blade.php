@@ -174,6 +174,13 @@
             <button type="button" class="btn btn-sm btn-default" data-view="waves">{{ trans('admin/deployments/general.view_waves') }}</button>
             <button type="button" class="btn btn-sm btn-default" data-view="storage">{{ trans('admin/deployments/general.view_storage') }}</button>
         </span>
+        <input type="search"
+               id="dp-filter"
+               class="form-control input-sm"
+               style="margin-left:auto; width:240px; max-width:100%;"
+               autocomplete="off"
+               aria-controls="dp-table"
+               placeholder="{{ trans('admin/deployments/general.filter_placeholder') }}">
     </div>
     {{-- Bulk action bar: appears once anything is checked. Grouping is the
          everyday action; stage moves hide behind Manual override — the
@@ -376,13 +383,43 @@
     var table = document.getElementById('dp-table');
     var itemRows = Array.prototype.slice.call(tbody.querySelectorAll('tr.dp-item-row'));
     var stageFilter = '';
+    var textFilter = '';
     var collapsedWaves = {};
 
     function applyVisibility() {
         itemRows.forEach(function (r) {
             var stageOk = !stageFilter || r.getAttribute('data-stage') === stageFilter;
+            var textOk = !textFilter || r.textContent.toLowerCase().indexOf(textFilter) !== -1;
             var open = collapsedWaves[r.getAttribute('data-wave-id') || ''] !== true;
-            r.style.display = (stageOk && open) ? '' : 'none';
+            r.style.display = (stageOk && textOk && open) ? '' : 'none';
+        });
+
+        // While searching, a wave with no matching devices is noise — fold
+        // its header away too. An empty search restores every header.
+        Array.prototype.forEach.call(tbody.querySelectorAll('tr.dp-wave-row'), function (w) {
+            if (!textFilter) { w.style.display = ''; return; }
+            var id = w.getAttribute('data-wave-id');
+            var any = itemRows.some(function (r) {
+                return (r.getAttribute('data-wave-id') || null) === (id || null) && r.style.display !== 'none';
+            });
+            w.style.display = any ? '' : 'none';
+        });
+    }
+
+    // ── Text filter: device, user, asset tag — anything on the row. ──
+    var filterInput = document.getElementById('dp-filter');
+    if (filterInput) {
+        filterInput.addEventListener('input', function () {
+            textFilter = filterInput.value.trim().toLowerCase();
+            applyVisibility();
+        });
+        filterInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && filterInput.value !== '') {
+                e.preventDefault();
+                filterInput.value = '';
+                textFilter = '';
+                applyVisibility();
+            }
         });
     }
 

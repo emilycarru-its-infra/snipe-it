@@ -91,6 +91,25 @@ class PageAccessAudit
     }
 
     /**
+     * Whether this viewer may see the roster for a path: exactly the gate
+     * the audited page itself is behind. If you can open the page, you can
+     * see who else can — the roster describes data you already hold.
+     */
+    public static function viewerCan(?User $user, string $path): bool
+    {
+        $area = self::areaFor($path);
+
+        if ($user === null || $area === null) {
+            return false;
+        }
+
+        $audit = new self;
+        $path = trim(parse_url($path, PHP_URL_PATH) ?: '', '/');
+
+        return $audit->allows($user, $audit->abilitiesFor($path, $area));
+    }
+
+    /**
      * The full roster for a path.
      *
      * @return array<string, mixed>
