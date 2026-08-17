@@ -9,9 +9,22 @@
 {{-- Page content --}}
 @section('content')
 
-{{-- The working-tool doors left, the FY scope right and prominent —
-     the breadcrumb directly above already names the module. --}}
+{{-- FY scope first, then the working-tool doors: the scope governs every
+     number and every link that follows it, so it reads before them rather
+     than adrift on the far right. `input-sm` keeps the select the same
+     height as the btn-sm doors beside it. --}}
 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
+    {{-- Switching FY reloads the page; stash the scroll position so the
+         reader lands back where they were, not at the top. --}}
+    <form method="get" style="margin:0;">
+        <select name="fiscal_year" class="form-control input-sm" style="width:auto; font-weight:700;"
+                onchange="sessionStorage.setItem('procDashScroll', String(window.scrollY)); this.form.submit()">
+            <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
+            @foreach ($allFiscalYears as $fy)
+                <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
+            @endforeach
+        </select>
+    </form>
     <span class="hidden-print" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <a href="{{ route('purchase-orders.builder', ['fiscal_year' => $selectedFy ?? 'all']) }}" class="btn btn-sm btn-default">
             {{ trans('admin/purchase-orders/general.report_po_builder') }}
@@ -32,17 +45,6 @@
             </button>
         @endif
     </span>
-    {{-- Switching FY reloads the page; stash the scroll position so the
-         reader lands back where they were, not at the top. --}}
-    <form method="get" style="margin:0 0 0 auto;">
-        <select name="fiscal_year" class="form-control" style="width:auto; font-weight:700;"
-                onchange="sessionStorage.setItem('procDashScroll', String(window.scrollY)); this.form.submit()">
-            <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
-            @foreach ($allFiscalYears as $fy)
-                <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
-            @endforeach
-        </select>
-    </form>
 </div>
 
 <style>
