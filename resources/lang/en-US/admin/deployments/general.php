@@ -114,6 +114,8 @@ return [
     'add_existing_help' => 'Allocate devices the university already owns — for relocations, exhibits and other waves that deploy existing equipment rather than new purchases. On a wave whose type moves devices, completing an item moves its device to the wave\'s target location.',
     'add_existing_submit' => 'Add to wave',
     'item_updated' => 'Device updated.',
+    'item_merged' => 'That device is already on this wave; the details were merged into its row.',
+    'item_duplicate_asset' => 'That device is already on this wave, on another row.',
     'item_deleted' => 'Device removed from wave.',
     'item_delete_confirm' => 'Remove this device from the wave?',
     'stage_updated' => 'Stage updated.',

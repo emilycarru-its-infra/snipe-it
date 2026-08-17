@@ -23,15 +23,27 @@ class DeploymentItemsController extends Controller
 
         $wave = DeploymentWave::findOrFail((int) $request->input('wave_id'));
 
-        $item = new DeploymentItem;
-        $item->fill($request->only([
-            'wave_id', 'asset_id', 'replaces_asset_id', 'model_id', 'stage_id',
+        $attributes = $request->only([
+            'asset_id', 'replaces_asset_id', 'model_id', 'stage_id',
             'assigned_user_id', 'assigned_tech_id', 'storage_location_id',
             'target_deploy_date', 'notes',
-        ]));
-        if (! $item->stage_id) {
-            $item->stage_id = DeploymentStage::where('slug', 'planned')->value('id');
+        ]);
+        $attributes['wave_id'] = $wave->id;
+        $attributes['stage_id'] = $attributes['stage_id']
+            ?: DeploymentStage::where('slug', 'planned')->value('id');
+
+        // Adding a device the wave already has is a correction to that row,
+        // not a second device.
+        if ($existing = DeploymentItem::onWave($wave->id, (int) $request->input('asset_id') ?: null)) {
+            if (! $existing->absorb($attributes)) {
+                return redirect()->back()->withInput()->withErrors($existing->getErrors());
+            }
+
+            return redirect()->route('deployment-waves.show', $wave)
+                ->with('success', trans('admin/deployments/general.item_merged'));
         }
+
+        $item = new DeploymentItem($attributes);
 
         if (! $item->save()) {
             return redirect()->back()->withInput()->withErrors($item->getErrors());
@@ -219,6 +231,13 @@ class DeploymentItemsController extends Controller
             'assigned_user_id', 'assigned_tech_id', 'storage_location_id',
             'target_deploy_date', 'notes',
         ]));
+
+        // Pointing this row at a device the wave already tracks would make
+        // the twin by hand; the row that has the device keeps it.
+        if ($deploymentItem->isDirty('asset_id') && $deploymentItem->conflictsOnWave($deploymentItem->asset_id)) {
+            return redirect()->back()->withInput()
+                ->with('error', trans('admin/deployments/general.item_duplicate_asset'));
+        }
 
         if (! $deploymentItem->save()) {
             return redirect()->back()->withInput()->withErrors($deploymentItem->getErrors());

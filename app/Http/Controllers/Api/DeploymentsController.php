@@ -138,15 +138,26 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.edit');
 
-        $item = new DeploymentItem;
-        $item->fill($request->only([
+        $attributes = $request->only([
             'asset_id', 'replaces_asset_id', 'order_item_id', 'model_id', 'stage_id', 'group_label',
             'assigned_user_id', 'assigned_tech_id', 'storage_location_id', 'target_deploy_date', 'notes',
-        ]));
-        $item->wave_id = $wave->id;
-        if (! $item->stage_id) {
-            $item->stage_id = DeploymentStage::where('slug', 'planned')->value('id');
+        ]);
+        $attributes['wave_id'] = $wave->id;
+        $attributes['stage_id'] = ($attributes['stage_id'] ?? null)
+            ?: DeploymentStage::where('slug', 'planned')->value('id');
+
+        // A device is on a wave once. Posting it again fills in what the
+        // existing row is missing and returns that row, so an integration
+        // that re-posts its inventory cannot silently double the wave.
+        if ($existing = DeploymentItem::onWave($wave->id, (int) $request->input('asset_id') ?: null)) {
+            if (! $existing->absorb($attributes)) {
+                return response()->json(Helper::formatStandardApiResponse('error', null, $existing->getErrors()), 422);
+            }
+
+            return response()->json(Helper::formatStandardApiResponse('success', $this->itemJson($existing->fresh(['stage', 'asset', 'replacesAsset', 'model'])), trans('admin/deployments/general.item_merged')));
         }
+
+        $item = new DeploymentItem($attributes);
 
         if (! $item->save()) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $item->getErrors()), 422);
@@ -177,6 +188,13 @@ class DeploymentsController extends Controller
             'asset_id', 'replaces_asset_id', 'order_item_id', 'model_id', 'stage_id', 'group_label',
             'assigned_user_id', 'assigned_tech_id', 'storage_location_id', 'target_deploy_date', 'notes',
         ]));
+
+        // Moving this row onto a device the wave already tracks would make
+        // the twin the unique key forbids; say so rather than fail at the
+        // database.
+        if ($item->isDirty('asset_id') && $item->conflictsOnWave($item->asset_id)) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/deployments/general.item_duplicate_asset')), 422);
+        }
 
         $stage = null;
         if ($item->isDirty('stage_id')) {
