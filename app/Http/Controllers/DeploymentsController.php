@@ -1066,7 +1066,12 @@ class DeploymentsController extends Controller
             $waveItems = DeploymentItem::query()
                 ->whereIn('wave_id', $waves->pluck('id')->all() ?: [0])
                 ->get(['id', 'order_item_id']);
-            $incomingOrders = collect($this->orderRows($fy, $waveItems))->groupBy('group');
+            // A line whose device is already checked out has nothing left
+            // to plan — the deployment happened, just not through a wave.
+            // Incoming means still coming: ordered or arrived, not deployed.
+            $incomingOrders = collect($this->orderRows($fy, $waveItems))
+                ->reject(fn ($row) => $row['stage_slug'] === 'deployed')
+                ->groupBy('group');
         }
 
         return view('reports.deployments.planning', [
