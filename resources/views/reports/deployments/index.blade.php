@@ -25,7 +25,7 @@
         <select name="deployment_type" class="form-control" style="width:auto;" onchange="this.form.submit()">
             <option value="">{{ trans('admin/deployments/general.all_types') }}</option>
             @foreach ($types as $t)
-                <option value="{{ $t->id }}" {{ (string) $typeFilter === (string) $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
+                <option value="{{ $t->slug }}" {{ $typeFilter === $t->slug ? 'selected' : '' }}>{{ $t->name }}</option>
             @endforeach
         </select>
     </form>

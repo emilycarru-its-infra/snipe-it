@@ -65,7 +65,17 @@ class DeploymentsController extends Controller
         // No explicit choice opens on the current FY — never the far end of
         // the planning window.
         $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: $currentFy;
-        $typeFilter = $request->query('deployment_type');
+
+        // The type filter travels as the slug — ?deployment_type=exhibit —
+        // because a link somebody pastes should say what it filters.
+        // Numeric ids from old links still resolve.
+        $typeFilter = null;
+        $typeParam = (string) $request->query('deployment_type', '');
+        if ($typeParam !== '') {
+            $typeFilter = is_numeric($typeParam)
+                ? $types->firstWhere('id', (int) $typeParam)?->slug
+                : ($types->firstWhere('slug', $typeParam)?->slug);
+        }
         $fyStartYear = RefreshForecast::fiscalYearStartYear($fy);
         $isPast = $fyStartYear < $currentStartYear;
         $isFuture = $fyStartYear > $currentStartYear;
@@ -86,7 +96,7 @@ class DeploymentsController extends Controller
             ->withCount('items')
             ->where('fiscal_year', $fy);
         if ($typeFilter) {
-            $wavesQuery->where('deployment_type_id', (int) $typeFilter);
+            $wavesQuery->where('deployment_type_id', $types->firstWhere('slug', $typeFilter)->id);
         }
         $waves = $wavesQuery->ordered()->get();
 
