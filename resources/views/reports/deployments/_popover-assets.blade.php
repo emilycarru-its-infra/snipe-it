@@ -18,6 +18,12 @@
         text-align: left;
     }
     .nw-pop.open { display: block; }
+    /* Anchored to a button on the right edge of a header, where a
+       left-aligned card would hang off the page. */
+    .nw-pop-right { left: auto; right: 0; }
+    .nw-pop-right::before { left: auto; right: 24px; }
+    /* For panels that carry a table rather than a short form. */
+    .nw-pop-wide { width: 560px; max-width: calc(100vw - 32px); }
     .nw-pop::before {
         content: '';
         position: absolute;

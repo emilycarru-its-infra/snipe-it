@@ -429,6 +429,12 @@ Route::group(['middleware' => 'auth'], function () {
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.storage_title'), route('deployments.storage')));
 
+    // Which rooms are storage and how much they hold, plus where each wave
+    // stages — configuration, so it is edited from the page it governs.
+    Route::post('deployments/storage/config', [DeploymentsController::class, 'storageConfig'])
+        ->name('deployments.storage.config')
+        ->middleware('can:view,App\Models\Order');
+
     // Staff availability blackouts (vacation / OOO) — manual CRUD. The
     // list itself is a configuration table on the Waves page; the index
     // route survives as a redirect there.
