@@ -671,6 +671,43 @@ class DeploymentsBoardTest extends TestCase
     }
 
     /**
+     * The Gantt is forward-looking planning: one wave dated a year back
+     * must not stretch the month axis until the labels collide. The axis
+     * floor is three months before today; a wave entirely behind it draws
+     * no bars and shows its dated range as text instead of "no dates".
+     */
+    public function test_timeline_axis_never_reaches_back_more_than_three_months()
+    {
+        DeploymentWave::create([
+            'name' => 'Ancient Wave',
+            'fiscal_year' => 'FY2026-27',
+            'target_start_date' => now()->subMonthsNoOverflow(13)->toDateString(),
+            'target_end_date' => now()->subMonthsNoOverflow(12)->toDateString(),
+        ]);
+        DeploymentWave::create([
+            'name' => 'Current Wave',
+            'fiscal_year' => 'FY2026-27',
+            'target_start_date' => now()->addDays(10)->toDateString(),
+            'target_end_date' => now()->addDays(20)->toDateString(),
+        ]);
+
+        $timeline = (new \App\Services\Deployments\DeploymentTimeline)->build(
+            DeploymentWave::where('fiscal_year', 'FY2026-27')->orderBy('id')->get()
+        );
+
+        $floor = now()->subMonthsNoOverflow(3)->startOfMonth()->format('Y-m');
+        $this->assertSame($floor, $timeline['months'][0]['key']);
+        $this->assertLessThanOrEqual(5, count($timeline['months']));
+
+        [$ancient, $current] = $timeline['rows'];
+        $this->assertFalse($ancient['has_dates']);
+        $this->assertNull($ancient['arrival']);
+        $this->assertNull($ancient['deploy']);
+        $this->assertNotNull($ancient['past_label']);
+        $this->assertTrue($current['has_dates']);
+    }
+
+    /**
      * The dedicated Update page is gone: every human-typed wave field edits
      * in place on the show page, one field per request, asset-page style.
      */

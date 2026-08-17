@@ -289,6 +289,8 @@
                                     @if ($todayPct !== null)
                                         <span class="dp-gantt-today" style="left: {{ $todayPct }}%;"></span>
                                     @endif
+                                @elseif ($tl && ! empty($tl['past_label']))
+                                    <span class="dp-gantt-empty">{{ $tl['past_label'] }}</span>
                                 @else
                                     <span class="dp-gantt-empty">{{ trans('admin/deployments/general.timeline_no_dates') }}</span>
                                 @endif
