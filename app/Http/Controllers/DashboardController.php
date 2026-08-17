@@ -23,7 +23,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Session;
 
 /**
  * Admin dashboard.
@@ -39,16 +38,18 @@ class DashboardController extends Controller
     {
         // An end user's home is their own dashboard: where their order is on
         // the seven-step journey, and where their lease stands the rest of
-        // the year. Mid-tier accounts (some permissions, no admin) keep the
-        // old redirect to their assigned items.
+        // the year.
+        //
+        // Anyone else gets the admin dashboard. This used to additionally
+        // require `admin`, which read as "staff" only for as long as `admin`
+        // was handed out to every ITS group — and `admin` is not a staff
+        // marker, it is a SnipePermissionsPolicy::before() hook that grants
+        // every ability on every model. Narrowing that grant would otherwise
+        // have bounced the whole department to /my. isEndUser() already
+        // draws the line this check was reaching for: it is defined by the
+        // absence of any admin-facing grant.
         if (auth()->user()->isEndUser()) {
             return redirect()->route('my');
-        }
-
-        if (! auth()->user()->hasAccess('admin')) {
-            Session::reflash();
-
-            return redirect()->intended('my');
         }
 
         $counts = [
