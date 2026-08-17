@@ -4,10 +4,6 @@
     {{ trans('admin/deployments/general.storage_title') }} @parent
 @stop
 
-@section('header_right')
-    <a href="{{ route('reports.deployments') }}" class="btn btn-sm btn-default"><i class="fas fa-arrow-left"></i> {{ trans('admin/deployments/general.dashboard_title') }}</a>
-@stop
-
 @section('content')
 
 @php($allRows = array_merge($rows, $unassignedCount > 0 ? [$unassigned] : []))
