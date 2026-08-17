@@ -285,19 +285,31 @@
         var sourceCard = row.closest('.st-card');
         if (sourceCard) { bump(sourceCard.querySelector('.st-count'), -1); }
 
-        // A shelf asset slots straight into the target card's table; an
-        // inbox item leaves the inbox (its staged row appears in the room
-        // box on the next load — the count nudges now so the move reads).
-        if (! isItem && target.classList.contains('st-card')) {
-            var tbody = target.querySelector('tbody');
+        // Either kind of row lands live in the target card's table — the
+        // move must read as done without a reload. Inbox rows carry more
+        // columns than a card row, so the device is rebuilt in card shape
+        // from what the inbox row already shows.
+        var tbody = target.querySelector('tbody');
+        if (tbody) {
             var empty = tbody.querySelector('tr.st-empty');
             if (empty) { empty.remove(); }
-            tbody.appendChild(row);
-            bump(target.querySelector('.st-count'), 1);
+            if (isItem) {
+                var cells = row.querySelectorAll('td');
+                var fresh = document.createElement('tr');
+                fresh.setAttribute('data-item-id', row.getAttribute('data-item-id'));
+                fresh.innerHTML = '<td class="st-handle" style="width:24px;"><i class="fas fa-grip-vertical" aria-hidden="true"></i></td>'
+                    + '<td style="width:110px;">' + (cells[3] ? cells[3].innerHTML : '') + '</td>'
+                    + '<td>' + (cells[2] ? cells[2].innerHTML : '') + '</td>'
+                    + '<td class="text-muted" style="font-size:12px;">' + (cells[4] ? cells[4].textContent.trim() : '') + ' ' + (cells[6] ? cells[6].innerHTML : '') + '</td>';
+                tbody.appendChild(fresh);
+                row.remove();
+            } else {
+                tbody.appendChild(row);
+            }
         } else {
             row.remove();
-            bump(target.querySelector('.st-count'), 1);
         }
+        bump(target.querySelector('.st-count'), 1);
 
         // An emptied inbox disappears — it is an inbox, not a fixture.
         var inbox = document.getElementById('st-inbox');
