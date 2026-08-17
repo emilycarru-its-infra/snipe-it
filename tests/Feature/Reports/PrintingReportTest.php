@@ -19,12 +19,19 @@ class PrintingReportTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_index_renders_for_users_with_asset_view_permission(): void
+    public function test_index_renders_for_users_with_printing_report_permission(): void
     {
-        $this->actingAs(User::factory()->viewAssets()->create())
+        $this->actingAs(User::factory()->viewPrintingReport()->create())
             ->get(route('reports.printing'))
             ->assertOk()
             ->assertSeeText(trans('admin/reports/printing.dashboard_title'));
+    }
+
+    public function test_asset_view_alone_no_longer_opens_the_printing_report(): void
+    {
+        $this->actingAs(User::factory()->viewAssets()->create())
+            ->get(route('reports.printing'))
+            ->assertForbidden();
     }
 
     public function test_index_lists_printer_assets_with_rolled_up_totals(): void
