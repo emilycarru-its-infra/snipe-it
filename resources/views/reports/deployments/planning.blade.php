@@ -219,6 +219,15 @@
                         <i class="fas fa-forward"></i> {{ trans('admin/deployments/general.defer_submit', ['fy' => $nextFy]) }}
                     </button>
                 @endif
+                <span class="text-muted" style="margin:0 4px 0 10px;">{{ trans('admin/deployments/general.buyout_or') }}</span>
+                <input type="number" step="0.01" min="0" name="buyout_estimate" class="form-control input-sm" style="width:130px;"
+                       placeholder="{{ trans('admin/deployments/general.buyout_estimate_placeholder') }}"
+                       title="{{ trans('admin/deployments/general.buyout_estimate_help') }}">
+                <button type="submit" class="btn btn-sm btn-default" formaction="{{ route('deployments.planning.buyout') }}"
+                        title="{{ trans('admin/deployments/general.buyout_decide_help') }}"
+                        onclick="var est = this.form.querySelector('[name=buyout_estimate]'); if (! est.value) { est.focus(); est.reportValidity ? (est.required = true, est.reportValidity(), est.required = false) : alert({!! json_encode(trans('admin/deployments/general.buyout_estimate_required')) !!}); return false; } return confirm({!! json_encode(trans('admin/deployments/general.buyout_decide_confirm')) !!});">
+                    <i class="fas fa-hand-holding-usd"></i> {{ trans('admin/deployments/general.buyout_decide_submit') }}
+                </button>
             </span>
         </div>
         <div class="box-body no-padding fc-scroll">

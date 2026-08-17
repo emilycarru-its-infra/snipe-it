@@ -171,38 +171,48 @@ class DecommissionLane
             // Every column the record carries, not just the ones the table
             // prints: the expanded row edits all of them, so the payload has
             // to be able to prefill all of them.
-            'rows' => $buyouts->map(fn ($buyout) => [
-                'id' => $buyout->id,
-                'asset_id' => $buyout->asset_id,
-                'asset_tag' => $buyout->asset?->asset_tag,
-                'model' => $buyout->asset?->model?->name,
-                'serial' => $buyout->asset?->serial,
-                'lessor_id' => $buyout->lessor_id,
-                'lessor' => $buyout->lessor?->name,
-                'buyer_id' => $buyout->buyer_id,
-                'buyer' => $buyout->buyer?->getFullNameAttribute(),
-                'status' => $buyout->status,
-                'waiting_on' => $buyout->waitingOn(),
-                'requested_at' => $buyout->requested_at?->toDateString(),
-                'age' => $buyout->age(),
-                'quote_amount' => $buyout->quote_amount,
-                'remaining_rent' => $buyout->remaining_rent,
-                'quote_total' => $buyout->quote_total,
-                'quoted_at' => $buyout->quoted_at?->toDateString(),
-                'buyer_amount' => $buyout->buyer_amount,
-                'ecu_amount' => $buyout->ecu_amount,
-                'invoice_number' => $buyout->invoice_number,
-                'invoice_date' => $buyout->invoice_date?->toDateString(),
-                'invoice_due_date' => $buyout->invoice_due_date?->toDateString(),
-                'paid_at' => $buyout->paid_at?->toDateString(),
-                'payment_method' => $buyout->payment_method,
-                'payment_reference' => $buyout->payment_reference,
-                'decline_reason' => $buyout->decline_reason,
-                'notes' => $buyout->notes,
-                'overdue' => $buyout->isOverdue(),
-                'quote_count' => $buyout->quotes->count(),
-                'open' => $buyout->isOpen(),
-            ])->values()->all(),
+            'rows' => $buyouts->map(fn ($buyout) => $this->buyoutRow($buyout))->values()->all(),
+        ];
+    }
+
+    /**
+     * One buyout as the full editable payload — shared by the in-flight
+     * table's expanded rows and the per-device page, so the two can never
+     * drift apart on which fields exist.
+     */
+    public function buyoutRow(AssetBuyout $buyout): array
+    {
+        return [
+            'id' => $buyout->id,
+            'asset_id' => $buyout->asset_id,
+            'asset_tag' => $buyout->asset?->asset_tag,
+            'model' => $buyout->asset?->model?->name,
+            'serial' => $buyout->asset?->serial,
+            'lessor_id' => $buyout->lessor_id,
+            'lessor' => $buyout->lessor?->name,
+            'buyer_id' => $buyout->buyer_id,
+            'buyer' => $buyout->buyer?->getFullNameAttribute(),
+            'status' => $buyout->status,
+            'waiting_on' => $buyout->waitingOn(),
+            'requested_at' => $buyout->requested_at?->toDateString(),
+            'age' => $buyout->age(),
+            'quote_amount' => $buyout->quote_amount,
+            'remaining_rent' => $buyout->remaining_rent,
+            'quote_total' => $buyout->quote_total,
+            'quoted_at' => $buyout->quoted_at?->toDateString(),
+            'buyer_amount' => $buyout->buyer_amount,
+            'ecu_amount' => $buyout->ecu_amount,
+            'invoice_number' => $buyout->invoice_number,
+            'invoice_date' => $buyout->invoice_date?->toDateString(),
+            'invoice_due_date' => $buyout->invoice_due_date?->toDateString(),
+            'paid_at' => $buyout->paid_at?->toDateString(),
+            'payment_method' => $buyout->payment_method,
+            'payment_reference' => $buyout->payment_reference,
+            'decline_reason' => $buyout->decline_reason,
+            'notes' => $buyout->notes,
+            'overdue' => $buyout->isOverdue(),
+            'quote_count' => $buyout->quotes->count(),
+            'open' => $buyout->isOpen(),
         ];
     }
 
