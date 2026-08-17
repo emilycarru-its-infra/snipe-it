@@ -2837,8 +2837,8 @@
                                         </li>
                                     @endcan
                                     @can('view', App\Models\Order::class)
-                                        <li {{!! (request()->is('reports/exhibit*') ? ' class="active"' : '') !!}}>
-                                            <a href="{{ route('reports.exhibit') }}">
+                                        <li {{!! (request()->is('deployments/exhibits*') ? ' class="active"' : '') !!}}>
+                                            <a href="{{ route('deployments.exhibits') }}">
                                                 {{ trans('admin/reports/general.hub_tile_exhibit') }}
                                             </a>
                                         </li>

@@ -3201,7 +3201,7 @@ parameters:
 		-
 			message: '#^Relation ''user'' is not found in App\\Models\\ExhibitProject model\.$#'
 			identifier: larastan.relationExistence
-			count: 2
+			count: 3
 			path: app/Http/Controllers/ExhibitProjectsController.php
 
 		-
