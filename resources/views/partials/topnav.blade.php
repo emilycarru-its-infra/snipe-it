@@ -199,6 +199,8 @@
                     <li{!! (request()->is('reports/transactions*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.transactions.index') }}">{{ trans('admin/reports/general.hub_tile_transactions') }}</a>
                     </li>
+                @endcan
+                @can('reports.printing.view')
                     <li{!! (request()->is('reports/printing*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.printing') }}">{{ trans('admin/reports/general.nav_printers') }}</a>
                     </li>
