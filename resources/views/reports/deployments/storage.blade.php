@@ -6,6 +6,14 @@
 
 @section('content')
 
+{{-- What the page counts, and the one control that changes it. --}}
+<div style="display:flex; align-items:flex-start; gap:16px; margin-bottom:12px;">
+    <p class="text-muted" style="margin:0; flex:1;">{{ trans('admin/deployments/general.storage_counts_help') }}</p>
+    @can('deployments.edit')
+        @include('reports.deployments._storage-config')
+    @endcan
+</div>
+
 {{-- ── The inbox ────────────────────────────────────────────────────
      Staged devices that no room has claimed yet. Full width, first,
      and gone the moment it is empty. Check devices and move them in
@@ -139,9 +147,7 @@
                                 <a href="{{ route('locations.show', $room->id) }}" class="js-lightbox">{{ $room->name }}</a>
                             </h3>
                             @if ($room->storage_capacity)
-                                <span class="label {{ ($shelfAssets->count() + $stagedHere->count()) > $room->storage_capacity ? 'label-danger' : 'label-default' }}" style="margin-left:auto;">
-                                    <span class="st-count">{{ $shelfAssets->count() + $stagedHere->count() }}</span> / {{ $room->storage_capacity }}
-                                </span>
+                                <span class="label {{ ($shelfAssets->count() + $stagedHere->count()) > $room->storage_capacity ? 'label-danger' : 'label-default' }} st-count" data-cap="{{ $room->storage_capacity }}" style="margin-left:auto;">{{ $shelfAssets->count() + $stagedHere->count() }} / {{ $room->storage_capacity }}</span>
                             @else
                                 <span class="label label-default st-count" style="margin-left:auto;">{{ $shelfAssets->count() + $stagedHere->count() }}</span>
                             @endif
@@ -240,7 +246,9 @@
 
     function bump(el, delta) {
         if (! el) { return; }
-        el.textContent = Math.max(0, (parseInt(el.textContent, 10) || 0) + delta);
+        var n = Math.max(0, (parseInt(el.textContent, 10) || 0) + delta);
+        var cap = el.getAttribute('data-cap');
+        el.textContent = cap ? (n + ' / ' + cap) : n;
     }
 
     document.querySelectorAll('.st-drop[data-location-id], .st-card[data-location-id]').forEach(function (target) {
