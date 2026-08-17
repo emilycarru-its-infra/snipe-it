@@ -74,6 +74,7 @@
                     <th class="text-right">{{ trans('admin/deployments/general.buyout_col_quote') }}</th>
                     <th class="text-right">{{ trans('admin/deployments/general.buyout_col_split') }}</th>
                     <th>{{ trans('admin/deployments/general.buyout_col_invoice') }}</th>
+                    <th style="width:28px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -115,9 +116,19 @@
                                 <span style="font-size:11.5px;">{{ $row['invoice_due_date'] }}</span>
                             @endif
                         </td>
+                        <td>
+                            {{-- The link handed around the lessor thread: this
+                                 buyout on its own page. Only device-linked
+                                 records have one — the page is the device's. --}}
+                            @if ($row['asset_tag'])
+                                <a href="{{ route('buyouts.show', $row['asset_tag']) }}" title="{{ trans('admin/deployments/general.buyout_permalink') }}">
+                                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                                </a>
+                            @endif
+                        </td>
                     </tr>
                     <tr id="buyout-{{ $row['id'] }}" style="display:none;">
-                        <td colspan="10" style="background:rgba(127,127,127,.06);">
+                        <td colspan="11" style="background:rgba(127,127,127,.06);">
                             @if (! $canEdit)
                                 <p class="text-muted" style="margin:0;">{{ trans('general.insufficient_permissions') }}</p>
                             @else

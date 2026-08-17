@@ -50,6 +50,15 @@ return [
     'defer_confirm' => 'Push the selected devices to :fy? They leave this year\'s planning list.',
     'defer_note' => 'Pushed from :from to :to on the planning page.',
     'defer_done' => 'Pushed :count device(s) to :fy.',
+    'buyout_or' => 'or',
+    'buyout_estimate_placeholder' => 'Est. buyout $/device',
+    'buyout_estimate_help' => 'Estimated buyout cost per device — required to record the decision. The lessor\'s real quote supersedes it later.',
+    'buyout_estimate_required' => 'Enter the estimated per-device buyout cost first.',
+    'buyout_decide_submit' => 'Mark as buyout',
+    'buyout_decide_help' => 'Records an approved buyout decision per device at the estimated cost, opens the in-flight buyout, and drops the devices from the refresh list — they are being kept, not replaced.',
+    'buyout_decide_confirm' => 'Record a buyout decision for the selected devices at this per-device estimate? They leave the refresh list.',
+    'buyout_decision_note' => 'Buyout decided on the planning page for :fy.',
+    'buyout_decided' => 'Recorded :count buyout decision(s) at \$:amount per device.',
     'reason_lease' => 'Lease End',
     'reason_both' => 'Lease End',
 
@@ -68,6 +77,7 @@ return [
     'storage_location' => 'Staging Location',
     'owner' => 'Owner',
     'purchase_order' => 'Purchase Order',
+    'wave_form' => 'Form',
     'color' => 'Color',
     'notes' => 'Notes',
 
@@ -109,6 +119,15 @@ return [
     'stage_updated' => 'Stage updated.',
 
     // Catalogs (configure)
+    'buyout_page_title' => 'Buyout — :tag',
+    'buyout_permalink' => 'Open this buyout\'s page',
+    'buyout_view_device' => 'View device',
+    'buyout_none_for_device' => 'No buyout has been opened for this device.',
+    'buyout_open_button' => 'Open a buyout for this device',
+    'buyout_already_open' => 'This device already has an open buyout.',
+    'buyout_opened' => 'Buyout opened.',
+    'buyout_previous' => 'Previous buyouts (:count)',
+
     'catalog_types' => 'Wave Types',
     'catalog_stages' => 'Stages',
     'catalog_name' => 'Name',

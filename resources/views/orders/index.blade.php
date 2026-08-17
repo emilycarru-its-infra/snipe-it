@@ -32,57 +32,17 @@
 .ord-items { width: 100%; font-size: 13px; margin-top: 4px; }
 .ord-items td, .ord-items th { padding: 4px 8px 4px 0; text-align: left; }
 .ord-items th { opacity: .55; font-weight: 600; font-size: 11px; text-transform: uppercase; }
-.ord-alloc { border: 1px solid light-dark(#f0ad4e, #8a6d3b); border-radius: 10px; padding: 14px 16px;
-    margin-bottom: 18px; background: light-dark(#fcf8f0, #2a2620); }
-.ord-alloc-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0;
-    border-top: 1px solid light-dark(#eee3cc, #3a3427); }
-.ord-alloc-row:first-of-type { border-top: 0; }
 
 </style>
 
-@if ($arrivals->isNotEmpty())
-    <div class="ord-alloc">
-        <h4 style="margin:0 0 4px;">{{ trans('admin/orders/general.allocation_heading') }}
-            <span class="badge">{{ $arrivals->count() }}</span></h4>
-        <p class="ord-meta" style="margin:0 0 8px;">{{ trans('admin/orders/general.allocation_intro') }}</p>
-
-        @foreach ($arrivals as $arrival)
-            @php $candidates = $waiting->where('model_id', $arrival->model_id); @endphp
-            <div class="ord-alloc-row">
-                <span class="ecu-tag">{{ $arrival->asset_tag }}</span>
-                <span>{{ $arrival->model->name ?? '' }}</span>
-                <span class="ecu-tag ord-meta">{{ $arrival->serial }}</span>
-                @if ($arrival->order_number)
-                    <span class="ord-meta">{{ trans('admin/orders/general.allocation_from_order') }} {{ $arrival->order_number }}</span>
-                @endif
-
-                @if ($candidates->isEmpty())
-                    <span class="ord-meta" style="margin-left:auto;">{{ trans('admin/orders/general.allocation_none_waiting') }}</span>
-                @else
-                    <form method="POST" action="{{ route('orders.allocate') }}" class="form-inline" style="margin-left:auto;">
-                        {{ csrf_field() }}
-                        <input type="hidden" name="arrival_id" value="{{ $arrival->id }}">
-                        <select name="waiting_id" class="form-control input-sm">
-                            {{-- Oldest request first — the default is the FIFO
-                                 answer; the dropdown is the human override. --}}
-                            @foreach ($candidates as $candidate)
-                                <option value="{{ $candidate->id }}">
-                                    {{ $candidate->asset_tag }}
-                                    · {{ $candidate->name ?: trans('general.na') }}
-                                    · {{ $candidate->order_number }}
-                                    · {{ trans('admin/orders/general.waiting_since') }} {{ $candidate->created_at->format('M j') }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <button type="submit" class="btn btn-sm btn-warning">{{ trans('admin/orders/general.allocate_button') }}</button>
-                    </form>
-                @endif
-            </div>
-        @endforeach
-    </div>
-@endif
-
 <div class="ord-filters">
+    @if ($unmatchedCount > 0)
+        <a href="{{ route('orders.unmatched') }}" class="btn btn-sm btn-warning">
+            <i class="fas fa-inbox" aria-hidden="true"></i>
+            {{ trans('admin/orders/general.allocation_heading') }}
+            <span class="badge">{{ $unmatchedCount }}</span>
+        </a>
+    @endif
     @foreach (array_merge(['all'], \App\Models\Order::STATUSES) as $status)
         <a href="{{ route('orders.index', array_filter(['status' => $status === 'all' ? null : $status, 'needs_allocation' => $needsAllocation ?: null])) }}"
            class="btn btn-sm {{ $selectedStatus === $status ? 'btn-primary' : 'btn-default' }}">

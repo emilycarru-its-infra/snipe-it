@@ -126,22 +126,29 @@ class ArrivalAllocationTest extends TestCase
         app(ArrivalAllocator::class)->allocate($arrival, $waiting);
     }
 
-    public function test_the_orders_page_offers_the_pairing()
+    public function test_the_unmatched_page_offers_the_pairing()
     {
         $model = AssetModel::factory()->create(['name' => 'MacBook Air 13-inch (M5)']);
         $storeOrder = StoreOrder::create(['user_id' => User::factory()->create()->id, 'status' => 'ordered']);
         $waiting = $this->waitingAsset($model, $storeOrder->id, 'Lorand Example');
         $arrival = $this->arrivalAsset($model, 'C02EXTRA1');
 
-        $page = $this->actingAs(User::factory()->superuser()->create())
+        // The panel lives on its own page now; the orders list carries a
+        // doorway button with the count.
+        $this->actingAs(User::factory()->superuser()->create())
             ->get(route('orders.index'))
+            ->assertOk()
+            ->assertSee(route('orders.unmatched', [], false), false)
+            ->assertDontSee('C02EXTRA1', false);
+
+        $page = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('orders.unmatched'))
             ->assertOk();
 
         $page->assertSee('Awaiting allocation', false);
         $page->assertSee('C02EXTRA1', false);
         $page->assertSee('Lorand Example', false);
         $page->assertSee($waiting->asset_tag, false);
-        $page->assertSee('Expand all', false);
     }
 
     public function test_an_arrival_with_no_matching_model_reads_as_stock()
@@ -149,7 +156,7 @@ class ArrivalAllocationTest extends TestCase
         $this->arrivalAsset(AssetModel::factory()->create(), 'C02LONELY1');
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('orders.index'))
+            ->get(route('orders.unmatched'))
             ->assertOk()
             ->assertSee('C02LONELY1', false)
             ->assertSee('it stays as stock', false);
