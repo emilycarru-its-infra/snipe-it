@@ -141,8 +141,6 @@ class PageAccessAudit
             ->where('permissions', '!=', '{}')
             ->where('activated', '=', 1)
             ->whereNull('deleted_at')
-            ->orderBy('last_name')
-            ->orderBy('first_name')
             ->get();
 
         // Group membership alone, with no personal permissions behind it —
@@ -171,7 +169,9 @@ class PageAccessAudit
             // Superadmins are listed on their own; a blob that says nothing
             // but "superuser" is not the ad-hoc page-level grant this
             // section is asking the reviewer to look at.
-            'individuals' => $individuals->reject(fn (User $user) => $user->isSuperUser())->values(),
+            'individuals' => $this->sortByDisplayName(
+                $individuals->reject(fn (User $user) => $user->isSuperUser())
+            ),
             'superusers' => $people->filter(fn (array $person) => $person['user']->isSuperUser())->values(),
             'people' => $people,
             'total' => $people->count(),
@@ -288,11 +288,9 @@ class PageAccessAudit
             ->whereIn('id', array_keys($sources))
             ->where('activated', '=', 1)
             ->whereNull('deleted_at')
-            ->orderBy('last_name')
-            ->orderBy('first_name')
             ->get();
 
-        return $users
+        $people = $users
             ->filter(fn (User $user) => $this->allows($user, $abilities))
             ->map(function (User $user) use ($sources) {
                 $userSources = $sources[$user->id] ?? [];
@@ -305,37 +303,66 @@ class PageAccessAudit
                 }
 
                 return ['user' => $user, 'sources' => $userSources];
-            })
-            ->values();
+            });
+
+        return $this->sortByDisplayName($people, fn (array $person) => $person['user']);
     }
 
     /**
-     * @return Collection<int, array{group: Group, members: \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>}>
+     * Alphabetical by the name the reader actually sees.
+     *
+     * Ordering by last_name in SQL sorts on a column the table never shows:
+     * the Name column renders display_name, which is a stored value when set
+     * and "First Last" otherwise, so a surname sort reads as no sort at all.
+     * That has to happen in PHP because the fallback is an accessor, not a
+     * column, and the comparison is case-insensitive so casing never decides
+     * the position.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param  Collection<TKey, TValue>  $users
+     * @return Collection<int, TValue>
+     */
+    private function sortByDisplayName(Collection $users, ?callable $resolve = null): Collection
+    {
+        $resolve ??= fn ($item) => $item;
+
+        // Rebuilt as a plain Collection rather than returned straight from
+        // sortBy()->values(): those preserve the concrete class they were
+        // handed, so callers passing an Eloquent collection would get one
+        // back and the declared return type would be a lie half the time.
+        return new Collection(
+            $users
+                ->sortBy(fn ($item) => mb_strtolower((string) $resolve($item)->display_name), SORT_NATURAL)
+                ->values()
+                ->all()
+        );
+    }
+
+    /**
+     * @return Collection<int, array{group: Group, members: Collection<int, \Illuminate\Database\Eloquent\Model>}>
      */
     private function describeGroups(Collection $groups): Collection
     {
         return $groups->map(fn (Group $group) => [
             'group' => $group,
-            'members' => $group->users()
-                ->where('activated', '=', 1)
-                ->orderBy('last_name')
-                ->orderBy('first_name')
-                ->get(),
+            'members' => $this->sortByDisplayName(
+                $group->users()->where('activated', '=', 1)->get()
+            ),
         ])->values();
     }
 
     /**
-     * @return Collection<int, array{department: \App\Models\Department, members: \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>}>
+     * @return Collection<int, array{department: \App\Models\Department, members: Collection<int, \Illuminate\Database\Eloquent\Model>}>
      */
     private function describeDepartments(Collection $departments): Collection
     {
         return $departments->map(fn (Department $department) => [
             'department' => $department,
-            'members' => $department->users()
-                ->where('activated', '=', 1)
-                ->orderBy('last_name')
-                ->orderBy('first_name')
-                ->get(),
+            'members' => $this->sortByDisplayName(
+                $department->users()->where('activated', '=', 1)->get()
+            ),
         ])->values();
     }
 }

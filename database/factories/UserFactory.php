@@ -409,6 +409,11 @@ class UserFactory extends Factory
         return $this->appendPermission(['reports.printing.view' => '1']);
     }
 
+    public function canImpersonate()
+    {
+        return $this->appendPermission(['users.impersonate' => '1']);
+    }
+
     public function canImport()
     {
         return $this->appendPermission(['import' => '1']);
