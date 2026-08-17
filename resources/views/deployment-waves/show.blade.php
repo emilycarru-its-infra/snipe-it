@@ -25,6 +25,7 @@
     $wavePos = \App\Models\PurchaseOrder::orderByDesc('id')->limit(500)->get()
         ->mapWithKeys(fn ($po) => [$po->id => $po->po_number ?? ('#'.$po->id)]);
     $waveStates = collect(\App\Models\DeploymentWave::STATES)->mapWithKeys(fn ($s) => [$s => ucfirst($s)]);
+    $waveForms = collect(\App\Forms\FormRegistry::modules())->map(fn ($m) => trans($m['label_key']));
 @endphp
 <div class="box box-default">
     <div class="box-header with-border">
@@ -101,6 +102,16 @@
                     @include('deployment-waves._inline-field', ['wave' => $wave, 'field' => 'purchase_order_id', 'element' => 'select', 'options' => $wavePos, 'display' => $wave->purchaseOrder?->po_number])
                     @if ($wave->purchaseOrder)
                         <a class="js-lightbox" href="{{ route('purchase-orders.show', $wave->purchaseOrder) }}" class="wave-meta-follow" title="{{ trans('general.view') }}"><i class="fas fa-external-link-alt" aria-hidden="true"></i></a>
+                    @endif
+                </div>
+            </div>
+            <div class="wave-meta-cell">
+                <i class="fas fa-file-signature" aria-hidden="true"></i>
+                <div>
+                    <div class="wave-meta-label">{{ trans('admin/deployments/general.wave_form') }}</div>
+                    @include('deployment-waves._inline-field', ['wave' => $wave, 'field' => 'form_key', 'element' => 'select', 'options' => $waveForms, 'display' => $wave->form_key ? ($waveForms[$wave->form_key] ?? $wave->form_key) : null])
+                    @if ($wave->form_key && \App\Forms\FormRegistry::find($wave->form_key))
+                        <a class="wave-meta-follow" href="{{ route('forms.show', $wave->form_key) }}" title="{{ trans('general.view') }}"><i class="fas fa-external-link-alt" aria-hidden="true"></i></a>
                     @endif
                 </div>
             </div>

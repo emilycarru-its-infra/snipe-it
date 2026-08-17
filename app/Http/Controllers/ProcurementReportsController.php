@@ -858,8 +858,20 @@ class ProcurementReportsController extends Controller
 
         $typeFilter = $request->query('agreement_type');
         $stageFilter = $request->query('stage');
-        $fy = $this->resolveFiscalYear($request);
-        $report = $this->userAgreementLedgerReport($typeFilter, $stageFilter, $fy);
+        $q = trim((string) $request->query('q', ''));
+
+        // The ledger opens on the current program year, not all-time: the
+        // page is worked during a cycle. An explicit choice (including
+        // "all") still wins and sticks like every other procurement page.
+        if ($request->query('fiscal_year') === null) {
+            $now = now();
+            $sy = $now->month >= 4 ? $now->year : $now->year - 1;
+            $fy = sprintf('FY%d-%02d', $sy, ($sy + 1) % 100);
+        } else {
+            $fy = $this->resolveFiscalYear($request);
+        }
+
+        $report = $this->userAgreementLedgerReport($typeFilter, $stageFilter, $fy, $q);
 
         if ($request->query('format') === 'csv') {
             return $this->streamReportCsv('user-agreement-ledger', $report);
@@ -874,12 +886,14 @@ class ProcurementReportsController extends Controller
             'report' => $report,
             'typeFilter' => $typeFilter,
             'stageFilter' => $stageFilter,
+            'searchFilter' => $q,
             'selectedFy' => $fy,
-            'allFiscalYears' => $this->availableFiscalYears(),
+            'allFiscalYears' => $this->availableFiscalYears()->when($fy, fn ($c) => $c->contains($fy) ? $c : $c->push($fy)->sort()->values()),
             'downloadUrl' => route('reports.procurement.user-agreement-ledger', array_filter([
                 'format' => 'csv',
                 'agreement_type' => $typeFilter,
                 'stage' => $stageFilter,
+                'q' => $q,
                 'fiscal_year' => $request->query('fiscal_year', $fy),
             ], fn ($v) => $v !== null && $v !== '')),
         ]);
@@ -3572,7 +3586,7 @@ class ProcurementReportsController extends Controller
      * agreement status. Replaces the multi-sheet SharePoint workbook
      * the assets team maintains by hand.
      */
-    private function userAgreementLedgerReport(?string $typeFilter = null, ?string $stageFilter = null, ?string $fy = null): array
+    private function userAgreementLedgerReport(?string $typeFilter = null, ?string $stageFilter = null, ?string $fy = null, string $q = ''): array
     {
         $query = UserAgreement::with('user', 'asset')
             ->orderByRaw(...$this->fieldOrder('lifecycle_stage', [
@@ -3591,6 +3605,22 @@ class ProcurementReportsController extends Controller
         }
         if ($stageFilter && in_array($stageFilter, UserAgreement::LIFECYCLE_STAGES, true)) {
             $query->where('lifecycle_stage', $stageFilter);
+        }
+
+        if ($q !== '') {
+            $query->where(function ($w) use ($q) {
+                $w->where('lease_contract', 'LIKE', "%{$q}%")
+                    ->orWhereHas('user', function ($u) use ($q) {
+                        $u->where('first_name', 'LIKE', "%{$q}%")
+                            ->orWhere('last_name', 'LIKE', "%{$q}%")
+                            ->orWhere('display_name', 'LIKE', "%{$q}%")
+                            ->orWhere('email', 'LIKE', "%{$q}%");
+                    })
+                    ->orWhereHas('asset', function ($a) use ($q) {
+                        $a->where('asset_tag', 'LIKE', "%{$q}%")
+                            ->orWhere('serial', 'LIKE', "%{$q}%");
+                    });
+            });
         }
 
         $agreements = $query->get();
