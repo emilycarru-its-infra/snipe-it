@@ -209,7 +209,7 @@ class PageAccessAudit
         $user = new User;
         $user->permissions = is_array($permissions) ? json_encode($permissions) : (string) ($permissions ?? '');
         $user->department_id = $departmentId;
-        $user->activated = 1;
+        $user->activated = true;
         $user->setRelation('groups', new Collection($groups));
 
         return $user;
@@ -235,7 +235,7 @@ class PageAccessAudit
      * on the "whether" — an individual -1 override denies a permission the
      * user's group grants, and only running the real user finds that.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, array{user: User, sources: list<array{type: string, id: mixed, name: mixed}>}>
      */
     private function resolvePeople(
         array $abilities,
@@ -291,7 +291,7 @@ class PageAccessAudit
     }
 
     /**
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, array{group: Group, members: \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>}>
      */
     private function describeGroups(Collection $groups): Collection
     {
@@ -306,7 +306,7 @@ class PageAccessAudit
     }
 
     /**
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, array{department: \App\Models\Department, members: \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>}>
      */
     private function describeDepartments(Collection $departments): Collection
     {
