@@ -35,7 +35,7 @@
             </form>
         @endcan
     </div>
-    <div class="box-body no-padding">
+    <div class="box-body no-padding st-scroll">
         <table class="table table-condensed table-striped" style="margin-bottom:0;">
             <thead>
                 <tr>
@@ -94,7 +94,13 @@
     .st-card .box-header { display: flex; align-items: center; gap: 8px; }
     .st-remove { background: none; border: 0; opacity: .5; font-size: 14px; padding: 0 4px; }
     .st-remove:hover { opacity: 1; }
-    .st-scroll { max-height: 340px; overflow: auto; }
+    {{-- Room lists scroll past 340px — with a scrollbar that is actually
+         visible, since the macOS overlay style hides itself and a clipped
+         list reads as cut off rather than scrollable. --}}
+    .st-scroll { max-height: 340px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--color-fg, #333) 30%, transparent) transparent; }
+    .st-scroll::-webkit-scrollbar { width: 8px; }
+    .st-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-fg, #333) 30%, transparent); border-radius: 4px; }
+    .st-scroll::-webkit-scrollbar-track { background: transparent; }
 </style>
 
 <div class="box box-default" id="shelf">
