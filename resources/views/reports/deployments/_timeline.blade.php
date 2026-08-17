@@ -6,7 +6,13 @@
 @once
 @push('css')
 <style>
-    .gantt { position: relative; --gantt-rail: 230px; }
+    {{-- The chart starts at today and scrolls horizontally into the
+         future: every month gets a fixed slice of axis instead of the
+         whole plan compressing into one viewport width. The wave-name
+         rail is sticky so scrolling never loses the labels. --}}
+    .gantt-scroll { overflow-x: auto; }
+    .gantt { position: relative; --gantt-rail: 230px; min-width: calc(var(--gantt-rail) + var(--gantt-months, 6) * 120px); }
+    .gantt-label { position: sticky; left: 0; z-index: 2; background: var(--box-bg, #fff); }
     .gantt-row {
         display: grid;
         grid-template-columns: var(--gantt-rail) minmax(0, 1fr);
@@ -89,7 +95,8 @@
             <p class="text-center text-muted" style="margin:20px 0;">{{ trans('admin/deployments/general.timeline_empty') }}</p>
         @else
             @php($bands = $timeline['blackout_bands'] ?? [])
-            <div class="gantt">
+            <div class="gantt-scroll">
+            <div class="gantt" style="--gantt-months: {{ count($timeline['months']) }};">
                 {{-- One set of verticals for the whole chart. --}}
                 <div class="gantt-gridlines">
                     @foreach ($timeline['months'] as $m)
@@ -164,6 +171,7 @@
                         </div>
                     </div>
                 @endforeach
+            </div>
             </div>
         @endif
     </div>

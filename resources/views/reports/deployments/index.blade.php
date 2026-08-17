@@ -131,6 +131,17 @@
     #devices-flow.dp-mode-timeline .dp-scale { flex: 1 1 auto; width: auto; }
     #devices-flow.dp-mode-timeline .dp-legend { order: 2; margin-left: 10px; }
 
+    /* Timeline scrolls horizontally: every month gets a fixed slice of
+       axis instead of the whole plan compressing into the viewport. The
+       scale lives inside the same scroller so it pans with the bars, and
+       the wave-name rail sticks so scrolling never loses the labels. */
+    #devices-flow.dp-mode-timeline #dp-table,
+    #devices-flow.dp-mode-timeline .dp-scale-wrap { min-width: calc(250px + 28px + var(--dp-months, 6) * 110px); }
+    #devices-flow.dp-mode-timeline .dp-wave-name {
+        position: sticky; left: 0; z-index: 2;
+        background: color-mix(in srgb, var(--main-theme-color, #3c8dbc) 8%, var(--box-bg, #fff));
+    }
+
     .dp-bulkbar { display: none; padding: 8px 10px; border-bottom: 1px solid var(--box-border-color, #f4f4f4); }
     .dp-bulkbar.active { display: block; }
     .dp-bulkbar .form-control { display: inline-block; width: auto; vertical-align: middle; }
@@ -166,7 +177,7 @@
     $hasScale = ! empty($timeline['months']);
     $looseRows = $rowsByWave->get(0, collect());
 @endphp
-<div class="box box-default" id="devices-flow">
+<div class="box box-default" id="devices-flow" style="--dp-months: {{ max(count($timeline['months'] ?? []), 4) }};">
     <div class="box-header with-border" style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
         <h3 class="box-title" id="dp-title" style="margin:0;">{{ trans('admin/deployments/general.unified_title', ['waves' => $waves->count(), 'count' => count($deviceRows), 'fy' => $fy]) }}</h3>
         <span class="btn-group" id="dp-view-btns">
@@ -204,26 +215,26 @@
         </span>
     </div>
 
-    {{-- The shared time axis: month ticks and the legend, aligned over
-         the gantt column every wave row draws its bars in. --}}
-    @if ($hasScale)
-        <div class="dp-scale-wrap">
-            <span class="dp-legend">
-                <span><i style="background:#2f7fb8;"></i>{{ trans('admin/deployments/general.timeline_legend_arrival') }}</span>
-                <span><i style="background:#9ec7e3;"></i>{{ trans('admin/deployments/general.timeline_legend_deploy') }}</span>
-            </span>
-            <div class="dp-scale">
-                @foreach ($timeline['months'] as $month)
-                    <span class="dp-scale-month" style="left: {{ $month['offsetPct'] }}%;">{{ $month['label'] }}</span>
-                @endforeach
-                @if ($todayPct !== null)
-                    <span class="dp-gantt-today" style="left: {{ $todayPct }}%;" title="{{ trans('admin/deployments/general.timeline_today') }}"></span>
-                @endif
-            </div>
-        </div>
-    @endif
-
     <div class="box-body no-padding dp-scroll">
+        {{-- The shared time axis: month ticks and the legend, aligned over
+             the gantt column every wave row draws its bars in. Inside the
+             scroller so it pans with the bars in the timeline view. --}}
+        @if ($hasScale)
+            <div class="dp-scale-wrap">
+                <span class="dp-legend">
+                    <span><i style="background:#2f7fb8;"></i>{{ trans('admin/deployments/general.timeline_legend_arrival') }}</span>
+                    <span><i style="background:#9ec7e3;"></i>{{ trans('admin/deployments/general.timeline_legend_deploy') }}</span>
+                </span>
+                <div class="dp-scale">
+                    @foreach ($timeline['months'] as $month)
+                        <span class="dp-scale-month" style="left: {{ $month['offsetPct'] }}%;">{{ $month['label'] }}</span>
+                    @endforeach
+                    @if ($todayPct !== null)
+                        <span class="dp-gantt-today" style="left: {{ $todayPct }}%;" title="{{ trans('admin/deployments/general.timeline_today') }}"></span>
+                    @endif
+                </div>
+            </div>
+        @endif
         <table class="table table-hover table-condensed" style="margin-bottom:0;" id="dp-table">
             <thead>
                 <tr>

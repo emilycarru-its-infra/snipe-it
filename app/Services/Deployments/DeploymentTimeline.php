@@ -183,12 +183,11 @@ class DeploymentTimeline
     }
 
     /**
-     * Earliest start and latest end across all four date fields of all
-     * waves — with the start clamped to three months back. The chart is
-     * forward-looking planning: one wave dated a year ago would stretch
-     * the month grid until the labels collide, to show history nobody is
-     * planning around. Bars that fall entirely behind the clamp drop off
-     * the axis instead.
+     * The axis starts today and runs to the latest wave date. The chart is
+     * forward-looking planning: history nobody is planning around must not
+     * compress the future, so windows already under way draw from today and
+     * windows entirely in the past drop off the axis (their rows show the
+     * dated range as text instead).
      */
     private function bounds(Collection $waves): array
     {
@@ -205,12 +204,7 @@ class DeploymentTimeline
             return [null, null];
         }
 
-        $floor = Carbon::today()->subMonthsNoOverflow(3)->startOfMonth();
-
-        $min = $dates->min()->copy()->startOfMonth();
-        if ($min->lessThan($floor)) {
-            $min = $floor;
-        }
+        $min = Carbon::today();
 
         $max = $dates->max()->copy()->endOfMonth();
         if ($max->lessThan($min)) {

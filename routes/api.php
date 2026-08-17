@@ -185,12 +185,26 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
      */
     Route::group(['prefix' => 'deployments'], function () {
 
+        Route::get('blackouts',
+            [
+                Api\DeploymentBlackoutsController::class,
+                'index',
+            ]
+        )->name('api.deployments.blackouts.index');
+
         Route::post('blackouts',
             [
                 Api\DeploymentBlackoutsController::class,
                 'store',
             ]
         )->name('api.deployments.blackouts.store');
+
+        Route::delete('blackouts/{blackout}',
+            [
+                Api\DeploymentBlackoutsController::class,
+                'destroy',
+            ]
+        )->name('api.deployments.blackouts.destroy');
 
         // The full module over the API: catalogs, waves, items (with the
         // same Planned→Ordered gate as the board), forecast candidates and
