@@ -140,11 +140,13 @@ class DeploymentsBoardTest extends TestCase
             'asset_eol_date' => null,
         ]);
 
+        // Waves-only board: the lookahead device is counted in the pointer
+        // to Forecast rather than rendered as a row.
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments', ['fiscal_year' => $nextFy]))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.flow_backlog_note', ['count' => 1]))
-            ->assertSee('PLAN-2728');
+            ->assertSee(trans('admin/deployments/general.flow_backlog_pointer', ['count' => 1]))
+            ->assertDontSee('PLAN-2728');
     }
 
     public function test_unfunded_fleet_box_lives_on_procurement_and_fleet_health_not_deployments()
@@ -305,11 +307,13 @@ class DeploymentsBoardTest extends TestCase
             'asset_eol_date' => null,
         ]);
 
+        // The board is waves-only now: the missed device is counted in the
+        // pointer to Forecast, not rendered as a row.
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments', ['fiscal_year' => 'FY2023-24']))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.flow_backlog_note_past', ['count' => 1, 'fy' => 'FY2023-24']))
-            ->assertSee('MISSED-2324');
+            ->assertSee(trans('admin/deployments/general.flow_backlog_pointer', ['count' => 1]))
+            ->assertDontSee('MISSED-2324');
     }
 
     public function test_bulk_stage_move_gates_planned_devices_without_an_order_line()
