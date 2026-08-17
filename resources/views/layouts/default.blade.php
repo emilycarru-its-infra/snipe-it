@@ -2194,6 +2194,13 @@
             font-size: 13px; display: flex; align-items: center; justify-content: center;
         }
         body.lightbox-open { overflow: hidden; }
+        /* Native color swatches ship a white chrome that glares in dark
+           mode; theme the well so the swatch is the only color. */
+        input[type="color"] {
+            background: var(--box-bg, #fff);
+            border: 1px solid var(--box-header-top-border-color, #d2d6de);
+            border-radius: 4px;
+        }
     </style>
 </head>
 
