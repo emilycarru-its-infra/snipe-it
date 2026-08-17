@@ -134,15 +134,15 @@ class ProcurementReportsTest extends TestCase
         // the deployments planning hub, where the page and CSV both live.
         $this->actingAs($superuser)
             ->get(route('reports.procurement.forecast'))
-            ->assertRedirect(route('deployments.forecast'));
+            ->assertRedirect(route('deployments.planning'));
 
         $this->actingAs($superuser)
-            ->get(route('deployments.forecast'))
+            ->get(route('deployments.planning'))
             ->assertOk()
             ->assertSee('FORECAST-1');
 
         $csv = $this->actingAs($superuser)
-            ->get(route('deployments.forecast', ['format' => 'csv']));
+            ->get(route('deployments.planning', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringContainsString('FORECAST-1', $csv->streamedContent());
     }
@@ -302,7 +302,7 @@ class ProcurementReportsTest extends TestCase
 
         // The forecast table links the asset cells into the lightbox…
         $this->actingAs($superuser)
-            ->get(route('deployments.forecast'))
+            ->get(route('deployments.planning'))
             ->assertOk()
             ->assertSee('js-lightbox')
             ->assertSee(route('hardware.show', $asset->id), false)
@@ -312,7 +312,7 @@ class ProcurementReportsTest extends TestCase
 
         // The links map is render-time only — exports carry clean cells.
         $csv = $this->actingAs($superuser)
-            ->get(route('deployments.forecast', ['format' => 'csv']));
+            ->get(route('deployments.planning', ['format' => 'csv']));
         $csv->assertOk();
         $this->assertStringNotContainsString('js-lightbox', $csv->streamedContent());
         $this->assertStringNotContainsString('href', $csv->streamedContent());
@@ -890,7 +890,7 @@ class ProcurementReportsTest extends TestCase
         ], ['purchase_cost' => 2500.00]);
 
         $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast', ['fiscal_year' => 'FY2026-27']))
+            ->get(route('deployments.planning', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertDontSee(trans('admin/deployments/general.forecast_funds_chip', ['amount' => '2,500.00']))
             ->assertDontSee('2,500.00');

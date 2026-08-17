@@ -115,7 +115,6 @@ class DeploymentsController extends Controller
         }
 
         $backlogCount = $forecast->forFiscalYear($fy)->count();
-        $incomingOrders = $isPast ? collect() : collect($this->orderRows($fy, $allItems))->groupBy('group');
 
         $rowCounts = collect($deviceRows)->countBy('stage_slug');
         $stageRail = $stages->map(fn ($stage) => [
@@ -138,10 +137,8 @@ class DeploymentsController extends Controller
             'typeFilter' => $typeFilter,
             'stageRail' => $stageRail,
             'deviceRows' => $deviceRows,
-            'incomingOrders' => $incomingOrders,
             'backlogCount' => $backlogCount,
             'timeline' => (new DeploymentTimeline)->build($waves),
-            'decommission' => $isFuture ? null : (new DecommissionLane)->build($fy, ! $isPast),
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'format' => 'csv']),
         ]);
     }
@@ -887,8 +884,22 @@ class DeploymentsController extends Controller
             ? DeploymentWave::where('fiscal_year', $fy)->withCount('items')->ordered()->get()
             : DeploymentWave::withCount('items')->ordered()->get();
 
-        return view('reports.deployments.forecast', [
+        // Let the facts claim what they can first; what's left below is
+        // genuinely unassigned. Incoming orders belong to planning — they
+        // are future deployments that haven't been given a wave yet.
+        $incomingOrders = collect();
+        if ($fy) {
+            (new StageAutomation)->sync($fy);
+            $waveItems = DeploymentItem::query()
+                ->whereIn('wave_id', $waves->pluck('id')->all() ?: [0])
+                ->get(['id', 'order_item_id']);
+            $incomingOrders = collect($this->orderRows($fy, $waveItems))->groupBy('group');
+        }
+
+        return view('reports.deployments.planning', [
             'candidates' => $candidates,
+            'incomingOrders' => $incomingOrders,
+            'nextFy' => $fy ? self::nextFiscalYear($fy) : null,
             'fiscalYears' => $fiscalYears ?: [$fy],
             'fy' => $fy,
             'waves' => $waves,
@@ -1033,6 +1044,59 @@ class DeploymentsController extends Controller
 
         return redirect()->route('deployment-waves.show', $wave)
             ->with('success', trans('admin/deployments/general.forecast_added', ['count' => $added]));
+    }
+
+    /** The fiscal year after the given one — FY2026-27 → FY2027-28. */
+    public static function nextFiscalYear(string $fy): string
+    {
+        $startYear = RefreshForecast::fiscalYearStartYear($fy) + 1;
+
+        return sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+    }
+
+    /**
+     * Push devices to the next fiscal year — the planning decision that a
+     * refresh due this year waits a year. Recorded as an asset-level lease
+     * decision (type: extend) carrying the target FY, so the planning list
+     * for this FY drops them and next FY's picks them up, and the decision
+     * itself lives in the same log every other lease decision does —
+     * visible, reversible, API-readable.
+     */
+    public function deferFromPlanning(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'asset_ids' => 'required|array|min:1',
+            'asset_ids.*' => 'integer',
+            'fiscal_year' => 'required|string',
+        ]);
+
+        $fy = RefreshForecast::normalizeFy($request->input('fiscal_year'));
+        $targetFy = self::nextFiscalYear($fy);
+
+        $deferred = 0;
+        foreach ($request->input('asset_ids') as $assetId) {
+            $asset = Asset::find((int) $assetId);
+            if (! $asset) {
+                continue;
+            }
+
+            \App\Models\LeaseDecision::updateOrCreate(
+                ['asset_id' => $asset->id, 'decision_type' => 'extend'],
+                [
+                    'contract_reference' => $asset->lease_contract_id ?: ($asset->asset_tag ?: ('ASSET-'.$asset->id)),
+                    'status' => 'approved',
+                    'decision_date' => now()->toDateString(),
+                    'deferred_to_fy' => $targetFy,
+                    'notes' => trans('admin/deployments/general.defer_note', ['from' => $fy, 'to' => $targetFy]),
+                ]
+            );
+            $deferred++;
+        }
+
+        return redirect()->route('deployments.planning', ['fiscal_year' => $fy])
+            ->with('success', trans('admin/deployments/general.defer_done', ['count' => $deferred, 'fy' => $targetFy]));
     }
 
     /** Default FY label for a new wave (current ECU fiscal year). */

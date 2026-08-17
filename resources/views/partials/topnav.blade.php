@@ -84,8 +84,8 @@
                  reached from Forecast (and staffing blackouts live there
                  too), so neither needs a menu line. --}}
             <ul class="dropdown-menu topnav-menu">
-                <li{!! (request()->is('deployments/forecast*') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('deployments.forecast') }}">{{ trans('admin/deployments/general.forecast') }}</a>
+                <li{!! (request()->is('deployments/planning*') ? ' class="active"' : '') !!}>
+                    <a href="{{ route('deployments.planning') }}">{{ trans('admin/deployments/general.forecast') }}</a>
                 </li>
                 <li{!! (request()->is('deployments/storage*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.storage') }}">{{ trans('admin/deployments/general.storage') }}</a>

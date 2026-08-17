@@ -40,7 +40,7 @@ class ForecastCriteriaTest extends TestCase
         $desktop = $this->assetInCategory('EARLY-DESKTOP', 'Desktop');
 
         $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast', [
+            ->get(route('deployments.planning', [
                 'fiscal_year' => 'all',
                 'criteria' => [['field' => 'category', 'value' => 'Laptop']],
             ]))
@@ -54,7 +54,7 @@ class ForecastCriteriaTest extends TestCase
         $laptop = $this->assetInCategory('EARLY-LAPTOP', 'Laptop');
 
         $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast', ['fiscal_year' => 'all']))
+            ->get(route('deployments.planning', ['fiscal_year' => 'all']))
             ->assertOk()
             ->assertDontSee('EARLY-LAPTOP');
     }
@@ -66,7 +66,7 @@ class ForecastCriteriaTest extends TestCase
         // A blank value row and an unknown field must not throw and must not
         // narrow the result on their own; the real category row still applies.
         $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast', [
+            ->get(route('deployments.planning', [
                 'fiscal_year' => 'all',
                 'criteria' => [
                     ['field' => 'category', 'value' => 'Laptop'],
@@ -96,14 +96,14 @@ class ForecastCriteriaTest extends TestCase
         $fyLabel = sprintf('FY%d-%02d', $fy, ($fy + 1) % 100);
 
         $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast', ['fiscal_year' => $fyLabel]))
+            ->get(route('deployments.planning', ['fiscal_year' => $fyLabel]))
             ->assertOk()
             ->assertSee('PLAN-LAPTOP')
             ->assertDontSee('PLAN-DISPLAY');
 
         // Even asked for by name, an excluded category stays out.
         $this->actingAs($this->superuser())
-            ->get(route('deployments.forecast', [
+            ->get(route('deployments.planning', [
                 'fiscal_year' => 'all',
                 'criteria' => [['field' => 'category', 'value' => 'Display']],
             ]))

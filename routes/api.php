@@ -219,7 +219,7 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ->name('api.deployments.items.destroy');
 
         Route::get('forecast', [Api\DeploymentsController::class, 'forecast'])
-            ->name('api.deployments.forecast');
+            ->name('api.deployments.planning');
         Route::get('decommission', [Api\DeploymentsController::class, 'decommission'])
             ->name('api.deployments.decommission');
 

@@ -129,7 +129,7 @@
                     </a>
                 </div>
                 <p class="text-muted" style="font-size:11.5px; margin:0;">
-                    <a href="{{ route('reports.deployments') }}#decommissioning">{{ trans('admin/purchase-orders/general.pipeline_returns_physical_link') }}</a>
+                    <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/purchase-orders/general.pipeline_returns_physical_link') }}</a>
                 </p>
             </div>
         </div>
