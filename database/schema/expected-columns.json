@@ -946,6 +946,7 @@
         "notes",
         "parent_id",
         "phone",
+        "show_in_storage",
         "state",
         "storage_capacity",
         "tag_color",

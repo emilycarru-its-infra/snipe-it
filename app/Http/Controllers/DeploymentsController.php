@@ -360,6 +360,56 @@ class DeploymentsController extends Controller
         return $rows;
     }
 
+    /** Flag or unflag a location as a standing storage room. */
+    public function storageLocationToggle(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'location_id' => 'required|integer|exists:locations,id',
+            'show' => 'required|boolean',
+        ]);
+
+        Location::whereKey((int) $request->input('location_id'))
+            ->update(['show_in_storage' => $request->boolean('show')]);
+
+        return redirect()->route('deployments.storage')
+            ->with('success', trans($request->boolean('show')
+                ? 'admin/deployments/general.storage_location_added'
+                : 'admin/deployments/general.storage_location_removed'));
+    }
+
+    /**
+     * Move a shelf device to another room — the drop half of the storage
+     * page's drag. Only an unassigned device moves this way: a checked-out
+     * device's location is wherever its holder is.
+     */
+    public function storageMove(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'asset_id' => 'required|integer|exists:assets,id',
+            'location_id' => 'required|integer|exists:locations,id',
+        ]);
+
+        $asset = Asset::findOrFail((int) $request->input('asset_id'));
+        if ($asset->assigned_to !== null) {
+            return redirect()->route('deployments.storage')
+                ->with('error', trans('admin/deployments/general.storage_move_assigned'));
+        }
+
+        Asset::whereKey($asset->id)->update([
+            'rtd_location_id' => (int) $request->input('location_id'),
+            'location_id' => (int) $request->input('location_id'),
+        ]);
+
+        return redirect()->route('deployments.storage')
+            ->with('success', trans('admin/deployments/general.storage_moved', [
+                'tag' => $asset->asset_tag ?: ('#'.$asset->id),
+            ]));
+    }
+
     /**
      * Bulk-set the holding location for devices being collected — where a
      * whole group of outgoing machines waits for its pickup run.
@@ -505,10 +555,30 @@ class DeploymentsController extends Controller
             null,
         );
 
+        // The shelf itself: deployable-status devices checked out to
+        // nobody and nothing — physically in a room, spoken for by no one.
+        // Grouped by home location; holding rooms flagged from this page
+        // stand as tables even when empty.
+        $inStorageAssets = Asset::query()
+            ->whereNull('assigned_to')
+            ->whereHas('status', fn ($q) => $q->where('deployable', 1))
+            ->with(['model', 'location', 'defaultLoc'])
+            ->orderBy('asset_tag')
+            ->get();
+        $assetsByLocation = $inStorageAssets->groupBy(fn ($a) => $a->rtd_location_id ?: 0);
+
+        $holdingLocations = Location::query()
+            ->where(fn ($q) => $q->where('show_in_storage', true)
+                ->orWhereIn('id', $assetsByLocation->keys()->filter()->all()))
+            ->orderBy('name')
+            ->get();
+
         return view('reports.deployments.storage', [
             'rows' => $rows,
             'wavesByStorage' => $wavesByStorage,
             'unassigned' => $unassigned,
+            'holdingLocations' => $holdingLocations,
+            'assetsByLocation' => $assetsByLocation,
             'unassignedCount' => $unassignedItems->count(),
             // Everything the Config panel edits. Which rooms are storage and
             // where a wave stages are both settings, not code, and they belong

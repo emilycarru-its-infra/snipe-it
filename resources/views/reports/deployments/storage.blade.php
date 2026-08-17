@@ -127,4 +127,122 @@
     @endforeach
 </div>
 
+{{-- ── The shelf itself ─────────────────────────────────────────────
+     Every deployable-status device checked out to nobody and nothing is
+     in storage, whether or not a wave knows about it. One table per
+     holding room; drag a device onto another room's table and its
+     location follows. Rooms are added and removed right here. --}}
+<style>
+    .st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(430px, 100%), 1fr)); gap: 14px; }
+    .st-card tbody tr[draggable="true"] { cursor: grab; }
+    .st-card.st-dropover { outline: 2px dashed var(--main-theme-color, #3c8dbc); outline-offset: -2px; }
+    .st-card .box-header { display: flex; align-items: center; gap: 8px; }
+    .st-remove { background: none; border: 0; opacity: .5; font-size: 14px; padding: 0 4px; }
+    .st-remove:hover { opacity: 1; }
+    .st-scroll { max-height: 340px; overflow: auto; }
+</style>
+
+<div class="box box-default" id="shelf">
+    <div class="box-header with-border" style="display:flex; align-items:center; flex-wrap:wrap; gap:12px;">
+        <h3 class="box-title" style="margin:0;">{{ trans('admin/deployments/general.shelf_title', ['count' => $holdingLocations->isEmpty() ? 0 : $assetsByLocation->flatten(1)->count()]) }}</h3>
+        <span class="text-muted" style="font-size:12px;">{{ trans('admin/deployments/general.shelf_hint') }}</span>
+        @can('deployments.edit')
+            <form method="POST" action="{{ route('deployments.storage.location') }}" class="form-inline" style="display:flex; align-items:center; gap:6px; margin:0;">
+                @csrf
+                <input type="hidden" name="show" value="1">
+                <select class="js-data-ajax input-sm" data-endpoint="locations" name="location_id" style="min-width:220px;"
+                        data-placeholder="{{ trans('admin/deployments/general.shelf_add_location') }}"></select>
+                <button type="submit" class="btn btn-sm btn-default"><i class="fas fa-plus"></i> {{ trans('admin/deployments/general.shelf_add_location') }}</button>
+            </form>
+        @endcan
+    </div>
+    <div class="box-body">
+        @if ($holdingLocations->isEmpty())
+            <p class="text-muted" style="margin:0;">{{ trans('admin/deployments/general.shelf_none') }}</p>
+        @else
+            <div class="st-grid">
+                @foreach ($holdingLocations as $room)
+                    @php($shelfAssets = $assetsByLocation->get($room->id, collect()))
+                    <div class="box box-default st-card" data-location-id="{{ $room->id }}" style="margin-bottom:0;">
+                        <div class="box-header with-border">
+                            @can('deployments.edit')
+                                @if ($room->show_in_storage)
+                                    <form method="POST" action="{{ route('deployments.storage.location') }}" style="margin:0;"
+                                          onsubmit="return confirm({!! json_encode(trans('admin/deployments/general.shelf_remove_confirm', ['name' => $room->name])) !!});">
+                                        @csrf
+                                        <input type="hidden" name="show" value="0">
+                                        <input type="hidden" name="location_id" value="{{ $room->id }}">
+                                        <button type="submit" class="st-remove" title="{{ trans('admin/deployments/general.shelf_remove_location') }}">&times;</button>
+                                    </form>
+                                @endif
+                            @endcan
+                            <h3 class="box-title" style="font-size:14px;">
+                                <a href="{{ route('locations.show', $room->id) }}" class="js-lightbox">{{ $room->name }}</a>
+                            </h3>
+                            <span class="label label-default" style="margin-left:auto;">{{ $shelfAssets->count() }}</span>
+                        </div>
+                        <div class="box-body no-padding st-scroll">
+                            <table class="table table-striped table-condensed" style="margin-bottom:0;">
+                                <tbody>
+                                @forelse ($shelfAssets as $shelfAsset)
+                                    <tr draggable="true" data-asset-id="{{ $shelfAsset->id }}">
+                                        <td style="width:110px;"><a href="{{ route('hardware.show', $shelfAsset->id) }}" class="js-lightbox">{{ $shelfAsset->asset_tag }}</a></td>
+                                        <td>{{ $shelfAsset->name ?: '' }}</td>
+                                        <td class="text-muted" style="font-size:12px;">{{ $shelfAsset->model?->name }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td class="text-center text-muted">{{ trans('admin/deployments/general.storage_no_devices') }}</td></tr>
+                                @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+</div>
+
+@can('deployments.edit')
+<form id="st-move-form" method="POST" action="{{ route('deployments.storage.move') }}" style="display:none;">
+    @csrf
+    <input type="hidden" name="asset_id" value="">
+    <input type="hidden" name="location_id" value="">
+</form>
+<script nonce="{{ csrf_token() }}">
+(function () {
+    var form = document.getElementById('st-move-form');
+    if (! form) { return; }
+
+    // Same drag contract the board uses: the row carries the id, the
+    // card is the target, the drop submits a plain form.
+    Array.prototype.forEach.call(document.querySelectorAll('.st-card tbody tr[draggable="true"]'), function (row) {
+        row.addEventListener('dragstart', function (e) {
+            e.dataTransfer.setData('text/plain', row.getAttribute('data-asset-id'));
+            e.dataTransfer.effectAllowed = 'move';
+        });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('.st-card'), function (card) {
+        card.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            card.classList.add('st-dropover');
+        });
+        card.addEventListener('dragleave', function () { card.classList.remove('st-dropover'); });
+        card.addEventListener('drop', function (e) {
+            e.preventDefault();
+            card.classList.remove('st-dropover');
+            var assetId = e.dataTransfer.getData('text/plain');
+            if (! assetId) { return; }
+            form.querySelector('input[name="asset_id"]').value = assetId;
+            form.querySelector('input[name="location_id"]').value = card.getAttribute('data-location-id');
+            form.submit();
+        });
+    });
+})();
+</script>
+@endcan
+
 @stop
+
