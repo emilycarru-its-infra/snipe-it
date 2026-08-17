@@ -144,7 +144,7 @@
                                 <div class="gantt-band-shadow" style="left: {{ $band['offsetPct'] }}%; width: {{ $band['widthPct'] }}%;"></div>
                             @endforeach
                             @if (! $r['has_dates'])
-                                <span class="text-muted" style="font-size:11px; padding-left:6px; line-height:40px; position:relative; z-index:1;">{{ trans('admin/deployments/general.timeline_no_dates') }}</span>
+                                <span class="text-muted" style="font-size:11px; padding-left:6px; line-height:40px; position:relative; z-index:1;">{{ $r['past_label'] ?? trans('admin/deployments/general.timeline_no_dates') }}</span>
                             @else
                                 @if ($r['arrival'])
                                     <div class="gantt-bar gantt-bar-arrival"
