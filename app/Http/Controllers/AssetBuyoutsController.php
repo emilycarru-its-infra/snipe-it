@@ -20,6 +20,62 @@ use Illuminate\Http\Request;
 class AssetBuyoutsController extends Controller
 {
     /**
+     * The per-device buyout page — a link you can hand to the lessor
+     * thread. Resolved by asset tag (serial as fallback); shows the
+     * operative buyout (open first, else the newest) with the same full
+     * editor the in-flight table expands to. A device with no buyout yet
+     * gets the page too, with a button to open one.
+     */
+    public function show(string $assetTag)
+    {
+        $this->authorize('deployments.view');
+
+        $asset = Asset::where('asset_tag', $assetTag)->first()
+            ?: Asset::where('serial', $assetTag)->firstOrFail();
+
+        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes'])
+            ->where('asset_id', $asset->id)
+            ->orderByRaw('CASE WHEN status IN ("completed", "declined") THEN 1 ELSE 0 END')
+            ->orderByDesc('requested_at')
+            ->get();
+
+        $lane = new \App\Services\Deployments\DecommissionLane;
+
+        return view('buyouts.show', [
+            'asset' => $asset->loadMissing(['model', 'lessor', 'assignedTo']),
+            'row' => $buyouts->first() ? $lane->buyoutRow($buyouts->first()) : null,
+            'others' => $buyouts->slice(1)->map(fn ($b) => $lane->buyoutRow($b))->values(),
+        ]);
+    }
+
+    /**
+     * Open a buyout for a device straight from its page — the explicit
+     * button, never a side effect of visiting the URL.
+     */
+    public function open(Request $request): RedirectResponse
+    {
+        $this->authorize('requestBuyout', Asset::class);
+
+        $request->validate(['asset_id' => 'required|integer|exists:assets,id']);
+        $asset = Asset::findOrFail((int) $request->input('asset_id'));
+
+        if (AssetBuyout::where('asset_id', $asset->id)->open()->exists()) {
+            return back()->with('error', trans('admin/deployments/general.buyout_already_open'));
+        }
+
+        AssetBuyout::create([
+            'asset_id' => $asset->id,
+            'lessor_id' => $asset->lessor_id ?? null,
+            'buyer_id' => $asset->assigned_type === \App\Models\User::class ? $asset->assigned_to : null,
+            'status' => 'requested',
+            'requested_at' => now(),
+            'requested_by' => auth()->id(),
+        ]);
+
+        return back()->with('success', trans('admin/deployments/general.buyout_opened'));
+    }
+
+    /**
      * Every column the record carries, as validation rules. The web form and
      * the API both write through this: a buyout is assembled out of facts
      * that arrive by mail, out of order, and get corrected weeks later, so

@@ -2167,17 +2167,27 @@
             border-radius: 14px;
             overflow: clip;
             box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+            display: flex;
+            flex-direction: column;
         }
-        #app-lightbox iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--body-bg, #fff); }
+        /* The controls live in their own slim bar above the page, never
+           floating over it — a framed page's own top-right buttons were
+           landing underneath them on every lightbox in the app. */
+        #app-lightbox .lightbox-bar {
+            flex: 0 0 auto;
+            display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+            padding: 6px 10px;
+            background: var(--box-bg, #fff);
+            border-bottom: 1px solid var(--box-header-top-border-color, #d2d6de);
+        }
+        #app-lightbox iframe { width: 100%; flex: 1 1 auto; min-height: 0; border: 0; display: block; background: var(--body-bg, #fff); }
         #app-lightbox .lightbox-close {
-            position: absolute; top: 10px; right: 10px; z-index: 2;
             width: 32px; height: 32px; border-radius: 999px; border: 0;
             background: var(--box-bg, #fff); color: var(--color-fg, #444);
             border: 1px solid var(--box-header-top-border-color, #d2d6de);
             font-size: 16px; line-height: 1; cursor: pointer;
         }
         #app-lightbox .lightbox-open-full {
-            position: absolute; top: 10px; right: 50px; z-index: 2;
             width: 32px; height: 32px; border-radius: 999px;
             background: var(--box-bg, #fff); color: var(--color-fg, #444) !important;
             border: 1px solid var(--box-header-top-border-color, #d2d6de);
@@ -2279,7 +2289,7 @@
                                 <a href="{{ route('my') }}"><i class="fa-solid fa-laptop fa-fw" aria-hidden="true"></i> {{ trans('general.assets') }}</a>
                             </li>
                             @if (! empty($formsAccessible))
-                                <li {!! request()->is('procurement/forms*') ? 'class="active"' : '' !!}>
+                                <li {!! request()->is('admin/forms*') ? 'class="active"' : '' !!}>
                                     <a href="{{ route('forms.index') }}"><i class="fas fa-file-signature fa-fw" aria-hidden="true"></i> {{ trans('admin/forms/general.menu_link') }}</a>
                                 </li>
                             @endif
@@ -2521,7 +2531,7 @@
                                         @endcan
 
                                         @if (! empty($formsAccessible))
-                                            <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
+                                            <li {!! (request()->is('admin/forms*') ? ' class="active"' : '') !!}>
                                                 <a href="{{ route('forms.index') }}">
                                                     <i class="fas fa-file-alt fa-fw" aria-hidden="true"></i>
                                                     {{ trans('admin/forms/general.menu_link') }}
@@ -2659,6 +2669,16 @@
                                                 <a href="{{ route('imports.index') }}">{{ trans('general.import') }}</a>
                                             </li>
                                         @endcan
+                                        {{-- The forms platform is administration, not
+                                             procurement: forms attach to deployment
+                                             waves and there may be many of them. End
+                                             users still reach their own forms through
+                                             their Forms tab and emailed links. --}}
+                                        @if (! empty($formsAccessible))
+                                            <li{!! (request()->is('admin/forms*') ? ' class="active"' : '') !!}>
+                                                <a href="{{ route('forms.index') }}">{{ trans('admin/forms/general.menu_link') }}</a>
+                                            </li>
+                                        @endif
 
                                         @canany(['audit', 'checkin', 'checkout'], \App\Models\Asset::class)
                                             <li class="dropdown-header">{{ trans('general.nav_group_operations') }}</li>
@@ -3240,7 +3260,7 @@
                                          procurement flow it now lives under. Shown
                                          only to someone a form is open to. --}}
                                     @if (! empty($formsAccessible))
-                                        <li {!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
+                                        <li {!! (request()->is('admin/forms*') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('forms.index') }}">
                                                 {{ trans('admin/forms/general.menu_link') }}
                                             </a>
@@ -4251,10 +4271,12 @@
         <div id="app-lightbox" hidden>
             <div class="lightbox-backdrop"></div>
             <div class="lightbox-panel" role="dialog" aria-modal="true">
-                <a href="#" target="_blank" rel="noopener" class="lightbox-open-full" title="{{ trans('general.view') }}">
-                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                </a>
-                <button type="button" class="lightbox-close" aria-label="{{ trans('button.cancel') }}">&times;</button>
+                <div class="lightbox-bar">
+                    <a href="#" target="_blank" rel="noopener" class="lightbox-open-full" title="{{ trans('general.view') }}">
+                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                    </a>
+                    <button type="button" class="lightbox-close" aria-label="{{ trans('button.cancel') }}">&times;</button>
+                </div>
                 <iframe src="about:blank" title="{{ trans('general.view') }}"></iframe>
             </div>
         </div>

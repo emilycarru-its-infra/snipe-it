@@ -27,6 +27,7 @@ class LeaseDecisionsTransformer
             'contract_reference' => e($decision->contract_reference),
             'decision_type' => $decision->decision_type,
             'decision_date' => Helper::getFormattedDateObject($decision->decision_date, 'date'),
+            'deferred_to_fy' => $decision->deferred_to_fy,
             'amount' => Helper::formatCurrencyOutput($decision->amount),
             'status' => $decision->status,
             'notes' => ($decision->notes) ? Helper::parseEscapedMarkedownInline($decision->notes) : null,
