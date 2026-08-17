@@ -3509,6 +3509,7 @@
                                 @endif
                                 <div class="pull-right">
                                     @yield('header_right')
+                                    @include('partials.access-audit-lock')
                                 </div>
 
                         </div>

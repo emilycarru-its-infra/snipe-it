@@ -2,6 +2,7 @@
 
 use App\Actions\Breadcrumbs\BuildAcceptanceBreadcrumbs;
 use App\Forms\FormRegistry;
+use App\Http\Controllers\AccessAuditController;
 use App\Http\Controllers\Account;
 use App\Http\Controllers\ActionlogController;
 use App\Http\Controllers\AssetBuyoutsController;
@@ -872,6 +873,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
         ->name('groups.audit')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('groups.index')
             ->push(trans('admin/groups/general.audit_title'), route('groups.audit')));
+
+    // "Who can see this page?" — reached from the lock on every sensitive
+    // page. Inherits this group's superuser-only middleware: the roster is
+    // the map of who holds access to the money and contract pages.
+    Route::get('access-audit', [AccessAuditController::class, 'show'])
+        ->name('access-audit.show')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
+            ->push(trans('admin/access-audit/general.title'), route('access-audit.show')));
 
     Route::resource('groups', GroupsController::class);
 
