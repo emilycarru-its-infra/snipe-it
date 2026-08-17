@@ -114,23 +114,21 @@
             {{-- The button itself opens /procurement — the menu holds the
                  working doors, not a copy of the destination. Two runs:
                  the paperwork (orders through approvals), then the store. --}}
+            {{-- Two runs: the money spine (orders → capital → leasing),
+                 then the store side. Purchase orders and requisitions are
+                 reachable from within Orders and Capital; Forms lives in
+                 the admin gear menu now. --}}
             <ul class="dropdown-menu topnav-menu">
                 @can('view', \App\Models\Order::class)
                     <li{!! (request()->is('procurement/orders*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('orders.index') }}">{{ trans('admin/orders/general.orders') }}</a>
                     </li>
-                    <li{!! (request()->is('procurement/purchase-orders*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('purchase-orders.index') }}">{{ trans('admin/purchase-orders/general.purchase_orders') }}</a>
-                    </li>
-                    <li{!! (request()->is('procurement/requisitions*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('requisitions.index') }}">{{ trans('admin/purchase-orders/general.requisitions') }}</a>
-                    </li>
                     @can('procurement.view')
-                        <li{!! (request()->is('procurement/leasing*') ? ' class="active"' : '') !!}>
-                            <a href="{{ route('reports.lessor-breakdown') }}">{{ trans('admin/purchase-orders/general.leasing_title') }}</a>
-                        </li>
                         <li{!! (request()->is('procurement/capital') ? ' class="active"' : '') !!}>
                             <a href="{{ route('reports.procurement.capital-request') }}">{{ trans('admin/purchase-orders/general.capital_nav') }}</a>
+                        </li>
+                        <li{!! (request()->is('procurement/leasing*') ? ' class="active"' : '') !!}>
+                            <a href="{{ route('reports.lessor-breakdown') }}">{{ trans('admin/purchase-orders/general.leasing_title') }}</a>
                         </li>
                     @endcan
                     <li class="divider"></li>
@@ -138,21 +136,16 @@
                 <li{!! (request()->is('store') ? ' class="active"' : '') !!}>
                     <a href="{{ route('store.index') }}">{{ trans('admin/store/general.store') }}</a>
                 </li>
-                @can('view', \App\Models\Order::class)
-                    <li{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('procurement.approvals') }}">{{ trans('admin/store/general.queue') }}</a>
-                    </li>
-                @endcan
                 @can('admin')
                     <li{!! (request()->is('procurement/store-admin*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('procurement.store-admin') }}">{{ trans('admin/store/general.store_admin') }}</a>
                     </li>
                 @endcan
-                @if (! empty($formsAccessible))
-                    <li{!! (request()->is('procurement/forms*') ? ' class="active"' : '') !!}>
-                        <a href="{{ route('forms.index') }}">{{ trans('admin/forms/general.menu_link') }}</a>
+                @can('view', \App\Models\Order::class)
+                    <li{!! (request()->is('procurement/queue*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('procurement.approvals') }}">{{ trans('admin/store/general.queue') }}</a>
                     </li>
-                @endif
+                @endcan
                 @can('procurement.view')
                     <li{!! (request()->is('procurement/agreements*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.procurement.user-agreement-ledger') }}">{{ trans('admin/store/general.tab_agreements') }}</a>
