@@ -285,19 +285,58 @@
         var sourceCard = row.closest('.st-card');
         if (sourceCard) { bump(sourceCard.querySelector('.st-count'), -1); }
 
-        // A shelf asset slots straight into the target card's table; an
-        // inbox item leaves the inbox (its staged row appears in the room
-        // box on the next load — the count nudges now so the move reads).
-        if (! isItem && target.classList.contains('st-card')) {
-            var tbody = target.querySelector('tbody');
+        // Either kind of row lands live in the target card's table — the
+        // move must read as done without a reload. Inbox rows carry more
+        // columns than a card row, so the device is rebuilt in card shape
+        // from what the inbox row already shows.
+        var tbody = target.querySelector('tbody');
+        if (tbody) {
             var empty = tbody.querySelector('tr.st-empty');
             if (empty) { empty.remove(); }
-            tbody.appendChild(row);
-            bump(target.querySelector('.st-count'), 1);
+            if (isItem) {
+                // Rebuilt with DOM nodes, never serialized strings — data
+                // that came out as text must not go back in as markup.
+                var cells = row.querySelectorAll('td');
+                var fresh = document.createElement('tr');
+                fresh.setAttribute('data-item-id', row.getAttribute('data-item-id'));
+
+                var handleCell = document.createElement('td');
+                handleCell.className = 'st-handle';
+                handleCell.style.width = '24px';
+                var grip = document.createElement('i');
+                grip.className = 'fas fa-grip-vertical';
+                grip.setAttribute('aria-hidden', 'true');
+                handleCell.appendChild(grip);
+                fresh.appendChild(handleCell);
+
+                function carry(source, styler) {
+                    var cell = document.createElement('td');
+                    if (styler) { styler(cell); }
+                    if (source) {
+                        Array.prototype.forEach.call(source.childNodes, function (node) {
+                            cell.appendChild(node.cloneNode(true));
+                        });
+                    }
+                    fresh.appendChild(cell);
+                    return cell;
+                }
+
+                carry(cells[3], function (c) { c.style.width = '110px'; });
+                carry(cells[2]);
+                var modelCell = carry(cells[6], function (c) { c.className = 'text-muted'; c.style.fontSize = '12px'; });
+                if (cells[4]) {
+                    modelCell.insertBefore(document.createTextNode(cells[4].textContent.trim() + ' '), modelCell.firstChild);
+                }
+
+                tbody.appendChild(fresh);
+                row.remove();
+            } else {
+                tbody.appendChild(row);
+            }
         } else {
             row.remove();
-            bump(target.querySelector('.st-count'), 1);
         }
+        bump(target.querySelector('.st-count'), 1);
 
         // An emptied inbox disappears — it is an inbox, not a fixture.
         var inbox = document.getElementById('st-inbox');

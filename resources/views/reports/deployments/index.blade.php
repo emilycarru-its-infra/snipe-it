@@ -170,8 +170,8 @@
     <div class="box-header with-border" style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
         <h3 class="box-title" id="dp-title" style="margin:0;">{{ trans('admin/deployments/general.unified_title', ['waves' => $waves->count(), 'count' => count($deviceRows), 'fy' => $fy]) }}</h3>
         <span class="btn-group" id="dp-view-btns">
-            <button type="button" class="btn btn-sm btn-default" data-view="waves">{{ trans('admin/deployments/general.view_waves') }}</button>
             <button type="button" class="btn btn-sm btn-default" data-view="timeline">{{ trans('admin/deployments/general.view_timeline') }}</button>
+            <button type="button" class="btn btn-sm btn-default" data-view="waves">{{ trans('admin/deployments/general.view_waves') }}</button>
             <button type="button" class="btn btn-sm btn-default" data-view="storage">{{ trans('admin/deployments/general.view_storage') }}</button>
         </span>
     </div>
@@ -407,7 +407,7 @@
             var view = btn.getAttribute('data-view');
             var wasActive = btn.classList.contains('active');
             Array.prototype.forEach.call(document.querySelectorAll('#dp-view-btns button'), function (b) { b.classList.remove('active'); });
-            box.classList.remove('dp-mode-waves', 'dp-mode-timeline');
+            box.classList.remove('dp-mode-waves', 'dp-mode-timeline', 'dp-mode-storage');
             if (! wasActive) {
                 btn.classList.add('active');
                 box.classList.add('dp-mode-' + view);
