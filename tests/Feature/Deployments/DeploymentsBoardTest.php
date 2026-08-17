@@ -228,6 +228,82 @@ class DeploymentsBoardTest extends TestCase
         $this->assertStringContainsString(e('Latitude 5560 Refresh Line ×3'), $content);
     }
 
+    public function test_a_warranty_line_does_not_list_its_device_a_second_time()
+    {
+        $startYear = now()->month >= 4 ? now()->year : now()->year - 1;
+        $currentFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+
+        $order = \App\Models\Order::factory()->create([
+            'status' => 'received',
+            'is_planned' => false,
+            'fiscal_year' => $currentFy,
+            'order_number' => 'PVTEST88',
+        ]);
+
+        $asset = \App\Models\Asset::factory()->create(['name' => 'Facilities Tablet 01']);
+
+        // The device, and the AppleCare bought to cover it. Both lines point at
+        // the same machine, because the warranty is keyed to what it covers.
+        \App\Models\OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'description' => 'APPLE IPAD AIR 11 WIFI 128GB SPG',
+            'quantity' => 1,
+            'unit_cost' => 796.37,
+            'item_type' => \App\Models\Asset::class,
+            'item_id' => $asset->id,
+        ]);
+        \App\Models\OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'description' => 'APPLE 4YR AC+ SCHOOLS IPAD AIR 11 M2',
+            'quantity' => 1,
+            'unit_cost' => 0,
+            'item_type' => \App\Models\Asset::class,
+            'item_id' => $asset->id,
+        ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('deployments.planning'))
+            ->assertOk()
+            ->getContent();
+
+        // One tablet was bought, so the tablet appears once - not once as itself
+        // and once as its own warranty.
+        $this->assertSame(1, substr_count($content, 'Facilities Tablet 01'));
+
+        // And it is listed as the device, not as the rider that covers it.
+        $this->assertStringNotContainsString('APPLE 4YR AC+ SCHOOLS IPAD AIR 11 M2', $content);
+    }
+
+    public function test_an_order_line_with_no_asset_still_gets_its_own_row()
+    {
+        $startYear = now()->month >= 4 ? now()->year : now()->year - 1;
+        $currentFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+
+        $order = \App\Models\Order::factory()->create([
+            'status' => 'ordered',
+            'is_planned' => false,
+            'fiscal_year' => $currentFy,
+            'order_number' => 'PVTEST77',
+        ]);
+
+        // Nothing has been received, so no line carries an asset yet. Deduping
+        // must not collapse these into one another.
+        \App\Models\OrderItem::factory()->create([
+            'order_id' => $order->id, 'description' => 'Dock Line', 'quantity' => 1, 'unit_cost' => 300,
+        ]);
+        \App\Models\OrderItem::factory()->create([
+            'order_id' => $order->id, 'description' => 'Cable Line', 'quantity' => 1, 'unit_cost' => 20,
+        ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('deployments.planning'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Dock Line', $content);
+        $this->assertStringContainsString('Cable Line', $content);
+    }
+
     public function test_bulk_group_labels_a_cohort()
     {
         $wave = DeploymentWave::create(['name' => 'Cohort Wave', 'fiscal_year' => 'FY2026-27']);
