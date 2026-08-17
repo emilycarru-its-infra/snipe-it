@@ -3,7 +3,7 @@
 return [
     'title' => 'Who can see this page?',
     'button' => 'Who can see this page?',
-    'intro' => 'Live answer, computed now by running the page\'s own permission checks against every group, department and user record. Nothing here is a stored list, so it cannot drift from what the application actually enforces.',
+    'intro' => 'Live answer, computed now by running the page\'s own permission checks against every group, department and user record. Nothing here is a stored list, so it cannot drift from what the application actually enforces. Anyone who can open the audited page can open this roster.',
     'audited_page' => 'Page audited',
     'gated_by' => 'Gated by',
     'people_count' => '{0}Nobody but superadmins can open this page|{1}:count person can open this page|[2,*]:count people can open this page',

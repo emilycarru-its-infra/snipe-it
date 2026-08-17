@@ -5,12 +5,21 @@
 @stop
 
 @section('header_right')
-    <a href="{{ route('groups.audit') }}" target="_blank" rel="noopener" class="btn btn-sm btn-default">
-        <i class="fas fa-table" aria-hidden="true"></i> {{ trans('admin/access-audit/general.full_matrix') }}
-    </a>
+    @if (auth()->user()->isSuperUser())
+        <a href="{{ route('groups.audit') }}" target="_blank" rel="noopener" class="btn btn-sm btn-default">
+            <i class="fas fa-table" aria-hidden="true"></i> {{ trans('admin/access-audit/general.full_matrix') }}
+        </a>
+    @endif
 @stop
 
 @section('content')
+{{-- The roster is open to everyone the audited page admits, so the links
+     out of it — user records, group admin — only render for viewers who
+     can actually open those destinations. --}}
+@php
+    $canOpenUsers = auth()->user()->can('view', \App\Models\User::class);
+    $canOpenGroups = auth()->user()->isSuperUser();
+@endphp
 <x-container>
 
     <x-box>
@@ -78,7 +87,11 @@
                     @forelse ($people as $person)
                         <tr>
                             <td>
-                                <a href="{{ route('users.show', $person['user']->id) }}" target="_blank" rel="noopener">{{ $person['user']->display_name }}</a>
+                                @if ($canOpenUsers)
+                                    <a href="{{ route('users.show', $person['user']->id) }}" target="_blank" rel="noopener">{{ $person['user']->display_name }}</a>
+                                @else
+                                    {{ $person['user']->display_name }}
+                                @endif
                             </td>
                             <td>{{ $person['user']->email }}</td>
                             <td>{{ optional($person['user']->department)->name }}</td>
@@ -154,11 +167,13 @@
             <h4 style="margin-bottom: 5px;">
                 {{ $entry['group']->name }}
                 <span class="text-muted" style="font-weight: normal;">&middot; {{ $entry['members']->count() }} {{ strtolower(trans('admin/access-audit/general.members')) }}</span>
-                <a href="{{ route('groups.edit', $entry['group']->id) }}" target="_blank" rel="noopener" class="btn btn-xs btn-default">{{ trans('admin/access-audit/general.open_group') }}</a>
+                @if ($canOpenGroups)
+                    <a href="{{ route('groups.edit', $entry['group']->id) }}" target="_blank" rel="noopener" class="btn btn-xs btn-default">{{ trans('admin/access-audit/general.open_group') }}</a>
+                @endif
             </h4>
             <p style="margin-bottom: 20px;">
                 @forelse ($entry['members'] as $member)
-                    <a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@if (! $loop->last), @endif
+                    @if ($canOpenUsers)<a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@else{{ $member->display_name }}@endif @if (! $loop->last), @endif
                 @empty
                     <span class="text-muted">{{ trans('admin/access-audit/general.no_members') }}</span>
                 @endforelse
@@ -180,7 +195,7 @@
                 </h4>
                 <p style="margin-bottom: 20px;">
                     @forelse ($entry['members'] as $member)
-                        <a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@if (! $loop->last), @endif
+                        @if ($canOpenUsers)<a href="{{ route('users.show', $member->id) }}" target="_blank" rel="noopener">{{ $member->display_name }}</a>@else{{ $member->display_name }}@endif @if (! $loop->last), @endif
                     @empty
                         <span class="text-muted">{{ trans('admin/access-audit/general.no_members') }}</span>
                     @endforelse
@@ -195,7 +210,7 @@
 
         @forelse ($individuals as $user)
             <p style="margin-bottom: 5px;">
-                <a href="{{ route('users.show', $user->id) }}" target="_blank" rel="noopener">{{ $user->display_name }}</a>
+                @if ($canOpenUsers)<a href="{{ route('users.show', $user->id) }}" target="_blank" rel="noopener">{{ $user->display_name }}</a>@else{{ $user->display_name }}@endif
                 <span class="text-muted">{{ $user->email }}</span>
             </p>
         @empty
@@ -209,7 +224,7 @@
 
         @forelse ($superusers as $person)
             <p style="margin-bottom: 5px;">
-                <a href="{{ route('users.show', $person['user']->id) }}" target="_blank" rel="noopener">{{ $person['user']->display_name }}</a>
+                @if ($canOpenUsers)<a href="{{ route('users.show', $person['user']->id) }}" target="_blank" rel="noopener">{{ $person['user']->display_name }}</a>@else{{ $person['user']->display_name }}@endif
                 <span class="text-muted">{{ $person['user']->email }}</span>
             </p>
         @empty

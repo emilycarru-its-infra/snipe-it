@@ -882,14 +882,6 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('groups.index')
             ->push(trans('admin/groups/general.audit_title'), route('groups.audit')));
 
-    // "Who can see this page?" — reached from the lock on every sensitive
-    // page. Inherits this group's superuser-only middleware: the roster is
-    // the map of who holds access to the money and contract pages.
-    Route::get('access-audit', [AccessAuditController::class, 'show'])
-        ->name('access-audit.show')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
-            ->push(trans('admin/access-audit/general.title'), route('access-audit.show')));
-
     Route::resource('groups', GroupsController::class);
 
     Route::resource('license-models', LicenseModelsController::class, [
@@ -914,6 +906,16 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
             ->push(trans('general.admin'), route('settings.index')));
 });
+
+// "Who can see this page?" — reached from the lock on every sensitive page.
+// Open to whoever can open the audited page itself: the controller re-runs
+// that page's own gate for the requester, so the roster is exactly as
+// visible as the data it describes.
+Route::get('access-audit', [AccessAuditController::class, 'show'])
+    ->middleware('auth')
+    ->name('access-audit.show')
+    ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+        ->push(trans('admin/access-audit/general.title'), route('access-audit.show')));
 
 /*
 |--------------------------------------------------------------------------
