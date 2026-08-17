@@ -106,7 +106,8 @@
                 <button type="submit" name="test" value="1" class="btn btn-default">
                     {{ trans('admin/deployments/general.announce_test_submit') }}
                 </button>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary"
+                        onclick="return confirm({!! json_encode(trans('admin/deployments/general.announce_confirm_send', ['count' => $composeRecipients->count()])) !!});">
                     {{ trans('admin/exhibit-projects/general.compose_submit', ['count' => $composeRecipients->count()]) }}
                 </button>
             </footer>
