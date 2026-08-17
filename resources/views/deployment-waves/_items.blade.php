@@ -22,6 +22,13 @@
     $userHeld = $wave->items->filter(fn ($item) => $holderOf($item) !== null)->count();
     $isAssigned = $wave->items->isEmpty() || $userHeld * 2 >= $wave->items->count();
 
+    // A wave whose type moves devices — relocation, exhibit — is built
+    // from equipment we already own. Nothing is replaced, nothing is
+    // ordered and nothing arrives, so every column that reports on
+    // procuring an incoming device is noise here and is dropped rather
+    // than rendered as a column of dashes.
+    $existingEquipment = (bool) $wave->type?->moves_devices;
+
     $ineligibleIds = $announceIneligible->pluck('user.id')->all();
     $ineligibleReasons = $announceIneligible->keyBy('user.id');
     $intentByUser = $intentRows->keyBy(fn ($row) => $row['user']?->id);
@@ -45,6 +52,10 @@
                     {{ trans('admin/deployments/general.projected_cost_total', ['total' => number_format($projectedTotal, 2)]) }}
                 </span>
             @endif
+            <form method="POST" action="{{ route('deployment-waves.destroy', $wave) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.delete_confirm') }}');">
+                {{ csrf_field() }}@method('DELETE')
+                <button type="submit" class="btn btn-xs btn-danger" title="{{ trans('general.delete') }}"><i class="fas fa-trash"></i> {{ trans('general.delete') }}</button>
+            </form>
         </div>
     </div>
 
@@ -65,12 +76,14 @@
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_person') }}</th>
                     <th>{{ trans('admin/deployments/general.roster_device') }}</th>
-                    <th>{{ trans('admin/deployments/general.roster_due') }}</th>
-                    <th>{{ trans('admin/deployments/general.roster_said') }}</th>
-                    <th>{{ trans('admin/deployments/general.roster_actual') }}</th>
-                    <th>{{ trans('admin/deployments/general.roster_ordered') }}</th>
-                    <th class="col-repl">{{ trans('admin/deployments/general.replacement') }}</th>
-                    <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
+                    @unless ($existingEquipment)
+                        <th>{{ trans('admin/deployments/general.roster_due') }}</th>
+                        <th>{{ trans('admin/deployments/general.roster_said') }}</th>
+                        <th>{{ trans('admin/deployments/general.roster_actual') }}</th>
+                        <th>{{ trans('admin/deployments/general.roster_ordered') }}</th>
+                        <th class="col-repl">{{ trans('admin/deployments/general.replacement') }}</th>
+                        <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
+                    @endunless
                     <th>{{ trans('admin/deployments/general.target_deploy_date') }}</th>
                     <th></th>
                 </tr>
@@ -122,54 +135,56 @@
                             @if ($device->name && $device->asset_tag)<span class="text-muted">· {{ $device->name }}</span>@endif
                         @else — @endif
                     </td>
-                    <td>
-                        {{ $due?->toDateString() ?? '—' }}
-                        @if ($due && $current->asset_eol_date && $due->isSameDay(\Carbon\Carbon::parse($current->asset_eol_date)))
-                            <span class="text-muted">{{ trans('admin/deployments/general.roster_due_eol') }}</span>
-                        @elseif ($due)
-                            <span class="text-muted">{{ trans('admin/deployments/general.roster_due_lease') }}</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if ($intent)
-                            {{ trans('admin/user-agreements/general.intent_'.$intent['intent']) }}
-                        @else
-                            <span class="text-muted">{{ trans('admin/deployments/general.roster_no_answer') }}</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if ($intent)
-                            <span class="{{ $intent['matches'] ? '' : 'text-danger' }}">
-                                {{ trans('admin/user-agreements/general.intent_actual_'.$intent['actual']) }}
-                            </span>
-                        @else
-                            <span class="text-muted">&mdash;</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if ($order)
-                            <a href="{{ route('procurement.approvals', ['status' => $order->status]) }}">{{ $order->reference() }}</a>
-                            <span class="label label-default">{{ $order->displayStatus() }}</span>
-                        @else
-                            <span class="text-muted">{{ trans('admin/deployments/general.roster_not_ordered') }}</span>
-                        @endif
-                    </td>
-                    <td class="col-repl">
-                        {{-- Block-form @php only: Blade pairs every @php with
-                             the next @endphp file-wide, so one inline form
-                             here silently swallows the next block. --}}
-                        @php
-                            $catalog = $item->model?->refreshCatalogItem;
-                        @endphp
-                        {{ $item->plannedDeviceLabel() ?: '—' }}
-                        @if ($catalog)
-                            <span class="text-muted">${{ number_format($catalog->effectiveCost(), 2) }}</span>
-                            @if ($catalog->isEstimate())<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
-                        @elseif ($current?->purchase_cost)
-                            <span class="text-muted" title="{{ trans('admin/purchase-orders/general.forecast_basis_original') }}">${{ number_format((float) $current->purchase_cost, 2) }}</span>
-                        @endif
-                    </td>
-                    <td>@include('deployment-waves._arrival-badge', ['badge' => $timeline->itemBadge($item)])</td>
+                    @unless ($existingEquipment)
+                        <td>
+                            {{ $due?->toDateString() ?? '—' }}
+                            @if ($due && $current->asset_eol_date && $due->isSameDay(\Carbon\Carbon::parse($current->asset_eol_date)))
+                                <span class="text-muted">{{ trans('admin/deployments/general.roster_due_eol') }}</span>
+                            @elseif ($due)
+                                <span class="text-muted">{{ trans('admin/deployments/general.roster_due_lease') }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($intent)
+                                {{ trans('admin/user-agreements/general.intent_'.$intent['intent']) }}
+                            @else
+                                <span class="text-muted">{{ trans('admin/deployments/general.roster_no_answer') }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($intent)
+                                <span class="{{ $intent['matches'] ? '' : 'text-danger' }}">
+                                    {{ trans('admin/user-agreements/general.intent_actual_'.$intent['actual']) }}
+                                </span>
+                            @else
+                                <span class="text-muted">&mdash;</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($order)
+                                <a href="{{ route('procurement.approvals', ['status' => $order->status]) }}">{{ $order->reference() }}</a>
+                                <span class="label label-default">{{ $order->displayStatus() }}</span>
+                            @else
+                                <span class="text-muted">{{ trans('admin/deployments/general.roster_not_ordered') }}</span>
+                            @endif
+                        </td>
+                        <td class="col-repl">
+                            {{-- Block-form @php only: Blade pairs every @php with
+                                 the next @endphp file-wide, so one inline form
+                                 here silently swallows the next block. --}}
+                            @php
+                                $catalog = $item->model?->refreshCatalogItem;
+                            @endphp
+                            {{ $item->plannedDeviceLabel() ?: '—' }}
+                            @if ($catalog)
+                                <span class="text-muted">${{ number_format($catalog->effectiveCost(), 2) }}</span>
+                                @if ($catalog->isEstimate())<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
+                            @elseif ($current?->purchase_cost)
+                                <span class="text-muted" title="{{ trans('admin/purchase-orders/general.forecast_basis_original') }}">${{ number_format((float) $current->purchase_cost, 2) }}</span>
+                            @endif
+                        </td>
+                        <td>@include('deployment-waves._arrival-badge', ['badge' => $timeline->itemBadge($item)])</td>
+                    @endunless
                     <td>{{ optional($item->target_deploy_date)->toDateString() ?: '—' }}</td>
                     <td class="text-right">
                         <form method="POST" action="{{ route('deployment-items.destroy', $item) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.item_delete_confirm') }}');">
@@ -179,7 +194,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="11" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr>
+                <tr><td colspan="{{ $existingEquipment ? 5 : 11 }}" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -194,9 +209,11 @@
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
                     <th>{{ trans('admin/deployments/general.device') }}</th>
                     <th>{{ trans('admin/deployments/general.checked_out_to') }}</th>
-                    <th>{{ trans('admin/deployments/general.replaces') }}</th>
-                    <th>{{ trans('admin/deployments/general.projected_replacement') }}</th>
-                    <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
+                    @unless ($existingEquipment)
+                        <th>{{ trans('admin/deployments/general.replaces') }}</th>
+                        <th>{{ trans('admin/deployments/general.projected_replacement') }}</th>
+                        <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
+                    @endunless
                     <th>{{ trans('admin/deployments/general.target_deploy_date') }}</th>
                     <th></th>
                 </tr>
@@ -209,16 +226,18 @@
                                 <i class="fas fa-chevron-down" aria-hidden="true"></i>
                             </button>
                         </td>
-                        <td colspan="4">
+                        <td colspan="{{ $existingEquipment ? 3 : 4 }}">
                             <strong>{{ $modelName }}</strong>
                             <span class="text-muted">· {{ $group->count() }} {{ trans('admin/deployments/general.device') }}(s)</span>
                         </td>
-                        @php
-                            $groupProjected = $group->sum(fn ($item) => $item->model?->refreshCatalogItem?->effectiveCost()
-                                ?? (float) ($item->replacesAsset->purchase_cost ?? 0));
-                        @endphp
-                        <td><strong>${{ number_format($groupProjected, 2) }}</strong></td>
-                        <td colspan="3" class="text-muted">
+                        @unless ($existingEquipment)
+                            @php
+                                $groupProjected = $group->sum(fn ($item) => $item->model?->refreshCatalogItem?->effectiveCost()
+                                    ?? (float) ($item->replacesAsset->purchase_cost ?? 0));
+                            @endphp
+                            <td><strong>${{ number_format($groupProjected, 2) }}</strong></td>
+                        @endunless
+                        <td colspan="{{ $existingEquipment ? 2 : 3 }}" class="text-muted">
                             {{ $group->groupBy(fn ($item) => $item->stage?->name ?: '—')->map(fn ($sub, $name) => $sub->count().' '.$name)->implode(' · ') }}
                         </td>
                     </tr>
@@ -260,24 +279,26 @@
                                 <span class="text-muted">&mdash;</span>
                             @endif
                         </td>
-                        <td>
-                            @if ($item->replacesAsset)
-                                <a class="js-lightbox" href="{{ route('hardware.show', $item->replacesAsset) }}">{{ $item->replacesAsset->asset_tag ?: $item->replacesAsset->name }}</a>
-                                @if ($item->replacesAsset->serial)<span class="text-muted">· {{ $item->replacesAsset->serial }}</span>@endif
-                            @else — @endif
-                        </td>
-                        <td>
-                            @php
-                                $catalog = $item->model?->refreshCatalogItem;
-                            @endphp
-                            @if ($catalog)
-                                ${{ number_format($catalog->effectiveCost(), 2) }}
-                                @if ($catalog->isEstimate())<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
-                            @elseif ($item->replacesAsset?->purchase_cost)
-                                <span class="text-muted">${{ number_format((float) $item->replacesAsset->purchase_cost, 2) }}</span>
-                            @else — @endif
-                        </td>
-                        <td>@include('deployment-waves._arrival-badge', ['badge' => $timeline->itemBadge($item)])</td>
+                        @unless ($existingEquipment)
+                            <td>
+                                @if ($item->replacesAsset)
+                                    <a class="js-lightbox" href="{{ route('hardware.show', $item->replacesAsset) }}">{{ $item->replacesAsset->asset_tag ?: $item->replacesAsset->name }}</a>
+                                    @if ($item->replacesAsset->serial)<span class="text-muted">· {{ $item->replacesAsset->serial }}</span>@endif
+                                @else — @endif
+                            </td>
+                            <td>
+                                @php
+                                    $catalog = $item->model?->refreshCatalogItem;
+                                @endphp
+                                @if ($catalog)
+                                    ${{ number_format($catalog->effectiveCost(), 2) }}
+                                    @if ($catalog->isEstimate())<span class="label label-default">{{ trans('admin/purchase-orders/general.price_estimate') }}</span>@endif
+                                @elseif ($item->replacesAsset?->purchase_cost)
+                                    <span class="text-muted">${{ number_format((float) $item->replacesAsset->purchase_cost, 2) }}</span>
+                                @else — @endif
+                            </td>
+                            <td>@include('deployment-waves._arrival-badge', ['badge' => $timeline->itemBadge($item)])</td>
+                        @endunless
                         <td>{{ optional($item->target_deploy_date)->toDateString() ?: '—' }}</td>
                         <td class="text-right">
                             <form method="POST" action="{{ route('deployment-items.destroy', $item) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.item_delete_confirm') }}');">
@@ -290,7 +311,7 @@
                 </tbody>
             @endforeach
             @if ($wave->items->isEmpty())
-                <tbody><tr><td colspan="9" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr></tbody>
+                <tbody><tr><td colspan="{{ $existingEquipment ? 6 : 9 }}" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr></tbody>
             @endif
         </table>
 
@@ -315,10 +336,4 @@
     @endif
     </div>
 
-    <div class="box-footer">
-        <form method="POST" action="{{ route('deployment-waves.destroy', $wave) }}" style="display:inline-block;" onsubmit="return confirm('{{ trans('admin/deployments/general.delete_confirm') }}');">
-            {{ csrf_field() }}@method('DELETE')
-            <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> {{ trans('general.delete') }}</button>
-        </form>
-    </div>
 </div>
