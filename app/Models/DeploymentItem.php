@@ -244,6 +244,18 @@ class DeploymentItem extends SnipeModel
     }
 
     /**
+     * The model a shared-fleet row groups under. A refresh groups by what
+     * the device is planned to become; a wave of devices that already
+     * exist — relocation, exhibit, stock-covered — has nothing planned, so
+     * it groups by the model of the unit actually on the wave.
+     */
+    public function fleetGroupLabel(): ?string
+    {
+        return $this->plannedDeviceLabel()
+            ?: ($this->asset?->model?->name ?: $this->replacesAsset?->model?->name);
+    }
+
+    /**
      * Human label for the (incoming) device — its name if set, else the
      * asset tag, else what it is planned to become, else a dash.
      */

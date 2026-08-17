@@ -81,6 +81,11 @@
                     $holder = $holderOf($item);
                     $holderLocation = $item->replacesAsset?->holderLocation() ?? $item->asset?->holderLocation();
                     $current = $item->replacesAsset;
+                    // The unit this row is about. On a refresh that is the
+                    // outgoing device; on a wave of devices that already
+                    // exist (relocation, exhibit) there is no outgoing one
+                    // and the row's own asset is the device.
+                    $device = $current ?? $item->asset;
                     $due = $current ? $membership->dueDate($current) : null;
                     $intent = $holder ? ($intentByUser[$holder->id] ?? null) : null;
                     $order = $holder ? ($waveOrders[$holder->id] ?? null) : null;
@@ -112,8 +117,9 @@
                         @endif
                     </td>
                     <td>
-                        @if ($current)
-                            <a class="js-lightbox" href="{{ route('hardware.show', $current) }}">{{ $current->asset_tag ?: $current->name }}</a>
+                        @if ($device)
+                            <a class="js-lightbox" href="{{ route('hardware.show', $device) }}">{{ $device->asset_tag ?: $device->name }}</a>
+                            @if ($device->name && $device->asset_tag)<span class="text-muted">· {{ $device->name }}</span>@endif
                         @else — @endif
                     </td>
                     <td>
@@ -186,6 +192,7 @@
                 <tr>
                     <th style="width:34px;"></th>
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
+                    <th>{{ trans('admin/deployments/general.device') }}</th>
                     <th>{{ trans('admin/deployments/general.checked_out_to') }}</th>
                     <th>{{ trans('admin/deployments/general.replaces') }}</th>
                     <th>{{ trans('admin/deployments/general.projected_replacement') }}</th>
@@ -194,7 +201,7 @@
                     <th></th>
                 </tr>
             </thead>
-            @foreach ($wave->items->groupBy(fn ($item) => $item->plannedDeviceLabel() ?: '—') as $modelName => $group)
+            @foreach ($wave->items->groupBy(fn ($item) => $item->fleetGroupLabel() ?: '—') as $modelName => $group)
                 <tbody class="wave-model-group">
                     <tr class="wave-group-head active">
                         <td>
@@ -202,7 +209,7 @@
                                 <i class="fas fa-chevron-down" aria-hidden="true"></i>
                             </button>
                         </td>
-                        <td colspan="3">
+                        <td colspan="4">
                             <strong>{{ $modelName }}</strong>
                             <span class="text-muted">· {{ $group->count() }} {{ trans('admin/deployments/general.device') }}(s)</span>
                         </td>
@@ -227,6 +234,17 @@
                                     @endforeach
                                 </select>
                             </form>
+                        </td>
+                        <td>
+                            @php
+                                $unit = $item->asset ?? $item->replacesAsset;
+                            @endphp
+                            @if ($unit)
+                                <a class="js-lightbox" href="{{ route('hardware.show', $unit) }}">{{ $unit->asset_tag ?: $unit->name }}</a>
+                                @if ($unit->name && $unit->asset_tag)<span class="text-muted">· {{ $unit->name }}</span>@endif
+                            @else
+                                <span class="text-muted">{{ $item->deviceLabel() }}</span>
+                            @endif
                         </td>
                         <td>
                             @php
@@ -272,7 +290,7 @@
                 </tbody>
             @endforeach
             @if ($wave->items->isEmpty())
-                <tbody><tr><td colspan="8" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr></tbody>
+                <tbody><tr><td colspan="9" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr></tbody>
             @endif
         </table>
 
