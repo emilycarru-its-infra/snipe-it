@@ -150,6 +150,18 @@ class Contract extends Model
         return $this->belongsTo(Contract::class, 'parent_contract_id');
     }
 
+    /**
+     * Same relation under a name static analysis can resolve — larastan
+     * skips relation methods named `parent` (reserved word), so query-side
+     * callers (with(), whereHas(), property access) use this alias.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Contract, $this>
+     */
+    public function parentContract(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Contract::class, 'parent_contract_id');
+    }
+
     public function children()
     {
         return $this->hasMany(Contract::class, 'parent_contract_id');
