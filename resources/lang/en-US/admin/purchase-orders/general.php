@@ -227,6 +227,8 @@ return [
     'report_po_drilldown' => 'PO ↔ Order Drill-down',
     'report_po_drilldown_desc' => 'Walk each PO through every vendor order and invoice billed against it, with subtotal rows per PO and variance flags on any invoice that differs from the expected line-item total.',
     'po_drilldown_no_invoice' => 'No invoice yet',
+    'po_drilldown_orders' => 'Orders',
+    'po_drilldown_invoices' => 'Invoices',
     'detail_asset_tag' => 'Asset Tag',
     'detail_serial' => 'Serial',
     'detail_status' => 'Status',

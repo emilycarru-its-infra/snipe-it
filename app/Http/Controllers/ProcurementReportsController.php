@@ -4508,16 +4508,31 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * PO ↔ CDW drill-down. Per-PO walk of every CDW order under it, every
-     * invoice billed against those orders, and the variance between invoice
-     * subtotal and expected line-item total. Subtotal rows mark the PO
-     * boundary so a finance reader can scan top-to-bottom and see exactly
-     * what each PO funded.
+     * PO ↔ CDW drill-down. One row per purchase order, with every CDW
+     * order under it, every invoice billed against those orders, and the
+     * variance between invoice subtotal and expected line-item total
+     * nested beneath — the same parent/child shape the Extension Watch and
+     * Asset Lease Detail use.
+     *
+     * It used to be one flat run of invoice rows with a tinted subtotal
+     * row marking each PO boundary, which meant repeating the PO number
+     * down a column and asking the reader to find the boundaries by
+     * colour. The PO is the unit a finance reader works in, so it is the
+     * row; its invoices are what you open it to see.
      */
     private function poDrilldownReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
+            trans('admin/purchase-orders/general.po_drilldown_orders'),
+            trans('admin/purchase-orders/general.po_drilldown_invoices'),
+            trans('admin/purchase-orders/general.invoice_vendor_total'),
+            trans('admin/purchase-orders/general.invoice_expected'),
+            trans('admin/purchase-orders/general.invoice_variance'),
+        ];
+
+        // The PO row no longer repeats its own number down the column.
+        $childColumns = [
             trans('general.order_number'),
             trans('admin/orders/general.invoice_number'),
             trans('admin/orders/general.invoice_date'),
@@ -4544,16 +4559,22 @@ class ProcurementReportsController extends Controller
             }
 
             $poVendor = $poExpected = $poVariance = 0.0;
-            $poRows = [];
+            $childRows = [];
+            $invoiceCount = 0;
+            $hasVariance = false;
+            $hasUninvoiced = false;
 
             foreach ($orders as $order) {
+                $orderLink = route('orders.show', $order->id);
+
                 if ($order->invoices->isEmpty()) {
                     $expectedFromItems = (float) $order->items->sum->lineTotal();
                     $poExpected += $expectedFromItems;
-                    $poRows[] = [
+                    $hasUninvoiced = true;
+                    $childRows[] = [
                         'class' => 'warning',
+                        'links' => [0 => $orderLink],
                         'cells' => [
-                            $po->po_number,
                             (string) $order->order_number,
                             trans('admin/purchase-orders/general.po_drilldown_no_invoice'),
                             '',
@@ -4576,11 +4597,14 @@ class ProcurementReportsController extends Controller
                     $poVendor += $vendor;
                     $poExpected += $expected;
                     $poVariance += $variance;
+                    $invoiceCount++;
+                    $offBy = abs($variance) > 1.0;
+                    $hasVariance = $hasVariance || $offBy;
 
-                    $poRows[] = [
-                        'class' => abs($variance) > 1.0 ? 'danger' : '',
+                    $childRows[] = [
+                        'class' => $offBy ? 'danger' : '',
+                        'links' => [0 => $orderLink],
                         'cells' => [
-                            $po->po_number,
                             (string) $order->order_number,
                             $invoice->invoice_number,
                             $this->dateString($invoice->invoice_date),
@@ -4598,28 +4622,32 @@ class ProcurementReportsController extends Controller
             $grandExpected += $poExpected;
             $grandVariance += $poVariance;
 
-            $records = array_merge($records, $poRows);
-
-            // PO subtotal row so the eye can find boundaries quickly.
+            // The PO row carries whatever its worst line found, so a
+            // collapsed order still says there is something inside worth
+            // opening — otherwise folding the detail would fold the signal.
             $records[] = [
-                'class' => 'info',
+                'class' => $hasVariance ? 'danger' : ($hasUninvoiced ? 'warning' : ''),
+                'links' => [0 => route('purchase-orders.show', $po->id)],
                 'cells' => [
-                    $po->po_number.' '.trans('admin/orders/general.total'),
-                    '', '', '', '',
+                    $po->po_number,
+                    $orders->count(),
+                    $invoiceCount,
                     $this->money($poVendor),
                     $this->money($poExpected),
                     $this->money($poVariance),
-                    '',
+                ],
+                'children' => [
+                    'columns' => $childColumns,
+                    'rows' => $childRows,
                 ],
             ];
         }
 
         $footer = [
-            trans('admin/orders/general.total'), '', '', '', '',
+            trans('admin/orders/general.total'), '', '',
             $this->money($grandVendor),
             $this->money($grandExpected),
             $this->money($grandVariance),
-            '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
