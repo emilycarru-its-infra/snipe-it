@@ -24,8 +24,17 @@ class LeaseDecision extends SnipeModel
 
     protected $table = 'lease_decisions';
 
+    /**
+     * `retain` is not a buyout. A lease-to-own schedule reaching the end of
+     * its rental term transfers title with no further payment — the money
+     * was the rent, and it is already paid. Logging that as a buyout put a
+     * cost impact on a decision that has none, and told finance a cheque
+     * was owed. It is the decision equivalent of the "Retained" line the
+     * ARO register already draws for lease-to-own contracts.
+     */
     public const DECISION_TYPES = [
         'buyout',
+        'retain',
         'return',
         'extend',
         'replace',
@@ -41,7 +50,7 @@ class LeaseDecision extends SnipeModel
     protected $rules = [
         'contract_reference' => 'required|string|max:191',
         'asset_id' => 'nullable|integer|exists:assets,id',
-        'decision_type' => 'nullable|string|in:buyout,return,extend,replace',
+        'decision_type' => 'nullable|string|in:buyout,retain,return,extend,replace',
         'decision_date' => 'nullable|date',
         'deferred_to_fy' => 'nullable|string|max:191',
         'amount' => 'nullable|numeric',

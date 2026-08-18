@@ -93,6 +93,9 @@
                 <li{!! (request()->is('deployments/decommissioning*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/deployments/general.decom_nav') }}</a>
                 </li>
+                <li{!! (request()->is('deployments/storage*') ? ' class="active"' : '') !!}>
+                    <a href="{{ route('deployments.storage') }}">{{ trans('admin/deployments/general.storage') }}</a>
+                </li>
                 @can('view', App\Models\Asset::class)
                     <li class="divider"></li>
                     <li{!! (request()->is('deployments/exhibits*') ? ' class="active"' : '') !!}>
@@ -196,6 +199,8 @@
                     <li{!! (request()->is('reports/transactions*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.transactions.index') }}">{{ trans('admin/reports/general.hub_tile_transactions') }}</a>
                     </li>
+                @endcan
+                @can('reports.printing.view')
                     <li{!! (request()->is('reports/printing*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('reports.printing') }}">{{ trans('admin/reports/general.nav_printers') }}</a>
                     </li>

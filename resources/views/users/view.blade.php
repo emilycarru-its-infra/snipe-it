@@ -98,8 +98,9 @@
                              superuser or a deactivated account, so the button is
                              absent rather than present and refusing. Full-text,
                              warning-yellow: this one changes who you are. --}}
-                        @if (auth()->user()?->isSuperUser()
+                        @if (auth()->user()?->hasAccess('users.impersonate')
                             && ! $user->isSuperUser()
+                            && (! $user->hasAccess('admin') || auth()->user()?->isSuperUser())
                             && $user->id !== auth()->id()
                             && $user->activated
                             && $user->deleted_at === null

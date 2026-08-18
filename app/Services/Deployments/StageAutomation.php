@@ -143,8 +143,23 @@ class StageAutomation
         }
 
         // Adopt the received asset so the deployed check (and everything
-        // else reading the item) sees the physical device.
+        // else reading the item) sees the physical device — unless the wave
+        // is already tracking that device on another row, which is the
+        // planning side having got there first. Adopting anyway is how one
+        // iPad came to sit on a wave twice, in two stages; the line belongs
+        // on the row that has the device, and this row was only ever a
+        // stand-in for it.
         if (! $item->asset_id && $line->item instanceof Asset) {
+            $twin = DeploymentItem::onWave($item->wave_id, $line->item->id);
+
+            if ($twin && $twin->id !== $item->id) {
+                $twin->absorb(['order_item_id' => $line->id, 'model_id' => $line->item->model_id]);
+                $item->delete();
+                $this->advance($twin->fresh(), $stages);
+
+                return true;
+            }
+
             $item->asset_id = $line->item->id;
         }
 

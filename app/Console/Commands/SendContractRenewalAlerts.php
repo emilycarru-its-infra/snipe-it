@@ -118,9 +118,10 @@ class SendContractRenewalAlerts extends Command
         $query = Contract::query()
             ->with(['owner', 'supplier'])
             ->active()
+            ->realOnly()
             ->whereNotNull('end_date');
 
-        return match ($window) {
+        $rows = match ($window) {
             '30d' => $query
                 ->whereBetween('end_date', [$today->copy()->addDays(28), $today->copy()->addDays(32)])
                 ->when(! $force, fn ($q) => $q->whereNull('last_renewal_alert_30d_at'))
@@ -138,6 +139,116 @@ class SendContractRenewalAlerts extends Command
 
             default => new Collection,
         };
+
+        return $this->suppressNonRenewals($rows, $window);
+    }
+
+    /**
+     * Drops rows that are in the window but are not something a human
+     * needs to act on. Two cases, both of which have shipped real false
+     * alerts:
+     *
+     *  1. Zero-length terms. TDX's renewal automation mints the next
+     *     fiscal year's contract with EndDate copied from StartDate, so
+     *     a year-long renewal looks like it expires the day it starts.
+     *     The ingest mirrors TDX faithfully and the row lands in the
+     *     window on its own start date.
+     *
+     *  2. Already-renewed terms. When the successor for the next fiscal
+     *     year is already on file, the outgoing term expiring is not
+     *     news. Suppressing it is what makes one product produce one
+     *     alert instead of one per fiscal year on record.
+     *
+     * Neither case is stamped as alerted, so if the successor is later
+     * deleted or its dates corrected, the predecessor alerts again on the
+     * next run.
+     */
+    private function suppressNonRenewals(Collection $contracts, string $window): Collection
+    {
+        if ($contracts->isEmpty()) {
+            return $contracts;
+        }
+
+        $kept = $contracts->reject(function (Contract $contract) use ($window) {
+            if ($this->isZeroLengthTerm($contract)) {
+                $this->line(sprintf(
+                    '[%s] skipping %s (%s) — start and end dates are the same, term is unset upstream',
+                    $window,
+                    $contract->contract_number,
+                    $contract->name,
+                ));
+
+                return true;
+            }
+
+            if ($successor = $this->successorFor($contract)) {
+                $this->line(sprintf(
+                    '[%s] skipping %s (%s) — already renewed by %s ending %s',
+                    $window,
+                    $contract->contract_number,
+                    $contract->name,
+                    $successor->contract_number,
+                    $successor->end_date?->toDateString(),
+                ));
+
+                return true;
+            }
+
+            return false;
+        });
+
+        return $kept->values();
+    }
+
+    /**
+     * A term whose start and end land on the same day carries no duration
+     * and is always an upstream data defect, never a real one-day contract.
+     */
+    private function isZeroLengthTerm(Contract $contract): bool
+    {
+        return $contract->start_date
+            && $contract->end_date
+            && $contract->start_date->isSameDay($contract->end_date);
+    }
+
+    /**
+     * The live contract that covers the period after this one, or null.
+     *
+     * Renewal families are identified by the synthesized parent first —
+     * that row is keyed on (provider, product) by the TDX ingest and is
+     * the only identifier that survives the theme drifting between
+     * cycles ("Device Software" -> "ISS"). Rows with no parent fall back
+     * to supplier + product, then supplier + name, so legacy contracts
+     * that never got filed under a parent still group. A contract with
+     * no usable family key has no successor and always alerts.
+     */
+    private function successorFor(Contract $contract): ?Contract
+    {
+        $query = Contract::query()
+            ->active()
+            ->realOnly()
+            ->whereKeyNot($contract->getKey())
+            ->whereNotNull('end_date')
+            ->whereDate('end_date', '>', $contract->end_date)
+            // A successor with a broken term proves nothing about coverage.
+            ->where(fn ($q) => $q->whereNull('start_date')->orWhereColumn('start_date', '<>', 'end_date'))
+            ->orderBy('end_date');
+
+        if ($contract->parent_contract_id) {
+            return $query->where('parent_contract_id', $contract->parent_contract_id)->first();
+        }
+
+        if (! $contract->supplier_id) {
+            return null;
+        }
+
+        $query->where('supplier_id', $contract->supplier_id);
+
+        if ($contract->product) {
+            return $query->where('product', $contract->product)->first();
+        }
+
+        return $query->where('name', $contract->name)->first();
     }
 
     /**

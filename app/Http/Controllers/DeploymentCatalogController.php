@@ -34,6 +34,18 @@ class DeploymentCatalogController extends Controller
         return self::CATALOGS[$catalog];
     }
 
+    /** Both catalogs on one admin page — set once, rarely touched. */
+    public function adminIndex()
+    {
+        $this->authorize('deployments.view');
+
+        return view('admin.deployment-catalogs', [
+            'types' => DeploymentType::orderBy('sort_order')->orderBy('name')->get(),
+            'stages' => DeploymentStage::orderBy('sort_order')->orderBy('name')->get(),
+            'statuslabels' => Statuslabel::orderBy('name')->get(),
+        ]);
+    }
+
     public function index(string $catalog)
     {
         $this->authorize('deployments.view');

@@ -20,6 +20,17 @@ class DashboardTest extends TestCase
             ->assertRedirect(route('my'));
     }
 
+    public function test_staff_without_the_admin_flag_still_get_the_dashboard()
+    {
+        // `admin` is a policy-wide grant, not a staff marker. Someone holding
+        // an ordinary admin-facing permission is not an end user and belongs
+        // on the dashboard, so narrowing `admin` does not exile them to /my.
+        $this->actingAs(User::factory()->viewAssets()->create())
+            ->get(route('home'))
+            ->assertOk()
+            ->assertViewIs('dashboard');
+    }
+
     public function test_counts_are_loaded_correctly_for_admins()
     {
         Asset::factory()->count(2)->create();

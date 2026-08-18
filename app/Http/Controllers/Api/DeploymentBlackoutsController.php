@@ -20,6 +20,43 @@ use Illuminate\Http\Request;
  */
 class DeploymentBlackoutsController extends Controller
 {
+    /**
+     * List blackouts, newest window first. `?current=1` narrows to windows
+     * that overlap today or later — the ones the timeline still warns on.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $this->authorize('view', Order::class);
+
+        $blackouts = StaffBlackout::with('user')
+            ->when($request->boolean('current'), fn ($q) => $q->where('end_date', '>=', now()->toDateString()))
+            ->orderByDesc('start_date')
+            ->get();
+
+        return response()->json(
+            Helper::formatStandardApiResponse('success', [
+                'total' => $blackouts->count(),
+                'rows' => $blackouts,
+            ], null),
+        );
+    }
+
+    /**
+     * Remove a blackout whose window no longer reflects reality — staff
+     * back early, an OOO event entered in error. The timeline stops
+     * warning the moment the row is gone.
+     */
+    public function destroy(StaffBlackout $blackout): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $blackout->delete();
+
+        return response()->json(
+            Helper::formatStandardApiResponse('success', null, trans('admin/deployments/general.blackout_deleted')),
+        );
+    }
+
     public function store(Request $request): JsonResponse
     {
         $this->authorize('update', Order::class);

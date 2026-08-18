@@ -108,6 +108,35 @@
     </div>
 </div>
 
+{{-- Lease Data Health — last on the page, because it is housekeeping
+     rather than a finding: leases with no contract on file, end dates that
+     will not parse, archived devices still reading as on-lease. It sits
+     with the portfolio it describes rather than in the procurement
+     stream, where it was more granular than anything around it. --}}
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-default rpt-report-box" id="lease-data-health" style="scroll-margin-top:80px;">
+            <div class="box-header with-border">
+                <h3 class="box-title">{{ trans('admin/purchase-orders/general.report_lease_data_health') }}</h3>
+                <div class="box-tools pull-right">
+                    <a href="{{ route('reports.procurement.lease-data-health', ['format' => 'csv']) }}" class="btn btn-sm btn-default">
+                        <x-icon type="download" /> {{ trans('general.download') }}
+                    </a>
+                </div>
+                <p class="text-muted" style="margin:8px 0 0; font-size:12.5px;">{{ trans('admin/purchase-orders/general.report_lease_data_health_desc') }}</p>
+            </div>
+            <div class="box-body">
+                @include('reports.procurement._report-table', [
+                    'columns' => $dataHealth['columns'],
+                    'rows'    => $dataHealth['records'],
+                    'footer'  => $dataHealth['footer'] ?? null,
+                    'canEditNotes' => false,
+                ])
+            </div>
+        </div>
+    </div>
+</div>
+
 @stop
 
 @section('moar_scripts')

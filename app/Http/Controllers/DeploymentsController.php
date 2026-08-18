@@ -44,8 +44,6 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.view');
 
-        $forecast = new RefreshForecast;
-
         $types = DeploymentType::active()->ordered()->get();
         $stages = DeploymentStage::active()->ordered()->get();
 
@@ -92,7 +90,7 @@ class DeploymentsController extends Controller
         }
 
         $wavesQuery = DeploymentWave::query()
-            ->with(['type', 'owner', 'location'])
+            ->with(['type', 'owner', 'location', 'storageLocation'])
             ->withCount('items')
             ->where('fiscal_year', $fy);
         if ($typeFilter) {
@@ -124,8 +122,6 @@ class DeploymentsController extends Controller
             $deviceRows = array_merge($deviceRows, $this->historicalRows($fy, $allItems));
         }
 
-        $backlogCount = $forecast->forFiscalYear($fy)->count();
-
         $rowCounts = collect($deviceRows)->countBy('stage_slug');
         $stageRail = $stages->map(fn ($stage) => [
             'id' => $stage->id,
@@ -147,7 +143,6 @@ class DeploymentsController extends Controller
             'typeFilter' => $typeFilter,
             'stageRail' => $stageRail,
             'deviceRows' => $deviceRows,
-            'backlogCount' => $backlogCount,
             'timeline' => (new DeploymentTimeline)->build($waves),
             'downloadUrl' => route('reports.deployments', ['fiscal_year' => $fy, 'deployment_type' => $typeFilter, 'format' => 'csv']),
         ]);
@@ -361,6 +356,90 @@ class DeploymentsController extends Controller
     }
 
     /**
+     * Stage one or more wave items into a room — the inbox's drop and its
+     * bulk move. Answers JSON for the page's fetch so a drop never costs
+     * the reader their scroll position.
+     */
+    public function stageMove(Request $request)
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'item_ids' => 'required|array|min:1',
+            'item_ids.*' => 'integer',
+            'location_id' => 'required|integer|exists:locations,id',
+        ]);
+
+        $moved = DeploymentItem::whereIn('id', $request->input('item_ids'))
+            ->update(['storage_location_id' => (int) $request->input('location_id')]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'moved' => $moved]);
+        }
+
+        return redirect()->route('deployments.storage')
+            ->with('success', trans('admin/deployments/general.storage_staged_moved', ['count' => $moved]));
+    }
+
+    /** Flag or unflag a location as a standing storage room. */
+    public function storageLocationToggle(Request $request): RedirectResponse
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'location_id' => 'required|integer|exists:locations,id',
+            'show' => 'required|boolean',
+        ]);
+
+        Location::whereKey((int) $request->input('location_id'))
+            ->update(['show_in_storage' => $request->boolean('show')]);
+
+        return redirect()->route('deployments.storage')
+            ->with('success', trans($request->boolean('show')
+                ? 'admin/deployments/general.storage_location_added'
+                : 'admin/deployments/general.storage_location_removed'));
+    }
+
+    /**
+     * Move a shelf device to another room — the drop half of the storage
+     * page's drag. Only an unassigned device moves this way: a checked-out
+     * device's location is wherever its holder is.
+     */
+    public function storageMove(Request $request)
+    {
+        $this->authorize('deployments.edit');
+
+        $request->validate([
+            'asset_id' => 'required|integer|exists:assets,id',
+            'location_id' => 'required|integer|exists:locations,id',
+        ]);
+
+        $asset = Asset::findOrFail((int) $request->input('asset_id'));
+        if ($asset->assigned_to !== null) {
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'error' => trans('admin/deployments/general.storage_move_assigned')], 422);
+            }
+
+            return redirect()->route('deployments.storage')
+                ->with('error', trans('admin/deployments/general.storage_move_assigned'));
+        }
+
+        Asset::whereKey($asset->id)->update([
+            'rtd_location_id' => (int) $request->input('location_id'),
+            'location_id' => (int) $request->input('location_id'),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()->route('deployments.storage')
+            ->with('success', trans('admin/deployments/general.storage_moved', [
+                'tag' => $asset->asset_tag ?: ('#'.$asset->id),
+            ]));
+    }
+
+    /**
      * Bulk-set the holding location for devices being collected — where a
      * whole group of outgoing machines waits for its pickup run.
      */
@@ -468,13 +547,8 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.view');
 
-        $locations = Location::query()
-            ->whereNotNull('storage_capacity')
-            ->orderBy('name')
-            ->get();
-
         $stagedItems = DeploymentItem::query()
-            ->with(['stage', 'wave', 'asset', 'model.refreshCatalogItem'])
+            ->with(['stage', 'wave', 'asset.model', 'model.refreshCatalogItem', 'orderItem.order'])
             ->inStorage()
             ->get();
 
@@ -483,18 +557,14 @@ class DeploymentsController extends Controller
         // items inherit from it rather than each needing to be set by hand.
         $byLocation = $stagedItems->groupBy(fn ($item) => $item->storageLocationId());
 
-        $rows = [];
-        foreach ($locations as $location) {
-            $items = $byLocation->get($location->id, collect());
-            $rows[] = $this->storageRow($location->name, (int) $location->storage_capacity, $items, $location);
-        }
-
-        // Waves staging at each location (for the "waves staging here" line).
-        $wavesByStorage = DeploymentWave::query()
-            ->whereNotNull('storage_location_id')
-            ->ordered()
-            ->get()
-            ->groupBy('storage_location_id');
+        // Every room that either declares a capacity OR actually holds a
+        // staged device. Filtering on capacity alone made a device staged
+        // into an uncapped room vanish from the page entirely.
+        $locations = Location::query()
+            ->where(fn ($q) => $q->whereNotNull('storage_capacity')
+                ->orWhereIn('id', $byLocation->keys()->filter()->all()))
+            ->orderBy('name')
+            ->get();
 
         // Unassigned: staged items with no storage location.
         $unassignedItems = $byLocation->get(null, collect());
@@ -505,10 +575,48 @@ class DeploymentsController extends Controller
             null,
         );
 
+        // The shelf itself: deployable-status devices checked out to
+        // nobody and nothing — physically in a room, spoken for by no one.
+        // Grouped by home location; holding rooms flagged from this page
+        // stand as tables even when empty.
+        $transiting = DeploymentItem::query()
+            ->whereNull('deployed_at')
+            ->whereNotNull('asset_id')
+            ->pluck('asset_id')
+            ->merge(DeploymentItem::query()
+                ->whereNull('deployed_at')
+                ->whereNotNull('replaces_asset_id')
+                ->pluck('replaces_asset_id'))
+            ->unique()
+            ->all();
+        $inStorageAssets = Asset::query()
+            ->whereNull('assigned_to')
+            ->whereHas('status', fn ($q) => $q->where('deployable', 1))
+            // A device a wave is still moving is not shelf stock — it is
+            // either staged above or not physically here at all.
+            ->when($transiting !== [], fn ($q) => $q->whereNotIn('id', $transiting))
+            ->with(['model', 'location', 'defaultLoc'])
+            ->orderBy('asset_tag')
+            ->get();
+        $assetsByLocation = $inStorageAssets->groupBy(fn ($a) => $a->rtd_location_id ?: 0);
+
+        // One set of rooms: flagged storage rooms, rooms holding shelf
+        // stock, rooms with a declared capacity, and rooms where wave
+        // devices are physically staged. Physical presence is one truth,
+        // told once, per room.
+        $holdingLocations = Location::query()
+            ->where(fn ($q) => $q->where('show_in_storage', true)
+                ->orWhereNotNull('storage_capacity')
+                ->orWhereIn('id', $assetsByLocation->keys()->filter()->all())
+                ->orWhereIn('id', $byLocation->keys()->filter()->all()))
+            ->orderBy('name')
+            ->get();
+
         return view('reports.deployments.storage', [
-            'rows' => $rows,
-            'wavesByStorage' => $wavesByStorage,
             'unassigned' => $unassigned,
+            'stagedByLocation' => $byLocation,
+            'holdingLocations' => $holdingLocations,
+            'assetsByLocation' => $assetsByLocation,
             'unassignedCount' => $unassignedItems->count(),
             // Everything the Config panel edits. Which rooms are storage and
             // where a wave stages are both settings, not code, and they belong
@@ -993,7 +1101,12 @@ class DeploymentsController extends Controller
             $waveItems = DeploymentItem::query()
                 ->whereIn('wave_id', $waves->pluck('id')->all() ?: [0])
                 ->get(['id', 'order_item_id']);
-            $incomingOrders = collect($this->orderRows($fy, $waveItems))->groupBy('group');
+            // A line whose device is already checked out has nothing left
+            // to plan — the deployment happened, just not through a wave.
+            // Incoming means still coming: ordered or arrived, not deployed.
+            $incomingOrders = collect($this->orderRows($fy, $waveItems))
+                ->reject(fn ($row) => $row['stage_slug'] === 'deployed')
+                ->groupBy('group');
         }
 
         return view('reports.deployments.planning', [
@@ -1202,6 +1315,18 @@ class DeploymentsController extends Controller
             }
 
             $lineAsset = $line->item instanceof Asset ? $line->item : null;
+
+            // The wave may already be tracking this device from the
+            // planning side, with the replaced device and the notes on it.
+            // The line belongs on that row: claiming is how the money side
+            // joins a device already being planned, not a second copy of it.
+            if ($existing = DeploymentItem::onWave($wave->id, $lineAsset?->id)) {
+                if ($existing->absorb(['order_item_id' => $line->id, 'model_id' => $lineAsset?->model_id])) {
+                    $added++;
+                }
+
+                continue;
+            }
 
             $item = new DeploymentItem([
                 'wave_id' => $wave->id,
