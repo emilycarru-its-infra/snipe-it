@@ -36,6 +36,27 @@ class BuyoutPageTest extends TestCase
             ->assertSee(trans('admin/deployments/general.buyout_status_approved'));
     }
 
+    /**
+     * The link handed around the lessor thread carries whatever identifier
+     * the sender had — sometimes the tag, sometimes the serial off the
+     * chassis. Both resolve to the same page.
+     */
+    public function test_the_page_resolves_by_serial_too()
+    {
+        $asset = Asset::factory()->create(['asset_tag' => 'BUY-PAGE-9', 'serial' => 'BUYPAGESERIAL9']);
+        AssetBuyout::create([
+            'asset_id' => $asset->id,
+            'status' => 'approved',
+            'requested_at' => now()->subDays(10),
+            'quote_amount' => 1772.00,
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('buyouts.show', 'BUYPAGESERIAL9'))
+            ->assertOk()
+            ->assertSee('BUY-PAGE-9');
+    }
+
     public function test_a_device_without_a_buyout_offers_to_open_one()
     {
         $asset = Asset::factory()->create(['asset_tag' => 'BUY-PAGE-2']);
