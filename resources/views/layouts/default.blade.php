@@ -555,6 +555,7 @@
              truncates at the box edge. --}}
         .box > .box-body.no-padding.dp-scroll,
         .box > .box-body.no-padding.fc-scroll,
+        .box > .box-body.no-padding.st-scroll,
         .box > .box-body.no-padding.sticky-table {
             overflow: auto;
         }
