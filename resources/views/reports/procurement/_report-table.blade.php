@@ -355,16 +355,28 @@
                                 <a href="{{ $link['url'] }}" class="js-lightbox">{{ $link['label'] }}</a>@if (! $loop->last), @endif
                             @endforeach
                         </td>
-                    @elseif (! empty($row['docs'][$ci]))
-                        {{-- The cell's own paperwork, rendered beside the
-                             value rather than behind a trip to the member's
-                             page. Render-time only, like links. --}}
-                        <td>
+                    @elseif (! empty($row['docs'][$ci]) || ! empty($row['cell_actions'][$ci]))
+                        {{-- The cell's own paperwork and its own work,
+                             rendered beside the value rather than behind a
+                             trip to the member's page. An icon-only action
+                             sits next to the exact PDF it acts on, so a row
+                             never carries identical buttons that have to be
+                             told apart. Render-time only, like links. --}}
+                        <td style="white-space:nowrap;">
                             {{ $cell }}
-                            @foreach ($row['docs'][$ci] as $doc)
+                            @foreach ($row['docs'][$ci] ?? [] as $doc)
                                 <a class="rpt-doc js-lightbox" href="{{ $doc['url'] }}" title="{{ $doc['label'] }}">
                                     <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
                                 </a>
+                            @endforeach
+                            @foreach ($row['cell_actions'][$ci] ?? [] as $action)
+                                <form method="POST" action="{{ $action['url'] }}" style="display:inline-block; margin:0 0 0 4px;"
+                                      @if (! empty($action['confirm'])) onsubmit="return confirm({{ json_encode($action['confirm']) }});" @endif>
+                                    {{ csrf_field() }}
+                                    <button type="submit" class="btn btn-xs btn-{{ $action['style'] ?? 'default' }}" title="{{ $action['title'] }}">
+                                        <i class="fa-solid fa-{{ $action['icon'] }}" aria-hidden="true"></i>
+                                    </button>
+                                </form>
                             @endforeach
                         </td>
                     @else

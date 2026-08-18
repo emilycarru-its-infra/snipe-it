@@ -177,6 +177,54 @@ class LedgerMoneyAndCycleTest extends TestCase
             ->assertSee('return confirm(', false);
     }
 
+    /**
+     * The reading order finance asked for: Stage leads, the buyout price
+     * sits beside the old serial it prices, then the new device's serial,
+     * then the agreements about the new device.
+     */
+    public function test_the_ledger_reads_stage_first_and_new_serial_after_purchase()
+    {
+        $stage = DeploymentStage::firstOrCreate(['slug' => 'planned'], ['name' => 'Planned']);
+        $member = $this->member('Member', 'Seven');
+        $oldDevice = $this->device(['serial' => 'OLDSERIAL7']);
+        $newDevice = $this->device(['serial' => 'NEWSERIAL7']);
+
+        $wave = DeploymentWave::create(['name' => 'Ledger Wave', 'fiscal_year' => 'FY2026-27']);
+        DeploymentItem::create([
+            'wave_id' => $wave->id,
+            'asset_id' => $newDevice->id,
+            'replaces_asset_id' => $oldDevice->id,
+            'stage_id' => $stage->id,
+        ]);
+
+        UserAgreement::create([
+            'user_id' => $member->id,
+            'asset_id' => $oldDevice->id,
+            'agreement_type' => 'purchase',
+            'lifecycle_stage' => 'quoted',
+            'buyout_cost' => 250.00,
+        ]);
+
+        $content = $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('reports.procurement.user-agreement-ledger', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->getContent();
+
+        // The new device's serial appears, linked to its record.
+        $this->assertStringContainsString('NEWSERIAL7', $content);
+        $this->assertStringContainsString(route('hardware.show', $newDevice->id), $content);
+
+        // Header order: Stage before Member, Purchase before New Serial.
+        $stagePos = strpos($content, '<th>'.trans('admin/purchase-orders/general.user_agreement_stage').'</th>');
+        $memberPos = strpos($content, '<th>'.trans('admin/purchase-orders/general.user_agreement_member').'</th>');
+        $purchasePos = strpos($content, '<th>'.trans('admin/purchase-orders/general.user_agreement_type_value_purchase').'</th>');
+        $newSerialPos = strpos($content, '<th>'.trans('admin/user-agreements/general.new_serial').'</th>');
+        $this->assertNotFalse($purchasePos);
+        $this->assertNotFalse($newSerialPos);
+        $this->assertLessThan($memberPos, $stagePos);
+        $this->assertLessThan($newSerialPos, $purchasePos);
+    }
+
     public function test_the_pipeline_shows_the_awaiting_signature_indicator()
     {
         $member = $this->member('Member', 'Six');
