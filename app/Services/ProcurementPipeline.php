@@ -64,6 +64,14 @@ class ProcurementPipeline
             'completedCount' => $completed['cards']->count() + $completed['more'],
             'returns' => $returns,
             'activeStage' => self::activeStage($fy),
+            // Agreements out for signature — an indicator, not cards: it
+            // counts agreements rather than devices (the device counts on
+            // this column already come from staging), and links out to the
+            // ledger where the rows are actually worked.
+            'awaitingSignature' => \App\Models\UserAgreement::query()
+                ->whereIn('lifecycle_stage', ['quoted', 'agreement_sent'])
+                ->forProgramFiscalYear($fy)
+                ->count(),
             // Unplanned capital asks that aren't a PO yet — ministry funding
             // and other ad-hoc requests sitting in the requisition queue.
             'openRequisitions' => \App\Models\Requisition::whereIn('status', ['draft', 'submitted', 'requisitioned'])->count(),

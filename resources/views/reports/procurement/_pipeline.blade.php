@@ -380,6 +380,19 @@
                              board. --}}
                         <div class="pp-col" data-pp-stage="deploying" style="--pp-c: var(--pp-deploying)">
                             <div class="pp-col-cards">
+                                {{-- Agreements out for signature — restored as an
+                                     indicator after leaving the column's cards: it
+                                     counts agreements, not devices, so it adds
+                                     nothing to the staging figures, and it links to
+                                     the ledger where the rows are worked. --}}
+                                @if (($pipeline['awaitingSignature'] ?? 0) > 0)
+                                    <a href="{{ route('reports.procurement.user-agreement-ledger', ['stage' => 'agreement_sent']) }}" class="pp-card" style="display:block;">
+                                        <div class="pp-d">
+                                            <i class="fa-solid fa-signature" aria-hidden="true"></i>
+                                            {{ trans('admin/purchase-orders/general.pipeline_agreements_sent', ['count' => $pipeline['awaitingSignature']]) }}
+                                        </div>
+                                    </a>
+                                @endif
                                 @foreach ($pipeline['processing'] as $card)
                                     <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
                                         <div class="pp-t">{{ $card['order_number'] }}</div>

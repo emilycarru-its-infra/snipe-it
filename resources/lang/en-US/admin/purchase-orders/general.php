@@ -479,6 +479,7 @@ return [
     'pipeline_filter_clear_top' => 'Clear filter',
     'pipeline_items' => ':count line items',
     'pipeline_staged' => ':count in staging',
+    'pipeline_agreements_sent' => ':count awaiting signature',
     'pipeline_deployed_badge' => 'deployed',
     'pipeline_received_badge' => 'received',
     'pipeline_open_order' => 'Open order',

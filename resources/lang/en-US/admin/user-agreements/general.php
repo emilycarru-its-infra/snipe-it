@@ -96,4 +96,11 @@ return [
     'row_action_send'      => 'Send for Signature',
 
     'no_agreements_match'  => 'No agreements match the current filters.',
+
+    'ledger_send'          => 'Send',
+    'ledger_send_title'    => 'Send the :type agreement for signature',
+    'ledger_send_confirm'  => 'Email the :type agreement to :name for signature?',
+    'ledger_payroll'       => 'Payroll',
+    'ledger_payroll_title' => 'Mark the :type agreement as forwarded to Payroll',
+    'ledger_payroll_confirm' => 'Mark the signed :type agreement for :name as forwarded to Payroll?',
 ];
