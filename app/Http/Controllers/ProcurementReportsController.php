@@ -266,14 +266,6 @@ class ProcurementReportsController extends Controller
             ->where('status', 'pending')
             ->count();
 
-        // User agreements waiting for a signature — the assets team's chase
-        // list. Stuck in 'quoted' or 'agreement_sent' is the failure
-        // mode that holds up the Apple account on a pending pickup.
-        $userAgreementsAwaitingSignatureCount = UserAgreement::whereIn(
-            'lifecycle_stage',
-            ['quoted', 'agreement_sent']
-        )->count();
-
         // Lease schedules sitting in the chase queue — drafts or
         // awaiting Viktor / Mark's signature. The lessor is blocked
         // from finalising until this clears.
@@ -288,7 +280,6 @@ class ProcurementReportsController extends Controller
             'approvers' => StoreApprover::with('user')->get(),
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
-            'userAgreementsAwaitingSignatureCount' => $userAgreementsAwaitingSignatureCount,
             'scheduleSigningQueueCount' => $scheduleSigningQueueCount,
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
@@ -3663,7 +3654,12 @@ class ProcurementReportsController extends Controller
                 }
                 $value = (float) $ofType->sum(fn ($agreement) => $agreement->contractValue());
                 $userTotal += $value;
-                $typeCells[] = $this->money($value);
+                // Zero reads as a dash, the same as a type the member holds
+                // no agreement in. A column of "$0.00" is noise to scan past
+                // before the handful of real figures show themselves — and a
+                // free pickup genuinely costs nothing, so there is no number
+                // being hidden.
+                $typeCells[] = $value > 0 ? $this->money($value) : '—';
 
                 // The paperwork rides beside the amount it was generated
                 // for. Finance was opening a member's page to reach these,
@@ -3730,7 +3726,7 @@ class ProcurementReportsController extends Controller
                         $stages->map(fn ($stage) => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage))->implode(' / '),
                     ],
                     $typeCells,
-                    [$this->money($userTotal)]
+                    [$userTotal > 0 ? $this->money($userTotal) : '—']
                 ),
             ];
         }

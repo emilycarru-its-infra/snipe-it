@@ -6,7 +6,6 @@ use App\Models\Asset;
 use App\Models\LeaseDecision;
 use App\Models\Order;
 use App\Models\OrderInvoice;
-use App\Models\UserAgreement;
 use Illuminate\Support\Collection;
 
 /**
@@ -19,8 +18,10 @@ use Illuminate\Support\Collection;
  *   budgeting   planned orders (is_planned), no PO attached yet
  *   ordering    actual orders carrying a PO, nothing received
  *   deploying   the whole physical span: received line items whose assets
- *               are not yet checked out (the build() 'processing' keys)
- *               plus user agreements in flight (quoted → signed). The
+ *               are not yet checked out (the build() 'processing' keys).
+ *               Devices only — an agreement is paperwork attached to one
+ *               of these laptops, not a separate thing arriving, and
+ *               counting both double counted the same hardware. The
  *               per-device detail lives on the Deployments board; an
  *               order stays here until that side confirms the device is
  *               in place or in hand.
@@ -46,7 +47,6 @@ class ProcurementPipeline
         $open = self::openOrderCards($fy);
         [$processing, $completed, $stagedItemCount] = self::receivedCards($fy);
         $pendingInvoices = self::pendingInvoiceCards($fy);
-        $deploying = self::deployingCounts();
         $returns = self::returnLanes();
 
         return [
@@ -57,7 +57,6 @@ class ProcurementPipeline
             'processing' => $processing['cards'],
             'processingMore' => $processing['more'],
             'stagedItemCount' => $stagedItemCount,
-            'deploying' => $deploying,
             'pendingInvoices' => $pendingInvoices['cards'],
             'pendingInvoicesMore' => $pendingInvoices['more'],
             'completed' => $completed['cards'],
@@ -280,25 +279,6 @@ class ProcurementPipeline
             'subtotal' => (float) $invoice->subtotal,
             'total' => (float) $invoice->total,
         ]));
-    }
-
-    /**
-     * Agreements in flight, by lifecycle stage. Agreements carry no FY;
-     * the in-flight set is small and current by construction.
-     */
-    private static function deployingCounts(): array
-    {
-        $counts = UserAgreement::whereIn('lifecycle_stage', ['quoted', 'agreement_sent', 'agreement_signed'])
-            ->selectRaw('lifecycle_stage, count(*) as n')
-            ->groupBy('lifecycle_stage')
-            ->pluck('n', 'lifecycle_stage');
-
-        return [
-            'quoted' => (int) ($counts['quoted'] ?? 0),
-            'sent' => (int) ($counts['agreement_sent'] ?? 0),
-            'signed' => (int) ($counts['agreement_signed'] ?? 0),
-            'total' => (int) $counts->sum(),
-        ];
     }
 
     /**
