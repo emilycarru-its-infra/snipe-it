@@ -1254,10 +1254,14 @@ class ProcurementReportsTest extends TestCase
             'wave_id' => $wave->id,
             'replaces_asset_id' => $replaced->id,
         ]);
+        // A purchase — the buyout of the outgoing device — is the agreement
+        // type the replacing wave legitimately dates. (A pickup on the
+        // replaced device belongs to the year the device was issued; that
+        // side no longer drags it into the new cycle.)
         $thisCycle = UserAgreement::create([
             'user_id' => $member->id,
             'asset_id' => $replaced->id,
-            'agreement_type' => 'pickup',
+            'agreement_type' => 'purchase',
             'lifecycle_stage' => 'quoted',
         ]);
 
@@ -1372,14 +1376,13 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('$500.00');
     }
 
-    public function test_agreements_are_off_the_orders_rail_entirely()
+    public function test_agreements_stay_off_the_rail_but_the_indicator_returned()
     {
         // An agreement is paperwork attached to a laptop, not a separate
-        // thing arriving. It used to make up the bulk of the Deploying
-        // chevron — both the headline count and four of its six lines —
-        // which double counted the same devices the staging figure held.
-        // The agreement lifecycle has its own report; the rail tracks
-        // orders.
+        // thing arriving — the cards that double-counted staged devices
+        // stay gone. What returned, by request, is a single indicator:
+        // an agreement count (not devices) linking to the ledger where
+        // the rows are worked.
         $user = User::factory()->create();
         UserAgreement::create([
             'agreement_type' => 'pickup',
@@ -1391,7 +1394,8 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement'))
             ->assertOk()
             ->assertDontSee('agreements in flight')
-            ->assertDontSee('awaiting signature');
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_agreements_sent', ['count' => 1]))
+            ->assertSee(route('reports.procurement.user-agreement-ledger', ['stage' => 'agreement_sent']), false);
     }
 
     public function test_the_ledger_dashes_a_zero_rather_than_printing_it()
