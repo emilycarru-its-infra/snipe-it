@@ -3729,7 +3729,7 @@ class ProcurementReportsController extends Controller
                         'title' => trans('admin/user-agreements/general.ledger_send_title', ['type' => $typeLabel]),
                         'confirm' => trans('admin/user-agreements/general.ledger_send_confirm', [
                             'type' => $typeLabel,
-                            'name' => $first->user?->full_name ?? '',
+                            'name' => $first->user->full_name ?? '',
                         ]),
                     ];
                 }
@@ -3743,7 +3743,7 @@ class ProcurementReportsController extends Controller
                         'title' => trans('admin/user-agreements/general.ledger_payroll_title', ['type' => $typeLabel]),
                         'confirm' => trans('admin/user-agreements/general.ledger_payroll_confirm', [
                             'type' => $typeLabel,
-                            'name' => $first->user?->full_name ?? '',
+                            'name' => $first->user->full_name ?? '',
                         ]),
                     ];
                 }
