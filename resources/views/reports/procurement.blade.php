@@ -205,10 +205,18 @@
     // on /procurement/leasing — Rent Costs under the Annual Rent bars that
     // pick its year, Lease Data Health at the foot of the same page. Their
     // own routes still work; they are just not part of this stream.
+    //
+    // Three reports sit under a stage that is not where the work happens,
+    // but where the reader goes looking for them. The Buyout Register and
+    // Capital Spend are what you consult while setting a year's envelope,
+    // so they read as Budgeting even though the money moves later. The
+    // Disposition Grid describes devices whose lifecycle is finished, so it
+    // reads as Completed even though the returns are handled while
+    // deploying.
     $procReports = collect([
         ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.lease-end-schedules', 'name' => 'report_lease_end_schedules', 'desc' => 'report_lease_end_schedules_desc', 'stage' => 'budgeting'],
-        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc', 'stage' => 'reconciling'],
@@ -217,7 +225,7 @@
         ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc', 'stage' => 'budgeting'],
-        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'deploying'],
+        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.csi-reconciliation', 'name' => 'report_csi_reconciliation', 'desc' => 'report_csi_reconciliation_desc', 'stage' => 'reconciling'],
@@ -226,7 +234,7 @@
         ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc', 'stage' => 'ordering'],
         ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'stage' => 'completed'],
-        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'completed'],
+        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'budgeting'],
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
 

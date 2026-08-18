@@ -1842,6 +1842,39 @@ class ProcurementReportsTest extends TestCase
         $this->assertSame('Buyout Register', trans('admin/purchase-orders/general.report_aro_register'));
     }
 
+    public function test_reports_sit_under_the_stage_a_reader_looks_for_them_in()
+    {
+        // Stage is where the reader goes looking, not where the work
+        // happens. The Buyout Register and Capital Spend are consulted
+        // while setting a year's envelope; the Disposition Grid describes
+        // devices whose lifecycle is over.
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->getContent();
+
+        $stageOf = function (string $report) use ($content) {
+            $at = strpos($content, 'data-pr-report="proc-'.$report.'"');
+            $this->assertNotFalse($at, "no pill for {$report}");
+            // The pill's own column, i.e. the nearest stage above it.
+            $before = substr($content, 0, $at);
+            preg_match_all('/data-report-stage="([a-z]+)"/', $before, $m);
+
+            return end($m[1]);
+        };
+
+        $this->assertSame('budgeting', $stageOf('report_aro_register'));
+        $this->assertSame('budgeting', $stageOf('report_capital'));
+        $this->assertSame('completed', $stageOf('report_disposition_grid'));
+
+        // The grid leads its column rather than trailing the reports that
+        // were already there.
+        $this->assertLessThan(
+            strpos($content, 'data-pr-report="proc-report_po_disposition"'),
+            strpos($content, 'data-pr-report="proc-report_disposition_grid"')
+        );
+    }
+
     public function test_reports_read_provider_from_the_lessor_field()
     {
         $lessor = Supplier::factory()->create(['name' => 'Acme Leasing Co']);
