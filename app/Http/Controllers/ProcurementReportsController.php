@@ -3648,18 +3648,25 @@ class ProcurementReportsController extends Controller
             foreach ($types as $typeIndex => $type) {
                 $ofType = $group->where('agreement_type', $type);
                 if ($ofType->isEmpty()) {
-                    $typeCells[] = '—';
+                    $typeCells[] = $type === 'pickup' ? '' : '—';
 
                     continue;
                 }
-                $value = (float) $ofType->sum(fn ($agreement) => $agreement->contractValue());
+                // Payable, not contract value: a pickup's device cost is the
+                // university's money, not the member's, and summing it here
+                // once rendered a page of free pickups as $22k owed.
+                $value = (float) $ofType->sum(fn ($agreement) => $agreement->payableValue());
                 $userTotal += $value;
-                // Zero reads as a dash, the same as a type the member holds
-                // no agreement in. A column of "$0.00" is noise to scan past
-                // before the handful of real figures show themselves — and a
-                // free pickup genuinely costs nothing, so there is no number
-                // being hidden.
-                $typeCells[] = $value > 0 ? $this->money($value) : '—';
+                // The pickup column is paperwork, not money — the PDF chip is
+                // its whole content, so no amount and no dash either. In the
+                // paid columns a zero reads as a dash, the same as a type the
+                // member holds no agreement in: a column of "$0.00" is noise
+                // to scan past before the handful of real figures show.
+                if ($type === 'pickup') {
+                    $typeCells[] = '';
+                } else {
+                    $typeCells[] = $value > 0 ? $this->money($value) : '—';
+                }
 
                 // The paperwork rides beside the amount it was generated
                 // for. Finance was opening a member's page to reach these,
@@ -3705,7 +3712,45 @@ class ProcurementReportsController extends Controller
                 'class' => UserAgreement::STAGE_LABEL_CLASS[$stage] ?? 'default',
             ])->all();
 
+            // The ledger is where these get worked, so the work happens on
+            // the row: send an agreement out for signature, stamp a signed
+            // one as forwarded to payroll. Sending emails the member, so it
+            // confirms first, like every button that really sends.
+            $rowActions = [];
+            foreach ($live as $agreement) {
+                $typeLabel = trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type);
+                if (! $agreement->checkout_acceptance_id && $agreement->asset_id && $agreement->user_id) {
+                    $rowActions[] = [
+                        'method' => 'POST',
+                        'url' => route('user-agreements.send-for-signature', $agreement),
+                        'icon' => 'paper-plane',
+                        'style' => 'primary',
+                        'label' => trans('admin/user-agreements/general.ledger_send'),
+                        'title' => trans('admin/user-agreements/general.ledger_send_title', ['type' => $typeLabel]),
+                        'confirm' => trans('admin/user-agreements/general.ledger_send_confirm', [
+                            'type' => $typeLabel,
+                            'name' => $first->user?->full_name ?? '',
+                        ]),
+                    ];
+                }
+                if (($agreement->signed_at || $agreement->signed_pdf_path) && ! $agreement->sent_to_payroll_at && $agreement->payableValue() > 0) {
+                    $rowActions[] = [
+                        'method' => 'POST',
+                        'url' => route('user-agreements.send-to-payroll', $agreement),
+                        'icon' => 'file-invoice-dollar',
+                        'style' => 'default',
+                        'label' => trans('admin/user-agreements/general.ledger_payroll'),
+                        'title' => trans('admin/user-agreements/general.ledger_payroll_title', ['type' => $typeLabel]),
+                        'confirm' => trans('admin/user-agreements/general.ledger_payroll_confirm', [
+                            'type' => $typeLabel,
+                            'name' => $first->user?->full_name ?? '',
+                        ]),
+                    ];
+                }
+            }
+
             $records[] = [
+                'row_actions' => $rowActions,
                 'class' => '',
                 'links' => array_filter([
                     0 => $first->user ? route('users.show', $first->user->id) : null,
