@@ -48,7 +48,7 @@
                 </dl>
 
                 <div style="margin-top:20px;">
-                    <a href="{{ route('user-agreements.pdf', $agreement->id) }}" class="btn btn-default" target="_blank" rel="noopener">
+                    <a href="{{ route('user-agreements.pdf', $agreement->id) }}" class="btn btn-default js-lightbox" target="_blank" rel="noopener">
                         <i class="fas fa-file-pdf" aria-hidden="true"></i>
                         @if ($agreement->signed_pdf_path)
                             {{ trans('admin/forms/faculty-program.submission_pdf_signed') }}

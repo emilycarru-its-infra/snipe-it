@@ -341,6 +341,9 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('user-agreements.send-to-payroll');
     Route::get('user-agreements/{userAgreement}/pdf', [UserAgreementsController::class, 'downloadPdf'])
         ->name('user-agreements.pdf');
+    // A run of agreements as one zip, from the ledger's row selection.
+    Route::post('user-agreements/bulk-pdf', [UserAgreementsController::class, 'bulkPdf'])
+        ->name('user-agreements.bulk-pdf');
 
     /*
     * Exhibit projects — Grad Show / exhibit equipment tracking board.

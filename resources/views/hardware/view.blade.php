@@ -427,7 +427,7 @@
                                                     @endif
                                                 </td>
                                                 <td class="text-right">
-                                                    <a class="btn btn-default btn-sm" href="{{ route('user-agreements.pdf', $agreement) }}" target="_blank" title="{{ $agreement->signed_pdf_path ? trans('admin/user-agreements/general.download_signed_pdf') : trans('admin/user-agreements/general.preview_pdf') }}">
+                                                    <a class="btn btn-default btn-sm js-lightbox" href="{{ route('user-agreements.pdf', $agreement) }}" target="_blank" title="{{ $agreement->signed_pdf_path ? trans('admin/user-agreements/general.download_signed_pdf') : trans('admin/user-agreements/general.preview_pdf') }}">
                                                         <i class="fas {{ $agreement->signed_pdf_path ? 'fa-download' : 'fa-file-pdf' }}"></i>
                                                     </a>
                                                     @if (! $agreement->signed_pdf_path && $agreement->user_id)
