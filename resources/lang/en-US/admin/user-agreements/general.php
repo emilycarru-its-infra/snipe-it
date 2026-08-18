@@ -97,6 +97,7 @@ return [
 
     'no_agreements_match'  => 'No agreements match the current filters.',
 
+    'new_serial'           => 'New Serial',
     'ledger_send'          => 'Send',
     'ledger_send_title'    => 'Send the :type agreement for signature',
     'ledger_send_confirm'  => 'Email the :type agreement to :name for signature?',
