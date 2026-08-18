@@ -42,6 +42,17 @@
         }
         .rpt-child-toggle { border: 0; background: none; padding: 0 8px 0 0; opacity: .6; }
         .rpt-child-toggle:hover { opacity: 1; }
+        /* Documents attached to a cell — the agreement PDFs sitting beside
+           the amount they were generated for, so the paperwork is on the
+           same line as the number a reader is checking it against. */
+        .rpt-doc { margin-left: 6px; white-space: nowrap; }
+        .rpt-doc + .rpt-doc { margin-left: 4px; }
+        .rpt-select-cell, .rpt-select-head { width: 1%; padding-right: 0 !important; }
+        .rpt-select-bar {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            margin-bottom: 8px; font-size: 12.5px;
+        }
+        .rpt-select-bar .rpt-select-count { color: var(--text-help, #777); }
         /* Reports opting in keep every column on one line except the last —
            the trailing catch-all (a Models list, an order list) is the only
            cell allowed to wrap. */
@@ -156,15 +167,103 @@
             document.addEventListener('rpt:section-loaded', wireAll);
         })();
     </script>
+    <script>
+        // Row selection for reports carrying documents. Delegated from the
+        // document, because these tables also arrive as innerHTML embeds
+        // where an inline script would never run.
+        //
+        // "Open" hands the selection to the record lightbox one at a time —
+        // browsers block a burst of window.open() and finance would lose
+        // most of the tabs. "Download" posts the ids and gets a single zip
+        // back, which is the actual ask: one file, not eighteen prompts.
+        (function () {
+            function boxesFor(bar) {
+                var table = document.querySelector('[data-rpt-select="' + bar.dataset.rptSelectBar + '"]');
+
+                return table ? Array.prototype.slice.call(table.querySelectorAll('[data-rpt-row]')) : [];
+            }
+
+            function refresh(bar) {
+                var boxes = boxesFor(bar);
+                var picked = boxes.filter(function (b) { return b.checked; });
+                var docs = picked.reduce(function (n, b) {
+                    return n + (b.dataset.rptUrls ? b.dataset.rptUrls.split(' ').length : 0);
+                }, 0);
+
+                bar.querySelector('[data-rpt-open-selected]').disabled = docs === 0;
+                bar.querySelector('[data-rpt-download-selected]').disabled = docs === 0;
+                bar.querySelector('[data-rpt-download-form] input[name="ids"]').value =
+                    picked.map(function (b) { return b.dataset.rptIds || ''; }).filter(Boolean).join(',');
+                bar.querySelector('[data-rpt-select-count]').textContent = docs
+                    ? @json(trans('admin/purchase-orders/general.docs_selected_count')).replace(':count', docs)
+                    : '';
+                var all = bar.querySelector('[data-rpt-select-all]');
+                all.checked = boxes.length > 0 && picked.length === boxes.length;
+                all.indeterminate = picked.length > 0 && picked.length < boxes.length;
+            }
+
+            document.addEventListener('change', function (e) {
+                var all = e.target.closest ? e.target.closest('[data-rpt-select-all]') : null;
+                if (all) {
+                    var bar = all.closest('[data-rpt-select-bar]');
+                    boxesFor(bar).forEach(function (b) { b.checked = all.checked; });
+                    refresh(bar);
+
+                    return;
+                }
+                var row = e.target.closest ? e.target.closest('[data-rpt-row]') : null;
+                if (! row) { return; }
+                var table = row.closest('[data-rpt-select]');
+                var target = document.querySelector('[data-rpt-select-bar="' + table.dataset.rptSelect + '"]');
+                if (target) { refresh(target); }
+            });
+
+            document.addEventListener('click', function (e) {
+                var button = e.target.closest ? e.target.closest('[data-rpt-open-selected]') : null;
+                if (! button) { return; }
+                e.preventDefault();
+                var bar = button.closest('[data-rpt-select-bar]');
+                var urls = boxesFor(bar)
+                    .filter(function (b) { return b.checked && b.dataset.rptUrls; })
+                    .reduce(function (out, b) { return out.concat(b.dataset.rptUrls.split(' ')); }, []);
+                if (! urls.length || ! window.appLightbox) { return; }
+                window.appLightbox.openQueue(urls);
+            });
+        })();
+    </script>
 @endonce
 @php
     $hasRowActions = collect($rows)->contains(fn ($row) => ! empty($row['row_actions']));
+    // Selection is opt-in per report and only worth a column when the rows
+    // actually carry documents to act on.
+    $selectable = ! empty($selectable) && collect($rows)->contains(fn ($row) => ! empty($row['select_docs']));
+    $selectId = 'rpt-sel-'.\Illuminate\Support\Str::random(6);
 @endphp
+@if ($selectable)
+    <div class="rpt-select-bar" data-rpt-select-bar="{{ $selectId }}">
+        <label style="font-weight:normal; margin:0;">
+            <input type="checkbox" data-rpt-select-all> {{ trans('general.select_all') }}
+        </label>
+        <button type="button" class="btn btn-xs btn-default" data-rpt-open-selected disabled>
+            <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> {{ trans('admin/purchase-orders/general.docs_open_selected') }}
+        </button>
+        <form method="POST" action="{{ route('user-agreements.bulk-pdf') }}" style="display:inline-block; margin:0;" data-rpt-download-form>
+            {{ csrf_field() }}
+            <input type="hidden" name="ids" value="">
+            <button type="submit" class="btn btn-xs btn-default" data-rpt-download-selected disabled>
+                <x-icon type="download" /> {{ trans('admin/purchase-orders/general.docs_download_selected') }}
+            </button>
+        </form>
+        <span class="rpt-select-count" data-rpt-select-count></span>
+    </div>
+@endif
 <div class="table-responsive rpt-table-scroll">
     <table class="table table-striped rpt-report-table{{ ! empty($nowrapExceptLast) ? ' rpt-nowrap-tail' : '' }}"
-           @if (! empty($sortable)) data-sortable="1" @endif>
+           @if (! empty($sortable)) data-sortable="1" @endif
+           @if ($selectable) data-rpt-select="{{ $selectId }}" @endif>
         <thead>
             <tr>
+                @if ($selectable)<th class="rpt-select-head"></th>@endif
                 @foreach ($columns as $col)
                     <th>{{ $col }}</th>
                 @endforeach
@@ -174,6 +273,15 @@
         <tbody>
         @forelse ($rows as $row)
             <tr @if (! empty($row['class'])) class="{{ $row['class'] }}" @endif>
+                @if ($selectable)
+                    <td class="rpt-select-cell">
+                        @if (! empty($row['select_docs']))
+                            <input type="checkbox" data-rpt-row
+                                   data-rpt-ids="{{ implode(',', $row['select_ids'] ?? []) }}"
+                                   data-rpt-urls="{{ implode(' ', $row['select_docs']) }}">
+                        @endif
+                    </td>
+                @endif
                 @foreach ($row['cells'] as $ci => $cell)
                     @if ($ci === 0 && ! empty($row['children']['rows']))
                         {{-- Rows marked children_collapsed start folded: the
@@ -236,6 +344,18 @@
                                 <a href="{{ $link['url'] }}" class="js-lightbox">{{ $link['label'] }}</a>@if (! $loop->last), @endif
                             @endforeach
                         </td>
+                    @elseif (! empty($row['docs'][$ci]))
+                        {{-- The cell's own paperwork, rendered beside the
+                             value rather than behind a trip to the member's
+                             page. Render-time only, like links. --}}
+                        <td>
+                            {{ $cell }}
+                            @foreach ($row['docs'][$ci] as $doc)
+                                <a class="rpt-doc js-lightbox" href="{{ $doc['url'] }}" title="{{ $doc['label'] }}">
+                                    <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
+                                </a>
+                            @endforeach
+                        </td>
                     @else
                         <td>{{ $cell }}</td>
                     @endif
@@ -262,7 +382,7 @@
             </tr>
             @if (! empty($row['children']['rows']))
                 <tr class="rpt-child-row" @if (! empty($row['children_collapsed'])) style="display:none;" @endif>
-                    <td class="rpt-child-cell" colspan="{{ count($columns) + ($hasRowActions ? 1 : 0) }}">
+                    <td class="rpt-child-cell" colspan="{{ count($columns) + ($hasRowActions ? 1 : 0) + ($selectable ? 1 : 0) }}">
                         <table class="table rpt-child-table">
                             <thead>
                                 <tr>
@@ -290,7 +410,7 @@
             @endif
         @empty
             <tr>
-                <td colspan="{{ count($columns) + ($hasRowActions ? 1 : 0) }}">{{ trans('general.no_results') }}</td>
+                <td colspan="{{ count($columns) + ($hasRowActions ? 1 : 0) + ($selectable ? 1 : 0) }}">{{ trans('general.no_results') }}</td>
             </tr>
         @endforelse
         </tbody>
@@ -310,6 +430,7 @@
             @endphp
             <tfoot>
                 <tr>
+                    @if ($selectable)<th class="rpt-select-head"></th>@endif
                     @foreach ($footerCells as $fi => $cell)
                         @if ($fi < $lastValueIdx)
                             <th>{{ $cell }}</th>

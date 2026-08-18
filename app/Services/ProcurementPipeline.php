@@ -35,13 +35,6 @@ use Illuminate\Support\Collection;
 class ProcurementPipeline
 {
     /**
-     * How many cards a board column shows before collapsing to a
-     * "+N more" row. Keeps the dashboard render bounded on years with
-     * hundreds of orders.
-     */
-    private const CARD_CAP = 6;
-
-    /**
      * Line items listed inside a card's lightbox before it defers to the
      * full order page.
      */
@@ -391,13 +384,20 @@ class ProcurementPipeline
     }
 
     /**
-     * First CARD_CAP cards plus how many were cut.
+     * Every card in the column.
+     *
+     * The board used to show the first six and collapse the rest to a
+     * "+N more" row, which meant a stage's real workload was a number the
+     * reader had to trust rather than a list they could work from — five
+     * hidden invoices in Reconciling is exactly the sort of thing this
+     * board exists to surface. The columns scroll instead; the 'more' key
+     * stays at zero so the counts and the callers that add it still read.
      */
     private static function cap(Collection $cards): array
     {
         return [
-            'cards' => $cards->take(self::CARD_CAP)->values(),
-            'more' => max(0, $cards->count() - self::CARD_CAP),
+            'cards' => $cards->values(),
+            'more' => 0,
         ];
     }
 }

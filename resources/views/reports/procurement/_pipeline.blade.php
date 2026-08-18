@@ -30,7 +30,7 @@
             'big' => $fmt($totalBudget),
             'notes' => array_values(array_filter([
                 $t('pipeline_note_approved'),
-                $t('pipeline_note_planned', ['amount' => $fmt($plannedTotal)]),
+                $plannedTotal > 0 ? $t('pipeline_note_planned', ['amount' => $fmt($plannedTotal)]) : null,
                 $t('pipeline_note_remaining', ['amount' => $fmt($totalRemaining)]),
                 $t('pipeline_note_eol', ['count' => $eolCount, 'cost' => $fmt($eolEstimate)]),
                 $t('pipeline_note_lease_preapproval', ['cost' => $fmt($leaseExpiryTotal), 'count' => $leaseExpiryCount]),
@@ -41,7 +41,6 @@
                     ? $t('card_budget_incl_carry', ['amount' => $fmt($liveCarry['unused']), 'source' => $liveCarry['source_fy']])
                     : null,
             ])),
-            'gate' => true,
         ],
         'ordering' => [
             'big' => $fmt($totalCommitted),
@@ -92,12 +91,17 @@
     ];
 
     foreach ($stages as $stageKey => $stageRow) {
-        $stages[$stageKey]['def'] = $t('pipeline_col_'.$stageKey.'_def');
+        // Budgeting has no definition line: it read "Planned order lines.
+        // Exit gate: PO # attached", which restated the lock badge that used
+        // to sit under it and the "Needs PO" chip on every card in the
+        // column. The other four stages describe something the board itself
+        // does not say.
+        if ($stageKey !== 'budgeting') {
+            $stages[$stageKey]['def'] = $t('pipeline_col_'.$stageKey.'_def');
+        }
         $stages[$stageKey]['cardCount'] = $cardCounts[$stageKey] ?? 0;
     }
 
-    $facultyLedgerEmbed = route('reports.procurement.user-agreement-ledger', ['embed' => 1]);
-    $facultyLedgerUrl = route('reports.procurement.user-agreement-ledger');
 @endphp
 
 <style>
@@ -163,18 +167,16 @@
     .pp-chev.selected .pp-golink { color: #fff; }
     .pp-chev.selected .pp-stage, .pp-chev.selected .pp-big { color: #fff; }
     .pp-chev.selected .pp-note { color: rgba(255,255,255,.85); }
-    .pp-chev.selected .pp-gate { color: #fff; }
     .pp-rail.filtering .pp-chev:not(.selected) .pp-stage { color: var(--pp-c); }
     .pp-rail.filtering .pp-chev:not(.selected) .pp-big { color: var(--pp-ink); }
     .pp-rail.filtering .pp-chev:not(.selected) .pp-note { color: var(--pp-ink2); }
-    .pp-gate {
-        position: absolute; bottom: 9px; left: 30px; font-size: 10px; font-weight: 700;
-        letter-spacing: .06em; text-transform: uppercase; color: var(--pp-bad);
-    }
 
     .pp-board-scroll { overflow-x: auto; }
     .pp-board { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 0; min-width: 1080px; }
     .pp-col { min-width: 0; padding: 10px 10px 0; position: relative; }
+    {{-- No card is ever withheld, so a busy stage scrolls inside its own
+         column instead of stretching the whole board past the fold. --}}
+    .pp-col-cards { max-height: 62vh; overflow-y: auto; }
     .pp-col:first-child { padding-left: 0; }
     .pp-col:last-child { padding-right: 0; }
     {{-- The fifth-line hangs 8px clear of the chevron bottoms instead of
@@ -185,8 +187,7 @@
     }
     {{-- Filtering never moves anything: every column keeps its fifth,
          the other stages just empty out. --}}
-    .pp-col.pp-col-muted .pp-card,
-    .pp-col.pp-col-muted .pp-more { display: none; }
+    .pp-col.pp-col-muted .pp-card { display: none; }
     .pp-col-head {
         border-top: 3px solid var(--pp-c); background: color-mix(in srgb, var(--pp-c) 6%, var(--pp-surface));
         border-radius: 3px; padding: 6px 9px; display: flex; align-items: baseline;
@@ -205,15 +206,11 @@
         padding: 8px 9px 7px; box-shadow: 0 1px 1px rgba(0,0,0,.08); margin-bottom: 8px;
         transition: border-color .12s ease;
     }
-    .pp-card[data-pp-modal], .pp-card[data-pp-embed] { cursor: pointer; }
-    .pp-card[data-pp-modal]:hover, .pp-card[data-pp-embed]:hover { border-color: var(--pp-c); }
-    .pp-card[data-pp-modal]:focus-visible, .pp-card[data-pp-embed]:focus-visible { outline: 2px solid var(--pp-c); outline-offset: 1px; }
+    .pp-card[data-pp-modal] { cursor: pointer; }
+    .pp-card[data-pp-modal]:hover { border-color: var(--pp-c); }
+    .pp-card[data-pp-modal]:focus-visible { outline: 2px solid var(--pp-c); outline-offset: 1px; }
     .pp-card .pp-t { font-weight: 600; font-size: 12.5px; line-height: 1.3; color: var(--pp-ink); }
     .pp-card .pp-d { font-size: 11px; color: var(--pp-ink2); margin-top: 2px; }
-    .pp-card.pp-empty {
-        border-style: dashed; color: var(--pp-ink3); font-size: 11.5px; text-align: center;
-        padding: 14px 8px; box-shadow: none; background: transparent;
-    }
     .pp-money { font-variant-numeric: tabular-nums; }
     .pp-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .pp-chip {
@@ -224,7 +221,6 @@
     .pp-chip-need { background: color-mix(in srgb, var(--pp-bad) 14%, var(--pp-surface)); color: var(--pp-bad); }
     .pp-chip-wait { background: color-mix(in srgb, var(--pp-warn) 15%, var(--pp-surface)); color: var(--pp-warn); }
     .pp-chip-done { background: color-mix(in srgb, var(--pp-ok) 15%, var(--pp-surface)); color: var(--pp-ok); }
-    .pp-more { font-size: 11px; color: var(--pp-ink2); padding: 2px; }
 
 
     .pp-filter-note {
@@ -284,12 +280,8 @@
                                         <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
                                     </a>
                                 @endif
-                                <div class="pp-note pp-def">{{ $stage['def'] }}</div>
-                                @if ($stage['gate'] ?? false)
-                                    <div class="pp-gate">
-                                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
-                                        {{ trans('admin/purchase-orders/general.pipeline_gate') }}
-                                    </div>
+                                @if ($stage['def'] ?? false)
+                                    <div class="pp-note pp-def">{{ $stage['def'] }}</div>
                                 @endif
                             </div>
                         @endforeach
@@ -301,88 +293,82 @@
 
                         {{-- Budgeting --}}
                         <div class="pp-col" data-pp-stage="budgeting" style="--pp-c: var(--pp-budgeting)">
-                            @forelse ($pipeline['planned'] as $card)
-                                <div class="pp-card" data-pp-modal="planned-{{ $card['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $card['order_number'] }}</div>
-                                    <div class="pp-d">
-                                        {{ trans('admin/purchase-orders/general.pipeline_items', ['count' => $card['items_count']]) }}
-                                        · <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                            <div class="pp-col-cards">
+                                @foreach ($pipeline['planned'] as $card)
+                                    <div class="pp-card" data-pp-modal="planned-{{ $card['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $card['order_number'] }}</div>
+                                        <div class="pp-d">
+                                            {{ trans('admin/purchase-orders/general.pipeline_items', ['count' => $card['items_count']]) }}
+                                            · <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                                        </div>
+                                        <div class="pp-chips">
+                                            @if ($card['po_number'])
+                                                <span class="pp-chip pp-chip-po">{{ $card['po_number'] }}</span>
+                                            @else
+                                                <span class="pp-chip pp-chip-need">{{ trans('admin/purchase-orders/general.pipeline_needs_po') }}</span>
+                                            @endif
+                                        </div>
                                     </div>
-                                    <div class="pp-chips">
-                                        @if ($card['po_number'])
-                                            <span class="pp-chip pp-chip-po">{{ $card['po_number'] }}</span>
-                                        @else
-                                            <span class="pp-chip pp-chip-need">{{ trans('admin/purchase-orders/general.pipeline_needs_po') }}</span>
-                                        @endif
+                                @endforeach
+                                @foreach ($pipeline['requisitionCards'] ?? [] as $reqCard)
+                                    <div class="pp-card" data-pp-modal="reqm-{{ $reqCard['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $reqCard['number'] }}</div>
+                                        <div class="pp-d">{{ $reqCard['title'] ?: '—' }} · <span class="pp-money">{{ $fmt($reqCard['total']) }}</span></div>
+                                        <div class="pp-chips">
+                                            <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_reqm') }}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            @empty
-                                <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
-                            @endforelse
-                            @if ($pipeline['plannedMore'])
-                                <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['plannedMore']]) }}</div>
-                            @endif
-                            @foreach ($pipeline['requisitionCards'] ?? [] as $reqCard)
-                                <div class="pp-card" data-pp-modal="reqm-{{ $reqCard['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $reqCard['number'] }}</div>
-                                    <div class="pp-d">{{ $reqCard['title'] ?: '—' }} · <span class="pp-money">{{ $fmt($reqCard['total']) }}</span></div>
-                                    <div class="pp-chips">
-                                        <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_reqm') }}</span>
-                                    </div>
-                                </div>
-                            @endforeach
+                                @endforeach
+                            </div>
                         </div>
 
                         {{-- Ordering --}}
                         <div class="pp-col" data-pp-stage="ordering" style="--pp-c: var(--pp-ordering)">
-                            @foreach ($pipeline['sentRequisitionCards'] ?? [] as $sentCard)
-                                <div class="pp-card" data-pp-modal="sentreq-{{ $sentCard['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $sentCard['number'] }}@if ($sentCard['supplier']) · {{ $sentCard['supplier'] }}@endif</div>
-                                    <div class="pp-d">{{ $sentCard['title'] ?: '—' }} · <span class="pp-money">{{ $fmt($sentCard['total']) }}</span></div>
-                                    <div class="pp-chips">
-                                        <span class="pp-chip pp-chip-po">{{ $sentCard['number'] }}</span>
-                                        <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_with_vendor') }}</span>
-                                        @if ($sentCard['quote_number'])
-                                            <span class="pp-chip">{{ $sentCard['quote_number'] }}</span>
-                                        @endif
+                            <div class="pp-col-cards">
+                                @foreach ($pipeline['sentRequisitionCards'] ?? [] as $sentCard)
+                                    <div class="pp-card" data-pp-modal="sentreq-{{ $sentCard['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $sentCard['number'] }}@if ($sentCard['supplier']) · {{ $sentCard['supplier'] }}@endif</div>
+                                        <div class="pp-d">{{ $sentCard['title'] ?: '—' }} · <span class="pp-money">{{ $fmt($sentCard['total']) }}</span></div>
+                                        <div class="pp-chips">
+                                            <span class="pp-chip pp-chip-po">{{ $sentCard['number'] }}</span>
+                                            <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_with_vendor') }}</span>
+                                            @if ($sentCard['quote_number'])
+                                                <span class="pp-chip">{{ $sentCard['quote_number'] }}</span>
+                                            @endif
+                                        </div>
                                     </div>
-                                </div>
-                            @endforeach
-                            @foreach ($pipeline['storeQueue'] ?? [] as $queueCard)
-                                <div class="pp-card" data-pp-modal="storeq-{{ $queueCard['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $queueCard['number'] }}</div>
-                                    <div class="pp-d">{{ $queueCard['requester'] }} · <span class="pp-money">{{ $fmt($queueCard['total']) }}</span></div>
-                                    <div class="pp-chips">
-                                        {{-- Which of the two it is. An approved order
-                                             sitting here is waiting on a PO, not on a
-                                             decision, and the card should not ask for
-                                             one twice. --}}
-                                        @if (($queueCard['status'] ?? 'pending') === 'approved')
-                                            <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.pipeline_chip_approved') }}</span>
-                                        @else
-                                            <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_awaiting') }}</span>
-                                        @endif
+                                @endforeach
+                                @foreach ($pipeline['storeQueue'] ?? [] as $queueCard)
+                                    <div class="pp-card" data-pp-modal="storeq-{{ $queueCard['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $queueCard['number'] }}</div>
+                                        <div class="pp-d">{{ $queueCard['requester'] }} · <span class="pp-money">{{ $fmt($queueCard['total']) }}</span></div>
+                                        <div class="pp-chips">
+                                            {{-- Which of the two it is. An approved order
+                                                 sitting here is waiting on a PO, not on a
+                                                 decision, and the card should not ask for
+                                                 one twice. --}}
+                                            @if (($queueCard['status'] ?? 'pending') === 'approved')
+                                                <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.pipeline_chip_approved') }}</span>
+                                            @else
+                                                <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_awaiting') }}</span>
+                                            @endif
+                                        </div>
                                     </div>
-                                </div>
-                            @endforeach
-                            @forelse ($pipeline['open'] as $card)
-                                <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $card['order_number'] }}@if ($card['supplier']) · {{ $card['supplier'] }}@endif</div>
-                                    <div class="pp-d">
-                                        {{ trans('admin/purchase-orders/general.pipeline_items', ['count' => $card['items_count']]) }}
-                                        · <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                                @endforeach
+                                @foreach ($pipeline['open'] as $card)
+                                    <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $card['order_number'] }}@if ($card['supplier']) · {{ $card['supplier'] }}@endif</div>
+                                        <div class="pp-d">
+                                            {{ trans('admin/purchase-orders/general.pipeline_items', ['count' => $card['items_count']]) }}
+                                            · <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                                        </div>
+                                        <div class="pp-chips">
+                                            @if ($card['po_number'])<span class="pp-chip pp-chip-po">{{ $card['po_number'] }}</span>@endif
+                                            <span class="pp-chip pp-chip-wait">{{ $card['status'] }}</span>
+                                        </div>
                                     </div>
-                                    <div class="pp-chips">
-                                        @if ($card['po_number'])<span class="pp-chip pp-chip-po">{{ $card['po_number'] }}</span>@endif
-                                        <span class="pp-chip pp-chip-wait">{{ $card['status'] }}</span>
-                                    </div>
-                                </div>
-                            @empty
-                                <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
-                            @endforelse
-                            @if ($pipeline['openMore'])
-                                <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['openMore']]) }}</div>
-                            @endif
+                                @endforeach
+                            </div>
                         </div>
 
                         {{-- Deploying — the merged physical stage: received
@@ -390,87 +376,56 @@
                              in flight. Deep detail lives on the Deployments
                              board. --}}
                         <div class="pp-col" data-pp-stage="deploying" style="--pp-c: var(--pp-deploying)">
-                            @forelse ($pipeline['processing'] as $card)
-                                <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $card['order_number'] }}</div>
-                                    <div class="pp-d">
-                                        {{ trans('admin/purchase-orders/general.pipeline_staged', ['count' => $card['staged_count']]) }}
-                                        @if ($card['received_date']) · {{ $card['received_date'] }}@endif
+                            <div class="pp-col-cards">
+                                @foreach ($pipeline['processing'] as $card)
+                                    <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $card['order_number'] }}</div>
+                                        <div class="pp-d">
+                                            {{ trans('admin/purchase-orders/general.pipeline_staged', ['count' => $card['staged_count']]) }}
+                                            @if ($card['received_date']) · {{ $card['received_date'] }}@endif
+                                        </div>
+                                        <div class="pp-chips">
+                                            @if ($card['po_number'])<span class="pp-chip pp-chip-po">{{ $card['po_number'] }}</span>@endif
+                                            <span class="pp-chip pp-chip-wait">{{ $card['status'] }}</span>
+                                        </div>
                                     </div>
-                                    <div class="pp-chips">
-                                        @if ($card['po_number'])<span class="pp-chip pp-chip-po">{{ $card['po_number'] }}</span>@endif
-                                        <span class="pp-chip pp-chip-wait">{{ $card['status'] }}</span>
-                                    </div>
-                                </div>
-                            @empty
-                                @if ($pipeline['deploying']['total'] === 0)
-                                    <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
-                                @endif
-                            @endforelse
-                            @if ($pipeline['processingMore'])
-                                <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['processingMore']]) }}</div>
-                            @endif
-                            @if ($pipeline['deploying']['total'] > 0)
-                                <div class="pp-card" tabindex="0" role="button"
-                                     data-pp-embed="{{ $facultyLedgerEmbed }}"
-                                     data-pp-embed-title="{{ trans('admin/purchase-orders/general.report_user_agreement_ledger') }}"
-                                     data-pp-embed-open="{{ $facultyLedgerUrl }}"
-                                     data-pp-embed-color="var(--pp-deploying)">
-                                    <div class="pp-t">{{ trans('admin/purchase-orders/general.report_user_agreement_ledger') }}</div>
-                                    <div class="pp-d">
-                                        @if ($pipeline['deploying']['quoted'])
-                                            {{ trans('admin/purchase-orders/general.pipeline_agreements_quoted', ['count' => $pipeline['deploying']['quoted']]) }}<br>
-                                        @endif
-                                        @if ($pipeline['deploying']['sent'])
-                                            {{ trans('admin/purchase-orders/general.pipeline_agreements_sent', ['count' => $pipeline['deploying']['sent']]) }}<br>
-                                        @endif
-                                        @if ($pipeline['deploying']['signed'])
-                                            {{ trans('admin/purchase-orders/general.pipeline_agreements_signed', ['count' => $pipeline['deploying']['signed']]) }}
-                                        @endif
-                                    </div>
-                                </div>
-                            @endif
+                                @endforeach
+                            </div>
                         </div>
 
                         {{-- Reconciling --}}
                         <div class="pp-col" data-pp-stage="reconciling" style="--pp-c: var(--pp-reconciling)">
-                            @forelse ($pipeline['pendingInvoices'] as $card)
-                                <div class="pp-card" data-pp-modal="invoice-{{ $card['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $card['invoice_number'] }}</div>
-                                    <div class="pp-d">
-                                        @if ($card['order_number']){{ $card['order_number'] }} · @endif
-                                        <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                            <div class="pp-col-cards">
+                                @foreach ($pipeline['pendingInvoices'] as $card)
+                                    <div class="pp-card" data-pp-modal="invoice-{{ $card['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $card['invoice_number'] }}</div>
+                                        <div class="pp-d">
+                                            @if ($card['order_number']){{ $card['order_number'] }} · @endif
+                                            <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                                        </div>
+                                        <div class="pp-chips"><span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.invoice_approval_pending') }}</span></div>
                                     </div>
-                                    <div class="pp-chips"><span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.invoice_approval_pending') }}</span></div>
-                                </div>
-                            @empty
-                                <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
-                            @endforelse
-                            @if ($pipeline['pendingInvoicesMore'])
-                                <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['pendingInvoicesMore']]) }}</div>
-                            @endif
+                                @endforeach
+                            </div>
                         </div>
 
                         {{-- Completed --}}
                         <div class="pp-col" data-pp-stage="completed" style="--pp-c: var(--pp-completed)">
-                            @forelse ($pipeline['completed'] as $card)
-                                <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
-                                    <div class="pp-t">{{ $card['order_number'] }}</div>
-                                    <div class="pp-d">
-                                        {{ trans('admin/purchase-orders/general.pipeline_items', ['count' => $card['items_count']]) }}
-                                        · <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                            <div class="pp-col-cards">
+                                @foreach ($pipeline['completed'] as $card)
+                                    <div class="pp-card" data-pp-modal="order-{{ $card['id'] }}" tabindex="0" role="button">
+                                        <div class="pp-t">{{ $card['order_number'] }}</div>
+                                        <div class="pp-d">
+                                            {{ trans('admin/purchase-orders/general.pipeline_items', ['count' => $card['items_count']]) }}
+                                            · <span class="pp-money">{{ $fmt($card['total']) }}</span>
+                                        </div>
+                                        <div class="pp-chips">
+                                            <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.pipeline_deployed_badge') }}</span>
+                                            <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.invoice_approval_approved') }}</span>
+                                        </div>
                                     </div>
-                                    <div class="pp-chips">
-                                        <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.pipeline_deployed_badge') }}</span>
-                                        <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.invoice_approval_approved') }}</span>
-                                    </div>
-                                </div>
-                            @empty
-                                <div class="pp-card pp-empty">{{ trans('admin/purchase-orders/general.pipeline_empty_column') }}</div>
-                            @endforelse
-                            @if ($pipeline['completedMore'])
-                                <div class="pp-more">{{ trans('admin/purchase-orders/general.pipeline_more_cards', ['count' => $pipeline['completedMore']]) }}</div>
-                            @endif
+                                @endforeach
+                            </div>
                         </div>
 
                     </div>
@@ -697,16 +652,14 @@
         if (! input) { return; }
         input.addEventListener('input', function () {
             var term = input.value.trim().toLowerCase();
-            document.querySelectorAll('.pp-board .pp-card:not(.pp-empty)').forEach(function (card) {
+            document.querySelectorAll('.pp-board .pp-card').forEach(function (card) {
                 card.style.display = (term === '' || card.textContent.toLowerCase().indexOf(term) !== -1) ? '' : 'none';
             });
         });
     })();
 
     // Card lightbox: clone the card's hidden content block into the shared
-    // Bootstrap modal. Report cards (data-pp-embed) fetch the report's
-    // embed table into the modal instead — same mechanism the inline
-    // report boxes use, so the lightbox always matches the full report.
+    // Bootstrap modal.
     (function () {
         var store = document.getElementById('pp-modal-store');
         var title = document.getElementById('ppModalTitle');
@@ -735,32 +688,8 @@
             showModal(content.dataset.ppColor);
         }
 
-        function openEmbed(el) {
-            title.textContent = el.dataset.ppEmbedTitle;
-            body.innerHTML = '<div class="text-center text-muted" style="padding:18px;"><i class="fa fa-spinner fa-spin" aria-hidden="true"></i></div>';
-            showModal(el.dataset.ppEmbedColor);
-            fetch(el.dataset.ppEmbed, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
-                .then(function (resp) {
-                    if (! resp.ok) { throw new Error('HTTP ' + resp.status); }
-                    return resp.text();
-                })
-                .then(function (html) {
-                    body.innerHTML = html;
-                    if (el.dataset.ppEmbedOpen) {
-                        var foot = document.createElement('div');
-                        foot.style.marginTop = '10px';
-                        foot.innerHTML = '<a class="btn btn-primary btn-sm" href="' + el.dataset.ppEmbedOpen + '">' +
-                            @json(trans('admin/purchase-orders/general.pipeline_open_report')) + '</a>';
-                        body.appendChild(foot);
-                    }
-                })
-                .catch(function () {
-                    body.innerHTML = '<p class="text-danger">' + @json(trans('general.something_went_wrong')) + '</p>';
-                });
-        }
-
-        document.querySelectorAll('.pp-card[data-pp-modal], .pp-card[data-pp-embed]').forEach(function (el) {
-            var open = function () { el.dataset.ppModal ? openCard(el.dataset.ppModal) : openEmbed(el); };
+        document.querySelectorAll('.pp-card[data-pp-modal]').forEach(function (el) {
+            var open = function () { openCard(el.dataset.ppModal); };
             el.addEventListener('click', open);
             el.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }

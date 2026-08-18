@@ -200,17 +200,22 @@ class RefreshForecast
     }
 
     /**
-     * Assets and lease contracts carrying an approved (or completed) buyout,
-     * as [assetIds, contractReferences]. A decision recorded against the
-     * contract covers every device on it; one recorded against an asset
-     * covers just that device.
+     * Assets and lease contracts we are keeping, as [assetIds,
+     * contractReferences]. A decision recorded against the contract covers
+     * every device on it; one recorded against an asset covers just that
+     * device.
+     *
+     * Retained counts alongside bought out: both end with the equipment
+     * staying, which is the only thing the forecast cares about — a kept
+     * device needs no replacement budgeting whether we paid to keep it or
+     * the lease-to-own term simply ran out.
      *
      * @return array{0: array<int, int>, 1: array<int, string>}
      */
     private function approvedBuyouts(): array
     {
         $decisions = \App\Models\LeaseDecision::query()
-            ->where('decision_type', 'buyout')
+            ->whereIn('decision_type', ['buyout', 'retain'])
             ->whereIn('status', ['approved', 'completed'])
             ->get(['asset_id', 'contract_reference']);
 

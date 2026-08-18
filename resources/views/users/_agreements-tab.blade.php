@@ -28,7 +28,10 @@
                     <td>{{ $agreement->created_at?->toDateString() ?? '—' }}</td>
                     <td>
                         @if ($agreement->pdf_path || $agreement->signed_pdf_path)
-                            <a href="{{ route('user-agreements.pdf', $agreement->id) }}" target="_blank" rel="noopener">
+                            {{-- Opens in the record lightbox; cmd/middle-click
+                                 still gets a tab, and the lightbox bar has its
+                                 own open-in-new-tab. --}}
+                            <a class="js-lightbox" href="{{ route('user-agreements.pdf', $agreement->id) }}" target="_blank" rel="noopener">
                                 <i class="fas fa-file-pdf" aria-hidden="true"></i>
                                 @if ($agreement->signed_pdf_path)
                                     {{ trans('admin/forms/faculty-program.submission_pdf_signed') }}
