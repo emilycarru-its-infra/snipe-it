@@ -1190,12 +1190,50 @@ class ProcurementReportsTest extends TestCase
             'subtotal' => 999.99,
         ]);
 
-        $this->actingAs($this->superuser())
+        $content = $this->actingAs($this->superuser())
             ->get(route('reports.procurement.po-drilldown'))
             ->assertOk()
             ->assertSee('PO-DRILL-1')
             ->assertSee('PMCN-DRILL-1')
-            ->assertSee('INV-DRILL-1');
+            ->assertSee('INV-DRILL-1')
+            ->getContent();
+
+        // The PO is the row and its invoices nest beneath it, the same shape
+        // Extension Watch and Asset Lease Detail use. It used to be a flat
+        // run of invoice rows with a tinted subtotal marking each boundary,
+        // which meant repeating the PO number down a column.
+        $this->assertStringContainsString('rpt-child-table', $content);
+        $this->assertSame(1, substr_count($content, '>PO-DRILL-1<'));
+        $this->assertStringNotContainsString('PO-DRILL-1 '.trans('admin/orders/general.total'), $content);
+    }
+
+    public function test_a_po_row_shows_that_something_inside_it_is_off()
+    {
+        // Folding the detail must not fold the signal: a variance lives on
+        // an invoice, but the reader scanning collapsed POs has to see which
+        // one is worth opening.
+        $po = PurchaseOrder::factory()->create(['po_number' => 'PO-DRILL-VAR', 'budget' => 10000]);
+        $order = Order::factory()->create([
+            'order_number' => 'PMCN-DRILL-VAR',
+            'purchase_order_id' => $po->id,
+        ]);
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'invoice_number' => 'INV-DRILL-VAR',
+            'subtotal' => 999.99,
+        ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.po-drilldown'))
+            ->assertOk()
+            ->getContent();
+
+        // The invoice bills 999.99 against no line items at all, so the whole
+        // subtotal is variance and both rows carry the warning.
+        $this->assertNotEquals(0.0, round($invoice->variance(), 2));
+        // Twice: once on the invoice row that is off, once on the PO row
+        // above it that has to say so while collapsed.
+        $this->assertGreaterThanOrEqual(2, substr_count($content, 'class="danger"'));
     }
 
     public function test_faculty_ledger_scopes_by_programme_cycle_not_row_creation_date()
@@ -1802,6 +1840,39 @@ class ProcurementReportsTest extends TestCase
 
         // The register dropped the ARO initialism.
         $this->assertSame('Buyout Register', trans('admin/purchase-orders/general.report_aro_register'));
+    }
+
+    public function test_reports_sit_under_the_stage_a_reader_looks_for_them_in()
+    {
+        // Stage is where the reader goes looking, not where the work
+        // happens. The Buyout Register and Capital Spend are consulted
+        // while setting a year's envelope; the Disposition Grid describes
+        // devices whose lifecycle is over.
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->getContent();
+
+        $stageOf = function (string $report) use ($content) {
+            $at = strpos($content, 'data-pr-report="proc-'.$report.'"');
+            $this->assertNotFalse($at, "no pill for {$report}");
+            // The pill's own column, i.e. the nearest stage above it.
+            $before = substr($content, 0, $at);
+            preg_match_all('/data-report-stage="([a-z]+)"/', $before, $m);
+
+            return end($m[1]);
+        };
+
+        $this->assertSame('budgeting', $stageOf('report_aro_register'));
+        $this->assertSame('budgeting', $stageOf('report_capital'));
+        $this->assertSame('completed', $stageOf('report_disposition_grid'));
+
+        // The grid leads its column rather than trailing the reports that
+        // were already there.
+        $this->assertLessThan(
+            strpos($content, 'data-pr-report="proc-report_po_disposition"'),
+            strpos($content, 'data-pr-report="proc-report_disposition_grid"')
+        );
     }
 
     public function test_reports_read_provider_from_the_lessor_field()
