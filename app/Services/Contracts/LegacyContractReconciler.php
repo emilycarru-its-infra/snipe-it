@@ -103,7 +103,7 @@ class LegacyContractReconciler
             ->where('source', 'tdx')
             ->whereNotNull('product')
             ->where('product', '<>', '')
-            ->with('parent')
+            ->with('parentContract')
             ->orderByDesc('end_date')
             ->get()
             ->groupBy(fn (Contract $c) => mb_strtolower(trim($c->product)))
@@ -152,7 +152,7 @@ class LegacyContractReconciler
             'matched_tdx_id' => $match?->tdx_id ? (int) $match->tdx_id : null,
             'matched_contract_number' => $match?->contract_number,
             'parent_id' => $match?->parent_contract_id ? (int) $match->parent_contract_id : null,
-            'parent_name' => $match?->parent?->name,
+            'parent_name' => $match?->parentContract?->name,
         ];
     }
 }
