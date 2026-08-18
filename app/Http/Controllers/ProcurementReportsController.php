@@ -3615,19 +3615,66 @@ class ProcurementReportsController extends Controller
         // agreement type they can hold, so a member's whole program
         // position reads on a single line instead of scattering across
         // interleaved rows.
-        $types = $agreements->pluck('agreement_type')->unique()->values()->all();
+        // Fixed order, not order-of-appearance: the buyout of the OLD device
+        // sits beside the old serial it prices, then the new device's serial,
+        // then the agreements about the NEW device.
+        $types = collect(['purchase', 'pickup', 'upgrade'])
+            ->filter(fn ($type) => $agreements->contains('agreement_type', $type))
+            ->values()
+            ->all();
 
-        $columns = array_merge(
-            [
-                trans('admin/purchase-orders/general.user_agreement_member'),
-                trans('admin/purchase-orders/general.detail_asset_tag'),
-                trans('admin/purchase-orders/general.detail_serial'),
-                trans('admin/user-agreements/general.originating_contract'),
-                trans('admin/purchase-orders/general.user_agreement_stage'),
-            ],
-            array_map(fn ($type) => trans('admin/purchase-orders/general.user_agreement_type_value_'.$type), $types),
-            [trans('admin/orders/general.total')]
-        );
+        // Column layout: Stage | Member | Asset Tag | Serial | Purchase |
+        // New Serial | New Laptop Pickup | Paid Upgrade | Lease Contract |
+        // Total — with absent agreement types dropped. colOf() gives every
+        // later map (docs, actions, links) the same truth about indexes.
+        $preTypes = [
+            trans('admin/purchase-orders/general.user_agreement_stage'),
+            trans('admin/purchase-orders/general.user_agreement_member'),
+            trans('admin/purchase-orders/general.detail_asset_tag'),
+            trans('admin/purchase-orders/general.detail_serial'),
+        ];
+        $typeCols = [];
+        $cursor = count($preTypes);
+        foreach ($types as $type) {
+            $typeCols[$type] = $cursor++;
+        }
+        // New Serial sits right after Purchase (or leads the new-device
+        // columns when no purchase rows exist this cycle); every type
+        // column at or past it shifts one right to make room.
+        $newSerialCol = isset($typeCols['purchase']) ? $typeCols['purchase'] + 1 : count($preTypes);
+        foreach ($typeCols as $type => $col) {
+            if ($col >= $newSerialCol) {
+                $typeCols[$type] = $col + 1;
+            }
+        }
+
+        $columnCount = count($preTypes) + count($types) + 3;
+        $columns = [];
+        foreach ($preTypes as $i => $label) {
+            $columns[$i] = $label;
+        }
+        $columns[$newSerialCol] = trans('admin/user-agreements/general.new_serial');
+        foreach ($typeCols as $type => $col) {
+            $columns[$col] = trans('admin/purchase-orders/general.user_agreement_type_value_'.$type);
+        }
+        $columns[$columnCount - 2] = trans('admin/user-agreements/general.originating_contract');
+        $columns[$columnCount - 1] = trans('admin/orders/general.total');
+        ksort($columns);
+
+        // The issued replacement for each old device, resolved in one query:
+        // the wave item that replaces it, carrying the new device when it
+        // exists. Empty until the new laptop is real — never a stand-in.
+        $oldAssetIds = $agreements->pluck('asset_id')->filter()->unique()->values();
+        $replacements = collect();
+        $issuedAssets = collect();
+        if ($oldAssetIds->isNotEmpty()) {
+            $replacements = DeploymentItem::query()
+                ->whereIn('replaces_asset_id', $oldAssetIds)
+                ->whereNotNull('asset_id')
+                ->get()
+                ->keyBy('replaces_asset_id');
+            $issuedAssets = Asset::whereIn('id', $replacements->pluck('asset_id'))->get()->keyBy('id');
+        }
 
         $records = [];
         $totalValue = 0.0;
@@ -3638,55 +3685,73 @@ class ProcurementReportsController extends Controller
             $asset = $group->pluck('asset')->filter()->first();
             $userTotal = 0.0;
 
-            // Column index of the first agreement-type cell: Member, Asset
-            // Tag, Serial, Lease Contract, Stage come first.
-            $firstTypeCol = 5;
-            $typeCells = [];
-            $typeDocs = [];
+            $cells = array_fill(0, $columnCount, '');
+            $docs = [];
+            $cellActions = [];
             $rowDocs = [];
             $rowIds = [];
-            foreach ($types as $typeIndex => $type) {
+
+            foreach ($types as $type) {
+                $col = $typeCols[$type];
                 $ofType = $group->where('agreement_type', $type);
                 if ($ofType->isEmpty()) {
-                    $typeCells[] = $type === 'pickup' ? '' : '—';
-
                     continue;
                 }
                 // Payable, not contract value: a pickup's device cost is the
                 // university's money, not the member's, and summing it here
-                // once rendered a page of free pickups as $22k owed.
+                // once rendered a page of free pickups as $22k owed. And no
+                // value means an empty cell — never a dash beside a chip.
                 $value = (float) $ofType->sum(fn ($agreement) => $agreement->payableValue());
                 $userTotal += $value;
-                // The pickup column is paperwork, not money — the PDF chip is
-                // its whole content, so no amount and no dash either. In the
-                // paid columns a zero reads as a dash, the same as a type the
-                // member holds no agreement in: a column of "$0.00" is noise
-                // to scan past before the handful of real figures show.
-                if ($type === 'pickup') {
-                    $typeCells[] = '';
-                } else {
-                    $typeCells[] = $value > 0 ? $this->money($value) : '—';
-                }
+                $cells[$col] = $value > 0 ? $this->money($value) : '';
 
-                // The paperwork rides beside the amount it was generated
-                // for. Finance was opening a member's page to reach these,
-                // which meant leaving the ledger they are reconciling
-                // against. Only agreements with a PDF actually on file are
-                // linked — an icon promising a render that might fail is
-                // worse than no icon.
                 foreach ($ofType as $agreement) {
-                    if (! $agreement->pdf_path && ! $agreement->signed_pdf_path) {
+                    // The paperwork rides beside the amount it was generated
+                    // for; only agreements with a PDF actually on file link.
+                    if ($agreement->pdf_path || $agreement->signed_pdf_path) {
+                        $url = route('user-agreements.pdf', $agreement->id);
+                        $docs[$col][] = [
+                            'url' => $url,
+                            'label' => $agreement->signed_pdf_path
+                                ? trans('admin/forms/faculty-program.submission_pdf_signed')
+                                : trans('admin/forms/faculty-program.submission_pdf_preview'),
+                        ];
+                        $rowDocs[] = $url;
+                        $rowIds[] = $agreement->id;
+                    }
+
+                    // The work happens in the cell it belongs to: an
+                    // icon-only send beside the PDF it would send, so three
+                    // identical buttons at the row's edge never have to be
+                    // told apart. Sending emails the member — it confirms.
+                    if ($agreement->lifecycle_stage === 'cancelled') {
                         continue;
                     }
-                    $url = route('user-agreements.pdf', $agreement->id);
-                    $typeDocs[$firstTypeCol + $typeIndex][] = [
-                        'url' => $url,
-                        'label' => $agreement->signed_pdf_path
-                            ? trans('admin/forms/faculty-program.submission_pdf_signed')
-                            : trans('admin/forms/faculty-program.submission_pdf_preview'),
-                    ];
-                    $rowDocs[] = $url;
-                    $rowIds[] = $agreement->id;
+                    $typeLabel = trans('admin/purchase-orders/general.user_agreement_type_value_'.$type);
+                    if (! $agreement->checkout_acceptance_id && $agreement->asset_id && $agreement->user_id) {
+                        $cellActions[$col][] = [
+                            'url' => route('user-agreements.send-for-signature', $agreement),
+                            'icon' => 'paper-plane',
+                            'style' => 'primary',
+                            'title' => trans('admin/user-agreements/general.ledger_send_title', ['type' => $typeLabel]),
+                            'confirm' => trans('admin/user-agreements/general.ledger_send_confirm', [
+                                'type' => $typeLabel,
+                                'name' => $first->user->full_name ?? '',
+                            ]),
+                        ];
+                    }
+                    if (($agreement->signed_at || $agreement->signed_pdf_path) && ! $agreement->sent_to_payroll_at && $agreement->payableValue() > 0) {
+                        $cellActions[$col][] = [
+                            'url' => route('user-agreements.send-to-payroll', $agreement),
+                            'icon' => 'file-invoice-dollar',
+                            'style' => 'default',
+                            'title' => trans('admin/user-agreements/general.ledger_payroll_title', ['type' => $typeLabel]),
+                            'confirm' => trans('admin/user-agreements/general.ledger_payroll_confirm', [
+                                'type' => $typeLabel,
+                                'name' => $first->user->full_name ?? '',
+                            ]),
+                        ];
+                    }
                 }
             }
 
@@ -3712,75 +3777,41 @@ class ProcurementReportsController extends Controller
                 'class' => UserAgreement::STAGE_LABEL_CLASS[$stage] ?? 'default',
             ])->all();
 
-            // The ledger is where these get worked, so the work happens on
-            // the row: send an agreement out for signature, stamp a signed
-            // one as forwarded to payroll. Sending emails the member, so it
-            // confirms first, like every button that really sends.
-            $rowActions = [];
-            foreach ($live as $agreement) {
-                $typeLabel = trans('admin/purchase-orders/general.user_agreement_type_value_'.$agreement->agreement_type);
-                if (! $agreement->checkout_acceptance_id && $agreement->asset_id && $agreement->user_id) {
-                    $rowActions[] = [
-                        'method' => 'POST',
-                        'url' => route('user-agreements.send-for-signature', $agreement),
-                        'icon' => 'paper-plane',
-                        'style' => 'primary',
-                        'label' => trans('admin/user-agreements/general.ledger_send'),
-                        'title' => trans('admin/user-agreements/general.ledger_send_title', ['type' => $typeLabel]),
-                        'confirm' => trans('admin/user-agreements/general.ledger_send_confirm', [
-                            'type' => $typeLabel,
-                            'name' => $first->user->full_name ?? '',
-                        ]),
-                    ];
-                }
-                if (($agreement->signed_at || $agreement->signed_pdf_path) && ! $agreement->sent_to_payroll_at && $agreement->payableValue() > 0) {
-                    $rowActions[] = [
-                        'method' => 'POST',
-                        'url' => route('user-agreements.send-to-payroll', $agreement),
-                        'icon' => 'file-invoice-dollar',
-                        'style' => 'default',
-                        'label' => trans('admin/user-agreements/general.ledger_payroll'),
-                        'title' => trans('admin/user-agreements/general.ledger_payroll_title', ['type' => $typeLabel]),
-                        'confirm' => trans('admin/user-agreements/general.ledger_payroll_confirm', [
-                            'type' => $typeLabel,
-                            'name' => $first->user->full_name ?? '',
-                        ]),
-                    ];
-                }
-            }
+            // The new device the cycle issues this member, when it exists.
+            $newAsset = $group->pluck('asset_id')->filter()
+                ->map(fn ($id) => $issuedAssets->get($replacements->get($id)?->asset_id))
+                ->filter()
+                ->first();
+
+            $cells[0] = $stages->map(fn ($stage) => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage))->implode(' / ');
+            $cells[1] = (string) ($first->user->full_name ?? '');
+            $cells[2] = (string) ($asset?->asset_tag ?? '');
+            $cells[3] = (string) ($asset?->serial ?? '');
+            $cells[$newSerialCol] = (string) ($newAsset->serial ?? '');
+            $cells[$columnCount - 2] = (string) ($group->pluck('lease_contract')->filter()->unique()->implode(', '));
+            $cells[$columnCount - 1] = $userTotal > 0 ? $this->money($userTotal) : '';
 
             $records[] = [
-                'row_actions' => $rowActions,
                 'class' => '',
                 'links' => array_filter([
-                    0 => $first->user ? route('users.show', $first->user->id) : null,
-                    1 => $asset ? route('hardware.show', $asset->id) : null,
+                    0 => route('user-agreements.show', $first),
+                    1 => $first->user ? route('users.show', $first->user->id) : null,
                     2 => $asset ? route('hardware.show', $asset->id) : null,
-                    4 => route('user-agreements.show', $first),
+                    3 => $asset ? route('hardware.show', $asset->id) : null,
+                    $newSerialCol => $newAsset ? route('hardware.show', $newAsset->id) : null,
                 ], fn ($link) => $link !== null),
-                'pills' => [4 => $stagePills],
-                'docs' => $typeDocs,
+                'pills' => [0 => $stagePills],
+                'docs' => $docs,
+                'cell_actions' => $cellActions,
                 'select_ids' => $rowIds,
                 'select_docs' => $rowDocs,
-                'cells' => array_merge(
-                    [
-                        (string) ($first->user?->full_name ?? '—'),
-                        (string) ($asset?->asset_tag ?? ''),
-                        (string) ($asset?->serial ?? ''),
-                        (string) ($group->pluck('lease_contract')->filter()->unique()->implode(', ')),
-                        $stages->map(fn ($stage) => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage))->implode(' / '),
-                    ],
-                    $typeCells,
-                    [$userTotal > 0 ? $this->money($userTotal) : '—']
-                ),
+                'cells' => $cells,
             ];
         }
 
-        $footer = array_merge(
-            [trans('admin/orders/general.total'), '', '', '', ''],
-            array_fill(0, count($types), ''),
-            [$this->money($totalValue)]
-        );
+        $footer = array_fill(0, $columnCount, '');
+        $footer[0] = trans('admin/orders/general.total');
+        $footer[$columnCount - 1] = $this->money($totalValue);
 
         // Row selection drives "open" (lightbox queue) and "download"
         // (one zip) over the agreements' PDFs. The value is the endpoint the
