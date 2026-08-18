@@ -1075,12 +1075,18 @@ class ProcurementReportsTest extends TestCase
         ], ['purchase_cost' => 1900.00]);
         Asset::query()->whereKey($early->id)->update(['asset_eol_date' => '2026-10-01']);
 
-        // And one with nothing sharper decided: lease end stands.
-        $this->seedLeaseAsset([
+        // And one with nothing sharper decided: lease end stands. The EOL
+        // has to be cleared explicitly — the asset factory stamps a RANDOM
+        // one (purchase date plus 0-60 months), and whenever that landed
+        // inside FY2026-27 it beat the lease end as the operative date and
+        // dragged this device into the earlier year. That is what made this
+        // test fail intermittently in CI on unrelated branches.
+        $undecided = $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => '2027-08-01',
         ], ['purchase_cost' => 1700.00]);
+        Asset::query()->whereKey($undecided->id)->update(['asset_eol_date' => null]);
 
         // FY2026-27 carries the wave device and the early-EOL device…
         $this->actingAs($this->superuser())
