@@ -63,6 +63,25 @@ class RefreshForecastBuyoutTest extends TestCase
         $this->assertFalse($found->contains('id', $asset->id));
     }
 
+    public function test_a_retained_lease_to_own_contract_drops_the_trigger_too()
+    {
+        // Retained and bought out end the same way for the forecast: the
+        // device stays, so nothing needs budgeting to replace it. The only
+        // difference is whether a cheque was written.
+        $asset = $this->leasedAsset();
+
+        LeaseDecision::factory()->create([
+            'contract_reference' => '4130-TEST20220101',
+            'asset_id' => null,
+            'decision_type' => 'retain',
+            'status' => 'approved',
+        ]);
+
+        $found = (new RefreshForecast)->forFiscalYear('FY2026-27');
+
+        $this->assertFalse($found->contains('id', $asset->id));
+    }
+
     public function test_a_per_asset_buyout_drops_only_that_device()
     {
         $boughtOut = $this->leasedAsset();

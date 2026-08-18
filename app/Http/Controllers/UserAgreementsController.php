@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * CRUD and signing actions for User Agreement Program agreements. The
@@ -271,28 +272,119 @@ class UserAgreementsController extends Controller
      * unsigned preview through Snipe's existing TCPDF generator so the
      * admin can review what the user will see.
      */
-    public function downloadPdf(UserAgreement $userAgreement)
+    public function downloadPdf(Request $request, UserAgreement $userAgreement)
     {
         $this->authorize('view', Order::class);
+
+        // Inline by default: these links open in the record lightbox, which
+        // is an iframe, and an attachment disposition makes it download
+        // instead of render — the reader gets a file in Downloads and an
+        // empty frame. ?download=1 is the explicit save.
+        $download = $request->boolean('download');
 
         if ($userAgreement->signed_pdf_path) {
             $path = 'private_uploads/eula-pdfs/'.$userAgreement->signed_pdf_path;
             if (Storage::exists($path)) {
-                return Storage::download($path, $userAgreement->signed_pdf_path);
+                return $download
+                    ? Storage::download($path, $userAgreement->signed_pdf_path)
+                    : response(Storage::get($path), 200, [
+                        'Content-Type' => 'application/pdf',
+                        'Content-Disposition' => 'inline; filename="'.$userAgreement->signed_pdf_path.'"',
+                    ]);
             }
         }
 
-        return $this->renderUnsignedPdf($userAgreement);
+        return $this->renderUnsignedPdf($userAgreement, $download);
     }
 
-    private function renderUnsignedPdf(UserAgreement $userAgreement): Response
+    /**
+     * Every selected agreement's PDF as one zip.
+     *
+     * Finance reads the ledger and wants the paperwork behind a run of
+     * rows. One file beats a download prompt per agreement, and beats
+     * asking them to visit eighteen member pages to find the same PDFs.
+     */
+    public function bulkPdf(Request $request)
+    {
+        $this->authorize('view', Order::class);
+
+        $ids = collect(explode(',', (string) $request->input('ids')))
+            ->map(fn ($id) => (int) trim($id))
+            ->filter()
+            ->unique();
+
+        $agreements = UserAgreement::with('user')->whereIn('id', $ids)->get();
+
+        if ($agreements->isEmpty()) {
+            return redirect()->back()->with('error', trans('admin/purchase-orders/general.docs_none_selected'));
+        }
+
+        $archive = tempnam(sys_get_temp_dir(), 'agreements');
+        $zip = new \ZipArchive;
+        $zip->open($archive, \ZipArchive::OVERWRITE);
+
+        $used = [];
+        foreach ($agreements as $agreement) {
+            $bytes = $this->pdfBytes($agreement);
+            if ($bytes === null) {
+                continue;
+            }
+
+            // Name the entry after the person and the agreement rather than
+            // the row id — the zip is going to a human who is filing it.
+            $base = Str::slug(trim(
+                ($agreement->user?->full_name ?: 'agreement')
+                .' '.$agreement->agreement_type
+            )) ?: 'agreement';
+            $name = $base.'-'.$agreement->id.'.pdf';
+            // Two agreements of the same type for the same person would
+            // otherwise silently overwrite each other inside the archive.
+            $used[$name] = ($used[$name] ?? 0) + 1;
+            if ($used[$name] > 1) {
+                $name = $base.'-'.$agreement->id.'-'.$used[$name].'.pdf';
+            }
+
+            $zip->addFromString($name, $bytes);
+        }
+
+        $zip->close();
+
+        return response()->download($archive, 'user-agreements-'.date('Y-m-d').'.zip', [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * The agreement's PDF bytes — the signed copy when one is on file,
+     * otherwise a freshly rendered unsigned one. Null when neither can be
+     * produced, so a single broken record cannot fail a whole zip.
+     */
+    private function pdfBytes(UserAgreement $agreement): ?string
+    {
+        if ($agreement->signed_pdf_path) {
+            $path = 'private_uploads/eula-pdfs/'.$agreement->signed_pdf_path;
+            if (Storage::exists($path)) {
+                return Storage::get($path);
+            }
+        }
+
+        try {
+            return $agreement->renderUnsignedPdfBytes();
+        } catch (\Throwable $e) {
+            \Log::warning('Skipped agreement '.$agreement->id.' in bulk PDF: '.$e->getMessage());
+
+            return null;
+        }
+    }
+
+    private function renderUnsignedPdf(UserAgreement $userAgreement, bool $download = false): Response
     {
         $pdf = $userAgreement->renderUnsignedPdfBytes();
         $filename = 'user-agreement-'.$userAgreement->id.'-preview.pdf';
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Content-Disposition' => ($download ? 'attachment' : 'inline').'; filename="'.$filename.'"',
         ]);
     }
 }

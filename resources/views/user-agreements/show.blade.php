@@ -48,7 +48,7 @@
                 <a class="btn btn-warning" href="{{ route('user-agreements.edit', $agreement) }}">
                     <i class="fas fa-pencil-alt"></i> {{ trans('general.update') }}
                 </a>
-                <a class="btn btn-default" href="{{ route('user-agreements.pdf', $agreement) }}" target="_blank">
+                <a class="btn btn-default js-lightbox" href="{{ route('user-agreements.pdf', $agreement) }}" target="_blank">
                     @if ($agreement->signed_pdf_path)
                         <i class="fas fa-download"></i> {{ trans('admin/user-agreements/general.download_signed_pdf') }}
                     @else

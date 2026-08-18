@@ -44,8 +44,43 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement'))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.dashboard_title'))
-            ->assertSee('procPoChart')
-            ->assertSee('procMonthlyChart');
+            ->assertSee('procPoChart');
+    }
+
+    public function test_the_tile_row_follows_the_fiscal_year_scope()
+    {
+        PurchaseOrder::factory()->create(['po_number' => 'PO-SCOPE', 'fiscal_year' => 'FY2026-27', 'budget' => 25000]);
+        $superuser = $this->superuser();
+
+        // Inside one year: utilisation against that year's pot, and the
+        // returns the year is chasing.
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            // The canvas, not the script that looks for it by id.
+            ->assertSee('<canvas id="procUtilChart">', false)
+            ->assertSee('>'.trans('admin/purchase-orders/general.returns_card_title').'<', false)
+            ->assertDontSee('<canvas id="procFyChart">', false);
+
+        // Across every year: the year-on-year comparison, and neither of the
+        // two that only mean something inside a cycle.
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('<canvas id="procFyChart">', false)
+            ->assertDontSee('<canvas id="procUtilChart">', false)
+            // The card's heading, not the word wherever it appears — a
+            // script comment on the same page mentions it too.
+            ->assertDontSee('>'.trans('admin/purchase-orders/general.returns_card_title').'<', false);
+    }
+
+    public function test_the_monthly_invoiced_chart_is_gone()
+    {
+        // Four points of invoice timing told nobody anything they act on.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertDontSee('procMonthlyChart');
     }
 
     public function test_dashboard_filters_by_fiscal_year()
@@ -1335,6 +1370,84 @@ class ProcurementReportsTest extends TestCase
         return $asset->fresh();
     }
 
+    public function test_asset_lease_detail_groups_devices_under_their_contract()
+    {
+        // Two devices on one schedule, one on another. Flat, this report
+        // repeated the contract id down a column and never totalled it;
+        // grouped, the contract is the row and its devices nest beneath.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240501',
+            'Lease End Date' => '2028-05-01',
+        ], ['asset_tag' => 'ALD-1', 'serial' => 'ALDSERIAL1', 'purchase_cost' => 1000]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240501',
+            'Lease End Date' => '2028-05-01',
+        ], ['asset_tag' => 'ALD-2', 'serial' => 'ALDSERIAL2', 'purchase_cost' => 1500]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240601',
+            'Lease End Date' => '2028-06-01',
+        ], ['asset_tag' => 'ALD-3', 'serial' => 'ALDSERIAL3', 'purchase_cost' => 700]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.asset-lease-detail', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('ECI20240501')
+            ->assertSee('ECI20240601')
+            // Devices still appear — in the nested table, not as top rows.
+            ->assertSee('ALDSERIAL1')
+            ->assertSee('ALDSERIAL2')
+            ->getContent();
+
+        // One parent row per contract, each carrying a child table.
+        $this->assertSame(1, substr_count($content, '>ECI20240501<'));
+        $this->assertStringContainsString('rpt-child-table', $content);
+
+        // The contract row totals its devices rather than making the reader
+        // add them up: 1000 + 1500.
+        $this->assertStringContainsString('$2,500.00', $content);
+    }
+
+    public function test_a_retained_lease_to_own_decision_books_no_obligation()
+    {
+        // Retained is not a buyout: the lease-to-own term simply ended and
+        // title passed. Logging it as a buyout put a cost on the register
+        // that nobody owes.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20200401',
+            'Lease End Date' => now()->addMonth()->format('Y-m-d'),
+            'Ownership Type' => 'Purchased',
+        ], ['asset_tag' => 'RETAIN-1', 'purchase_date' => '2020-04-01']);
+
+        LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI20200401',
+            'asset_id' => null,
+            'decision_type' => 'retain',
+            'status' => 'approved',
+            'amount' => 4200,
+            'decision_date' => now()->format('Y-m-d'),
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.aro-register', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('ECI20200401')
+            ->assertSee(trans('admin/purchase-orders/general.aro_action_retained'))
+            // The amount is neither shown nor totalled.
+            ->assertDontSee('$4,200.00');
+    }
+
+    public function test_the_lease_decision_form_offers_retained()
+    {
+        $decision = LeaseDecision::factory()->create(['decision_type' => 'buyout']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('lease-decisions.edit', $decision))
+            ->assertOk()
+            ->assertSee('value="retain"', false)
+            ->assertSee(trans('admin/lease-decisions/general.type_retain'))
+            ->assertSee(trans('admin/lease-decisions/general.type_retain_help'));
+    }
+
     public function test_disposition_grid_lists_serials_under_a_contract_dropdown()
     {
         $this->seedLeaseAsset([
@@ -1547,7 +1660,10 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.lessor_chart_cost'))
             ->assertSee('chart-lessor-ownership')
             ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'))
-            ->assertSee(trans('admin/purchase-orders/general.report_rent_costs'));
+            ->assertSee(trans('admin/purchase-orders/general.report_rent_costs'))
+            // Data health closes the page — too granular for the
+            // procurement stream, at home with the leases it describes.
+            ->assertSee(trans('admin/purchase-orders/general.report_lease_data_health'));
 
         $this->actingAs($this->superuser())
             ->get(route('reports.lessor-breakdown', ['format' => 'csv']))
@@ -1646,6 +1762,11 @@ class ProcurementReportsTest extends TestCase
 
         // Lessor Breakdown left the procurement list for the reports root.
         $this->assertStringNotContainsString('proc-report_lessor_breakdown', $content);
+
+        // Rent Costs and Lease Data Health moved to /procurement/leasing,
+        // where the portfolio they describe already lives.
+        $this->assertStringNotContainsString('proc-report_rent_costs', $content);
+        $this->assertStringNotContainsString('proc-report_lease_data_health', $content);
 
         // The register dropped the ARO initialism.
         $this->assertSame('Buyout Register', trans('admin/purchase-orders/general.report_aro_register'));

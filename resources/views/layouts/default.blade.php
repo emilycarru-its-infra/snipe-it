@@ -1846,6 +1846,13 @@
         [data-theme="dark"] .table > tbody > tr.danger > td,
         [data-theme="dark"] .table > tbody > tr > td.danger { background-color: rgba(221, 75, 57, .26) !important; color: var(--color-fg) !important; }
         [data-theme="dark"] .table > tbody > tr.active > td { background-color: rgba(255, 255, 255, .06) !important; color: var(--color-fg) !important; }
+        /* Bootstrap 3 paints every nested table a hard white (`.table .table
+           { background-color: #fff }`) so a table-in-a-table stands out on a
+           white page. In dark mode that lands white-on-white and the rows
+           read as blank — the Extension Watch's devices under a contract and
+           the Lease Reconciliation's matched serials both vanished. A nested
+           table takes the surface it is sitting on, in either theme. */
+        .table .table { background-color: transparent; }
         {{-- Frozen report-table headings live in
              reports/procurement/_report-sticky-js — page-level sticky, no
              inner scroll region. The old rules here (max-height + overflow
@@ -2187,12 +2194,27 @@
             border: 1px solid var(--box-header-top-border-color, #d2d6de);
             font-size: 16px; line-height: 1; cursor: pointer;
         }
-        #app-lightbox .lightbox-open-full {
+        #app-lightbox .lightbox-open-full,
+        #app-lightbox .lightbox-prev,
+        #app-lightbox .lightbox-next {
             width: 32px; height: 32px; border-radius: 999px;
             background: var(--box-bg, #fff); color: var(--color-fg, #444) !important;
             border: 1px solid var(--box-header-top-border-color, #d2d6de);
             font-size: 13px; display: flex; align-items: center; justify-content: center;
         }
+        #app-lightbox .lightbox-prev[hidden],
+        #app-lightbox .lightbox-next[hidden] { display: none; }
+        #app-lightbox .lightbox-prev:disabled,
+        #app-lightbox .lightbox-next:disabled { opacity: .35; cursor: default; }
+        /* The queue counter sits at the left of the bar, away from the
+           close button, so stepping through never lands on dismiss. */
+        #app-lightbox .lightbox-position {
+            margin-right: auto; font-size: 12px; font-variant-numeric: tabular-nums;
+            color: var(--color-fg, #444);
+        }
+        #app-lightbox .lightbox-prev { order: -2; }
+        #app-lightbox .lightbox-position { order: -3; }
+        #app-lightbox .lightbox-next { order: -1; }
         body.lightbox-open { overflow: hidden; }
         /* Native color swatches ship a white chrome that glares in dark
            mode; theme the well so the swatch is the only color. */
@@ -4285,6 +4307,17 @@
             <div class="lightbox-backdrop"></div>
             <div class="lightbox-panel" role="dialog" aria-modal="true">
                 <div class="lightbox-bar">
+                    {{-- Paging controls, shown only when the box was handed a
+                         queue (a report's selected PDFs). A burst of
+                         window.open() gets blocked and loses most of the
+                         tabs; stepping through them here does not. --}}
+                    <button type="button" class="lightbox-prev" hidden aria-label="{{ trans('general.previous') }}">
+                        <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <span class="lightbox-position" hidden></span>
+                    <button type="button" class="lightbox-next" hidden aria-label="{{ trans('general.next') }}">
+                        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                    </button>
                     <a href="#" target="_blank" rel="noopener" class="lightbox-open-full" title="{{ trans('general.view') }}">
                         <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
                     </a>
@@ -4299,23 +4332,49 @@
             if (!box || window.self !== window.top) { return; }
             var frame = box.querySelector('iframe');
             var full = box.querySelector('.lightbox-open-full');
+            var prev = box.querySelector('.lightbox-prev');
+            var next = box.querySelector('.lightbox-next');
+            var position = box.querySelector('.lightbox-position');
+            var queue = [];
+            var at = 0;
 
-            function open(url) {
-                frame.src = url;
-                full.href = url;
+            function show(index) {
+                at = Math.min(Math.max(index, 0), queue.length - 1);
+                frame.src = queue[at];
+                full.href = queue[at];
+                var paged = queue.length > 1;
+                prev.hidden = next.hidden = position.hidden = ! paged;
+                if (paged) {
+                    position.textContent = (at + 1) + ' / ' + queue.length;
+                    prev.disabled = at === 0;
+                    next.disabled = at === queue.length - 1;
+                }
+            }
+            function openQueue(urls) {
+                if (! urls || ! urls.length) { return; }
+                queue = urls.slice();
+                show(0);
                 box.hidden = false;
                 document.body.classList.add('lightbox-open');
+            }
+            function open(url) {
+                openQueue([url]);
             }
             function close() {
                 box.hidden = true;
                 frame.src = 'about:blank';
+                queue = [];
                 document.body.classList.remove('lightbox-open');
             }
 
+            prev.addEventListener('click', function () { show(at - 1); });
+            next.addEventListener('click', function () { show(at + 1); });
+
             // Other scripts (e.g. the procurement pipeline cards) open full
             // record pages in this same lightbox instead of building their
-            // own reduced modals.
-            window.appLightbox = { open: open, close: close };
+            // own reduced modals. openQueue takes several at once — the
+            // report tables hand it a selection of agreement PDFs.
+            window.appLightbox = { open: open, openQueue: openQueue, close: close };
 
             document.addEventListener('click', function (e) {
                 var link = e.target.closest ? e.target.closest('a.js-lightbox') : null;

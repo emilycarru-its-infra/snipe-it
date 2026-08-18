@@ -37,8 +37,7 @@ class ProcurementPipelineTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.stage_completed'))
             ->assertSee('ORD-PIPE-OPEN')
             ->assertSee('PLN-PIPE-1')
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_needs_po'))
-            ->assertSee(trans('admin/purchase-orders/general.returns_card_title'));
+            ->assertSee(trans('admin/purchase-orders/general.pipeline_needs_po'));
     }
 
     public function test_processing_and_deploying_are_one_stage_linking_to_the_deployments_board()
@@ -99,6 +98,62 @@ class ProcurementPipelineTest extends TestCase
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('INV-PIPE-NOFY');
+    }
+
+    public function test_the_board_withholds_nothing_behind_a_more_row()
+    {
+        // Eleven pending invoices used to render six cards and a "+ 5 more"
+        // line: the stage's real workload became a number to trust instead
+        // of a list to work from, on the one board that exists to show it.
+        PurchaseOrder::factory()->create(['po_number' => 'PO-PIPE-27', 'fiscal_year' => 'FY2026-27', 'budget' => 100.00]);
+        PurchaseOrder::factory()->create(['po_number' => 'PO-PIPE-26', 'fiscal_year' => 'FY2025-26', 'budget' => 200.00]);
+
+        $order = Order::factory()->create([
+            'order_number' => 'ORD-PIPE-MANY',
+            'is_planned' => false,
+            'fiscal_year' => null,
+        ]);
+
+        foreach (range(1, 11) as $n) {
+            OrderInvoice::factory()->create([
+                'order_id' => $order->id,
+                'invoice_number' => 'INV-PIPE-'.$n,
+                'invoice_date' => '2026-06-11',
+                'approval_status' => 'pending',
+            ]);
+        }
+
+        $response = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk();
+
+        foreach (range(1, 11) as $n) {
+            $response->assertSee('INV-PIPE-'.$n);
+        }
+
+        $response->assertDontSee('pp-more', false);
+    }
+
+    public function test_an_empty_column_says_nothing_rather_than_saying_it_is_empty()
+    {
+        // A dotted card announcing that a stage has nothing in it is one
+        // more thing to read and never an answer to anything.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertDontSee('pp-empty', false)
+            // The lock badge and the budgeting definition line went with it:
+            // both restated the "Needs PO" chip already on every card.
+            ->assertDontSee('pp-gate', false);
+    }
+
+    public function test_agreements_are_not_a_card_on_the_deploying_column()
+    {
+        // Agreements are a report, not an order moving down the pipeline.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertDontSee('data-pp-embed', false);
     }
 
     public function test_reconciling_column_excludes_invoices_from_another_year()
