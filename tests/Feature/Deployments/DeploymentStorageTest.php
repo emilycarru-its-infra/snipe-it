@@ -139,6 +139,20 @@ class DeploymentStorageTest extends TestCase
         $this->assertStringContainsString(trans('admin/deployments/general.storage_no_devices'), $content);
     }
 
+    /**
+     * The layout's rounded-corner clip (.box > .box-body.no-padding
+     * { overflow: hidden }) outranks any single-class scroll rule, so
+     * every scroll container must sit on its exception list. Storage's
+     * lists shipped without that and rendered as cut off, unscrollable.
+     */
+    public function test_storage_scroll_containers_are_excepted_from_the_corner_clip()
+    {
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.storage'))
+            ->assertOk()
+            ->assertSee('.box > .box-body.no-padding.st-scroll', false);
+    }
+
     public function test_the_config_panel_makes_a_room_a_storage_room()
     {
         $room = Location::factory()->create(['name' => 'B1120 Staging']);
