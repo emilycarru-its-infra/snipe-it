@@ -25,11 +25,18 @@
              concerns like the .wrapper overflow lift don't belong. --}}
         /* Bootstrap contextual rows ship hard-coded light tints; in dark
            mode they put near-white text on cream. Re-tint from the accent
-           colours at low alpha so the theme's own text colour stays. */
-        [data-theme="dark"] .rpt-report-table > tbody > tr.warning > td { background-color: rgba(240, 173, 78, .18) !important; }
-        [data-theme="dark"] .rpt-report-table > tbody > tr.info > td { background-color: rgba(60, 141, 188, .22) !important; }
-        [data-theme="dark"] .rpt-report-table > tbody > tr.success > td { background-color: rgba(0, 166, 90, .18) !important; }
-        [data-theme="dark"] .rpt-report-table > tbody > tr.danger > td { background-color: rgba(221, 75, 57, .26) !important; }
+           colours at low alpha so the theme's own text colour stays. Nested
+           unit tables get the same treatment — a child row is where the
+           finding often is (an invoice out by more than a dollar), and the
+           `>` in these selectors means it needs naming separately. */
+        [data-theme="dark"] .rpt-report-table > tbody > tr.warning > td,
+        [data-theme="dark"] .rpt-child-table > tbody > tr.warning > td { background-color: rgba(240, 173, 78, .18) !important; }
+        [data-theme="dark"] .rpt-report-table > tbody > tr.info > td,
+        [data-theme="dark"] .rpt-child-table > tbody > tr.info > td { background-color: rgba(60, 141, 188, .22) !important; }
+        [data-theme="dark"] .rpt-report-table > tbody > tr.success > td,
+        [data-theme="dark"] .rpt-child-table > tbody > tr.success > td { background-color: rgba(0, 166, 90, .18) !important; }
+        [data-theme="dark"] .rpt-report-table > tbody > tr.danger > td,
+        [data-theme="dark"] .rpt-child-table > tbody > tr.danger > td { background-color: rgba(221, 75, 57, .26) !important; }
         /* Nested unit tables (e.g. the Extension Watch's devices under each
            contract): the contract keeps the report's columns, its units get
            their own headed table indented beneath a chevron, open by
@@ -397,7 +404,11 @@
                             </thead>
                             <tbody>
                                 @foreach ($row['children']['rows'] as $child)
-                                    <tr>
+                                    {{-- Child rows carry their own contextual
+                                         class: a nested table can hold the
+                                         finding (an invoice out by more than a
+                                         dollar) rather than just the detail. --}}
+                                    <tr @if (! empty($child['class'])) class="{{ $child['class'] }}" @endif>
                                         @foreach ($child['cells'] as $cci => $childCell)
                                             @if ($childCell !== '' && $childCell !== null && isset($child['links'][$cci]))
                                                 <td><a href="{{ $child['links'][$cci] }}" class="js-lightbox">{{ $childCell }}</a></td>
