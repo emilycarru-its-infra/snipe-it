@@ -987,8 +987,10 @@ input[type="radio"] {
   padding: 0;
   font: inherit;
   vertical-align: middle;
-  background-color: #fff;
-  border: 1px solid @control-border;
+  /* The app's dark mode runs on light-dark(); a hardcoded white well
+     glares in every dark table. */
+  background-color: light-dark(#fff, #26292e);
+  border: 1px solid light-dark(@control-border, #5a6068);
   display: inline-grid;
   place-content: center;
   cursor: pointer;
@@ -1007,7 +1009,7 @@ input[type="radio"] {
 
 input[type="checkbox"]:hover:not(:disabled),
 input[type="radio"]:hover:not(:disabled) {
-  border-color: @control-border-hover;
+  border-color: light-dark(@control-border-hover, #7d848d);
 }
 
 /**
@@ -1078,8 +1080,8 @@ input[type="radio"]:checked::before {
 
 input[type="checkbox"]:disabled,
 input[type="radio"]:disabled {
-  background-color: @control-disabled-bg;
-  border-color: @control-disabled-border;
+  background-color: light-dark(@control-disabled-bg, #2e3136);
+  border-color: light-dark(@control-disabled-border, #43474d);
   color: @control-disabled-mark;
   cursor: not-allowed;
   pointer-events: none;

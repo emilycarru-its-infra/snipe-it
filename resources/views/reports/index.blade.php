@@ -74,7 +74,7 @@
     </div>
     @endcan
 
-    @can('view', \App\Models\Asset::class)
+    @can('reports.printing.view')
     <div class="col-md-3 col-sm-6">
         <a href="{{ route('reports.printing') }}" class="small-box-link" style="text-decoration:none;">
             <div class="small-box bg-yellow">

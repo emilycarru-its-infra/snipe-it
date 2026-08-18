@@ -30,6 +30,7 @@
             @endforeach
         </select>
         {!! $errors->first('decision_type', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+        <p class="help-block">{{ trans('admin/lease-decisions/general.type_retain_help') }}</p>
     </div>
 </div>
 

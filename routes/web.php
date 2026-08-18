@@ -341,6 +341,9 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('user-agreements.send-to-payroll');
     Route::get('user-agreements/{userAgreement}/pdf', [UserAgreementsController::class, 'downloadPdf'])
         ->name('user-agreements.pdf');
+    // A run of agreements as one zip, from the ledger's row selection.
+    Route::post('user-agreements/bulk-pdf', [UserAgreementsController::class, 'bulkPdf'])
+        ->name('user-agreements.bulk-pdf');
 
     /*
     * Exhibit projects — Grad Show / exhibit equipment tracking board.
@@ -434,6 +437,12 @@ Route::group(['middleware' => 'auth'], function () {
         return redirect('/deployments/planning'.($query ? '?'.$query : ''), 301);
     });
 
+    Route::post('deployments/storage/location', [DeploymentsController::class, 'storageLocationToggle'])
+        ->name('deployments.storage.location');
+    Route::post('deployments/storage/move', [DeploymentsController::class, 'storageMove'])
+        ->name('deployments.storage.move');
+    Route::post('deployments/storage/stage-move', [DeploymentsController::class, 'stageMove'])
+        ->name('deployments.storage.stage-move');
     Route::get('deployments/storage', [DeploymentsController::class, 'storage'])
         ->name('deployments.storage')
         ->middleware('can:view,App\Models\Order')
@@ -483,10 +492,10 @@ Route::group(['middleware' => 'auth'], function () {
             ->push(trans('admin/exhibit-projects/general.dashboard_title'), route('deployments.exhibits')));
     Route::post('deployments/exhibits/compose', [ExhibitProjectsController::class, 'compose'])
         ->name('exhibit-projects.compose');
-    Route::get('deployments/waves/create', [DeploymentsController::class, 'create'])
-        ->name('deployment-waves.create')
-        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.create'), route('deployment-waves.create')));
+    // Creating a wave is a popover on the pages that need one, not a
+    // full-screen page; the old address walks to the list.
+    Route::get('deployments/waves/create', fn () => redirect()->route('deployment-waves.index', [], 301))
+        ->name('deployment-waves.create');
     Route::get('deployments/waves/{deploymentWave}', [DeploymentsController::class, 'show'])
         ->name('deployment-waves.show')
         ->breadcrumbs(fn (Trail $trail, $deploymentWave) => ($deploymentCrumb)($trail)
@@ -547,21 +556,21 @@ Route::group(['middleware' => 'auth'], function () {
     Route::delete('deployment-items/{deploymentItem}', [DeploymentItemsController::class, 'destroy'])
         ->name('deployment-items.destroy');
 
-    // Editable catalogs (wave types / per-device stages).
-    Route::get('deployment-config/{catalog}', [DeploymentCatalogController::class, 'index'])
-        ->name('deployment-config.index')
-        ->breadcrumbs(fn (Trail $trail, $catalog) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
-    Route::get('deployment-config/{catalog}/create', [DeploymentCatalogController::class, 'create'])
-        ->name('deployment-config.create')
-        ->breadcrumbs(fn (Trail $trail, $catalog) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
+    // The wave-type / stage catalogs live under admin now — set once,
+    // rarely touched. The write endpoints keep their names; the old GET
+    // pages walk to the admin page.
+    Route::get('admin/deployment-catalogs', [DeploymentCatalogController::class, 'adminIndex'])
+        ->name('deployment-config.admin')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('admin/deployments/general.catalogs_admin_title'), route('deployment-config.admin')));
+    Route::get('deployment-config/{catalog}', fn () => redirect()->route('deployment-config.admin', [], 301))
+        ->name('deployment-config.index');
+    Route::get('deployment-config/{catalog}/create', fn () => redirect()->route('deployment-config.admin', [], 301))
+        ->name('deployment-config.create');
     Route::post('deployment-config/{catalog}', [DeploymentCatalogController::class, 'store'])
         ->name('deployment-config.store');
-    Route::get('deployment-config/{catalog}/{id}/edit', [DeploymentCatalogController::class, 'edit'])
-        ->name('deployment-config.edit')
-        ->breadcrumbs(fn (Trail $trail, $catalog, $id) => ($deploymentCrumb)($trail)
-            ->push(trans('admin/deployments/general.configure'), route('deployment-config.index', $catalog)));
+    Route::get('deployment-config/{catalog}/{id}/edit', fn () => redirect()->route('deployment-config.admin', [], 301))
+        ->name('deployment-config.edit');
     Route::put('deployment-config/{catalog}/{id}', [DeploymentCatalogController::class, 'update'])
         ->name('deployment-config.update');
     Route::delete('deployment-config/{catalog}/{id}', [DeploymentCatalogController::class, 'destroy'])
@@ -876,14 +885,6 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('groups.index')
             ->push(trans('admin/groups/general.audit_title'), route('groups.audit')));
 
-    // "Who can see this page?" — reached from the lock on every sensitive
-    // page. Inherits this group's superuser-only middleware: the roster is
-    // the map of who holds access to the money and contract pages.
-    Route::get('access-audit', [AccessAuditController::class, 'show'])
-        ->name('access-audit.show')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
-            ->push(trans('admin/access-audit/general.title'), route('access-audit.show')));
-
     Route::resource('groups', GroupsController::class);
 
     Route::resource('license-models', LicenseModelsController::class, [
@@ -908,6 +909,16 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
             ->push(trans('general.admin'), route('settings.index')));
 });
+
+// "Who can see this page?" — reached from the lock on every sensitive page.
+// Open to whoever can open the audited page itself: the controller re-runs
+// that page's own gate for the requester, so the roster is exactly as
+// visible as the data it describes.
+Route::get('access-audit', [AccessAuditController::class, 'show'])
+    ->middleware('auth')
+    ->name('access-audit.show')
+    ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+        ->push(trans('admin/access-audit/general.title'), route('access-audit.show')));
 
 /*
 |--------------------------------------------------------------------------
@@ -1349,7 +1360,7 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
 
     Route::get('printing', [PrintingReportsController::class, 'index'])
         ->name('reports.printing')
-        ->middleware('can:view,App\Models\Asset')
+        ->middleware('can:reports.printing.view')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
             ->push(trans('general.reports'), route('reports.index'))
             ->push(trans('admin/reports/printing.dashboard_title'), route('reports.printing')));

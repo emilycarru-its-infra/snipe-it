@@ -3,6 +3,7 @@
 namespace Tests\Feature\Deployments;
 
 use App\Models\Asset;
+use App\Models\AssetModel;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentType;
@@ -105,6 +106,85 @@ class ExistingEquipmentWaveTest extends TestCase
 
         $this->assertEquals($to->id, $asset->fresh()->rtd_location_id);
         $this->assertNotNull($item->fresh()->deployed_at);
+    }
+
+    public function test_the_wave_page_names_the_devices_being_moved()
+    {
+        // The table used to identify every row by the device it replaces,
+        // so a relocation — which replaces nothing — rendered blank rows
+        // and read as an empty wave.
+        $this->plannedStage();
+        $type = DeploymentType::create(['name' => 'Relocation Page', 'slug' => 'relocation_page', 'moves_devices' => true]);
+
+        $model = AssetModel::factory()->create(['name' => 'Studio All-in-One']);
+        $wave = DeploymentWave::create([
+            'name' => 'Studio relocation',
+            'fiscal_year' => 'FY2026-27',
+            'deployment_type_id' => $type->id,
+            'location_id' => Location::factory()->create()->id,
+        ]);
+
+        $asset = Asset::factory()->create([
+            'model_id' => $model->id,
+            'asset_tag' => 'TAG-1',
+            'name' => 'studio-workstation',
+        ]);
+        DeploymentItem::create(['wave_id' => $wave->id, 'asset_id' => $asset->id]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployment-waves.show', $wave))
+            ->assertOk()
+            ->assertSee('TAG-1')
+            ->assertSee('studio-workstation')
+            // Grouped under the model of the unit on the wave, not a dash.
+            ->assertSee('Studio All-in-One');
+    }
+
+    private function waveOfExistingEquipment(bool $movesDevices): DeploymentWave
+    {
+        $this->plannedStage();
+        $type = DeploymentType::create([
+            'name' => 'Type '.($movesDevices ? 'moving' : 'ordinary'),
+            'slug' => 'type_'.($movesDevices ? 'moving' : 'ordinary'),
+            'moves_devices' => $movesDevices,
+        ]);
+
+        $wave = DeploymentWave::create([
+            'name' => 'Wave',
+            'fiscal_year' => 'FY2026-27',
+            'deployment_type_id' => $type->id,
+            'location_id' => Location::factory()->create()->id,
+        ]);
+
+        $model = AssetModel::factory()->create(['name' => 'Studio All-in-One']);
+        DeploymentItem::create([
+            'wave_id' => $wave->id,
+            'asset_id' => Asset::factory()->create(['model_id' => $model->id])->id,
+        ]);
+
+        return $wave;
+    }
+
+    public function test_a_wave_that_moves_devices_drops_the_procurement_columns()
+    {
+        // Nothing is replaced, projected or arriving on a move, so those
+        // columns rendered as a wall of dashes on every row.
+        $this->actingAs($this->superuser())
+            ->get(route('deployment-waves.show', $this->waveOfExistingEquipment(true)))
+            ->assertOk()
+            ->assertDontSee('<th>'.trans('admin/deployments/general.replaces').'</th>', false)
+            ->assertDontSee('<th>'.trans('admin/deployments/general.projected_replacement').'</th>', false)
+            ->assertDontSee('<th>'.trans('admin/deployments/general.arrival_status').'</th>', false);
+    }
+
+    public function test_an_ordinary_wave_keeps_the_procurement_columns()
+    {
+        $this->actingAs($this->superuser())
+            ->get(route('deployment-waves.show', $this->waveOfExistingEquipment(false)))
+            ->assertOk()
+            ->assertSee('<th>'.trans('admin/deployments/general.replaces').'</th>', false)
+            ->assertSee('<th>'.trans('admin/deployments/general.projected_replacement').'</th>', false)
+            ->assertSee('<th>'.trans('admin/deployments/general.arrival_status').'</th>', false);
     }
 
     public function test_terminal_stage_leaves_devices_alone_on_ordinary_waves()

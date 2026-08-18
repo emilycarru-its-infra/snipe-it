@@ -26,7 +26,14 @@ class DeploymentsBoardTest extends TestCase
             ->assertOk()
             ->assertSee('FY26 Faculty Refresh')
             ->assertSee('FY24 Lab Rollout')
-            // The catalogs are managed here, not behind a Configure page.
+            // Staffing sits on this page, right below the wave list; the
+            // catalogs moved to their admin page.
+            ->assertSee(trans('admin/deployments/general.blackouts_title'))
+            ->assertDontSee(trans('admin/deployments/general.catalog_new_type'));
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployment-config.admin'))
+            ->assertOk()
             ->assertSee(trans('admin/deployments/general.catalog_types'))
             ->assertSee(trans('admin/deployments/general.catalog_stages'));
     }
@@ -146,12 +153,10 @@ class DeploymentsBoardTest extends TestCase
             'asset_eol_date' => null,
         ]);
 
-        // Waves-only board: the lookahead device is counted in the pointer
-        // to Forecast rather than rendered as a row.
+        // Waves-only board: the backlog lives in Planning, not here.
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments', ['fiscal_year' => $nextFy]))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.flow_backlog_pointer', ['count' => 1]))
             ->assertDontSee('PLAN-2728');
     }
 
@@ -402,12 +407,11 @@ class DeploymentsBoardTest extends TestCase
             'asset_eol_date' => null,
         ]);
 
-        // The board is waves-only now: the missed device is counted in the
-        // pointer to Forecast, not rendered as a row.
+        // The board is waves-only: the missed device belongs to Planning's
+        // list for that year, not to a row or a banner here.
         $this->actingAs($this->superuser())
             ->get(route('reports.deployments', ['fiscal_year' => 'FY2023-24']))
             ->assertOk()
-            ->assertSee(trans('admin/deployments/general.flow_backlog_pointer', ['count' => 1]))
             ->assertDontSee('MISSED-2324');
     }
 
@@ -632,38 +636,130 @@ class DeploymentsBoardTest extends TestCase
      */
     public function test_timeline_positions_bars_by_day_not_by_month()
     {
+        // The axis runs today → end of the last dated month, so the
+        // fixture is relative to today and the expectations are computed
+        // from the same day math the service does.
+        $arrivalStart = now()->addDays(22);
+        $arrivalEnd = now()->addDays(32);
+        $deployEnd = now()->addDays(46);
+
         $wave = DeploymentWave::create([
             'name' => 'Gantt Wave',
             'fiscal_year' => 'FY2026-27',
-            'arrival_window_start' => '2026-09-08',
-            'arrival_window_end' => '2026-09-18',
-            'target_start_date' => '2026-09-08',
-            'target_end_date' => '2026-10-02',
+            'arrival_window_start' => $arrivalStart->toDateString(),
+            'arrival_window_end' => $arrivalEnd->toDateString(),
+            'target_start_date' => $arrivalStart->toDateString(),
+            'target_end_date' => $deployEnd->toDateString(),
         ]);
 
         $timeline = (new \App\Services\Deployments\DeploymentTimeline)->build(
             DeploymentWave::whereKey($wave->id)->get()
         );
 
-        // Grid spans Sep 1 – Oct 31 (61 days). The 11-day arrival window is
-        // ~18% wide, nowhere near the ~49% a whole-month slab would be.
-        $this->assertCount(2, $timeline['months']);
+        $totalDays = now()->startOfDay()->diffInDays($deployEnd->copy()->endOfMonth()->startOfDay()) + 1;
+
+        // An 11-day arrival window is a sliver of the axis, nowhere near
+        // the month-wide slab month-snapping would produce.
         $arrival = $timeline['rows'][0]['arrival'];
-        $this->assertEqualsWithDelta(11 / 61 * 100, $arrival['widthPct'], 0.1);
-        $this->assertEqualsWithDelta(7 / 61 * 100, $arrival['offsetPct'], 0.1);
-        $this->assertSame('Sep 8 – Sep 18', $arrival['label']);
-        $this->assertSame('Sep 8 – Oct 2', $timeline['rows'][0]['deploy']['label']);
+        $this->assertEqualsWithDelta(11 / $totalDays * 100, $arrival['widthPct'], 0.1);
+        $this->assertEqualsWithDelta(22 / $totalDays * 100, $arrival['offsetPct'], 0.1);
+        $expectedLabel = $arrivalStart->format('M j').' – '.$arrivalEnd->format('M j');
+        $this->assertSame($expectedLabel, $arrival['label']);
 
-        // Month columns carry their own axis positions for the gridlines.
+        // The first month column starts at the axis origin.
         $this->assertSame(0.0, $timeline['months'][0]['offsetPct']);
-        $this->assertEqualsWithDelta(30 / 61 * 100, $timeline['months'][1]['offsetPct'], 0.1);
 
-        // And the page renders the grid.
+        // And the page renders the grid inside its horizontal scroller.
         $this->actingAs($this->superuser())
             ->get(route('deployments.planning', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             ->assertSee('gantt-gridlines', false)
-            ->assertSee('Sep 8 – Sep 18');
+            ->assertSee('gantt-scroll', false)
+            ->assertSee($expectedLabel);
+    }
+
+    /**
+     * The Gantt is forward-looking planning: the axis starts at today and
+     * scrolls into the future. A wave dated a year back must not compress
+     * the chart — it draws no bars and shows its dated range as text; a
+     * window already under way draws from today onward.
+     */
+    public function test_timeline_axis_starts_today_and_history_falls_off()
+    {
+        DeploymentWave::create([
+            'name' => 'Ancient Wave',
+            'fiscal_year' => 'FY2026-27',
+            'target_start_date' => now()->subMonthsNoOverflow(13)->toDateString(),
+            'target_end_date' => now()->subMonthsNoOverflow(12)->toDateString(),
+        ]);
+        DeploymentWave::create([
+            'name' => 'Underway Wave',
+            'fiscal_year' => 'FY2026-27',
+            'target_start_date' => now()->subDays(30)->toDateString(),
+            'target_end_date' => now()->addDays(14)->toDateString(),
+        ]);
+        DeploymentWave::create([
+            'name' => 'Current Wave',
+            'fiscal_year' => 'FY2026-27',
+            'target_start_date' => now()->addDays(10)->toDateString(),
+            'target_end_date' => now()->addDays(20)->toDateString(),
+        ]);
+
+        $timeline = (new \App\Services\Deployments\DeploymentTimeline)->build(
+            DeploymentWave::where('fiscal_year', 'FY2026-27')->orderBy('id')->get()
+        );
+
+        // Axis begins in today's month and the today marker sits on the
+        // left edge.
+        $this->assertSame(now()->format('Y-m'), $timeline['months'][0]['key']);
+        $this->assertSame(0.0, $timeline['today_pct']);
+
+        [$ancient, $underway, $current] = $timeline['rows'];
+        $this->assertFalse($ancient['has_dates']);
+        $this->assertNull($ancient['arrival']);
+        $this->assertNull($ancient['deploy']);
+        $this->assertNotNull($ancient['past_label']);
+
+        // A window straddling today clamps to the axis start instead of
+        // dragging the axis into the past.
+        $this->assertTrue($underway['has_dates']);
+        $this->assertSame(0.0, $underway['deploy']['offsetPct']);
+
+        $this->assertTrue($current['has_dates']);
+    }
+
+    /**
+     * The blackouts API lists and deletes: when the calendar says someone
+     * is off but they are in, the stale window can be removed without a
+     * browser session — and the timeline stops warning.
+     */
+    public function test_blackouts_api_lists_and_deletes_stale_windows()
+    {
+        $staff = User::factory()->create();
+        $blackout = \App\Models\StaffBlackout::create([
+            'user_id' => $staff->id,
+            'start_date' => now()->subDays(10)->toDateString(),
+            'end_date' => now()->addDays(10)->toDateString(),
+            'source' => 'manual',
+        ]);
+        \App\Models\StaffBlackout::create([
+            'user_id' => $staff->id,
+            'start_date' => now()->subDays(60)->toDateString(),
+            'end_date' => now()->subDays(50)->toDateString(),
+            'source' => 'manual',
+        ]);
+
+        $this->actingAsForApi($this->superuser())
+            ->getJson(route('api.deployments.blackouts.index', ['current' => 1]))
+            ->assertOk()
+            ->assertJsonPath('payload.total', 1)
+            ->assertJsonPath('payload.rows.0.id', $blackout->id);
+
+        $this->actingAsForApi($this->superuser())
+            ->deleteJson(route('api.deployments.blackouts.destroy', $blackout))
+            ->assertOk();
+
+        $this->assertDatabaseMissing('staff_blackouts', ['id' => $blackout->id]);
     }
 
     /**

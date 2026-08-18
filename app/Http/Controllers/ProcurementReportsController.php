@@ -212,16 +212,6 @@ class ProcurementReportsController extends Controller
             $plannedByFy[$fy] = ($plannedByFy[$fy] ?? 0) + $value;
         }
 
-        // Invoiced totals grouped by calendar month.
-        $monthly = $this->scopeInvoiceToFiscalYear(
-            OrderInvoice::whereNotNull('invoice_date'),
-            $selectedFy
-        )
-            ->orderBy('invoice_date')
-            ->get()
-            ->groupBy(fn ($invoice) => $invoice->invoice_date->format('Y-m'))
-            ->map(fn ($group) => (float) $group->sum('total'));
-
         // Assets reaching end-of-life within the next year.
         $eolAssets = Asset::with('model.refreshCatalogItem')->whereNotNull('asset_eol_date')
             ->whereBetween('asset_eol_date', [now()->startOfDay(), now()->addYear()])
@@ -276,14 +266,6 @@ class ProcurementReportsController extends Controller
             ->where('status', 'pending')
             ->count();
 
-        // User agreements waiting for a signature — the assets team's chase
-        // list. Stuck in 'quoted' or 'agreement_sent' is the failure
-        // mode that holds up the Apple account on a pending pickup.
-        $userAgreementsAwaitingSignatureCount = UserAgreement::whereIn(
-            'lifecycle_stage',
-            ['quoted', 'agreement_sent']
-        )->count();
-
         // Lease schedules sitting in the chase queue — drafts or
         // awaiting Viktor / Mark's signature. The lessor is blocked
         // from finalising until this clears.
@@ -298,7 +280,6 @@ class ProcurementReportsController extends Controller
             'approvers' => StoreApprover::with('user')->get(),
             'pendingApprovalCount' => $pendingApprovalCount,
             'pendingDecisionCount' => $pendingDecisionCount,
-            'userAgreementsAwaitingSignatureCount' => $userAgreementsAwaitingSignatureCount,
             'scheduleSigningQueueCount' => $scheduleSigningQueueCount,
             'allFiscalYears' => $allFiscalYears,
             'selectedFy' => $selectedFy,
@@ -326,8 +307,6 @@ class ProcurementReportsController extends Controller
             'committedByFy' => $committedByFy,
             'plannedByFy' => $plannedByFy,
             'leaseExpiryByFy' => $leaseExpiryByFy,
-            'monthlyLabels' => $monthly->keys()->all(),
-            'monthlyValues' => array_values($monthly->all()),
             'allocations' => $allocations,
             'budgetSourceLabels' => BudgetAllocation::SOURCES,
         ]);
@@ -1318,6 +1297,11 @@ class ProcurementReportsController extends Controller
         return view('reports.procurement.leasing', [
             'breakdown' => $breakdown,
             'rentCosts' => $this->rentCostsReport($request->query('fiscal_year')),
+            // Data health closes the page. It is the portfolio's own
+            // housekeeping — leases with no contract on file, dates that
+            // will not parse — which is too granular to sit in the
+            // procurement stream but belongs with the leases it describes.
+            'dataHealth' => $this->leaseDataHealthReport(),
         ]);
     }
 
@@ -1658,7 +1642,9 @@ class ProcurementReportsController extends Controller
 
         foreach ($requisitionBacked ? [] : $leaseGroups as $group) {
             $decision = $decisions[$group['contract_id']] ?? null;
-            if ($decision && $decision->decision_type === 'buyout'
+            // Bought out or retained, the devices stay — either way the
+            // contract asks nothing of next year's replacement budget.
+            if ($decision && in_array($decision->decision_type, ['buyout', 'retain'], true)
                 && in_array($decision->status, ['approved', 'completed'], true)) {
                 continue;
             }
@@ -3652,8 +3638,14 @@ class ProcurementReportsController extends Controller
             $asset = $group->pluck('asset')->filter()->first();
             $userTotal = 0.0;
 
+            // Column index of the first agreement-type cell: Member, Asset
+            // Tag, Serial, Lease Contract, Stage come first.
+            $firstTypeCol = 5;
             $typeCells = [];
-            foreach ($types as $type) {
+            $typeDocs = [];
+            $rowDocs = [];
+            $rowIds = [];
+            foreach ($types as $typeIndex => $type) {
                 $ofType = $group->where('agreement_type', $type);
                 if ($ofType->isEmpty()) {
                     $typeCells[] = '—';
@@ -3662,7 +3654,33 @@ class ProcurementReportsController extends Controller
                 }
                 $value = (float) $ofType->sum(fn ($agreement) => $agreement->contractValue());
                 $userTotal += $value;
-                $typeCells[] = $this->money($value);
+                // Zero reads as a dash, the same as a type the member holds
+                // no agreement in. A column of "$0.00" is noise to scan past
+                // before the handful of real figures show themselves — and a
+                // free pickup genuinely costs nothing, so there is no number
+                // being hidden.
+                $typeCells[] = $value > 0 ? $this->money($value) : '—';
+
+                // The paperwork rides beside the amount it was generated
+                // for. Finance was opening a member's page to reach these,
+                // which meant leaving the ledger they are reconciling
+                // against. Only agreements with a PDF actually on file are
+                // linked — an icon promising a render that might fail is
+                // worse than no icon.
+                foreach ($ofType as $agreement) {
+                    if (! $agreement->pdf_path && ! $agreement->signed_pdf_path) {
+                        continue;
+                    }
+                    $url = route('user-agreements.pdf', $agreement->id);
+                    $typeDocs[$firstTypeCol + $typeIndex][] = [
+                        'url' => $url,
+                        'label' => $agreement->signed_pdf_path
+                            ? trans('admin/forms/faculty-program.submission_pdf_signed')
+                            : trans('admin/forms/faculty-program.submission_pdf_preview'),
+                    ];
+                    $rowDocs[] = $url;
+                    $rowIds[] = $agreement->id;
+                }
             }
 
             $totalValue += $userTotal;
@@ -3696,6 +3714,9 @@ class ProcurementReportsController extends Controller
                     4 => route('user-agreements.show', $first),
                 ], fn ($link) => $link !== null),
                 'pills' => [4 => $stagePills],
+                'docs' => $typeDocs,
+                'select_ids' => $rowIds,
+                'select_docs' => $rowDocs,
                 'cells' => array_merge(
                     [
                         (string) ($first->user?->full_name ?? '—'),
@@ -3705,7 +3726,7 @@ class ProcurementReportsController extends Controller
                         $stages->map(fn ($stage) => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage))->implode(' / '),
                     ],
                     $typeCells,
-                    [$this->money($userTotal)]
+                    [$userTotal > 0 ? $this->money($userTotal) : '—']
                 ),
             ];
         }
@@ -3716,7 +3737,16 @@ class ProcurementReportsController extends Controller
             [$this->money($totalValue)]
         );
 
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+        // Row selection drives "open" (lightbox queue) and "download"
+        // (one zip) over the agreements' PDFs. The value is the endpoint the
+        // download posts to — the table partial is shared and owns no
+        // report's routes.
+        return [
+            'columns' => $columns,
+            'records' => $records,
+            'footer' => $footer,
+            'selectable' => route('user-agreements.bulk-pdf'),
+        ];
     }
 
     /**
@@ -4154,7 +4184,7 @@ class ProcurementReportsController extends Controller
         $decisions = $this->scopeDateToFiscalYear(
             LeaseDecision::query()
                 ->whereNull('asset_id')
-                ->whereIn('decision_type', ['buyout', 'return'])
+                ->whereIn('decision_type', ['buyout', 'retain', 'return'])
                 ->whereNotIn('status', ['cancelled']),
             $fy,
             'decision_date'
@@ -4174,14 +4204,21 @@ class ProcurementReportsController extends Controller
 
                 continue;
             }
-            $total += (float) $decision->amount;
+            // Retained is a zero-cost call by definition — title passes at
+            // the end of a lease-to-own term with nothing further owed — so
+            // it books no obligation even when the ownership scan above did
+            // not recognise the contract as lease-to-own.
+            $isRetained = $decision->decision_type === 'retain';
+            $total += $isRetained ? 0.0 : (float) $decision->amount;
             $records[] = [
                 'class' => $decision->status === 'pending' ? 'warning' : '',
                 'cells' => [
                     $decision->contract_reference,
                     trans('admin/purchase-orders/general.aro_source_decision'),
-                    trans('admin/lease-decisions/general.type_'.$decision->decision_type),
-                    $this->money($decision->amount),
+                    $isRetained
+                        ? trans('admin/purchase-orders/general.aro_action_retained')
+                        : trans('admin/lease-decisions/general.type_'.$decision->decision_type),
+                    $isRetained ? '' : $this->money($decision->amount),
                     trans('admin/lease-decisions/general.status_'.$decision->status),
                     $this->dateString($decision->decision_date),
                     (string) $decision->notes,
@@ -4311,7 +4348,24 @@ class ProcurementReportsController extends Controller
     {
         $cols = $this->leaseFieldColumns();
 
+        // Grouped by contract, the same shape the Extension Watch uses: the
+        // contract is the row, its devices are the nested table underneath.
+        // Flat, this report was thousands of device rows with the contract
+        // id repeated down one column — sorted by it, but never adding up to
+        // it, so "what is on 301452-007 and what does it cost" meant reading
+        // a run of rows and totalling them by eye.
         $columns = [
+            trans('admin/purchase-orders/general.lease_contract_id'),
+            trans('admin/purchase-orders/general.lease_end_date'),
+            trans('admin/purchase-orders/general.detail_ownership'),
+            trans('admin/purchase-orders/general.lease_assets'),
+            trans('admin/purchase-orders/general.detail_purchase_cost'),
+            trans('admin/purchase-orders/general.detail_lease_rent'),
+            trans('admin/purchase-orders/general.detail_buyout_cost'),
+        ];
+
+        // The device columns the contract row no longer needs to repeat.
+        $childColumns = [
             trans('admin/purchase-orders/general.detail_asset_tag'),
             trans('admin/purchase-orders/general.detail_serial'),
             trans('admin/purchase-orders/general.detail_status'),
@@ -4319,8 +4373,6 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.invoice_usage'),
             trans('admin/purchase-orders/general.detail_area'),
             trans('admin/purchase-orders/general.detail_assigned_to'),
-            trans('admin/purchase-orders/general.lease_contract_id'),
-            trans('admin/purchase-orders/general.lease_end_date'),
             trans('admin/purchase-orders/general.detail_ownership'),
             trans('admin/purchase-orders/general.detail_purchase_cost'),
             trans('admin/purchase-orders/general.detail_lease_rent'),
@@ -4344,7 +4396,7 @@ class ProcurementReportsController extends Controller
             ->orderBy('asset_tag')
             ->get();
 
-        $records = [];
+        $groups = [];
         $totalPurchase = $totalRent = $totalBuyout = 0.0;
 
         foreach ($assets as $asset) {
@@ -4361,11 +4413,35 @@ class ProcurementReportsController extends Controller
             $totalRent += $rent;
             $totalBuyout += $buyout;
 
+            $ownership = $cols['ownership_type'] ? trim((string) $asset->{$cols['ownership_type']}) : '';
+            $leaseEnd = $cols['lease_end_date'] ? $this->dateString($asset->{$cols['lease_end_date']}) : '';
+
+            $groups[$contractId] ??= [
+                'lease_end_dates' => [],
+                'ownership' => [],
+                'count' => 0,
+                'purchase' => 0.0,
+                'rent' => 0.0,
+                'buyout' => 0.0,
+                'rows' => [],
+            ];
+
+            if ($leaseEnd !== '') {
+                $groups[$contractId]['lease_end_dates'][$leaseEnd] = true;
+            }
+            if ($ownership !== '') {
+                $groups[$contractId]['ownership'][$ownership] = true;
+            }
+            $groups[$contractId]['count']++;
+            $groups[$contractId]['purchase'] += $purchase;
+            $groups[$contractId]['rent'] += $rent;
+            $groups[$contractId]['buyout'] += $buyout;
+
             // Dim assets that have already been returned or are otherwise
             // off the lease so the live fleet stays prominent.
             $isReturned = ! empty($cols['decommission_date']) && ! empty($asset->{$cols['decommission_date']});
 
-            $records[] = [
+            $groups[$contractId]['rows'][] = [
                 'class' => $isReturned ? 'text-muted' : '',
                 'links' => array_filter([
                     0 => route('hardware.show', $asset->id),
@@ -4381,9 +4457,7 @@ class ProcurementReportsController extends Controller
                     $cols['usage'] ? (string) $asset->{$cols['usage']} : '',
                     $cols['area'] ? (string) $asset->{$cols['area']} : '',
                     (string) $this->describeAssignedTo($this->assignedTarget($asset)),
-                    $contractId,
-                    $cols['lease_end_date'] ? $this->dateString($asset->{$cols['lease_end_date']}) : '',
-                    $cols['ownership_type'] ? (string) $asset->{$cols['ownership_type']} : '',
+                    $ownership,
                     $this->money($purchase),
                     $rent > 0 ? $this->money($rent) : '',
                     $buyout > 0 ? $this->money($buyout) : '',
@@ -4392,28 +4466,73 @@ class ProcurementReportsController extends Controller
             ];
         }
 
+        $records = [];
+        foreach ($groups as $contractId => $group) {
+            // A schedule whose devices disagree on the end date says so
+            // rather than picking one — that disagreement is a real thing
+            // on this estate and Lease Data Health is where it gets chased.
+            $endDates = array_keys($group['lease_end_dates']);
+            sort($endDates);
+            $ownership = array_keys($group['ownership']);
+            sort($ownership);
+
+            $records[] = [
+                'class' => '',
+                'cells' => [
+                    $contractId,
+                    implode(' / ', $endDates),
+                    implode(' / ', $ownership),
+                    $group['count'],
+                    $this->money($group['purchase']),
+                    $group['rent'] > 0 ? $this->money($group['rent']) : '',
+                    $group['buyout'] > 0 ? $this->money($group['buyout']) : '',
+                ],
+                'strong' => [1 => true],
+                'links' => [0 => route('reports.procurement.lease-detail', $contractId)],
+                'children' => [
+                    'columns' => $childColumns,
+                    'rows' => $group['rows'],
+                ],
+            ];
+        }
+
         $footer = [
-            trans('admin/orders/general.total'), '', '', '', '', '', '', '', '', '',
+            trans('admin/orders/general.total'), '', '',
+            array_sum(array_column($groups, 'count')),
             $this->money($totalPurchase),
             $this->money($totalRent),
             $this->money($totalBuyout),
-            '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
     }
 
     /**
-     * PO ↔ CDW drill-down. Per-PO walk of every CDW order under it, every
-     * invoice billed against those orders, and the variance between invoice
-     * subtotal and expected line-item total. Subtotal rows mark the PO
-     * boundary so a finance reader can scan top-to-bottom and see exactly
-     * what each PO funded.
+     * PO ↔ CDW drill-down. One row per purchase order, with every CDW
+     * order under it, every invoice billed against those orders, and the
+     * variance between invoice subtotal and expected line-item total
+     * nested beneath — the same parent/child shape the Extension Watch and
+     * Asset Lease Detail use.
+     *
+     * It used to be one flat run of invoice rows with a tinted subtotal
+     * row marking each PO boundary, which meant repeating the PO number
+     * down a column and asking the reader to find the boundaries by
+     * colour. The PO is the unit a finance reader works in, so it is the
+     * row; its invoices are what you open it to see.
      */
     private function poDrilldownReport(?string $fy = null): array
     {
         $columns = [
             trans('admin/purchase-orders/general.po_number'),
+            trans('admin/purchase-orders/general.po_drilldown_orders'),
+            trans('admin/purchase-orders/general.po_drilldown_invoices'),
+            trans('admin/purchase-orders/general.invoice_vendor_total'),
+            trans('admin/purchase-orders/general.invoice_expected'),
+            trans('admin/purchase-orders/general.invoice_variance'),
+        ];
+
+        // The PO row no longer repeats its own number down the column.
+        $childColumns = [
             trans('general.order_number'),
             trans('admin/orders/general.invoice_number'),
             trans('admin/orders/general.invoice_date'),
@@ -4440,16 +4559,22 @@ class ProcurementReportsController extends Controller
             }
 
             $poVendor = $poExpected = $poVariance = 0.0;
-            $poRows = [];
+            $childRows = [];
+            $invoiceCount = 0;
+            $hasVariance = false;
+            $hasUninvoiced = false;
 
             foreach ($orders as $order) {
+                $orderLink = route('orders.show', $order->id);
+
                 if ($order->invoices->isEmpty()) {
                     $expectedFromItems = (float) $order->items->sum->lineTotal();
                     $poExpected += $expectedFromItems;
-                    $poRows[] = [
+                    $hasUninvoiced = true;
+                    $childRows[] = [
                         'class' => 'warning',
+                        'links' => [0 => $orderLink],
                         'cells' => [
-                            $po->po_number,
                             (string) $order->order_number,
                             trans('admin/purchase-orders/general.po_drilldown_no_invoice'),
                             '',
@@ -4472,11 +4597,14 @@ class ProcurementReportsController extends Controller
                     $poVendor += $vendor;
                     $poExpected += $expected;
                     $poVariance += $variance;
+                    $invoiceCount++;
+                    $offBy = abs($variance) > 1.0;
+                    $hasVariance = $hasVariance || $offBy;
 
-                    $poRows[] = [
-                        'class' => abs($variance) > 1.0 ? 'danger' : '',
+                    $childRows[] = [
+                        'class' => $offBy ? 'danger' : '',
+                        'links' => [0 => $orderLink],
                         'cells' => [
-                            $po->po_number,
                             (string) $order->order_number,
                             $invoice->invoice_number,
                             $this->dateString($invoice->invoice_date),
@@ -4494,28 +4622,32 @@ class ProcurementReportsController extends Controller
             $grandExpected += $poExpected;
             $grandVariance += $poVariance;
 
-            $records = array_merge($records, $poRows);
-
-            // PO subtotal row so the eye can find boundaries quickly.
+            // The PO row carries whatever its worst line found, so a
+            // collapsed order still says there is something inside worth
+            // opening — otherwise folding the detail would fold the signal.
             $records[] = [
-                'class' => 'info',
+                'class' => $hasVariance ? 'danger' : ($hasUninvoiced ? 'warning' : ''),
+                'links' => [0 => route('purchase-orders.show', $po->id)],
                 'cells' => [
-                    $po->po_number.' '.trans('admin/orders/general.total'),
-                    '', '', '', '',
+                    $po->po_number,
+                    $orders->count(),
+                    $invoiceCount,
                     $this->money($poVendor),
                     $this->money($poExpected),
                     $this->money($poVariance),
-                    '',
+                ],
+                'children' => [
+                    'columns' => $childColumns,
+                    'rows' => $childRows,
                 ],
             ];
         }
 
         $footer = [
-            trans('admin/orders/general.total'), '', '', '', '',
+            trans('admin/orders/general.total'), '', '',
             $this->money($grandVendor),
             $this->money($grandExpected),
             $this->money($grandVariance),
-            '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
@@ -5496,6 +5628,7 @@ class ProcurementReportsController extends Controller
             'reportCharts' => $report['charts'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
             'sortable' => $report['sortable'] ?? false,
+            'selectable' => $report['selectable'] ?? null,
             'controls' => $controls,
             'downloadUrl' => route($routeName, array_filter($downloadParams, fn ($v) => $v !== null && $v !== '')),
             'reportParams' => $extraParams,
@@ -5522,6 +5655,7 @@ class ProcurementReportsController extends Controller
             'footer' => $report['footer'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
             'sortable' => $report['sortable'] ?? false,
+            'selectable' => $report['selectable'] ?? null,
             'canEditNotes' => auth()->user()?->can('create', Order::class) ?? false,
         ]);
     }

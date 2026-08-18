@@ -193,3 +193,17 @@
     </div>
 </div>
 @endif
+
+{{-- Good news expires on its own: a success banner that sticks around
+     forever stops meaning anything. Errors and warnings stay until read. --}}
+<script nonce="{{ csrf_token() }}">
+(function () {
+    document.querySelectorAll('.alert.alert-success').forEach(function (alert) {
+        setTimeout(function () {
+            alert.style.transition = 'opacity .4s ease';
+            alert.style.opacity = '0';
+            setTimeout(function () { alert.remove(); }, 450);
+        }, 5000);
+    });
+})();
+</script>

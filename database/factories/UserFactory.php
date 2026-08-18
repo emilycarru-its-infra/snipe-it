@@ -400,7 +400,18 @@ class UserFactory extends Factory
             'reports.unaccepted.view' => '1',
             'reports.templates.manage' => '1',
             'reports.procurement.view' => '1',
+            'reports.printing.view' => '1',
         ]);
+    }
+
+    public function viewPrintingReport()
+    {
+        return $this->appendPermission(['reports.printing.view' => '1']);
+    }
+
+    public function canImpersonate()
+    {
+        return $this->appendPermission(['users.impersonate' => '1']);
     }
 
     public function canImport()

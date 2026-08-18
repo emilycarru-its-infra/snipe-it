@@ -9,9 +9,22 @@
 {{-- Page content --}}
 @section('content')
 
-{{-- The working-tool doors left, the FY scope right and prominent —
-     the breadcrumb directly above already names the module. --}}
+{{-- FY scope first, then the working-tool doors: the scope governs every
+     number and every link that follows it, so it reads before them rather
+     than adrift on the far right. `input-sm` keeps the select the same
+     height as the btn-sm doors beside it. --}}
 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
+    {{-- Switching FY reloads the page; stash the scroll position so the
+         reader lands back where they were, not at the top. --}}
+    <form method="get" style="margin:0;">
+        <select name="fiscal_year" class="form-control input-sm" style="width:auto; font-weight:700;"
+                onchange="sessionStorage.setItem('procDashScroll', String(window.scrollY)); this.form.submit()">
+            <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
+            @foreach ($allFiscalYears as $fy)
+                <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
+            @endforeach
+        </select>
+    </form>
     <span class="hidden-print" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <a href="{{ route('purchase-orders.builder', ['fiscal_year' => $selectedFy ?? 'all']) }}" class="btn btn-sm btn-default">
             {{ trans('admin/purchase-orders/general.report_po_builder') }}
@@ -32,22 +45,15 @@
             </button>
         @endif
     </span>
-    {{-- Switching FY reloads the page; stash the scroll position so the
-         reader lands back where they were, not at the top. --}}
-    <form method="get" style="margin:0 0 0 auto;">
-        <select name="fiscal_year" class="form-control" style="width:auto; font-weight:700;"
-                onchange="sessionStorage.setItem('procDashScroll', String(window.scrollY)); this.form.submit()">
-            <option value="all" {{ $selectedFy === null ? 'selected' : '' }}>{{ trans('admin/purchase-orders/general.all_fiscal_years') }}</option>
-            @foreach ($allFiscalYears as $fy)
-                <option value="{{ $fy }}" {{ $selectedFy === $fy ? 'selected' : '' }}>{{ $fy }}</option>
-            @endforeach
-        </select>
-    </form>
 </div>
 
 <style>
+    {{-- The tiles divide the row between them rather than sitting on fixed
+         sixths: which ones apply depends on the fiscal-year scope, and a
+         fixed width left a gap where the others used to be. --}}
     @media (min-width: 992px) {
-        .proc-chart-row .col-md-3 { width: 16.6667%; }
+        .proc-chart-row { display: flex; flex-wrap: nowrap; }
+        .proc-chart-row > [class*="col-"] { flex: 1 1 0%; width: auto; float: none; }
     }
     .proc-chart-row .box-body { height: 220px; }
 </style>
@@ -64,45 +70,47 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_utilization') }}</h3>
-            </div>
-            <div class="box-body">
-                <div style="position:relative; height:200px;">
-                    <canvas id="procUtilChart"></canvas>
+    {{-- Committed against the year's pot. Across all years that donut
+         averages unrelated budgets into a number that means nothing, so it
+         only appears once a year is picked. --}}
+    @if ($selectedFy)
+        <div class="col-md-3 col-sm-6">
+            <div class="box box-default">
+                <div class="box-header with-border">
+                    <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_utilization') }}</h3>
+                </div>
+                <div class="box-body">
+                    <div style="position:relative; height:200px;">
+                        <canvas id="procUtilChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_fiscal_year') }}</h3>
-            </div>
-            <div class="box-body">
-                <div style="position:relative; height:200px;">
-                    <canvas id="procFyChart"></canvas>
+    @endif
+    {{-- The mirror image: a year-by-year comparison is the whole point of
+         the all-years view and a single bar inside one year. --}}
+    @if (! $selectedFy)
+        <div class="col-md-3 col-sm-6">
+            <div class="box box-default">
+                <div class="box-header with-border">
+                    <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_fiscal_year') }}</h3>
+                </div>
+                <div class="box-body">
+                    <div style="position:relative; height:200px;">
+                        <canvas id="procFyChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title">{{ trans('admin/purchase-orders/general.chart_monthly') }}</h3>
-            </div>
-            <div class="box-body">
-                <div style="position:relative; height:200px;">
-                    <canvas id="procMonthlyChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
+    @endif
     {{-- Lease returns, financial lens: pending decisions and credits at a
          glance. The physical collection/wipe/pack work lives on the
-         Deployments board's decommissioning lane. --}}
+         Deployments board's decommissioning lane.
+
+         Scoped to a year, because a return is chased inside the cycle it
+         falls in; the all-years view is for comparing years, and every
+         return the estate has ever made is not a to-do list. --}}
+    @if ($selectedFy)
     <div class="col-md-3 col-sm-6 proc-pipe">
         <div class="box box-default">
             <div class="box-header with-border">
@@ -134,6 +142,7 @@
             </div>
         </div>
     </div>
+    @endif
     {{-- The unfunded counterweight to the funded pipeline: no replacement
          money was pre-approved for these devices. One section per family
          (Legacy, Buyouts), each sliceable by model. --}}
@@ -190,10 +199,24 @@
     // Ordered to follow the money: budget envelope first, then spend
     // commitments, then invoices, then the lease intake-to-disposition
     // lifecycle, with the remaining working/audit views after.
+    //
+    // Rent Costs and Lease Data Health are deliberately absent: both are
+    // lease-portfolio views rather than procurement ones, and both now live
+    // on /procurement/leasing — Rent Costs under the Annual Rent bars that
+    // pick its year, Lease Data Health at the foot of the same page. Their
+    // own routes still work; they are just not part of this stream.
+    //
+    // Three reports sit under a stage that is not where the work happens,
+    // but where the reader goes looking for them. The Buyout Register and
+    // Capital Spend are what you consult while setting a year's envelope,
+    // so they read as Budgeting even though the money moves later. The
+    // Disposition Grid describes devices whose lifecycle is finished, so it
+    // reads as Completed even though the returns are handled while
+    // deploying.
     $procReports = collect([
         ['route' => 'reports.procurement.po-budget', 'name' => 'report_po_budget', 'desc' => 'report_po_budget_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.lease-end-schedules', 'name' => 'report_lease_end_schedules', 'desc' => 'report_lease_end_schedules_desc', 'stage' => 'budgeting'],
-        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'stage' => 'reconciling'],
+        ['route' => 'reports.procurement.aro-register', 'name' => 'report_aro_register', 'desc' => 'report_aro_register_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.extension-watch', 'name' => 'report_extension_watch', 'desc' => 'report_extension_watch_desc', 'stage' => 'budgeting'],
         ['route' => 'reports.procurement.invoices', 'name' => 'report_invoices', 'desc' => 'report_invoices_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.invoice-approval', 'name' => 'report_invoice_approval', 'desc' => 'report_invoice_approval_desc', 'stage' => 'reconciling'],
@@ -202,18 +225,16 @@
         ['route' => 'reports.procurement.csi-schedule', 'name' => 'report_csi_schedule', 'desc' => 'report_csi_schedule_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.leases-operational', 'name' => 'report_leases_operational', 'desc' => 'report_leases_operational_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.leases-financial', 'name' => 'report_leases_financial', 'desc' => 'report_leases_financial_desc', 'stage' => 'budgeting'],
-        ['route' => 'reports.procurement.rent-costs', 'name' => 'report_rent_costs', 'desc' => 'report_rent_costs_desc', 'stage' => 'budgeting'],
-        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'deploying'],
+        ['route' => 'reports.procurement.disposition-grid', 'name' => 'report_disposition_grid', 'desc' => 'report_disposition_grid_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.po-disposition', 'name' => 'report_po_disposition', 'desc' => 'report_po_disposition_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.user-agreement-ledger', 'name' => 'report_user_agreement_ledger', 'desc' => 'report_user_agreement_ledger_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.csi-reconciliation', 'name' => 'report_csi_reconciliation', 'desc' => 'report_csi_reconciliation_desc', 'stage' => 'reconciling'],
-        ['route' => 'reports.procurement.lease-data-health', 'name' => 'report_lease_data_health', 'desc' => 'report_lease_data_health_desc', 'stage' => 'reconciling'],
         ['route' => 'reports.procurement.lease-decisions', 'name' => 'report_lease_decisions', 'desc' => 'report_lease_decisions_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.asset-lease-detail', 'name' => 'report_asset_lease_detail', 'desc' => 'report_asset_lease_detail_desc', 'stage' => 'deploying'],
         ['route' => 'reports.procurement.po-drilldown', 'name' => 'report_po_drilldown', 'desc' => 'report_po_drilldown_desc', 'stage' => 'ordering'],
         ['route' => 'reports.procurement.credit-ledger', 'name' => 'report_credit_ledger', 'desc' => 'report_credit_ledger_desc', 'stage' => 'completed'],
         ['route' => 'reports.procurement.pst-applicability', 'name' => 'report_pst_applicability', 'desc' => 'report_pst_applicability_desc', 'stage' => 'completed'],
-        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'completed'],
+        ['route' => 'reports.procurement.capital', 'name' => 'report_capital', 'desc' => 'report_capital_desc', 'stage' => 'budgeting'],
     ])->reject(fn ($r) => in_array($r['name'], $hiddenReports, true));
 @endphp
 
@@ -319,8 +340,6 @@
             'fyCommitted' => array_map(fn ($fy) => $committedByFy[$fy] ?? 0, $fiscalYears),
             'fyPlanned' => array_map(fn ($fy) => $plannedByFy[$fy] ?? 0, $fiscalYears),
             'fyLeaseEnding' => array_map(fn ($fy) => $leaseExpiryByFy[$fy]['cost'] ?? 0, $fiscalYears),
-            'monthlyLabels' => $monthlyLabels,
-            'monthlyValues' => $monthlyValues,
         ]) !!};
 
         var money = function (value) {
@@ -371,16 +390,22 @@
             options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, legend: legend(), scales: { yAxes: [moneyAxis()], xAxes: [labelAxis()] } }
         }));
 
-        charts.push(new Chart(document.getElementById('procUtilChart'), {
-            type: 'doughnut',
-            data: {
-                labels: [@json(trans('admin/purchase-orders/general.card_committed')), @json(trans('admin/purchase-orders/general.card_remaining'))],
-                datasets: [{ backgroundColor: ['#f39c12', '#00a65a'], borderWidth: 0, data: [data.committed, data.remaining] }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, tooltips: pieTooltip, legend: legend() }
-        }));
+        // Utilisation and Spend by Fiscal Year are scope-dependent — only
+        // one of the two canvases is ever on the page.
+        var utilCanvas = document.getElementById('procUtilChart');
+        if (utilCanvas) {
+            charts.push(new Chart(utilCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels: [@json(trans('admin/purchase-orders/general.card_committed')), @json(trans('admin/purchase-orders/general.card_remaining'))],
+                    datasets: [{ backgroundColor: ['#f39c12', '#00a65a'], borderWidth: 0, data: [data.committed, data.remaining] }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, tooltips: pieTooltip, legend: legend() }
+            }));
+        }
 
-        var fyChart = new Chart(document.getElementById('procFyChart'), {
+        var fyCanvas = document.getElementById('procFyChart');
+        var fyChart = fyCanvas && new Chart(fyCanvas, {
             type: 'bar',
             data: {
                 labels: data.fyLabels,
@@ -392,21 +417,7 @@
             },
             options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, legend: legend(), scales: { yAxes: [moneyAxis()], xAxes: [labelAxis()] } }
         });
-        charts.push(fyChart);
-
-        charts.push(new Chart(document.getElementById('procMonthlyChart'), {
-            type: 'line',
-            data: {
-                labels: data.monthlyLabels,
-                datasets: [{
-                    label: @json(trans('admin/purchase-orders/general.card_invoiced')),
-                    borderColor: '#3c8dbc',
-                    backgroundColor: 'rgba(60,141,188,0.15)',
-                    data: data.monthlyValues
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, tooltips: barTooltip, legend: legend(), scales: { yAxes: [moneyAxis()], xAxes: [labelAxis()] } }
-        }));
+        if (fyChart) { charts.push(fyChart); }
 
         // Re-theme in place when the user flips the dark-mode toggle.
         new MutationObserver(function () {
@@ -424,8 +435,10 @@
                 });
                 chart.update();
             });
-            fyChart.data.datasets[1].backgroundColor = plannedColor();
-            fyChart.update();
+            if (fyChart) {
+                fyChart.data.datasets[1].backgroundColor = plannedColor();
+                fyChart.update();
+            }
         }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     })();
 

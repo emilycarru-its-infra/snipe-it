@@ -17,10 +17,28 @@ use Tests\TestCase;
  */
 class PageAccessAuditTest extends TestCase
 {
-    public function test_audit_is_closed_to_everyone_but_superadmins()
+    public function test_audit_is_closed_to_people_the_audited_page_is_closed_to()
     {
-        $this->actingAs(User::factory()->admin()->create())
+        $this->actingAs(User::factory()->create())
             ->get(route('access-audit.show', ['path' => 'procurement']))
+            ->assertForbidden();
+    }
+
+    public function test_audit_is_open_to_anyone_who_can_open_the_audited_page()
+    {
+        // If you can see the page, you can see who else can — and only for
+        // the pages your access actually covers.
+        $viewer = User::factory()->create(['permissions' => json_encode(['procurement.view' => '1'])]);
+
+        // The roster renders, but the links out of it into the admin side
+        // (permissions matrix, group editing) stay off for a plain viewer.
+        $this->actingAs($viewer)
+            ->get(route('access-audit.show', ['path' => 'procurement']))
+            ->assertOk()
+            ->assertDontSee(route('groups.audit'), false);
+
+        $this->actingAs($viewer)
+            ->get(route('access-audit.show', ['path' => 'contracts']))
             ->assertForbidden();
     }
 
@@ -29,6 +47,17 @@ class PageAccessAuditTest extends TestCase
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('access-audit.show', ['path' => 'procurement']))
             ->assertOk();
+    }
+
+    public function test_unaudited_paths_answer_only_to_superadmins()
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('access-audit.show', ['path' => 'hardware']))
+            ->assertOk();
+
+        $this->actingAs(User::factory()->create(['permissions' => json_encode(['procurement.view' => '1'])]))
+            ->get(route('access-audit.show', ['path' => 'hardware']))
+            ->assertForbidden();
     }
 
     public function test_the_roster_ships_with_a_filter_wired_to_it()
@@ -73,6 +102,36 @@ class PageAccessAuditTest extends TestCase
         $sources = $result['people']->firstWhere('user.id', $member->id)['sources'];
         $this->assertSame('group', $sources[0]['type']);
         $this->assertSame('Procurement Readers', $sources[0]['name']);
+    }
+
+    public function test_the_roster_reads_alphabetically_by_the_displayed_name()
+    {
+        $group = Group::factory()->create([
+            'name' => 'Procurement Readers',
+            'permissions' => json_encode(['procurement.view' => '1']),
+        ]);
+
+        // Surnames deliberately run backwards against first names: ordering
+        // on last_name would put Zeller first, which is not what the Name
+        // column shows.
+        foreach ([['Aaron', 'Zeller'], ['Mabel', 'Marsh'], ['Zara', 'Abbott']] as [$first, $last]) {
+            $user = User::factory()->create([
+                'first_name' => $first,
+                'last_name' => $last,
+                'display_name' => null,
+            ]);
+            $user->groups()->attach($group->id);
+        }
+
+        $result = (new PageAccessAudit)->audit('procurement');
+
+        $names = $result['people']
+            ->pluck('user.display_name')
+            ->filter(fn ($name) => in_array($name, ['Aaron Zeller', 'Mabel Marsh', 'Zara Abbott'], true))
+            ->values()
+            ->all();
+
+        $this->assertSame(['Aaron Zeller', 'Mabel Marsh', 'Zara Abbott'], $names);
     }
 
     public function test_an_individual_denial_beats_the_group_grant()
@@ -141,7 +200,7 @@ class PageAccessAuditTest extends TestCase
         $this->assertSame('reports.transactions.gl', $breakdown['abilities'][0]['ability']);
     }
 
-    public function test_the_lock_shows_on_sensitive_pages_for_superadmins_only()
+    public function test_the_lock_shows_to_everyone_the_page_itself_admits()
     {
         $auditUrl = route('access-audit.show', ['path' => 'contracts']);
 
@@ -150,12 +209,14 @@ class PageAccessAuditTest extends TestCase
             ->assertOk()
             ->assertSee($auditUrl, false);
 
+        // A plain viewer got through the page's gate, so the lock — and the
+        // roster behind it — is theirs too.
         $viewer = User::factory()->create(['permissions' => json_encode(['contracts.view' => '1'])]);
 
         $this->actingAs($viewer)
             ->get('/contracts')
             ->assertOk()
-            ->assertDontSee($auditUrl, false);
+            ->assertSee($auditUrl, false);
     }
 
     public function test_the_lock_stays_off_pages_that_are_not_sensitive()

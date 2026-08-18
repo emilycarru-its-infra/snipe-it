@@ -44,8 +44,43 @@ class ProcurementReportsTest extends TestCase
             ->get(route('reports.procurement'))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.dashboard_title'))
-            ->assertSee('procPoChart')
-            ->assertSee('procMonthlyChart');
+            ->assertSee('procPoChart');
+    }
+
+    public function test_the_tile_row_follows_the_fiscal_year_scope()
+    {
+        PurchaseOrder::factory()->create(['po_number' => 'PO-SCOPE', 'fiscal_year' => 'FY2026-27', 'budget' => 25000]);
+        $superuser = $this->superuser();
+
+        // Inside one year: utilisation against that year's pot, and the
+        // returns the year is chasing.
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            // The canvas, not the script that looks for it by id.
+            ->assertSee('<canvas id="procUtilChart">', false)
+            ->assertSee('>'.trans('admin/purchase-orders/general.returns_card_title').'<', false)
+            ->assertDontSee('<canvas id="procFyChart">', false);
+
+        // Across every year: the year-on-year comparison, and neither of the
+        // two that only mean something inside a cycle.
+        $this->actingAs($superuser)
+            ->get(route('reports.procurement', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('<canvas id="procFyChart">', false)
+            ->assertDontSee('<canvas id="procUtilChart">', false)
+            // The card's heading, not the word wherever it appears — a
+            // script comment on the same page mentions it too.
+            ->assertDontSee('>'.trans('admin/purchase-orders/general.returns_card_title').'<', false);
+    }
+
+    public function test_the_monthly_invoiced_chart_is_gone()
+    {
+        // Four points of invoice timing told nobody anything they act on.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->assertDontSee('procMonthlyChart');
     }
 
     public function test_dashboard_filters_by_fiscal_year()
@@ -1040,12 +1075,18 @@ class ProcurementReportsTest extends TestCase
         ], ['purchase_cost' => 1900.00]);
         Asset::query()->whereKey($early->id)->update(['asset_eol_date' => '2026-10-01']);
 
-        // And one with nothing sharper decided: lease end stands.
-        $this->seedLeaseAsset([
+        // And one with nothing sharper decided: lease end stands. The EOL
+        // has to be cleared explicitly — the asset factory stamps a RANDOM
+        // one (purchase date plus 0-60 months), and whenever that landed
+        // inside FY2026-27 it beat the lease end as the operative date and
+        // dragged this device into the earlier year. That is what made this
+        // test fail intermittently in CI on unrelated branches.
+        $undecided = $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => '2027-08-01',
         ], ['purchase_cost' => 1700.00]);
+        Asset::query()->whereKey($undecided->id)->update(['asset_eol_date' => null]);
 
         // FY2026-27 carries the wave device and the early-EOL device…
         $this->actingAs($this->superuser())
@@ -1149,12 +1190,50 @@ class ProcurementReportsTest extends TestCase
             'subtotal' => 999.99,
         ]);
 
-        $this->actingAs($this->superuser())
+        $content = $this->actingAs($this->superuser())
             ->get(route('reports.procurement.po-drilldown'))
             ->assertOk()
             ->assertSee('PO-DRILL-1')
             ->assertSee('PMCN-DRILL-1')
-            ->assertSee('INV-DRILL-1');
+            ->assertSee('INV-DRILL-1')
+            ->getContent();
+
+        // The PO is the row and its invoices nest beneath it, the same shape
+        // Extension Watch and Asset Lease Detail use. It used to be a flat
+        // run of invoice rows with a tinted subtotal marking each boundary,
+        // which meant repeating the PO number down a column.
+        $this->assertStringContainsString('rpt-child-table', $content);
+        $this->assertSame(1, substr_count($content, '>PO-DRILL-1<'));
+        $this->assertStringNotContainsString('PO-DRILL-1 '.trans('admin/orders/general.total'), $content);
+    }
+
+    public function test_a_po_row_shows_that_something_inside_it_is_off()
+    {
+        // Folding the detail must not fold the signal: a variance lives on
+        // an invoice, but the reader scanning collapsed POs has to see which
+        // one is worth opening.
+        $po = PurchaseOrder::factory()->create(['po_number' => 'PO-DRILL-VAR', 'budget' => 10000]);
+        $order = Order::factory()->create([
+            'order_number' => 'PMCN-DRILL-VAR',
+            'purchase_order_id' => $po->id,
+        ]);
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'invoice_number' => 'INV-DRILL-VAR',
+            'subtotal' => 999.99,
+        ]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.po-drilldown'))
+            ->assertOk()
+            ->getContent();
+
+        // The invoice bills 999.99 against no line items at all, so the whole
+        // subtotal is variance and both rows carry the warning.
+        $this->assertNotEquals(0.0, round($invoice->variance(), 2));
+        // Twice: once on the invoice row that is off, once on the PO row
+        // above it that has to say so while collapsed.
+        $this->assertGreaterThanOrEqual(2, substr_count($content, 'class="danger"'));
     }
 
     public function test_faculty_ledger_scopes_by_programme_cycle_not_row_creation_date()
@@ -1293,8 +1372,14 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('$500.00');
     }
 
-    public function test_dashboard_shows_user_agreements_unsigned_card()
+    public function test_agreements_are_off_the_orders_rail_entirely()
     {
+        // An agreement is paperwork attached to a laptop, not a separate
+        // thing arriving. It used to make up the bulk of the Deploying
+        // chevron — both the headline count and four of its six lines —
+        // which double counted the same devices the staging figure held.
+        // The agreement lifecycle has its own report; the rail tracks
+        // orders.
         $user = User::factory()->create();
         UserAgreement::create([
             'agreement_type' => 'pickup',
@@ -1305,9 +1390,29 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement'))
             ->assertOk()
-            // The unsigned-agreements count now lives in the Deploying
-            // chevron on the pipeline rail.
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_agreements_sent', ['count' => 1]));
+            ->assertDontSee('agreements in flight')
+            ->assertDontSee('awaiting signature');
+    }
+
+    public function test_the_ledger_dashes_a_zero_rather_than_printing_it()
+    {
+        // A free pickup costs nothing, so "$0.00" is not a figure anyone
+        // reads — it is a column of noise to scan past before the handful
+        // of real amounts show themselves.
+        $user = User::factory()->create(['first_name' => 'Free', 'last_name' => 'Pickup']);
+        UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.user-agreement-ledger', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('Free Pickup')
+            // The row's cells, not the grand total in the footer — a total
+            // of zero is a real sum and says so.
+            ->assertDontSee('<td>$0.00</td>', false);
     }
 
     /**
@@ -1333,6 +1438,84 @@ class ProcurementReportsTest extends TestCase
         }
 
         return $asset->fresh();
+    }
+
+    public function test_asset_lease_detail_groups_devices_under_their_contract()
+    {
+        // Two devices on one schedule, one on another. Flat, this report
+        // repeated the contract id down a column and never totalled it;
+        // grouped, the contract is the row and its devices nest beneath.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240501',
+            'Lease End Date' => '2028-05-01',
+        ], ['asset_tag' => 'ALD-1', 'serial' => 'ALDSERIAL1', 'purchase_cost' => 1000]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240501',
+            'Lease End Date' => '2028-05-01',
+        ], ['asset_tag' => 'ALD-2', 'serial' => 'ALDSERIAL2', 'purchase_cost' => 1500]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20240601',
+            'Lease End Date' => '2028-06-01',
+        ], ['asset_tag' => 'ALD-3', 'serial' => 'ALDSERIAL3', 'purchase_cost' => 700]);
+
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.asset-lease-detail', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('ECI20240501')
+            ->assertSee('ECI20240601')
+            // Devices still appear — in the nested table, not as top rows.
+            ->assertSee('ALDSERIAL1')
+            ->assertSee('ALDSERIAL2')
+            ->getContent();
+
+        // One parent row per contract, each carrying a child table.
+        $this->assertSame(1, substr_count($content, '>ECI20240501<'));
+        $this->assertStringContainsString('rpt-child-table', $content);
+
+        // The contract row totals its devices rather than making the reader
+        // add them up: 1000 + 1500.
+        $this->assertStringContainsString('$2,500.00', $content);
+    }
+
+    public function test_a_retained_lease_to_own_decision_books_no_obligation()
+    {
+        // Retained is not a buyout: the lease-to-own term simply ended and
+        // title passed. Logging it as a buyout put a cost on the register
+        // that nobody owes.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20200401',
+            'Lease End Date' => now()->addMonth()->format('Y-m-d'),
+            'Ownership Type' => 'Purchased',
+        ], ['asset_tag' => 'RETAIN-1', 'purchase_date' => '2020-04-01']);
+
+        LeaseDecision::factory()->create([
+            'contract_reference' => 'ECI20200401',
+            'asset_id' => null,
+            'decision_type' => 'retain',
+            'status' => 'approved',
+            'amount' => 4200,
+            'decision_date' => now()->format('Y-m-d'),
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.aro-register', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('ECI20200401')
+            ->assertSee(trans('admin/purchase-orders/general.aro_action_retained'))
+            // The amount is neither shown nor totalled.
+            ->assertDontSee('$4,200.00');
+    }
+
+    public function test_the_lease_decision_form_offers_retained()
+    {
+        $decision = LeaseDecision::factory()->create(['decision_type' => 'buyout']);
+
+        $this->actingAs($this->superuser())
+            ->get(route('lease-decisions.edit', $decision))
+            ->assertOk()
+            ->assertSee('value="retain"', false)
+            ->assertSee(trans('admin/lease-decisions/general.type_retain'))
+            ->assertSee(trans('admin/lease-decisions/general.type_retain_help'));
     }
 
     public function test_disposition_grid_lists_serials_under_a_contract_dropdown()
@@ -1547,7 +1730,10 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.lessor_chart_cost'))
             ->assertSee('chart-lessor-ownership')
             ->assertSee(trans('admin/purchase-orders/general.report_lessor_breakdown'))
-            ->assertSee(trans('admin/purchase-orders/general.report_rent_costs'));
+            ->assertSee(trans('admin/purchase-orders/general.report_rent_costs'))
+            // Data health closes the page — too granular for the
+            // procurement stream, at home with the leases it describes.
+            ->assertSee(trans('admin/purchase-orders/general.report_lease_data_health'));
 
         $this->actingAs($this->superuser())
             ->get(route('reports.lessor-breakdown', ['format' => 'csv']))
@@ -1647,8 +1833,46 @@ class ProcurementReportsTest extends TestCase
         // Lessor Breakdown left the procurement list for the reports root.
         $this->assertStringNotContainsString('proc-report_lessor_breakdown', $content);
 
+        // Rent Costs and Lease Data Health moved to /procurement/leasing,
+        // where the portfolio they describe already lives.
+        $this->assertStringNotContainsString('proc-report_rent_costs', $content);
+        $this->assertStringNotContainsString('proc-report_lease_data_health', $content);
+
         // The register dropped the ARO initialism.
         $this->assertSame('Buyout Register', trans('admin/purchase-orders/general.report_aro_register'));
+    }
+
+    public function test_reports_sit_under_the_stage_a_reader_looks_for_them_in()
+    {
+        // Stage is where the reader goes looking, not where the work
+        // happens. The Buyout Register and Capital Spend are consulted
+        // while setting a year's envelope; the Disposition Grid describes
+        // devices whose lifecycle is over.
+        $content = $this->actingAs($this->superuser())
+            ->get(route('reports.procurement'))
+            ->assertOk()
+            ->getContent();
+
+        $stageOf = function (string $report) use ($content) {
+            $at = strpos($content, 'data-pr-report="proc-'.$report.'"');
+            $this->assertNotFalse($at, "no pill for {$report}");
+            // The pill's own column, i.e. the nearest stage above it.
+            $before = substr($content, 0, $at);
+            preg_match_all('/data-report-stage="([a-z]+)"/', $before, $m);
+
+            return end($m[1]);
+        };
+
+        $this->assertSame('budgeting', $stageOf('report_aro_register'));
+        $this->assertSame('budgeting', $stageOf('report_capital'));
+        $this->assertSame('completed', $stageOf('report_disposition_grid'));
+
+        // The grid leads its column rather than trailing the reports that
+        // were already there.
+        $this->assertLessThan(
+            strpos($content, 'data-pr-report="proc-report_po_disposition"'),
+            strpos($content, 'data-pr-report="proc-report_disposition_grid"')
+        );
     }
 
     public function test_reports_read_provider_from_the_lessor_field()

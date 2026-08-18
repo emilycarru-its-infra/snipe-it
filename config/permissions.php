@@ -107,6 +107,14 @@ return [
             'permission' => 'reports.fleet-health.view',
             'display' => true,
         ],
+        // The printing dashboard used to ride on assets.view, which every
+        // group needing the asset pages carries — so the report was visible
+        // far wider than its audience. Its own key lets it be granted to the
+        // teams that actually run printing.
+        [
+            'permission' => 'reports.printing.view',
+            'display' => true,
+        ],
         [
             'permission' => 'reports.transactions.view',
             'display' => true,
@@ -390,6 +398,14 @@ return [
         ],
         [
             'permission' => 'users.files',
+            'display' => true,
+        ],
+        // View-as. Held apart from users.edit because it is a different kind
+        // of power: it does not change a record, it changes who you are for
+        // the session. The controller still refuses to borrow an account that
+        // outranks the borrower, so this grants reach over ordinary users only.
+        [
+            'permission' => 'users.impersonate',
             'display' => true,
         ],
 

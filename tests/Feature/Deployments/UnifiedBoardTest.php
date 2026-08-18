@@ -58,6 +58,8 @@ class UnifiedBoardTest extends TestCase
         $this->assertStringContainsString('UNI-DEV-1', $content);
         $this->assertStringContainsString('dp-gantt-bar arrival', $content);
         $this->assertStringContainsString(trans('admin/deployments/general.view_timeline'), $content);
+        // The text filter over the device rows ships with the table.
+        $this->assertStringContainsString('id="dp-filter"', $content);
     }
 
     public function test_planning_claims_incoming_order_lines_onto_a_wave()

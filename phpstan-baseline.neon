@@ -1,6 +1,12 @@
 parameters:
 	ignoreErrors:
 		-
+			message: '#^Relation ''storageLocation'' is not found in App\\Models\\DeploymentWave model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/DeploymentsController.php
+
+		-
 			message: '#^Relation ''type'' is not found in App\\Models\\DeploymentWave model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
