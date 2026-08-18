@@ -74,7 +74,7 @@
                     'columns' => $report['columns'],
                     'rows' => $report['records'],
                     'footer' => $report['footer'],
-                    'selectable' => $report['selectable'] ?? false,
+                    'selectable' => $report['selectable'] ?? null,
                 ])
             </div>
         </div>

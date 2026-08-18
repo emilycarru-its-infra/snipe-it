@@ -3742,8 +3742,15 @@ class ProcurementReportsController extends Controller
         );
 
         // Row selection drives "open" (lightbox queue) and "download"
-        // (one zip) over the agreements' PDFs.
-        return ['columns' => $columns, 'records' => $records, 'footer' => $footer, 'selectable' => true];
+        // (one zip) over the agreements' PDFs. The value is the endpoint the
+        // download posts to — the table partial is shared and owns no
+        // report's routes.
+        return [
+            'columns' => $columns,
+            'records' => $records,
+            'footer' => $footer,
+            'selectable' => route('user-agreements.bulk-pdf'),
+        ];
     }
 
     /**
@@ -5597,7 +5604,7 @@ class ProcurementReportsController extends Controller
             'reportCharts' => $report['charts'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
             'sortable' => $report['sortable'] ?? false,
-            'selectable' => $report['selectable'] ?? false,
+            'selectable' => $report['selectable'] ?? null,
             'controls' => $controls,
             'downloadUrl' => route($routeName, array_filter($downloadParams, fn ($v) => $v !== null && $v !== '')),
             'reportParams' => $extraParams,
@@ -5624,7 +5631,7 @@ class ProcurementReportsController extends Controller
             'footer' => $report['footer'] ?? null,
             'nowrapExceptLast' => $report['nowrap_except_last'] ?? false,
             'sortable' => $report['sortable'] ?? false,
-            'selectable' => $report['selectable'] ?? false,
+            'selectable' => $report['selectable'] ?? null,
             'canEditNotes' => auth()->user()?->can('create', Order::class) ?? false,
         ]);
     }
