@@ -236,7 +236,11 @@
     $hasRowActions = collect($rows)->contains(fn ($row) => ! empty($row['row_actions']));
     // Selection is opt-in per report and only worth a column when the rows
     // actually carry documents to act on.
-    $selectable = ! empty($selectable) && collect($rows)->contains(fn ($row) => ! empty($row['select_docs']));
+    // $selectable is the report's bulk-download endpoint, not a flag: this
+    // partial is shared, and hard-coding one report's route into it would
+    // post the next report's ids somewhere they mean nothing.
+    $selectAction = is_string($selectable ?? null) ? $selectable : null;
+    $selectable = $selectAction !== null && collect($rows)->contains(fn ($row) => ! empty($row['select_docs']));
     $selectId = 'rpt-sel-'.\Illuminate\Support\Str::random(6);
 @endphp
 @if ($selectable)
@@ -247,7 +251,7 @@
         <button type="button" class="btn btn-xs btn-default" data-rpt-open-selected disabled>
             <i class="fa-solid fa-file-pdf" aria-hidden="true"></i> {{ trans('admin/purchase-orders/general.docs_open_selected') }}
         </button>
-        <form method="POST" action="{{ route('user-agreements.bulk-pdf') }}" style="display:inline-block; margin:0;" data-rpt-download-form>
+        <form method="POST" action="{{ $selectAction }}" style="display:inline-block; margin:0;" data-rpt-download-form>
             {{ csrf_field() }}
             <input type="hidden" name="ids" value="">
             <button type="submit" class="btn btn-xs btn-default" data-rpt-download-selected disabled>

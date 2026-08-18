@@ -68,7 +68,7 @@
                     'canEditNotes' => $canEditNotes ?? false,
                     'nowrapExceptLast' => $nowrapExceptLast ?? false,
                     'sortable' => $sortable ?? false,
-                    'selectable' => $selectable ?? false,
+                    'selectable' => $selectable ?? null,
                 ])
             </div>
         </div>
