@@ -213,20 +213,37 @@ class UserAgreement extends SnipeModel
 
         $range = Helper::fiscalYearRange($fy);
 
-        // Whether the device sits in any wave at all, used to keep the
-        // fallbacks from firing for a device a wave has already dated.
-        $inAnyWave = function ($q) {
+        // Which side of a wave item dates this agreement depends on what
+        // the agreement documents. A pickup or upgrade is about the device
+        // being ISSUED, so only di.asset_id counts — the old laptop being
+        // replaced by next year's wave must not drag its years-old pickup
+        // agreement into the new cycle's ledger (which is how a page of
+        // already-held devices once read as this year's new-laptop pickups).
+        // A purchase is the buyout of the OUTGOING device, an event of the
+        // cycle that replaces it, so the replaced side counts too.
+        $waveSide = fn ($c) => $c
+            ->where(fn ($issued) => $issued
+                ->whereIn('user_agreements.agreement_type', ['pickup', 'upgrade'])
+                ->whereColumn('di.asset_id', 'user_agreements.asset_id'))
+            ->orWhere(fn ($outgoing) => $outgoing
+                ->where('user_agreements.agreement_type', 'purchase')
+                ->where(fn ($side) => $side
+                    ->whereColumn('di.asset_id', 'user_agreements.asset_id')
+                    ->orWhereColumn('di.replaces_asset_id', 'user_agreements.asset_id')));
+
+        // Whether a wave dates this agreement at all (same per-type sides),
+        // used to keep the fallbacks from firing for a device a wave has
+        // already dated.
+        $inAnyWave = function ($q) use ($waveSide) {
             $q->whereExists(fn ($sub) => $sub
                 ->selectRaw('1')
                 ->from('deployment_items as di')
                 ->join('deployment_waves as dw', 'dw.id', '=', 'di.wave_id')
                 ->whereNull('dw.deleted_at')
-                ->where(fn ($c) => $c
-                    ->whereColumn('di.asset_id', 'user_agreements.asset_id')
-                    ->orWhereColumn('di.replaces_asset_id', 'user_agreements.asset_id')));
+                ->where($waveSide));
         };
 
-        return $query->where(function ($q) use ($fy, $range, $inAnyWave) {
+        return $query->where(function ($q) use ($fy, $range, $inAnyWave, $waveSide) {
             // 1. the wave says which cycle this is
             $q->whereExists(fn ($sub) => $sub
                 ->selectRaw('1')
@@ -234,9 +251,7 @@ class UserAgreement extends SnipeModel
                 ->join('deployment_waves as dw', 'dw.id', '=', 'di.wave_id')
                 ->where('dw.fiscal_year', $fy)
                 ->whereNull('dw.deleted_at')
-                ->where(fn ($c) => $c
-                    ->whereColumn('di.asset_id', 'user_agreements.asset_id')
-                    ->orWhereColumn('di.replaces_asset_id', 'user_agreements.asset_id')));
+                ->where($waveSide));
 
             if (! $range) {
                 return;
@@ -332,6 +347,21 @@ class UserAgreement extends SnipeModel
             'upgrade' => (float) $this->top_up_amount,
             'purchase' => (float) $this->buyout_cost,
             default => (float) ($this->device_cost ?? 0.0),
+        };
+    }
+
+    /**
+     * What the member actually owes. A pickup documents receipt of a
+     * university-funded device — the member pays nothing, so it carries no
+     * payable however much the device cost. Money views sum this, not
+     * contractValue(), or every pickup's device cost reads as a debt.
+     */
+    public function payableValue(): float
+    {
+        return match ($this->agreement_type) {
+            'upgrade' => (float) $this->top_up_amount,
+            'purchase' => (float) $this->buyout_cost,
+            default => 0.0,
         };
     }
 

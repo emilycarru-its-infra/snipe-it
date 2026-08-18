@@ -382,6 +382,17 @@
                                         <i class="fa-solid fa-{{ $action['icon'] }}" aria-hidden="true"></i>
                                     </button>
                                 </form>
+                            @elseif (($action['method'] ?? null) === 'POST')
+                                {{-- State-changing row work (send for signature,
+                                     forward to payroll). Actions that email
+                                     someone pass a confirm string. --}}
+                                <form method="POST" action="{{ $action['url'] }}" style="display:inline-block; margin:0;"
+                                      @if (! empty($action['confirm'])) onsubmit="return confirm({{ json_encode($action['confirm']) }});" @endif>
+                                    {{ csrf_field() }}
+                                    <button type="submit" class="btn btn-xs btn-{{ $action['style'] ?? 'default' }}" title="{{ $action['title'] }}">
+                                        <i class="fa-solid fa-{{ $action['icon'] }}" aria-hidden="true"></i>@if (! empty($action['label'])) {{ $action['label'] }}@endif
+                                    </button>
+                                </form>
                             @else
                                 <a href="{{ $action['url'] }}" class="btn btn-xs btn-default" title="{{ $action['title'] }}">
                                     <i class="fa-solid fa-{{ $action['icon'] }}" aria-hidden="true"></i>
