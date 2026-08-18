@@ -4,7 +4,7 @@
      $totalBudget, $plannedTotal, $totalRemaining, $totalCommitted,
      $totalInvoiced, $eolCount, $eolEstimate, $leaseExpiryTotal,
      $leaseExpiryCount, $poCount, $pendingApprovalCount,
-     $userAgreementsAwaitingSignatureCount, $scheduleSigningQueueCount,
+     $scheduleSigningQueueCount,
      $liveCarry and $pipeline (from App\Services\ProcurementPipeline).
 
      Stage colors are a fixed six-slot categorical palette, validated for
@@ -64,14 +64,17 @@
         // waves, provisioning, rooms, scheduling — lives on the Deployments
         // board, which this chevron links to. Orders sit here until the
         // deployment side confirms the hand-off.
+        //
+        // Devices only. Agreements used to make up the bulk of both the
+        // count and the notes here — 74 of an "83" that read as things
+        // arriving — but an agreement is paperwork attached to a device,
+        // not a unit moving down an order pipeline, and it was double
+        // counting the same laptops the staging figure already held. The
+        // agreement lifecycle has its own report.
         'deploying' => [
-            'big' => (string) ($pipeline['stagedItemCount'] + $pipeline['deploying']['total']),
+            'big' => (string) $pipeline['stagedItemCount'],
             'notes' => array_values(array_filter([
                 $pipeline['stagedItemCount'] ? $t('pipeline_note_staged_count', ['count' => $pipeline['stagedItemCount']]) : null,
-                $pipeline['deploying']['total'] ? $t('pipeline_note_agreements_count', ['count' => $pipeline['deploying']['total']]) : null,
-                $pipeline['deploying']['quoted'] ? $t('pipeline_agreements_quoted', ['count' => $pipeline['deploying']['quoted']]) : null,
-                $pipeline['deploying']['sent'] ? $t('pipeline_agreements_sent', ['count' => $pipeline['deploying']['sent']]) : null,
-                $pipeline['deploying']['signed'] ? $t('pipeline_agreements_signed', ['count' => $pipeline['deploying']['signed']]) : null,
                 $t('pipeline_note_returns_prep', ['count' => count($pipeline['returns']['prep']['cards']) + $pipeline['returns']['prep']['more']]),
             ])),
             'link' => route('reports.deployments'),

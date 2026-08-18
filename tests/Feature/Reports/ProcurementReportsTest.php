@@ -1328,8 +1328,14 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('$500.00');
     }
 
-    public function test_dashboard_shows_user_agreements_unsigned_card()
+    public function test_agreements_are_off_the_orders_rail_entirely()
     {
+        // An agreement is paperwork attached to a laptop, not a separate
+        // thing arriving. It used to make up the bulk of the Deploying
+        // chevron — both the headline count and four of its six lines —
+        // which double counted the same devices the staging figure held.
+        // The agreement lifecycle has its own report; the rail tracks
+        // orders.
         $user = User::factory()->create();
         UserAgreement::create([
             'agreement_type' => 'pickup',
@@ -1340,9 +1346,29 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement'))
             ->assertOk()
-            // The unsigned-agreements count now lives in the Deploying
-            // chevron on the pipeline rail.
-            ->assertSee(trans('admin/purchase-orders/general.pipeline_agreements_sent', ['count' => 1]));
+            ->assertDontSee('agreements in flight')
+            ->assertDontSee('awaiting signature');
+    }
+
+    public function test_the_ledger_dashes_a_zero_rather_than_printing_it()
+    {
+        // A free pickup costs nothing, so "$0.00" is not a figure anyone
+        // reads — it is a column of noise to scan past before the handful
+        // of real amounts show themselves.
+        $user = User::factory()->create(['first_name' => 'Free', 'last_name' => 'Pickup']);
+        UserAgreement::create([
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'lifecycle_stage' => 'quoted',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.user-agreement-ledger', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('Free Pickup')
+            // The row's cells, not the grand total in the footer — a total
+            // of zero is a real sum and says so.
+            ->assertDontSee('<td>$0.00</td>', false);
     }
 
     /**
