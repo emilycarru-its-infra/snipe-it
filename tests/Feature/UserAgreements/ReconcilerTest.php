@@ -46,14 +46,37 @@ class ReconcilerTest extends TestCase
         return Statuslabel::factory()->rtd()->create();
     }
 
+    /**
+     * A device the programme covers: an Apple laptop. The reconciler now
+     * gates on category and manufacturer, so fixtures must be programme-
+     * shaped or nothing reconciles.
+     */
     private function assetFor(User $user, Statuslabel $status, ?float $cost = null): Asset
     {
         return Asset::factory()->create([
+            'model_id'      => $this->programModel()->id,
             'status_id'     => $status->id,
             'assigned_to'   => $user->id,
             'assigned_type' => User::class,
             'purchase_cost' => $cost,
         ])->fresh();
+    }
+
+    private function programModel(): \App\Models\AssetModel
+    {
+        $category = \App\Models\Category::firstOrCreate(
+            ['name' => 'Laptop'],
+            ['category_type' => 'asset', 'created_by' => 1]
+        );
+        $manufacturer = \App\Models\Manufacturer::firstOrCreate(
+            ['name' => 'Apple'],
+            ['created_by' => 1]
+        );
+
+        return \App\Models\AssetModel::factory()->create([
+            'category_id' => $category->id,
+            'manufacturer_id' => $manufacturer->id,
+        ]);
     }
 
     private function attachContract(Asset $asset, Carbon $endDate): Contract
@@ -86,6 +109,36 @@ class ReconcilerTest extends TestCase
             'asset_id'       => $asset->id,
             'agreement_type' => 'pickup',
         ]);
+    }
+
+    /**
+     * The programme is Mac laptops. An assigned iPad — or a Studio
+     * Display, or a Mac mini — is not programme equipment, and minting
+     * pickup/upgrade paperwork for it put "top-ups" on tablets and read
+     * them into the ledger as this cycle's programme machines.
+     */
+    public function test_devices_outside_the_programme_mint_nothing(): void
+    {
+        $user = $this->facultyUser();
+
+        $tablet = \App\Models\Category::firstOrCreate(
+            ['name' => 'Tablet'],
+            ['category_type' => 'asset', 'created_by' => 1]
+        );
+        $model = \App\Models\AssetModel::factory()->create(['category_id' => $tablet->id]);
+        Asset::factory()->create([
+            'model_id'      => $model->id,
+            'status_id'     => $this->rtdStatus()->id,
+            'assigned_to'   => $user->id,
+            'assigned_type' => User::class,
+            'purchase_cost' => 2977.00,
+        ]);
+
+        $report = app(Reconciler::class)->reconcileForUser($user);
+
+        $this->assertSame(0, $report->createdPickup);
+        $this->assertSame(0, $report->createdUpgrade);
+        $this->assertDatabaseMissing('user_agreements', ['user_id' => $user->id]);
     }
 
     public function test_upgrade_row_created_when_device_above_base(): void

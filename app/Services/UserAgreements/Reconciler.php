@@ -293,13 +293,30 @@ class Reconciler
     }
 
     /**
+     * The member's assigned devices that the programme actually covers.
+     *
+     * The programme is Mac laptops. Walking EVERY assigned asset minted
+     * pickup and upgrade agreements for iPads, Studio Displays and Mac
+     * minis the moment they were checked out — an iPad costing more than
+     * the programme base price even produced a "top-up", and the ledger
+     * read those devices as this cycle's programme machines. Category and
+     * manufacturer ride on config beside the eligibility form slug, so the
+     * operator manages the programme's shape in one place.
+     *
      * @return iterable<Asset>
      */
     private function assignedAssets(User $user): iterable
     {
+        $category = (string) config('forms.pickup_auto_create.asset_category', 'Laptop');
+        $manufacturer = (string) config('forms.pickup_auto_create.asset_manufacturer', 'Apple');
+
         return Asset::query()
             ->where('assigned_type', User::class)
             ->where('assigned_to', $user->id)
+            ->whereHas('model.category', fn ($q) => $q->where('name', $category))
+            ->when($manufacturer !== '', fn ($q) => $q->whereHas(
+                'model.manufacturer', fn ($m) => $m->where('name', $manufacturer)
+            ))
             ->get();
     }
 

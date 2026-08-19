@@ -484,7 +484,10 @@
                 </table>
             </div>
             <div style="margin-top:10px;">
-                <a class="btn btn-primary btn-sm js-lightbox" href="{{ route('requisitions.show', $reqCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+                {{-- The builder is where a requisition becomes a PO — that is the work
+                     this card is waiting on, so the button goes there, not to the
+                     read-only record. --}}
+                <a class="btn btn-primary btn-sm" href="{{ route('purchase-orders.builder', ['requisition' => $reqCard['id']]) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
             </div>
         </div>
     @endforeach
@@ -520,7 +523,7 @@
                 </table>
             </div>
             <div style="margin-top:10px;">
-                <a class="btn btn-primary btn-sm js-lightbox" href="{{ route('requisitions.show', $sentCard['id']) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
+                <a class="btn btn-primary btn-sm" href="{{ route('purchase-orders.builder', ['requisition' => $sentCard['id']]) }}">{{ trans('admin/purchase-orders/general.pipeline_open_requisition') }}</a>
             </div>
         </div>
     @endforeach
