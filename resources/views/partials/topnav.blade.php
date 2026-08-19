@@ -90,11 +90,11 @@
                 <li{!! (request()->is('deployments/waves*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployment-waves.index') }}">{{ trans('admin/deployments/general.waves') }}</a>
                 </li>
-                <li{!! (request()->is('deployments/decommissioning*') ? ' class="active"' : '') !!}>
-                    <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/deployments/general.decom_nav') }}</a>
-                </li>
                 <li{!! (request()->is('deployments/storage*') ? ' class="active"' : '') !!}>
                     <a href="{{ route('deployments.storage') }}">{{ trans('admin/deployments/general.storage') }}</a>
+                </li>
+                <li{!! (request()->is('deployments/decommissioning*') ? ' class="active"' : '') !!}>
+                    <a href="{{ route('deployments.decommissioning') }}">{{ trans('admin/deployments/general.decom_nav') }}</a>
                 </li>
                 @can('view', App\Models\Asset::class)
                     <li class="divider"></li>
@@ -139,8 +139,11 @@
                 <li{!! (request()->is('store') ? ' class="active"' : '') !!}>
                     <a href="{{ route('store.index') }}">{{ trans('admin/store/general.store') }}</a>
                 </li>
-                @can('admin')
-                    <li{!! (request()->is('procurement/store-admin*') ? ' class="active"' : '') !!}>
+                {{-- Gated by the page's own ability, not the admin flag —
+                     the flag came off the ITS groups and took this entry
+                     with it for everyone who actually curates the catalog. --}}
+                @can('update', \App\Models\Requisition::class)
+                    <li{!! (request()->is('procurement/store*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('procurement.store-admin') }}">{{ trans('admin/store/general.store_admin') }}</a>
                     </li>
                 @endcan

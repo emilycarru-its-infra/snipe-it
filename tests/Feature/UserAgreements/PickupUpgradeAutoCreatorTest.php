@@ -28,6 +28,23 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         return $user;
     }
 
+    private function programModel(): \App\Models\AssetModel
+    {
+        $category = \App\Models\Category::firstOrCreate(
+            ['name' => 'Laptop'],
+            ['category_type' => 'asset', 'created_by' => 1]
+        );
+        $manufacturer = \App\Models\Manufacturer::firstOrCreate(
+            ['name' => 'Apple'],
+            ['created_by' => 1]
+        );
+
+        return \App\Models\AssetModel::factory()->create([
+            'category_id' => $category->id,
+            'manufacturer_id' => $manufacturer->id,
+        ]);
+    }
+
     private function rtdStatus(): Statuslabel
     {
         return Statuslabel::factory()->rtd()->create();
@@ -36,6 +53,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
     private function assetCheckedOutTo(User $user, ?float $purchaseCost = 2700.00): Asset
     {
         return Asset::factory()->create([
+            'model_id'      => $this->programModel()->id,
             'status_id'     => $this->rtdStatus()->id,
             'assigned_to'   => $user->id,
             'assigned_type' => User::class,
@@ -46,6 +64,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
     private function assetWithLeaseEndingAt(User $user, Carbon $endDate, ?float $purchaseCost = 2200.00): Asset
     {
         $asset = Asset::factory()->create([
+            'model_id'      => $this->programModel()->id,
             'status_id'     => $this->rtdStatus()->id,
             'assigned_to'   => $user->id,
             'assigned_type' => User::class,
@@ -64,6 +83,34 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         return $asset->fresh();
     }
 
+    /**
+     * The programme is Mac laptops. Handing a faculty member an iPad is
+     * not a programme pickup — before this gate, the checkout minted a
+     * pickup and a "top-up" for the tablet and the ledger read it as
+     * this cycle's programme machine.
+     */
+    public function test_checkout_of_a_non_programme_device_mints_nothing(): void
+    {
+        $user = $this->facultyUser();
+        $this->assetWithLeaseEndingAt($user, Carbon::now()->addMonths(2), 2200.00);
+
+        $tablet = \App\Models\Category::firstOrCreate(
+            ['name' => 'Tablet'],
+            ['category_type' => 'asset', 'created_by' => 1]
+        );
+        $model = \App\Models\AssetModel::factory()->create(['category_id' => $tablet->id]);
+        $ipad = Asset::factory()->create([
+            'model_id'      => $model->id,
+            'status_id'     => $this->rtdStatus()->id,
+            'purchase_cost' => 2977.00,
+        ]);
+        $ipad->assigned_to   = $user->id;
+        $ipad->assigned_type = User::class;
+        $ipad->save();
+
+        $this->assertSame(0, UserAgreement::where('asset_id', $ipad->id)->count());
+    }
+
     public function test_checkout_creates_pickup_and_upgrade_when_above_base(): void
     {
         $user = $this->facultyUser();
@@ -71,6 +118,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
 
         // Now the user receives a NEW laptop above the program base.
         $newAsset = Asset::factory()->create([
+            'model_id'   => $this->programModel()->id,
             'status_id'     => $this->rtdStatus()->id,
             'purchase_cost' => 3000.00,
         ]);
@@ -100,6 +148,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         $this->assetWithLeaseEndingAt($user, Carbon::now()->addMonths(3), 2200.00);
 
         $newAsset = Asset::factory()->create([
+            'model_id'      => $this->programModel()->id,
             'status_id'     => $this->rtdStatus()->id,
             'purchase_cost' => 2383.11,
         ]);
@@ -119,7 +168,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         $user = User::factory()->create();
         // Not in any group → not faculty-eligible.
 
-        $newAsset = Asset::factory()->create(['status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
+        $newAsset = Asset::factory()->create(['model_id' => $this->programModel()->id, 'status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
         $newAsset->assigned_to   = $user->id;
         $newAsset->assigned_type = User::class;
         $newAsset->save();
@@ -132,7 +181,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         $user = $this->facultyUser();
         $this->assetWithLeaseEndingAt($user, Carbon::now()->addYears(3), 2200.00); // far future
 
-        $newAsset = Asset::factory()->create(['status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
+        $newAsset = Asset::factory()->create(['model_id' => $this->programModel()->id, 'status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
         $newAsset->assigned_to   = $user->id;
         $newAsset->assigned_type = User::class;
         $newAsset->save();
@@ -147,7 +196,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         // "any past date" — so this user does not qualify.
         $this->assetWithLeaseEndingAt($user, Carbon::now()->subMonths(2), 2200.00);
 
-        $newAsset = Asset::factory()->create(['status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
+        $newAsset = Asset::factory()->create(['model_id' => $this->programModel()->id, 'status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
         $newAsset->assigned_to   = $user->id;
         $newAsset->assigned_type = User::class;
         $newAsset->save();
@@ -176,7 +225,7 @@ class PickupUpgradeAutoCreatorTest extends TestCase
         $user = $this->facultyUser();
         $this->assetWithLeaseEndingAt($user, Carbon::now()->addMonths(2), 2200.00);
 
-        $newAsset = Asset::factory()->create(['status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
+        $newAsset = Asset::factory()->create(['model_id' => $this->programModel()->id, 'status_id' => $this->rtdStatus()->id, 'purchase_cost' => 3000]);
         $newAsset->assigned_to   = $user->id;
         $newAsset->assigned_type = User::class;
         $newAsset->save();

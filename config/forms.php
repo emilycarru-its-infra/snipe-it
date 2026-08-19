@@ -131,6 +131,13 @@ return [
         'lease_end_within_months' => (int) env('USER_AGREEMENT_LEASE_END_WITHIN_MONTHS', 6),
         'eligibility_form_slug' => env('USER_AGREEMENT_PICKUP_FORM_SLUG', 'faculty-program'),
 
+        // What the programme covers. Only assigned devices matching this
+        // category (and manufacturer, when set) get agreement rows — the
+        // programme is Mac laptops, and without the gate an assigned iPad
+        // or Studio Display minted pickup/upgrade paperwork overnight.
+        'asset_category' => env('USER_AGREEMENT_PICKUP_ASSET_CATEGORY', 'Laptop'),
+        'asset_manufacturer' => env('USER_AGREEMENT_PICKUP_ASSET_MANUFACTURER', 'Apple'),
+
         // Cutoff date — the Reconciler will only emit pickup and
         // upgrade rows for assets whose `last_checkout` is on or
         // after this date. Skips pre-system devices that already
