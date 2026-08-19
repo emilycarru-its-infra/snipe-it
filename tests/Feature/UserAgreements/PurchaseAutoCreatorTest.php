@@ -32,9 +32,27 @@ class PurchaseAutoCreatorTest extends TestCase
         return Statuslabel::factory()->rtd()->create(['name' => 'Active']);
     }
 
+    private function programModel(): \App\Models\AssetModel
+    {
+        $category = \App\Models\Category::firstOrCreate(
+            ['name' => 'Laptop'],
+            ['category_type' => 'asset', 'created_by' => 1]
+        );
+        $manufacturer = \App\Models\Manufacturer::firstOrCreate(
+            ['name' => 'Apple'],
+            ['created_by' => 1]
+        );
+
+        return \App\Models\AssetModel::factory()->create([
+            'category_id' => $category->id,
+            'manufacturer_id' => $manufacturer->id,
+        ]);
+    }
+
     private function assetAssignedTo(User $user, Statuslabel $status, ?float $purchaseCost = 850.00): Asset
     {
         $asset = Asset::factory()->create([
+            'model_id'      => $this->programModel()->id,
             'status_id'     => $status->id,
             'assigned_to'   => $user->id,
             'assigned_type' => User::class,
@@ -42,6 +60,33 @@ class PurchaseAutoCreatorTest extends TestCase
         ]);
 
         return $asset->fresh();
+    }
+
+    /**
+     * The buyout figure is the programme's residual math — letting any
+     * lease-end device through once priced an old iPad at the MacBook
+     * residual. Non-programme devices mint no purchase row.
+     */
+    public function test_lease_end_on_a_non_programme_device_mints_nothing(): void
+    {
+        $user = User::factory()->create();
+        $tablet = \App\Models\Category::firstOrCreate(
+            ['name' => 'Tablet'],
+            ['category_type' => 'asset', 'created_by' => 1]
+        );
+        $model = \App\Models\AssetModel::factory()->create(['category_id' => $tablet->id]);
+        $asset = Asset::factory()->create([
+            'model_id'      => $model->id,
+            'status_id'     => $this->neutralStatus()->id,
+            'assigned_to'   => $user->id,
+            'assigned_type' => User::class,
+            'purchase_cost' => 1100.00,
+        ]);
+
+        $asset->status_id = $this->leaseEndStatus()->id;
+        $asset->save();
+
+        $this->assertSame(0, UserAgreement::where('asset_id', $asset->id)->count());
     }
 
     public function test_status_change_to_lease_end_creates_purchase_row(): void
@@ -72,6 +117,7 @@ class PurchaseAutoCreatorTest extends TestCase
     {
         $leaseEnd = $this->leaseEndStatus();
         $asset    = Asset::factory()->create([
+            'model_id'      => $this->programModel()->id,
             'status_id'     => $this->neutralStatus()->id,
             'assigned_to'   => null,
             'assigned_type' => null,
