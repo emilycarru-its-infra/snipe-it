@@ -45,9 +45,27 @@ class ReconcileApiTest extends TestCase
         return Statuslabel::factory()->rtd()->create();
     }
 
+    /**
+     * A programme-shaped device (Apple laptop) — the reconciler gates on
+     * category and manufacturer, so bare fixtures reconcile to nothing.
+     */
     private function assignedAsset(User $user, ?float $cost = null): Asset
     {
+        $category = \App\Models\Category::firstOrCreate(
+            ['name' => 'Laptop'],
+            ['category_type' => 'asset', 'created_by' => 1]
+        );
+        $manufacturer = \App\Models\Manufacturer::firstOrCreate(
+            ['name' => 'Apple'],
+            ['created_by' => 1]
+        );
+        $model = \App\Models\AssetModel::factory()->create([
+            'category_id' => $category->id,
+            'manufacturer_id' => $manufacturer->id,
+        ]);
+
         return Asset::factory()->create([
+            'model_id'      => $model->id,
             'status_id'     => $this->rtdStatus()->id,
             'assigned_to'   => $user->id,
             'assigned_type' => User::class,

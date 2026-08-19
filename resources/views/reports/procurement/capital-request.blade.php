@@ -27,6 +27,22 @@
      The New Ask button opens a popover, the draft button turns the table
      into a builder basket, and the year's paper trail sits at the foot. --}}
 @section('content')
+    @include('reports.procurement._report-note-js')
+    <style>
+        /* Same Plan treatment as Lease Schedules Ending: the retained note
+           is the plan, not a footnote. */
+        .lease-end-retained-note {
+            display: block;
+            margin-top: 6px;
+            padding: 6px 10px;
+            font-size: 13px;
+            color: var(--color-fg, #262626);
+            background: light-dark(rgba(60, 141, 188, .08), rgba(60, 141, 188, .16));
+            border-radius: 6px;
+            max-width: 560px;
+        }
+        .capital-table .rpt-note-input { width: 100%; box-sizing: border-box; }
+    </style>
 
 <p class="text-muted" style="max-width:900px;">{{ trans('admin/purchase-orders/general.capital_request_intro') }}</p>
 
@@ -81,13 +97,39 @@
                     <td>{{ $schedule['lease_end_date'] }}</td>
                     <td class="text-right">{{ $schedule['count'] }}</td>
                     <td class="text-right">${{ number_format($schedule['cost'], 2) }}</td>
-                    <td style="white-space:normal;">
+                    {{-- Same Plan design as Lease Schedules Ending: the pill
+                         carries the decision, the note block carries its
+                         budget consequence, both editable in place. --}}
+                    <td style="white-space:normal; min-width:260px;">
                         @if ($schedule['is_lease_to_own'])
-                            {{ trans('admin/purchase-orders/general.lease_end_retained') }}
+                            <span class="label label-default">{{ trans('admin/purchase-orders/general.lease_end_retained') }}</span>
+                            <span class="lease-end-retained-note rpt-note-cell" data-model="lease_plan_note" data-contract="{{ $schedule['contract_id'] }}">
+                                <span class="rpt-note-text">{{ $schedule['plan_note'] !== '' ? $schedule['plan_note'] : trans('admin/purchase-orders/general.lease_end_retained_help') }}</span>
+                                @can('create', \App\Models\Order::class)
+                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
+                                @endcan
+                            </span>
                         @elseif ($schedule['decision'])
-                            {{ trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type) }}
+                            <span class="label {{ $schedule['refresh_planned'] ? 'label-primary' : 'label-warning' }}">
+                                {{ trans('admin/purchase-orders/general.lease_end_decision_tag', [
+                                    'type' => trans('admin/lease-decisions/general.type_'.$schedule['decision']->decision_type),
+                                    'status' => trans('admin/purchase-orders/general.decision_status_'.$schedule['decision']->status),
+                                ]) }}
+                            </span>
+                            <span class="rpt-note-cell" data-model="lease_decision" data-id="{{ $schedule['decision']->id }}" style="display:block; font-size:12px;">
+                                <span class="rpt-note-text text-muted">{{ $schedule['decision']->notes }}</span>
+                                @can('create', \App\Models\Order::class)
+                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
+                                @endcan
+                            </span>
                         @else
-                            {{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}
+                            <span class="label label-success">{{ trans('admin/purchase-orders/general.lease_end_refresh_planned') }}</span>
+                            <span class="rpt-note-cell" data-model="lease_plan_note" data-contract="{{ $schedule['contract_id'] }}" style="display:block; font-size:12px;">
+                                <span class="rpt-note-text text-muted">{{ $schedule['plan_note'] }}</span>
+                                @can('create', \App\Models\Order::class)
+                                    <a href="#" class="rpt-note-edit" title="{{ trans('admin/purchase-orders/general.disposition_edit_note') }}"><i class="fa-solid fa-pencil" aria-hidden="true"></i></a>
+                                @endcan
+                            </span>
                         @endif
                     </td>
                 </tr>

@@ -44,6 +44,13 @@ class PickupUpgradeAutoCreator
             return $none;
         }
 
+        // The programme is Mac laptops. A faculty member being handed an
+        // iPad or a monitor is not a programme pickup, however eligible
+        // the person — this gate is why.
+        if (! UserAgreement::programCovers($newAsset)) {
+            return $none;
+        }
+
         $userId = $this->resolveUserId($newAsset);
         if (! $userId) {
             return $none;
