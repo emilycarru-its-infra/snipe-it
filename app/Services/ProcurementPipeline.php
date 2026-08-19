@@ -67,9 +67,12 @@ class ProcurementPipeline
             // Agreements out for signature — an indicator, not cards: it
             // counts agreements rather than devices (the device counts on
             // this column already come from staging), and links out to the
-            // ledger where the rows are actually worked.
+            // ledger where the rows are actually worked. Only the sent
+            // stage: the label says "awaiting signature" and the link
+            // filters to Sent, so counting quoted rows too made the number
+            // and the page it opened disagree.
             'awaitingSignature' => \App\Models\UserAgreement::query()
-                ->whereIn('lifecycle_stage', ['quoted', 'agreement_sent'])
+                ->where('lifecycle_stage', 'agreement_sent')
                 ->forProgramFiscalYear($fy)
                 ->count(),
             // Unplanned capital asks that aren't a PO yet — ministry funding

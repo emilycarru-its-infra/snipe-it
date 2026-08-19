@@ -351,6 +351,26 @@ class UserAgreement extends SnipeModel
     }
 
     /**
+     * Whether the faculty programme covers this device at all. The
+     * programme is Mac laptops; without this gate, an assigned iPad or
+     * Studio Display minted pickup/upgrade paperwork the night it was
+     * checked out. Category and manufacturer ride on config beside the
+     * eligibility form slug.
+     */
+    public static function programCovers(Asset $asset): bool
+    {
+        $category = (string) config('forms.pickup_auto_create.asset_category', 'Laptop');
+        $manufacturer = (string) config('forms.pickup_auto_create.asset_manufacturer', 'Apple');
+
+        $model = $asset->model;
+        if (! $model || ! $model->category || $model->category->name !== $category) {
+            return false;
+        }
+
+        return $manufacturer === '' || $model->manufacturer?->name === $manufacturer;
+    }
+
+    /**
      * What the member actually owes. A pickup documents receipt of a
      * university-funded device — the member pays nothing, so it carries no
      * payable however much the device cost. Money views sum this, not
