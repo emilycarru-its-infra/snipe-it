@@ -39,6 +39,13 @@ class PurchaseAutoCreator
             return null;
         }
 
+        // Programme devices only. The buyout figure comes from the
+        // programme's residual math, and letting any lease-end device
+        // through once priced an old iPad at the MacBook residual.
+        if (! UserAgreement::programCovers($asset)) {
+            return null;
+        }
+
         $userId = $this->resolveUserId($asset);
         if (! $userId) {
             Log::info('purchase auto-create skipped: no assigned user', [
