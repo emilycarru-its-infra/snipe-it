@@ -9,6 +9,7 @@ use App\Models\Traits\PlacesVendorOrders;
 use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Watson\Validating\ValidatingTrait;
 
@@ -316,6 +317,8 @@ class PurchaseOrder extends SnipeModel
     /**
      * Store orders drawing on this purchase order — approved requests whose
      * money is this PO's budget.
+     *
+     * @return HasMany<StoreOrder, $this>
      */
     public function storeOrders()
     {

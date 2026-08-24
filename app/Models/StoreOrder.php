@@ -164,6 +164,8 @@ class StoreOrder extends Model
      * The purchase order this request draws on. Set when the money it needs
      * is already approved — the capital request's own PO, say — so the
      * request does not have to mint a second one for the same devices.
+     *
+     * @return BelongsTo<PurchaseOrder, $this>
      */
     public function purchaseOrder()
     {
