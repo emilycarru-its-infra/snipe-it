@@ -255,16 +255,17 @@ class ProcurementReportsController extends Controller
         // the whole $159k envelope, against a $178k PO that consumed it. So
         // the envelope contributes only what has not yet become paper, and
         // tapers to nothing as the year's capital request is ordered.
-        $capitalOrdered = (float) Requisition::query()
-            ->when(
-                $selectedFy,
-                fn ($q) => $q->where('capital_request_fy', $selectedFy),
-                fn ($q) => $q->whereNotNull('capital_request_fy')
-            )
-            ->whereNotNull('purchase_order_id')
-            ->with('purchaseOrder:id,budget')
-            ->get()
-            ->sum(fn ($requisition) => (float) ($requisition->purchaseOrder?->budget ?? 0.0));
+        $capitalOrdered = (float) PurchaseOrder::whereIn(
+            'id',
+            Requisition::query()
+                ->when(
+                    $selectedFy,
+                    fn ($q) => $q->where('capital_request_fy', $selectedFy),
+                    fn ($q) => $q->whereNotNull('capital_request_fy')
+                )
+                ->whereNotNull('purchase_order_id')
+                ->select('purchase_order_id')
+        )->sum('budget');
 
         $leaseExpiryApplied = max(0.0, $leaseExpiryTotal - $capitalOrdered);
 
