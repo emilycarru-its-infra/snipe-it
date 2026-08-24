@@ -89,6 +89,46 @@ class StoreOrdersApiTest extends TestCase
         $this->assertNotNull($order->fresh()->decided_at);
     }
 
+    public function test_a_lease_account_keeps_the_schedule_it_was_decided_with()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->postJson(route('api.store-orders.decide', $order->id), [
+                'decision' => 'approved',
+                'funding_account' => 'lease_admin',
+                'lease_schedule' => '301452-007',
+            ])
+            ->assertOk();
+
+        // The stored accounts are lease_admin and lease_curriculum, so the
+        // old comparison against the bare string 'lease' dropped the
+        // schedule and left every lease order unable to reach the vendor.
+        $fresh = $order->fresh();
+        $this->assertSame('301452-007', $fresh->lease_schedule);
+        $this->assertTrue($fresh->readyForVendor());
+    }
+
+    public function test_a_purchase_account_carries_no_schedule()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->postJson(route('api.store-orders.decide', $order->id), [
+                'decision' => 'approved',
+                'funding_account' => 'purchase_admin',
+                'lease_schedule' => '301452-007',
+            ])
+            ->assertOk();
+
+        $this->assertNull($order->fresh()->lease_schedule);
+        $this->assertTrue($order->fresh()->readyForVendor());
+    }
+
     public function test_a_decided_order_is_not_decided_twice()
     {
         Mail::fake();
