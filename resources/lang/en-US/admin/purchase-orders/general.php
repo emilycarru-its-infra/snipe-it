@@ -446,6 +446,7 @@ return [
     'report_lease_end_schedules' => 'Lease Schedules Ending',
     'report_lease_end_schedules_desc' => 'Every lease schedule ending in the selected fiscal year, with the buyout / return / extend decision and its retained note.',
     'pipeline_note_lease_preapproval' => 'incl. :cost lease-end pre-approval · :count devices',
+    'pipeline_note_lease_preapproval_partial' => 'incl. :applied of :cost lease-end pre-approval · :count devices',
     'pipeline_note_committed' => 'committed',
     'pipeline_note_pos' => ':count POs',
     'pipeline_note_open_orders' => ':count open orders',
