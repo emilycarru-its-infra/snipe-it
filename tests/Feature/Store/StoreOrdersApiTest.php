@@ -9,6 +9,7 @@ use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Laravel\Passport\Passport;
 use Tests\TestCase;
 
 /**
@@ -19,6 +20,11 @@ use Tests\TestCase;
  */
 class StoreOrdersApiTest extends TestCase
 {
+    private function procurement(): User
+    {
+        return User::factory()->superuser()->create();
+    }
+
     private function orderFor(User $requester, float $unitCost = 2100.00): StoreOrder
     {
         $item = CatalogItem::create([
@@ -55,8 +61,9 @@ class StoreOrdersApiTest extends TestCase
         $requester = User::factory()->create();
         $this->orderFor($requester);
 
-        $response = $this->actingAs(User::factory()->superuser()->create())
-            ->getJson(route('api.store-orders.index', ['status' => 'pending']))
+        Passport::actingAs($this->procurement());
+
+        $response = $this->getJson(route('api.store-orders.index', ['status' => 'pending']))
             ->assertOk();
 
         $this->assertSame(1, $response->json('total'));
@@ -67,7 +74,7 @@ class StoreOrdersApiTest extends TestCase
         $this->assertSame($requester->email, $row['requester']['email']);
         // No account yet, so it cannot be sent to the vendor.
         $this->assertFalse($row['ready_for_vendor']);
-        $this->assertSame(1, count($row['items']));
+        $this->assertCount(1, $row['items']);
     }
 
     public function test_an_order_can_be_approved_over_the_api()
@@ -76,17 +83,18 @@ class StoreOrdersApiTest extends TestCase
 
         $order = $this->orderFor(User::factory()->create());
 
-        $this->actingAs(User::factory()->superuser()->create())
-            ->postJson(route('api.store-orders.decide', $order->id), [
-                'decision' => 'approved',
-                'funding_account' => 'lease_curriculum',
-            ])
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'purchase_admin',
+        ])
             ->assertOk()
             ->assertJsonPath('status', 'success')
             ->assertJsonPath('payload.status', 'approved');
 
         $this->assertSame('approved', $order->fresh()->status);
-        $this->assertSame('lease_curriculum', $order->fresh()->funding_account);
+        $this->assertSame('purchase_admin', $order->fresh()->funding_account);
         $this->assertNotNull($order->fresh()->decided_at);
     }
 
@@ -96,13 +104,13 @@ class StoreOrdersApiTest extends TestCase
 
         $order = $this->orderFor(User::factory()->create());
 
-        $this->actingAs(User::factory()->superuser()->create())
-            ->postJson(route('api.store-orders.decide', $order->id), [
-                'decision' => 'approved',
-                'funding_account' => 'lease_admin',
-                'lease_schedule' => '301452-007',
-            ])
-            ->assertOk();
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'lease_admin',
+            'lease_schedule' => '301452-007',
+        ])->assertOk();
 
         // The stored accounts are lease_admin and lease_curriculum, so the
         // old comparison against the bare string 'lease' dropped the
@@ -118,13 +126,13 @@ class StoreOrdersApiTest extends TestCase
 
         $order = $this->orderFor(User::factory()->create());
 
-        $this->actingAs(User::factory()->superuser()->create())
-            ->postJson(route('api.store-orders.decide', $order->id), [
-                'decision' => 'approved',
-                'funding_account' => 'purchase_admin',
-                'lease_schedule' => '301452-007',
-            ])
-            ->assertOk();
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'purchase_admin',
+            'lease_schedule' => '301452-007',
+        ])->assertOk();
 
         $this->assertNull($order->fresh()->lease_schedule);
         $this->assertTrue($order->fresh()->readyForVendor());
@@ -137,8 +145,9 @@ class StoreOrdersApiTest extends TestCase
         $order = $this->orderFor(User::factory()->create());
         $order->update(['status' => 'approved']);
 
-        $this->actingAs(User::factory()->superuser()->create())
-            ->postJson(route('api.store-orders.decide', $order->id), ['decision' => 'declined'])
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.decide', $order->id), ['decision' => 'declined'])
             ->assertStatus(422);
 
         $this->assertSame('approved', $order->fresh()->status);
@@ -158,11 +167,12 @@ class StoreOrdersApiTest extends TestCase
         $second = $this->orderFor(User::factory()->create(), 2700.00);
         StoreOrder::whereIn('id', [$first->id, $second->id])->update(['status' => 'approved']);
 
-        $this->actingAs(User::factory()->superuser()->create())
-            ->postJson(route('api.store-orders.attach'), [
-                'orders' => [$first->id, $second->id],
-                'purchase_order_id' => $purchaseOrder->id,
-            ])
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.attach'), [
+            'orders' => [$first->id, $second->id],
+            'purchase_order_id' => $purchaseOrder->id,
+        ])
             ->assertOk()
             ->assertJsonPath('payload.attached', 2)
             ->assertJsonPath('payload.requested_total', 4800.00);
@@ -179,12 +189,12 @@ class StoreOrdersApiTest extends TestCase
         $purchaseOrder = PurchaseOrder::factory()->create(['po_number' => 'P0099101']);
         $order = $this->orderFor(User::factory()->create());
 
-        $this->actingAs(User::factory()->superuser()->create())
-            ->postJson(route('api.store-orders.attach'), [
-                'orders' => [$order->id],
-                'purchase_order_id' => $purchaseOrder->id,
-            ])
-            ->assertStatus(422);
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.attach'), [
+            'orders' => [$order->id],
+            'purchase_order_id' => $purchaseOrder->id,
+        ])->assertStatus(422);
 
         $this->assertNull($order->fresh()->purchase_order_id);
     }
@@ -193,8 +203,8 @@ class StoreOrdersApiTest extends TestCase
     {
         $this->orderFor(User::factory()->create());
 
-        $this->actingAs(User::factory()->create())
-            ->getJson(route('api.store-orders.index'))
-            ->assertForbidden();
+        Passport::actingAs(User::factory()->create());
+
+        $this->getJson(route('api.store-orders.index'))->assertForbidden();
     }
 }
