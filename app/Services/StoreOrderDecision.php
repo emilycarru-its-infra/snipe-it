@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\StoreOrder;
+use App\Services\CdwAccounts;
 
 /**
  * Approving or declining a store order, in one place.
@@ -32,7 +33,11 @@ class StoreOrderDecision
             'funding_account' => $data['funding_account'] ?? null,
             // Only a lease rides a schedule; carrying one on a purchase
             // would put a reference in the CSV that means nothing there.
-            'lease_schedule' => ($data['funding_account'] ?? null) === 'lease'
+            // Asked of CdwAccounts rather than compared to 'lease': the
+            // stored values are lease_admin and lease_curriculum, so a
+            // string match on 'lease' is false for every real lease account
+            // and quietly dropped the schedule off all of them.
+            'lease_schedule' => CdwAccounts::needsSchedule($data['funding_account'] ?? null)
                 ? ($data['lease_schedule'] ?: null)
                 : null,
             'decided_by' => auth()->id(),

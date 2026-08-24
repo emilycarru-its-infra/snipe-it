@@ -11,6 +11,7 @@ use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
+use App\Services\CdwAccounts;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
@@ -354,14 +355,21 @@ class ProcurementController extends Controller
 
         $account = $validated['funding_account'] ?? null;
 
-        if ($account === 'lease' && empty($validated['lease_schedule'])) {
+        // Both CSI-financed accounts need the schedule, and neither is
+        // called 'lease' — the values are lease_admin and lease_curriculum.
+        // Matching the bare string meant the guard never fired and the
+        // schedule was nulled on save, so no lease order could ever reach
+        // readyForVendor() and none could be sent to CDW.
+        if (CdwAccounts::needsSchedule($account) && empty($validated['lease_schedule'])) {
             return redirect()->route('procurement.approvals', ['status' => $order->status])
                 ->with('error', trans('admin/store/general.funding_lease_needs_schedule'));
         }
 
         $order->update([
             'funding_account' => $account,
-            'lease_schedule' => $account === 'lease' ? $validated['lease_schedule'] : null,
+            'lease_schedule' => CdwAccounts::needsSchedule($account)
+                ? $validated['lease_schedule']
+                : null,
         ]);
 
         return redirect()->route('procurement.approvals', ['status' => $order->status])
