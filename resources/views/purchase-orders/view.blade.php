@@ -174,6 +174,39 @@
                     @endforeach
                 @endif
 
+                @if ($purchaseOrder->storeOrders->whereIn('status', ['approved', 'ordered'])->isNotEmpty())
+                    {{-- Requests standing against this budget. Kept apart from
+                         committed spend on purpose: a request becomes committed
+                         when it reaches a vendor order, and showing it in both
+                         places would fund the same device twice. --}}
+                    <h3>{{ trans('admin/store/general.po_requested_heading') }}</h3>
+                    <p class="text-muted">{{ trans('admin/store/general.po_requested_help') }}</p>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>{{ trans('general.order_number') }}</th>
+                                <th>{{ trans('general.user') }}</th>
+                                <th>{{ trans('general.item') }}</th>
+                                <th class="text-right">{{ trans('general.total') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($purchaseOrder->storeOrders->whereIn('status', ['approved', 'ordered']) as $storeOrder)
+                                <tr>
+                                    <td>{{ $storeOrder->reference() }}</td>
+                                    <td>{{ $storeOrder->user?->present()->fullName }}</td>
+                                    <td>{{ $storeOrder->items->pluck('description')->implode(', ') }}</td>
+                                    <td class="text-right">${{ number_format($storeOrder->total(), 2) }}</td>
+                                </tr>
+                            @endforeach
+                            <tr>
+                                <td colspan="3"><strong>{{ trans('admin/store/general.po_requested_total') }}</strong></td>
+                                <td class="text-right"><strong>${{ number_format($purchaseOrder->requestedTotal(), 2) }}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                @endif
+
                 <h3>{{ trans('admin/purchase-orders/general.orders') }}</h3>
                 <table class="table table-striped">
                     <thead>

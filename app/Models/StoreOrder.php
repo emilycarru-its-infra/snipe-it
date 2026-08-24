@@ -65,6 +65,7 @@ class StoreOrder extends Model
         'decided_by',
         'decided_at',
         'requisition_id',
+        'purchase_order_id',
         'deployment_wave_id',
         'vendor_sent_at',
         'quote_number',
@@ -157,6 +158,18 @@ class StoreOrder extends Model
     public function requisition()
     {
         return $this->belongsTo(Requisition::class, 'requisition_id');
+    }
+
+    /**
+     * The purchase order this request draws on. Set when the money it needs
+     * is already approved — the capital request's own PO, say — so the
+     * request does not have to mint a second one for the same devices.
+     *
+     * @return BelongsTo<PurchaseOrder, $this>
+     */
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
     }
 
     /**
