@@ -213,6 +213,34 @@ class StoreController extends Controller
             ? ''
             : trim((string) ($validated['gl_code'] ?? ''));
 
+        // The faculty programme buys one laptop per person, so a second open
+        // order is never a second machine — it is the same person changing
+        // their mind, or clicking submit twice. Superseding the open one
+        // keeps "I picked the wrong model" working (a different choice is
+        // welcome, and lands as an edit) while a duplicate cannot stack:
+        // three identical orders once produced three placeholder assets
+        // that had to be deleted by hand.
+        //
+        // Only a pending order is superseded. Once approved it may already
+        // be with the vendor, and withdrawing it silently under a resubmit
+        // would strand a machine that ITS has committed to buying.
+        if ($isFaculty) {
+            $open = StoreOrder::where('user_id', auth()->id())
+                ->where('program', 'faculty')
+                ->whereIn('status', ['pending', 'approved'])
+                ->get();
+
+            if ($open->contains(fn (StoreOrder $existing) => $existing->status === 'approved')) {
+                return redirect()->route('store.orders')
+                    ->with('error', trans('admin/store/general.order_already_approved'));
+            }
+
+            foreach ($open as $existing) {
+                app(StoreOrderAssetProvisioner::class)->release($existing);
+                $existing->update(['status' => 'cancelled']);
+            }
+        }
+
         $order = DB::transaction(function () use ($validated, $isFaculty, $shared, $refreshAsset, $glCode) {
             // The wave that invited this order, when there is one. Without it,
             // "who from wave 2 has ordered" is two screens and a name

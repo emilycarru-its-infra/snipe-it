@@ -11,7 +11,7 @@ use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
-use App\Services\StoreOrderAssetProvisioner;
+use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -187,25 +187,7 @@ class ProcurementController extends Controller
                 ->with('error', trans('admin/store/general.queue_already_decided'));
         }
 
-        $order->update([
-            'status' => $validated['decision'],
-            'decision_notes' => $validated['decision_notes'] ?? null,
-            'funding_account' => $validated['funding_account'] ?? null,
-            // Only a lease rides a schedule; carrying one on a purchase
-            // would put a reference in the CSV that means nothing there.
-            'lease_schedule' => ($validated['funding_account'] ?? null) === 'lease'
-                ? ($validated['lease_schedule'] ?: null)
-                : null,
-            'decided_by' => auth()->id(),
-            'decided_at' => now(),
-        ]);
-
-        if ($validated['decision'] === 'declined') {
-            // A declined order's provisioned assets will never arrive.
-            app(StoreOrderAssetProvisioner::class)->release($order);
-        }
-
-        StoreOrderNotifier::requester($order, $validated['decision']);
+        app(StoreOrderDecision::class)->decide($order, $validated);
 
         return redirect()->route('procurement.approvals')
             ->with('success', trans('admin/store/general.queue_decided_'.$validated['decision']));
