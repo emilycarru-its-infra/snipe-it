@@ -2152,10 +2152,12 @@ class ProcurementReportsTest extends TestCase
         $this->assertEquals([], $user->fresh()->hidden_procurement_reports);
     }
 
-    public function test_pipeline_budget_auto_includes_lease_end_preapproval()
+    public function test_lease_end_preapproval_stays_out_of_the_approved_budget()
     {
-        // A schedule ending inside FY2026-27 (Apr–Mar): its original value
-        // is pre-approved and must join the approved budget automatically.
+        // A schedule ending inside FY2026-27 (Apr–Mar). Its original value is
+        // an estimate of a replacement purchase, not approved money: the
+        // purchase becomes a PO with a budget of its own, and counting both
+        // funded the same replacement twice.
         $this->seedLeaseAsset([
             'Lease Contract ID' => 'ECI20220901',
             'Lease End Date' => '2026-09-01',
@@ -2164,9 +2166,13 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 1500.50) < 0.01);
+            // The envelope is still reported beside the budget…
+            ->assertViewHas('leaseExpiryTotal', fn ($total) => abs($total - 1500.50) < 0.01)
+            // …but the pot itself is empty until something is approved.
+            ->assertViewHas('totalBudget', fn ($budget) => abs($budget) < 0.01);
 
-        // A posted lease_preapproval allocation overrides the live figure.
+        // Finance posting the envelope as an allocation is how it joins the
+        // pot — deliberately, at a reviewed figure.
         BudgetAllocation::create([
             'fiscal_year' => 'FY2026-27',
             'amount' => 999.00,

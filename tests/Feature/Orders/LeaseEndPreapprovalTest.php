@@ -8,10 +8,11 @@ use Tests\TestCase;
 
 /**
  * The lease-end pre-approval envelope: every schedule ending in a fiscal
- * year rolls its original value forward as that year's implicit replacement
- * budget. Both regressions here came from the F2 native-lease migration —
- * lease_end_date became a real DATE column, so the old varchar guards
- * (!= '') matched nothing and Carbon/date-string parsing drifted.
+ * year carries its original value forward as that year's replacement
+ * estimate, reported beside the budget rather than inside it. Both
+ * regressions here came from the F2 native-lease migration — lease_end_date
+ * became a real DATE column, so the old varchar guards (!= '') matched
+ * nothing and Carbon/date-string parsing drifted.
  */
 class LeaseEndPreapprovalTest extends TestCase
 {

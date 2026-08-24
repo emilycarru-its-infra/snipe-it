@@ -238,16 +238,15 @@ class ProcurementReportsController extends Controller
             ? (int) ($leaseExpiryByFy[$selectedFy]['count'] ?? 0)
             : (int) array_sum(array_column($leaseExpiryByFy, 'count'));
 
-        // The lease-end pre-approval joins the approved pot automatically:
-        // every schedule ending in the FY was funded at signing, so the new
-        // year's budget starts from the replacement estimate plus any carry —
-        // no manual allocation needed. A posted 'lease_preapproval'
-        // allocation overrides the live figure (same pattern as
-        // carry_forward), so a finance-adjusted number wins over the derived
-        // one.
-        if (! $allocations->contains(fn ($a) => $a->source === 'lease_preapproval')) {
-            $totalBudget += $leaseExpiryTotal;
-        }
+        // The lease-end pre-approval stays OUT of the approved pot. It is an
+        // estimate of a purchase, not money finance has approved, and the
+        // purchase it estimates becomes a purchase order of its own — so
+        // adding both counted the same replacement twice from the moment the
+        // PO was raised, and nothing nets a raised PO back off the envelope.
+        // It still renders beside the budget as context (like the EOL
+        // forecast), and finance can post a 'lease_preapproval' allocation to
+        // put a reviewed figure in the pot deliberately, which joins the sum
+        // above like any other allocation.
 
         $fiscalYears = array_keys($committedByFy + $plannedByFy + $leaseExpiryByFy);
         sort($fiscalYears);
