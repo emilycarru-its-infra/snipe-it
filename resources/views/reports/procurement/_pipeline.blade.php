@@ -3,6 +3,7 @@
      dashboard, so the parent view's variables are in scope: $selectedFy,
      $totalBudget, $plannedTotal, $totalRemaining, $totalCommitted,
      $totalInvoiced, $eolCount, $eolEstimate, $leaseExpiryTotal,
+     $leaseExpiryApplied, $capitalOrdered,
      $leaseExpiryCount, $poCount, $pendingApprovalCount,
      $scheduleSigningQueueCount,
      $liveCarry and $pipeline (from App\Services\ProcurementPipeline).
@@ -33,7 +34,16 @@
                 $plannedTotal > 0 ? $t('pipeline_note_planned', ['amount' => $fmt($plannedTotal)]) : null,
                 $t('pipeline_note_remaining', ['amount' => $fmt($totalRemaining)]),
                 $t('pipeline_note_eol', ['count' => $eolCount, 'cost' => $fmt($eolEstimate)]),
-                $t('pipeline_note_lease_preapproval', ['cost' => $fmt($leaseExpiryTotal), 'count' => $leaseExpiryCount]),
+                // Once part of the envelope has become a purchase order, the
+                // note says how much of it still stands — the rest is in the
+                // pot already, as that PO's own budget.
+                ($capitalOrdered ?? 0) > 0
+                    ? $t('pipeline_note_lease_preapproval_partial', [
+                        'applied' => $fmt($leaseExpiryApplied),
+                        'cost' => $fmt($leaseExpiryTotal),
+                        'count' => $leaseExpiryCount,
+                    ])
+                    : $t('pipeline_note_lease_preapproval', ['cost' => $fmt($leaseExpiryTotal), 'count' => $leaseExpiryCount]),
                 ($pipeline['openRequisitions'] ?? 0) > 0
                     ? $t('pipeline_note_requisitions', ['count' => $pipeline['openRequisitions']])
                     : null,
