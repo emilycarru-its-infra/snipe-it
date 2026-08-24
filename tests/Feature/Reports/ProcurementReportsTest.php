@@ -811,7 +811,7 @@ class ProcurementReportsTest extends TestCase
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.capital_reqs_title'))
             ->assertSee('REQM 0017859')
-            ->assertSee(route('purchase-orders.builder', ['requisition' => $requisition->id]), false);
+            ->assertSee(route('requisitions.show', $requisition->id), false);
 
         // Once a PO exists it moves to the issued list and leaves this one.
         $po = PurchaseOrder::factory()->create(['po_number' => 'P0026099', 'fiscal_year' => 'FY2026-27']);
@@ -1032,9 +1032,9 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('MacBook Air | 13&quot; | M5 | 16GB | 1TB | Silver', false)
             ->assertSee('Mac mini | M4 Pro | 48GB | 2TB')
             ->assertSee('$94,200.00')
-            // The draft button is gone; the builder door replaces it.
+            // The draft button is gone; the requisition it made replaces it.
             ->assertDontSee(trans('admin/purchase-orders/general.capital_draft_button'))
-            ->assertSee(route('purchase-orders.builder', ['requisition' => $requisition->id]), false)
+            ->assertSee(route('requisitions.show', $requisition->id), false)
             ->getContent();
 
         // The derived device line is gone: the contract appears exactly
