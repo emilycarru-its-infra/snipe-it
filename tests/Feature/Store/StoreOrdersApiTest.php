@@ -4,6 +4,7 @@ namespace Tests\Feature\Store;
 
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
+use App\Models\PurchaseOrder;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\User;
@@ -141,6 +142,51 @@ class StoreOrdersApiTest extends TestCase
             ->assertStatus(422);
 
         $this->assertSame('approved', $order->fresh()->status);
+    }
+
+    public function test_approved_orders_can_draw_on_an_existing_purchase_order()
+    {
+        Mail::fake();
+
+        $purchaseOrder = PurchaseOrder::factory()->create([
+            'po_number' => 'P0099100',
+            'fiscal_year' => 'FY2026-27',
+            'budget' => 178640.00,
+        ]);
+
+        $first = $this->orderFor(User::factory()->create());
+        $second = $this->orderFor(User::factory()->create(), 2700.00);
+        StoreOrder::whereIn('id', [$first->id, $second->id])->update(['status' => 'approved']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->postJson(route('api.store-orders.attach'), [
+                'orders' => [$first->id, $second->id],
+                'purchase_order_id' => $purchaseOrder->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('payload.attached', 2)
+            ->assertJsonPath('payload.requested_total', 4800.00);
+
+        $this->assertSame($purchaseOrder->id, $first->fresh()->purchase_order_id);
+
+        // The request is reported beside committed spend, never inside it —
+        // a device funded twice is the failure this linkage exists to end.
+        $this->assertSame(0.0, round($purchaseOrder->fresh()->committedTotal(), 2));
+    }
+
+    public function test_a_pending_order_cannot_be_attached_to_a_purchase_order()
+    {
+        $purchaseOrder = PurchaseOrder::factory()->create(['po_number' => 'P0099101']);
+        $order = $this->orderFor(User::factory()->create());
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->postJson(route('api.store-orders.attach'), [
+                'orders' => [$order->id],
+                'purchase_order_id' => $purchaseOrder->id,
+            ])
+            ->assertStatus(422);
+
+        $this->assertNull($order->fresh()->purchase_order_id);
     }
 
     public function test_the_queue_is_not_open_to_everyone()
