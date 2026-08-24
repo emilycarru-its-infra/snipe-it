@@ -12,7 +12,7 @@
     <td><span class="text-muted">&mdash;</span></td>
     <td>
         @if (! ($inGroup ?? false) && $paper && $paper['reqm'])
-            <a href="{{ route('purchase-orders.builder', ['requisition' => $paper['requisition_id']]) }}">{{ $paper['reqm'] }}</a>
+            <a href="{{ route('requisitions.show', $paper['requisition_id']) }}">{{ $paper['reqm'] }}</a>
         @else
             <span class="text-muted">&mdash;</span>
         @endif
