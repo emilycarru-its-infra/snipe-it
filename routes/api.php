@@ -824,6 +824,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::delete('requisitions/{requisition}', [Api\RequisitionsController::class, 'destroy'])
         ->name('api.requisitions.destroy');
 
+    // The approval queue, without a browser session: what is waiting on a
+    // decision, and the decision itself. Same service the web queue calls,
+    // so the two doors cannot drift.
+    Route::get('store-orders', [Api\StoreOrdersController::class, 'index'])
+        ->name('api.store-orders.index');
+    Route::post('store-orders/{order}/decide', [Api\StoreOrdersController::class, 'decide'])
+        ->name('api.store-orders.decide');
+
     // Shipment facts from the vendor's webhook (cdw-orders-listener):
     // tracking + serials land on the store order and the requester gets
     // the shipped/arrived email.

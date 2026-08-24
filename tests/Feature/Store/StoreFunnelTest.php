@@ -417,6 +417,72 @@ class StoreFunnelTest extends TestCase
         $this->assertSame('declined', $second->fresh()->status);
     }
 
+    /** A faculty member, whose store orders ride the laptop programme. */
+    private function facultyMember(): User
+    {
+        $faculty = $this->endUser();
+        $group = Group::create(['name' => 'Regular Faculty '.$faculty->id]);
+        DB::table('users_groups')->insert([
+            'user_id' => $faculty->id,
+            'group_id' => $group->id,
+        ]);
+
+        return $faculty;
+    }
+
+    public function test_a_second_programme_order_supersedes_the_first_rather_than_stacking()
+    {
+        Mail::fake();
+
+        $air = $this->shelfItem(['name' => 'MacBook Air | 13" | M5', 'vendor_sku' => '9094662']);
+        $pro = $this->shelfItem(['name' => 'MacBook Pro | 14" | M5 Pro', 'vendor_sku' => '8544413']);
+        $faculty = $this->facultyMember();
+
+        $this->actingAs($faculty)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $air->id, 'quantity' => 1]],
+        ]);
+
+        // Changing their mind is welcome — it lands as a replacement, not a
+        // second machine.
+        $this->actingAs($faculty)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $pro->id, 'quantity' => 1]],
+        ]);
+
+        $this->assertSame(1, StoreOrder::where('user_id', $faculty->id)->where('status', 'pending')->count());
+        $this->assertSame(1, StoreOrder::where('user_id', $faculty->id)->where('status', 'cancelled')->count());
+
+        $live = StoreOrder::where('user_id', $faculty->id)->where('status', 'pending')->with('items')->first();
+        $this->assertSame('MacBook Pro | 14" | M5 Pro', $live->items->first()->description);
+
+        // And exactly one placeholder asset stands, for the order that lives.
+        $this->assertSame(1, Asset::where('order_number', $live->reference())->count());
+        $this->assertSame(0, Asset::where('order_number', 'ECU-STORE-'.($live->id - 1))->count());
+    }
+
+    public function test_an_approved_programme_order_is_not_superseded_by_a_resubmit()
+    {
+        Mail::fake();
+
+        $item = $this->shelfItem();
+        $faculty = $this->facultyMember();
+
+        $this->actingAs($faculty)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ]);
+
+        $order = StoreOrder::where('user_id', $faculty->id)->firstOrFail();
+        $order->update(['status' => 'approved']);
+
+        // ITS may already have committed to buying it, so the resubmit is
+        // refused rather than quietly withdrawing the approved order.
+        $this->actingAs($faculty)->post(route('store.orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertRedirect(route('store.orders'));
+
+        $this->assertSame(1, StoreOrder::where('user_id', $faculty->id)->count());
+        $this->assertSame('approved', $order->fresh()->status);
+    }
+
     public function test_faculty_orders_carry_the_program_flag()
     {
         Mail::fake();
