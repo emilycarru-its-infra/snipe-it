@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Models\Requisition;
+use App\Models\PurchaseOrder;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Services\StoreOrderDecision;
@@ -36,7 +37,7 @@ class StoreOrdersController extends Controller
             'offset' => 'nullable|integer|min:0',
         ]);
 
-        $query = StoreOrder::with(['user', 'items'])
+        $query = StoreOrder::with(['user', 'items', 'purchaseOrder'])
             ->when($validated['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->orderBy('created_at');
 
@@ -80,9 +81,60 @@ class StoreOrdersController extends Controller
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
-            $this->row($order->fresh(['user', 'items'])),
+            $this->row($order->fresh(['user', 'items', 'purchaseOrder'])),
             trans('admin/store/general.queue_decided_'.$validated['decision'])
         ));
+    }
+
+    /**
+     * Point approved orders at the purchase order whose budget already
+     * covers them.
+     *
+     * The old route to a budget was to pull orders into a fresh requisition,
+     * which minted a second purchase order for devices an existing one had
+     * been raised to buy. Naming the PO instead lets the request stand
+     * against money that is already approved, and lets the PO show what is
+     * being asked of it.
+     */
+    public function attach(Request $request): JsonResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'orders' => 'required|array|min:1',
+            'orders.*' => 'integer|exists:store_orders,id',
+            'purchase_order_id' => 'required|integer|exists:purchase_orders,id',
+        ]);
+
+        $purchaseOrder = PurchaseOrder::findOrFail($validated['purchase_order_id']);
+
+        $orders = StoreOrder::with('items')
+            ->whereIn('id', $validated['orders'])
+            ->whereIn('status', ['approved', 'ordered'])
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('admin/store/general.queue_nothing_approved')),
+                422
+            );
+        }
+
+        StoreOrder::whereIn('id', $orders->pluck('id'))
+            ->update(['purchase_order_id' => $purchaseOrder->id]);
+
+        $purchaseOrder->load('storeOrders.items');
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'purchase_order' => $purchaseOrder->po_number,
+            'budget' => (float) $purchaseOrder->budget,
+            'attached' => $orders->count(),
+            'requested_total' => $purchaseOrder->requestedTotal(),
+            'orders' => $orders->map(fn (StoreOrder $order) => $order->reference())->all(),
+        ], trans('admin/store/general.queue_attached', [
+            'count' => $orders->count(),
+            'po' => $purchaseOrder->po_number,
+        ])));
     }
 
     /**
@@ -107,6 +159,7 @@ class StoreOrdersController extends Controller
             'ready_for_vendor' => $order->readyForVendor(),
             'notes' => $order->notes,
             'decision_notes' => $order->decision_notes,
+            'purchase_order' => $order->purchaseOrder?->po_number,
             'total' => $order->total(),
             'created_at' => $order->created_at?->toDateTimeString(),
             'vendor_sent_at' => $order->vendor_sent_at?->toDateTimeString(),

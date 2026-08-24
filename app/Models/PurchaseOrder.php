@@ -313,6 +313,30 @@ class PurchaseOrder extends SnipeModel
      * invoiced or not, plus any adjustment booked straight against it.
      * This is the figure compared against the budget.
      */
+    /**
+     * Store orders drawing on this purchase order — approved requests whose
+     * money is this PO's budget.
+     */
+    public function storeOrders()
+    {
+        return $this->hasMany(StoreOrder::class, 'purchase_order_id');
+    }
+
+    /**
+     * What the linked store orders ask of this budget.
+     *
+     * Deliberately NOT part of committedTotal(): a request becomes committed
+     * when it reaches a vendor order, and counting it in both places would
+     * fund the same device twice — the failure this linkage exists to end.
+     * It is reported beside committed spend, not inside it.
+     */
+    public function requestedTotal(): float
+    {
+        return round($this->storeOrders
+            ->whereIn('status', ['approved', 'ordered'])
+            ->sum(fn (StoreOrder $order) => $order->total()), 2);
+    }
+
     public function committedTotal(): float
     {
         return (float) $this->lineItems()->get()->sum->lineTotal()
