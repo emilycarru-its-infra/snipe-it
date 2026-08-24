@@ -1517,6 +1517,7 @@
         "notes",
         "order_usage",
         "program",
+        "purchase_order_id",
         "quote_expires_at",
         "quote_number",
         "quote_received_at",

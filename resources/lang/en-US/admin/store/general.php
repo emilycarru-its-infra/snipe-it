@@ -84,6 +84,13 @@ return [
     'order_note_placeholder' => 'Who this is for, room number, deadline…',
     'place_order' => 'Send Order Request',
     'order_empty' => 'Nothing was ordered — the items are no longer available.',
+    'order_already_approved' => 'Your programme laptop order has already been approved, so it cannot be changed here. Contact ITS if you need it altered.',
+    'order_superseded' => 'This order was replaced by a newer one from the same requester.',
+    'queue_attached' => ':count order(s) now draw on :po.',
+    'po_requested_heading' => 'Requested against this purchase order',
+    'po_requested_help' => 'Approved store orders drawing on this budget. They become committed spend when '
+        .'they reach a vendor order, so they are counted here rather than in the committed figure above.',
+    'po_requested_total' => 'Requested',
     'order_placed' => 'Order placed. We will review it and you can follow it under My Orders.',
     'order_cancelled' => 'Order cancelled.',
     'order_not_cancellable' => 'This order has already been reviewed and can no longer be cancelled here.',

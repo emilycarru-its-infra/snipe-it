@@ -11,7 +11,8 @@ use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
-use App\Services\StoreOrderAssetProvisioner;
+use App\Services\CdwAccounts;
+use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -187,25 +188,7 @@ class ProcurementController extends Controller
                 ->with('error', trans('admin/store/general.queue_already_decided'));
         }
 
-        $order->update([
-            'status' => $validated['decision'],
-            'decision_notes' => $validated['decision_notes'] ?? null,
-            'funding_account' => $validated['funding_account'] ?? null,
-            // Only a lease rides a schedule; carrying one on a purchase
-            // would put a reference in the CSV that means nothing there.
-            'lease_schedule' => ($validated['funding_account'] ?? null) === 'lease'
-                ? ($validated['lease_schedule'] ?: null)
-                : null,
-            'decided_by' => auth()->id(),
-            'decided_at' => now(),
-        ]);
-
-        if ($validated['decision'] === 'declined') {
-            // A declined order's provisioned assets will never arrive.
-            app(StoreOrderAssetProvisioner::class)->release($order);
-        }
-
-        StoreOrderNotifier::requester($order, $validated['decision']);
+        app(StoreOrderDecision::class)->decide($order, $validated);
 
         return redirect()->route('procurement.approvals')
             ->with('success', trans('admin/store/general.queue_decided_'.$validated['decision']));
@@ -372,14 +355,21 @@ class ProcurementController extends Controller
 
         $account = $validated['funding_account'] ?? null;
 
-        if ($account === 'lease' && empty($validated['lease_schedule'])) {
+        // Both CSI-financed accounts need the schedule, and neither is
+        // called 'lease' — the values are lease_admin and lease_curriculum.
+        // Matching the bare string meant the guard never fired and the
+        // schedule was nulled on save, so no lease order could ever reach
+        // readyForVendor() and none could be sent to CDW.
+        if (CdwAccounts::needsSchedule($account) && empty($validated['lease_schedule'])) {
             return redirect()->route('procurement.approvals', ['status' => $order->status])
                 ->with('error', trans('admin/store/general.funding_lease_needs_schedule'));
         }
 
         $order->update([
             'funding_account' => $account,
-            'lease_schedule' => $account === 'lease' ? $validated['lease_schedule'] : null,
+            'lease_schedule' => CdwAccounts::needsSchedule($account)
+                ? $validated['lease_schedule']
+                : null,
         ]);
 
         return redirect()->route('procurement.approvals', ['status' => $order->status])
