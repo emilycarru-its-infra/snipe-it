@@ -833,6 +833,8 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.store-orders.decide');
     Route::post('store-orders/attach', [Api\StoreOrdersController::class, 'attach'])
         ->name('api.store-orders.attach');
+    Route::post('store-orders/{order}/funding', [Api\StoreOrdersController::class, 'funding'])
+        ->name('api.store-orders.funding');
 
     // Shipment facts from the vendor's webhook (cdw-orders-listener):
     // tracking + serials land on the store order and the requester gets
