@@ -29,7 +29,7 @@
     </td>
     <td>
         @if (! ($inGroup ?? false) && $row['reqm'])
-            <a href="{{ route('purchase-orders.builder', ['requisition' => $row['requisition_id']]) }}">{{ $row['reqm'] }}</a>
+            <a href="{{ route('requisitions.show', $row['requisition_id']) }}">{{ $row['reqm'] }}</a>
         @else
             <span class="text-muted">&mdash;</span>
         @endif

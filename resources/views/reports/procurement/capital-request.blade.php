@@ -55,7 +55,7 @@
         <ul class="list-unstyled" style="margin:0;">
             @foreach ($openRequisitions as $requisition)
                 <li style="margin-bottom:4px;">
-                    <a href="{{ route('purchase-orders.builder', ['requisition' => $requisition->id]) }}">
+                    <a href="{{ route('requisitions.show', $requisition->id) }}">
                         {{ $requisition->requisition_number ? 'REQM '.$requisition->requisition_number : $requisition->title }}
                     </a>
                     @if ($requisition->requisition_number && $requisition->title)<span class="text-muted">· {{ $requisition->title }}</span>@endif
@@ -223,7 +223,7 @@
                 @if ($requisitionBacked)
                     {{-- The request became paper; the button is the paper. --}}
                     @foreach ($capitalRequisitions as $capReq)
-                        <a href="{{ route('purchase-orders.builder', ['requisition' => $capReq->id]) }}" class="btn btn-sm btn-primary">
+                        <a href="{{ route('requisitions.show', $capReq->id) }}" class="btn btn-sm btn-primary">
                             <i class="fas fa-file-invoice" aria-hidden="true"></i>
                             {{ $capReq->requisition_number ? 'REQM '.$capReq->requisition_number : trans('admin/purchase-orders/general.capital_view_requisition') }}
                         </a>
@@ -327,7 +327,7 @@
                             <button type="button" class="btn btn-xs btn-default capital-group-toggle" aria-expanded="true">
                                 <i class="fas fa-chevron-down" aria-hidden="true"></i>
                             </button>
-                            <a href="{{ route('purchase-orders.builder', ['requisition' => $group['requisition_id']]) }}"><strong>{{ $group['reqm'] }}</strong></a>
+                            <a href="{{ route('requisitions.show', $group['requisition_id']) }}"><strong>{{ $group['reqm'] }}</strong></a>
                             <span class="text-muted">· {{ $group['refresh']->count() + $group['asks']->count() }} {{ trans('admin/purchase-orders/general.capital_group_lines') }}</span>
                         </td>
                         <td class="text-right"><strong>{{ $group['qty'] }}</strong></td>
@@ -335,7 +335,7 @@
                         <td class="text-right"><strong>${{ number_format($group['cost'], 2) }}</strong></td>
                         <td></td>
                         <td></td>
-                        <td><a href="{{ route('purchase-orders.builder', ['requisition' => $group['requisition_id']]) }}">{{ $group['reqm'] }}</a></td>
+                        <td><a href="{{ route('requisitions.show', $group['requisition_id']) }}">{{ $group['reqm'] }}</a></td>
                         <td>
                             @if ($group['po'])
                                 <a class="js-lightbox" href="{{ route('purchase-orders.show', $group['po']) }}">{{ $group['po'] }}</a>
