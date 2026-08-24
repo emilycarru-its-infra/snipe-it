@@ -2181,6 +2181,79 @@ class ProcurementReportsTest extends TestCase
             ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 999.00) < 0.01);
     }
 
+    public function test_a_capital_request_po_consumes_the_preapproval_it_was_drafted_from()
+    {
+        // The envelope estimates a replacement purchase. Once that purchase
+        // is real, its PO budget is in the pot on its own account — so the
+        // envelope must stand down by the same amount instead of funding the
+        // replacement a second time.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20220901',
+            'Lease End Date' => '2026-09-01',
+        ], ['serial' => 'CONSUMED1', 'purchase_cost' => 1500.50]);
+
+        $purchaseOrder = PurchaseOrder::factory()->create([
+            'po_number' => 'P0099001',
+            'fiscal_year' => 'FY2026-27',
+            'budget' => 1200.00,
+            'order_date' => '2026-05-01',
+            'status' => 'open',
+        ]);
+
+        $requisition = Requisition::create([
+            'title' => 'Devices Capital Request FY2026-27',
+            'fiscal_year' => 'FY2026-27',
+            'capital_request_fy' => 'FY2026-27',
+            'status' => 'ordered',
+            'created_by' => $this->superuser()->id,
+        ]);
+        $requisition->purchase_order_id = $purchaseOrder->id;
+        $requisition->save();
+
+        // Pot = the PO's own budget (1,200.00) + what is left of the
+        // envelope (1,500.50 - 1,200.00), not both in full.
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertViewHas('leaseExpiryTotal', fn ($total) => abs($total - 1500.50) < 0.01)
+            ->assertViewHas('leaseExpiryApplied', fn ($applied) => abs($applied - 300.50) < 0.01)
+            ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 1500.50) < 0.01);
+    }
+
+    public function test_a_capital_po_larger_than_the_envelope_does_not_credit_it_back()
+    {
+        // A PO that overruns the envelope consumes all of it and no more —
+        // the excess is spend beyond pre-approval, never negative budget.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'ECI20220901',
+            'Lease End Date' => '2026-09-01',
+        ], ['serial' => 'OVERRUN1', 'purchase_cost' => 1500.50]);
+
+        $purchaseOrder = PurchaseOrder::factory()->create([
+            'po_number' => 'P0099002',
+            'fiscal_year' => 'FY2026-27',
+            'budget' => 4000.00,
+            'order_date' => '2026-05-01',
+            'status' => 'open',
+        ]);
+
+        $requisition = Requisition::create([
+            'title' => 'Devices Capital Request FY2026-27',
+            'fiscal_year' => 'FY2026-27',
+            'capital_request_fy' => 'FY2026-27',
+            'status' => 'ordered',
+            'created_by' => $this->superuser()->id,
+        ]);
+        $requisition->purchase_order_id = $purchaseOrder->id;
+        $requisition->save();
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'FY2026-27']))
+            ->assertOk()
+            ->assertViewHas('leaseExpiryApplied', fn ($applied) => abs($applied) < 0.01)
+            ->assertViewHas('totalBudget', fn ($budget) => abs($budget - 4000.00) < 0.01);
+    }
+
     public function test_ministry_capital_allocation_posts_and_joins_the_approved_budget()
     {
         // The store endpoint accepts the new source…

@@ -245,8 +245,32 @@ class ProcurementReportsController extends Controller
         // allocation overrides the live figure (same pattern as
         // carry_forward), so a finance-adjusted number wins over the derived
         // one.
+        //
+        // What it must NOT do is stand beside the purchase it estimates. A
+        // requisition drafted from the capital request carries
+        // capital_request_fy; once it is promoted, its purchase order's
+        // budget is in the pot on its own account, and the envelope has been
+        // spent to exactly that extent. Adding both counted the same
+        // replacement twice from the moment the PO was raised — on FY2026-27
+        // the whole $159k envelope, against a $178k PO that consumed it. So
+        // the envelope contributes only what has not yet become paper, and
+        // tapers to nothing as the year's capital request is ordered.
+        $capitalOrdered = (float) PurchaseOrder::whereIn(
+            'id',
+            Requisition::query()
+                ->when(
+                    $selectedFy,
+                    fn ($q) => $q->where('capital_request_fy', $selectedFy),
+                    fn ($q) => $q->whereNotNull('capital_request_fy')
+                )
+                ->whereNotNull('purchase_order_id')
+                ->select('purchase_order_id')
+        )->sum('budget');
+
+        $leaseExpiryApplied = max(0.0, $leaseExpiryTotal - $capitalOrdered);
+
         if (! $allocations->contains(fn ($a) => $a->source === 'lease_preapproval')) {
-            $totalBudget += $leaseExpiryTotal;
+            $totalBudget += $leaseExpiryApplied;
         }
 
         $fiscalYears = array_keys($committedByFy + $plannedByFy + $leaseExpiryByFy);
@@ -300,6 +324,8 @@ class ProcurementReportsController extends Controller
                 fn ($asset) => $asset->replacementCostEstimate() ?? (float) $asset->purchase_cost
             ),
             'leaseExpiryTotal' => $leaseExpiryTotal,
+            'leaseExpiryApplied' => $leaseExpiryApplied,
+            'capitalOrdered' => $capitalOrdered,
             'leaseExpiryCount' => $leaseExpiryCount,
             'leaseEndSchedules' => $leaseEndSchedules,
             'poRows' => $poRows,
