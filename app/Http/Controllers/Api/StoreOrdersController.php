@@ -8,6 +8,7 @@ use App\Models\Requisition;
 use App\Models\PurchaseOrder;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
+use App\Services\CdwAccounts;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\JsonResponse;
@@ -83,6 +84,49 @@ class StoreOrdersController extends Controller
             'success',
             $this->row($order->fresh(['user', 'items', 'purchaseOrder'])),
             trans('admin/store/general.queue_decided_'.$validated['decision'])
+        ));
+    }
+
+    /**
+     * Set (or correct) the account an approved order is charged to.
+     *
+     * Separate from decide() because the account is commonly settled after
+     * approval — the schedule rolls over between the decision and the batch,
+     * or the order was approved before anyone knew which budget it belonged
+     * to. Without this the only door was the queue page, and setting an
+     * account on sixteen orders meant sixteen clicks.
+     */
+    public function funding(Request $request, StoreOrder $order): JsonResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'lease_schedule' => 'nullable|string|max:32',
+        ]);
+
+        $account = $validated['funding_account'] ?? null;
+
+        // Both CSI-financed accounts need the schedule — it decides which
+        // Exhibit A the invoice lands on, and CDW cannot infer it.
+        if (CdwAccounts::needsSchedule($account) && empty($validated['lease_schedule'])) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('admin/store/general.funding_lease_needs_schedule')),
+                422
+            );
+        }
+
+        $order->update([
+            'funding_account' => $account,
+            'lease_schedule' => CdwAccounts::needsSchedule($account)
+                ? $validated['lease_schedule']
+                : null,
+        ]);
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            $this->row($order->fresh(['user', 'items', 'purchaseOrder'])),
+            trans('admin/store/general.funding_saved')
         ));
     }
 
