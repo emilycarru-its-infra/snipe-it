@@ -70,7 +70,8 @@ class StoreOrdersApiTest extends TestCase
 
         $row = $response->json('rows.0');
         $this->assertSame('pending', $row['status']);
-        $this->assertSame(2100.00, $row['total']);
+        // JSON encodes 2100.0 as 2100, so compare the value not its type.
+        $this->assertSame(2100.0, (float) $row['total']);
         $this->assertSame($requester->email, $row['requester']['email']);
         // No account yet, so it cannot be sent to the vendor.
         $this->assertFalse($row['ready_for_vendor']);
@@ -175,7 +176,7 @@ class StoreOrdersApiTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('payload.attached', 2)
-            ->assertJsonPath('payload.requested_total', 4800.00);
+            ->assertJsonPath('payload.requested_total', fn ($total) => (float) $total === 4800.0);
 
         $this->assertSame($purchaseOrder->id, $first->fresh()->purchase_order_id);
 
