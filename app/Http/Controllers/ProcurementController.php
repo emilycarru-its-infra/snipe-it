@@ -100,7 +100,7 @@ class ProcurementController extends Controller
             'selectedView' => $view,
             'statuses' => StoreOrder::STATUSES,
             'statusCounts' => $counts->put('all', $counts->sum())->all(),
-            'fundingAccounts' => StoreOrder::FUNDING_ACCOUNTS,
+            'fundingAccounts' => StoreOrder::fundingAccounts(),
             'leaseSchedules' => CsiSchedule::openScheduleNames(),
             // What is actually waiting on somebody, in count and in money, so
             // the page opens with the size of the job rather than making you
@@ -176,7 +176,7 @@ class ProcurementController extends Controller
         $validated = $request->validate([
             'decision' => 'required|string|in:approved,declined',
             'decision_notes' => 'nullable|string|max:65535',
-            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
         ]);
 
@@ -305,7 +305,7 @@ class ProcurementController extends Controller
         $this->authorize('update', Requisition::class);
 
         $validated = $request->validate([
-            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
         ]);
 
