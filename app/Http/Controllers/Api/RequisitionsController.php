@@ -62,7 +62,7 @@ class RequisitionsController extends Controller
             'statuses' => Requisition::STATUSES,
             // The four CDW accounts. One must be set before an order can go to
             // the vendor: it decides the blanket purchase order and the payee.
-            'funding_accounts' => StoreOrder::FUNDING_ACCOUNTS,
+            'funding_accounts' => StoreOrder::fundingAccounts(),
             'defaults' => [
                 'gst_rate' => 0.05,
                 'pst_rate' => 0.07,
@@ -240,7 +240,7 @@ class RequisitionsController extends Controller
             'quote_number' => 'sometimes|nullable|string|max:191',
             'quote_total' => 'sometimes|nullable|numeric|min:0',
             'quote_expires_at' => 'sometimes|nullable|date',
-            'funding_account' => 'sometimes|nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'funding_account' => 'sometimes|nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'sometimes|nullable|string|max:191',
         ]);
 

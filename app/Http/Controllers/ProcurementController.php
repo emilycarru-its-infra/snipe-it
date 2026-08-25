@@ -9,7 +9,7 @@ use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreVendorOrderDispatch;
 use App\Services\StoreOrderNotifier;
@@ -100,7 +100,7 @@ class ProcurementController extends Controller
             'selectedView' => $view,
             'statuses' => StoreOrder::STATUSES,
             'statusCounts' => $counts->put('all', $counts->sum())->all(),
-            'fundingAccounts' => StoreOrder::FUNDING_ACCOUNTS,
+            'fundingAccounts' => StoreOrder::fundingAccounts(),
             'leaseSchedules' => CsiSchedule::openScheduleNames(),
             // What is actually waiting on somebody, in count and in money, so
             // the page opens with the size of the job rather than making you
@@ -176,7 +176,7 @@ class ProcurementController extends Controller
         $validated = $request->validate([
             'decision' => 'required|string|in:approved,declined',
             'decision_notes' => 'nullable|string|max:65535',
-            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
         ]);
 
@@ -305,7 +305,7 @@ class ProcurementController extends Controller
         $this->authorize('update', Requisition::class);
 
         $validated = $request->validate([
-            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
         ]);
 
@@ -316,7 +316,7 @@ class ProcurementController extends Controller
         // wins, for a correction onto an earlier schedule.
         $schedule = $validated['lease_schedule'] ?? null;
 
-        if ($schedule === null && CdwAccounts::needsSchedule($account)) {
+        if ($schedule === null && SupplierAccounts::needsSchedule($account)) {
             $schedule = CsiSchedule::scheduleForAccount($account);
         }
 
@@ -325,14 +325,14 @@ class ProcurementController extends Controller
         // Matching the bare string meant the guard never fired and the
         // schedule was nulled on save, so no lease order could ever reach
         // readyForVendor() and none could be sent to CDW.
-        if (CdwAccounts::needsSchedule($account) && empty($schedule)) {
+        if (SupplierAccounts::needsSchedule($account) && empty($schedule)) {
             return redirect()->route('procurement.approvals', ['status' => $order->status])
                 ->with('error', trans('admin/store/general.funding_lease_needs_schedule'));
         }
 
         $order->update([
             'funding_account' => $account,
-            'lease_schedule' => CdwAccounts::needsSchedule($account) ? $schedule : null,
+            'lease_schedule' => SupplierAccounts::needsSchedule($account) ? $schedule : null,
         ]);
 
         return redirect()->route('procurement.approvals', ['status' => $order->status])

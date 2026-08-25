@@ -1325,6 +1325,18 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
      * CSI mirror ingest — the csi-poller function POSTs normalized CSI
      * lease/schedule/asset/invoice batches here for the reconciliation engine.
      */
+    // The vendor accounts and the lease cadence, editable — both were
+    // constants, so a new account number or a new schedule pair meant a
+    // deploy for a fact that moves on the vendor's timetable.
+    Route::get('procurement/supplier-accounts', [Api\ProcurementConfigController::class, 'accounts'])
+        ->name('api.procurement.accounts');
+    Route::put('procurement/supplier-accounts/{key}', [Api\ProcurementConfigController::class, 'saveAccount'])
+        ->name('api.procurement.accounts.save');
+    Route::get('procurement/lease-cadence', [Api\ProcurementConfigController::class, 'cadence'])
+        ->name('api.procurement.cadence');
+    Route::put('procurement/lease-cadence', [Api\ProcurementConfigController::class, 'saveCadence'])
+        ->name('api.procurement.cadence.save');
+
     // The mirror, and the pair open for ordering. They disagree by design
     // — see CsiSchedulesController — so both are reported together.
     Route::get('csi/schedules', [Api\CsiSchedulesController::class, 'index'])

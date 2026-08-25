@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -42,11 +42,25 @@ class StoreOrder extends Model
      */
     /**
      * The four accounts, named so the pair is unambiguous: how it pays, whose
-     * budget. `App\Services\CdwAccounts` holds their numbers and which of them
+     * budget. `App\Services\SupplierAccounts` holds their numbers and which of them
      * CSI finances. The old three-value list conflated a curriculum purchase
      * with a curriculum lease, which are invoiced by different organisations.
      */
     public const FUNDING_ACCOUNTS = ['purchase_admin', 'purchase_curriculum', 'lease_admin', 'lease_curriculum'];
+
+    /**
+     * The accounts an order may actually be charged to today.
+     *
+     * Reads the supplier_accounts table through SupplierAccounts, so adding or
+     * retiring an account is an edit rather than a deploy. The constant
+     * above stays as the seed and as the answer before the table exists.
+     *
+     * @return array<int, string>
+     */
+    public static function fundingAccounts(): array
+    {
+        return \App\Services\SupplierAccounts::keys() ?: self::FUNDING_ACCOUNTS;
+    }
 
     protected $table = 'store_orders';
 
@@ -259,9 +273,9 @@ class StoreOrder extends Model
 
         // Both lease accounts are financed by CSI, not just the one whose label
         // is "Lease" — a curriculum order's invoice has to reach the right
-        // Exhibit A too. App\Services\CdwAccounts holds that mapping so the
+        // Exhibit A too. App\Services\SupplierAccounts holds that mapping so the
         // store funnel and the requisition send cannot disagree about it.
-        return ! CdwAccounts::needsSchedule($this->funding_account) || $this->lease_schedule !== null;
+        return ! SupplierAccounts::needsSchedule($this->funding_account) || $this->lease_schedule !== null;
     }
 
     /** The account, and for a lease the schedule it rides. */
@@ -271,9 +285,9 @@ class StoreOrder extends Model
             return trans('admin/store/general.funding_unset');
         }
 
-        // Through CdwAccounts so a legacy three-value row read from an old
+        // Through SupplierAccounts so a legacy three-value row read from an old
         // export still resolves to one of the four rather than a raw key.
-        $label = CdwAccounts::kindLabel($this->funding_account).' · '.CdwAccounts::scopeLabel($this->funding_account);
+        $label = SupplierAccounts::kindLabel($this->funding_account).' · '.SupplierAccounts::scopeLabel($this->funding_account);
         $label = trim($label, ' ·') ?: trans('admin/store/general.funding_unset');
 
         return $this->lease_schedule ? $label.' · '.$this->lease_schedule : $label;
