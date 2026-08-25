@@ -1983,16 +1983,28 @@ class ProcurementReportsTest extends TestCase
             ]);
         }
 
-        // A device on the same PO but bought in a different FY must not count.
+        // A device on the same PO delivered after the year end still counts
+        // here: the spend belongs to the year of its purchase order, which
+        // is where its budget lives. Scoping by purchase_date instead put
+        // this dollar in the new year, where it had no budget and had
+        // already been deducted from the carry-forward.
         $other = Asset::factory()->create(['purchase_cost' => 5000.00, 'purchase_date' => '2026-06-01']);
         Asset::query()->whereKey($other->id)->update(['po_number' => 'P0099001']);
+
+        // A device on a PO belonging to another year does not leak in.
+        PurchaseOrder::factory()->create([
+            'po_number' => 'P0099002', 'budget' => 1000, 'fiscal_year' => 'FY2026-27',
+        ]);
+        $elsewhere = Asset::factory()->create(['purchase_cost' => 777.00, 'purchase_date' => '2025-06-01']);
+        Asset::query()->whereKey($elsewhere->id)->update(['po_number' => 'P0099002']);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.po-budget', ['fiscal_year' => 'FY2025-26']))
             ->assertOk()
             ->assertSee('P0099001')
-            ->assertSee('$3,150.00')   // committed from assets (equipment + warranty)
-            ->assertDontSee('$8,150.00'); // the FY2026-27 device is excluded
+            // (1000 + 150 warranty) + 2000 + the 5000 delivered in June.
+            ->assertSee('$8,150.00')
+            ->assertDontSee('$777.00');
     }
 
     public function test_invoiced_tile_surfaces_po_less_invoice_by_invoice_date()

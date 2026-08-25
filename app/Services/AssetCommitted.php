@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Asset;
+use App\Models\PurchaseOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -10,7 +11,8 @@ use Illuminate\Support\Facades\DB;
  * Committed spend computed from the ASSET source of truth: each device's
  * purchase_cost (equipment) plus its Warranty/Soft Cost field, grouped by
  * the university PO carried on the asset's "PO Number" field, scoped to a
- * fiscal year by purchase_date.
+ * fiscal year by the PO's own year — falling back to purchase_date only for
+ * a PO the ledger has never heard of.
  *
  * This is what makes committed reconcile to the real, received fleet
  * instead of the drifted order-item import — outstanding (not-yet-shipped)
@@ -40,8 +42,43 @@ class AssetCommitted
         // and blanks don't map to a purchase order.
         $query = Asset::query()->where($poColumn, 'like', 'P00%');
 
-        if ($range = self::fiscalYearRange($fy)) {
-            $query->whereBetween('purchase_date', $range);
+        if ($fy !== null) {
+            // Committed spend belongs to the year of its PURCHASE ORDER, not
+            // the year the box arrived.
+            //
+            // Scoping by purchase_date alone put last year's orders in this
+            // year's report the moment they were delivered after April 1 —
+            // seventeen devices on P0025420, three on P0025810 — and did it
+            // twice over: the same spend had already been deducted from last
+            // year's budget when the carry-forward was computed, so it
+            // reduced the new year's picture a second time.
+            //
+            // A PO the ledger knows carries its own fiscal year, and that is
+            // the answer. Only a PO with no ledger row falls back to
+            // purchase_date, because nothing else can place it.
+            $ledger = PurchaseOrder::whereNotNull('fiscal_year')
+                ->pluck('fiscal_year', 'po_number');
+
+            $mine = $ledger->filter(fn ($poFy) => $poFy === $fy)->keys()->all();
+            $others = $ledger->filter(fn ($poFy) => $poFy !== $fy)->keys()->all();
+            $range = self::fiscalYearRange($fy);
+
+            $query->where(function ($q) use ($mine, $others, $range, $poColumn) {
+                // Everything on a PO booked to this year.
+                if ($mine !== []) {
+                    $q->whereIn($poColumn, $mine);
+                }
+
+                // Plus anything the ledger cannot place, dated into it.
+                $q->orWhere(function ($orphan) use ($others, $range, $poColumn) {
+                    if ($others !== []) {
+                        $orphan->whereNotIn($poColumn, $others);
+                    }
+                    if ($range) {
+                        $orphan->whereBetween('purchase_date', $range);
+                    }
+                });
+            });
         }
 
         $map = [];
