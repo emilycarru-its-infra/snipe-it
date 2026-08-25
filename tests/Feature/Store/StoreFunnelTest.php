@@ -880,7 +880,8 @@ class StoreFunnelTest extends TestCase
         $this->assertStringContainsString('Z1N1-2310166117-2', $csv);
         $this->assertStringContainsString('9219353', $csv);
         $this->assertStringContainsString('301452-009', $csv);
-        $this->assertStringContainsString('Lease', $csv);
+        // CDW's own account number, not our internal label.
+        $this->assertStringContainsString('35007722', $csv);
         $this->assertStringContainsString('3 years', $csv);
 
         // Our store reference and the requester's name are not the vendor's
@@ -891,8 +892,8 @@ class StoreFunnelTest extends TestCase
         // reseller opens this in Excel and a split line is a wrong order.
         $lines = array_values(array_filter(explode("\n", str_replace("\r", '', $csv))));
         $this->assertCount(2, $lines);
-        $this->assertSame(10, count(str_getcsv($lines[1])));
-        $this->assertSame('3', str_getcsv($lines[1])[3]);
+        $this->assertSame(11, count(str_getcsv($lines[1])));
+        $this->assertSame('3', str_getcsv($lines[1])[4]);
     }
 
     public function test_an_order_with_no_account_is_not_sent_to_the_vendor()
