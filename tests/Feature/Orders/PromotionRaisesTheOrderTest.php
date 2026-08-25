@@ -87,6 +87,8 @@ class PromotionRaisesTheOrderTest extends TestCase
         $this->assertCount(42, $assets);
         $this->assertSame('P0026022', $assets->first()->po_number);
         $this->assertEqualsWithDelta(2150.48, (float) $assets->first()->purchase_cost, 0.01);
+        // The order's date reaches the asset in the shape its rules accept.
+        $this->assertSame('2026-08-07', $assets->first()->purchase_date->format('Y-m-d'));
     }
 
     public function test_promotion_does_not_raise_a_second_order_for_the_same_purchase_order()
