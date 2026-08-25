@@ -124,8 +124,8 @@
     // account selection rather than sitting there inviting a reference that
     // would land in the CDW part list against a cash purchase. Both
     // CSI-financed accounts, not just the one called "lease" — see
-    // App\Services\CdwAccounts.
-    var LEASE_ACCOUNTS = @json(collect(array_keys(\App\Services\CdwAccounts::ACCOUNTS))->filter(fn ($key) => \App\Services\CdwAccounts::needsSchedule($key))->values());
+    // App\Services\SupplierAccounts.
+    var LEASE_ACCOUNTS = @json(collect(array_keys(\App\Services\SupplierAccounts::accounts()))->filter(fn ($key) => \App\Services\SupplierAccounts::needsSchedule($key))->values());
 
     document.querySelectorAll('select[data-lease-toggle]').forEach(function (select) {
         var group = document.getElementById(select.dataset.leaseToggle);

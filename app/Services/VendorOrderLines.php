@@ -42,8 +42,8 @@ class VendorOrderLines
             // the schedule is a separate fact, on its own line.
             $groups[$accountKey] ??= [
                 'purchase_order' => $purchaseOrder,
-                'account' => CdwAccounts::number($order->funding_account),
-                'account_purpose' => CdwAccounts::purpose($order->funding_account),
+                'account' => SupplierAccounts::number($order->funding_account),
+                'account_purpose' => SupplierAccounts::purpose($order->funding_account),
                 'account_key' => $order->funding_account,
                 'schedule' => $order->lease_schedule,
                 'lines' => [],

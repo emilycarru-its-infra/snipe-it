@@ -38,7 +38,7 @@ class CsiSchedule extends Model
         'last_seen_at' => 'datetime',
     ];
 
-    /** The lease every ECU schedule hangs off. */
+    /** The lease every ECU schedule hangs off, when nothing says otherwise. */
     public const MASTER_CONTRACT = '301452';
 
     /**
@@ -75,7 +75,13 @@ class CsiSchedule extends Model
      */
     public static function openPair(): array
     {
-        $anchor = \Carbon\CarbonImmutable::parse(self::ANCHOR_QUARTER_START)->startOfQuarter();
+        // Read from procurement_settings so moving the anchor — a new pair
+        // opening, or a quarter the vendor skipped — is an edit, not a
+        // deploy. The constants remain the seed and the fallback.
+        $anchorNumber = (int) (ProcurementSetting::get('lease_anchor_number') ?: self::ANCHOR_NUMBER);
+        $anchorStart = ProcurementSetting::get('lease_anchor_quarter_start') ?: self::ANCHOR_QUARTER_START;
+
+        $anchor = \Carbon\CarbonImmutable::parse($anchorStart)->startOfQuarter();
         $current = \Carbon\CarbonImmutable::now()->startOfQuarter();
 
         // Whole quarters elapsed since the anchor. Never negative: a clock
@@ -83,7 +89,7 @@ class CsiSchedule extends Model
         // number that was never open for ordering.
         $quarters = max(0, (int) round($anchor->diffInMonths($current) / 3));
 
-        $return = self::ANCHOR_NUMBER + (2 * $quarters);
+        $return = $anchorNumber + (2 * $quarters);
 
         return [
             'return' => self::name($return),
@@ -97,7 +103,7 @@ class CsiSchedule extends Model
      */
     public static function scheduleForAccount(?string $account): ?string
     {
-        $kind = \App\Services\CdwAccounts::scheduleType($account);
+        $kind = \App\Services\SupplierAccounts::scheduleType($account);
 
         return $kind ? (self::openPair()[$kind] ?? null) : null;
     }
@@ -105,7 +111,9 @@ class CsiSchedule extends Model
     /** "301452-009" from 9. */
     public static function name(int $number): string
     {
-        return self::MASTER_CONTRACT.'-'.str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+        $contract = ProcurementSetting::get('lease_master_contract') ?: self::MASTER_CONTRACT;
+
+        return $contract.'-'.str_pad((string) $number, 3, '0', STR_PAD_LEFT);
     }
 
     /**

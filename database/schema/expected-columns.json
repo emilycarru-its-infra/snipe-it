@@ -1162,6 +1162,13 @@
         "scim_externalid",
         "updated_at"
     ],
+    "procurement_settings": [
+        "created_at",
+        "id",
+        "key",
+        "updated_at",
+        "value"
+    ],
     "purchase_orders": [
         "budget",
         "company_id",
@@ -1530,6 +1537,21 @@
         "updated_at",
         "user_id",
         "vendor_sent_at"
+    ],
+    "supplier_accounts": [
+        "active",
+        "created_at",
+        "id",
+        "key",
+        "kind",
+        "number",
+        "payee",
+        "purpose",
+        "schedule_type",
+        "scope",
+        "sort",
+        "supplier_id",
+        "updated_at"
     ],
     "suppliers": [
         "address",

@@ -71,7 +71,7 @@ class StoreQueuePanelsTest extends TestCase
         // bare string 'lease', which neither lease_admin nor
         // lease_curriculum equals, so the field arrived hidden and only
         // appeared if you touched the account dropdown — the JS beside it
-        // had always asked CdwAccounts properly.
+        // had always asked SupplierAccounts properly.
         StoreOrder::first()->update(['status' => 'approved', 'vendor_sent_at' => null,
             'arrived_at' => null, 'confirmed_at' => null,
             'funding_account' => 'lease_admin', 'lease_schedule' => '301452-009']);
