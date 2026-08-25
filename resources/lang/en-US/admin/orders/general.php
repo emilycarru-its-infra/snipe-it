@@ -99,4 +99,7 @@ return [
     'open_order' => 'Open',
     'view_order' => 'View this order',
     'asset_provisioned_note' => 'Created when order :order was placed; serial arrives with the shipment.',
+    'backfill_no_requisition' => ':po has no requisition behind it — there are no lines to read.',
+    'backfill_order_failed' => 'The order could not be raised.',
+    'backfill_done' => ':count asset(s) provisioned against :po.',
 ];

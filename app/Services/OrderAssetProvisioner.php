@@ -31,8 +31,9 @@ class OrderAssetProvisioner
     public const ORDERED_STATUS = 'New (Ordered)';
 
     /**
-     * Create one asset per unit on the order, skipping lines that resolve
-     * to no model — warranty, freight and recycling fees are money on the
+     * Create the devices this order is missing: one asset per unit, less
+     * whatever already stands for it. Lines resolving to no model are
+     * skipped — warranty, freight and recycling fees are money on the
      * order, not devices to track.
      *
      * @return Collection<int, Asset>
@@ -50,7 +51,17 @@ class OrderAssetProvisioner
                 continue;
             }
 
-            for ($unit = 0; $unit < (int) $line->quantity; $unit++) {
+            // Only the shortfall. A run that half-completed, or a backfill
+            // over an order that already has some of its devices, must top
+            // up rather than buy the fleet a second time — counted per model
+            // so two lines of different models on one order stay separate.
+            $standing = Asset::where('order_number', $order->order_number)
+                ->where('model_id', $modelId)
+                ->count();
+
+            $wanted = max(0, (int) $line->quantity - $standing);
+
+            for ($unit = 0; $unit < $wanted; $unit++) {
                 if ($asset = $this->provisionUnit($order, $line, $modelId, $status->id, $poNumber)) {
                     $created->push($asset);
                 }
