@@ -20,7 +20,7 @@
 @endif
 <tr>
 <td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.store_vendor_csv_account') }}</td>
-<td style="padding: 2px 0; text-align: left; font-weight: 700;">{{ $group['account'] }}</td>
+<td style="padding: 2px 0; text-align: left; font-weight: 700;">{{ $group['account'] }}@if ($group['account_purpose'])<span style="font-weight: 400; opacity: .8;"> — {{ $group['account_purpose'] }}</span>@endif</td>
 </tr>
 @if ($group['schedule'])
 <tr>
