@@ -46,7 +46,7 @@ class DeploymentsController extends Controller
         $this->authorize('deployments.view');
 
         return response()->json(Helper::formatStandardApiResponse('success', DeploymentType::active()->ordered()->get(
-            ['id', 'name', 'slug', 'color', 'moves_devices', 'sort_order']
+            ['id', 'name', 'slug', 'color', 'moves_devices', 'replaces_devices', 'sort_order']
         ), null));
     }
 

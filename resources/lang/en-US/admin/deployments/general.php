@@ -139,6 +139,8 @@ return [
     'catalog_active' => 'Active',
     'catalog_moves_devices' => 'Moves',
     'catalog_moves_devices_help' => 'Waves of this type relocate their devices: a terminal stage moves each device to the wave\'s target location.',
+    'catalog_replaces_devices' => 'Replaces',
+    'catalog_replaces_devices_help' => 'Waves of this type swap out an existing device. Off for net-new work — a new lab, a first machine — which hides the outgoing-device columns. A wave whose devices do name a replacement shows them either way.',
     'catalog_terminal' => 'Terminal (deployed)',
     'catalog_on_hand' => 'On hand',
     'catalog_on_hand_help' => 'Devices at this stage are physically here and take up room in storage. Leave off for stages where the device has not arrived yet, or has already left.',

@@ -29,6 +29,12 @@
     // than rendered as a column of dashes.
     $existingEquipment = (bool) $wave->type?->moves_devices;
 
+    // A wave that replaces nothing — a new teaching lab, a first machine
+    // for a new hire — has no outgoing device to report on. Its "Replaces"
+    // and "Projected Replacement" columns are a wall of dashes and a
+    // forecast of a swap that is not happening, so they come out.
+    $replacing = $wave->replacesDevices();
+
     $ineligibleIds = $announceIneligible->pluck('user.id')->all();
     $ineligibleReasons = $announceIneligible->keyBy('user.id');
     $intentByUser = $intentRows->keyBy(fn ($row) => $row['user']?->id);
@@ -47,7 +53,7 @@
                     {{ trans('admin/deployments/general.roster_ordered_count', ['ordered' => $ordered, 'total' => $announceRecipients->count()]) }}
                 </span>
             @endif
-            @if (($projectedTotal ?? 0) > 0)
+            @if ($replacing && ($projectedTotal ?? 0) > 0)
                 <span class="label label-info" title="{{ trans('admin/deployments/general.projected_cost_help') }}">
                     {{ trans('admin/deployments/general.projected_cost_total', ['total' => number_format($projectedTotal, 2)]) }}
                 </span>
@@ -209,9 +215,11 @@
                     <th>{{ trans('admin/deployments/general.stage') }}</th>
                     <th>{{ trans('admin/deployments/general.device') }}</th>
                     <th>{{ trans('admin/deployments/general.checked_out_to') }}</th>
-                    @unless ($existingEquipment)
+                    @if ($replacing)
                         <th>{{ trans('admin/deployments/general.replaces') }}</th>
                         <th>{{ trans('admin/deployments/general.projected_replacement') }}</th>
+                    @endif
+                    @unless ($existingEquipment)
                         <th>{{ trans('admin/deployments/general.arrival_status') }}</th>
                     @endunless
                     <th>{{ trans('admin/deployments/general.target_deploy_date') }}</th>
@@ -226,17 +234,17 @@
                                 <i class="fas fa-chevron-down" aria-hidden="true"></i>
                             </button>
                         </td>
-                        <td colspan="{{ $existingEquipment ? 3 : 4 }}">
+                        <td colspan="{{ $replacing ? 4 : 3 }}">
                             <strong>{{ $modelName }}</strong>
                             <span class="text-muted">· {{ $group->count() }} {{ trans('admin/deployments/general.device') }}(s)</span>
                         </td>
-                        @unless ($existingEquipment)
+                        @if ($replacing)
                             @php
                                 $groupProjected = $group->sum(fn ($item) => $item->model?->refreshCatalogItem?->effectiveCost()
                                     ?? (float) ($item->replacesAsset->purchase_cost ?? 0));
                             @endphp
                             <td><strong>${{ number_format($groupProjected, 2) }}</strong></td>
-                        @endunless
+                        @endif
                         <td colspan="{{ $existingEquipment ? 2 : 3 }}" class="text-muted">
                             {{ $group->groupBy(fn ($item) => $item->stage?->name ?: '—')->map(fn ($sub, $name) => $sub->count().' '.$name)->implode(' · ') }}
                         </td>
@@ -279,7 +287,7 @@
                                 <span class="text-muted">&mdash;</span>
                             @endif
                         </td>
-                        @unless ($existingEquipment)
+                        @if ($replacing)
                             <td>
                                 @if ($item->replacesAsset)
                                     <a class="js-lightbox" href="{{ route('hardware.show', $item->replacesAsset) }}">{{ $item->replacesAsset->asset_tag ?: $item->replacesAsset->name }}</a>
@@ -297,6 +305,8 @@
                                     <span class="text-muted">${{ number_format((float) $item->replacesAsset->purchase_cost, 2) }}</span>
                                 @else — @endif
                             </td>
+                        @endif
+                        @unless ($existingEquipment)
                             <td>@include('deployment-waves._arrival-badge', ['badge' => $timeline->itemBadge($item)])</td>
                         @endunless
                         <td>{{ optional($item->target_deploy_date)->toDateString() ?: '—' }}</td>
@@ -311,7 +321,7 @@
                 </tbody>
             @endforeach
             @if ($wave->items->isEmpty())
-                <tbody><tr><td colspan="{{ $existingEquipment ? 6 : 9 }}" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr></tbody>
+                <tbody><tr><td colspan="{{ 6 + ($replacing ? 2 : 0) + ($existingEquipment ? 0 : 1) }}" class="text-center text-muted">{{ trans('admin/deployments/general.no_items') }}</td></tr></tbody>
             @endif
         </table>
 

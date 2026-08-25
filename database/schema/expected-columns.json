@@ -641,6 +641,7 @@
         "id",
         "moves_devices",
         "name",
+        "replaces_devices",
         "slug",
         "sort_order",
         "updated_at"
