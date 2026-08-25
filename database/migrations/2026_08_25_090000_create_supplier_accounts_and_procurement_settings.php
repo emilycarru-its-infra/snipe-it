@@ -43,9 +43,6 @@ return new class extends Migration
         if (! Schema::hasTable('procurement_settings')) {
             Schema::create('procurement_settings', function (Blueprint $table) {
                 $table->id();
-                // Whose accounts these are. Nullable because the seed rows
-                // predate any guarantee that the supplier exists yet.
-                $table->unsignedInteger('supplier_id')->nullable()->index();
                 $table->string('key', 64)->unique();
                 $table->text('value')->nullable();
                 $table->timestamps();
