@@ -52,11 +52,22 @@ class BudgetCarry
             return null;
         }
 
+        // The carry comes forward on ONE purchase order rather than as a
+        // free-floating figure: the prior year's largest envelope, which is
+        // the one still being drawn against. Naming it is what stops the
+        // carry being counted twice — it is that PO's budget in the new
+        // year, not an amount added on top of the year's own POs.
+        $carrier = $purchaseOrders
+            ->sortByDesc(fn ($po) => (float) $po->budget)
+            ->first();
+
         return [
             'source_fy' => $sourceFy,
             'po_budgets' => $poBudgets,
             'committed' => $committed,
             'unused' => $unused,
+            'purchase_order' => $carrier?->po_number,
+            'purchase_order_id' => $carrier?->id,
         ];
     }
 

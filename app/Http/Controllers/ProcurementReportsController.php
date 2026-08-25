@@ -191,8 +191,22 @@ class ProcurementReportsController extends Controller
         $liveCarry = null;
         if ($selectedFy && ! $allocations->contains(fn ($a) => $a->source === 'carry_forward')) {
             $liveCarry = BudgetCarry::intoFy($selectedFy);
+
             if ($liveCarry) {
                 $totalBudget += $liveCarry['unused'];
+
+                // The carry is the prior year's leftover envelope, and it
+                // comes forward on the one PO that held it. Showing that PO
+                // in this year's chart — carrying the leftover as its budget
+                // — is what makes the brought-forward money legible instead
+                // of an unexplained addition to the total.
+                if ($liveCarry['purchase_order']) {
+                    $poRows[] = [
+                        'po_number' => $liveCarry['purchase_order'],
+                        'budget' => $liveCarry['unused'],
+                        'committed' => $assetCommitted[$liveCarry['purchase_order']] ?? 0.0,
+                    ];
+                }
             }
         }
 
