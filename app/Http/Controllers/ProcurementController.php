@@ -355,21 +355,28 @@ class ProcurementController extends Controller
 
         $account = $validated['funding_account'] ?? null;
 
+        // The account says which of the open pair this belongs on, so the
+        // form does not have to be right about it. An explicit choice still
+        // wins, for a correction onto an earlier schedule.
+        $schedule = $validated['lease_schedule'] ?? null;
+
+        if ($schedule === null && CdwAccounts::needsSchedule($account)) {
+            $schedule = CsiSchedule::scheduleForAccount($account);
+        }
+
         // Both CSI-financed accounts need the schedule, and neither is
         // called 'lease' — the values are lease_admin and lease_curriculum.
         // Matching the bare string meant the guard never fired and the
         // schedule was nulled on save, so no lease order could ever reach
         // readyForVendor() and none could be sent to CDW.
-        if (CdwAccounts::needsSchedule($account) && empty($validated['lease_schedule'])) {
+        if (CdwAccounts::needsSchedule($account) && empty($schedule)) {
             return redirect()->route('procurement.approvals', ['status' => $order->status])
                 ->with('error', trans('admin/store/general.funding_lease_needs_schedule'));
         }
 
         $order->update([
             'funding_account' => $account,
-            'lease_schedule' => CdwAccounts::needsSchedule($account)
-                ? $validated['lease_schedule']
-                : null,
+            'lease_schedule' => CdwAccounts::needsSchedule($account) ? $schedule : null,
         ]);
 
         return redirect()->route('procurement.approvals', ['status' => $order->status])

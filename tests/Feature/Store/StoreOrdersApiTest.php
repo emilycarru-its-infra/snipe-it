@@ -222,18 +222,59 @@ class StoreOrdersApiTest extends TestCase
         $this->assertTrue($fresh->readyForVendor());
     }
 
-    public function test_a_csi_account_without_a_schedule_is_refused()
+    public function test_the_schedule_defaults_from_the_account()
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'approved']);
+
+        Passport::actingAs($this->procurement());
+
+        // No schedule named: the account says admin, so it rides the open
+        // four-year lease-to-return.
+        $this->postJson(route('api.store-orders.funding', $order->id), [
+            'funding_account' => 'lease_admin',
+        ])->assertOk();
+
+        $this->assertSame('301452-009', $order->fresh()->lease_schedule);
+        $this->assertTrue($order->fresh()->readyForVendor());
+    }
+
+    public function test_an_explicit_schedule_still_wins()
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'approved']);
+
+        Passport::actingAs($this->procurement());
+
+        // A correction onto an earlier schedule must remain possible.
+        $this->postJson(route('api.store-orders.funding', $order->id), [
+            'funding_account' => 'lease_admin',
+            'lease_schedule' => '301452-007',
+        ])->assertOk();
+
+        $this->assertSame('301452-007', $order->fresh()->lease_schedule);
+    }
+
+    public function test_a_csi_account_never_lands_without_a_schedule()
     {
         $order = $this->orderFor(User::factory()->create());
         $order->update(['status' => 'approved']);
 
         Passport::actingAs($this->procurement());
 
+        // With the cadence in place a CSI account always derives one, so
+        // the refusal is reachable only when the derivation yields nothing.
+        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+
         $this->postJson(route('api.store-orders.funding', $order->id), [
             'funding_account' => 'lease_curriculum',
-        ])->assertStatus(422);
+        ])->assertOk();
 
-        $this->assertNull($order->fresh()->funding_account);
+        $this->assertSame('301452-010', $order->fresh()->lease_schedule);
     }
 
     public function test_the_queue_is_not_open_to_everyone()
