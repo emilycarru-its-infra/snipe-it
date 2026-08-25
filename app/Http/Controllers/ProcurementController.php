@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\StoreVendorOrderMail;
 use App\Models\CatalogItem;
 use App\Models\CsiSchedule;
-use App\Models\EmailTemplate;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
@@ -13,12 +11,11 @@ use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Services\CdwAccounts;
 use App\Services\StoreOrderDecision;
+use App\Services\StoreVendorOrderDispatch;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * The /procurement operational hub.
@@ -221,61 +218,20 @@ class ProcurementController extends Controller
             ->orderBy('id')
             ->get();
 
-        if ($orders->isEmpty()) {
+        $result = app(StoreVendorOrderDispatch::class)->send($orders, auth()->user(), $test);
+
+        if (! $result['sent']) {
             return redirect()->route('procurement.approvals', ['status' => 'approved'])
-                ->with('error', trans('admin/store/general.vendor_send_not_approved'));
-        }
-
-        // A test send is for checking the layout, so it goes out whatever
-        // state the orders are in. A real one is refused without an
-        // account: CDW places each line against a blanket purchase order
-        // and cannot pick which, so sending anyway would buy nothing but a
-        // round trip through their desk.
-        if (! $test && $orders->contains(fn (StoreOrder $order) => ! $order->readyForVendor())) {
-            return redirect()->route('procurement.approvals', ['status' => 'approved'])
-                ->with('error', trans('admin/store/general.funding_required'));
-        }
-
-        if ($test) {
-            $to = [auth()->user()->email];
-            $cc = [];
-        } else {
-            $to = EmailTemplate::recipientsFor('store.vendor_order', $orders->first()->supplier()?->order_emails);
-            $cc = EmailTemplate::ccFor('store.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca');
-        }
-
-        $to = array_filter($to);
-
-        if ($to === []) {
-            return redirect()->route('procurement.approvals', ['status' => 'approved'])
-                ->with('error', trans('admin/store/general.vendor_send_no_recipients'));
-        }
-
-        try {
-            $mail = Mail::to($to);
-            if ($cc !== []) {
-                $mail->cc($cc);
-            }
-            $mail->send(new StoreVendorOrderMail($orders, $test));
-        } catch (\Throwable $e) {
-            Log::warning('Vendor order email failed for store orders ['.$orders->pluck('id')->implode(',').']: '.$e->getMessage());
-
-            return redirect()->route('procurement.approvals', ['status' => 'approved'])
-                ->with('error', trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
+                ->with('error', $result['error']);
         }
 
         if ($test) {
             return redirect()->route('procurement.approvals', ['status' => 'approved'])
-                ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $to[0]]));
-        }
-
-        foreach ($orders as $order) {
-            $order->update(['status' => 'ordered', 'vendor_sent_at' => now()]);
-            StoreOrderNotifier::requester($order, 'ordered');
+                ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]]));
         }
 
         return redirect()->route('procurement.approvals', ['status' => 'approved'])
-            ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
+            ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])]));
     }
 
     /**

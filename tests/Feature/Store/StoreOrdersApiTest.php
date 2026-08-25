@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Store;
 
+use App\Mail\StoreVendorOrderMail;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Passport\Passport;
@@ -25,6 +27,15 @@ class StoreOrdersApiTest extends TestCase
         return User::factory()->superuser()->create();
     }
 
+    /** The vendor an order request actually reaches. */
+    private function supplier(): Supplier
+    {
+        return Supplier::firstOrCreate(
+            ['name' => 'CDW Canada Inc'],
+            ['order_emails' => 'rep1@cdw.ca,rep2@cdw.ca']
+        );
+    }
+
     private function orderFor(User $requester, float $unitCost = 2100.00): StoreOrder
     {
         $item = CatalogItem::create([
@@ -36,6 +47,7 @@ class StoreOrdersApiTest extends TestCase
             'unit_cost' => $unitCost,
             'price_type' => 'quoted',
             'model_id' => AssetModel::factory()->create()->getKey(),
+            'supplier_id' => $this->supplier()->id,
             'show_in_store' => 1,
         ]);
 
@@ -275,6 +287,76 @@ class StoreOrdersApiTest extends TestCase
         ])->assertOk();
 
         $this->assertSame('301452-010', $order->fresh()->lease_schedule);
+    }
+
+    public function test_a_test_send_reaches_only_the_caller_and_changes_nothing()
+    {
+        Mail::fake();
+
+        $first = $this->orderFor(User::factory()->create());
+        $second = $this->orderFor(User::factory()->create(), 2700.00);
+        StoreOrder::whereIn('id', [$first->id, $second->id])->update(['status' => 'approved']);
+
+        $actor = $this->procurement();
+        Passport::actingAs($actor);
+
+        $this->postJson(route('api.store-orders.send-vendor'), [
+            'orders' => [$first->id, $second->id],
+            'test' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('payload.test', true)
+            ->assertJsonPath('payload.count', 2);
+
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->hasTo($actor->email));
+
+        // A test is for reading the layout: nothing moves.
+        $this->assertSame('approved', $first->fresh()->status);
+        $this->assertNull($first->fresh()->vendor_sent_at);
+    }
+
+    public function test_orders_go_to_the_vendor_as_one_request()
+    {
+        Mail::fake();
+
+        $first = $this->orderFor(User::factory()->create());
+        $second = $this->orderFor(User::factory()->create(), 2700.00);
+        StoreOrder::whereIn('id', [$first->id, $second->id])
+            ->update(['status' => 'approved', 'funding_account' => 'purchase_admin']);
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.send-vendor'), [
+            'orders' => [$first->id, $second->id],
+        ])->assertOk();
+
+        // Several orders, ONE request to the vendor — that is what their desk
+        // keys. The requesters are told separately, so the total mail count
+        // is legitimately higher; what matters is that the vendor gets one.
+        Mail::assertSent(StoreVendorOrderMail::class, 1);
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->hasTo('rep1@cdw.ca'));
+
+        foreach ([$first, $second] as $order) {
+            $this->assertSame('ordered', $order->fresh()->status);
+            $this->assertNotNull($order->fresh()->vendor_sent_at);
+        }
+    }
+
+    public function test_a_real_send_is_refused_without_an_account()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'approved']);
+
+        Passport::actingAs($this->procurement());
+
+        // CDW places each line against a blanket PO and cannot pick which.
+        $this->postJson(route('api.store-orders.send-vendor'), ['orders' => [$order->id]])
+            ->assertStatus(422);
+
+        Mail::assertNothingSent();
+        $this->assertSame('approved', $order->fresh()->status);
     }
 
     public function test_the_queue_is_not_open_to_everyone()
