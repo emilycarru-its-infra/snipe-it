@@ -882,14 +882,17 @@ class StoreFunnelTest extends TestCase
         $this->assertStringContainsString('301452-009', $csv);
         $this->assertStringContainsString('Lease', $csv);
         $this->assertStringContainsString('3 years', $csv);
-        $this->assertStringContainsString('ECU-STORE-'.$order->id, $csv);
+
+        // Our store reference and the requester's name are not the vendor's
+        // business — they key a parts list.
+        $this->assertStringNotContainsString('ECU-STORE-'.$order->id, $csv);
 
         // A name full of commas and quotes is one field, not several — the
         // reseller opens this in Excel and a split line is a wrong order.
         $lines = array_values(array_filter(explode("\n", str_replace("\r", '', $csv))));
         $this->assertCount(2, $lines);
-        $this->assertSame(11, count(str_getcsv($lines[1])));
-        $this->assertSame('3', str_getcsv($lines[1])[4]);
+        $this->assertSame(10, count(str_getcsv($lines[1])));
+        $this->assertSame('3', str_getcsv($lines[1])[3]);
     }
 
     public function test_an_order_with_no_account_is_not_sent_to_the_vendor()

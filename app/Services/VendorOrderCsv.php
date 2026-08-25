@@ -37,12 +37,14 @@ class VendorOrderCsv
         $first = $this->orders->first();
 
         // Named for the batch, not the moment: a re-send of the same
-        // request should not look like a second, different order.
+        // request should not look like a second, different order. Named for
+        // the purchase order too, because that is the reference the desk
+        // files it under — ECU-STORE numbers mean nothing to them.
         $stamp = $first ? $first->created_at->format('Y-m-d') : now()->format('Y-m-d');
+        $first?->loadMissing('purchaseOrder');
+        $po = $first?->purchaseOrder?->po_number;
 
-        return $this->orders->count() === 1
-            ? 'ECU-STORE-'.$first?->id.'-'.$stamp.'.csv'
-            : 'ECU-STORE-batch-'.$stamp.'-'.$this->orders->count().'-orders.csv';
+        return ($po ? $po.'-' : '').'ecu-order-'.$stamp.'.csv';
     }
 
     /**
@@ -51,16 +53,15 @@ class VendorOrderCsv
     public function headers(): array
     {
         return [
-            trans('mail.store_vendor_csv_reference'),
+            trans('mail.store_vendor_csv_purchase_order'),
+            trans('mail.store_vendor_csv_account'),
+            trans('mail.store_vendor_csv_schedule'),
+            trans('mail.store_vendor_csv_quantity'),
             trans('mail.store_vendor_csv_mfr'),
             trans('mail.store_vendor_csv_edc'),
             trans('mail.store_vendor_csv_description'),
-            trans('mail.store_vendor_csv_quantity'),
             trans('mail.store_vendor_csv_warranty'),
-            trans('mail.store_vendor_csv_account'),
-            trans('mail.store_vendor_csv_schedule'),
             trans('mail.store_vendor_csv_bundle'),
-            trans('mail.store_vendor_csv_requested_by'),
             trans('mail.store_vendor_csv_estimated_unit'),
         ];
     }
@@ -72,22 +73,23 @@ class VendorOrderCsv
     {
         $rows = [];
 
-        foreach ($this->orders as $order) {
-            foreach ($order->items as $line) {
-                $item = $line->catalogItem;
-
+        // One row per part, not per store order. The desk keys a parts list;
+        // which of our people asked for which unit is our business and used
+        // to make sixteen near-identical rows out of one order for sixteen
+        // laptops.
+        foreach (VendorOrderLines::grouped($this->orders) as $group) {
+            foreach ($group['lines'] as $line) {
                 $rows[] = [
-                    'ECU-STORE-'.$order->id,
-                    (string) $line->mfr_part_number,
-                    (string) $line->vendor_sku,
-                    (string) $line->description,
-                    (string) $line->quantity,
-                    (string) ($item?->warrantyLabel() ?? ''),
-                    \App\Services\CdwAccounts::label($order->funding_account),
-                    (string) $order->lease_schedule,
-                    $item ? (string) $item->bundle_url : '',
-                    (string) ($order->user?->present()->fullName ?? ''),
-                    number_format((float) $line->unit_cost, 2, '.', ''),
+                    (string) ($group['purchase_order'] ?? ''),
+                    (string) $group['account'],
+                    (string) ($group['schedule'] ?? ''),
+                    (string) $line['quantity'],
+                    (string) $line['mfr_part_number'],
+                    (string) $line['vendor_sku'],
+                    (string) $line['description'],
+                    (string) ($line['warranty'] ?? ''),
+                    (string) ($line['bundle_url'] ?? ''),
+                    number_format((float) $line['unit_cost'], 2, '.', ''),
                 ];
             }
         }
