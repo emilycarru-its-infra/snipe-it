@@ -10,6 +10,7 @@ use App\Models\PurchaseOrder;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Services\CdwAccounts;
+use App\Services\StoreVendorOrderDispatch;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\JsonResponse;
@@ -188,6 +189,53 @@ class StoreOrdersController extends Controller
             'count' => $orders->count(),
             'po' => $purchaseOrder->po_number,
         ])));
+    }
+
+    /**
+     * Send approved orders to the vendor as one order request.
+     *
+     * Several orders become a single email and a single consolidated CSV —
+     * one request for CDW's desk to key, sortable back into the ECU-STORE
+     * references it came from.
+     *
+     * `test` sends the identical mail to the caller and nobody else, and
+     * changes nothing: it is how the layout gets read before a rep ever
+     * sees one. A real send is the moment the orders become committed and
+     * every requester is told, so it is refused unless each order carries
+     * the account CDW places it against.
+     */
+    public function sendVendor(Request $request): JsonResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'orders' => 'required|array|min:1',
+            'orders.*' => 'integer|exists:store_orders,id',
+            'test' => 'nullable|boolean',
+        ]);
+
+        $test = (bool) ($validated['test'] ?? false);
+
+        $orders = StoreOrder::with('items.catalogItem.supplier', 'user')
+            ->whereIn('id', $validated['orders'])
+            ->where('status', 'approved')
+            ->orderBy('id')
+            ->get();
+
+        $result = app(StoreVendorOrderDispatch::class)->send($orders, $request->user(), $test);
+
+        if (! $result['sent']) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'test' => $test,
+            'recipients' => $result['recipients'],
+            'count' => $orders->count(),
+            'orders' => $orders->map(fn (StoreOrder $order) => $order->reference())->all(),
+        ], $test
+            ? trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]])
+            : trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])])));
     }
 
     /**
