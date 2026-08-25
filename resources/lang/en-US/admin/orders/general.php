@@ -98,4 +98,5 @@ return [
     'received_progress' => ':received of :total received',
     'open_order' => 'Open',
     'view_order' => 'View this order',
+    'asset_provisioned_note' => 'Created when order :order was placed; serial arrives with the shipment.',
 ];

@@ -3,9 +3,13 @@
 namespace App\Services;
 
 use App\Models\Actionlog;
+use App\Models\AssetModel;
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -69,6 +73,14 @@ class RequisitionPromotion
             $this->attach($purchaseOrder, $document, $data['document_notes'] ?? null);
         }
 
+        // REQM to purchase order to order — and the order is what
+        // provisions the devices. Without this the chain stopped at the
+        // purchase order: forty-two laptops on a placed order existed
+        // nowhere but as text on a requisition, the shipment webhook had
+        // nothing to claim, and a deployment wave built for them came up
+        // empty.
+        $this->raiseOrder($requisition, $purchaseOrder);
+
         $requisition->purchase_order_id = $purchaseOrder->id;
         $requisition->status = 'ordered';
 
@@ -82,6 +94,70 @@ class RequisitionPromotion
         $requisition->save();
 
         return $purchaseOrder;
+    }
+
+    /**
+     * The order the requisition became, under its purchase order, carrying
+     * the same lines — then the assets those lines are for.
+     *
+     * Numbered for the purchase order because that is the only identifier
+     * that exists at this moment; the vendor's own number is recorded
+     * against it when they answer.
+     */
+    private function raiseOrder(Requisition $requisition, PurchaseOrder $purchaseOrder): ?Order
+    {
+        // Never twice for the same purchase order: promotion can be retried
+        // after a failure, and a second run must not double the fleet.
+        if (Order::where('purchase_order_id', $purchaseOrder->id)->exists()) {
+            return null;
+        }
+
+        $order = new Order;
+        $order->order_number = $purchaseOrder->po_number;
+        $order->purchase_order_id = $purchaseOrder->id;
+        $order->supplier_id = $requisition->supplier_id;
+        $order->company_id = $requisition->company_id;
+        $order->fiscal_year = $purchaseOrder->fiscal_year;
+        $order->order_date = $purchaseOrder->order_date;
+        $order->status = 'ordered';
+        $order->is_planned = false;
+        $order->notes = $requisition->notes;
+        $order->created_by = auth()->id();
+
+        if (! $order->save()) {
+            Log::error('Requisition '.$requisition->id.' could not raise an order: '
+                .json_encode($order->getErrors()->all()));
+
+            return null;
+        }
+
+        foreach ($requisition->items as $line) {
+            $modelId = $line->catalogItem?->model_id;
+
+            OrderItem::create([
+                'order_id' => $order->id,
+                'purchase_order_id' => $purchaseOrder->id,
+                // Only a line that resolves to a model describes a device;
+                // warranty, freight and recycling are money on the order.
+                'item_type' => $modelId ? AssetModel::class : null,
+                'item_id' => $modelId,
+                'replaces_asset_id' => $line->replaces_asset_id,
+                'description' => $line->description,
+                'quantity' => (int) $line->quantity,
+                'unit_cost' => (float) $line->unit_cost,
+            ]);
+        }
+
+        try {
+            app(OrderAssetProvisioner::class)->provision($order->load('items', 'purchaseOrder'));
+        } catch (\Throwable $e) {
+            // A failure here must not undo a placed order — the same rule
+            // the store side follows. It logs, and the empty wave makes it
+            // visible.
+            Log::error('Order '.$order->id.' provisioning failed: '.$e->getMessage());
+        }
+
+        return $order;
     }
 
     /**
