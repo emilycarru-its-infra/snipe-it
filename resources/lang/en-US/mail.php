@@ -202,16 +202,17 @@ return [
     'store_order_ready_intro' => 'Your new laptop is set up and ready. Come pick it up at the ITS service desk (B1116) — bring your old laptop if you are returning it.',
 
     // Vendor order request (to the reseller's reps)
-    'store_vendor_order_subject' => 'Emily Carr University — order request :references',
+    'store_vendor_order_subject' => 'Emily Carr University — order request :reference',
+    'store_vendor_order_subject_unreferenced' => '(purchase order to follow)',
     'store_vendor_order_test_prefix' => '[TEST]',
-    'store_vendor_order_heading' => 'Order request :references',
+    'store_vendor_order_heading' => 'Order request',
     'store_vendor_order_intro' => 'Hello :supplier team, please place the following order for Emily Carr University of Art + Design:',
     'store_vendor_col_ref' => 'Ref',
     'store_vendor_col_sku' => 'CDW #',
     'store_vendor_col_mfr' => 'MFR #',
     'store_vendor_col_desc' => 'Description',
     'store_vendor_col_qty' => 'Qty',
-    'store_vendor_order_csv_note' => 'The attached CSV carries all :lines lines with exact part numbers and quantities.',
+    'store_vendor_order_csv_note' => 'The attached CSV carries the same :lines lines with exact part numbers and quantities.',
     'store_vendor_order_line_for' => 'Requested by :name',
     'store_vendor_part_missing' => 'not on file',
     'store_vendor_bundle_link' => 'CDW bundle for this build',
@@ -221,13 +222,14 @@ return [
     // honour — the note below asks them to replace it with a real one.
     'store_vendor_order_estimate_column' => 'Our estimate',
     'store_vendor_order_estimate_total' => 'Estimated total',
-    'store_vendor_order_reference' => 'Please reference :references on the order confirmation so our systems can match the shipment automatically.',
+    'store_vendor_order_reference' => 'Please quote the purchase order above on the order confirmation and invoice.',
     'store_vendor_order_footer' => 'Reply to all on this email and our team will follow up. Thank you.',
 
     // Columns of the attached part list. These are the headings the
     // reseller's desk reads, so they use the reseller's own vocabulary
     // (EDC) rather than ours (vendor SKU).
     'store_vendor_csv_reference' => 'ECU Reference',
+    'store_vendor_csv_purchase_order' => 'Purchase Order',
     'store_vendor_csv_mfr' => 'MFR #',
     'store_vendor_csv_edc' => 'CDW EDC #',
     'store_vendor_csv_description' => 'Description',
