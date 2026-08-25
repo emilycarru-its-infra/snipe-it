@@ -85,9 +85,14 @@ class VendorOrderBundlingTest extends TestCase
         // so the rendered body carries the raw quote.
         $this->assertSame(1, substr_count($body, 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver'));
 
-        // The facts the desk needs, once.
+        // The facts the desk needs, once — and the account is CDW's own
+        // number, not our "Lease · Admin · 100000-009" shorthand, which
+        // names an account that does not exist on their side.
         $this->assertStringContainsString('P0026000', $body);
+        $this->assertStringContainsString('1000003', $body);
+        $this->assertStringContainsString('CSI ECU Lease', $body);
         $this->assertStringContainsString('100000-009', $body);
+        $this->assertStringNotContainsString('Lease · Admin · 100000-009', $body);
 
         // Our paperwork stays on our side.
         $this->assertStringNotContainsString('ECU-STORE-', $body);
@@ -111,7 +116,7 @@ class VendorOrderBundlingTest extends TestCase
         // Header plus two parts, not header plus fifteen orders.
         $this->assertCount(3, $lines);
 
-        $quantities = array_map(fn ($line) => (int) str_getcsv($line)[3], array_slice($lines, 1));
+        $quantities = array_map(fn ($line) => (int) str_getcsv($line)[4], array_slice($lines, 1));
         sort($quantities);
         $this->assertSame([2, 13], $quantities);
     }

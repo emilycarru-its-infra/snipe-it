@@ -230,6 +230,7 @@ return [
     // (EDC) rather than ours (vendor SKU).
     'store_vendor_csv_reference' => 'ECU Reference',
     'store_vendor_csv_purchase_order' => 'Purchase Order',
+    'store_vendor_csv_account_purpose' => 'Account Name',
     'store_vendor_csv_mfr' => 'MFR #',
     'store_vendor_csv_edc' => 'CDW EDC #',
     'store_vendor_csv_description' => 'Description',

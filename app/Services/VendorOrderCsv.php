@@ -55,6 +55,7 @@ class VendorOrderCsv
         return [
             trans('mail.store_vendor_csv_purchase_order'),
             trans('mail.store_vendor_csv_account'),
+            trans('mail.store_vendor_csv_account_purpose'),
             trans('mail.store_vendor_csv_schedule'),
             trans('mail.store_vendor_csv_quantity'),
             trans('mail.store_vendor_csv_mfr'),
@@ -82,6 +83,7 @@ class VendorOrderCsv
                 $rows[] = [
                     (string) ($group['purchase_order'] ?? ''),
                     (string) $group['account'],
+                    (string) ($group['account_purpose'] ?? ''),
                     (string) ($group['schedule'] ?? ''),
                     (string) $line['quantity'],
                     (string) $line['mfr_part_number'],
