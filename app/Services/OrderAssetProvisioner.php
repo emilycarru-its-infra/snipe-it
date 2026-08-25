@@ -95,11 +95,13 @@ class OrderAssetProvisioner
         $asset->order_number = $order->order_number;
         $asset->po_number = $poNumber;
         $asset->purchase_cost = (float) $line->unit_cost ?: null;
-        // Formatted, not the cast Carbon: the asset rules validate
-        // purchase_date as date_format:Y-m-d, and a Carbon stringifies with
-        // a time, so every save failed validation into the log and the
-        // order provisioned nothing at all.
-        $asset->purchase_date = $order->order_date?->format('Y-m-d');
+        // Written as a raw attribute in Y-m-d, because that is the shape
+        // the asset rules validate against (date_format:Y-m-d) and the
+        // property is annotated as a Carbon. Assigning the order's cast
+        // Carbon straight across stringifies with a time, fails validation,
+        // and — since provisioning logs rather than throws — the order
+        // silently provisioned nothing at all.
+        $asset->setAttribute('purchase_date', $order->order_date?->format('Y-m-d'));
         $asset->supplier_id = $order->supplier_id;
         $asset->notes = trans('admin/orders/general.asset_provisioned_note', [
             'order' => $order->order_number,
