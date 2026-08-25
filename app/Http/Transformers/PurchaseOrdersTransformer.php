@@ -35,7 +35,7 @@ class PurchaseOrdersTransformer
             // account and quote are readable without opening the page.
             'funding_account' => $purchaseOrder->funding_account,
             'funding_label' => $purchaseOrder->fundingLabel(),
-            'funding_account_number' => \App\Services\CdwAccounts::number($purchaseOrder->funding_account),
+            'funding_account_number' => \App\Services\SupplierAccounts::number($purchaseOrder->funding_account),
             'lease_schedule' => $purchaseOrder->lease_schedule,
             'quote_number' => $purchaseOrder->quote_number,
             'quote_total' => $purchaseOrder->quote_total !== null ? (float) $purchaseOrder->quote_total : null,

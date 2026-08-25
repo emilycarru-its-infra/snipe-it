@@ -3,7 +3,7 @@
 namespace App\Models\Traits;
 
 use App\Models\RequisitionItem;
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 
 /**
  * Everything about putting an order to the vendor and recording what comes back.
@@ -52,21 +52,21 @@ trait PlacesVendorOrders
      */
     public function fundingResolved(): bool
     {
-        if (! CdwAccounts::canonical($this->funding_account)) {
+        if (! SupplierAccounts::canonical($this->funding_account)) {
             return false;
         }
 
-        return ! CdwAccounts::needsSchedule($this->funding_account) || filled($this->lease_schedule);
+        return ! SupplierAccounts::needsSchedule($this->funding_account) || filled($this->lease_schedule);
     }
 
     /** "Purchase · Admin" — enough for a column or a chip. */
     public function fundingLabel(): string
     {
-        if (! CdwAccounts::canonical($this->funding_account)) {
+        if (! SupplierAccounts::canonical($this->funding_account)) {
             return trans('admin/store/general.funding_unset');
         }
 
-        return trim(CdwAccounts::kindLabel($this->funding_account).' · '.CdwAccounts::scopeLabel($this->funding_account), ' ·');
+        return trim(SupplierAccounts::kindLabel($this->funding_account).' · '.SupplierAccounts::scopeLabel($this->funding_account), ' ·');
     }
 
     /**
@@ -76,7 +76,7 @@ trait PlacesVendorOrders
      */
     public function fundingDescription(): string
     {
-        return CdwAccounts::label($this->funding_account);
+        return SupplierAccounts::label($this->funding_account);
     }
 
     /**

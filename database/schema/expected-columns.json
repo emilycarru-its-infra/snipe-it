@@ -276,20 +276,6 @@
         "updated_at",
         "use_default_eula"
     ],
-    "cdw_accounts": [
-        "active",
-        "created_at",
-        "id",
-        "key",
-        "kind",
-        "number",
-        "payee",
-        "purpose",
-        "schedule_type",
-        "scope",
-        "sort",
-        "updated_at"
-    ],
     "checkout_acceptances": [
         "accepted_at",
         "alert_on_response_id",
@@ -1551,6 +1537,21 @@
         "updated_at",
         "user_id",
         "vendor_sent_at"
+    ],
+    "supplier_accounts": [
+        "active",
+        "created_at",
+        "id",
+        "key",
+        "kind",
+        "number",
+        "payee",
+        "purpose",
+        "schedule_type",
+        "scope",
+        "sort",
+        "supplier_id",
+        "updated_at"
     ],
     "suppliers": [
         "address",
