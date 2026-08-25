@@ -200,6 +200,42 @@ class StoreOrdersApiTest extends TestCase
         $this->assertNull($order->fresh()->purchase_order_id);
     }
 
+    public function test_the_account_can_be_set_after_approval()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'approved']);
+
+        Passport::actingAs($this->procurement());
+
+        // The common case: approved first, account settled later, because the
+        // schedule rolls over between the decision and the batch.
+        $this->postJson(route('api.store-orders.funding', $order->id), [
+            'funding_account' => 'lease_admin',
+            'lease_schedule' => '301452-007',
+        ])->assertOk();
+
+        $fresh = $order->fresh();
+        $this->assertSame('lease_admin', $fresh->funding_account);
+        $this->assertSame('301452-007', $fresh->lease_schedule);
+        $this->assertTrue($fresh->readyForVendor());
+    }
+
+    public function test_a_csi_account_without_a_schedule_is_refused()
+    {
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'approved']);
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.funding', $order->id), [
+            'funding_account' => 'lease_curriculum',
+        ])->assertStatus(422);
+
+        $this->assertNull($order->fresh()->funding_account);
+    }
+
     public function test_the_queue_is_not_open_to_everyone()
     {
         $this->orderFor(User::factory()->create());
