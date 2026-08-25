@@ -38,25 +38,94 @@ class CsiSchedule extends Model
         'last_seen_at' => 'datetime',
     ];
 
+    /** The lease every ECU schedule hangs off. */
+    public const MASTER_CONTRACT = '301452';
+
     /**
-     * The schedules an order can be placed against today. Two are open at
-     * any time — a four-year lease-to-return and a five-year lease-to-own —
-     * and they roll over quarterly, so this is deliberately read live
-     * rather than configured: the answer to "which lease is open" changes
-     * without anyone editing a setting.
+     * The cadence anchor: the odd (lease-to-return) schedule open for
+     * ordering during the calendar quarter that begins on this date.
      *
-     * A schedule with no end date counts as open. CSI issues the document
-     * before the term is signed, and that is exactly the window in which
-     * the newest schedule is the one to order against.
+     * Derived from the commencement dates the mirror already holds —
+     * 003/004 commenced 2025-12-01, 005/006 on 2026-04-01, 007/008 on
+     * 2026-07-01 — so 009/010 commences 2026-10-01 and is the pair being
+     * ordered against through Q3 2026.
+     */
+    public const ANCHOR_NUMBER = 9;
+
+    public const ANCHOR_QUARTER_START = '2026-07-01';
+
+    /**
+     * The two schedules an order can be placed against today, keyed by the
+     * kind of lease each one is.
+     *
+     * A new pair opens every three months: an odd-numbered four-year
+     * lease-to-return and the even-numbered five-year lease-to-own beside
+     * it. You order against the pair that COMMENCES at the start of the
+     * next quarter — the equipment ships during this one — which is why
+     * the answer cannot come from the mirror. CSI does not publish a
+     * schedule until it commences, so the schedule being ordered against
+     * is always the one the mirror has never heard of.
+     *
+     * Reading the mirror instead is what this replaces: it returned every
+     * schedule whose TERM had not ended, which is every live lease. The
+     * form offered six schedules, all of them signed and closed to new
+     * equipment, and none of them the one to order against.
+     *
+     * @return array{return: string, own: string}
+     */
+    public static function openPair(): array
+    {
+        $anchor = \Carbon\CarbonImmutable::parse(self::ANCHOR_QUARTER_START)->startOfQuarter();
+        $current = \Carbon\CarbonImmutable::now()->startOfQuarter();
+
+        // Whole quarters elapsed since the anchor. Never negative: a clock
+        // set before the anchor should read the anchor pair, not a lower
+        // number that was never open for ordering.
+        $quarters = max(0, (int) round($anchor->diffInMonths($current) / 3));
+
+        $return = self::ANCHOR_NUMBER + (2 * $quarters);
+
+        return [
+            'return' => self::name($return),
+            'own' => self::name($return + 1),
+        ];
+    }
+
+    /**
+     * The schedule an order on this account belongs to. The account already
+     * says which of the pair it is — the purchase accounts say neither.
+     */
+    public static function scheduleForAccount(?string $account): ?string
+    {
+        $kind = \App\Services\CdwAccounts::scheduleType($account);
+
+        return $kind ? (self::openPair()[$kind] ?? null) : null;
+    }
+
+    /** "301452-009" from 9. */
+    public static function name(int $number): string
+    {
+        return self::MASTER_CONTRACT.'-'.str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * What the form offers: the open pair first, because those are the only
+     * two an order can actually be placed against, followed by any live
+     * schedule the mirror knows so a correction onto an earlier one is
+     * still possible.
      *
      * @return array<int, string>
      */
     public static function openScheduleNames(): array
     {
-        return static::query()
+        $pair = array_values(self::openPair());
+
+        $known = static::query()
             ->where(fn ($q) => $q->whereNull('term_end_date')->orWhere('term_end_date', '>=', now()->toDateString()))
             ->orderByDesc('schedule_name')
             ->pluck('schedule_name')
             ->all();
+
+        return array_values(array_unique(array_merge($pair, $known)));
     }
 }
