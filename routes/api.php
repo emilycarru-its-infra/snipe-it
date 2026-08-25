@@ -1369,6 +1369,12 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     /**
      * Purchase Orders API routes
      */
+    // Raise the order and provision the devices a purchase order should
+    // already have. An endpoint because the app runs in a container with no
+    // shell to run artisan in.
+    Route::post('purchase-orders/{purchase_order_id}/provision', [Api\PurchaseOrdersController::class, 'provision'])
+        ->name('api.purchase-orders.provision');
+
     Route::resource('purchase-orders',
         Api\PurchaseOrdersController::class,
         ['names' => [
