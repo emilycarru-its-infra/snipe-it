@@ -16,7 +16,7 @@
     $staleLines = $purchaseOrder->linesWithStalePartNumbers();
 
     $selectedAccount = SupplierAccounts::canonical(old('funding_account', $purchaseOrder->funding_account));
-    $accountRows = collect(SupplierAccounts::ACCOUNTS)->map(fn ($account, $key) => [
+    $accountRows = collect(SupplierAccounts::accounts())->map(fn ($account, $key) => [
         'key' => $key,
         'kind' => SupplierAccounts::kindLabel($key),
         'scope' => SupplierAccounts::scopeLabel($key),

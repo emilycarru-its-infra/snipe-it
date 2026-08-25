@@ -20,21 +20,32 @@ class ProcurementSetting extends Model
 
     protected $fillable = ['key', 'value'];
 
+    /** @var array<string, string|null> */
+    private static array $cache = [];
+
     public static function get(string $key, ?string $default = null): ?string
     {
-        // Cached per request: the cadence is asked for on every render of
-        // the queue, and it cannot change mid-request.
-        static $cache = [];
-
-        if (! array_key_exists($key, $cache)) {
-            $cache[$key] = static::query()->where('key', $key)->value('value');
+        // Cached because the cadence is asked for on every render of the
+        // queue. Writes clear it: a static cache that a write cannot reach
+        // reports the old value for the rest of the process, which is how a
+        // saved anchor appeared not to save.
+        if (! array_key_exists($key, self::$cache)) {
+            self::$cache[$key] = static::query()->where('key', $key)->value('value');
         }
 
-        return $cache[$key] ?? $default;
+        return self::$cache[$key] ?? $default;
     }
 
     public static function put(string $key, ?string $value): void
     {
         static::updateOrCreate(['key' => $key], ['value' => $value]);
+
+        self::$cache[$key] = $value;
+    }
+
+    /** Forget everything cached — between tests, and after a bulk edit. */
+    public static function flush(): void
+    {
+        self::$cache = [];
     }
 }
