@@ -191,6 +191,7 @@ class Asset extends Depreciable
         'po_number' => ['nullable', 'string', 'max:255'],
         'invoice_number' => ['nullable', 'string', 'max:255'],
         'lease_usage' => ['nullable', 'string', 'max:255'],
+        // Narrowed to the closed LEASE_AREAS vocabulary by getRules().
         'lease_area' => ['nullable', 'string', 'max:255'],
     ];
 
@@ -395,27 +396,60 @@ class Asset extends Depreciable
      */
     /**
      * The closed vocabularies of the native lease taxonomy columns (the F2
-     * migration's replacements for the old listbox custom fields). Ownership
-     * and usage are fixed; the Area list is whatever the fleet already uses —
-     * offering existing values keeps the inline editor a dropdown without
-     * losing any historical label, and stops new spelling variants.
+     * migration's replacements for the old listbox custom fields).
+     *
+     * Area used to be derived from `distinct lease_area`, which made the list
+     * self-referential: anything written through the API or an import became a
+     * permanent, offerable option, so the vocabulary only ever grew. Because
+     * area is used downstream as a manifest *path segment* and as part of an
+     * Entra group name (`Devices-{usage}-{catalog}-{area}-{location}`), each
+     * variant silently forked a department in two — the same room ended up with
+     * a location manifest under both `StudServ` and `StudentServices`, and
+     * software targeted at one half never reached the other.
+     *
+     * The list below is therefore fixed. Entries are PascalCase with no spaces
+     * or punctuation, because both consumers treat the value as a path-safe
+     * token. Adding a genuinely new area is a deliberate edit here.
      */
     public const OWNERSHIP_TYPES = ['Purchased', 'Lease to Return', 'Lease to Own'];
 
     public const LEASE_USAGES = ['Shared', 'Assigned'];
 
+    public const LEASE_AREAS = [
+        'AGP', 'Academic', 'Animation', 'CTS', 'Ceramics', 'Classroom',
+        'Communication', 'CommunicationDesign', 'ContStudies', 'Counselling',
+        'DOC', 'DesignDynamicMedia', 'Desktop', 'DigitalFabrication', 'Exhibit',
+        'Facilities', 'FilmScreenArts', 'Finance', 'FineArts', 'Foundation',
+        'Gallery', 'GradStudies', 'HR', 'IT', 'Illustration', 'ImmersiveMedia',
+        'Instructor', 'InteractionDesign', 'InteractiveProducts', 'Kiosk',
+        'Library', 'Loaner', 'MaterialMatters', 'MediaArts', 'MediaResources',
+        'NewMediaSoundArts', 'Photo', 'Podium', 'President', 'PrintRelease',
+        'RemoteCompute', 'RenderingFarm', 'Research', 'SelfService', 'Servers',
+        'Sessional', 'Show', 'Signage', 'SoftShop', 'StudServ',
+        'TeachingLearning', 'TechServ', 'Unallocated', 'WIP', 'WritingCentre',
+    ];
+
     /** @return array<string, string> value => label, sorted, for selects */
     public static function leaseAreaOptions(): array
     {
-        $values = static::query()
-            ->whereNotNull('lease_area')
-            ->where('lease_area', '!=', '')
-            ->distinct()
-            ->orderBy('lease_area')
-            ->pluck('lease_area')
-            ->all();
+        return array_combine(self::LEASE_AREAS, self::LEASE_AREAS);
+    }
 
-        return array_combine($values, $values) ?: [];
+    /**
+     * Narrow `lease_area` to the closed vocabulary.
+     *
+     * The constant cannot express an `in:` rule directly — a static property
+     * initialiser admits no function calls — so the rule is built here instead.
+     * A class method takes precedence over the one ValidatingTrait supplies, and
+     * every validation path funnels through it, so this reaches API and importer
+     * writes as well as the asset forms.
+     */
+    public function getRules()
+    {
+        $rules = $this->rules;
+        $rules['lease_area'] = ['nullable', 'in:'.implode(',', self::LEASE_AREAS)];
+
+        return $rules;
     }
 
     public static function inlineEditableCoreFields(): array

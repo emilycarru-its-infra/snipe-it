@@ -136,19 +136,16 @@ class InlineFieldEditTest extends TestCase
 
     public function test_lease_taxonomy_columns_edit_as_contained_dropdowns()
     {
-        // Seed one asset carrying an existing Area value so the option list
-        // (distinct fleet values) contains it.
-        \App\Models\Asset::factory()->create(['lease_area' => 'Research']);
         $asset = \App\Models\Asset::factory()->create();
         $user = User::factory()->editAssets()->create();
 
-        // A known Area value saves…
+        // An Area from the closed vocabulary saves…
         $this->actingAs($user)
             ->patch(route('hardware.corefield.update', $asset), ['field' => 'lease_area', 'value' => 'Research'])
             ->assertSessionHas('success');
         $this->assertEquals('Research', $asset->fresh()->lease_area);
 
-        // …an invented one is rejected, exactly like an off-list listbox value.
+        // …one outside it is rejected, exactly like an off-list listbox value.
         $this->actingAs($user)
             ->patch(route('hardware.corefield.update', $asset), ['field' => 'lease_area', 'value' => 'MadeUpDept'])
             ->assertSessionHas('error');
@@ -166,13 +163,51 @@ class InlineFieldEditTest extends TestCase
         $this->assertNull($fresh->lease_usage);
     }
 
+    public function test_area_options_come_from_the_constant_not_the_fleet()
+    {
+        // The option list used to be `distinct lease_area`, which made it
+        // self-referential: any value written through the API or an importer
+        // became a permanent, offerable option. An off-vocabulary value sitting
+        // in the table must no longer show up as a choice.
+        \App\Models\Asset::factory()->create(['lease_area' => 'Research']);
+
+        \DB::table('assets')
+            ->where('lease_area', 'Research')
+            ->update(['lease_area' => 'Student Services']);
+
+        $options = \App\Models\Asset::leaseAreaOptions();
+
+        $this->assertSame(\App\Models\Asset::LEASE_AREAS, array_values($options));
+        $this->assertArrayNotHasKey('Student Services', $options);
+        $this->assertArrayHasKey('StudServ', $options);
+    }
+
+    public function test_area_vocabulary_is_path_and_group_name_safe()
+    {
+        // Area is used downstream as a manifest path segment and inside an
+        // Entra group name (Devices-{usage}-{catalog}-{area}-{location}), so a
+        // space or separator in any entry forks a department in two.
+        foreach (\App\Models\Asset::LEASE_AREAS as $area) {
+            $this->assertMatchesRegularExpression(
+                '/^[A-Za-z0-9]+$/',
+                $area,
+                "Area '{$area}' is not safe as a path segment or group-name component"
+            );
+        }
+
+        $this->assertSame(
+            array_unique(\App\Models\Asset::LEASE_AREAS),
+            \App\Models\Asset::LEASE_AREAS,
+            'The area vocabulary contains a duplicate'
+        );
+    }
+
     public function test_edit_form_carries_the_lease_taxonomy_dropdowns()
     {
-        \App\Models\Asset::factory()->create(['lease_area' => 'Library']);
         $asset = \App\Models\Asset::factory()->create(['lease_area' => 'Library', 'lease_usage' => 'Shared']);
         $user = User::factory()->editAssets()->create();
 
-        // The form renders all three selects with the fleet's options.
+        // The form renders all three selects with the closed vocabularies.
         $this->actingAs($user)
             ->get(route('hardware.edit', $asset))
             ->assertOk()
