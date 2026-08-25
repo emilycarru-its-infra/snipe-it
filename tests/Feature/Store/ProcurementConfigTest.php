@@ -25,6 +25,7 @@ class ProcurementConfigTest extends TestCase
     {
         parent::setUp();
         SupplierAccounts::flush();
+        ProcurementSetting::flush();
     }
 
     public function test_the_accounts_are_seeded_from_the_constant()
