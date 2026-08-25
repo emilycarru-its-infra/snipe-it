@@ -4,9 +4,10 @@
      Rendered into whichever form is asking — the decision form when the
      order is still pending, its own form once it is approved — so the
      account is set at the natural moment rather than on a separate screen.
-     The schedule list is read live from the CSI mirror because the open
-     schedules roll over quarterly; a hardcoded pair would go stale within
-     three months of being written. --}}
+     The schedule list leads with the pair open for ordering, derived from
+     the quarterly cadence rather than the CSI mirror — the schedule being
+     ordered against commences next quarter and CSI has not published it
+     yet, so the mirror never holds the right answer. --}}
 <div class="form-group" style="margin-bottom:8px;">
     <label for="{{ $formId }}-account" class="text-muted" style="font-weight:400; font-size:12px;">
         {{ trans('admin/store/general.funding_label') }}
@@ -23,7 +24,7 @@
 </div>
 
 <div class="form-group" id="{{ $formId }}-schedule" style="margin-bottom:8px;"
-     @if ($order->funding_account !== 'lease') hidden @endif>
+     @unless (\App\Services\CdwAccounts::needsSchedule($order->funding_account)) hidden @endunless>
     <label for="{{ $formId }}-schedule-input" class="text-muted" style="font-weight:400; font-size:12px;">
         {{ trans('admin/store/general.funding_schedule_label') }}
     </label>
