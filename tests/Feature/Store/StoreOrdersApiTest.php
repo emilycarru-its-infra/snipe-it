@@ -8,6 +8,7 @@ use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Passport\Passport;
@@ -26,6 +27,15 @@ class StoreOrdersApiTest extends TestCase
         return User::factory()->superuser()->create();
     }
 
+    /** The vendor an order request actually reaches. */
+    private function supplier(): Supplier
+    {
+        return Supplier::firstOrCreate(
+            ['name' => 'CDW Canada Inc'],
+            ['order_emails' => 'rep1@cdw.ca,rep2@cdw.ca']
+        );
+    }
+
     private function orderFor(User $requester, float $unitCost = 2100.00): StoreOrder
     {
         $item = CatalogItem::create([
@@ -37,6 +47,7 @@ class StoreOrdersApiTest extends TestCase
             'unit_cost' => $unitCost,
             'price_type' => 'quoted',
             'model_id' => AssetModel::factory()->create()->getKey(),
+            'supplier_id' => $this->supplier()->id,
             'show_in_store' => 1,
         ]);
 
@@ -319,8 +330,9 @@ class StoreOrdersApiTest extends TestCase
             'orders' => [$first->id, $second->id],
         ])->assertOk();
 
-        // Several orders, one email — that is what CDW's desk keys.
+        // Several orders, one email to the vendor — that is what their desk keys.
         Mail::assertSentCount(1);
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->hasTo('rep1@cdw.ca'));
 
         foreach ([$first, $second] as $order) {
             $this->assertSame('ordered', $order->fresh()->status);
