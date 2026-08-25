@@ -276,6 +276,20 @@
         "updated_at",
         "use_default_eula"
     ],
+    "cdw_accounts": [
+        "active",
+        "created_at",
+        "id",
+        "key",
+        "kind",
+        "number",
+        "payee",
+        "purpose",
+        "schedule_type",
+        "scope",
+        "sort",
+        "updated_at"
+    ],
     "checkout_acceptances": [
         "accepted_at",
         "alert_on_response_id",
@@ -1161,6 +1175,13 @@
         "permissions",
         "scim_externalid",
         "updated_at"
+    ],
+    "procurement_settings": [
+        "created_at",
+        "id",
+        "key",
+        "updated_at",
+        "value"
     ],
     "purchase_orders": [
         "budget",

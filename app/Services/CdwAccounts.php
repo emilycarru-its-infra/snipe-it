@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\CdwAccount;
+
 /**
- * The four accounts an order can be charged to. Four, and only four.
+ * The accounts an order can be charged to.
  *
  * They exist because CDW places every line against a different blanket purchase
  * order depending on the answer and cannot infer it, and because the account
@@ -13,9 +15,14 @@ namespace App\Services;
  * arriving at the wrong organisation.
  *
  * The grid is deliberate: two ways to pay (purchase or lease) times two
- * budgets (admin or curriculum). Nothing else is offered, because nothing else
- * exists — there is no fifth account to fall back on, and an order that does
- * not fit one of these four is an order nobody can invoice.
+ * budgets (admin or curriculum). An order that fits none of them is an order
+ * nobody can invoice.
+ *
+ * They live in the cdw_accounts table, not in this file. An account number
+ * is a fact about the vendor's business and changes on their timetable — a
+ * renumbering, a fifth account, one retired — and none of that should need a
+ * pull request and a deploy. SEED_ACCOUNTS below is what the table was
+ * seeded from and what answers before the table exists.
  *
  *   purchase_admin       8817038   ECU Purchase – Admin
  *   purchase_curriculum  35007945  ECU Purchase – Curriculum (non-PST)
@@ -35,7 +42,7 @@ namespace App\Services;
  */
 class CdwAccounts
 {
-    public const ACCOUNTS = [
+    public const SEED_ACCOUNTS = [
         'purchase_admin' => [
             'number' => '8817038',
             'kind' => 'purchase',
@@ -85,10 +92,57 @@ class CdwAccounts
         'curriculum' => 'lease_curriculum',
     ];
 
+    /**
+     * The accounts as they stand now.
+     *
+     * Read from the cdw_accounts table, which the migration seeded from
+     * SEED_ACCOUNTS. The constant survives as the seed and as the answer
+     * before the table exists — during the migration itself, and in any
+     * context with no database — so nothing here can be left with no
+     * accounts at all.
+     *
+     * Cached per request: this is asked several times per rendered page and
+     * cannot change mid-request.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function accounts(): array
+    {
+        if (self::$cache !== null) {
+            return self::$cache;
+        }
+
+        try {
+            $rows = CdwAccount::active()->orderBy('sort')->orderBy('key')->get();
+
+            if ($rows->isNotEmpty()) {
+                return self::$cache = $rows
+                    ->mapWithKeys(fn (CdwAccount $account) => [$account->key => $account->toAccountArray()])
+                    ->all();
+            }
+        } catch (\Throwable) {
+            // No table yet (fresh install, mid-migration) — the seed is the
+            // honest answer rather than an empty account list, which would
+            // silently make every order unsendable.
+        }
+
+        return self::$cache = self::SEED_ACCOUNTS;
+    }
+
+    /** Forget the per-request cache — after an edit, and between tests. */
+    public static function flush(): void
+    {
+        self::$cache = null;
+    }
+
+
+    /** @var array<string, array<string, mixed>>|null */
+    private static ?array $cache = null;
+
     /** @return array<int, string> */
     public static function keys(): array
     {
-        return array_keys(self::ACCOUNTS);
+        return array_keys(self::accounts());
     }
 
     public static function canonical(?string $account): ?string
@@ -99,7 +153,7 @@ class CdwAccounts
 
         $account = self::LEGACY_ALIASES[$account] ?? $account;
 
-        return isset(self::ACCOUNTS[$account]) ? $account : null;
+        return isset(self::accounts()[$account]) ? $account : null;
     }
 
     /** @return array<string, mixed>|null */
@@ -107,7 +161,7 @@ class CdwAccounts
     {
         $key = self::canonical($account);
 
-        return $key ? self::ACCOUNTS[$key] : null;
+        return $key ? self::accounts()[$key] : null;
     }
 
     public static function number(?string $account): ?string

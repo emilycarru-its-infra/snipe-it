@@ -48,6 +48,20 @@ class StoreOrder extends Model
      */
     public const FUNDING_ACCOUNTS = ['purchase_admin', 'purchase_curriculum', 'lease_admin', 'lease_curriculum'];
 
+    /**
+     * The accounts an order may actually be charged to today.
+     *
+     * Reads the cdw_accounts table through CdwAccounts, so adding or
+     * retiring an account is an edit rather than a deploy. The constant
+     * above stays as the seed and as the answer before the table exists.
+     *
+     * @return array<int, string>
+     */
+    public static function fundingAccounts(): array
+    {
+        return \App\Services\CdwAccounts::keys() ?: self::FUNDING_ACCOUNTS;
+    }
+
     protected $table = 'store_orders';
 
     protected $fillable = [

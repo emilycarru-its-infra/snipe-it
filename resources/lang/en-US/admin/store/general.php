@@ -86,6 +86,8 @@ return [
     'order_empty' => 'Nothing was ordered — the items are no longer available.',
     'order_already_approved' => 'Your programme laptop order has already been approved, so it cannot be changed here. Contact ITS if you need it altered.',
     'order_superseded' => 'This order was replaced by a newer one from the same requester.',
+    'account_saved' => 'Account :account saved.',
+    'cadence_saved' => 'Lease schedule cadence saved.',
     'queue_attached' => ':count order(s) now draw on :po.',
     'po_requested_heading' => 'Requested against this purchase order',
     'po_requested_help' => 'Approved store orders drawing on this budget. They become committed spend when '

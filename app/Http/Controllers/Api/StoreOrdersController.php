@@ -69,7 +69,7 @@ class StoreOrdersController extends Controller
         $validated = $request->validate([
             'decision' => 'required|string|in:approved,declined',
             'decision_notes' => 'nullable|string|max:65535',
-            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
         ]);
 
@@ -103,7 +103,7 @@ class StoreOrdersController extends Controller
         $this->authorize('update', Requisition::class);
 
         $validated = $request->validate([
-            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::FUNDING_ACCOUNTS),
+            'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
         ]);
 
