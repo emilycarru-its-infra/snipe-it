@@ -3,6 +3,7 @@
 namespace Tests\Feature\Deployments;
 
 use App\Models\Asset;
+use App\Models\AssetModel;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentWave;
@@ -139,6 +140,91 @@ class StageAutomationTest extends TestCase
         (new StageAutomation)->sync('FY2026-27');
 
         $this->assertEquals('provisioned', $item->fresh()->stage->slug);
+    }
+
+    /**
+     * The requisition path: an order buys models, not machines, and the
+     * devices provisioned from it carry only the order number. Every one of
+     * them claims the single quantity line that bought it.
+     */
+    public function test_devices_naming_their_order_claim_the_model_line_that_bought_them()
+    {
+        $stages = $this->stages();
+        $model = AssetModel::factory()->create();
+        $order = Order::factory()->create([
+            'status' => 'ordered',
+            'is_planned' => false,
+            'fiscal_year' => 'FY2026-27',
+            'order_number' => 'P9000001',
+        ]);
+        $line = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => AssetModel::class,
+            'item_id' => $model->id,
+            'quantity' => 3,
+        ]);
+
+        $wave = DeploymentWave::create(['name' => 'Requisition Wave', 'fiscal_year' => 'FY2026-27']);
+        $items = collect(range(1, 3))->map(function () use ($model, $order, $wave, $stages) {
+            $asset = Asset::factory()->create([
+                'model_id' => $model->id,
+                'order_number' => $order->order_number,
+            ]);
+
+            return DeploymentItem::create([
+                'wave_id' => $wave->id,
+                'asset_id' => $asset->id,
+                'model_id' => $model->id,
+                'stage_id' => $stages['planned']->id,
+            ]);
+        });
+
+        (new StageAutomation)->sync('FY2026-27');
+
+        foreach ($items as $item) {
+            $item->refresh();
+            $this->assertEquals($line->id, $item->order_item_id);
+            $this->assertEquals('ordered', $item->stage->slug);
+        }
+    }
+
+    /** A quantity line covers what it bought and no more. */
+    public function test_a_model_line_claims_no_more_items_than_its_quantity()
+    {
+        $stages = $this->stages();
+        $model = AssetModel::factory()->create();
+        $order = Order::factory()->create([
+            'status' => 'ordered',
+            'is_planned' => false,
+            'fiscal_year' => 'FY2026-27',
+            'order_number' => 'P9000002',
+        ]);
+        OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => AssetModel::class,
+            'item_id' => $model->id,
+            'quantity' => 1,
+        ]);
+
+        $wave = DeploymentWave::create(['name' => 'Over-subscribed Wave', 'fiscal_year' => 'FY2026-27']);
+        $items = collect(range(1, 2))->map(function () use ($model, $order, $wave, $stages) {
+            $asset = Asset::factory()->create([
+                'model_id' => $model->id,
+                'order_number' => $order->order_number,
+            ]);
+
+            return DeploymentItem::create([
+                'wave_id' => $wave->id,
+                'asset_id' => $asset->id,
+                'model_id' => $model->id,
+                'stage_id' => $stages['planned']->id,
+            ]);
+        });
+
+        (new StageAutomation)->sync('FY2026-27');
+
+        $linked = $items->filter(fn ($item) => $item->fresh()->order_item_id !== null);
+        $this->assertCount(1, $linked);
     }
 
     public function test_board_render_runs_the_automation()
