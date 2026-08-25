@@ -34,9 +34,16 @@ class VendorOrderLines
             $purchaseOrder = $order->purchaseOrder?->po_number;
             $accountKey = $purchaseOrder.'|'.$order->funding_account.'|'.$order->lease_schedule;
 
+            // The vendor's own account number, not our internal label.
+            // fundingLabel() renders "Lease · Admin · 301452-009", which
+            // reads as an account that does not exist — it is our shorthand
+            // with the lease schedule glued onto it. CDW has exactly four
+            // accounts and places every line against one of them by number;
+            // the schedule is a separate fact, on its own line.
             $groups[$accountKey] ??= [
                 'purchase_order' => $purchaseOrder,
-                'account' => $order->fundingLabel(),
+                'account' => CdwAccounts::number($order->funding_account),
+                'account_purpose' => CdwAccounts::purpose($order->funding_account),
                 'account_key' => $order->funding_account,
                 'schedule' => $order->lease_schedule,
                 'lines' => [],
