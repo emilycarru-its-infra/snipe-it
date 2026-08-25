@@ -11,6 +11,7 @@ use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\RefreshForecast;
+use App\Services\Deployments\StageAutomation;
 use Illuminate\Http\Request;
 
 /**
@@ -60,6 +61,7 @@ class DeploymentsController extends Controller
         $this->authorize('deployments.view');
 
         $waves = DeploymentWave::query()
+            ->with('purchaseOrder')
             ->withCount('items')
             ->when($request->filled('fiscal_year'), fn ($q) => $q->where('fiscal_year', RefreshForecast::normalizeFy($request->query('fiscal_year'))))
             ->ordered()
@@ -73,7 +75,13 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.view');
 
-        $wave->load(['items.stage', 'items.asset', 'items.replacesAsset', 'items.model', 'items.orderItem']);
+        // Same contract as the board: the facts move the stages before the
+        // page — or the token — reads them. Without this a wave read over
+        // the API answers Planned for devices the board would have already
+        // advanced, purely because nobody had opened it in a browser.
+        (new StageAutomation)->sync(null, $wave);
+
+        $wave->load(['purchaseOrder', 'items.stage', 'items.asset', 'items.replacesAsset', 'items.model', 'items.orderItem']);
 
         $payload = $this->waveJson($wave);
         $payload['items'] = $wave->items->map(fn ($item) => $this->itemJson($item));
@@ -278,6 +286,8 @@ class DeploymentsController extends Controller
             'form_key' => $wave->form_key,
             'type' => $wave->typeLabel(),
             'deployment_type_id' => $wave->deployment_type_id,
+            'purchase_order_id' => $wave->purchase_order_id,
+            'purchase_order' => $wave->purchaseOrder?->po_number,
             'items_count' => $wave->items_count ?? $wave->items()->count(),
             'arrival_window_start' => optional($wave->arrival_window_start)->toDateString(),
             'arrival_window_end' => optional($wave->arrival_window_end)->toDateString(),

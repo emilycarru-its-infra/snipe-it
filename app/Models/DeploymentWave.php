@@ -20,6 +20,7 @@ use Watson\Validating\ValidatingTrait;
  *
  * @property-read Collection<int, DeploymentItem> $items
  * @property-read DeploymentType|null $type
+ * @property-read PurchaseOrder|null $purchaseOrder
  */
 class DeploymentWave extends SnipeModel
 {
@@ -130,6 +131,7 @@ class DeploymentWave extends SnipeModel
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<PurchaseOrder, $this> */
     public function purchaseOrder()
     {
         return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
