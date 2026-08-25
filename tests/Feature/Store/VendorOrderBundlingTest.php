@@ -81,7 +81,9 @@ class VendorOrderBundlingTest extends TestCase
 
         // Thirteen laptops, one line saying thirteen.
         $this->assertStringContainsString('MacBook Air | 13" | M5 | 16GB | 1TB | Silver', $body);
-        $this->assertSame(1, substr_count($body, 'MacBook Air | 13&quot; | M5 | 16GB | 1TB | Silver'));
+        // Once, not thirteen times — the markdown mailer decodes entities,
+        // so the rendered body carries the raw quote.
+        $this->assertSame(1, substr_count($body, 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver'));
 
         // The facts the desk needs, once.
         $this->assertStringContainsString('P0026041', $body);
@@ -109,8 +111,8 @@ class VendorOrderBundlingTest extends TestCase
         // Header plus two parts, not header plus fifteen orders.
         $this->assertCount(3, $lines);
 
-        $quantities = array_map(fn ($line) => str_getcsv($line)[3], array_slice($lines, 1));
+        $quantities = array_map(fn ($line) => (int) str_getcsv($line)[3], array_slice($lines, 1));
         sort($quantities);
-        $this->assertSame(['13', '2'], $quantities);
+        $this->assertSame([2, 13], $quantities);
     }
 }
