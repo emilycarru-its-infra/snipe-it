@@ -3,6 +3,7 @@
 namespace App\Services\Deployments;
 
 use App\Models\Asset;
+use App\Models\AssetModel;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentWave;
@@ -22,7 +23,16 @@ use App\Models\DeploymentWave;
  *  - an order line that names the asset it replaces claims the wave item
  *    replacing that same asset;
  *  - a wave with a purchase order claims that PO's unassigned lines by
- *    matching the line's received asset model to the item's planned model.
+ *    matching the line's received asset model to the item's planned model;
+ *  - a device that names its order claims that order's line for its model.
+ *
+ * The third join is the requisition path's, and it is why it exists: an
+ * order raised from a requisition buys models, not machines — one line
+ * saying forty-two MacBook Airs — and the devices provisioned from it
+ * carry the order number rather than a line of their own. Nothing tied
+ * those forty-two assets to that one line, so the wave holding them sat
+ * at Planned against a placed order. A quantity line is shared by every
+ * device it bought, up to its quantity.
  */
 class StageAutomation
 {
@@ -125,6 +135,78 @@ class StageAutomation
                 $claimed[] = $line->id;
                 $linked++;
             }
+        }
+
+        // Join three: the order the device itself names. Assets provisioned
+        // for an order carry its order number — the same join the shipment
+        // webhook matches on — so an item holding one of them can reach its
+        // line without the wave being bridged to anything.
+        $linked += $this->linkByOrderNumber($unlinked->filter(fn ($i) => ! $i->order_item_id));
+
+        return $linked;
+    }
+
+    /**
+     * Claim lines for items whose asset names an order. A model line covers
+     * as many devices as it bought, so capacity is the line's quantity
+     * counted across the whole board, not one item per line.
+     *
+     * @param  \Illuminate\Support\Collection<int, DeploymentItem>  $items
+     */
+    private function linkByOrderNumber($items): int
+    {
+        $items = $items->filter(fn ($i) => $i->asset?->order_number);
+        if ($items->isEmpty()) {
+            return 0;
+        }
+
+        $orders = \App\Models\Order::query()
+            ->whereIn('order_number', $items->map(fn ($i) => $i->asset->order_number)->unique()->values()->all())
+            ->whereNotIn('status', ['cancelled', 'declined'])
+            ->with('items')
+            ->get()
+            ->keyBy('order_number');
+
+        if ($orders->isEmpty()) {
+            return 0;
+        }
+
+        $lineIds = $orders->flatMap(fn ($order) => $order->items->pluck('id'))->all();
+        $taken = $lineIds
+            ? DeploymentItem::query()
+                ->whereIn('order_item_id', $lineIds)
+                ->groupBy('order_item_id')
+                ->selectRaw('order_item_id, count(*) as taken')
+                ->pluck('taken', 'order_item_id')
+                ->all()
+            : [];
+
+        $linked = 0;
+
+        foreach ($items as $item) {
+            $order = $orders->get($item->asset->order_number);
+            $modelId = (int) ($item->model_id ?: $item->asset->model_id);
+            if (! $order || ! $modelId) {
+                continue;
+            }
+
+            $line = $order->items->first(function ($candidate) use ($item, $modelId, $taken) {
+                $matches = ($candidate->item_type === AssetModel::class && (int) $candidate->item_id === $modelId)
+                    || ($candidate->item_type === Asset::class && (int) $candidate->item_id === (int) $item->asset_id);
+
+                return $matches
+                    && ($taken[$candidate->id] ?? 0) < max(1, (int) $candidate->quantity);
+            });
+
+            if (! $line) {
+                continue;
+            }
+
+            $item->order_item_id = $line->id;
+            $item->save();
+            $item->setRelation('orderItem', $line->load('order'));
+            $taken[$line->id] = ($taken[$line->id] ?? 0) + 1;
+            $linked++;
         }
 
         return $linked;
