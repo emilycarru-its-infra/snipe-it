@@ -5,19 +5,22 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * One of the vendor's accounts, as a row rather than a constant.
+ * One of a supplier's accounts, as a row rather than a constant.
  *
- * The account decides which blanket purchase order the reseller places a
+ * The account decides which blanket purchase order the supplier places a
  * line against and who is invoiced, so it is a fact about their business
  * that we mirror. Mirrored facts change on their timetable: an account is
- * renumbered, a fifth is opened, one is retired. None of that should need a
- * deploy, which is why this is a table.
+ * renumbered, a fifth is opened, one is retired, a second supplier arrives
+ * with a grid of their own. None of that should need a deploy, which is why
+ * this is a table and why it is keyed to a supplier rather than named after
+ * the one reseller we happen to use today.
  */
-class CdwAccount extends Model
+class SupplierAccount extends Model
 {
-    protected $table = 'cdw_accounts';
+    protected $table = 'supplier_accounts';
 
     protected $fillable = [
+        'supplier_id',
         'key',
         'number',
         'purpose',
@@ -34,13 +37,18 @@ class CdwAccount extends Model
         'sort' => 'integer',
     ];
 
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('active', true);
     }
 
     /**
-     * The shape the CdwAccounts service reads, so a row and the seed
+     * The shape the SupplierAccounts service reads, so a row and the seed
      * constant are interchangeable.
      *
      * @return array<string, mixed>

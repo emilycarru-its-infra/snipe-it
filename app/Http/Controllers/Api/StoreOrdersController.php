@@ -9,7 +9,7 @@ use App\Models\CsiSchedule;
 use App\Models\PurchaseOrder;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 use App\Services\StoreVendorOrderDispatch;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
@@ -115,13 +115,13 @@ class StoreOrdersController extends Controller
         // still wins, for a correction onto an earlier schedule.
         $schedule = $validated['lease_schedule'] ?? null;
 
-        if ($schedule === null && CdwAccounts::needsSchedule($account)) {
+        if ($schedule === null && SupplierAccounts::needsSchedule($account)) {
             $schedule = CsiSchedule::scheduleForAccount($account);
         }
 
         // Both CSI-financed accounts need the schedule — it decides which
         // Exhibit A the invoice lands on, and CDW cannot infer it.
-        if (CdwAccounts::needsSchedule($account) && empty($schedule)) {
+        if (SupplierAccounts::needsSchedule($account) && empty($schedule)) {
             return response()->json(
                 Helper::formatStandardApiResponse('error', null, trans('admin/store/general.funding_lease_needs_schedule')),
                 422
@@ -130,7 +130,7 @@ class StoreOrdersController extends Controller
 
         $order->update([
             'funding_account' => $account,
-            'lease_schedule' => CdwAccounts::needsSchedule($account) ? $schedule : null,
+            'lease_schedule' => SupplierAccounts::needsSchedule($account) ? $schedule : null,
         ]);
 
         return response()->json(Helper::formatStandardApiResponse(

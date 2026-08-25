@@ -5,7 +5,7 @@
      is transient — a basket keyed into Colleague to get this number — so it
      tracks status and this page does the work. --}}
 @php
-    use App\Services\CdwAccounts;
+    use App\Services\SupplierAccounts;
 
     $orderEmails = collect(explode(',', (string) $purchaseOrder->supplier?->order_emails))
         ->map(fn ($email) => trim($email))->filter()->values();
@@ -15,16 +15,16 @@
     $specialLines = $purchaseOrder->specialRequestLines();
     $staleLines = $purchaseOrder->linesWithStalePartNumbers();
 
-    $selectedAccount = CdwAccounts::canonical(old('funding_account', $purchaseOrder->funding_account));
-    $accountRows = collect(CdwAccounts::ACCOUNTS)->map(fn ($account, $key) => [
+    $selectedAccount = SupplierAccounts::canonical(old('funding_account', $purchaseOrder->funding_account));
+    $accountRows = collect(SupplierAccounts::ACCOUNTS)->map(fn ($account, $key) => [
         'key' => $key,
-        'kind' => CdwAccounts::kindLabel($key),
-        'scope' => CdwAccounts::scopeLabel($key),
+        'kind' => SupplierAccounts::kindLabel($key),
+        'scope' => SupplierAccounts::scopeLabel($key),
         'number' => $account['number'],
         'payee' => trans('admin/store/general.funding_payee_'.$account['payee']),
-        'needs_schedule' => CdwAccounts::needsSchedule($key),
-        'schedules' => CdwAccounts::schedulesFor($key, $leaseSchedules ?? []),
-        'default_schedule' => CdwAccounts::defaultSchedule($key, $leaseSchedules ?? []),
+        'needs_schedule' => SupplierAccounts::needsSchedule($key),
+        'schedules' => SupplierAccounts::schedulesFor($key, $leaseSchedules ?? []),
+        'default_schedule' => SupplierAccounts::defaultSchedule($key, $leaseSchedules ?? []),
     ])->values();
     $selectedRow = $accountRows->firstWhere('key', $selectedAccount);
 @endphp

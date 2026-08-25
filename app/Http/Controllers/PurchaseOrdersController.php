@@ -7,7 +7,7 @@ use App\Models\CsiSchedule;
 use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\PurchaseOrder;
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Contracts\View\View;
@@ -110,7 +110,7 @@ class PurchaseOrdersController extends Controller
             'quote_number' => 'nullable|string|max:191',
             'quote_total' => 'nullable|numeric|min:0',
             'quote_expires_at' => 'nullable|date',
-            'funding_account' => 'nullable|string|in:'.implode(',', CdwAccounts::keys()),
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
             'lease_schedule' => 'nullable|string|max:191',
             'order_cc' => 'nullable|string|max:65535',
             'cc_users' => 'nullable|array',
@@ -147,7 +147,7 @@ class PurchaseOrdersController extends Controller
 
         if (! $purchase_order->fundingResolved()) {
             return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('error', trans(CdwAccounts::needsSchedule($purchase_order->funding_account)
+                ->with('error', trans(SupplierAccounts::needsSchedule($purchase_order->funding_account)
                     ? 'admin/store/general.funding_lease_needs_schedule'
                     : 'admin/purchase-orders/general.vendor_send_needs_account'));
         }

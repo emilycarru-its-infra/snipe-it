@@ -4,22 +4,22 @@ namespace App\Http\Controllers\Api;
 
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
-use App\Models\CdwAccount;
+use App\Models\SupplierAccount;
 use App\Models\CsiSchedule;
 use App\Models\ProcurementSetting;
 use App\Models\Requisition;
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * The vendor accounts and the lease-schedule cadence, editable.
+ * The supplier accounts and the lease-schedule cadence, editable.
  *
  * Both used to be PHP constants: changing an account number, or moving the
- * anchor when a new schedule pair opened, meant a pull request and a
- * deploy for a fact that lives on the vendor's timetable. A new pair opens
- * every three months, so the constant was guaranteed to go stale four times
- * a year.
+ * anchor when a new schedule pair opened, meant a pull request and a deploy
+ * for a fact that lives on the supplier's timetable. A new pair opens every
+ * three months, so the constant was guaranteed to go stale four times a
+ * year.
  */
 class ProcurementConfigController extends Controller
 {
@@ -28,9 +28,11 @@ class ProcurementConfigController extends Controller
         $this->authorize('view', Requisition::class);
 
         return response()->json([
-            'total' => CdwAccount::count(),
-            'rows' => CdwAccount::orderBy('sort')->orderBy('key')->get()->map(fn (CdwAccount $account) => [
+            'total' => SupplierAccount::count(),
+            'rows' => SupplierAccount::orderBy('sort')->orderBy('key')->get()->map(fn (SupplierAccount $account) => [
                 'id' => $account->id,
+                'supplier_id' => $account->supplier_id,
+                'supplier' => $account->supplier?->name,
                 'key' => $account->key,
                 'number' => $account->number,
                 'purpose' => $account->purpose,
@@ -54,6 +56,7 @@ class ProcurementConfigController extends Controller
         $this->authorize('update', Requisition::class);
 
         $validated = $request->validate([
+            'supplier_id' => 'nullable|integer|exists:suppliers,id',
             'number' => 'required|string|max:64',
             'purpose' => 'required|string|max:191',
             'kind' => 'required|string|in:purchase,lease',
@@ -64,9 +67,9 @@ class ProcurementConfigController extends Controller
             'active' => 'nullable|boolean',
         ]);
 
-        $account = CdwAccount::updateOrCreate(['key' => $key], $validated);
+        $account = SupplierAccount::updateOrCreate(['key' => $key], $validated);
 
-        CdwAccounts::flush();
+        SupplierAccounts::flush();
 
         return response()->json(Helper::formatStandardApiResponse('success', [
             'key' => $account->key,

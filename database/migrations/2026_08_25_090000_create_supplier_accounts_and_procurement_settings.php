@@ -1,13 +1,13 @@
 <?php
 
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * The vendor accounts and the lease-schedule cadence become data.
+ * The supplier accounts and the lease-schedule cadence become data.
  *
  * Both were PHP constants, so changing an account number or moving the
  * quarterly schedule anchor meant a pull request, a review, a build and a
@@ -21,9 +21,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('cdw_accounts')) {
-            Schema::create('cdw_accounts', function (Blueprint $table) {
+        if (! Schema::hasTable('supplier_accounts')) {
+            Schema::create('supplier_accounts', function (Blueprint $table) {
                 $table->id();
+                // Whose accounts these are. Nullable because the seed rows
+                // predate any guarantee that the supplier exists yet.
+                $table->unsignedInteger('supplier_id')->nullable()->index();
                 $table->string('key', 64)->unique();
                 $table->string('number', 64);
                 $table->string('purpose', 191);
@@ -40,15 +43,24 @@ return new class extends Migration
         if (! Schema::hasTable('procurement_settings')) {
             Schema::create('procurement_settings', function (Blueprint $table) {
                 $table->id();
+                // Whose accounts these are. Nullable because the seed rows
+                // predate any guarantee that the supplier exists yet.
+                $table->unsignedInteger('supplier_id')->nullable()->index();
                 $table->string('key', 64)->unique();
                 $table->text('value')->nullable();
                 $table->timestamps();
             });
         }
 
+        // The seeded accounts are the reseller's, so attach them to that
+        // supplier where the row exists. A fresh install with no suppliers
+        // yet leaves them unattached rather than inventing one.
+        $supplierId = DB::table('suppliers')->where('name', 'like', 'CDW%')->value('id');
+
         $sort = 0;
-        foreach (CdwAccounts::SEED_ACCOUNTS as $key => $account) {
-            DB::table('cdw_accounts')->updateOrInsert(['key' => $key], [
+        foreach (SupplierAccounts::SEED_ACCOUNTS as $key => $account) {
+            DB::table('supplier_accounts')->updateOrInsert(['key' => $key], [
+                'supplier_id' => $supplierId,
                 'number' => $account['number'],
                 'purpose' => $account['purpose'],
                 'kind' => $account['kind'],
@@ -77,7 +89,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('cdw_accounts');
+        Schema::dropIfExists('supplier_accounts');
         Schema::dropIfExists('procurement_settings');
     }
 };

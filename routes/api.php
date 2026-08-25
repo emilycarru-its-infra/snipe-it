@@ -1328,9 +1328,9 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     // The vendor accounts and the lease cadence, editable — both were
     // constants, so a new account number or a new schedule pair meant a
     // deploy for a fact that moves on the vendor's timetable.
-    Route::get('procurement/cdw-accounts', [Api\ProcurementConfigController::class, 'accounts'])
+    Route::get('procurement/supplier-accounts', [Api\ProcurementConfigController::class, 'accounts'])
         ->name('api.procurement.accounts');
-    Route::put('procurement/cdw-accounts/{key}', [Api\ProcurementConfigController::class, 'saveAccount'])
+    Route::put('procurement/supplier-accounts/{key}', [Api\ProcurementConfigController::class, 'saveAccount'])
         ->name('api.procurement.accounts.save');
     Route::get('procurement/lease-cadence', [Api\ProcurementConfigController::class, 'cadence'])
         ->name('api.procurement.cadence');

@@ -10,7 +10,7 @@ use App\Models\RequisitionItem;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Models\User;
-use App\Services\CdwAccounts;
+use App\Services\SupplierAccounts;
 use App\Services\RequisitionVendorCsv;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -245,30 +245,30 @@ class PurchaseOrderVendorSendTest extends TestCase
     {
         $this->assertSame(
             ['purchase_admin', 'purchase_curriculum', 'lease_admin', 'lease_curriculum'],
-            CdwAccounts::keys()
+            SupplierAccounts::keys()
         );
 
-        $this->assertFalse(CdwAccounts::needsSchedule('purchase_admin'));
-        $this->assertFalse(CdwAccounts::needsSchedule('purchase_curriculum'));
-        $this->assertTrue(CdwAccounts::needsSchedule('lease_admin'));
-        $this->assertTrue(CdwAccounts::needsSchedule('lease_curriculum'));
+        $this->assertFalse(SupplierAccounts::needsSchedule('purchase_admin'));
+        $this->assertFalse(SupplierAccounts::needsSchedule('purchase_curriculum'));
+        $this->assertTrue(SupplierAccounts::needsSchedule('lease_admin'));
+        $this->assertTrue(SupplierAccounts::needsSchedule('lease_curriculum'));
 
-        $this->assertSame('8817038', CdwAccounts::number('purchase_admin'));
-        $this->assertSame('35007945', CdwAccounts::number('purchase_curriculum'));
-        $this->assertSame('35007722', CdwAccounts::number('lease_admin'));
-        $this->assertSame('35007919', CdwAccounts::number('lease_curriculum'));
+        $this->assertSame('8817038', SupplierAccounts::number('purchase_admin'));
+        $this->assertSame('35007945', SupplierAccounts::number('purchase_curriculum'));
+        $this->assertSame('35007722', SupplierAccounts::number('lease_admin'));
+        $this->assertSame('35007919', SupplierAccounts::number('lease_curriculum'));
 
         $open = ['301452-012', '301452-011'];
-        $this->assertSame('301452-011', CdwAccounts::defaultSchedule('lease_admin', $open));
-        $this->assertSame('301452-012', CdwAccounts::defaultSchedule('lease_curriculum', $open));
-        $this->assertSame([], CdwAccounts::schedulesFor('purchase_admin', $open));
+        $this->assertSame('301452-011', SupplierAccounts::defaultSchedule('lease_admin', $open));
+        $this->assertSame('301452-012', SupplierAccounts::defaultSchedule('lease_curriculum', $open));
+        $this->assertSame([], SupplierAccounts::schedulesFor('purchase_admin', $open));
 
         // Rows written under the old three-value column still resolve, so a
         // legacy export does not read as "no account".
-        $this->assertSame('purchase_admin', CdwAccounts::canonical('purchase'));
-        $this->assertSame('lease_admin', CdwAccounts::canonical('lease'));
-        $this->assertSame('lease_curriculum', CdwAccounts::canonical('curriculum'));
-        $this->assertNull(CdwAccounts::canonical('grant'));
+        $this->assertSame('purchase_admin', SupplierAccounts::canonical('purchase'));
+        $this->assertSame('lease_admin', SupplierAccounts::canonical('lease'));
+        $this->assertSame('lease_curriculum', SupplierAccounts::canonical('curriculum'));
+        $this->assertNull(SupplierAccounts::canonical('grant'));
     }
 
     public function test_a_lease_order_also_needs_its_csi_schedule()

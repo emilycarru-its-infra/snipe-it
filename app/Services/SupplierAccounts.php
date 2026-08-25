@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\CdwAccount;
+use App\Models\SupplierAccount;
 
 /**
- * The accounts an order can be charged to.
+ * The accounts an order can be charged to — the supplier's, not ours.
  *
  * They exist because CDW places every line against a different blanket purchase
  * order depending on the answer and cannot infer it, and because the account
@@ -18,11 +18,14 @@ use App\Models\CdwAccount;
  * budgets (admin or curriculum). An order that fits none of them is an order
  * nobody can invoice.
  *
- * They live in the cdw_accounts table, not in this file. An account number
- * is a fact about the vendor's business and changes on their timetable — a
- * renumbering, a fifth account, one retired — and none of that should need a
- * pull request and a deploy. SEED_ACCOUNTS below is what the table was
- * seeded from and what answers before the table exists.
+ * They live in the supplier_accounts table, not in this file. An account
+ * number is a fact about the supplier's business and changes on their
+ * timetable — a renumbering, a fifth account, one retired, a second supplier
+ * arriving with a grid of their own — and none of that should need a pull
+ * request and a deploy. SEED_ACCOUNTS below is what the table was seeded
+ * from and what answers before the table exists; it holds the reseller's
+ * four because that is who we buy devices from today, not because the shape
+ * is fixed at four.
  *
  *   purchase_admin       8817038   ECU Purchase – Admin
  *   purchase_curriculum  35007945  ECU Purchase – Curriculum (non-PST)
@@ -37,10 +40,10 @@ use App\Models\CdwAccount;
  * order belongs on and the form can pick it rather than asking.
  *
  * Source of truth for the numbers and the purposes:
- * https://handbook.its.ecuad.ca/devices/procurement/cdw-ordering#cdw-accounts
+ * https://handbook.its.ecuad.ca/devices/procurement/cdw-ordering#supplier-accounts
  * https://handbook.its.ecuad.ca/devices/procurement/csi-leasing#standard-quarterly-cadence
  */
-class CdwAccounts
+class SupplierAccounts
 {
     public const SEED_ACCOUNTS = [
         'purchase_admin' => [
@@ -95,7 +98,7 @@ class CdwAccounts
     /**
      * The accounts as they stand now.
      *
-     * Read from the cdw_accounts table, which the migration seeded from
+     * Read from the supplier_accounts table, which the migration seeded from
      * SEED_ACCOUNTS. The constant survives as the seed and as the answer
      * before the table exists — during the migration itself, and in any
      * context with no database — so nothing here can be left with no
@@ -113,11 +116,11 @@ class CdwAccounts
         }
 
         try {
-            $rows = CdwAccount::active()->orderBy('sort')->orderBy('key')->get();
+            $rows = SupplierAccount::active()->orderBy('sort')->orderBy('key')->get();
 
             if ($rows->isNotEmpty()) {
                 return self::$cache = $rows
-                    ->mapWithKeys(fn (CdwAccount $account) => [$account->key => $account->toAccountArray()])
+                    ->mapWithKeys(fn (SupplierAccount $account) => [$account->key => $account->toAccountArray()])
                     ->all();
             }
         } catch (\Throwable) {

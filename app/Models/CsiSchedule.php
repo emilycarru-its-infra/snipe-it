@@ -103,7 +103,7 @@ class CsiSchedule extends Model
      */
     public static function scheduleForAccount(?string $account): ?string
     {
-        $kind = \App\Services\CdwAccounts::scheduleType($account);
+        $kind = \App\Services\SupplierAccounts::scheduleType($account);
 
         return $kind ? (self::openPair()[$kind] ?? null) : null;
     }

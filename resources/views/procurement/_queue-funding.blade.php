@@ -17,14 +17,14 @@
         <option value="">{{ trans('admin/store/general.funding_unset') }}</option>
         @foreach ($fundingAccounts as $account)
             <option value="{{ $account }}" @selected($order->funding_account === $account)>
-                {{ \App\Services\CdwAccounts::label($account) }}
+                {{ \App\Services\SupplierAccounts::label($account) }}
             </option>
         @endforeach
     </select>
 </div>
 
 <div class="form-group" id="{{ $formId }}-schedule" style="margin-bottom:8px;"
-     @unless (\App\Services\CdwAccounts::needsSchedule($order->funding_account)) hidden @endunless>
+     @unless (\App\Services\SupplierAccounts::needsSchedule($order->funding_account)) hidden @endunless>
     <label for="{{ $formId }}-schedule-input" class="text-muted" style="font-weight:400; font-size:12px;">
         {{ trans('admin/store/general.funding_schedule_label') }}
     </label>
