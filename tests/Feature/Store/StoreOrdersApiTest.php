@@ -330,8 +330,10 @@ class StoreOrdersApiTest extends TestCase
             'orders' => [$first->id, $second->id],
         ])->assertOk();
 
-        // Several orders, one email to the vendor — that is what their desk keys.
-        Mail::assertSentCount(1);
+        // Several orders, ONE request to the vendor — that is what their desk
+        // keys. The requesters are told separately, so the total mail count
+        // is legitimately higher; what matters is that the vendor gets one.
+        Mail::assertSent(StoreVendorOrderMail::class, 1);
         Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->hasTo('rep1@cdw.ca'));
 
         foreach ([$first, $second] as $order) {
