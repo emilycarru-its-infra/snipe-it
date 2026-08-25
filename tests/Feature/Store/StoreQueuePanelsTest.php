@@ -66,6 +66,22 @@ class StoreQueuePanelsTest extends TestCase
         $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'ordered']))->assertOk()
             ->assertSee('Received', false);
 
+        // An order already on a lease account shows its schedule field on the
+        // first render. The server-side guard compared the account to the
+        // bare string 'lease', which neither lease_admin nor
+        // lease_curriculum equals, so the field arrived hidden and only
+        // appeared if you touched the account dropdown — the JS beside it
+        // had always asked CdwAccounts properly.
+        StoreOrder::first()->update(['status' => 'approved', 'vendor_sent_at' => null,
+            'arrived_at' => null, 'confirmed_at' => null,
+            'funding_account' => 'lease_admin', 'lease_schedule' => '301452-009']);
+        $html = $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'approved']))
+            ->assertOk()->getContent();
+
+        $scheduleField = strstr($html, 'id="pq-funding-'.StoreOrder::first()->id.'-schedule"');
+        $this->assertNotFalse($scheduleField, 'the schedule field should be rendered');
+        $this->assertStringNotContainsString('hidden', substr($scheduleField, 0, 120));
+
         // The catalog table shows and can edit both part numbers.
         $this->actingAs($staff)->get(route('procurement.store-admin'))->assertOk()
             ->assertSee('21QKS09B00', false)->assertSee('8394675', false)
