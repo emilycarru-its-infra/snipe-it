@@ -3,9 +3,23 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * One of a supplier's accounts, as a row rather than a constant.
+ *
+ * @property int $id
+ * @property int|null $supplier_id
+ * @property string $key
+ * @property string $number
+ * @property string $purpose
+ * @property string $kind
+ * @property string $scope
+ * @property string $payee
+ * @property string|null $schedule_type
+ * @property int $sort
+ * @property bool $active
+ * @property-read Supplier|null $supplier
  *
  * The account decides which blanket purchase order the supplier places a
  * line against and who is invoiced, so it is a fact about their business
@@ -37,6 +51,9 @@ class SupplierAccount extends Model
         'sort' => 'integer',
     ];
 
+    /**
+     * @return BelongsTo<Supplier, $this>
+     */
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
