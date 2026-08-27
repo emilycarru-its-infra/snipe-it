@@ -267,6 +267,41 @@ class PurchaseOrderVendorApiTest extends TestCase
         $this->assertNull($order->fresh()->quote_confirmed_at);
     }
 
+    /**
+     * An order sent from somewhere else — by hand, from another checkout —
+     * can be recorded as sent, dated, with the account it went under, so the
+     * rest of the loop can be joined. Nothing is emailed: the vendor has it.
+     */
+    public function test_a_send_made_elsewhere_can_be_recorded_and_the_loop_joined()
+    {
+        Mail::fake();
+
+        $order = $this->purchaseOrder(['funding_account' => null, 'lease_schedule' => null]);
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.purchase-orders.vendor-response', $order->id), [
+            'step' => 'sent',
+            'vendor_sent_at' => '2026-08-25 16:55:00',
+            'funding_account' => 'lease_admin',
+            'lease_schedule' => '301452-009',
+        ])->assertOk()->assertJsonPath('payload.vendor_stage', 'sent');
+
+        $order->refresh();
+        $this->assertSame('2026-08-25 16:55:00', $order->vendor_sent_at->toDateTimeString());
+        $this->assertSame('lease_admin', $order->funding_account);
+        $this->assertSame('301452-009', $order->lease_schedule);
+        Mail::assertNothingSent();
+
+        $this->postJson(route('api.purchase-orders.vendor-response', $order->id), [
+            'step' => 'confirm',
+            'quote_number' => 'PZKT735',
+            'quote_total' => 43866.08,
+            'notify_vendor' => true,
+        ])->assertOk()->assertJsonPath('payload.vendor_stage', 'confirmed');
+
+        Mail::assertSent(PurchaseOrderQuoteAcceptanceMail::class, 1);
+    }
+
     public function test_the_vendor_cannot_be_answered_before_being_asked()
     {
         Mail::fake();

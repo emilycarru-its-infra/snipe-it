@@ -155,7 +155,10 @@ class PurchaseOrdersController extends Controller
         $this->authorize('update', PurchaseOrder::class);
 
         $validated = $request->validate([
-            'step' => 'required|string|in:changes,confirm,order_number',
+            'step' => 'required|string|in:sent,changes,confirm,order_number',
+            'vendor_sent_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
             'vendor_changes_notes' => 'nullable|string|max:65535',
             'quote_number' => 'nullable|string|max:191',
             'quote_total' => 'nullable|numeric|min:0',

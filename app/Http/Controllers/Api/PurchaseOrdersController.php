@@ -162,7 +162,9 @@ class PurchaseOrdersController extends Controller
 
     /**
      * Record the vendor's answer, and ours to it — `changes`, `confirm` or
-     * `order_number`, the loop their rep set out. A `confirm` with
+     * `order_number`, the loop their rep set out — or `sent`, a send that was
+     * made outside the app, dated with `vendor_sent_at`, so the loop can be
+     * joined from there. A `confirm` with
      * `notify_vendor: true` also emails the acceptance to the reps, which is
      * what actually gets the order placed; the order is only stamped accepted
      * once that mail has left.
@@ -172,7 +174,10 @@ class PurchaseOrdersController extends Controller
         $this->authorize('update', PurchaseOrder::class);
 
         $validated = $request->validate([
-            'step' => 'required|string|in:changes,confirm,order_number',
+            'step' => 'required|string|in:sent,changes,confirm,order_number',
+            'vendor_sent_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
             'vendor_changes_notes' => 'nullable|string|max:65535',
             'quote_number' => 'nullable|string|max:191',
             'quote_total' => 'nullable|numeric|min:0',
