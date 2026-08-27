@@ -2,14 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\RequisitionVendorOrderMail;
 use App\Models\CsiSchedule;
-use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\PurchaseOrder;
+use App\Services\PurchaseOrderVendorDispatch;
 use App\Services\SupplierAccounts;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -118,102 +115,25 @@ class PurchaseOrdersController extends Controller
             'test' => 'nullable|boolean',
         ]);
 
-        $purchase_order->load('supplier', 'requisitions.items.catalogItem');
-
-        // The quote and the account are recorded whether or not the send
-        // succeeds: they are facts about the order — one from the vendor, one
-        // our own decision — not side effects of emailing anybody.
-        foreach (['quote_number', 'quote_total', 'quote_expires_at', 'funding_account', 'lease_schedule', 'order_cc'] as $field) {
-            if ($request->filled($field)) {
-                $purchase_order->{$field} = $validated[$field];
-            }
-        }
-
-        // Picked people are stored as ids, so a name change or a new address
-        // follows them. An empty submission clears the list rather than being
-        // read as "leave it alone" — that is what unticking everyone means.
+        // An empty submission of the picker clears the list rather than being
+        // read as "leave it alone" — that is what unticking everyone means —
+        // so the key is passed through whenever the form carried it.
         if ($request->has('cc_users')) {
-            $purchase_order->order_cc_users = implode(',', $validated['cc_users'] ?? []);
-        }
-
-        if ($purchase_order->isDirty()) {
-            $purchase_order->save();
-        }
-
-        if ($purchase_order->status === 'cancelled' || $purchase_order->vendorOrderLines()->isEmpty()) {
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('error', trans('admin/purchase-orders/general.vendor_send_needs_po'));
-        }
-
-        if (! $purchase_order->fundingResolved()) {
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('error', trans(SupplierAccounts::needsSchedule($purchase_order->funding_account)
-                    ? 'admin/store/general.funding_lease_needs_schedule'
-                    : 'admin/purchase-orders/general.vendor_send_needs_account'));
-        }
-
-        // Both part numbers on every line. The MFR# identifies the product
-        // and the EDC is what CDW places, so a line short of either is not an
-        // order they can fill. Named rather than counted: the fix is a catalog
-        // row somebody has to go and complete.
-        if (($missing = $purchase_order->linesMissingPartNumbers())->isNotEmpty()) {
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('error', trans('admin/purchase-orders/general.vendor_send_needs_part_numbers', [
-                    'lines' => $missing->pluck('description')->implode(', '),
-                ]));
+            $validated['cc_users'] = $validated['cc_users'] ?? [];
         }
 
         $test = $request->boolean('test');
 
-        if ($test) {
-            $to = [auth()->user()->email];
-            $cc = [];
-        } else {
-            $to = EmailTemplate::recipientsFor('procurement.vendor_order', $purchase_order->supplier?->order_emails);
+        $result = app(PurchaseOrderVendorDispatch::class)->send($purchase_order, auth()->user(), $validated, $test);
 
-            // The admin lists, plus whoever asked for this through the store and
-            // anything typed into the form. A store request has a person waiting
-            // at the end of it: once their lines are folded into a bulk
-            // requisition, this is the thread that tells them it was ordered.
-            $cc = array_values(array_unique(array_merge(
-                EmailTemplate::ccFor('procurement.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca'),
-                $purchase_order->orderCcAddresses()
-            )));
+        if (! $result['sent']) {
+            return redirect()->route('purchase-orders.show', $purchase_order->id)->with('error', $result['error']);
         }
-
-        $to = array_filter($to);
-
-        if ($to === []) {
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('error', trans('admin/store/general.vendor_send_no_recipients'));
-        }
-
-        try {
-            $mail = Mail::to($to);
-            if ($cc !== []) {
-                $mail->cc($cc);
-            }
-            $mail->send(new RequisitionVendorOrderMail($purchase_order->fresh(['supplier']), $test));
-        } catch (\Throwable $e) {
-            Log::warning('Vendor order email failed for purchase order '.$purchase_order->id.': '.$e->getMessage());
-
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('error', trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
-        }
-
-        if ($test) {
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $to[0]]));
-        }
-
-        // Only a real send is a send. Stamped after the mailer returns rather
-        // than before, so a bounced transport does not leave the order looking
-        // placed.
-        $purchase_order->vendor_sent_at = now();
-        $purchase_order->save();
 
         return redirect()->route('purchase-orders.show', $purchase_order->id)
-            ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $to)]));
+            ->with('success', $test
+                ? trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]])
+                : trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])]));
     }
 
     /**
@@ -226,8 +146,9 @@ class PurchaseOrdersController extends Controller
      * a different person's decision on a different day, and one flag would have
      * an order reading as placed while a question is still open.
      *
-     * Recording changes reopens the basket, which is the point: their
-     * substitution is the thing that has to land on the lines.
+     * Accepting the final quote can also tell the vendor so — that is the mail
+     * that gets the order placed. The decisions live in
+     * {@see PurchaseOrderVendorDispatch::respond()}, shared with the API.
      */
     public function vendorResponse(Request $request, PurchaseOrder $purchase_order): RedirectResponse
     {
@@ -240,48 +161,21 @@ class PurchaseOrdersController extends Controller
             'quote_total' => 'nullable|numeric|min:0',
             'quote_expires_at' => 'nullable|date',
             'vendor_order_number' => 'nullable|string|max:191',
+            'notify_vendor' => 'nullable|boolean',
         ]);
 
-        if ($purchase_order->vendor_sent_at === null) {
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->with('error', trans('admin/purchase-orders/general.vendor_response_not_sent'));
+        $result = app(PurchaseOrderVendorDispatch::class)->respond(
+            $purchase_order,
+            $validated['step'],
+            $validated,
+            $request->boolean('notify_vendor')
+        );
+
+        if (! $result['ok']) {
+            return redirect()->route('purchase-orders.show', $purchase_order->id)->with('error', $result['error']);
         }
 
-        foreach (['quote_number', 'quote_total', 'quote_expires_at'] as $field) {
-            if ($request->filled($field)) {
-                $purchase_order->{$field} = $validated[$field];
-            }
-        }
-
-        if ($validated['step'] === 'changes') {
-            $purchase_order->vendor_changes_at = now();
-
-            if ($request->filled('vendor_changes_notes')) {
-                $purchase_order->vendor_changes_notes = $validated['vendor_changes_notes'];
-            }
-
-            // A new answer from the vendor un-confirms the order: whatever we
-            // accepted before, this supersedes it.
-            $purchase_order->quote_confirmed_at = null;
-            $message = 'admin/purchase-orders/general.vendor_changes_recorded';
-        } elseif ($validated['step'] === 'confirm') {
-            $purchase_order->quote_confirmed_at = $purchase_order->quote_confirmed_at ?? now();
-            $message = 'admin/purchase-orders/general.vendor_quote_confirmed';
-        } else {
-            $purchase_order->vendor_order_number = $validated['vendor_order_number'] ?? null;
-
-            // An order number means they placed it, so the quote we were
-            // waiting on is accepted whether or not anyone pressed accept.
-            $purchase_order->quote_confirmed_at = $purchase_order->quote_confirmed_at ?? now();
-            $message = 'admin/purchase-orders/general.vendor_order_number_recorded';
-        }
-
-        if (! $purchase_order->save()) {
-            return redirect()->route('purchase-orders.show', $purchase_order->id)
-                ->withErrors($purchase_order->getErrors());
-        }
-
-        return redirect()->route('purchase-orders.show', $purchase_order->id)->with('success', trans($message));
+        return redirect()->route('purchase-orders.show', $purchase_order->id)->with('success', $result['message']);
     }
 
     public function destroy(PurchaseOrder $purchase_order): RedirectResponse

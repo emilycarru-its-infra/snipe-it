@@ -1375,6 +1375,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('purchase-orders/{purchase_order_id}/provision', [Api\PurchaseOrdersController::class, 'provision'])
         ->name('api.purchase-orders.provision');
 
+    // Placing the order, and recording what the vendor says back — the same
+    // two moves as the purchase order page, for whatever has no browser: a
+    // script that just filed the PO, or an agent answering the reps' quote.
+    Route::post('purchase-orders/{purchase_order_id}/send-vendor', [Api\PurchaseOrdersController::class, 'sendVendor'])
+        ->name('api.purchase-orders.send-vendor');
+    Route::post('purchase-orders/{purchase_order_id}/vendor-response', [Api\PurchaseOrdersController::class, 'vendorResponse'])
+        ->name('api.purchase-orders.vendor-response');
+
     Route::resource('purchase-orders',
         Api\PurchaseOrdersController::class,
         ['names' => [

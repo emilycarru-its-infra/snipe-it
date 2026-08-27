@@ -9,6 +9,8 @@ use App\Http\Transformers\PurchaseOrdersTransformer;
 use App\Models\Order;
 use App\Models\PurchaseOrder;
 use App\Services\PurchaseOrderProvisioning;
+use App\Services\PurchaseOrderVendorDispatch;
+use App\Services\SupplierAccounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -112,6 +114,95 @@ class PurchaseOrdersController extends Controller
                 'count' => $report['assets_created'] ?? $report['would_create'] ?? 0,
             ])
         ));
+    }
+
+    /**
+     * Put the order to the vendor, recording the account and quote it goes
+     * with. The same send the purchase order page makes, minus the browser:
+     * a script that has just filed the PO can place the order in the same
+     * breath, and a test send (`test: true`) lets it check the layout first.
+     *
+     * The gates are the dispatch's, not repeated here — see
+     * {@see PurchaseOrderVendorDispatch::send()} for what refuses a send.
+     */
+    public function sendVendor(Request $request, $purchaseOrderId): JsonResponse
+    {
+        $this->authorize('update', PurchaseOrder::class);
+
+        $validated = $request->validate([
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
+            'order_cc' => 'nullable|string|max:65535',
+            'cc_users' => 'nullable|array',
+            'cc_users.*' => 'integer|exists:users,id',
+            'test' => 'nullable|boolean',
+        ]);
+
+        $purchaseOrder = PurchaseOrder::findOrFail($purchaseOrderId);
+        $test = (bool) ($validated['test'] ?? false);
+
+        $result = app(PurchaseOrderVendorDispatch::class)->send($purchaseOrder, $request->user(), $validated, $test);
+
+        if (! $result['sent']) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'test' => $test,
+            'recipients' => $result['recipients'],
+            'purchase_order' => $purchaseOrder->po_number,
+            'vendor_stage' => $purchaseOrder->fresh()->vendorStage(),
+        ], $test
+            ? trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]])
+            : trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])])));
+    }
+
+    /**
+     * Record the vendor's answer, and ours to it — `changes`, `confirm` or
+     * `order_number`, the loop their rep set out. A `confirm` with
+     * `notify_vendor: true` also emails the acceptance to the reps, which is
+     * what actually gets the order placed; the order is only stamped accepted
+     * once that mail has left.
+     */
+    public function vendorResponse(Request $request, $purchaseOrderId): JsonResponse
+    {
+        $this->authorize('update', PurchaseOrder::class);
+
+        $validated = $request->validate([
+            'step' => 'required|string|in:changes,confirm,order_number',
+            'vendor_changes_notes' => 'nullable|string|max:65535',
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'vendor_order_number' => 'nullable|string|max:191',
+            'notify_vendor' => 'nullable|boolean',
+        ]);
+
+        $purchaseOrder = PurchaseOrder::findOrFail($purchaseOrderId);
+
+        $result = app(PurchaseOrderVendorDispatch::class)->respond(
+            $purchaseOrder,
+            $validated['step'],
+            $validated,
+            (bool) ($validated['notify_vendor'] ?? false)
+        );
+
+        if (! $result['ok']) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'purchase_order' => $purchaseOrder->po_number,
+            'vendor_stage' => $result['stage'],
+            'recipients' => $result['recipients'],
+            'quote_number' => $purchaseOrder->quote_number,
+            'quote_total' => $purchaseOrder->quote_total,
+            'quote_confirmed_at' => $purchaseOrder->quote_confirmed_at?->toDateTimeString(),
+            'vendor_order_number' => $purchaseOrder->vendor_order_number,
+        ], $result['message']));
     }
 
     public function show($id): array
