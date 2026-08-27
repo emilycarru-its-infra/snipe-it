@@ -129,6 +129,8 @@
             }
             if (item.is_estimate) {
                 badges += ' <span class="label label-warning pob-badge">{{ trans('admin/purchase-orders/general.builder_estimate_badge') }}</span>';
+            } else if (item.quoted_at) {
+                badges += ' <span class="label label-success pob-badge" title="{{ trans('admin/purchase-orders/general.builder_quoted_title') }}">{{ trans('admin/purchase-orders/general.builder_quoted_badge') }} ' + item.quoted_at + '</span>';
             }
             if (item.is_expired) {
                 badges += ' <span class="label label-danger pob-badge">{{ trans('admin/purchase-orders/general.builder_expired_badge') }}</span>';

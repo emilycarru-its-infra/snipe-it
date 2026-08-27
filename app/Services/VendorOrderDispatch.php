@@ -33,6 +33,8 @@ use Illuminate\Support\Facades\Mail;
  */
 class VendorOrderDispatch
 {
+    public function __construct(private CatalogQuoteWriteback $catalog) {}
+
     /** The facts recorded on a send, whether or not the send succeeds. */
     public const SEND_FIELDS = ['quote_number', 'quote_total', 'quote_expires_at', 'funding_account', 'lease_schedule', 'order_cc'];
 
@@ -119,6 +121,10 @@ class VendorOrderDispatch
         if (! $test) {
             $order->vendor_sent_at = now();
             $order->save();
+
+            // A send that already carries their quote — a re-send after
+            // repricing — teaches the catalog the same as a recorded one.
+            $this->catalog->apply($order);
         }
 
         return ['sent' => true, 'error' => null, 'recipients' => $to, 'test' => $test];
@@ -247,10 +253,16 @@ class VendorOrderDispatch
             return $this->responseFailure($order, implode(' ', $order->getErrors()->all()));
         }
 
+        // Whatever step carried the quote, the catalog learns its prices now:
+        // the quoted unit cost on every line that came from a catalog row,
+        // dated, so the next order of the same part starts from a real number.
+        $taught = $this->catalog->apply($order);
+
         return [
             'ok' => true,
             'error' => null,
-            'message' => trans($message, ['emails' => implode(', ', $recipients)]),
+            'message' => trans($message, ['emails' => implode(', ', $recipients)])
+                .($taught->isNotEmpty() ? ' '.trans_choice('admin/purchase-orders/general.catalog_taught', $taught->count(), ['count' => $taught->count()]) : ''),
             'recipients' => $recipients,
             'stage' => $order->vendorStage(),
         ];
