@@ -10,6 +10,7 @@ use App\Models\Statuslabel;
 use App\Models\StoreOrder;
 use App\Models\User;
 use App\Services\ArrivalAllocator;
+use App\Services\AssetChangeNotifier;
 use App\Services\StoreOrderNotifier;
 use App\Services\UserAgreements\PickupUpgradeAutoCreator;
 use App\Services\UserAgreements\PurchaseAutoCreator;
@@ -123,6 +124,7 @@ class AssetObserver
 
         $this->markOrderItemsReceived($asset);
         $this->autoAllocateArrival($asset);
+        $this->announceChange($asset, 'created');
     }
 
     /**
@@ -167,6 +169,31 @@ class AssetObserver
         if ($this->wasJustCheckedOutToUser($asset)) {
             $this->autoCreatePickupOnCheckout($asset);
         }
+
+        $this->announceChange($asset, 'updated', array_keys($asset->getChanges()));
+    }
+
+    public function deleted(Asset $asset)
+    {
+        $this->announceChange($asset, 'deleted');
+    }
+
+    public function restored(Asset $asset)
+    {
+        $this->announceChange($asset, 'restored');
+    }
+
+    /**
+     * Announce the change to the automations function app once the request
+     * has finished — deferred so the save returns at its own speed and a slow
+     * or unreachable listener costs the user nothing. See AssetChangeNotifier
+     * for why failure is logged rather than raised.
+     */
+    private function announceChange(Asset $asset, string $event, array $changedColumns = []): void
+    {
+        defer(function () use ($asset, $event, $changedColumns) {
+            app(AssetChangeNotifier::class)->notify($asset, $event, $changedColumns);
+        });
     }
 
     /**
