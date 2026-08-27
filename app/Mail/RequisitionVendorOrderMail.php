@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\Actionlog;
 use App\Models\Order;
 use App\Services\RequisitionVendorCsv;
 use Illuminate\Bus\Queueable;
@@ -11,7 +10,6 @@ use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * The order itself, sent to the vendor's reps: part numbers, quantities, the
@@ -21,9 +19,10 @@ use Illuminate\Support\Facades\Storage;
  * Distinct from {@see StoreVendorOrderMail}, which asks the vendor to quote a
  * basket of store requests. This one is the other end of that loop — the
  * quote has come back, finance has issued the purchase order, and this is us
- * telling them to place it. So it states a total rather than an estimate,
- * carries the purchase order's own paperwork as attachments, and repeats the
- * printer comments, which are the lines written to be read by the vendor.
+ * telling them to place it. So it states a total rather than an estimate and
+ * carries the part list as a CSV — and nothing else. The purchase order's own
+ * paperwork stays with us: the issued PO is an internal document, and the
+ * vendor already holds their quote. They get the number, not the file.
  *
  * Deliberately plain: it reads like the email a purchaser would have typed,
  * because that is exactly what it replaces.
@@ -95,57 +94,20 @@ class RequisitionVendorOrderMail extends BaseMailable
     }
 
     /**
-     * The part list as a file their desk can key from, plus whatever the
-     * purchase order carries — the issued PO, and the vendor's own quote when
-     * it was filed against it. Sending their quote back is not redundant: it
-     * is how they match our order to the price they gave, and it is the one
-     * document both sides have already agreed to.
+     * The part list as a file their desk can key from. Only that: the
+     * purchase order's filed documents are deliberately not attached. The
+     * issued PO is our paperwork, the vendor's quote is already theirs, and
+     * an order that went out with the PO PDF stapled to it once was the
+     * reason this stopped. The numbers in the body are the order.
      */
     public function attachments(): array
     {
         $csv = new RequisitionVendorCsv($this->order);
 
-        $attachments = [
+        return [
             Attachment::fromData(fn () => $csv->contents(), $csv->filename())
                 ->withMime('text/csv'),
         ];
-
-        foreach ($this->purchaseOrderDocuments() as $document) {
-            $path = $document->uploads_file_path();
-
-            $attachments[] = Attachment::fromData(fn () => (string) Storage::get($path), $document->filename)
-                ->withMime('application/pdf');
-        }
-
-        return $attachments;
-    }
-
-    /**
-     * Documents filed against the purchase order that are actually on disk.
-     * A missing file is skipped rather than fatal: the part list and the
-     * numbers in the body are the order, and losing an attachment must not
-     * be what stops it going out.
-     *
-     * @return \Illuminate\Support\Collection<int, Actionlog>
-     */
-    private function purchaseOrderDocuments()
-    {
-        $purchaseOrder = $this->order->purchaseOrder;
-
-        if (! $purchaseOrder) {
-            return collect();
-        }
-
-        // `exists` and not just null: the email previewer in Settings → Emails
-        // renders this mailable against unsaved sample models, and asking an
-        // idless purchase order for its uploads is a query for everything.
-        if (! $purchaseOrder->exists) {
-            return collect();
-        }
-
-        return $purchaseOrder->uploads()->get()
-            ->filter(fn (Actionlog $log) => filled($log->filename) && Storage::exists($log->uploads_file_path()))
-            ->values();
     }
 
     /** " — quote PZFD093" when there is one, nothing when there isn't. */
