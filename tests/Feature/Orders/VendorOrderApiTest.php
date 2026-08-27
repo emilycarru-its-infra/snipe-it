@@ -215,6 +215,62 @@ class VendorOrderApiTest extends VendorOrderTestCase
         $this->assertStringContainsString('2152.77', (new RequisitionVendorCsv($order))->contents());
     }
 
+    /**
+     * A quote teaches the catalog its prices: every line that came from a
+     * catalog row writes the quoted unit cost back, dated, sourced to the
+     * quote, with the part numbers re-verified — so the next order of the
+     * same part starts from what was actually paid, not the estimate. A line
+     * typed against a known EDC teaches the same row; a fee teaches nothing.
+     */
+    public function test_a_recorded_quote_writes_its_prices_back_to_the_catalog()
+    {
+        Mail::fake();
+
+        $order = $this->vendorOrder(['vendor_sent_at' => now()->subDay()], ['unit_cost' => 2100.00, 'verified_at' => now()->subDays(200)]);
+        $catalogItem = $order->items->first()->catalogItem;
+        $this->assertTrue($catalogItem->isEstimate());
+
+        // A second row the order names by EDC only, and a fee with no row.
+        $appleCare = $this->catalogItem($order->supplier, ['vendor_sku' => '8154132', 'mfr_part_number' => 'SLTC2Z/A']);
+        $appleCare->forceFill(['name' => 'AppleCare+ for Schools - 4 Year - 13" MacBook Air', 'estimated_cost' => 277.19])->save();
+
+        \App\Models\OrderItem::create(['order_id' => $order->id, 'purchase_order_id' => $order->purchase_order_id, 'description' => 'AppleCare+ for Schools - 4 Year', 'vendor_sku' => '8154132', 'mfr_part_number' => 'SLTC2Z/A', 'quantity' => 13, 'unit_cost' => 267.89]);
+        \App\Models\OrderItem::create(['order_id' => $order->id, 'purchase_order_id' => $order->purchase_order_id, 'description' => 'BC laptop recycling fee', 'vendor_sku' => '1215626', 'quantity' => 16, 'unit_cost' => 0.50]);
+        $order->items()->where('catalog_item_id', $catalogItem->id)->update(['unit_cost' => 2152.77]);
+
+        Passport::actingAs($this->procurement());
+
+        $response = $this->postJson(route('api.orders.vendor-response', $order->id), [
+            'step' => 'confirm',
+            'quote_number' => 'PZKT735',
+            'quote_expires_at' => '2026-11-23',
+        ])->assertOk();
+
+        $this->assertStringContainsString('2 lines', $response->json('messages'));
+
+        $catalogItem->refresh();
+        $this->assertSame('quoted', $catalogItem->price_type);
+        $this->assertSame('2152.7700', (string) $catalogItem->unit_cost);
+        $this->assertFalse($catalogItem->isEstimate());
+        $this->assertSame(now()->toDateString(), $catalogItem->quoted_at->toDateString());
+        $this->assertSame('2026-11-23', $catalogItem->expires_at->toDateString());
+        $this->assertStringContainsString('PZKT735', $catalogItem->source);
+        $this->assertTrue($catalogItem->part_numbers_verified_at->isToday());
+
+        $appleCare->refresh();
+        $this->assertSame('quoted', $appleCare->price_type);
+        $this->assertSame('267.8900', (string) $appleCare->unit_cost);
+
+        $this->assertSame(0, \App\Models\CatalogItem::where('vendor_sku', '1215626')->count());
+
+        // The builder now shows the row as quoted, dated, not as an estimate.
+        $this->getJson(route('api.requisitions.catalog', ['search' => '9094662']))
+            ->assertOk()
+            ->assertJsonPath('payload.rows.0.is_estimate', false)
+            ->assertJsonPath('payload.rows.0.quoted_at', now()->toDateString())
+            ->assertJsonPath('payload.rows.0.unit_cost', 2152.77);
+    }
+
     public function test_a_quiet_confirm_stamps_without_emailing()
     {
         Mail::fake();
