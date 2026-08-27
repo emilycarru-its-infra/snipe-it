@@ -121,12 +121,13 @@ class PurchaseOrderVendorDispatch
     /**
      * Record the vendor's answer, and our answer to it.
      *
-     * Four separate facts, kept separate because each is a different person's
-     * decision on a different day, and one flag would have an order reading as
-     * placed while a question is still open. Recording changes reopens the
-     * basket — their substitution is the thing that has to land on the lines —
-     * and un-confirms whatever we accepted before, because a new answer
-     * supersedes it.
+     * `sent` records a send that did not go through here, dated. The other
+     * three are their loop — four separate facts in all, kept separate because
+     * each is a different person's decision on a different day, and one flag
+     * would have an order reading as placed while a question is still open.
+     * Recording changes reopens the basket — their substitution is the thing
+     * that has to land on the lines — and un-confirms whatever we accepted
+     * before, because a new answer supersedes it.
      *
      * With `$notifyVendor`, a `confirm` also tells the vendor: the acceptance
      * goes to the same reps the order went to, quoting their number back, and
@@ -140,6 +141,33 @@ class PurchaseOrderVendorDispatch
      */
     public function respond(PurchaseOrder $purchaseOrder, string $step, array $fields = [], bool $notifyVendor = false): array
     {
+        // `sent` is the one step that does not need the order to have gone
+        // through here: it records a send made elsewhere — a reply typed by
+        // hand, an order placed from a checkout that was not this one — so
+        // the rest of the loop can be joined. It emails nobody; the vendor
+        // already has the order, which is the premise.
+        if ($step === 'sent') {
+            foreach (array_merge(self::SEND_FIELDS, ['vendor_sent_at']) as $field) {
+                if (array_key_exists($field, $fields) && filled($fields[$field])) {
+                    $purchaseOrder->{$field} = $fields[$field];
+                }
+            }
+
+            $purchaseOrder->vendor_sent_at = $purchaseOrder->vendor_sent_at ?? now();
+
+            if (! $purchaseOrder->save()) {
+                return $this->responseFailure($purchaseOrder, implode(' ', $purchaseOrder->getErrors()->all()));
+            }
+
+            return [
+                'ok' => true,
+                'error' => null,
+                'message' => trans('admin/purchase-orders/general.vendor_sent_recorded', ['date' => $purchaseOrder->vendor_sent_at->toDateString()]),
+                'recipients' => [],
+                'stage' => $purchaseOrder->vendorStage(),
+            ];
+        }
+
         if ($purchaseOrder->vendor_sent_at === null) {
             return $this->responseFailure($purchaseOrder, trans('admin/purchase-orders/general.vendor_response_not_sent'));
         }
