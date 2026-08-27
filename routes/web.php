@@ -178,10 +178,10 @@ Route::group(['middleware' => 'auth'], function () {
     // purchase order rather than the requisition because the purchase order is
     // what authorises the spending and what the vendor bills against — the
     // requisition is the transient basket that produced the number.
-    Route::post('procurement/purchase-orders/{purchase_order}/send-vendor', [PurchaseOrdersController::class, 'sendVendor'])
-        ->name('purchase-orders.send-vendor');
-    Route::post('procurement/purchase-orders/{purchase_order}/vendor-response', [PurchaseOrdersController::class, 'vendorResponse'])
-        ->name('purchase-orders.vendor-response');
+    Route::post('procurement/orders/{order}/send-vendor', [OrdersController::class, 'sendVendor'])
+        ->name('orders.send-vendor');
+    Route::post('procurement/orders/{order}/vendor-response', [OrdersController::class, 'vendorResponse'])
+        ->name('orders.vendor-response');
 
     /*
     * The internal store — every authenticated user can browse and order.

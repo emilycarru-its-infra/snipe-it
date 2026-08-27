@@ -131,6 +131,8 @@
                     @endif
                 </div>
 
+                @include('orders._vendor-order')
+
                 <h3 style="overflow:hidden">
                     {{ trans('admin/orders/general.line_items') }}
                     @can('update', \App\Models\Order::class)
@@ -146,6 +148,8 @@
                             <th>{{ trans('admin/orders/general.item_type') }}</th>
                             <th>{{ trans('admin/orders/general.item') }}</th>
                             <th>{{ trans('admin/orders/general.description') }}</th>
+                            <th>{{ trans('mail.store_vendor_csv_mfr') }}</th>
+                            <th>{{ trans('mail.store_vendor_csv_edc') }}</th>
                             <th>{{ trans('admin/orders/general.quantity') }}</th>
                             <th>{{ trans('admin/orders/general.unit_cost') }}</th>
                             <th>{{ trans('admin/orders/general.warranty_cost') }}</th>
@@ -183,6 +187,8 @@
                                 @endif
                             </td>
                             <td>{{ $lineItem->description }}</td>
+                            <td class="text-monospace">{{ $lineItem->mfr_part_number ?: '—' }}</td>
+                            <td class="text-monospace">{{ $lineItem->vendor_sku ?: '—' }}</td>
                             <td>{{ $lineItem->quantity }}</td>
                             <td>{{ $lineItem->unit_cost !== null ? Helper::formatCurrencyOutput($lineItem->unit_cost) : '' }}</td>
                             <td>{{ $lineItem->warranty_cost !== null ? Helper::formatCurrencyOutput($lineItem->warranty_cost) : '' }}</td>
@@ -230,17 +236,17 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10">{{ trans('admin/orders/general.no_line_items') }}</td>
+                            <td colspan="12">{{ trans('admin/orders/general.no_line_items') }}</td>
                         </tr>
                     @endforelse
                     </tbody>
                     @if (!$order->items->isEmpty())
                         <tfoot>
                             <tr>
-                                <th colspan="4" class="text-right">{{ trans('admin/orders/general.order_cost') }}</th>
+                                <th colspan="6" class="text-right">{{ trans('admin/orders/general.order_cost') }}</th>
                                 <th>{{ Helper::formatCurrencyOutput($equipmentTotal) }}</th>
                                 <th>{{ Helper::formatCurrencyOutput($warrantyTotal) }}</th>
-                                <th colspan="3" class="text-right">{{ Helper::formatCurrencyOutput($equipmentTotal + $warrantyTotal) }}</th>
+                                <th colspan="5" class="text-right">{{ Helper::formatCurrencyOutput($equipmentTotal + $warrantyTotal) }}</th>
                                 @can('update', \App\Models\Order::class)
                                     <th></th>
                                 @endcan

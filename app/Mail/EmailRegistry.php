@@ -370,9 +370,9 @@ class EmailRegistry
                 'key' => 'procurement.vendor_order',
                 'category' => 'store',
                 'label' => 'Vendor order (to reps)',
-                'description' => 'The order emailed to the vendor\'s reps once finance has issued the purchase order — agreed prices, not an estimate. Recipients default to the supplier\'s order email list; CC defaults to the procurement admin lists.',
+                'description' => 'The order emailed to the vendor\'s reps from the order page — one vendor order under its purchase order, agreed prices, not an estimate. Recipients default to the supplier\'s order email list; CC defaults to the procurement admin lists.',
                 'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'lines' => 'The lines being ordered', 'reference' => 'The purchase order number', 'supplier' => 'The vendor'],
-                'factory' => fn (EmailSampleData $s) => new RequisitionVendorOrderMail($s->purchaseOrder()),
+                'factory' => fn (EmailSampleData $s) => new RequisitionVendorOrderMail($s->vendorOrder()),
                 'configurable_recipients' => true,
                 'configurable_cc' => true,
             ],
@@ -382,7 +382,7 @@ class EmailRegistry
                 'label' => 'Quote accepted (to reps)',
                 'description' => 'Our acceptance of the vendor\'s final quote — the order email again, lines at the quoted prices, CSV and purchase order attached, asking them to place it. Goes to the same reps and copies as the order itself.',
                 'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'lines' => 'The lines being ordered, at the quoted prices', 'reference' => 'The purchase order number', 'supplier' => 'The vendor'],
-                'factory' => fn (EmailSampleData $s) => new PurchaseOrderQuoteAcceptanceMail($s->purchaseOrder()),
+                'factory' => fn (EmailSampleData $s) => new PurchaseOrderQuoteAcceptanceMail($s->vendorOrder()),
             ],
 
             [

@@ -251,7 +251,6 @@
     </div>
 
     <div class="col-md-4">
-        @include('purchase-orders._vendor-order')
     </div>
 </div>
 @stop

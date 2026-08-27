@@ -1,21 +1,20 @@
 {{-- Placing the order, and recording what the vendor says back.
 
-     On the purchase order because the purchase order is what authorises the
-     spending and what the vendor bills against. The requisition that produced it
-     is transient — a basket keyed into Colleague to get this number — so it
-     tracks status and this page does the work. --}}
+     On the order because the order is the thing sent: one vendor order under a
+     purchase order, with its own lines, account and quote. The purchase order
+     is the budget it draws on and sees several of these in a year. --}}
 @php
     use App\Services\SupplierAccounts;
 
-    $orderEmails = collect(explode(',', (string) $purchaseOrder->supplier?->order_emails))
+    $orderEmails = collect(explode(',', (string) $order->supplier?->order_emails))
         ->map(fn ($email) => trim($email))->filter()->values();
-    $poDocuments = $purchaseOrder->uploads()->pluck('filename');
-    $lines = $purchaseOrder->vendorOrderLines();
-    $missingParts = $purchaseOrder->linesMissingPartNumbers();
-    $specialLines = $purchaseOrder->specialRequestLines();
-    $staleLines = $purchaseOrder->linesWithStalePartNumbers();
+    $poDocuments = $order->purchaseOrder?->uploads()->pluck('filename') ?? collect();
+    $lines = $order->vendorOrderLines();
+    $missingParts = $order->linesMissingPartNumbers();
+    $specialLines = $order->specialRequestLines();
+    $staleLines = $order->linesWithStalePartNumbers();
 
-    $selectedAccount = SupplierAccounts::canonical(old('funding_account', $purchaseOrder->funding_account));
+    $selectedAccount = SupplierAccounts::canonical(old('funding_account', $order->funding_account));
     $accountRows = collect(SupplierAccounts::accounts())->map(fn ($account, $key) => [
         'key' => $key,
         'kind' => SupplierAccounts::kindLabel($key),
@@ -29,26 +28,26 @@
     $selectedRow = $accountRows->firstWhere('key', $selectedAccount);
 @endphp
 
-<div class="box {{ $purchaseOrder->vendor_sent_at ? 'box-default' : 'box-primary' }}">
+<div class="box {{ $order->vendor_sent_at ? 'box-default' : 'box-primary' }}">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/purchase-orders/general.vendor_send_title') }}</h3>
         <div class="box-tools pull-right">
-            <span class="label label-default">{{ trans('admin/purchase-orders/general.vendor_stage_'.$purchaseOrder->vendorStage()) }}</span>
+            <span class="label label-default">{{ trans('admin/purchase-orders/general.vendor_stage_'.$order->vendorStage()) }}</span>
         </div>
     </div>
-    <form method="POST" action="{{ route('purchase-orders.send-vendor', $purchaseOrder) }}">
+    <form method="POST" action="{{ route('orders.send-vendor', $order) }}">
         {{ csrf_field() }}
         <div class="box-body">
-            @if ($purchaseOrder->vendor_sent_at)
+            @if ($order->vendor_sent_at)
                 <p>
                     <i class="fas fa-paper-plane" aria-hidden="true"></i>
                     {{ trans('admin/purchase-orders/general.vendor_sent_at') }}
-                    <strong>{{ \App\Helpers\Helper::getFormattedDateObject($purchaseOrder->vendor_sent_at, 'datetime', false) }}</strong>
+                    <strong>{{ \App\Helpers\Helper::getFormattedDateObject($order->vendor_sent_at, 'datetime', false) }}</strong>
                 </p>
                 <p class="text-muted">{{ trans('admin/purchase-orders/general.vendor_sent_help') }}</p>
             @else
                 <p class="text-muted">
-                    {{ trans('admin/purchase-orders/general.vendor_send_help', ['supplier' => $purchaseOrder->supplier?->name ?: trans('general.supplier')]) }}
+                    {{ trans('admin/purchase-orders/general.vendor_send_help', ['supplier' => $order->supplier?->name ?: trans('general.supplier')]) }}
                 </p>
             @endif
 
@@ -157,13 +156,13 @@
                          has already issued — which is exactly when the newest
                          one is the one an order needs. --}}
                     <input type="text" name="lease_schedule" id="lease-schedule" class="form-control"
-                           value="{{ old('lease_schedule', $purchaseOrder->lease_schedule) }}" placeholder="301452-000">
+                           value="{{ old('lease_schedule', $order->lease_schedule) }}" placeholder="301452-000">
                     <p class="help-block">{{ trans('admin/store/general.funding_schedule_none') }}</p>
                 @else
                     <select name="lease_schedule" id="lease-schedule" class="form-control">
                         @foreach ($scheduleOptions as $schedule)
                             <option value="{{ $schedule }}"
-                                {{ old('lease_schedule', $purchaseOrder->lease_schedule ?: ($selectedRow['default_schedule'] ?? null)) === $schedule ? 'selected' : '' }}>
+                                {{ old('lease_schedule', $order->lease_schedule ?: ($selectedRow['default_schedule'] ?? null)) === $schedule ? 'selected' : '' }}>
                                 {{ $schedule }}
                             </option>
                         @endforeach
@@ -180,7 +179,7 @@
                      stays for the exception: a vendor contact with no account. --}}
                 <select class="js-data-ajax" data-endpoint="users" multiple name="cc_users[]" id="order-cc-users"
                         data-placeholder="{{ trans('general.select_user') }}" style="width: 100%">
-                    @foreach ($purchaseOrder->orderCcUsers() as $ccUser)
+                    @foreach ($order->orderCcUsers() as $ccUser)
                         <option value="{{ $ccUser->id }}" selected>{{ $ccUser->present()->fullName }} ({{ $ccUser->email }})</option>
                     @endforeach
                 </select>
@@ -190,9 +189,9 @@
                     {{ trans('admin/purchase-orders/general.vendor_send_cc_external') }}
                 </label>
                 <textarea name="order_cc" id="order-cc" rows="2" class="form-control"
-                          placeholder="rep@cdw.ca">{{ old('order_cc', $purchaseOrder->order_cc) }}</textarea>
+                          placeholder="rep@cdw.ca">{{ old('order_cc', $order->order_cc) }}</textarea>
                 <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_cc_external_help') }}</p>
-                @php $resolvedCc = $purchaseOrder->orderCcAddresses(); @endphp
+                @php $resolvedCc = $order->orderCcAddresses(); @endphp
                 @if (! empty($resolvedCc))
                     <p class="help-block">
                         {{ trans('admin/purchase-orders/general.vendor_send_cc_resolved') }}:
@@ -204,31 +203,31 @@
             <div class="form-group">
                 <label for="quote-number">{{ trans('admin/purchase-orders/general.quote_number') }}</label>
                 <input type="text" name="quote_number" id="quote-number" class="form-control"
-                       value="{{ old('quote_number', $purchaseOrder->quote_number) }}">
+                       value="{{ old('quote_number', $order->quote_number) }}">
                 <p class="help-block">{{ trans('admin/purchase-orders/general.quote_number_help') }}</p>
             </div>
 
             <div class="form-group">
                 <label for="quote-total">{{ trans('admin/purchase-orders/general.quote_total') }}</label>
                 <input type="number" step="0.01" min="0" name="quote_total" id="quote-total" class="form-control"
-                       value="{{ old('quote_total', $purchaseOrder->quote_total) }}">
+                       value="{{ old('quote_total', $order->quote_total) }}">
                 <p class="help-block">{{ trans('admin/purchase-orders/general.quote_total_help') }}</p>
             </div>
 
             <div class="form-group">
                 <label for="quote-expires">{{ trans('admin/purchase-orders/general.quote_expires_at') }}</label>
                 <input type="date" name="quote_expires_at" id="quote-expires" class="form-control"
-                       value="{{ old('quote_expires_at', $purchaseOrder->quote_expires_at?->format('Y-m-d')) }}">
+                       value="{{ old('quote_expires_at', $order->quote_expires_at?->format('Y-m-d')) }}">
             </div>
         </div>
         {{-- Once the order is out there is nothing to send — the next move
              belongs to the vendor's panel below. Recording their changes
              reopens the basket, and the buttons with it. --}}
-        @if (in_array($purchaseOrder->vendorStage(), ['sent', 'confirmed', 'placed'], true))
+        @if (in_array($order->vendorStage(), ['sent', 'confirmed', 'placed'], true))
             <div class="box-footer">
                 <p class="text-muted" style="margin:0;">
                     {{ trans('admin/purchase-orders/general.vendor_send_already_sent', [
-                        'date' => \App\Helpers\Helper::getFormattedDateObject($purchaseOrder->vendor_sent_at, 'datetime', false),
+                        'date' => \App\Helpers\Helper::getFormattedDateObject($order->vendor_sent_at, 'datetime', false),
                     ]) }}
                 </p>
             </div>
@@ -246,7 +245,7 @@
     </form>
 </div>
 
-@if ($purchaseOrder->vendor_sent_at)
+@if ($order->vendor_sent_at)
     {{-- What comes back, which is not one step. CDW's rep set the loop out:
          we send, they answer with changes, we accept those, they send the final
          quote, we accept that, they issue an order number. Each is a different
@@ -262,42 +261,42 @@
                 <tbody>
                     <tr>
                         <td>{{ trans('admin/purchase-orders/general.vendor_sent_at') }}</td>
-                        <td>{{ \App\Helpers\Helper::getFormattedDateObject($purchaseOrder->vendor_sent_at, 'datetime', false) }}</td>
+                        <td>{{ \App\Helpers\Helper::getFormattedDateObject($order->vendor_sent_at, 'datetime', false) }}</td>
                     </tr>
-                    @if ($purchaseOrder->vendor_changes_at)
+                    @if ($order->vendor_changes_at)
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.vendor_changes_at') }}</td>
-                            <td>{{ \App\Helpers\Helper::getFormattedDateObject($purchaseOrder->vendor_changes_at, 'datetime', false) }}</td>
+                            <td>{{ \App\Helpers\Helper::getFormattedDateObject($order->vendor_changes_at, 'datetime', false) }}</td>
                         </tr>
                     @endif
-                    @if ($purchaseOrder->quote_confirmed_at)
+                    @if ($order->quote_confirmed_at)
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.vendor_quote_confirmed_at') }}</td>
-                            <td>{{ \App\Helpers\Helper::getFormattedDateObject($purchaseOrder->quote_confirmed_at, 'datetime', false) }}</td>
+                            <td>{{ \App\Helpers\Helper::getFormattedDateObject($order->quote_confirmed_at, 'datetime', false) }}</td>
                         </tr>
                     @endif
-                    @if ($purchaseOrder->vendor_order_number)
+                    @if ($order->vendor_order_number)
                         <tr>
                             <td>{{ trans('admin/purchase-orders/general.vendor_order_number') }}</td>
-                            <td><x-copy-field :value="$purchaseOrder->vendor_order_number" /></td>
+                            <td><x-copy-field :value="$order->vendor_order_number" /></td>
                         </tr>
                     @endif
                 </tbody>
             </table>
 
-            @if ($purchaseOrder->vendor_changes_notes)
-                <div class="well well-sm" style="white-space: pre-wrap;">{{ $purchaseOrder->vendor_changes_notes }}</div>
+            @if ($order->vendor_changes_notes)
+                <div class="well well-sm" style="white-space: pre-wrap;">{{ $order->vendor_changes_notes }}</div>
             @endif
         </div>
 
-        @unless ($purchaseOrder->vendor_order_number)
+        @unless ($order->vendor_order_number)
             <div class="box-body" style="border-top: 1px solid var(--box-border-color, #e4e9ee);">
-                <form method="POST" action="{{ route('purchase-orders.vendor-response', $purchaseOrder) }}">
+                <form method="POST" action="{{ route('orders.vendor-response', $order) }}">
                     {{ csrf_field() }}
                     <input type="hidden" name="step" value="changes">
                     <div class="form-group">
                         <label for="vendor-changes-notes">{{ trans('admin/purchase-orders/general.vendor_changes_notes') }}</label>
-                        <textarea name="vendor_changes_notes" id="vendor-changes-notes" rows="3" class="form-control">{{ $purchaseOrder->vendor_changes_notes }}</textarea>
+                        <textarea name="vendor_changes_notes" id="vendor-changes-notes" rows="3" class="form-control">{{ $order->vendor_changes_notes }}</textarea>
                         <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_changes_help') }}</p>
                     </div>
                     <button type="submit" class="btn btn-default btn-block">
@@ -306,9 +305,9 @@
                 </form>
             </div>
 
-            @unless ($purchaseOrder->quote_confirmed_at)
+            @unless ($order->quote_confirmed_at)
                 <div class="box-body" style="border-top: 1px solid var(--box-border-color, #e4e9ee);">
-                    <form method="POST" action="{{ route('purchase-orders.vendor-response', $purchaseOrder) }}">
+                    <form method="POST" action="{{ route('orders.vendor-response', $order) }}">
                         {{ csrf_field() }}
                         <input type="hidden" name="step" value="confirm">
                         {{-- Accepting is our decision; telling them is what gets the
@@ -330,7 +329,7 @@
             @endunless
 
             <div class="box-body" style="border-top: 1px solid var(--box-border-color, #e4e9ee);">
-                <form method="POST" action="{{ route('purchase-orders.vendor-response', $purchaseOrder) }}">
+                <form method="POST" action="{{ route('orders.vendor-response', $order) }}">
                     {{ csrf_field() }}
                     <input type="hidden" name="step" value="order_number">
                     <div class="form-group">
