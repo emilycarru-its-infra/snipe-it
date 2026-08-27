@@ -79,7 +79,7 @@ class ProvisionAPurchaseOrderTest extends TestCase
             ->assertJsonPath('payload.order_existed', false);
 
         $this->assertSame(0, Order::where('purchase_order_id', $purchaseOrder->id)->count());
-        $this->assertSame(0, Asset::where('order_number', 'P0026022')->count());
+        $this->assertSame(0, Asset::where('po_number', 'P0026022')->count());
     }
 
     public function test_it_raises_the_order_and_provisions_the_devices()
@@ -94,7 +94,7 @@ class ProvisionAPurchaseOrderTest extends TestCase
 
         $this->assertSame(1, Order::where('purchase_order_id', $purchaseOrder->id)->count());
         // The warranty line is money, not a device.
-        $this->assertSame(42, Asset::where('order_number', 'P0026022')->count());
+        $this->assertSame(42, Asset::where('po_number', 'P0026022')->count());
     }
 
     public function test_running_it_twice_tops_up_rather_than_doubling()
@@ -111,6 +111,6 @@ class ProvisionAPurchaseOrderTest extends TestCase
             ->assertJsonPath('payload.assets_now', 42);
 
         $this->assertSame(1, Order::where('purchase_order_id', $purchaseOrder->id)->count());
-        $this->assertSame(42, Asset::where('order_number', 'P0026022')->count());
+        $this->assertSame(42, Asset::where('po_number', 'P0026022')->count());
     }
 }
