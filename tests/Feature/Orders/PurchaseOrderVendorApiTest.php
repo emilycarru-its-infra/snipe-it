@@ -10,6 +10,7 @@ use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\RequisitionVendorCsv;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Passport\Passport;
 use Tests\TestCase;
@@ -197,34 +198,71 @@ class PurchaseOrderVendorApiTest extends TestCase
     }
 
     /**
-     * The acceptance has to be matchable on their side: their quote number
-     * leads, our purchase order follows, and the total is the one we agreed to.
+     * The acceptance is the order email again — the lines at the quoted prices,
+     * the CSV, the purchase order — with the ask changed from "please quote" to
+     * "please place". Their desk keys the order from it, so a summary that sent
+     * them back to the request to find the lines would not do. Their quote
+     * number leads because it is what their desk searches on.
      */
-    public function test_the_acceptance_quotes_their_number_back_with_ours_and_the_total()
+    public function test_the_acceptance_is_the_order_email_at_the_quoted_prices()
     {
         $order = $this->purchaseOrder([
             'vendor_sent_at' => now()->subDay(),
             'quote_number' => 'PZKT735',
-            'quote_total' => 43866.08,
+            'quote_total' => 27986.01,
         ]);
+        $order->requisitions()->first()->items()->update(['unit_cost' => 2152.77]);
 
         $this->actingAs($this->procurement());
-        $rendered = (new PurchaseOrderQuoteAcceptanceMail($order))->render();
+        $mail = new PurchaseOrderQuoteAcceptanceMail($order->fresh());
+        $rendered = $mail->render();
 
         $this->assertStringContainsString('PZKT735', $rendered);
         $this->assertStringContainsString('P0026041', $rendered);
-        $this->assertStringContainsString('43,866.08', $rendered);
+        $this->assertStringContainsString('MacBook Air | 13" | M5 | 16GB | 1TB | Silver', $rendered);
+        $this->assertStringContainsString('MDH84LL/A', $rendered);
+        $this->assertStringContainsString('9094662', $rendered);
+        $this->assertStringContainsString('2,152.77', $rendered);
+        $this->assertStringContainsString('27,986.01', $rendered);
         $this->assertStringContainsString('35007722', $rendered);
         $this->assertStringContainsString('301452-009', $rendered);
-        $this->assertLessThan(
-            strpos($rendered, 'P0026041'),
-            strpos($rendered, 'PZKT735'),
-            'the vendor quote should be listed above our purchase order'
-        );
+        $this->assertStringContainsString(trans('mail.purchase_order_quote_accepted_footer', ['reference' => 'P0026041']), $rendered);
+        $this->assertStringNotContainsString(trans('mail.requisition_vendor_order_estimate_note'), $rendered);
+        $this->assertLessThan(strpos($rendered, 'P0026041'), strpos($rendered, 'PZKT735'));
 
-        $subject = (new PurchaseOrderQuoteAcceptanceMail($order))->envelope()->subject;
+        $subject = $mail->envelope()->subject;
         $this->assertStringContainsString('PZKT735', $subject);
         $this->assertStringContainsString('P0026041', $subject);
+        $this->assertStringContainsString('accepted', $subject);
+
+        // The part list ships with it, at the quoted price.
+        $attachments = $mail->attachments();
+        $this->assertNotEmpty($attachments);
+        $csv = (new RequisitionVendorCsv($order->fresh()))->contents();
+        $this->assertStringContainsString('2152.77', $csv);
+    }
+
+    /**
+     * A quote reopens the lines for repricing, and accepting it locks them —
+     * read off the purchase order once there is one, because that is where the
+     * loop is recorded. The requisition's own columns froze at promotion.
+     */
+    public function test_a_quote_on_the_purchase_order_reopens_the_requisition_lines_until_accepted()
+    {
+        $order = $this->purchaseOrder(['vendor_sent_at' => now()->subDay()]);
+        $requisition = $order->requisitions()->first();
+
+        $this->assertFalse($requisition->fresh()->linesEditable());
+
+        $order->forceFill(['quote_number' => 'PZKT735'])->save();
+        $this->assertTrue($requisition->fresh()->linesEditable());
+
+        $order->forceFill(['quote_confirmed_at' => now()])->save();
+        $this->assertFalse($requisition->fresh()->linesEditable());
+
+        // Their changes after an acceptance reopen it again.
+        $order->forceFill(['quote_confirmed_at' => null, 'vendor_changes_at' => now()])->save();
+        $this->assertTrue($requisition->fresh()->linesEditable());
     }
 
     /**
@@ -347,7 +385,10 @@ class PurchaseOrderVendorApiTest extends TestCase
         ])->assertOk()->assertJsonPath('payload.vendor_stage', 'placed');
 
         $this->assertSame('PMCN361', $order->fresh()->vendor_order_number);
-        Mail::assertSent(RequisitionVendorOrderMail::class, 1);
+        // The acceptance is the order mail in accepted mode, so it counts as
+        // one of each — what matters is one request and one acceptance.
+        Mail::assertSent(RequisitionVendorOrderMail::class, 2);
+        Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => ! $mail->accepted);
         Mail::assertSent(PurchaseOrderQuoteAcceptanceMail::class, 1);
     }
 

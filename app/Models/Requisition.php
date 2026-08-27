@@ -281,6 +281,17 @@ class Requisition extends SnipeModel
      */
     public function linesEditable(): bool
     {
+        // Once finance has issued the purchase order, the vendor loop — sent,
+        // quoted, accepted — is recorded there, not here. The columns on this
+        // row are what was true before promotion and stay frozen, so reading
+        // them would lock the lines the moment a quote reopened them.
+        if ($this->purchaseOrder) {
+            $order = $this->purchaseOrder;
+
+            return $order->quote_confirmed_at === null
+                && (filled($order->quote_number) || $order->vendor_changes_at !== null);
+        }
+
         // Accepting the final quote is the point of no return, not the send:
         // after that the vendor is placing what we agreed, and changing a line
         // would leave the two sides holding different orders.

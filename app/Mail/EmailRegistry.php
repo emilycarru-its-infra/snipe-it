@@ -380,8 +380,8 @@ class EmailRegistry
                 'key' => 'procurement.quote_accepted',
                 'category' => 'store',
                 'label' => 'Quote accepted (to reps)',
-                'description' => 'Our acceptance of the vendor\'s final quote, sent from the purchase order so their desk places it. Goes to the same reps and copies as the order itself.',
-                'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'reference' => 'The purchase order number', 'quote' => 'The vendor\'s quote number', 'supplier' => 'The vendor', 'total' => 'The accepted total'],
+                'description' => 'Our acceptance of the vendor\'s final quote — the order email again, lines at the quoted prices, CSV and purchase order attached, asking them to place it. Goes to the same reps and copies as the order itself.',
+                'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'lines' => 'The lines being ordered, at the quoted prices', 'reference' => 'The purchase order number', 'supplier' => 'The vendor'],
                 'factory' => fn (EmailSampleData $s) => new PurchaseOrderQuoteAcceptanceMail($s->purchaseOrder()),
             ],
 
