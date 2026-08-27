@@ -182,7 +182,9 @@
     var ITEMS = JSON.parse(dataEl.textContent);
     var STR = JSON.parse(document.getElementById('st-strings').textContent);
     var STEPS = ['screen_size', 'chip', 'color', 'ram_gb', 'storage', 'display_finish', 'extras'];
-    var CATEGORY_ORDER = ['Laptops', 'Desktops', 'Tablets', 'Displays', 'Accessories', 'Components', 'Scanners'];
+    // One list, owned by the model, so the store and the catalog page
+    // behind it never disagree about where Accessories sit.
+    var CATEGORY_ORDER = STR.categoryOrder || ['Laptops', 'Desktops', 'Tablets', 'Displays', 'Accessories', 'Components', 'Scanners'];
     // Computers are chosen platform-first — nobody cross-shops a MacBook
     // against a ThinkPad — so those two sections are split down the middle.
     // Everywhere else the platform is not how the choice is made.
