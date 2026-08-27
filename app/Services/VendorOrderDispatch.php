@@ -5,13 +5,17 @@ namespace App\Services;
 use App\Mail\PurchaseOrderQuoteAcceptanceMail;
 use App\Mail\RequisitionVendorOrderMail;
 use App\Models\EmailTemplate;
-use App\Models\PurchaseOrder;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Placing a purchase order with the vendor, and answering what they send back.
+ * Placing an order with the vendor, and answering what they send back.
+ *
+ * The order is one vendor order under a purchase order — the purchase order is
+ * the budget, and sees several of these; each carries its own lines, account,
+ * quote and loop.
  *
  * The web page and the API both do this, and the two must not drift on the
  * parts that matter: the readiness gates, who the mail actually reaches, and
@@ -27,8 +31,10 @@ use Illuminate\Support\Facades\Mail;
  * quote nobody places — so `respond()` can send that acceptance, and only
  * stamps the order accepted once the acceptance has actually gone.
  */
-class PurchaseOrderVendorDispatch
+class VendorOrderDispatch
 {
+    public function __construct(private CatalogQuoteWriteback $catalog) {}
+
     /** The facts recorded on a send, whether or not the send succeeds. */
     public const SEND_FIELDS = ['quote_number', 'quote_total', 'quote_expires_at', 'funding_account', 'lease_schedule', 'order_cc'];
 
@@ -46,35 +52,37 @@ class PurchaseOrderVendorDispatch
      * @param  array<string, mixed>  $fields
      * @return array{sent: bool, error: ?string, recipients: array<int, string>, test: bool}
      */
-    public function send(PurchaseOrder $purchaseOrder, User $actor, array $fields = [], bool $test = false): array
+    public function send(Order $order, User $actor, array $fields = [], bool $test = false): array
     {
-        $purchaseOrder->load('supplier', 'requisitions.items.catalogItem');
+        $order->load('supplier', 'purchaseOrder', 'items.catalogItem');
 
         // The quote and the account are recorded whether or not the send
         // succeeds: they are facts about the order — one from the vendor, one
         // our own decision — not side effects of emailing anybody.
         foreach (self::SEND_FIELDS as $field) {
             if (array_key_exists($field, $fields) && filled($fields[$field])) {
-                $purchaseOrder->{$field} = $fields[$field];
+                $order->{$field} = $fields[$field];
             }
         }
 
         // Picked people are stored as ids, so a name change or a new address
         // follows them.
         if (array_key_exists('cc_users', $fields)) {
-            $purchaseOrder->order_cc_users = implode(',', $fields['cc_users'] ?? []);
+            $order->order_cc_users = implode(',', $fields['cc_users'] ?? []);
         }
 
-        if ($purchaseOrder->isDirty()) {
-            $purchaseOrder->save();
+        if ($order->isDirty()) {
+            $order->save();
         }
 
-        if ($purchaseOrder->status === 'cancelled' || $purchaseOrder->vendorOrderLines()->isEmpty()) {
+        // CDW places every line against a purchase order number, so an order
+        // with no purchase order behind it — or no lines — is not sendable.
+        if ($order->status === 'cancelled' || ! $order->purchaseOrder || $order->vendorOrderLines()->isEmpty()) {
             return $this->failure(trans('admin/purchase-orders/general.vendor_send_needs_po'), $test);
         }
 
-        if (! $purchaseOrder->fundingResolved()) {
-            return $this->failure(trans(SupplierAccounts::needsSchedule($purchaseOrder->funding_account)
+        if (! $order->fundingResolved()) {
+            return $this->failure(trans(SupplierAccounts::needsSchedule($order->funding_account)
                 ? 'admin/store/general.funding_lease_needs_schedule'
                 : 'admin/purchase-orders/general.vendor_send_needs_account'), $test);
         }
@@ -83,13 +91,13 @@ class PurchaseOrderVendorDispatch
         // and the EDC is what CDW places, so a line short of either is not an
         // order they can fill. Named rather than counted: the fix is a catalog
         // row somebody has to go and complete.
-        if (($missing = $purchaseOrder->linesMissingPartNumbers())->isNotEmpty()) {
+        if (($missing = $order->linesMissingPartNumbers())->isNotEmpty()) {
             return $this->failure(trans('admin/purchase-orders/general.vendor_send_needs_part_numbers', [
                 'lines' => $missing->pluck('description')->implode(', '),
             ]), $test);
         }
 
-        [$to, $cc] = $this->recipients($purchaseOrder, $actor, $test);
+        [$to, $cc] = $this->recipients($order, $actor, $test);
 
         if ($to === []) {
             return $this->failure(trans('admin/store/general.vendor_send_no_recipients'), $test);
@@ -100,9 +108,9 @@ class PurchaseOrderVendorDispatch
             if ($cc !== []) {
                 $mail->cc($cc);
             }
-            $mail->send(new RequisitionVendorOrderMail($purchaseOrder->fresh(['supplier']), $test));
+            $mail->send(new RequisitionVendorOrderMail($order->fresh(['supplier']), $test));
         } catch (\Throwable $e) {
-            Log::warning('Vendor order email failed for purchase order '.$purchaseOrder->id.': '.$e->getMessage());
+            Log::warning('Vendor order email failed for order '.$order->id.': '.$e->getMessage());
 
             return $this->failure(trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]), $test);
         }
@@ -111,8 +119,12 @@ class PurchaseOrderVendorDispatch
         // send is a send, stamped after the mailer returns rather than before,
         // so a bounced transport does not leave the order looking placed.
         if (! $test) {
-            $purchaseOrder->vendor_sent_at = now();
-            $purchaseOrder->save();
+            $order->vendor_sent_at = now();
+            $order->save();
+
+            // A send that already carries their quote — a re-send after
+            // repricing — teaches the catalog the same as a recorded one.
+            $this->catalog->apply($order);
         }
 
         return ['sent' => true, 'error' => null, 'recipients' => $to, 'test' => $test];
@@ -139,7 +151,7 @@ class PurchaseOrderVendorDispatch
      *                                        `vendor_changes_notes` / `vendor_order_number`
      * @return array{ok: bool, error: ?string, message: ?string, recipients: array<int, string>, stage: string}
      */
-    public function respond(PurchaseOrder $purchaseOrder, string $step, array $fields = [], bool $notifyVendor = false): array
+    public function respond(Order $order, string $step, array $fields = [], bool $notifyVendor = false): array
     {
         // `sent` is the one step that does not need the order to have gone
         // through here: it records a send made elsewhere — a reply typed by
@@ -149,58 +161,58 @@ class PurchaseOrderVendorDispatch
         if ($step === 'sent') {
             foreach (array_merge(self::SEND_FIELDS, ['vendor_sent_at']) as $field) {
                 if (array_key_exists($field, $fields) && filled($fields[$field])) {
-                    $purchaseOrder->{$field} = $fields[$field];
+                    $order->{$field} = $fields[$field];
                 }
             }
 
-            $purchaseOrder->vendor_sent_at = $purchaseOrder->vendor_sent_at ?? now();
+            $order->vendor_sent_at = $order->vendor_sent_at ?? now();
 
-            if (! $purchaseOrder->save()) {
-                return $this->responseFailure($purchaseOrder, implode(' ', $purchaseOrder->getErrors()->all()));
+            if (! $order->save()) {
+                return $this->responseFailure($order, implode(' ', $order->getErrors()->all()));
             }
 
             return [
                 'ok' => true,
                 'error' => null,
-                'message' => trans('admin/purchase-orders/general.vendor_sent_recorded', ['date' => $purchaseOrder->vendor_sent_at->toDateString()]),
+                'message' => trans('admin/purchase-orders/general.vendor_sent_recorded', ['date' => $order->vendor_sent_at->toDateString()]),
                 'recipients' => [],
-                'stage' => $purchaseOrder->vendorStage(),
+                'stage' => $order->vendorStage(),
             ];
         }
 
-        if ($purchaseOrder->vendor_sent_at === null) {
-            return $this->responseFailure($purchaseOrder, trans('admin/purchase-orders/general.vendor_response_not_sent'));
+        if ($order->vendor_sent_at === null) {
+            return $this->responseFailure($order, trans('admin/purchase-orders/general.vendor_response_not_sent'));
         }
 
         foreach (self::RESPONSE_FIELDS as $field) {
             if (array_key_exists($field, $fields) && filled($fields[$field])) {
-                $purchaseOrder->{$field} = $fields[$field];
+                $order->{$field} = $fields[$field];
             }
         }
 
         $recipients = [];
 
         if ($step === 'changes') {
-            $purchaseOrder->vendor_changes_at = now();
+            $order->vendor_changes_at = now();
 
             if (filled($fields['vendor_changes_notes'] ?? null)) {
-                $purchaseOrder->vendor_changes_notes = $fields['vendor_changes_notes'];
+                $order->vendor_changes_notes = $fields['vendor_changes_notes'];
             }
 
-            $purchaseOrder->quote_confirmed_at = null;
+            $order->quote_confirmed_at = null;
             $message = 'admin/purchase-orders/general.vendor_changes_recorded';
         } elseif ($step === 'confirm') {
             if ($notifyVendor) {
                 // The quote and account go in the acceptance, so whatever was
                 // just recorded has to be on the record the mail renders from.
-                if ($purchaseOrder->isDirty()) {
-                    $purchaseOrder->save();
+                if ($order->isDirty()) {
+                    $order->save();
                 }
 
-                [$to, $cc] = $this->recipients($purchaseOrder, null, false);
+                [$to, $cc] = $this->recipients($order, null, false);
 
                 if ($to === []) {
-                    return $this->responseFailure($purchaseOrder, trans('admin/store/general.vendor_send_no_recipients'));
+                    return $this->responseFailure($order, trans('admin/store/general.vendor_send_no_recipients'));
                 }
 
                 try {
@@ -208,39 +220,51 @@ class PurchaseOrderVendorDispatch
                     if ($cc !== []) {
                         $mail->cc($cc);
                     }
-                    $mail->send(new PurchaseOrderQuoteAcceptanceMail($purchaseOrder->fresh(['supplier'])));
+                    $mail->send(new PurchaseOrderQuoteAcceptanceMail($order->fresh(['supplier'])));
                 } catch (\Throwable $e) {
-                    Log::warning('Quote acceptance email failed for purchase order '.$purchaseOrder->id.': '.$e->getMessage());
+                    Log::warning('Quote acceptance email failed for order '.$order->id.': '.$e->getMessage());
 
-                    return $this->responseFailure($purchaseOrder, trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
+                    return $this->responseFailure($order, trans('admin/store/general.vendor_send_failed', ['error' => $e->getMessage()]));
                 }
 
                 $recipients = $to;
             }
 
-            $purchaseOrder->quote_confirmed_at = $purchaseOrder->quote_confirmed_at ?? now();
+            $order->quote_confirmed_at = $order->quote_confirmed_at ?? now();
             $message = $notifyVendor
                 ? 'admin/purchase-orders/general.vendor_quote_confirmed_sent'
                 : 'admin/purchase-orders/general.vendor_quote_confirmed';
         } else {
-            $purchaseOrder->vendor_order_number = $fields['vendor_order_number'] ?? null;
+            $order->vendor_order_number = $fields['vendor_order_number'] ?? null;
+
+            // Their number becomes the order's own: the shipment webhook and
+            // their invoices arrive under it, and both match on order_number.
+            if (filled($order->vendor_order_number)) {
+                $order->order_number = $order->vendor_order_number;
+            }
 
             // An order number means they placed it, so the quote we were
             // waiting on is accepted whether or not anyone pressed accept.
-            $purchaseOrder->quote_confirmed_at = $purchaseOrder->quote_confirmed_at ?? now();
+            $order->quote_confirmed_at = $order->quote_confirmed_at ?? now();
             $message = 'admin/purchase-orders/general.vendor_order_number_recorded';
         }
 
-        if (! $purchaseOrder->save()) {
-            return $this->responseFailure($purchaseOrder, implode(' ', $purchaseOrder->getErrors()->all()));
+        if (! $order->save()) {
+            return $this->responseFailure($order, implode(' ', $order->getErrors()->all()));
         }
+
+        // Whatever step carried the quote, the catalog learns its prices now:
+        // the quoted unit cost on every line that came from a catalog row,
+        // dated, so the next order of the same part starts from a real number.
+        $taught = $this->catalog->apply($order);
 
         return [
             'ok' => true,
             'error' => null,
-            'message' => trans($message, ['emails' => implode(', ', $recipients)]),
+            'message' => trans($message, ['emails' => implode(', ', $recipients)])
+                .($taught->isNotEmpty() ? ' '.trans_choice('admin/purchase-orders/general.catalog_taught', $taught->count(), ['count' => $taught->count()]) : ''),
             'recipients' => $recipients,
-            'stage' => $purchaseOrder->vendorStage(),
+            'stage' => $order->vendorStage(),
         ];
     }
 
@@ -254,17 +278,17 @@ class PurchaseOrderVendorDispatch
      *
      * @return array{0: array<int, string>, 1: array<int, string>}
      */
-    private function recipients(PurchaseOrder $purchaseOrder, ?User $actor, bool $test): array
+    private function recipients(Order $order, ?User $actor, bool $test): array
     {
         if ($test) {
             return [[$actor?->email], []];
         }
 
-        $to = EmailTemplate::recipientsFor('procurement.vendor_order', $purchaseOrder->supplier?->order_emails);
+        $to = EmailTemplate::recipientsFor('procurement.vendor_order', $order->supplier?->order_emails);
 
         $cc = array_values(array_unique(array_merge(
             EmailTemplate::ccFor('procurement.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca'),
-            $purchaseOrder->orderCcAddresses()
+            $order->orderCcAddresses()
         )));
 
         return [array_values(array_filter($to)), $cc];
@@ -277,8 +301,8 @@ class PurchaseOrderVendorDispatch
     }
 
     /** @return array{ok: bool, error: string, message: ?string, recipients: array<int, string>, stage: string} */
-    private function responseFailure(PurchaseOrder $purchaseOrder, string $error): array
+    private function responseFailure(Order $order, string $error): array
     {
-        return ['ok' => false, 'error' => $error, 'message' => null, 'recipients' => [], 'stage' => $purchaseOrder->vendorStage()];
+        return ['ok' => false, 'error' => $error, 'message' => null, 'recipients' => [], 'stage' => $order->vendorStage()];
     }
 }

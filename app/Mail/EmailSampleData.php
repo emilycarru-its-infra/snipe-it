@@ -16,6 +16,8 @@ use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\Location;
 use App\Models\Manufacturer;
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
@@ -397,12 +399,48 @@ class EmailSampleData
             'po_number' => 'P0026022',
             'title' => 'Foundation Mobile MacBook Labs - ministry capital',
             'fiscal_year' => 'FY2026-27',
+        ]);
+        $order->setRelation('supplier', $supplier);
+        $order->setRelation('requisitions', collect([$requisition]));
+
+        return $order;
+    }
+
+    /**
+     * A vendor order under the sample purchase order: the lines the reps are
+     * sent, at the prices they quoted back, with the account and quote the
+     * order mail and its acceptance render from.
+     */
+    public function vendorOrder(): Order
+    {
+        $purchaseOrder = $this->purchaseOrder();
+
+        $line = function (string $description, string $sku, string $mfr, int $qty, float $cost) {
+            return new OrderItem([
+                'description' => $description,
+                'vendor_sku' => $sku,
+                'mfr_part_number' => $mfr,
+                'quantity' => $qty,
+                'unit_of_measure' => 'EA',
+                'unit_cost' => $cost,
+            ]);
+        };
+
+        $order = new Order([
+            'order_number' => 'P0026022-1',
+            'status' => 'ordered',
+            'fiscal_year' => 'FY2026-27',
             'funding_account' => 'purchase_curriculum',
             'quote_number' => 'PZFD093',
             'quote_total' => 110202.15,
         ]);
-        $order->setRelation('supplier', $supplier);
-        $order->setRelation('requisitions', collect([$requisition]));
+        $order->setRelation('supplier', $purchaseOrder->supplier);
+        $order->setRelation('purchaseOrder', $purchaseOrder);
+        $order->setRelation('items', collect([
+            $line('Apple MacBook Air | 13" | M5 | 16GB | 1TB | Silver', '9094662', 'MDH84LL/A', 42, 2150.48),
+            $line('AppleCare+ for Schools | 4 Year | 13" MacBook Air', '8154132', 'SLTC2Z/A', 42, 239.20),
+            $line('LocknCharge Joey 30 Cart', '8004629', 'LNC9-10559', 2, 2236.32),
+        ]));
 
         return $order;
     }

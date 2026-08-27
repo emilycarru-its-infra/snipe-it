@@ -142,8 +142,12 @@ class RequisitionPromotion
                 'item_type' => $modelId ? AssetModel::class : null,
                 'item_id' => $modelId,
                 'replaces_asset_id' => $line->replaces_asset_id,
+                'catalog_item_id' => $line->catalog_item_id,
                 'description' => $line->description,
+                'vendor_sku' => $line->vendor_sku,
+                'mfr_part_number' => $line->mfr_part_number,
                 'quantity' => (int) $line->quantity,
+                'unit_of_measure' => $line->unit_of_measure ?: 'EA',
                 'unit_cost' => (float) $line->unit_cost,
             ]);
         }

@@ -267,8 +267,7 @@ return [
 
     // Accepting the vendor's final quote — the reply that gets the order placed.
     'purchase_order_quote_accepted_subject' => 'Emily Carr University — quote :quote accepted, please place purchase order :reference',
-    'purchase_order_quote_accepted_heading' => 'Quote :quote accepted',
-    'purchase_order_quote_accepted_intro' => 'Hello :supplier team, Emily Carr University of Art + Design accepts quote :quote as issued. Please place the order.',
-    'purchase_order_quote_accepted_field_total' => 'Accepted total (before tax)',
+    'purchase_order_quote_accepted_heading' => 'Quote :quote accepted — purchase order :reference',
+    'purchase_order_quote_accepted_intro' => 'Hello :supplier team, Emily Carr University of Art + Design accepts quote :quote as issued. Please place the following order at the quoted prices.',
     'purchase_order_quote_accepted_footer' => 'Please reference :reference on the order confirmation and invoice, and reply with your order number so our systems can match the shipment automatically. Thank you.',
 ];

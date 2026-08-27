@@ -3,7 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Actionlog;
-use App\Models\PurchaseOrder;
+use App\Models\Order;
 use App\Services\RequisitionVendorCsv;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * The order itself, sent to the vendor's reps: part numbers, quantities, the
- * agreed unit costs and the purchase order they bill against.
+ * agreed unit costs and the purchase order they bill against. One vendor order
+ * under that purchase order — the budget sees several of these in a year.
  *
  * Distinct from {@see StoreVendorOrderMail}, which asks the vendor to quote a
  * basket of store requests. This one is the other end of that loop — the
@@ -31,20 +32,37 @@ class RequisitionVendorOrderMail extends BaseMailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param  bool  $accepted  the same document, sent back as our acceptance of
+     *                          their final quote: the lines at the quoted prices,
+     *                          the wording changed from "please quote" to "please
+     *                          place". Their desk keys the order from this, so it
+     *                          carries everything the request did — the table, the
+     *                          CSV, the purchase order — and not a summary of it.
+     */
     public function __construct(
-        public PurchaseOrder $purchaseOrder,
+        public Order $order,
         public bool $test = false,
+        public bool $accepted = false,
     ) {}
 
     public function envelope(): Envelope
     {
-        $subject = $this->overriddenSubject(
-            'procurement.vendor_order',
-            trans('mail.requisition_vendor_order_subject', [
-                'reference' => $this->purchaseOrder->po_number,
-                'quote' => $this->quoteSuffix(),
-            ])
-        );
+        $subject = $this->accepted
+            ? $this->overriddenSubject(
+                'procurement.quote_accepted',
+                trans('mail.purchase_order_quote_accepted_subject', [
+                    'reference' => $this->order->reference(),
+                    'quote' => $this->order->quote_number ?: $this->order->reference(),
+                ])
+            )
+            : $this->overriddenSubject(
+                'procurement.vendor_order',
+                trans('mail.requisition_vendor_order_subject', [
+                    'reference' => $this->order->reference(),
+                    'quote' => $this->quoteSuffix(),
+                ])
+            );
 
         // Only name an explicit sender when one is configured — with
         // MAIL_FROM_ADDR unset (the test environments), Address(null) throws,
@@ -59,19 +77,20 @@ class RequisitionVendorOrderMail extends BaseMailable
 
     public function content(): Content
     {
-        $this->purchaseOrder->loadMissing('supplier');
+        $this->order->loadMissing('supplier', 'purchaseOrder');
 
-        $lines = $this->purchaseOrder->vendorOrderLines();
+        $lines = $this->order->vendorOrderLines();
 
-        return $this->bodyContent('procurement.vendor_order', 'notifications.markdown.requisition-vendor-order', [
-            'order' => $this->purchaseOrder,
+        return $this->bodyContent($this->accepted ? 'procurement.quote_accepted' : 'procurement.vendor_order', 'notifications.markdown.requisition-vendor-order', [
+            'order' => $this->order,
+            'accepted' => $this->accepted,
             'lines' => $lines,
-            'reference' => $this->purchaseOrder->po_number,
-            'supplier' => $this->purchaseOrder->supplier,
+            'reference' => $this->order->reference(),
+            'supplier' => $this->order->supplier,
             'lineCount' => $lines->count(),
             // Called out in the body rather than left to be noticed: these are
             // the lines the vendor has to price and issue numbers for.
-            'specialLines' => $this->purchaseOrder->specialRequestLines(),
+            'specialLines' => $this->order->specialRequestLines(),
         ]);
     }
 
@@ -84,7 +103,7 @@ class RequisitionVendorOrderMail extends BaseMailable
      */
     public function attachments(): array
     {
-        $csv = new RequisitionVendorCsv($this->purchaseOrder);
+        $csv = new RequisitionVendorCsv($this->order);
 
         $attachments = [
             Attachment::fromData(fn () => $csv->contents(), $csv->filename())
@@ -111,7 +130,11 @@ class RequisitionVendorOrderMail extends BaseMailable
      */
     private function purchaseOrderDocuments()
     {
-        $purchaseOrder = $this->purchaseOrder;
+        $purchaseOrder = $this->order->purchaseOrder;
+
+        if (! $purchaseOrder) {
+            return collect();
+        }
 
         // `exists` and not just null: the email previewer in Settings → Emails
         // renders this mailable against unsaved sample models, and asking an
@@ -128,8 +151,8 @@ class RequisitionVendorOrderMail extends BaseMailable
     /** " — quote PZFD093" when there is one, nothing when there isn't. */
     private function quoteSuffix(): string
     {
-        return filled($this->purchaseOrder->quote_number)
-            ? trans('mail.requisition_vendor_order_subject_quote', ['quote' => $this->purchaseOrder->quote_number])
+        return filled($this->order->quote_number)
+            ? trans('mail.requisition_vendor_order_subject_quote', ['quote' => $this->order->quote_number])
             : '';
     }
 }

@@ -2,8 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\PurchaseOrder;
-use App\Models\RequisitionItem;
+use App\Models\Order;
 
 /**
  * The order as a file the reseller's desk keys from.
@@ -25,13 +24,15 @@ use App\Models\RequisitionItem;
  */
 class RequisitionVendorCsv
 {
-    public function __construct(private PurchaseOrder $order) {}
+    public function __construct(private Order $order) {}
 
     public function filename(): string
     {
         // Named for the order, not the moment: a re-send of the same order
         // must not look like a second, different one.
-        return 'ECU-'.str_replace(['/', ' '], '-', $this->order->po_number).'.csv';
+        $reference = str_replace(['/', ' '], '-', $this->order->reference());
+
+        return 'ECU-'.$reference.($this->order->id ? '-'.$this->order->id : '').'.csv';
     }
 
     /**
@@ -58,7 +59,7 @@ class RequisitionVendorCsv
      */
     public function rows(): array
     {
-        $reference = $this->order->po_number;
+        $reference = $this->order->reference();
 
         // Account repeats down every row rather than being stated once at the
         // top: CDW keys it per line, because a single order can in principle
@@ -67,7 +68,7 @@ class RequisitionVendorCsv
         // blanket purchase order, and the number is what they match on.
         $account = $this->order->fundingDescription();
 
-        return $this->order->vendorOrderLines()->map(fn (RequisitionItem $line) => [
+        return $this->order->vendorOrderLines()->map(fn ($line) => [
             $reference,
             (string) $line->mfr_part_number,
             (string) $line->vendor_sku,
