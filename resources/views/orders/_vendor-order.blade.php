@@ -8,7 +8,6 @@
 
     $orderEmails = collect(explode(',', (string) $order->supplier?->order_emails))
         ->map(fn ($email) => trim($email))->filter()->values();
-    $poDocuments = $order->purchaseOrder?->uploads()->pluck('filename') ?? collect();
     $lines = $order->vendorOrderLines();
     $missingParts = $order->linesMissingPartNumbers();
     $specialLines = $order->specialRequestLines();
@@ -57,13 +56,6 @@
                 <p class="text-muted" style="margin-bottom: 4px;">
                     {{ trans('admin/purchase-orders/general.vendor_send_recipients') }}:
                     <span class="text-monospace">{{ $orderEmails->implode(', ') }}</span>
-                </p>
-            @endif
-
-            @if ($poDocuments->isNotEmpty())
-                <p class="text-muted">
-                    {{ trans('admin/purchase-orders/general.vendor_send_attachments') }}:
-                    <span class="text-monospace">{{ $poDocuments->implode(', ') }}</span>
                 </p>
             @endif
 

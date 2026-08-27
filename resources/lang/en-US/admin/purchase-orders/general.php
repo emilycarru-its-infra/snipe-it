@@ -616,7 +616,7 @@ return [
 
     // Placing the order with the vendor.
     'vendor_send_title' => 'Send the Order to the Vendor',
-    'vendor_send_help' => 'Emails the order to :supplier with the part numbers, quantities and agreed unit prices, the part list as a CSV, and everything filed against the purchase order.',
+    'vendor_send_help' => 'Emails the order to :supplier with the part numbers, quantities and agreed unit prices, and the part list as a CSV. Documents filed against the purchase order stay here — the vendor gets the PO number, not the PDF.',
     'vendor_send_help_no_emails' => 'This supplier has no order email addresses on file, so there is nobody to send to. Add them on the supplier record first.',
     'vendor_send_recipients' => 'Goes to',
     'vendor_send_attachments' => 'Attaches',

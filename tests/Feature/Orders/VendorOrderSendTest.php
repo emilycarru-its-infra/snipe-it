@@ -449,6 +449,34 @@ class VendorOrderSendTest extends VendorOrderTestCase
      * Copied people are picked, not typed: an id follows somebody through a
      * name change, and an address with a transposed letter bounces silently.
      */
+    /**
+     * The part list is the only attachment. The issued PO is our paperwork and
+     * the vendor already holds their quote, so documents filed against the
+     * purchase order stay here — an order once went out with the PO PDF
+     * stapled to it, which is why this is pinned.
+     */
+    public function test_documents_filed_against_the_purchase_order_are_not_attached()
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        $order = $this->vendorOrder();
+        $staff = $this->procurement();
+
+        $this->actingAsForApi($staff)
+            ->postJson(route('api.files.store', ['object_type' => 'purchase-orders', 'id' => $order->purchaseOrder->id]), [
+                'file' => [\Illuminate\Http\UploadedFile::fake()->create('P0026041.pdf', 40, 'application/pdf')],
+                'notes' => 'Issued purchase order',
+            ])->assertOk();
+
+        $this->assertCount(1, $order->purchaseOrder->fresh()->uploads()->get());
+
+        $this->actingAs($staff);
+        $attachments = (new RequisitionVendorOrderMail($order->fresh()))->attachments();
+
+        $this->assertCount(1, $attachments);
+        $this->assertStringEndsWith('.csv', $attachments[0]->as);
+    }
+
     public function test_copied_people_are_stored_as_users_and_still_allow_an_external_address()
     {
         Mail::fake();
