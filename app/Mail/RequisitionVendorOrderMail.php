@@ -31,20 +31,37 @@ class RequisitionVendorOrderMail extends BaseMailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param  bool  $accepted  the same document, sent back as our acceptance of
+     *                          their final quote: the lines at the quoted prices,
+     *                          the wording changed from "please quote" to "please
+     *                          place". Their desk keys the order from this, so it
+     *                          carries everything the request did — the table, the
+     *                          CSV, the purchase order — and not a summary of it.
+     */
     public function __construct(
         public PurchaseOrder $purchaseOrder,
         public bool $test = false,
+        public bool $accepted = false,
     ) {}
 
     public function envelope(): Envelope
     {
-        $subject = $this->overriddenSubject(
-            'procurement.vendor_order',
-            trans('mail.requisition_vendor_order_subject', [
-                'reference' => $this->purchaseOrder->po_number,
-                'quote' => $this->quoteSuffix(),
-            ])
-        );
+        $subject = $this->accepted
+            ? $this->overriddenSubject(
+                'procurement.quote_accepted',
+                trans('mail.purchase_order_quote_accepted_subject', [
+                    'reference' => $this->purchaseOrder->po_number,
+                    'quote' => $this->purchaseOrder->quote_number ?: $this->purchaseOrder->po_number,
+                ])
+            )
+            : $this->overriddenSubject(
+                'procurement.vendor_order',
+                trans('mail.requisition_vendor_order_subject', [
+                    'reference' => $this->purchaseOrder->po_number,
+                    'quote' => $this->quoteSuffix(),
+                ])
+            );
 
         // Only name an explicit sender when one is configured — with
         // MAIL_FROM_ADDR unset (the test environments), Address(null) throws,
@@ -63,8 +80,9 @@ class RequisitionVendorOrderMail extends BaseMailable
 
         $lines = $this->purchaseOrder->vendorOrderLines();
 
-        return $this->bodyContent('procurement.vendor_order', 'notifications.markdown.requisition-vendor-order', [
+        return $this->bodyContent($this->accepted ? 'procurement.quote_accepted' : 'procurement.vendor_order', 'notifications.markdown.requisition-vendor-order', [
             'order' => $this->purchaseOrder,
+            'accepted' => $this->accepted,
             'lines' => $lines,
             'reference' => $this->purchaseOrder->po_number,
             'supplier' => $this->purchaseOrder->supplier,
