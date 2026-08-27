@@ -121,6 +121,7 @@ class StoreController extends Controller
             'displayStandard' => trans('admin/store/general.display_standard'),
             'displayNano' => trans('admin/store/general.display_nano'),
             'allProducts' => trans('admin/store/general.all_categories'),
+            'categoryOrder' => CatalogItem::CATEGORY_ORDER,
             'storeEmpty' => trans('admin/store/general.store_empty'),
             'otherHeading' => trans('admin/store/general.other_heading'),
             'steps' => [

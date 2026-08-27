@@ -21,7 +21,22 @@
     </div>
 @endif
 
+{{-- The store's own pills, in the store's own order, so filtering here
+     feels like filtering there. Purely client-side: the page already holds
+     every row, and a filter that round-tripped would lose the edits in the
+     row forms. --}}
+<div class="st-pills" id="sa-pills">
+    <button type="button" class="st-pill active" data-cat="">{{ trans('admin/store/general.all_categories') }}</button>
+    @foreach ($categories as $category)
+        <button type="button" class="st-pill" data-cat="{{ $category }}">{{ $category }}</button>
+    @endforeach
+</div>
+
 <style>
+.st-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.st-pill { border: 1px solid light-dark(#d2d2d7, #4a4a4f); background: transparent; border-radius: 980px;
+           padding: 6px 16px; font-size: 13px; color: inherit; cursor: pointer; }
+.st-pill.active { background: light-dark(#1d1d1f, #f5f5f7); color: light-dark(#fff, #1d1d1f); border-color: transparent; }
 /* A blank part number is not a neutral empty field — it is a row that
    cannot be ordered — so it reads as a problem at a glance instead of
    only when someone tries to send it. */
@@ -49,7 +64,7 @@
             </thead>
             <tbody>
                 @foreach ($items as $item)
-                    <tr>
+                    <tr data-category="{{ $item->category }}">
                         <td style="width:64px;">
                             @if ($item->storeImageUrl())
                                 <img src="{{ $item->storeImageUrl() }}" alt="" style="max-height:40px; max-width:56px; object-fit:contain;">
@@ -145,4 +160,34 @@
         {{ csrf_field() }}
     </form>
 @endforeach
+
+<script nonce="{{ csrf_token() }}">
+(function () {
+    var pills = document.getElementById('sa-pills');
+    if (! pills) { return; }
+    var rows = document.querySelectorAll('tr[data-category]');
+
+    function apply(category) {
+        Array.prototype.forEach.call(pills.querySelectorAll('.st-pill'), function (pill) {
+            pill.classList.toggle('active', pill.getAttribute('data-cat') === category);
+        });
+        Array.prototype.forEach.call(rows, function (row) {
+            row.style.display = (category === '' || row.getAttribute('data-category') === category) ? '' : 'none';
+        });
+        var url = new URL(window.location.href);
+        if (category === '') { url.searchParams.delete('category'); } else { url.searchParams.set('category', category); }
+        window.history.replaceState(null, '', url.toString());
+    }
+
+    pills.addEventListener('click', function (e) {
+        var pill = e.target.closest('.st-pill');
+        if (pill) { apply(pill.getAttribute('data-cat')); }
+    });
+
+    // Deep links come from the store — /store?category=Tablets — so the
+    // same parameter lands here on the same shelf.
+    var initial = new URL(window.location.href).searchParams.get('category') || '';
+    if (initial && pills.querySelector('.st-pill[data-cat="' + initial.replace(/"/g, '') + '"]')) { apply(initial); }
+})();
+</script>
 @stop
