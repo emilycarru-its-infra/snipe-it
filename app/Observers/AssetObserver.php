@@ -142,6 +142,10 @@ class AssetObserver
      */
     private function autoAllocateArrival(Asset $asset): void
     {
+        if (! app(ArrivalAllocator::class)->couldBeArrival($asset)) {
+            return;
+        }
+
         defer(function () use ($asset) {
             try {
                 app(ArrivalAllocator::class)->autoAllocate($asset->fresh('model', 'status'));

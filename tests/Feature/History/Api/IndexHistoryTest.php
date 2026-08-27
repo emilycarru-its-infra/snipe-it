@@ -479,6 +479,11 @@ class IndexHistoryTest extends TestCase
         }
 
         DB::flushQueryLog();
+        // Setup above created assets whose observers defer work; the kernel
+        // drains deferred callbacks at the end of the next request. Flush
+        // them now so the count below is the endpoint's own queries.
+        app(\Illuminate\Support\Defer\DeferredCallbackCollection::class)->invoke();
+
         DB::enableQueryLog();
 
         $response = $this->actingAsForApi($actor)
