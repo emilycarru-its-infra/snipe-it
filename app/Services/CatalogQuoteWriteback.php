@@ -47,6 +47,11 @@ class CatalogQuoteWriteback
             'quote' => $order->quote_number,
         ]);
 
+        // The row is dated by the quote, not by the keystroke: an old quote
+        // recorded late is still an old quote, and a row that already holds a
+        // newer one keeps it. Same-day quotes overwrite, latest write wins.
+        $quotedOn = ($order->quote_confirmed_at ?? $order->vendor_changes_at ?? $order->vendor_sent_at ?? now())->toDateString();
+
         $updated = collect();
 
         foreach ($order->vendorOrderLines() as $line) {
@@ -56,10 +61,14 @@ class CatalogQuoteWriteback
                 continue;
             }
 
+            if ($row->quoted_at !== null && $row->quoted_at->toDateString() > $quotedOn) {
+                continue;
+            }
+
             $row->forceFill([
                 'unit_cost' => (float) $line->unit_cost,
                 'price_type' => 'quoted',
-                'quoted_at' => now()->toDateString(),
+                'quoted_at' => $quotedOn,
                 'expires_at' => $order->quote_expires_at?->toDateString(),
                 'source' => $source,
                 'part_numbers_verified_at' => now(),
