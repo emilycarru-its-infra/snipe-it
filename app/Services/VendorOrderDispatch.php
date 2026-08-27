@@ -239,7 +239,12 @@ class VendorOrderDispatch
 
             // Their number becomes the order's own: the shipment webhook and
             // their invoices arrive under it, and both match on order_number.
-            if (filled($order->vendor_order_number)) {
+            if (filled($order->vendor_order_number) && $order->order_number !== $order->vendor_order_number) {
+                // The devices provisioned under our interim name follow it:
+                // an asset's order number is the vendor's, its PO number ours.
+                \App\Models\Asset::where('order_number', $order->order_number)
+                    ->update(['order_number' => $order->vendor_order_number]);
+
                 $order->order_number = $order->vendor_order_number;
             }
 
