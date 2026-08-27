@@ -33,18 +33,6 @@ class PurchaseOrdersTransformer
             'cost_center' => ($purchaseOrder->cost_center) ? e($purchaseOrder->cost_center) : null,
             // The vendor-facing side the purchase order now owns, so an order's
             // account and quote are readable without opening the page.
-            'funding_account' => $purchaseOrder->funding_account,
-            'funding_label' => $purchaseOrder->fundingLabel(),
-            'funding_account_number' => \App\Services\SupplierAccounts::number($purchaseOrder->funding_account),
-            'lease_schedule' => $purchaseOrder->lease_schedule,
-            'quote_number' => $purchaseOrder->quote_number,
-            'quote_total' => $purchaseOrder->quote_total !== null ? (float) $purchaseOrder->quote_total : null,
-            'quote_expires_at' => Helper::getFormattedDateObject($purchaseOrder->quote_expires_at, 'date'),
-            'quote_confirmed_at' => Helper::getFormattedDateObject($purchaseOrder->quote_confirmed_at, 'datetime'),
-            'vendor_sent_at' => Helper::getFormattedDateObject($purchaseOrder->vendor_sent_at, 'datetime'),
-            'vendor_changes_at' => Helper::getFormattedDateObject($purchaseOrder->vendor_changes_at, 'datetime'),
-            'vendor_order_number' => $purchaseOrder->vendor_order_number,
-            'vendor_stage' => $purchaseOrder->vendorStage(),
             'order_lines' => $purchaseOrder->vendorOrderLines()->count(),
             'supplier' => ($purchaseOrder->supplier) ? [
                 'id' => (int) $purchaseOrder->supplier->id,

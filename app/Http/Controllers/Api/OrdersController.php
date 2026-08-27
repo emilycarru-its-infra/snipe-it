@@ -19,8 +19,15 @@ use App\Models\PurchaseOrder;
 use App\Models\StoreOrder;
 use App\Services\StoreOrderNotifier;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\CatalogItem;
+use App\Models\AssetModel;
+use App\Services\OrderAssetProvisioner;
+use App\Services\SupplierAccounts;
+use App\Services\VendorOrderDispatch;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class OrdersController extends Controller
@@ -404,5 +411,206 @@ class OrdersController extends Controller
                 ]));
             }
         }
+    }
+
+    /**
+     * Raise a vendor order under a purchase order.
+     *
+     * A purchase order is a budget; the orders under it are what the vendor is
+     * sent, one per wave. Promotion raises the first from the requisition;
+     * this raises the rest — a script drawing a quarter's refresh from the
+     * capital request, an agent answering a store batch — from catalog rows
+     * and quantities, with free-form lines for freight, fees and builds nobody
+     * has priced. Part numbers come from the catalog unless given.
+     *
+     * The devices are provisioned as they are on promotion, so the shipment
+     * webhook has something to claim; `provision: false` skips that for an
+     * order of soft cost only.
+     */
+    public function raise(Request $request, $purchaseOrderId): JsonResponse
+    {
+        $this->authorize('create', Order::class);
+
+        $purchaseOrder = PurchaseOrder::findOrFail($purchaseOrderId);
+
+        $validated = $request->validate([
+            'order_number' => 'nullable|string|max:191',
+            'order_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:65535',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
+            'provision' => 'nullable|boolean',
+            'items' => 'required|array|min:1',
+            'items.*.catalog_item_id' => 'nullable|integer|exists:catalog_items,id',
+            'items.*.description' => 'nullable|string|max:191',
+            'items.*.vendor_sku' => 'nullable|string|max:191',
+            'items.*.mfr_part_number' => 'nullable|string|max:191',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_cost' => 'required|numeric|min:0',
+            'items.*.warranty_cost' => 'nullable|numeric|min:0',
+            'items.*.unit_of_measure' => 'nullable|string|max:16',
+        ]);
+
+        $catalog = CatalogItem::whereIn('id', array_filter(array_column($validated['items'], 'catalog_item_id')))
+            ->get()->keyBy('id');
+
+        foreach ($validated['items'] as $index => $line) {
+            if (blank($line['description'] ?? null) && ! $catalog->has($line['catalog_item_id'] ?? 0)) {
+                return response()->json(Helper::formatStandardApiResponse('error', null, [
+                    'items.'.$index.'.description' => [trans('admin/orders/general.raise_line_needs_description')],
+                ]), 422);
+            }
+        }
+
+        // Numbered for the purchase order and its place in the sequence, because
+        // that is the only identifier that exists at this moment; the vendor's
+        // own number replaces it when they place the order.
+        $sequence = $purchaseOrder->orders()->count() + 1;
+
+        $order = DB::transaction(function () use ($purchaseOrder, $validated, $catalog, $sequence) {
+            $order = new Order;
+            $order->order_number = $validated['order_number'] ?? ($purchaseOrder->po_number.'-'.$sequence);
+            $order->purchase_order_id = $purchaseOrder->id;
+            $order->supplier_id = $purchaseOrder->supplier_id;
+            $order->company_id = $purchaseOrder->company_id;
+            $order->fiscal_year = $purchaseOrder->fiscal_year;
+            $order->order_date = $validated['order_date'] ?? now()->toDateString();
+            $order->status = 'ordered';
+            $order->is_planned = false;
+            $order->notes = $validated['notes'] ?? null;
+            $order->funding_account = $validated['funding_account'] ?? null;
+            $order->lease_schedule = $validated['lease_schedule'] ?? null;
+            $order->created_by = auth()->id();
+            $order->save();
+
+            foreach ($validated['items'] as $line) {
+                $source = $catalog->get($line['catalog_item_id'] ?? null);
+                $modelId = $source?->model_id;
+
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'purchase_order_id' => $purchaseOrder->id,
+                    'item_type' => $modelId ? AssetModel::class : null,
+                    'item_id' => $modelId,
+                    'catalog_item_id' => $source?->id,
+                    'description' => $line['description'] ?? $source?->name,
+                    'vendor_sku' => $line['vendor_sku'] ?? $source?->vendor_sku,
+                    'mfr_part_number' => $line['mfr_part_number'] ?? $source?->mfr_part_number,
+                    'quantity' => (int) $line['quantity'],
+                    'unit_of_measure' => $line['unit_of_measure'] ?? 'EA',
+                    'unit_cost' => (float) $line['unit_cost'],
+                    'warranty_cost' => isset($line['warranty_cost']) ? (float) $line['warranty_cost'] : null,
+                ]);
+            }
+
+            return $order;
+        });
+
+        if ($validated['provision'] ?? true) {
+            try {
+                app(OrderAssetProvisioner::class)->provision($order->load('items', 'purchaseOrder'));
+            } catch (\Throwable $e) {
+                Log::error('Order '.$order->id.' provisioning failed: '.$e->getMessage());
+            }
+        }
+
+        $order->load('supplier', 'company', 'adminuser', 'purchaseOrder', 'items.item', 'items.catalogItem', 'invoices');
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            (new OrdersTransformer)->transformOrder($order),
+            trans('admin/orders/general.raised', ['order' => $order->order_number, 'po' => $purchaseOrder->po_number])
+        ));
+    }
+
+    /**
+     * Put the order to the vendor, recording the account and quote it goes
+     * with. The same send the order page makes, minus the browser; a test send
+     * (`test: true`) reaches only the caller and stamps nothing. The gates are
+     * the dispatch's — see {@see VendorOrderDispatch::send()}.
+     */
+    public function sendVendor(Request $request, $orderId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
+            'order_cc' => 'nullable|string|max:65535',
+            'cc_users' => 'nullable|array',
+            'cc_users.*' => 'integer|exists:users,id',
+            'test' => 'nullable|boolean',
+        ]);
+
+        $order = Order::findOrFail($orderId);
+        $test = (bool) ($validated['test'] ?? false);
+
+        $result = app(VendorOrderDispatch::class)->send($order, $request->user(), $validated, $test);
+
+        if (! $result['sent']) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'test' => $test,
+            'recipients' => $result['recipients'],
+            'order' => $order->order_number,
+            'purchase_order' => $order->purchaseOrder?->po_number,
+            'vendor_stage' => $order->fresh()->vendorStage(),
+        ], $test
+            ? trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]])
+            : trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])])));
+    }
+
+    /**
+     * Record the vendor's answer, and ours to it — `changes`, `confirm` or
+     * `order_number`, the loop their rep set out — or `sent`, a send that was
+     * made outside the app, dated with `vendor_sent_at`, so the loop can be
+     * joined from there. A `confirm` with `notify_vendor: true` emails the
+     * acceptance — the order again, at the quoted prices — to the reps.
+     */
+    public function vendorResponse(Request $request, $orderId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'step' => 'required|string|in:sent,changes,confirm,order_number',
+            'vendor_sent_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
+            'vendor_changes_notes' => 'nullable|string|max:65535',
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'vendor_order_number' => 'nullable|string|max:191',
+            'notify_vendor' => 'nullable|boolean',
+        ]);
+
+        $order = Order::findOrFail($orderId);
+
+        $result = app(VendorOrderDispatch::class)->respond(
+            $order,
+            $validated['step'],
+            $validated,
+            (bool) ($validated['notify_vendor'] ?? false)
+        );
+
+        if (! $result['ok']) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'order' => $order->order_number,
+            'purchase_order' => $order->purchaseOrder?->po_number,
+            'vendor_stage' => $result['stage'],
+            'recipients' => $result['recipients'],
+            'quote_number' => $order->quote_number,
+            'quote_total' => $order->quote_total,
+            'quote_confirmed_at' => $order->quote_confirmed_at?->toDateTimeString(),
+            'vendor_order_number' => $order->vendor_order_number,
+        ], $result['message']));
     }
 }

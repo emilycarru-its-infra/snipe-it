@@ -1355,6 +1355,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         [Api\LeaseDocumentsController::class, 'store']
     )->name('api.lease-documents.store');
 
+    // Placing the order, and recording what the vendor says back — the same
+    // two moves as the order page, for whatever has no browser: a script that
+    // just raised the order, or an agent answering the reps' quote.
+    Route::post('orders/{order_id}/send-vendor', [Api\OrdersController::class, 'sendVendor'])
+        ->name('api.orders.send-vendor');
+    Route::post('orders/{order_id}/vendor-response', [Api\OrdersController::class, 'vendorResponse'])
+        ->name('api.orders.vendor-response');
+
     Route::resource('orders',
         Api\OrdersController::class,
         ['names' => [
@@ -1375,13 +1383,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('purchase-orders/{purchase_order_id}/provision', [Api\PurchaseOrdersController::class, 'provision'])
         ->name('api.purchase-orders.provision');
 
-    // Placing the order, and recording what the vendor says back — the same
-    // two moves as the purchase order page, for whatever has no browser: a
-    // script that just filed the PO, or an agent answering the reps' quote.
-    Route::post('purchase-orders/{purchase_order_id}/send-vendor', [Api\PurchaseOrdersController::class, 'sendVendor'])
-        ->name('api.purchase-orders.send-vendor');
-    Route::post('purchase-orders/{purchase_order_id}/vendor-response', [Api\PurchaseOrdersController::class, 'vendorResponse'])
-        ->name('api.purchase-orders.vendor-response');
+    // A purchase order is a budget; the orders under it are what the vendor is
+    // sent, one per wave. Raise one from catalog rows and quantities.
+    Route::post('purchase-orders/{purchase_order_id}/orders', [Api\OrdersController::class, 'raise'])
+        ->name('api.purchase-orders.orders.raise');
 
     Route::resource('purchase-orders',
         Api\PurchaseOrdersController::class,

@@ -7,6 +7,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * @property int|null $catalog_item_id
+ * @property string|null $description
+ * @property string|null $vendor_sku
+ * @property string|null $mfr_part_number
+ * @property int $quantity
+ * @property string|null $unit_of_measure
+ * @property float|string|null $unit_cost
+ * @property float|string|null $warranty_cost
+ * @property string|null $item_type
+ * @property int|null $item_id
+ */
 class OrderItem extends Model
 {
     use HasFactory;
@@ -21,8 +33,12 @@ class OrderItem extends Model
         'item_type',
         'item_id',
         'replaces_asset_id',
+        'catalog_item_id',
         'description',
+        'vendor_sku',
+        'mfr_part_number',
         'quantity',
+        'unit_of_measure',
         'unit_cost',
         'warranty_cost',
         'received_at',
@@ -125,6 +141,16 @@ class OrderItem extends Model
     /**
      * The full cost of this line: equipment plus any warranty/soft cost.
      */
+    /**
+     * The catalog row this line was ordered from, where the vendor's part
+     * numbers are maintained. Null for freight, a fee, or a build nobody has
+     * priced yet — those carry their numbers as text, or none at all.
+     */
+    public function catalogItem(): BelongsTo
+    {
+        return $this->belongsTo(CatalogItem::class, 'catalog_item_id');
+    }
+
     public function lineTotal(): float
     {
         return ((float) $this->unit_cost * (int) $this->quantity) + (float) $this->warranty_cost;

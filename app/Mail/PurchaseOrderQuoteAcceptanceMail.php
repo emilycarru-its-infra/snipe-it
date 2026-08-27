@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\PurchaseOrder;
+use App\Models\Order;
 
 /**
  * Our acceptance of the vendor's final quote: place it.
@@ -16,8 +16,8 @@ use App\Models\PurchaseOrder;
  */
 class PurchaseOrderQuoteAcceptanceMail extends RequisitionVendorOrderMail
 {
-    public function __construct(PurchaseOrder $purchaseOrder)
+    public function __construct(Order $order)
     {
-        parent::__construct($purchaseOrder, test: false, accepted: true);
+        parent::__construct($order, test: false, accepted: true);
     }
 }
