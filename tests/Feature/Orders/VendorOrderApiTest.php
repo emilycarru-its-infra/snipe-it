@@ -66,9 +66,16 @@ class VendorOrderApiTest extends VendorOrderTestCase
         $this->assertNull($lines[2]->mfr_part_number);
         $this->assertNull($lines[2]->item_type);
 
-        // Two devices provisioned under the purchase order, none for the soft cost.
+        // Two devices provisioned under the purchase order, none for the soft cost,
+        // named for the interim order and the purchase order behind it.
         $this->assertSame(2, Asset::where('model_id', $model->id)->count());
+        $this->assertSame(2, Asset::where('order_number', 'P0026041-2')->where('po_number', 'P0026041')->count());
         $this->assertSame(2, $purchaseOrder->orders()->count());
+
+        // When the vendor places it, the devices follow their number.
+        $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'sent'])->assertOk();
+        $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'order_number', 'vendor_order_number' => 'PZLL752'])->assertOk();
+        $this->assertSame(2, Asset::where('order_number', 'PZLL752')->where('po_number', 'P0026041')->count());
     }
 
     public function test_a_free_form_line_without_a_description_is_refused()
@@ -269,6 +276,57 @@ class VendorOrderApiTest extends VendorOrderTestCase
             ->assertJsonPath('payload.rows.0.is_estimate', false)
             ->assertJsonPath('payload.rows.0.quoted_at', now()->toDateString())
             ->assertJsonPath('payload.rows.0.unit_cost', 2152.77);
+    }
+
+    /**
+     * The catalog keeps its newest quote. A row is dated by the quote that
+     * taught it, so an older quote recorded afterwards — a second order's
+     * paperwork caught up on late — does not roll the price back.
+     */
+    public function test_an_older_quote_does_not_overwrite_a_newer_catalog_price()
+    {
+        Mail::fake();
+
+        $order = $this->vendorOrder(['vendor_sent_at' => now()->subDays(20)], ['unit_cost' => 2150.48]);
+        $row = $order->items->first()->catalogItem;
+        $row->forceFill(['unit_cost' => 2152.77, 'price_type' => 'quoted', 'quoted_at' => now()->toDateString(), 'source' => 'CDW Canada Inc quote PZKT735'])->save();
+
+        // Accepted sixteen days ago; recorded today.
+        $order->forceFill(['quote_number' => 'PZFD093', 'quote_confirmed_at' => now()->subDays(16)])->save();
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'confirm'])->assertOk();
+
+        $row->refresh();
+        $this->assertSame('2152.7700', (string) $row->unit_cost);
+        $this->assertStringContainsString('PZKT735', $row->source);
+
+        // A quote newer than the row's does take it, dated by the quote.
+        $order->forceFill(['quote_number' => 'PZNEW01', 'quote_confirmed_at' => null])->save();
+        $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'confirm', 'quote_number' => 'PZNEW01'])->assertOk();
+
+        $row->refresh();
+        $this->assertSame('2150.4800', (string) $row->unit_cost);
+        $this->assertSame(now()->toDateString(), $row->quoted_at->toDateString());
+    }
+
+    /**
+     * The order the vendor is sent is never named after our purchase order:
+     * promotion and the API both number it `<PO>-<n>`, and their number
+     * replaces that when they place it.
+     */
+    public function test_orders_are_never_named_after_the_purchase_order()
+    {
+        $first = $this->vendorOrder();
+        Passport::actingAs($this->procurement());
+
+        $second = $this->postJson(route('api.purchase-orders.orders.raise', $first->purchase_order_id), [
+            'items' => [['description' => 'Freight', 'quantity' => 1, 'unit_cost' => 94.23]],
+            'provision' => false,
+        ])->assertOk()->json('payload.order_number');
+
+        $this->assertSame('P0026041-2', $second);
+        $this->assertNotSame('P0026041', $first->order_number);
     }
 
     public function test_a_quiet_confirm_stamps_without_emailing()

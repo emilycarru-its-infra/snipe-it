@@ -79,11 +79,11 @@ class PromotionRaisesTheOrderTest extends TestCase
 
         $order = Order::where('purchase_order_id', $purchaseOrder->id)->first();
         $this->assertNotNull($order, 'promotion should raise an order under the purchase order');
-        $this->assertSame('P0026022', $order->order_number);
+        $this->assertSame('P0026022-1', $order->order_number);
         $this->assertSame(2, $order->items->count());
 
         // Forty-two laptops exist; the warranty line does not become a device.
-        $assets = Asset::where('order_number', 'P0026022')->get();
+        $assets = Asset::where('po_number', 'P0026022')->get();
         $this->assertCount(42, $assets);
         $this->assertSame('P0026022', $assets->first()->po_number);
         $this->assertEqualsWithDelta(2150.48, (float) $assets->first()->purchase_cost, 0.01);
@@ -110,6 +110,6 @@ class PromotionRaisesTheOrderTest extends TestCase
         ], null);
 
         $this->assertSame(1, Order::where('purchase_order_id', $purchaseOrder->id)->count());
-        $this->assertSame(42, Asset::where('order_number', 'P0026022')->count());
+        $this->assertSame(42, Asset::where('po_number', 'P0026022')->count());
     }
 }

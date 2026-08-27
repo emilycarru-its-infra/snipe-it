@@ -113,7 +113,10 @@ class RequisitionPromotion
         }
 
         $order = new Order;
-        $order->order_number = $purchaseOrder->po_number;
+        // Ours until they issue theirs: the n-th order against this purchase
+        // order. Never the bare purchase order number — that is the budget's
+        // name, and the shipment webhook matches on the vendor's.
+        $order->order_number = $purchaseOrder->po_number.'-'.($purchaseOrder->orders()->count() + 1);
         $order->purchase_order_id = $purchaseOrder->id;
         $order->supplier_id = $requisition->supplier_id;
         $order->company_id = $requisition->company_id;
