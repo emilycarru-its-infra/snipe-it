@@ -311,6 +311,17 @@
                     <form method="POST" action="{{ route('purchase-orders.vendor-response', $purchaseOrder) }}">
                         {{ csrf_field() }}
                         <input type="hidden" name="step" value="confirm">
+                        {{-- Accepting is our decision; telling them is what gets the
+                             order placed. On by default because a quote nobody answers
+                             is a quote nobody places — untick it only when the reply has
+                             already gone by hand. --}}
+                        <div class="checkbox" style="margin: 0 0 10px;">
+                            <label for="notify-vendor">
+                                <input type="checkbox" name="notify_vendor" id="notify-vendor" value="1" checked>
+                                {{ trans('admin/purchase-orders/general.vendor_quote_notify') }}
+                            </label>
+                            <p class="help-block" style="margin: 2px 0 0;">{{ trans('admin/purchase-orders/general.vendor_quote_notify_help') }}</p>
+                        </div>
                         <button type="submit" class="btn btn-warning btn-block">
                             {{ trans('admin/purchase-orders/general.vendor_quote_confirm_submit') }}
                         </button>

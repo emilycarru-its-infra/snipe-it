@@ -376,6 +376,14 @@ class EmailRegistry
                 'configurable_recipients' => true,
                 'configurable_cc' => true,
             ],
+            [
+                'key' => 'procurement.quote_accepted',
+                'category' => 'store',
+                'label' => 'Quote accepted (to reps)',
+                'description' => 'Our acceptance of the vendor\'s final quote, sent from the purchase order so their desk places it. Goes to the same reps and copies as the order itself.',
+                'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'reference' => 'The purchase order number', 'quote' => 'The vendor\'s quote number', 'supplier' => 'The vendor', 'total' => 'The accepted total'],
+                'factory' => fn (EmailSampleData $s) => new PurchaseOrderQuoteAcceptanceMail($s->purchaseOrder()),
+            ],
 
             [
                 'key' => 'account.welcome',
