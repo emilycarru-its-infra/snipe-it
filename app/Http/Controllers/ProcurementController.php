@@ -437,14 +437,21 @@ class ProcurementController extends Controller
     {
         $this->authorize('update', Requisition::class);
 
+        // Same order as the store's pills — computers first, accessories
+        // after — so the page reads the way the store does, not A to Z.
         $items = CatalogItem::with('model')
             ->active()
-            ->orderBy('category')
             ->orderBy('store_sort')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->sortBy(fn (CatalogItem $item) => sprintf('%02d', CatalogItem::categoryRank($item->category)), SORT_STRING, false)
+            ->values();
 
-        return view('procurement.store-admin', ['items' => $items]);
+        $categories = $items->pluck('category')->filter()->unique()
+            ->sortBy(fn ($category) => CatalogItem::categoryRank($category))
+            ->values();
+
+        return view('procurement.store-admin', ['items' => $items, 'categories' => $categories]);
     }
 
     /**

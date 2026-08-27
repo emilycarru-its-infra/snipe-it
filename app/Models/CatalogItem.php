@@ -32,6 +32,23 @@ class CatalogItem extends Model
 
     public const PRICE_TYPES = ['quoted', 'estimate', 'list'];
 
+    /**
+     * The order categories are shown in, everywhere a catalog is browsed:
+     * the store's pills, the store's shelves, and the catalog page behind
+     * them. Computers first because that is what people come for; the
+     * things that hang off a computer after. A category not listed here
+     * sorts last, alphabetically, rather than disappearing.
+     */
+    public const CATEGORY_ORDER = ['Laptops', 'Desktops', 'Tablets', 'Displays', 'Accessories', 'Components', 'Scanners'];
+
+    /** Where a category sits in {@see CATEGORY_ORDER}; unlisted ones go last. */
+    public static function categoryRank(?string $category): int
+    {
+        $rank = array_search($category, self::CATEGORY_ORDER, true);
+
+        return $rank === false ? count(self::CATEGORY_ORDER) : $rank;
+    }
+
     protected $table = 'catalog_items';
 
     protected $fillable = [
