@@ -101,13 +101,26 @@ class ArrivalAllocator
      * a model we never provisioned all land on the manual allocation page,
      * which is what it is for.
      */
+    /**
+     * Whether an asset can be an arrival at all, judged from the row alone
+     * with no further queries: a vendor order reference and a serial.
+     * The observer asks this before deferring, so the thousands of assets
+     * that are plainly not arrivals never queue a callback.
+     */
+    public function couldBeArrival(Asset $asset): bool
+    {
+        $reference = trim((string) $asset->order_number);
+
+        return $reference !== '' && ! str_starts_with($reference, 'ECU-STORE-') && filled($asset->serial);
+    }
+
     public function autoAllocate(Asset $arrival): ?Asset
     {
-        $reference = trim((string) $arrival->order_number);
-
-        if ($reference === '' || str_starts_with($reference, 'ECU-STORE-') || ! filled($arrival->serial)) {
+        if (! $this->couldBeArrival($arrival)) {
             return null;
         }
+
+        $reference = trim((string) $arrival->order_number);
 
         // Only ever claims on behalf of an arrival nobody has touched:
         // assigned, or moved out of a pending status, means a human has
