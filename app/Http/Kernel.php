@@ -26,6 +26,7 @@ use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -45,6 +46,10 @@ class Kernel extends HttpKernel
      * @var array
      */
     protected $middleware = [
+        // Runs defer() callbacks after the response is sent. The modern
+        // bootstrap registers this itself; a legacy Kernel has to, or every
+        // defer() in an observer is silently a no-op over HTTP.
+        InvokeDeferredCallbacks::class,
         TrustProxies::class,
         NoSessionStore::class,
         PreventRequestsDuringMaintenance::class,
