@@ -12,7 +12,10 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
+use App\Models\CsiSchedule;
 use App\Services\ArrivalAllocator;
+use App\Services\SupplierAccounts;
+use App\Services\VendorOrderDispatch;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -174,9 +177,93 @@ class OrdersController extends Controller
     {
         $this->authorize('view', Order::class);
 
-        $order->load('supplier', 'company', 'adminuser', 'purchaseOrder', 'items.item', 'items.shipment', 'items.invoice', 'shipments', 'invoices');
+        $order->load('supplier', 'company', 'adminuser', 'purchaseOrder', 'items.item', 'items.catalogItem', 'items.shipment', 'items.invoice', 'shipments', 'invoices');
 
-        return view('orders/view', compact('order'));
+        return view('orders/view', [
+            'order' => $order,
+            // The quarter's open schedule pair, for the send panel's account
+            // picker — read live from the CSI mirror, never typed.
+            'leaseSchedules' => CsiSchedule::openScheduleNames(),
+        ]);
+    }
+
+    /**
+     * Send the order to the vendor's reps, and record that we did.
+     *
+     * The decisions — the readiness gates, who the mail reaches, the rule
+     * that only a real send is a send — live in {@see VendorOrderDispatch},
+     * shared with the API.
+     */
+    public function sendVendor(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
+            'order_cc' => 'nullable|string|max:65535',
+            'cc_users' => 'nullable|array',
+            'cc_users.*' => 'integer|exists:users,id',
+            'test' => 'nullable|boolean',
+        ]);
+
+        // An empty submission of the picker clears the list rather than being
+        // read as "leave it alone" — that is what unticking everyone means.
+        if ($request->has('cc_users')) {
+            $validated['cc_users'] = $validated['cc_users'] ?? [];
+        }
+
+        $test = $request->boolean('test');
+
+        $result = app(VendorOrderDispatch::class)->send($order, auth()->user(), $validated, $test);
+
+        if (! $result['sent']) {
+            return redirect()->route('orders.show', $order->id)->with('error', $result['error']);
+        }
+
+        return redirect()->route('orders.show', $order->id)
+            ->with('success', $test
+                ? trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]])
+                : trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])]));
+    }
+
+    /**
+     * Record the vendor's answer, and our answer to it — their loop: changes,
+     * the final quote we accept (telling them so, by default), and the order
+     * number they issue once placed.
+     */
+    public function vendorResponse(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'step' => 'required|string|in:sent,changes,confirm,order_number',
+            'vendor_sent_at' => 'nullable|date',
+            'funding_account' => 'nullable|string|in:'.implode(',', SupplierAccounts::keys()),
+            'lease_schedule' => 'nullable|string|max:191',
+            'vendor_changes_notes' => 'nullable|string|max:65535',
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'vendor_order_number' => 'nullable|string|max:191',
+            'notify_vendor' => 'nullable|boolean',
+        ]);
+
+        $result = app(VendorOrderDispatch::class)->respond(
+            $order,
+            $validated['step'],
+            $validated,
+            $request->boolean('notify_vendor')
+        );
+
+        if (! $result['ok']) {
+            return redirect()->route('orders.show', $order->id)->with('error', $result['error']);
+        }
+
+        return redirect()->route('orders.show', $order->id)->with('success', $result['message']);
     }
 
     public function destroy(Order $order): RedirectResponse

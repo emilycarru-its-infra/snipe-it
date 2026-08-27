@@ -119,6 +119,8 @@ class RequisitionsController extends Controller
             'unit_cost' => round($item->effectiveCost(), 2),
             'is_estimate' => $item->isEstimate(),
             'is_expired' => $item->isExpired(),
+            'quoted_at' => $item->quoted_at?->toDateString(),
+            'expires_at' => $item->expires_at?->toDateString(),
             'supplier' => $item->supplier?->name,
             'source' => $item->source,
         ];

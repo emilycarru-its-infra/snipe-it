@@ -4,9 +4,15 @@
 {{-- Written as markup rather than "## …" so it inherits the left alignment of
      this block: the layout centres headings by default, and on an order every
      line should start at the same left edge as the numbers under it. --}}
+@if ($accepted ?? false)
+<h2 style="text-align: left; margin: 0 0 12px; font-size: 18px;">{{ trans('mail.purchase_order_quote_accepted_heading', ['reference' => $reference, 'quote' => $order->quote_number ?: $reference]) }}</h2>
+
+<p style="text-align: left; margin: 0 0 14px;">{{ trans('mail.purchase_order_quote_accepted_intro', ['supplier' => $supplier->name ?? trans('general.supplier'), 'quote' => $order->quote_number ?: $reference]) }}</p>
+@else
 <h2 style="text-align: left; margin: 0 0 12px; font-size: 18px;">{{ trans('mail.requisition_vendor_order_heading', ['reference' => $reference]) }}</h2>
 
 <p style="text-align: left; margin: 0 0 14px;">{{ trans('mail.requisition_vendor_order_intro', ['supplier' => $supplier->name ?? trans('general.supplier'), 'reference' => $reference]) }}</p>
+@endif
 
 {{-- Every number in a table, nothing in a sentence: a purchaser reading this is
      checking figures against a quote, and a figure buried in prose has to be
@@ -77,7 +83,7 @@
 <p style="text-align: left; margin: 0 0 14px;">{{ trans_choice('mail.requisition_vendor_order_special_lines', $specialLines->count(), ['count' => $specialLines->count()]) }}</p>
 @endif
 
-@if (! filled($order->quote_number))
+@if (! filled($order->quote_number) && ! ($accepted ?? false))
 {{-- Unquoted orders are normal: ours are estimates by design and a few percent
      of drift consumes budget rather than invalidating the order. Say so plainly,
      so their desk quotes the current figure instead of treating our price list
@@ -90,7 +96,11 @@
      written for whoever types the order into Colleague, and none of it is the
      vendor's business or their instruction. Delivery detail reaches them on the
      attached purchase order, which is the document they act on. --}}
-<p style="text-align: left; margin: 0;">{{ trans_choice('mail.requisition_vendor_order_csv_note', $lineCount, ['lines' => $lineCount]) }}</p>
+<p style="text-align: left; margin: 0 0 14px;">{{ trans_choice('mail.requisition_vendor_order_csv_note', $lineCount, ['lines' => $lineCount]) }}</p>
+
+@if ($accepted ?? false)
+<p style="text-align: left; margin: 0;">{{ trans('mail.purchase_order_quote_accepted_footer', ['reference' => $reference]) }}</p>
+@endif
 
 </div>
 @endcomponent

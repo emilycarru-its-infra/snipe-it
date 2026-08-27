@@ -2,7 +2,6 @@
 
 namespace App\Models\Traits;
 
-use App\Models\RequisitionItem;
 use App\Services\SupplierAccounts;
 
 /**
@@ -16,8 +15,10 @@ use App\Services\SupplierAccounts;
  * record. It still has to show the same facts, so it reads them through here
  * rather than reimplementing them differently and drifting.
  *
- * The host provides `vendorOrderLines()` — for a purchase order, the lines of
- * every requisition that resolved to it; for a requisition, its own.
+ * The host provides `vendorOrderLines()`. The **order** — the record a send is
+ * made from, one per vendor order under a purchase order — supplies its own
+ * items; a **requisition** its lines. Both line types carry the same fields
+ * this reads: the two part numbers, a catalog row, quantity and unit cost.
  */
 trait PlacesVendorOrders
 {
@@ -90,12 +91,12 @@ trait PlacesVendorOrders
      * and issues them. Blocking those would push exactly the awkward orders back
      * into email, which is the thing this replaces.
      *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
+     * @return \Illuminate\Support\Collection
      */
     public function linesMissingPartNumbers()
     {
         return $this->vendorOrderLines()
-            ->filter(fn (RequisitionItem $line) => $line->catalog_item_id !== null
+            ->filter(fn ($line) => $line->catalog_item_id !== null
                 && (blank($line->vendor_sku) || blank($line->mfr_part_number)))
             ->values();
     }
@@ -105,12 +106,12 @@ trait PlacesVendorOrders
      * rather than left to be noticed, so their desk knows which lines need an
      * EDC issuing and which are simply charges.
      *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
+     * @return \Illuminate\Support\Collection
      */
     public function specialRequestLines()
     {
         return $this->vendorOrderLines()
-            ->filter(fn (RequisitionItem $line) => $line->catalog_item_id === null
+            ->filter(fn ($line) => $line->catalog_item_id === null
                 && blank($line->vendor_sku) && blank($line->mfr_part_number))
             ->values();
     }
@@ -124,14 +125,14 @@ trait PlacesVendorOrders
      * quietly wrong without anybody touching it. A warning, never a gate: a
      * stale number is their desk asking a question, not a wrong order.
      *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
+     * @return \Illuminate\Support\Collection
      */
     public function linesWithStalePartNumbers()
     {
         $cutoff = now()->subDays(self::PART_NUMBER_STALE_DAYS);
 
         return $this->vendorOrderLines()
-            ->filter(function (RequisitionItem $line) use ($cutoff) {
+            ->filter(function ($line) use ($cutoff) {
                 if ($line->catalog_item_id === null) {
                     return false;
                 }
@@ -155,7 +156,7 @@ trait PlacesVendorOrders
     /** Line items before tax, from whatever this record's lines are. */
     public function orderLinesTotal(): float
     {
-        return round($this->vendorOrderLines()->sum(fn (RequisitionItem $line) => $line->lineTotal()), 2);
+        return round($this->vendorOrderLines()->sum(fn ($line) => $line->lineTotal()), 2);
     }
 
     /**

@@ -281,23 +281,21 @@ class Requisition extends SnipeModel
      */
     public function linesEditable(): bool
     {
-        // Accepting the final quote is the point of no return, not the send:
-        // after that the vendor is placing what we agreed, and changing a line
-        // would leave the two sides holding different orders.
-        if ($this->quote_confirmed_at !== null) {
+        // Once finance has issued the purchase order, this is what was keyed
+        // into Colleague to get it, and it does not change. What the vendor
+        // is sent, quoted and places is the order raised under that purchase
+        // order, and repricing to a quote happens on the order's lines.
+        if ($this->purchase_order_id) {
             return false;
         }
 
         // Still in the builder, or the vendor has said something that makes our
         // figures wrong — a quote, or a substitution for a part they can no
-        // longer get. Both are reasons to reprice; the second arrives *after*
-        // the order has gone out, which is why sending alone does not lock it.
+        // longer get — before a purchase order exists.
         return $this->status === 'draft'
             || filled($this->quote_number)
             || $this->vendor_changes_at !== null;
     }
-
-
 
     /**
      * The number this requisition trades under: the PO number once finance

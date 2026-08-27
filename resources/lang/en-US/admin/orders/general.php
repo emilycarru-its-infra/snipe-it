@@ -11,6 +11,8 @@ return [
     'received_date' => 'Received Date',
     'order_cost' => 'Order Cost',
     'line_items' => 'Line Items',
+    'raised' => 'Order :order raised under purchase order :po.',
+    'raise_line_needs_description' => 'A line with no catalog row needs a description.',
     'no_line_items' => 'This order has no line items.',
     'item' => 'Item',
     'description' => 'Description',
