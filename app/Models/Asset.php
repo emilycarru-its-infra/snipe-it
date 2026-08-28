@@ -410,6 +410,14 @@ class Asset extends Depreciable
      * The list below is therefore fixed. Entries are PascalCase with no spaces
      * or punctuation, because both consumers treat the value as a path-safe
      * token. Adding a genuinely new area is a deliberate edit here.
+     *
+     * `Purchased` looks like a stray ownership type but is load-bearing: it is
+     * the offboarding route. Setting a device's area to it points the client at
+     * `Assigned/<catalog>/Purchased.yaml`, which includes `PullMgmt` and so
+     * uninstalls the management agents, blocks the device and removes the
+     * managed admin account. Munki gates that on `enrolled_area == 'Purchased'`
+     * and Cimian assigns the same manifest by the Purchased enrolment route.
+     * Removing it from this list makes a lease buyout unmanageable.
      */
     public const OWNERSHIP_TYPES = ['Purchased', 'Lease to Return', 'Lease to Own'];
 
@@ -422,6 +430,7 @@ class Asset extends Depreciable
         'Facilities', 'FilmScreenArts', 'Finance', 'FineArts', 'Foundation',
         'Gallery', 'GradStudies', 'HR', 'IT', 'Illustration', 'ImmersiveMedia',
         'Instructor', 'InteractionDesign', 'InteractiveProducts', 'Kiosk',
+        'Purchased',
         'Library', 'Loaner', 'MaterialMatters', 'MediaArts', 'MediaResources',
         'NewMediaSoundArts', 'Photo', 'Podium', 'President', 'PrintRelease',
         'RemoteCompute', 'RenderingFarm', 'Research', 'SelfService', 'Servers',
