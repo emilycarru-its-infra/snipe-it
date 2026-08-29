@@ -107,6 +107,9 @@ class AuthServiceProvider extends ServiceProvider
         // Federated identity: a provider-agnostic OIDC bearer guard, layered
         // alongside Passport via the `auth:oidc,api` multi-guard. Inert until
         // config('oidc.enabled') is true, so this is purely additive.
+        // `$name` is unused: Laravel fixes the driver-closure signature as
+        // ($app, $name, $config), and the guard is named by config/auth.php.
+        /** @SuppressWarnings(PHPMD.UnusedFormalParameter) */
         Auth::extend('oidc', function ($app, $name, array $config) {
             return new \App\Auth\OidcGuard(
                 Auth::createUserProvider($config['provider']),

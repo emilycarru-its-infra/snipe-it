@@ -16,6 +16,8 @@ use Tests\TestCase;
  * by a local RSA keypair. The validator's JWKS retrieval is stubbed with that
  * keypair's public key (the network/discovery path is unchanged in production),
  * so these tests never touch a network or a real IdP.
+ *
+ * @SuppressWarnings(PHPMD.TooManyMethods)
  */
 class OidcApiAuthTest extends TestCase
 {
@@ -39,6 +41,7 @@ class OidcApiAuthTest extends TestCase
             'private_key_bits' => 2048,
             'private_key_type' => OPENSSL_KEYTYPE_RSA,
         ]);
+        $privatePem = '';
         openssl_pkey_export($res, $privatePem);
         $this->privatePem = $privatePem;
         $publicPem = openssl_pkey_get_details($res)['key'];
@@ -49,7 +52,6 @@ class OidcApiAuthTest extends TestCase
             'oidc.audiences' => [$this->audience],
             'oidc.algorithms' => ['RS256'],
             'oidc.username_claim' => 'preferred_username',
-            'oidc.provision' => false,
             'oidc.leeway' => 60,
         ]);
 
@@ -57,8 +59,19 @@ class OidcApiAuthTest extends TestCase
         // hits the network; iss/aud/exp/signature validation still run for real.
         $this->app->instance(OidcTokenValidator::class, new class($publicPem, $this->kid) extends OidcTokenValidator
         {
-            public function __construct(private string $pub, private string $signingKid) {}
+            private string $pub;
 
+            private string $signingKid;
+
+            public function __construct(string $pub, string $signingKid)
+            {
+                $this->pub = $pub;
+                $this->signingKid = $signingKid;
+            }
+
+            /**
+             * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+             */
             protected function signingKeys(string $issuer): array
             {
                 return [$this->signingKid => new Key($this->pub, 'RS256')];

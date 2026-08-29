@@ -52,10 +52,6 @@ return [
     // arrives in `preferred_username`.
     'username_claim' => env('OIDC_API_USERNAME_CLAIM', 'preferred_username'),
 
-    // Just-in-time provisioning of unknown users. Off by default; when on, a new
-    // user is created with no extra permissions (an admin grants them after).
-    'provision' => env('OIDC_API_PROVISION', false),
-
     // Clock-skew leeway (seconds) for exp/nbf validation.
     'leeway' => (int) env('OIDC_API_LEEWAY', 60),
 
