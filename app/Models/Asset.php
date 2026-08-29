@@ -423,18 +423,37 @@ class Asset extends Depreciable
 
     public const LEASE_USAGES = ['Shared', 'Assigned'];
 
+    /**
+     * The closed area vocabulary.
+     *
+     * Area is a manifest path segment and part of an Entra group name, so a
+     * value that is not a place or an owning unit produces a tree nothing can
+     * target cleanly. Two consequences worth stating, because both were once
+     * wrong here:
+     *
+     * `Kiosk` is a *catalog*, not an area. While it was both, the manifest
+     * tree carried the same token at two levels of one path, and the machines
+     * filed under the area were not kiosks at all — they were lab, studio and
+     * print stations whose catalog was Curriculum. They now sit under the unit
+     * that owns them.
+     *
+     * `PrintRoom` exists because the print submission stations share a room
+     * with the Digital Output Centre production workstations but must not
+     * inherit their payload — auto-login, the SDL bundles, the Office suite
+     * and the DOC scripts menu. Room cannot separate them, so area must.
+     */
     public const LEASE_AREAS = [
         'AGP', 'Academic', 'Animation', 'CTS', 'Ceramics', 'Classroom',
         'Communication', 'CommunicationDesign', 'ContStudies', 'Counselling',
         'DOC', 'DesignDynamicMedia', 'Desktop', 'DigitalFabrication', 'Exhibit',
         'Facilities', 'FilmScreenArts', 'Finance', 'FineArts', 'Foundation',
         'Gallery', 'GradStudies', 'HR', 'IT', 'Illustration', 'ImmersiveMedia',
-        'Instructor', 'InteractionDesign', 'InteractiveProducts', 'Kiosk',
+        'Instructor', 'InteractionDesign', 'InteractiveProducts',
         'Purchased',
         'Library', 'Loaner', 'MaterialMatters', 'MediaArts', 'MediaResources',
         'NewMediaSoundArts', 'Photo', 'Podium', 'President', 'PrintRelease',
-        'RemoteCompute', 'RenderingFarm', 'Research', 'SelfService', 'Servers',
-        'Sessional', 'Show', 'Signage', 'SoftShop', 'StudServ',
+        'PrintRoom', 'RemoteCompute', 'RenderingFarm', 'Research', 'SelfService',
+        'Servers', 'Sessional', 'Show', 'Signage', 'SoftShop', 'StudServ',
         'TeachingLearning', 'TechServ', 'Unallocated', 'WIP', 'WritingCentre',
     ];
 
