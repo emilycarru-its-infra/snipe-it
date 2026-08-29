@@ -87,6 +87,8 @@ class AuthServiceProvider extends ServiceProvider
      * Register any authentication / authorization services.
      *
      * @return void
+     *
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     public function boot()
     {
@@ -109,7 +111,6 @@ class AuthServiceProvider extends ServiceProvider
         // config('oidc.enabled') is true, so this is purely additive.
         // `$name` is unused: Laravel fixes the driver-closure signature as
         // ($app, $name, $config), and the guard is named by config/auth.php.
-        /** @SuppressWarnings(PHPMD.UnusedFormalParameter) */
         Auth::extend('oidc', function ($app, $name, array $config) {
             return new \App\Auth\OidcGuard(
                 Auth::createUserProvider($config['provider']),

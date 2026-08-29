@@ -8,6 +8,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Support\Facades\Route;
 use Laravel\Passport\Passport;
+use PHPUnit\Framework\Assert;
 use Tests\TestCase;
 
 /**
@@ -57,23 +58,28 @@ class OidcApiAuthTest extends TestCase
 
         // Stub JWKS retrieval with the local public key so the validator never
         // hits the network; iss/aud/exp/signature validation still run for real.
-        $this->app->instance(OidcTokenValidator::class, new class($publicPem, $this->kid) extends OidcTokenValidator
+        $this->app->instance(OidcTokenValidator::class, new class($publicPem, $this->kid, $this->issuer) extends OidcTokenValidator
         {
             private string $pub;
 
             private string $signingKid;
 
-            public function __construct(string $pub, string $signingKid)
+            private string $expectedIssuer;
+
+            public function __construct(string $pub, string $signingKid, string $expectedIssuer)
             {
                 $this->pub = $pub;
                 $this->signingKid = $signingKid;
+                $this->expectedIssuer = $expectedIssuer;
             }
 
-            /**
-             * @SuppressWarnings(PHPMD.UnusedFormalParameter)
-             */
             protected function signingKeys(string $issuer): array
             {
+                // Keys are only ever served for the issuer the validator already
+                // matched against the trusted list -- asserting it here means an
+                // untrusted issuer can never reach key resolution unnoticed.
+                Assert::assertSame($this->expectedIssuer, $issuer);
+
                 return [$this->signingKid => new Key($this->pub, 'RS256')];
             }
         });
