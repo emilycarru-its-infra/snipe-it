@@ -68,7 +68,8 @@ class EditMaintenanceTest extends TestCase
         Storage::disk('local')->assertExists('private_uploads/maintenances/'.$uploadedLog->filename);
 
         $this->assertDatabaseHas('maintenances', [
-            'asset_id' => $asset->id,
+            'item_id' => $asset->id,
+            'item_type' => \App\Models\Asset::class,
             'supplier_id' => $supplier->id,
             'maintenance_type_id' => $type->id,
             'asset_maintenance_type' => $type->name,
@@ -260,6 +261,55 @@ class EditMaintenanceTest extends TestCase
             ->assertRedirect(route('maintenances.edit', $maintenance));
 
         $this->assertNull($maintenance->fresh()->completed_at);
+    }
+
+    public function test_edit_form_seeds_url_intended_from_referer_and_update_redirects_there()
+    {
+        $maintenance = Maintenance::factory()->create();
+        $type = MaintenanceType::factory()->create();
+        $filteredIndex = config('app.url').'/maintenances?completed=true';
+
+        $actor = User::factory()->superuser()->create();
+
+        // GET the edit form with a referer set (as the browser would)
+        // to seed session()['url.intended'].
+        $this->actingAs($actor)
+            ->from($filteredIndex)
+            ->get(route('maintenances.edit', $maintenance->id))
+            ->assertOk();
+
+        // The subsequent PUT should honor the seeded intended URL.
+        $this->actingAs($actor)
+            ->put(route('maintenances.update', $maintenance), [
+                'name' => 'Post-edit',
+                'asset_id' => $maintenance->asset_id,
+                'maintenance_type_id' => $type->id,
+                'start_date' => '2021-01-01 00:00:00',
+                'completion_date' => '2021-01-10 00:00:00',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect($filteredIndex);
+    }
+
+    public function test_edit_update_falls_back_to_index_when_url_intended_is_offsite()
+    {
+        $maintenance = Maintenance::factory()->create();
+        $type = MaintenanceType::factory()->create();
+
+        // Seed url.intended with an attacker-controlled URL directly, as
+        // if SamlController RelayState or a stale session value slipped
+        // it in. Helper::sameOriginUrl must reject it.
+        $this->actingAs(User::factory()->superuser()->create())
+            ->withSession(['url.intended' => 'https://evil.example.com/steal-session'])
+            ->put(route('maintenances.update', $maintenance), [
+                'name' => 'Post-edit',
+                'asset_id' => $maintenance->asset_id,
+                'maintenance_type_id' => $type->id,
+                'start_date' => '2021-01-01 00:00:00',
+                'completion_date' => '2021-01-10 00:00:00',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('maintenances.index'));
     }
 
     public function test_user_cannot_edit_maintenance_for_another_company_when_fmcs_enabled()

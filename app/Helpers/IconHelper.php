@@ -102,6 +102,8 @@ class IconHelper
             case 'request':
             case 'requested':
                 return 'fa-solid fa-bell-concierge';
+            case 'fulfill_multiple':
+                return 'fa-solid fa-arrows-down-to-people';
             case 'reports':
                 return 'fas fa-chart-bar';
             case 'heart':
@@ -173,6 +175,9 @@ class IconHelper
                 return 'far fa-life-ring';
             case 'plus':
                 return 'fas fa-plus';
+            case 'plus-minus':
+            case 'adjust-quantity':
+                return 'fa-solid fa-plus-minus';
             case 'history':
             case 'assetHistory':
                 return 'fa-solid fa-timeline';

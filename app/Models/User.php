@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Http\Traits\UniqueUndeletedTrait;
 use App\Models\Traits\CompanyableTrait;
+use App\Models\Traits\HasCalendarEvents;
 use App\Models\Traits\HasUploads;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\Access\Authorizable;
@@ -35,6 +37,7 @@ use Watson\Validating\ValidatingTrait;
 class User extends SnipeModel implements AuthenticatableContract, AuthorizableContract, CanResetPasswordContract, HasLocalePreference
 {
     use CompanyableTrait;
+    use HasCalendarEvents;
     use HasFactory;
     use HasUploads;
 
@@ -46,6 +49,22 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
     use Presentable;
     use Searchable;
     use UniqueUndeletedTrait;
+
+    /**
+     * Fields governed by the `canEditAuthFields` gate: credentials (username,
+     * email, password), the activation flag, and the permission blob. Any
+     * controller / importer / job that mass-assigns from user input must gate
+     * writes to these fields on `canEditAuthFields` against the target, and
+     * signal denial rather than silently dropping them. Add to this list to
+     * bring a new field under the same gate everywhere at once.
+     */
+    public const GATED_AUTH_FIELDS = [
+        'password',
+        'username',
+        'email',
+        'activated',
+        'permissions',
+    ];
 
     protected $hidden = [
         'password',
@@ -309,6 +328,8 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      * This overrides the SnipeModel displayName accessor to return the full name if display_name is not set
      *
      * @see SnipeModel::displayName()
+     *
+     * @return Attribute<string|null, mixed>
      */
     protected function displayName(): Attribute
     {
@@ -641,15 +662,39 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      */
     public function isDeletable()
     {
-
         return Gate::allows('delete', $this)
-            && (($this->assets_count ?? $this->assets()->count()) === 0)
+            && $this->hasNoAssignmentBlockers()
+            && ($this->deleted_at == '');
+    }
+
+    public function calendarEventDefinitions(): array
+    {
+        return [
+            [
+                'field' => 'end_date',
+                'event_type' => 'user.end_date',
+                'all_day' => true,
+            ],
+        ];
+    }
+
+    /**
+     * The association-blocker half of isDeletable(): true only when the
+     * user has no assigned assets / accessories / licenses / consumables
+     * and isn't managing any users or locations. Split out from
+     * isDeletable() so scripts running outside a request context,
+     * Artisan `snipeit:ldap-sync --delete` flow in particular, can share
+     * the exact same rule without needing an authenticated Gate user to
+     * satisfy the delete-permission check.
+     */
+    public function hasNoAssignmentBlockers(): bool
+    {
+        return (($this->assets_count ?? $this->assets()->count()) === 0)
             && (($this->accessories_count ?? $this->accessories()->count()) === 0)
             && (($this->licenses_count ?? $this->licenses()->count()) === 0)
             && (($this->consumables_count ?? $this->consumables()->count()) === 0)
             && (($this->manages_users_count ?? $this->managesUsers()->count()) === 0)
-            && (($this->manages_locations_count ?? $this->managedLocations()->count()) === 0)
-            && ($this->deleted_at == '');
+            && (($this->manages_locations_count ?? $this->managedLocations()->count()) === 0);
     }
 
     /**
@@ -749,6 +794,16 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      */
     public function syncCompaniesWithLogging(array $companyIds): void
     {
+        // Belt-and-suspenders coercion so no caller — API, web, importer,
+        // artisan, tinker, a queue job, a future FMCS refactor — can slip
+        // nested arrays or other non-scalars into ->sync(), which would
+        // bind them into SQL query params and trip "Array to string
+        // conversion" (elevated to ErrorException by Laravel's error
+        // handler). Reduce to a flat, unique list of positive int ids.
+        $companyIds = array_values(array_unique(array_filter(
+            array_map('intval', array_filter($companyIds, 'is_scalar'))
+        )));
+
         $oldIds = $this->companies()->orderBy('companies.id')->pluck('companies.id')->toArray();
         $this->companies()->sync($companyIds);
         $newIds = $this->companies()->orderBy('companies.id')->pluck('companies.id')->toArray();
@@ -779,6 +834,60 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         $logAction->created_by = auth()->id();
         $logAction->log_meta = json_encode($companyChange);
         $logAction->logaction('update');
+    }
+
+    /**
+     * FMCS-safe wrapper around syncCompaniesWithLogging() for the user
+     * update path. Folds the target's memberships in companies the
+     * editor cannot see back into the submitted list before syncing,
+     * so a scoped editor's save can't silently detach the target from
+     * tenants outside the editing user's own membership.
+     *
+     * Superuser editors skip the merge because they can see every
+     * company, so their submission already represents full intent.
+     */
+    public function syncCompaniesPreservingInvisibleTo(User $editor, array $submittedCompanyIds): void
+    {
+        $submitted = array_map('intval', $submittedCompanyIds);
+
+        // FMCS is off, so every user can see every company
+        // and there is no invisible-to-editor set to preserve. Superuser
+        // editors also skip because their submission already
+        // represents full intent across all tenants.
+        $fmcsOn = (bool) Setting::getSettings()->full_multiple_companies_support;
+        if (! $fmcsOn || $editor->isSuperUser()) {
+            $this->syncCompaniesWithLogging($submitted);
+
+            return;
+        }
+
+        // Read editor + target memberships directly from the pivot so
+        // Company's global CompanyableScope does not filter Companies
+        // down to what the acting user (the editor) can see before we
+        // compute the invisible-to-editor set. Going through
+        // $editor->companies() / $this->companies() under a scoped
+        // non-superuser editor would return only the editor's own
+        // companies from the Companies side of the join, which turns
+        // the whereNotIn below into an empty result and drops every
+        // preserved company. See GH #19569.
+        $editorVisible = DB::table('company_user')
+            ->where('user_id', $editor->id)
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $submittedVisible = array_values(array_intersect($submitted, $editorVisible));
+
+        $invisiblePreserved = DB::table('company_user')
+            ->where('user_id', $this->id)
+            ->whereNotIn('company_id', $editorVisible)
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $this->syncCompaniesWithLogging(
+            array_values(array_unique(array_merge($submittedVisible, $invisiblePreserved))),
+        );
     }
 
     /**
@@ -867,6 +976,9 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         return $this->last_name ? $this->first_name.' '.$this->last_name : $this->first_name;
     }
 
+    /**
+     * @return Attribute<string, never>
+     */
     protected function linkLightColor(): Attribute
     {
         return Attribute::make(
@@ -886,6 +998,9 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         );
     }
 
+    /**
+     * @return Attribute<string, never>
+     */
     protected function linkDarkColor(): Attribute
     {
         return Attribute::make(
@@ -905,6 +1020,9 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         );
     }
 
+    /**
+     * @return Attribute<string, never>
+     */
     protected function navLinkColor(): Attribute
     {
         return Attribute::make(
@@ -964,7 +1082,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      * and from responsibleParty() (whoever is responsible for completion).
      * Used by the user detail view's Maintenances tab and badge count.
      */
-    public function assignedMaintenances()
+    public function assignedMaintenances(): MorphMany
     {
         return $this->morphMany(Maintenance::class, 'checked_out_to')->withTrashed();
     }
@@ -1307,17 +1425,18 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      * @return string
      */
     /**
-     * Verify that a resolved local user's stored username byte-exactly matches
-     * the externally-supplied identifier. The MySQL/MariaDB default collation
-     * utf8mb4_unicode_ci folds accents and case, so `WHERE username = ?` on
-     * that engine can silently route 'snípeitreport3' or 'Admin' to the row
-     * for 'snipeitreport3' or 'admin'. Federated/SSO auth flows (SAML, LDAP,
-     * REMOTE_USER, Google OAuth) must call this after their username lookup
-     * so an attacker-controlled external identifier can't authenticate as a
-     * different local account. hash_equals runs in constant time so this
-     * check doesn't leak any timing signal.
+     * The MySQL/MariaDB default collation utf8mb4_unicode_ci folds accents
+     * and case, so `WHERE username = ?` on that engine can silently route
+     * 'snípeitreport3' (with an accent on the i) to the row for 'snipeitreport3'.
      *
-     * Returns the user when the strings match byte-for-byte, null otherwise.
+     * Federated/SSO auth flows (SAML, LDAP, REMOTE_USER, Google OAuth) must call
+     * this after their username lookup so an attacker-controlled external identifier
+     * can't authenticate as a different local account. hash_equals runs in constant
+     * time so this check doesn't leak any timing signal.
+     *
+     * Returns the user when the strings match byte-for-byte after lowercasing,
+     * null otherwise. (This was previously just bite-for-bite, but most IdPs are
+     * case-insensitive, so we normalize to lowercase before comparing.)
      */
     public static function verifyExactUsernameMatch(?self $user, string $expected): ?self
     {
@@ -1325,7 +1444,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
             return null;
         }
 
-        return hash_equals((string) $user->username, $expected) ? $user : null;
+        return hash_equals(mb_strtolower((string) $user->username), mb_strtolower($expected)) ? $user : null;
     }
 
     public static function generateEmailFromFullName($name)
@@ -1687,28 +1806,43 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         $asset_cost = 0;
         $license_cost = 0;
         $accessory_cost = 0;
+        $consumable_cost = 0;
         $maintenance_cost = 0;
+
         foreach ($this->assets as $asset) {
-            $asset_cost += $asset->purchase_cost;
-            $this->asset_cost = $asset_cost;
+            $asset_cost += (float) $asset->purchase_cost;
         }
+        $this->asset_cost = $asset_cost;
+
         foreach ($this->licenses as $license) {
-            $license_cost += $license->purchase_cost;
-            $this->license_cost = $license_cost;
+            $license_cost += (float) $license->purchase_cost;
         }
+        $this->license_cost = $license_cost;
+
+        // Accessory / consumable unit cost tracks the info-panel's "last
+        // unit cost" so this tally matches the per-item rows in the tab
+        // tables. lastOrderDefaults() already merges last-Order price
+        // with the parent's `default_purchase_cost` template value when
+        // an item has no order history, so nothing to fall back to here.
         foreach ($this->accessories as $accessory) {
-            $accessory_cost += $accessory->purchase_cost;
-            $this->accessory_cost = $accessory_cost;
+            $accessory_cost += (float) ($accessory->lastOrderDefaults()['unit_cost'] ?? 0);
         }
+        $this->accessory_cost = $accessory_cost;
+
+        foreach ($this->consumables as $consumable) {
+            $consumable_cost += (float) ($consumable->lastOrderDefaults()['unit_cost'] ?? 0);
+        }
+        $this->consumable_cost = $consumable_cost;
+
         // Maintenances tied to this user as the polymorphic checked_out_to
-        // target. Summed across open + completed records — the user
-        // "caused" both.
+        // target. Summed across open + completed records because the
+        // user "caused" both.
         foreach ($this->assignedMaintenances as $maintenance) {
-            $maintenance_cost += $maintenance->cost;
+            $maintenance_cost += (float) $maintenance->cost;
         }
         $this->maintenance_cost = $maintenance_cost;
 
-        $this->total_user_cost = ($asset_cost + $accessory_cost + $license_cost + $maintenance_cost);
+        $this->total_user_cost = $asset_cost + $accessory_cost + $consumable_cost + $license_cost + $maintenance_cost;
 
         return $this;
     }
@@ -1727,7 +1861,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
             ->orWhere('users.employee_num', 'LIKE', '%'.$search.'%')
             ->orWhere('users.username', 'LIKE', '%'.$search.'%')
             ->orWhere('users.display_name', 'LIKE', '%'.$search.'%')
-            ->orwhereRaw('CONCAT(users.first_name," ",users.last_name) LIKE \''.$search.'%\'');
+            ->orWhereRaw('CONCAT(users.first_name," ",users.last_name) LIKE ?', [$search.'%']);
 
     }
 

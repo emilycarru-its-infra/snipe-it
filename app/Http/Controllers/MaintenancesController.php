@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ActionType;
+use App\Helpers\Helper;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\UploadFileRequest;
 use App\Models\Actionlog;
@@ -104,7 +105,13 @@ class MaintenancesController extends Controller
             $maintenance->name = $request->input('name');
             $maintenance->start_date = $request->input('start_date');
             $maintenance->expected_completion_date = $request->input('expected_completion_date', $request->input('completion_date'));
-            $maintenance->responsible_party_id = $request->input('responsible_party_id') ?: auth()->id();
+            // Honor an explicit clear: an empty submission means "no
+            // responsible party," not "default to the creator." The
+            // create form pre-selects the current user as a UX default
+            // (edit.blade.php), so a submitted null here is a
+            // deliberate deselection by the user. Matches update()'s
+            // behavior. Fixes issue #19452.
+            $maintenance->responsible_party_id = $request->input('responsible_party_id');
             $maintenance->created_by = auth()->id();
 
             // Backfilled completion: user is recording a maintenance that
@@ -151,6 +158,15 @@ class MaintenancesController extends Controller
     {
         $this->authorize('update', Asset::class);
         $this->authorize('update', $maintenance->asset);
+
+        // Capture the referring page (filtered index, asset-detail tab)
+        // server-side so update() can restore the caller's context via
+        // redirect()->intended() without trusting a hidden form field.
+        // Same-origin gated on write; also host-validated on read in
+        // update() below.
+        if ($safeReferer = Helper::sameOriginUrl(url()->previous())) {
+            session()->put('url.intended', $safeReferer);
+        }
 
         return view('maintenances/edit')
             ->with('selected_assets', $maintenance->asset->pluck('id')->toArray())
@@ -206,7 +222,14 @@ class MaintenancesController extends Controller
                 $this->logMaintenanceCompleteAction($maintenance);
             }
 
-            return redirect()->route('maintenances.index')
+            // url.intended was seeded from url()->previous() in edit();
+            // sanitize through Helper::sameOriginUrl() (rejects off-host
+            // and non-http(s) schemes) so an attacker-controlled referrer
+            // can't turn this into an open-redirect. Falls back to the
+            // plain index when the stored URL is missing or unsafe.
+            $target = Helper::sameOriginUrl(session()->pull('url.intended')) ?? route('maintenances.index');
+
+            return redirect($target)
                 ->with('success', trans('admin/maintenances/message.edit.success'));
         }
 
@@ -282,7 +305,7 @@ class MaintenancesController extends Controller
         }
 
         $objectType = 'maintenances';
-        $storagePath = self::$map_storage_path[$objectType];
+        $storagePath = parent::getMapStoragePath()[$objectType];
 
         if (! Storage::exists($storagePath)) {
             Storage::makeDirectory($storagePath, 775);
@@ -297,7 +320,7 @@ class MaintenancesController extends Controller
 
             $fileName = $uploadFileRequest->handleFile(
                 $storagePath,
-                self::$map_file_prefix[$objectType].'-'.$maintenance->id,
+                parent::getMapFilePrefix()[$objectType].'-'.$maintenance->id,
                 $file
             );
 

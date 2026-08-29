@@ -14,6 +14,7 @@ use App\Models\Import;
 use App\Models\License;
 use App\Models\Location;
 use App\Models\Manufacturer;
+use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -103,6 +104,12 @@ class Importer extends Component
 
     public $update;
 
+    // When true, blank CSV cells during an update pass are ignored (the DB
+    // value stays put). Default false matches the legacy behavior: a
+    // present-but-empty cell clears the corresponding DB column. Only the
+    // update flow reads it. New-row inserts ignore it entirely.
+    public $preserve_blanks = false;
+
     public $send_welcome;
 
     public $run_backup;
@@ -161,7 +168,19 @@ class Importer extends Component
         'accessory' => [Accessory::class, ['item_name' => 'name', 'category' => 'category_id']],
         'consumable' => [Consumable::class, ['item_name' => 'name', 'category' => 'category_id']],
         'component' => [ComponentModel::class, ['item_name' => 'name', 'category' => 'category_id']],
-        'license' => [License::class, ['item_name' => 'name', 'seats' => 'seats']],
+        // license: only item_name is enforced at wizard level. `seats` is
+        // the license's total capacity count (not a per-seat pivot id).
+        // License imports currently drive three different intents depending
+        // on the row shape: (1) create a new License with N seats,
+        // (2) update an existing License's capacity, (3) assign a user or
+        // asset to one of an existing License's free seats. The importer
+        // figures out which path each row takes at process time. seats is
+        // only needed for (1) and (2); (3) doesn't reference it. Since the
+        // wizard can't know per-row which path a caller intends, we don't
+        // enforce seats at the wizard level. Server-side validation still
+        // enforces `seats` on the create path per License::$rules. See
+        // issue #19467.
+        'license' => [License::class, ['item_name' => 'name']],
         'user' => [User::class, ['first_name' => 'first_name', 'username' => 'username']],
         'location' => [Location::class, ['name' => 'name']],
         'supplier' => [Supplier::class, ['name' => 'name']],
@@ -199,7 +218,14 @@ class Importer extends Component
         $tmp = [];
         if ($this->activeFile) {
             $tmp = array_combine($this->headerRow, $this->field_map);
-            $tmp = array_filter($tmp);
+            // Drop only nulls (columns the auto-map couldn't bind to
+            // anything for this import type). Preserve empty strings,
+            // which encode the user's explicit "Do not import" choice
+            // in the wizard select. Bare array_filter($tmp) treats both
+            // as falsy and silently loses the user selection, forcing
+            // them to re-set "Do not import" every time the template
+            // is reloaded (see the wizard-side companion fix for #19450).
+            $tmp = array_filter($tmp, fn ($v) => $v !== null);
         }
 
         return json_encode($tmp);
@@ -386,9 +412,12 @@ class Importer extends Component
             'supplier' => trans('general.supplier'),
             'warranty_months' => trans('admin/hardware/form.warranty'),
             /**
-             * Checkout fields:
-             * Assets can be checked out to other assets, people, or locations, but we currently
-             * only support checkout to people and locations in the importer
+             * Checkout fields. Assets can be checked out to other assets, people, or
+             * locations. Which target the importer picks is inferred from which of the
+             * three target-shape columns has a value on the row (checkout_asset,
+             * checkout_location, or the user-identity columns). checkout_class stays
+             * available as an explicit override when a row has more than one populated
+             * and needs disambiguation, or for backward-compat with pre-inference CSVs.
              **/
             'checkout_class' => trans('general.importer.checkout_type'),
             'first_name' => trans('general.importer.checked_out_to_first_name'),
@@ -397,6 +426,8 @@ class Importer extends Component
             'email' => trans('general.importer.checked_out_to_email'),
             'username' => trans('general.importer.checked_out_to_username'),
             'checkout_location' => trans('general.importer.checkout_location'),
+            'checkout_asset' => trans('general.importer.checkout_asset'),
+            'checkout_user' => trans('general.importer.checkout_user'),
             /**
              * These are here so users can import history, to replace the dinosaur that
              * was the history importer
@@ -593,6 +624,16 @@ class Importer extends Component
             'email' => trans('general.email'),
             'checkout_date' => trans('admin/hardware/table.checkout_date'),
             'checkin_date' => trans('admin/hardware/form.checkin_date'),
+            // Optional. Values "user" or "location" (case-insensitive)
+            // disambiguate what Name should resolve to. Absent or empty
+            // falls back to user for CSVs authored before the location
+            // branch existed.
+            'target_type' => trans('general.importer.checkout_type'),
+            // Optional per-row note that lands on the checkout
+            // actionlog. Legacy systems often carried a per-checkout
+            // narrative ("student damaged screen", "shipped to remote
+            // site"), and the column lets that history migrate through.
+            'notes' => trans('general.notes'),
         ];
 
         /**
@@ -615,6 +656,11 @@ class Importer extends Component
                 'name',
                 'supplier name',
                 'location name',
+                trans('general.name'),
+                trans('general.asset_name'),
+                trans('general.item_name'),
+                trans('general.model_name'),
+                trans('admin/hardware/form.name'),
             ],
             'item_no' => [
                 'item number',
@@ -819,22 +865,59 @@ class Importer extends Component
             return;
         }
 
+        $path = config('app.private_uploads').'/imports/'.$this->activeFile->file_path;
+        if (! is_file($path)) {
+            $this->message = trans('admin/hardware/message.import.file_missing_on_disk');
+            $this->message_type = 'danger';
+
+            return;
+        }
+
+        $this->activeFileRowCount = $this->countActiveFileRows();
+        if ($this->activeFileRowCount === 0) {
+            $this->message = trans('admin/hardware/message.import.file_empty');
+            $this->message_type = 'danger';
+
+            return;
+        }
+
         $this->headerRow = $this->activeFile->header_row;
+
+        // header_row is populated by the initial upload path but can be null for
+        // legacy imports created before that column was persisted, or for rows
+        // where a background job never wrote it. Without this guard the foreach
+        // below explodes with "foreach() argument must be of type array|object,
+        // null given" and the wizard is unrecoverable.
+        if (! is_array($this->headerRow) || $this->headerRow === []) {
+            $this->message = trans('admin/hardware/message.import.header_row_missing');
+            $this->message_type = 'danger';
+
+            return;
+        }
+
         $this->typeOfImport = $this->activeFile->import_type;
 
         $this->field_map = null;
         foreach ($this->headerRow as $element) {
             if (isset($this->activeFile->field_map[$element])) {
+                // Preserved values may be either a real target-field key
+                // or the empty string "" (user's explicit "Do not import"
+                // choice, persisted by generate_field_map). Push through
+                // as-is; the blade side's is_null-based @continue keeps
+                // "" rows visible so the user can flip them back.
                 $this->field_map[] = $this->activeFile->field_map[$element];
             } else {
-                $this->field_map[] = null; // re-inject the 'nulls' if a file was imported with some 'Do Not Import' settings
+                // Header wasn't in the saved map at all. Treat as
+                // never-mapped (auto-map couldn't bind or this header
+                // is new since the template was saved). Null hides the
+                // row in the wizard by design.
+                $this->field_map[] = null;
             }
         }
 
         $this->file_id = $id;
         $this->import_errors = null;
         $this->statusText = null;
-        $this->activeFileRowCount = $this->countActiveFileRows();
         $this->wizardStep = 1;
         $this->previewRows = [];
         $this->processing = false;
@@ -853,10 +936,13 @@ class Importer extends Component
      */
     public function startProcessing(bool $withBackup = false): void
     {
-        // Demo mode: the actual per-slice POSTs would 422 out of
-        // Api\ImportController::process() anyway, but bail here so we
-        // don't even flip the UI into processing mode.
-        if (config('app.lock_passwords')) {
+        // Demo mode: uploads are blocked at Api\ImportController::store,
+        // but a demo superadmin should still be able to run the seeded
+        // sample imports so the end-to-end flow is exercisable in the
+        // demo. Non-superadmins get the same "feature disabled" bail as
+        // before. Api\ImportController::process() applies the matching
+        // gate on the per-slice POSTs.
+        if (config('app.lock_passwords') && ! auth()->user()->isSuperUser()) {
             $this->message = trans('general.feature_disabled');
             $this->message_type = 'danger';
 
@@ -995,21 +1081,17 @@ class Importer extends Component
             }
         }
 
-        // Asset imports let users map custom fields on top of the built-in
-        // ones. A custom field marked required in ANY fieldset should be
-        // flagged as required at the wizard level - we can't know per-row
-        // which fieldset each asset will land in, so we treat the union
-        // across all fieldsets as the safe requirement set. Users see the
-        // strictest possible bar and can back out if their CSV doesn't
-        // cover it.
-        if ($type === 'asset') {
-            $requiredCustomFields = CustomField::whereHas(
-                'fieldset',
-                fn ($q) => $q->where('custom_field_custom_fieldset.required', 1),
-            )->get()->map->db_column_name()->all();
-
-            $required = array_values(array_unique(array_merge($required, $requiredCustomFields)));
-        }
+        // Custom fields are intentionally NOT flagged as required at the
+        // wizard level for asset imports. Required-ness varies per fieldset,
+        // and a CSV can span multiple asset models pointing at different
+        // fieldsets, so a field required in Fieldset A may be irrelevant
+        // for rows destined for Fieldset B (issue #19468). Server-side
+        // validation on Asset::save() enforces the correct per-asset rule
+        // via customFieldValidationRules() -> $model->fieldset->validation_rules(),
+        // which reads the pivot->required flag for the specific fieldset
+        // attached to the row's model. Rows that legitimately need the
+        // field will still fail at save-time and surface in the import
+        // error output.
 
         return $required;
     }
@@ -1048,6 +1130,9 @@ class Importer extends Component
 
             $rows = [];
             foreach ($reader->getRecords() as $row) {
+                if (self::rowIsBlank($row)) {
+                    continue;
+                }
                 $rows[] = $row;
                 if (count($rows) >= self::PREVIEW_ROW_LIMIT) {
                     break;
@@ -1061,10 +1146,11 @@ class Importer extends Component
     }
 
     /**
-     * Count the number of data rows (excluding the header row) in the
-     * currently active file's CSV. Returns 0 if the file is missing or the
-     * CSV can't be read - the modal will render "0 rows" and the caller
-     * can still choose to cancel out.
+     * Count the number of NON-BLANK data rows in the currently active file's
+     * CSV. Rows where every cell is empty (like ",,,,,,") are excluded so
+     * a file that is technically 50 rows tall but has nothing importable
+     * counts as 0 and the wizard's file_empty guard refuses to open. Returns
+     * 0 also when the file is missing or the CSV can't be read.
      */
     private function countActiveFileRows(): int
     {
@@ -1081,10 +1167,34 @@ class Importer extends Component
             $reader = Reader::createFromPath($path);
             $reader->setHeaderOffset(0);
 
-            return iterator_count($reader->getRecords());
+            $count = 0;
+            foreach ($reader->getRecords() as $row) {
+                if (! self::rowIsBlank($row)) {
+                    $count++;
+                }
+            }
+
+            return $count;
         } catch (\Throwable $e) {
             return 0;
         }
+    }
+
+    /**
+     * True when every value in the CSV row is an empty string (after trim).
+     * Used to skip cells like ",,,,,,,," that carry no information but pad
+     * the file length and would otherwise inflate row counts, appear in the
+     * preview, and dispatch pointless slices to the server on Process.
+     */
+    private static function rowIsBlank(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (trim((string) $value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function destroy($id)
@@ -1198,6 +1308,62 @@ class Importer extends Component
         //
     }
 
+    /**
+     * True when the current field_map maps any user-identifying column
+     * (username, email, first/last/full/display name, or checkout_user).
+     * Asset / accessory / consumable / license imports may check items
+     * out to users, in which case the wizard should surface the
+     * send-welcome checkbox even though the import type isn't 'user'.
+     * The welcome email itself only fires when a new user is actually
+     * created; existing-user matches don't retrigger it.
+     */
+    #[Computed]
+    public function hasUserCheckoutMapping(): bool
+    {
+        if (empty($this->field_map) || ! is_array($this->field_map)) {
+            return false;
+        }
+
+        $userIdentityFields = [
+            'username',
+            'checkout_user',
+            'email',
+            'first_name',
+            'last_name',
+            'full_name',
+            'display_name',
+        ];
+
+        foreach ($this->field_map as $mapped) {
+            if (in_array($mapped, $userIdentityFields, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * True when the current user's FMCS memberships restrict what they
+     * can import into. Superusers, and empty-pivot floater actors skip this.
+     */
+    #[Computed]
+    public function showFmcsRestrictionNotice(): bool
+    {
+        if (auth()->user()->isSuperUser()) {
+            return false;
+        }
+
+        $settings = Setting::getSettings();
+        if (! $settings->full_multiple_companies_support) {
+            return false;
+        }
+
+        $userCompanyIds = auth()->user()->companies()->pluck('companies.id')->all();
+
+        return ! (empty($userCompanyIds) && $settings->null_company_is_floater);
+    }
+
     #[Computed]
     public function files()
     {
@@ -1231,6 +1397,11 @@ class Importer extends Component
      * superuser). Kept as a method so the view can guard both the row
      * checkbox and the singular delete button consistently.
      */
+    public function fileMissingOnDisk(Import $import): bool
+    {
+        return ! is_file(config('app.private_uploads').'/imports/'.$import->file_path);
+    }
+
     public function canDeleteFile(Import $import): bool
     {
         return auth()->user()->id === $import->created_by || auth()->user()->isSuperUser();

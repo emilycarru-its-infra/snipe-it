@@ -20,6 +20,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Intervention\Image\ImageManagerStatic as Image;
@@ -850,41 +852,45 @@ class Helper
         // Push the "below threshold" filter into SQL via havingRaw on the
         // withCount alias, so only rows that will actually alert get
         // hydrated. Previous shape loaded every row with min_amt set and
-        // filtered in PHP — on a 1000-item deployment with 5 low-inventory
-        // items that meant 200× more rows than needed. Also select only
+        // filtered in PHP. On a 1000-item deployment with 5 low-inventory
+        // items that meant 200x more rows than needed. Also select only
         // the columns the foreach uses (id / name / qty / min_amt),
         // avoiding hydration of long text columns like License::serial.
         // select() must come BEFORE withCount(): withCount uses addSelect
         // under the hood, so a select() after would wipe the count alias.
-        // GROUP BY primary key satisfies SQLite's strict "HAVING requires
-        // an aggregated query" check — MariaDB allows bare HAVING but the
-        // test suite runs SQLite. Grouping by a unique key is a no-op for
-        // row cardinality (functional dependency), so nothing else shifts.
+        //
+        // GROUP BY every selected column, not just the primary key. Under
+        // ONLY_FULL_GROUP_BY, MySQL and MariaDB are supposed to accept
+        // "GROUP BY <PK>, SELECT <other cols>" via functional-dependency
+        // detection, but that detection fails on some MariaDB versions
+        // when a correlated subquery is in the SELECT list (withCount
+        // generates one). Since id is unique, adding the other columns
+        // is a cardinality no-op and works on every engine + sql_mode.
         $consumables = Consumable::select('id', 'name', 'qty', 'min_amt')
             ->withCount('consumableAssignments as consumables_users_count')
             ->whereNotNull('min_amt')
-            ->groupBy('consumables.id')
+            ->groupBy('consumables.id', 'consumables.name', 'consumables.qty', 'consumables.min_amt')
             ->havingRaw('(qty - consumables_users_count) < (min_amt + ?)', [$alert_threshold])
             ->get();
 
         $accessories = Accessory::select('id', 'name', 'qty', 'min_amt')
             ->withCount('checkouts as checkouts_count')
             ->whereNotNull('min_amt')
-            ->groupBy('accessories.id')
+            ->groupBy('accessories.id', 'accessories.name', 'accessories.qty', 'accessories.min_amt')
             ->havingRaw('(qty - checkouts_count) < (min_amt + ?)', [$alert_threshold])
             ->get();
 
         $components = Component::select('id', 'name', 'qty', 'min_amt')
             ->withCount('assets as sum_unconstrained_assets')
             ->whereNotNull('min_amt')
-            ->groupBy('components.id')
+            ->groupBy('components.id', 'components.name', 'components.qty', 'components.min_amt')
             ->havingRaw('(qty - sum_unconstrained_assets) < (min_amt + ?)', [$alert_threshold])
             ->get();
 
         $asset_models = AssetModel::select('id', 'name', 'min_amt')
             ->where('min_amt', '>', 0)
             ->withCount(['availableAssets', 'assets'])
-            ->groupBy('models.id')
+            ->groupBy('models.id', 'models.name', 'models.min_amt')
             ->havingRaw('available_assets_count < (min_amt + ?)', [$alert_threshold])
             ->get();
 
@@ -898,7 +904,7 @@ class Helper
         $licenses = License::select('id', 'name', 'min_amt')
             ->withCount('availCount as licenses_available')
             ->where('min_amt', '>', 0)
-            ->groupBy('licenses.id')
+            ->groupBy('licenses.id', 'licenses.name', 'licenses.min_amt')
             ->havingRaw('licenses_available < (min_amt + ?)', [$alert_threshold])
             ->get();
 
@@ -1261,6 +1267,52 @@ class Helper
         return $string;
     }
 
+    /**
+     * Resolves the value to render in a custom-field form input for the current
+     * request. Encapsulates the "encrypted + no view.encrypted_custom_fields
+     * gate" branch so every element type in custom_fields_form.blade.php
+     * consults the same rule, and any future form template can call one method
+     * rather than reconstructing the ternary inline.
+     *
+     * Returns the shared masked-value string when the field is encrypted and
+     * the caller cannot view encrypted custom fields. Otherwise returns the
+     * decrypted stored value for the given $item, or the model-scoped default
+     * value when no $item is present (create form path).
+     */
+    public static function customFieldFormValue(CustomField $field, $item, $model)
+    {
+        if ($field->field_encrypted && ! Gate::allows('assets.view.encrypted_custom_fields')) {
+            return strtoupper(trans('admin/custom_fields/general.encrypted'));
+        }
+
+        $value = isset($item)
+            ? self::gracefulDecrypt($field, $item->{$field->db_column_name()})
+            : $field->defaultValue($model->id);
+
+        // DATE / DATETIME custom fields can hold non-YYYY-MM-DD strings
+        // in the DB (e.g. `3/28/2025` from a historic CSV import that
+        // shoved raw cell values into the column). The datepicker
+        // widgets expect `Y-m-d` / `Y-m-d H:i:s` and blank or mangle
+        // anything else. AssetsTransformer already normalizes on the
+        // view / API read path via getFormattedDateObject; do the
+        // same here so the edit form renders a value the picker can
+        // hydrate. Save cycle rewrites the column to YYYY-MM-DD via
+        // the picker's own output, so the DB heals per-edit. Any
+        // value Carbon cannot parse falls through unchanged so the
+        // user sees the raw string and can correct it.
+        if (in_array($field->format, ['DATE', 'DATETIME'], true) && ! empty($value)) {
+            try {
+                $value = $field->format === 'DATETIME'
+                    ? Carbon::parse($value)->format('Y-m-d H:i:s')
+                    : Carbon::parse($value)->format('Y-m-d');
+            } catch (\Exception $e) {
+                // Unparseable value stays as-is.
+            }
+        }
+
+        return $value;
+    }
+
     public static function formatStandardApiResponse($status, $payload = null, $messages = null)
     {
         $array['status'] = $status;
@@ -1404,6 +1456,7 @@ class Helper
             'png' => 'far fa-image',
             'webp' => 'far fa-image',
             'avif' => 'far fa-image',
+            'ico' => 'far fa-image',
             'svg' => 'fas fa-vector-square',
 
             // word
@@ -1428,14 +1481,17 @@ class Helper
             'txt' => 'far fa-file-alt',
             'rtf' => 'far fa-file-alt',
             'xml' => 'fas fa-code',
+            'json' => 'fas fa-code',
 
             // Misc
             'pdf' => 'far fa-file-pdf',
             'lic' => 'far fa-save',
+            'key' => 'fas fa-key',
 
             // video
             'mov' => 'fa-solid fa-video',
             'mp4' => 'fa-solid fa-video',
+            'webm' => 'fa-solid fa-video',
 
             // audio
             'ogg' => 'fa-solid fa-file-audio',
@@ -1586,7 +1642,6 @@ class Helper
     {
         if (config('app.lock_passwords') === true) {
             return true;
-            Log::debug('app locked!');
         }
 
         return false;
@@ -1643,8 +1698,6 @@ class Helper
                 return (1 / 72) * static::getUnitConversionFactor('in');
             default:
                 throw new \InvalidArgumentException('Unit: '.e($unit).' is not supported');
-
-                return false;
         }
     }
 
@@ -1720,6 +1773,47 @@ class Helper
             ]) ? 'rtl' : 'ltr';
     }
 
+    /**
+     * Return $url if it points at the same origin as config('app.url'),
+     * otherwise null. Callers should coalesce with a safe default:
+     *
+     *   $target = Helper::sameOriginUrl($input) ?? route('home');
+     *
+     * Any user-controllable redirect target (hidden form field, Referer
+     * header, SAML RelayState, url.intended session value, etc.) MUST
+     * pass through this before reaching redirect(...) or we hand attackers
+     * an open-redirect / phishing hand-off primitive. Relative URLs are
+     * treated as same-origin; javascript:/data: and other non-http(s)
+     * schemes are rejected. CR/LF are stripped to prevent response-splitting
+     * via a crafted Location header.
+     */
+    public static function sameOriginUrl(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
+        $url = str_replace(["\r", "\n"], '', $url);
+
+        $parts = parse_url($url);
+        if ($parts === false) {
+            return null;
+        }
+
+        if (isset($parts['scheme']) && ! in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+            return null;
+        }
+
+        $host = $parts['host'] ?? null;
+        $appHost = parse_url(config('app.url'), PHP_URL_HOST);
+
+        if ($host !== null && strcasecmp($host, (string) $appHost) !== 0) {
+            return null;
+        }
+
+        return $url;
+    }
+
     public static function getRedirectOption($request, $id, $table, $item_id = null): RedirectResponse
     {
 
@@ -1727,17 +1821,12 @@ class Helper
         $checkout_to_type = session('checkout_to_type') ?? null;
         $checkedInFrom = session('checkedInFrom');
         $other_redirect = session('other_redirect');
-        $backUrl = str_replace(["\r", "\n"], '', session()->pull('url.intended', 'home'));
 
-        // Reject any stored back-URL that points off-site. redirect()->intended() performs
-        // no host validation, and url.intended can be written from the SAML RelayState POST
-        // parameter (SamlController), which an attacker-controlled IdP could set to an
-        // off-site URL.
-        $backHost = parse_url($backUrl, PHP_URL_HOST);
-        $appHost = parse_url(config('app.url'), PHP_URL_HOST);
-        if ($backHost && $backHost !== $appHost) {
-            $backUrl = route('home');
-        }
+        // Defense-in-depth: url.intended can be written by any writer
+        // in the app (SamlController::acs sanitizes its RelayState
+        // input up-front, but future writers may not), and Laravel's
+        // redirect()->intended() performs no host validation on read.
+        $backUrl = self::sameOriginUrl(session()->pull('url.intended', 'home')) ?? route('home');
 
         // return to previous page
         if ($redirect_option == 'back') {
@@ -1753,6 +1842,8 @@ class Helper
                 'Accessories' => route('accessories.index'),
                 'Components' => route('components.index'),
                 'Consumables' => route('consumables.index'),
+                'Maintenances' => route('maintenances.index'),
+                default => route('home'),
             };
 
             // #15214: preserve query-string filters when the user came
@@ -1778,6 +1869,7 @@ class Helper
                 'Accessories' => redirect()->route('accessories.show', $id ?? $item_id),
                 'Components' => redirect()->route('components.show', $id ?? $item_id),
                 'Consumables' => redirect()->route('consumables.show', $id ?? $item_id),
+                default => redirect()->route('home'),
             };
         }
 
@@ -1797,6 +1889,7 @@ class Helper
                 'asset' => $assetId
                     ? redirect()->route('hardware.show', $assetId)
                     : redirect()->route('hardware.index'),
+                default => redirect()->route('home'),
             };
         }
 
@@ -1805,6 +1898,7 @@ class Helper
             return match ($other_redirect) {
                 'audit' => redirect()->route('assets.audit.due'),
                 'model' => redirect()->route('models.show', $request->model_id),
+                default => redirect()->route('home'),
             };
 
         }
@@ -1829,13 +1923,33 @@ class Helper
     {
         $mismatched = [];
 
+        // Eager-load every relation the loop below walks, plus each item's own
+        // company/location for the mismatch-detail lookups. Previously each
+        // per-relation `$location->{$keyword}` fired one query per location and
+        // each per-item `$item->location->company->name` fired two more per
+        // mismatch, which blew up on installs with lots of locations
+        // (customer with 100+ locations timed out the settings-page enable
+        // check). Adding `.company` on each many-relation also removes the
+        // per-mismatch company query on the artisan report path.
+        $manyRelations = [
+            'accessories.company',
+            'assets.company',
+            'assignedAccessories.accessory.company',
+            'assignedAssets.company',
+            'components.company',
+            'consumables.company',
+            'rtd_assets.company',
+            'users.companies',
+        ];
+        $oneRelations = ['manager.companies', 'parent.company'];
+        $childrenRelation = $location_id ? ['children.company'] : [];
+        $eagerLoads = array_merge($manyRelations, $oneRelations, $childrenRelation);
+
         if ($location_id) {
-            $location = Location::find($location_id);
-            if ($location) {
-                $locations = collect([])->push(Location::find($location_id));
-            }
+            $location = Location::with($eagerLoads)->find($location_id);
+            $locations = $location ? collect([$location]) : collect();
         } else {
-            $locations = Location::all();
+            $locations = Location::with($eagerLoads)->get();
         }
 
         // Bail out early if there are no locations
@@ -1844,6 +1958,58 @@ class Helper
         }
 
         $floater = (bool) Setting::getSettings()->null_company_is_floater;
+
+        // Preload every user's pivot company memberships in one query so the
+        // canReceiveFromCompany check below is a pure in-memory lookup instead
+        // of a per-user pivot query. We hit the pivot table directly (rather
+        // than reading `$user->companies`) to match canReceiveFromCompany's
+        // FMCS-scope-bypassing behavior on the User model.
+        $userIds = collect();
+        foreach ($locations as $location) {
+            $userIds = $userIds->concat($location->users->pluck('id'));
+            if ($location->manager) {
+                $userIds->push($location->manager->id);
+            }
+        }
+        $userIds = $userIds->filter()->unique()->values();
+        $userCompanyMap = $userIds->isEmpty()
+            ? collect()
+            : DB::table('company_user')
+                ->whereIn('user_id', $userIds)
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn ($rows) => $rows->pluck('company_id')->map(fn ($id) => (int) $id)->all());
+
+        // Preload the (child_id -> parent_id) map once so the parent-company
+        // branch of canReceiveFromCompany doesn't fire a per-user query. The
+        // hierarchy is one level deep so this stays small.
+        $parentByChild = DB::table('companies')
+            ->whereNotNull('parent_id')
+            ->pluck('parent_id', 'id')
+            ->map(fn ($p) => (int) $p);
+
+        // In-memory equivalent of User::canReceiveFromCompany that uses the
+        // preloaded pivot and parent maps. Kept as a closure so a future
+        // change to the on-model logic is easy to mirror here.
+        $canUserReceive = function (int $userId, ?int $companyId) use ($userCompanyMap, $parentByChild, $floater) {
+            $userCompanyIds = $userCompanyMap->get($userId, []);
+            if ($companyId === null) {
+                if ($floater) {
+                    return true;
+                }
+
+                return empty($userCompanyIds);
+            }
+            if (empty($userCompanyIds)) {
+                return $floater;
+            }
+            if (in_array($companyId, $userCompanyIds, true)) {
+                return true;
+            }
+            $parentOfItemCompany = $parentByChild->get($companyId);
+
+            return $parentOfItemCompany !== null && in_array($parentOfItemCompany, $userCompanyIds, true);
+        };
 
         foreach ($locations as $location) {
             // in case of an update of a single location, use the newly requested company_id
@@ -1895,13 +2061,11 @@ class Helper
                         }
 
                         // Users belong to companies via the many-to-many pivot (company_user).
-                        // canReceiveFromCompany() returns true only when the user's pivot
-                        // contains the location's company, so !canReceiveFromCompany() is
-                        // the correct mismatch signal. Pass $location_company through as
-                        // ?int — casting null to (int) would coerce it to 0 and miss the
-                        // null-company branch inside the method.
+                        // Use the preloaded closure instead of $item->canReceiveFromCompany
+                        // so this stays in-memory (avoids one pivot query + one parent
+                        // hierarchy query per user).
                         if ($item instanceof User) {
-                            $isMismatch = ! $item->canReceiveFromCompany($location_company === null ? null : (int) $location_company);
+                            $isMismatch = ! $canUserReceive((int) $item->id, $location_company === null ? null : (int) $location_company);
                         } elseif ($item->company_id == $location_company) {
                             $isMismatch = false;
                         } elseif (is_null($item->company_id) || is_null($location_company)) {
@@ -2077,5 +2241,43 @@ class Helper
         }
 
         return $html;
+    }
+
+    /**
+     * Force equal timing between 'success' and 'failure' to not expose open ports
+     */
+    public static function EqualTiming(int $seconds, callable $function)
+    {
+        $start = microtime(true);
+        $thrown_exception = null;
+        $result = null;
+        try {
+            $result = $function();
+            if (is_bool($result)) {
+                if ($result) {
+                    return; // instant return on success
+                }
+            } // Fall-through on failure - $result is false so the next 'if' will not fire
+            if ($result && $result->getStatusCode() == 200) {
+                // succesful responses should return 'fast'
+                return $result;
+            }
+        } catch (\Throwable $exception) {
+            $thrown_exception = $exception;
+        }
+        // on *any* transaction(?), make sure we don't do a 'fast fail' -
+        // it needs to take $seconds seconds.
+        $end = microtime(true);
+        $duration = $end - $start;
+        $remaining = $seconds - $duration;
+        if ($remaining > 0) {
+            sleep((int) $remaining);
+        }
+        if ($thrown_exception) {
+            throw $thrown_exception;
+        }
+
+        return $result;
+
     }
 }

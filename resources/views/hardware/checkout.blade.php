@@ -71,13 +71,15 @@
                         name="requestable"
                         :label="trans('admin/hardware/general.requestable')"
                         :item="$asset"
+                        data-user-preference-key="snipeit.checkout.requestable_default.{{ auth()->id() ?? 'guest' }}"
+                        data-had-old-input="{{ ((bool) old('requestable', false)) || session()->has('_old_input.requestable') ? '1' : '0' }}"
                     />
 
                     @include ('partials.forms.checkout-selector', ['user_select' => 'true', 'asset_select' => 'true', 'location_select' => 'true'])
                     <x-input.user-select
                         :label="trans('general.user')"
                         name="assigned_user"
-                        :selected="old('assigned_user')"
+                        :selected="old('assigned_user', $checkoutRequest?->user_id)"
                         :companyId="$asset->company_id"
                         :style="(session('checkout_to_type') ?: 'user') == 'user' ? null : 'display: none;'"
                     />
@@ -100,6 +102,7 @@
                         type="datetimepicker"
                         :item="$item"
                         :default_now="false"
+                        :default="old('expected_checkin', ($checkoutRequest?->end_date ? $checkoutRequest->end_date->toDateString() : ($item->expected_checkin ?? null)))"
                         input_div_class="col-md-4"
                     />
 
@@ -189,56 +192,10 @@
         </x-page-column>
 
         <x-page-column class="col-md-5">
+            <x-checkout-request-context :request="$checkoutRequest ?? null" :requestable="$asset" />
+
             <livewire:checkout-target-panel type="assets" />
         </x-page-column>
 
     </x-container>
-@stop
-
-@section('moar_scripts')
-
-    <script nonce="{{ csrf_token() }}">
-        // Per-user localStorage preference for the requestable default on
-        // checkout. Namespaced by user id so a shared browser doesn't leak one
-        // user's habit into another user's default. Only takes over when the
-        // field wasn't repopulated from a validation-error redirect (old()
-        // beats the stored preference). On submit we save whatever the user
-        // actually chose, so the preference tracks their real habit.
-        const initializeCheckoutRequestablePreference = function () {
-            const storageKey = 'snipeit.checkout.requestable_default.' + @json(auth()->id() ?? 'guest');
-            const hadOldInput = @json((bool) old('requestable', false)) || @json(session()->has('_old_input.requestable'));
-            const checkbox = document.getElementById('requestable');
-            const form = checkbox ? checkbox.closest('form') : null;
-
-            if (!checkbox || !form) {
-                return;
-            }
-
-            if (!hadOldInput) {
-                let stored = null;
-                try {
-                    stored = window.localStorage.getItem(storageKey);
-                } catch (e) {
-                    // localStorage may be unavailable (private mode, disabled).
-                }
-                if (stored === '1' || stored === '0') {
-                    checkbox.checked = stored === '1';
-                }
-            }
-
-            form.addEventListener('submit', function () {
-                try {
-                    window.localStorage.setItem(storageKey, checkbox.checked ? '1' : '0');
-                } catch (e) {
-                    // Non-fatal: preference just won't persist this time.
-                }
-            });
-        };
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeCheckoutRequestablePreference);
-        } else {
-            initializeCheckoutRequestablePreference();
-        }
-    </script>
 @stop

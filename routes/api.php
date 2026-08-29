@@ -44,6 +44,30 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     });
 
     /**
+     * OrderItems (acquisition line-items). Standard REST index, filter
+     * by item_type + item_id for a specific parent, or asset_model_id
+     * for the AssetModel aggregate.
+     */
+    Route::get('order-items',
+        [Api\OrderItemsController::class, 'index']
+    )->name('api.order-items.index');
+
+    /**
+     * Bearer-authenticated self-logout. Revokes the access token that
+     * authenticated this request and any refresh token issued with it,
+     * so a client (custom SPA / mobile app) can call this on logout
+     * and be sure the token cannot silently renew. See
+     * ProfileController::logout for the design rationale and why we
+     * ship this rather than pointing callers at Passport's session-
+     * cookie-shaped DELETE /oauth/tokens/{id} route.
+     */
+    Route::post('logout', [Api\ProfileController::class, 'logout'])
+        ->name('api.logout');
+
+    Route::get('requests', [Api\CheckoutRequest::class, 'index'])
+        ->name('api.requests.index');
+
+    /**
      * Account routes
      */
     Route::group(['prefix' => 'account'], function () {
@@ -65,12 +89,49 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         Route::post('request/{asset}', [Api\CheckoutRequest::class, 'store'])->name('api.assets.requests.store');
         Route::post('request/{asset}/cancel', [Api\CheckoutRequest::class, 'destroy'])->name('api.assets.requests.destroy');
 
+        // Consumable + Component request/cancel. Kept as type-prefixed
+        // routes rather than a polymorphic /request/{type}/{id} pattern
+        // so the existing /request/{asset} URL stays backwards-compat
+        // for API consumers already wired to it.
+        Route::post('request/consumable/{consumable}', [Api\CheckoutRequest::class, 'storeConsumable'])
+            ->name('api.consumables.requests.store');
+        Route::post('request/consumable/{consumable}/cancel', [Api\CheckoutRequest::class, 'destroyConsumable'])
+            ->name('api.consumables.requests.destroy');
+        Route::post('request/component/{component}', [Api\CheckoutRequest::class, 'storeComponent'])
+            ->name('api.components.requests.store');
+        Route::post('request/component/{component}/cancel', [Api\CheckoutRequest::class, 'destroyComponent'])
+            ->name('api.components.requests.destroy');
+        Route::post('request/license/{license}', [Api\CheckoutRequest::class, 'storeLicense'])
+            ->name('api.licenses.requests.store');
+        Route::post('request/license/{license}/cancel', [Api\CheckoutRequest::class, 'destroyLicense'])
+            ->name('api.licenses.requests.destroy');
+
         Route::get('requestable/hardware',
             [
                 Api\AssetsController::class,
                 'requestable',
             ]
         )->name('api.assets.requestable');
+
+        // Requestable-item endpoints for the /account/requestable
+        // tabs. Each returns just the requestable rows the caller can
+        // see (RequestableFoos() scope + CompanyableTrait global scope
+        // handle the FMCS + location gating).
+        Route::get('requestable/models',
+            [Api\AssetModelsController::class, 'requestable']
+        )->name('api.assetmodels.requestable');
+        Route::get('requestable/accessories',
+            [Api\AccessoriesController::class, 'requestable']
+        )->name('api.accessories.requestable');
+        Route::get('requestable/consumables',
+            [Api\ConsumablesController::class, 'requestable']
+        )->name('api.consumables.requestable');
+        Route::get('requestable/components',
+            [Api\ComponentsController::class, 'requestable']
+        )->name('api.components.requestable');
+        Route::get('requestable/licenses',
+            [Api\LicensesController::class, 'requestable']
+        )->name('api.licenses.requestable');
 
         Route::post('personal-access-tokens',
             [
@@ -127,6 +188,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 'checkin',
             ]
         )->name('api.accessories.checkin');
+
+        Route::post('{accessory}/adjust-quantity',
+            [
+                Api\AccessoriesController::class,
+                'adjustQuantity',
+            ]
+        )->name('api.accessories.adjust-quantity');
 
         Route::get('selectlist',
             [
@@ -269,6 +337,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ]
     )->name('api.components.checkout');
 
+    Route::post('components/{component}/adjust-quantity',
+        [
+            Api\ComponentsController::class,
+            'adjustQuantity',
+        ]
+    )->name('api.components.adjust-quantity');
+
     Route::resource('components',
         Api\ComponentsController::class,
         ['names' => [
@@ -315,6 +390,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 'checkout',
             ]
         )->name('api.consumables.checkout');
+
+        Route::post('{consumable}/adjust-quantity',
+            [
+                Api\ConsumablesController::class,
+                'adjustQuantity',
+            ]
+        )->name('api.consumables.adjust-quantity');
 
     });
 
@@ -625,6 +707,24 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end assets API routes
 
     /**
+     * Unified calendar events API. Reads from the calendar_events
+     * index (populated by every HasCalendarEvents source model)
+     * and hydrates titles / urls / colors live from the source.
+     */
+    Route::get('/calendar/events',
+        [Api\CalendarEventsController::class, 'index']
+    )->name('api.calendar.events');
+
+    /**
+     * Low-stock unified endpoint for the dashboard widget. Delegates to
+     * Helper::checkLowInventory so this and the top-nav alert bell
+     * share a single source of truth.
+     */
+    Route::get('/low-stock',
+        [Api\LowStockController::class, 'index']
+    )->name('api.low-stock.index');
+
+    /**
      * Asset maintenances API routes
      */
     Route::get('/maintenances/{maintenance}/history',
@@ -897,6 +997,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 'assets',
             ]
         )->name('api.models.assets');
+
+        Route::post('{id}/restore',
+            [
+                Api\AssetModelsController::class,
+                'restore',
+            ]
+        )->name('api.models.restore');
     });
 
     Route::resource('models',
@@ -946,7 +1053,7 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 Api\SettingsController::class,
                 'ldaptest',
             ]
-        )->name('api.settings.ldaptest');
+        )->middleware('throttle:5,1')->name('api.settings.ldaptest');
 
         Route::post('purge_barcodes',
             [
@@ -967,7 +1074,7 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 Api\SettingsController::class,
                 'ldaptestlogin',
             ]
-        )->name('api.settings.ldaptestlogin');
+        )->middleware('throttle:5,1')->name('api.settings.ldaptestlogin');
 
         Route::post('mailtest',
             [

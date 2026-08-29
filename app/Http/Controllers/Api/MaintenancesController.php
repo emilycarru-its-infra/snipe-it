@@ -52,7 +52,13 @@ class MaintenancesController extends Controller
         }
 
         if ($request->filled('asset_id')) {
-            $maintenances->where('asset_id', '=', $request->input('asset_id'));
+            // asset_id request param stays for API back-compat but
+            // filters against the polymorphic (item_id, item_type)
+            // pair now that maintenances can attach to accessories
+            // too. Callers filtering by asset_id are, by definition,
+            // scoping to items of type Asset.
+            $maintenances->where('item_id', '=', $request->input('asset_id'))
+                ->where('item_type', '=', Asset::class);
         }
 
         // Polymorphic filter — used by the user detail Maintenances tab to
@@ -115,7 +121,8 @@ class MaintenancesController extends Controller
         }
 
         // Make sure the offset and limit are actually integers and do not exceed system limits
-        $offset = ($request->input('offset') > $maintenances->count()) ? $maintenances->count() : app('api_offset_value');
+        $total = $maintenances->count();
+        $offset = ($request->input('offset') > $total) ? $total : app('api_offset_value');
         $limit = app('api_limit_value');
 
         $allowed_columns = [
@@ -191,7 +198,6 @@ class MaintenancesController extends Controller
                 break;
         }
 
-        $total = $maintenances->count();
         $maintenances = $maintenances->skip($offset)->take($limit)->get();
 
         if (request()->input('format') == 'flat') {

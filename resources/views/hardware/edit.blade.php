@@ -118,6 +118,17 @@
         input_div_class="col-md-7 col-sm-12"
     />
 
+    {{-- Current location. When blank, the observer / checkout flow
+         updates location_id to match the checkout target's location
+         (user's location, target-location, or parent asset's location).
+         See the note under general.location_edit_help. --}}
+    <x-input.location-select
+        :label="trans('general.location')"
+        name="location_id"
+        :selected="old('location_id', $item?->location_id)"
+        :helpText="trans('general.location_edit_help')"
+    />
+
     {{-- Default (ready-to-deploy) location --}}
     <x-input.location-select
         :label="trans('admin/hardware/form.default_location')"
@@ -372,6 +383,10 @@
                     // this, the pickers would just be plain text inputs
                     // until page reload.
                     window.snipeitInitDatetimepickers('#custom_fields_content');
+                    // Same for the MAC-address input mask on any format=MAC
+                    // custom fields in the fresh partial. See
+                    // resources/assets/js/snipeit.js for the mask logic.
+                    window.snipeitInitMacAddressMask('#custom_fields_content');
                     //now re-populate the custom fields based on the previously saved values
                     $('#custom_fields_content').find('input,select,textarea').each(function (index,elem) {
                         if(transformed_oldvals[elem.name]) {

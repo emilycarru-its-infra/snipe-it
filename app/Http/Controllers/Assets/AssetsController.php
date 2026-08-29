@@ -315,7 +315,9 @@ class AssetsController extends Controller
     public function edit(Asset $asset): View|RedirectResponse
     {
         $this->authorize($asset);
-        session()->put('url.intended', url()->previous());
+        if ($safeReferer = Helper::sameOriginUrl(url()->previous())) {
+            session()->put('url.intended', $safeReferer);
+        }
 
         return view('hardware/edit')
             ->with('item', $asset)
@@ -339,64 +341,64 @@ class AssetsController extends Controller
         $this->authorize('view', $asset);
         $settings = Setting::getSettings();
 
-        if (isset($asset)) {
-            $audit_log = Actionlog::where('action_type', '=', 'audit')
-                ->where('item_id', '=', $asset->id)
-                ->where('item_type', '=', Asset::class)
-                ->orderBy('created_at', 'DESC')->first();
+        $audit_log = Actionlog::where('action_type', '=', 'audit')
+            ->where('item_id', '=', $asset->id)
+            ->where('item_type', '=', Asset::class)
+            ->orderBy('created_at', 'DESC')->first();
 
-            if ($asset->location) {
-                $use_currency = $asset->location->currency;
+        if ($asset->location) {
+            $use_currency = $asset->location->currency;
+        } else {
+            if ($settings->default_currency != '') {
+                $use_currency = $settings->default_currency;
             } else {
-                if ($settings->default_currency != '') {
-                    $use_currency = $settings->default_currency;
-                } else {
-                    $use_currency = trans('general.currency');
-                }
+                $use_currency = trans('general.currency');
             }
-
-            $qr_code = (object) [
-                'display' => $settings->qr_code == '1',
-                'url' => route('qr_code/common', ['object_type' => 'hardware', 'id' => $asset->id]),
-            ];
-
-            $total_maintenance_cost = $asset->maintenances?->sum('cost');
-            $total_asset_cost = ($asset->assignedAssets()?->AssetsForShow()) ? $asset->assignedAssets()?->AssetsForShow()?->sum('purchase_cost') : 0;
-            $total_license_cost = ($asset->licenses) ? $asset->licenses->sum('purchase_cost') : 0;
-            $total_accessory_cost = ($asset->accessories) ? $asset->accessories()->sum('purchase_cost') : 0;
-            $total_component_cost = ($asset->components) ? $asset->components->sum('calculated_purchase_cost') : 0;
-
-            $total_cost_for_asset = $asset->purchase_cost + $total_maintenance_cost + $total_asset_cost + $total_license_cost + $total_accessory_cost + $total_component_cost;
-
-            $audit_custom_field_columns = [];
-            if ($asset->model && $asset->model->fieldset) {
-                $audit_custom_field_columns = $asset->model->fieldset->fields
-                    ->where('display_audit', '1')
-                    ->map(fn ($field) => [
-                        'field' => $field->db_column,
-                        'searchable' => false,
-                        'sortable' => false,
-                        'switchable' => true,
-                        'title' => e($field->name),
-                        'visible' => true,
-                    ])
-                    ->values()
-                    ->all();
-            }
-
-            return view('hardware/view', compact('asset', 'qr_code', 'settings'))
-                ->with('total_maintenance_cost', $total_maintenance_cost)
-                ->with('total_asset_cost', $total_asset_cost)
-                ->with('total_license_cost', $total_license_cost)
-                ->with('total_accessory_cost', $total_accessory_cost)
-                ->with('total_component_cost', $total_component_cost)
-                ->with('total_cost_for_asset', $total_cost_for_asset)
-                ->with('use_currency', $use_currency)
-                ->with('audit_log', $audit_log)
-                ->with('audit_custom_field_columns', $audit_custom_field_columns);
         }
 
-        return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.does_not_exist'));
+        $qr_code = (object) [
+            'display' => $settings->qr_code == '1',
+            'url' => route('qr_code/common', ['object_type' => 'hardware', 'id' => $asset->id]),
+        ];
+
+        $total_maintenance_cost = $asset->maintenances?->sum('cost');
+        $total_asset_cost = ($asset->assignedAssets()?->AssetsForShow()) ? $asset->assignedAssets()?->AssetsForShow()?->sum('purchase_cost') : 0;
+        $total_license_cost = ($asset->licenses) ? $asset->licenses->sum('purchase_cost') : 0;
+        // accessories.purchase_cost no longer exists; getAccessoryCost()
+        // walks lastOrderDefaults() per attached accessory so the total
+        // reflects each item's last acquisition (with the parent's
+        // default_purchase_cost as fallback).
+        $total_accessory_cost = $asset->getAccessoryCost();
+        $total_component_cost = ($asset->components) ? $asset->components->sum('calculated_purchase_cost') : 0;
+
+        $total_cost_for_asset = $asset->purchase_cost + $total_maintenance_cost + $total_asset_cost + $total_license_cost + $total_accessory_cost + $total_component_cost;
+
+        $audit_custom_field_columns = [];
+        if ($asset->model && $asset->model->fieldset) {
+            $audit_custom_field_columns = $asset->model->fieldset->fields
+                ->where('display_audit', '1')
+                ->map(fn ($field) => [
+                    'field' => $field->db_column,
+                    'searchable' => false,
+                    'sortable' => false,
+                    'switchable' => true,
+                    'title' => e($field->name),
+                    'visible' => true,
+                ])
+                ->values()
+                ->all();
+        }
+
+        return view('hardware/view', compact('asset', 'qr_code', 'settings'))
+            ->with('total_maintenance_cost', $total_maintenance_cost)
+            ->with('total_asset_cost', $total_asset_cost)
+            ->with('total_license_cost', $total_license_cost)
+            ->with('total_accessory_cost', $total_accessory_cost)
+            ->with('total_component_cost', $total_component_cost)
+            ->with('total_cost_for_asset', $total_cost_for_asset)
+            ->with('use_currency', $use_currency)
+            ->with('audit_log', $audit_log)
+            ->with('audit_custom_field_columns', $audit_custom_field_columns);
     }
 
     /**
@@ -442,6 +444,15 @@ class AssetsController extends Controller
         $asset->expected_checkin = $request->input('expected_checkin', null);
         $asset->requestable = $request->input('requestable', 0);
         $asset->rtd_location_id = $request->input('rtd_location_id', null);
+        // Current location is editable from the asset edit form as of
+        // the location-dropdown addition. Only overwrite when the key
+        // is actually present in the request — a client that omits
+        // location_id entirely (a partial update API caller, an older
+        // form) still leaves the existing value intact. Present-but-
+        // blank clears via the mutator (see setLocationIdAttribute).
+        if ($request->has('location_id')) {
+            $asset->location_id = $request->input('location_id');
+        }
         $asset->byod = $request->input('byod', 0);
 
         $status = Statuslabel::find($request->input('status_id'));
@@ -675,6 +686,14 @@ class AssetsController extends Controller
     {
         $settings = Setting::getSettings();
         if ($asset = Asset::withTrashed()->find($assetId)) {
+            // Gate on the asset view policy so this endpoint enforces
+            // the same object-level authorization as its sibling detail
+            // / label / QR-code routes. Previously any authenticated
+            // user could pull the barcode PNG for any asset regardless
+            // of company scope, letting them enumerate protected asset
+            // tags.
+            $this->authorize('view', $asset);
+
             $barcode_file = public_path().'/uploads/barcodes/'.str_slug($settings->label2_1d_type).'-'.str_slug($asset->asset_tag).'.png';
 
             if (isset($asset->id, $asset->asset_tag)) {
@@ -832,6 +851,11 @@ class AssetsController extends Controller
     public function audit(Asset $asset): View|RedirectResponse
     {
         $this->authorize('audit', Asset::class);
+        // Per-instance authorize so SnipePermissionsPolicy::before()
+        // runs Company::isCurrentUserHasAccess($asset) at the policy
+        // layer instead of leaving FMCS scoping solely to the route-
+        // model-binding + CompanyableScope combo.
+        $this->authorize('audit', $asset);
         $settings = Setting::getSettings();
 
         // Invoke the validation to see if the audit will complete successfully
@@ -850,6 +874,11 @@ class AssetsController extends Controller
     {
 
         $this->authorize('audit', Asset::class);
+        // Per-instance authorize: without this, FMCS enforcement on
+        // an audit write depends entirely on route-model binding
+        // firing CompanyableScope. Explicit instance authorize means
+        // the policy layer independently rejects cross-company writes.
+        $this->authorize('audit', $asset);
 
         session()->put('redirect_option', $request->input('redirect_option'));
         session()->put('other_redirect', 'audit');
@@ -934,25 +963,87 @@ class AssetsController extends Controller
         return redirect()->back()->withInput()->withErrors($asset->getErrors());
     }
 
-    public function getRequestedIndex($user_id = null)
+    public function getRequestedIndex()
     {
-        $this->authorize('index', Asset::class);
+        $this->authorize('canCheckoutAtLeastOneItemType');
 
-        $requestedItems = CheckoutRequest::with('user', 'requestedItem')->whereNull('canceled_at');
+        return view('hardware/requested');
+    }
 
-        if ($user_id) {
-            $requestedItems->where('user_id', $user_id);
+    /**
+     * Bulk-cancel companion to the /requests admin page. Takes an
+     * ids[] payload of CheckoutRequest primary keys, cancels each open
+     * request the caller has FMCS access to, and flashes a summary.
+     *
+     * Idempotent: rows that are already canceled, rows the caller
+     * cannot see under FMCS, and rows whose requestable has been
+     * deleted all silently skip rather than error out - this endpoint
+     * is invoked from a checkbox selection where any subset can be
+     * stale between "load table" and "click Go".
+     */
+    public function bulkCancelRequests(Request $request): RedirectResponse
+    {
+        // Endpoint-level gate uses the shared canCheckoutAtLeastOneItemType
+        // check (same as the /requests page + API endpoint + nav
+        // link) so an accessories-only admin can access this
+        // handler for their in-scope rows. Per-row checkout-perm
+        // filtering below narrows to just the types they can act on.
+        $this->authorize('canCheckoutAtLeastOneItemType');
+
+        $ids = $request->input('ids', []);
+        if (! is_array($ids) || empty($ids)) {
+            return redirect()->route('requests.index')
+                ->with('error', trans('general.bulk.delete.nothing_selected', [
+                    'object_type' => trans('admin/hardware/general.requested'),
+                ]));
         }
 
-        $requestedItems = $requestedItems->orderBy('created_at', 'desc')->get();
+        $requests = CheckoutRequest::with('requestedItem')
+            ->whereIn('id', $ids)
+            ->whereNull('canceled_at')
+            ->get();
 
-        if (Company::isFullMultipleCompanySupportEnabled() && ! auth()->user()->isSuperUser()) {
-            $requestedItems = $requestedItems->filter(
-                fn (CheckoutRequest $request) => $request->requestable
-                    && Company::isCurrentUserHasAccess($request->requestable)
-            )->values();
+        $user = auth()->user();
+        $canceled = 0;
+        foreach ($requests as $checkoutRequest) {
+            $requestable = $checkoutRequest->itemRequested();
+
+            if (! $requestable) {
+                continue;
+            }
+
+            if (! Company::isCurrentUserHasAccess($requestable)) {
+                continue;
+            }
+
+            // Per-row checkout-permission filter. A hand-crafted
+            // POST from an accessories-only admin bundling asset
+            // request ids must not slip through the endpoint-level
+            // "checkout ANY" gate. Mirrors the per-row filter on
+            // Api\CheckoutRequest::index, with AssetModel riding
+            // on Asset checkout the same way.
+            $permissionType = $checkoutRequest->requestable_type === AssetModel::class
+                ? Asset::class
+                : $checkoutRequest->requestable_type;
+            if (! $user->isSuperUser() && ! $user->can('checkout', $permissionType)) {
+                continue;
+            }
+
+            // cancelRequest returns the affected row count. Only tally
+            // rows that this call actually flipped so the flash message
+            // reflects what really happened (not just what was asked).
+            $affected = $requestable->cancelRequest($checkoutRequest->user_id);
+            if ($affected > 0) {
+                $canceled += $affected;
+            }
         }
 
-        return view('hardware/requested', compact('requestedItems'));
+        if ($canceled === 0) {
+            return redirect()->route('requests.index')
+                ->with('warning', trans('admin/hardware/message.requests.no_active'));
+        }
+
+        return redirect()->route('requests.index')
+            ->with('success', trans('admin/hardware/message.requests.canceled'));
     }
 }

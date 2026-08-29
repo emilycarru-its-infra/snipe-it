@@ -9,7 +9,7 @@
 {{-- Page content --}}
 @section('content')
     <x-container>
-        <x-box>
+        <x-box name="manufacturer" sr_only_title>
 
             @if ($manufacturer_count == 0)
 
@@ -24,16 +24,10 @@
                     </form>
 
               @else
+                <x-slot:table_header>{{ trans('admin/manufacturers/table.asset_manufacturers') }}</x-slot:table_header>
+
                 <x-slot:bulkactions>
-                    <x-table.bulk-actions
-                            name='manufacturer'
-                            action_route="{{route('manufacturers.bulk.delete')}}"
-                            model_name="manufacturer"
-                    >
-                        @can('delete', App\Models\Manufacturer::class)
-                            <option>Delete</option>
-                        @endcan
-                    </x-table.bulk-actions>
+                    <x-table.bulk-manufacturers />
                 </x-slot:bulkactions>
 
 
@@ -52,6 +46,7 @@
 
             @endif
         </x-box>
+        <x-shiftclick/>
     </x-container>
 @stop
 

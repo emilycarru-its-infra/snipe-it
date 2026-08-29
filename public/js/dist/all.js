@@ -74701,6 +74701,184 @@ $(function () {
     $('#completeMaintenanceModal').modal('show');
   });
 
+  // Adjust-quantity modal (plus-minus button on accessory/consumable/
+  // component list and view pages). Sets the modal form's action from
+  // the trigger's data-adjust-url and populates the header + current
+  // quantity display from the trigger's data attributes. Clears the
+  // signed amount + note + order every open so nothing bleeds between
+  // clicks.
+  $el.on('click', '.adjust-quantity', function () {
+    var $btn = $(this);
+    var $modal = $('#adjustQuantityModal');
+    var $amount = $modal.find('#adjustQuantityAmount');
+
+    // data-available is the trigger's authoritative floor for a decrement
+    // (available = qty - currentlyInUseCount). A delta smaller than
+    // -available would decrement the on-hand qty below what's already
+    // checked out, and AdjustsQuantity::adjustQuantity throws
+    // DomainException. Mirror that server-side floor on the input's min
+    // attribute so the browser stepper refuses to go below and the
+    // constraint-validation message surfaces before submit.
+    var available = parseInt($btn.data('available'), 10);
+    $('#adjustQuantityForm').attr('action', $btn.data('adjust-url'));
+    $modal.find('.adjust-quantity-item-name').text($btn.data('item-name') || '');
+    $modal.find('.adjust-quantity-available').text(!isNaN(available) ? available : '');
+    if (!isNaN(available)) {
+      $amount.attr('min', -available);
+    } else {
+      $amount.removeAttr('min');
+    }
+    $amount.val('');
+    $modal.find('#adjustQuantityOrder').val('');
+    // Reset the acquisition-metadata fields between opens so an
+    // order left half-filled by one operator doesn't bleed into the
+    // next click. Supplier is a select2, so use .val('').trigger('change')
+    // rather than setting the raw <select>; currency reverts to
+    // whatever the modal was originally rendered with (its DOM value
+    // attribute, i.e. the system default_currency).
+    $modal.find('#adjustQuantitySupplier').val('').trigger('change');
+    // Reset purchase_date to today on every open (server-rendered
+    // default is today too). Prevents an operator's earlier
+    // backdate from bleeding into the next event.
+    var todayIso = new Date().toISOString().slice(0, 10);
+    $modal.find('#adjustQuantityPurchaseDate').val(todayIso);
+
+    // Pre-populate unit_cost + currency from the trigger's data-last-*
+    // attrs (server-rendered from the item's most recent OrderItem).
+    // When both are present the "pre-populated from last order" hint
+    // shows underneath the row; the hint gets hidden as soon as the
+    // operator edits either field so it disappears the moment they
+    // override the pre-fill.
+    var lastUnitCost = $btn.data('last-unit-cost');
+    var lastCurrency = $btn.data('last-currency');
+    var $unitCost = $modal.find('#adjustQuantityUnitCost');
+    var $currency = $modal.find('#adjustQuantityCurrency');
+    var $costHint = $modal.find('#adjustQuantityCostHint');
+    $unitCost.val(lastUnitCost !== undefined && lastUnitCost !== '' ? lastUnitCost : '');
+    $currency.val(lastCurrency !== undefined && lastCurrency !== '' ? lastCurrency : $currency.prop('defaultValue') || '');
+    if (lastUnitCost !== undefined && lastUnitCost !== '' || lastCurrency !== undefined && lastCurrency !== '') {
+      $costHint.show();
+    } else {
+      $costHint.hide();
+    }
+
+    // Rebind on every open so multiple modal opens don't stack listeners.
+    $unitCost.off('input.adjustCostHint').on('input.adjustCostHint', function () {
+      $costHint.hide();
+    });
+    $currency.off('input.adjustCostHint').on('input.adjustCostHint', function () {
+      $costHint.hide();
+    });
+    $modal.find('#adjustQuantityNote').val('');
+    $modal.find('#adjustQuantityFile').val('');
+    // js-uploadFile paints selected filenames into #{id}-info; clear it too
+    // so stale filenames from a previous open don't linger in the new modal.
+    $modal.find('#adjustQuantityFile-info').empty();
+
+    // Acquisition-metadata fields (order number, supplier, unit cost,
+    // currency) only make sense when the qty change is a positive
+    // addition (a purchase). Zero or negative amounts represent
+    // corrections / consumption / losses, not acquisitions, so hide
+    // those fields — and blank their values so a submit from that
+    // state doesn't ship stale purchase metadata alongside the log
+    // entry. Show them again the moment the operator types a
+    // positive number. The date label swaps to a generic "Date"
+    // when the event isn't a purchase.
+    //
+    // On modal open the amount is empty ("we don't know yet"), so
+    // stay in the default acquisition-visible state — prefilled
+    // supplier / cost / currency from the last order are preserved
+    // and the hint stays visible if it was shown. We only clear
+    // when the operator actually commits to a 0/negative value.
+    var $acquisitionFields = $modal.find('#adjustQuantityAcquisitionFields');
+    var $costRow = $modal.find('#adjustQuantityCostRow');
+    var $dateLabel = $modal.find('#adjustQuantityPurchaseDateLabel');
+    var purchaseLabel = $dateLabel.data('label-purchase');
+    var genericLabel = $dateLabel.data('label-generic');
+    var syncAcquisitionFieldsVisibility = function syncAcquisitionFieldsVisibility() {
+      var raw = $amount.val();
+      // Treat "no value yet" as still-a-purchase for the visibility
+      // toggle: prefilled acquisition metadata stays intact until
+      // the operator explicitly types a non-positive number.
+      if (raw === '' || raw === null || raw === undefined) {
+        $acquisitionFields.show();
+        $costRow.show();
+        $dateLabel.text(purchaseLabel);
+        return;
+      }
+      var num = parseFloat(raw);
+      var isPurchase = !isNaN(num) && num > 0;
+      $acquisitionFields.toggle(isPurchase);
+      $costRow.toggle(isPurchase);
+      $costHint.toggle(isPurchase && $costHint.data('has-prefill') === true);
+      $dateLabel.text(isPurchase ? purchaseLabel : genericLabel);
+      if (!isPurchase) {
+        $modal.find('#adjustQuantityOrder').val('');
+        $modal.find('#adjustQuantitySupplier').val('').trigger('change');
+        $modal.find('#adjustQuantityUnitCost').val('');
+        $modal.find('#adjustQuantityCurrency').val('');
+      }
+    };
+    // Track the prefill state on the hint so the visibility toggle
+    // can restore it correctly when qty flips positive again.
+    $costHint.data('has-prefill', $costHint.is(':visible'));
+    $amount.off('input.adjustAcquisition').on('input.adjustAcquisition', syncAcquisitionFieldsVisibility);
+    // Initial call keeps everything in the default "purchase" state
+    // (empty amount) so the prefill logic above stays authoritative.
+    syncAcquisitionFieldsVisibility();
+    $modal.modal('show');
+  });
+
+  // Request-item modal (on /account/requestable-assets). Trigger
+  // buttons carry data-request-url + data-item-name + data-current-qty
+  // so the modal can post to the correct endpoint and reset its
+  // qty/date fields between opens. Cancel case (the item is already
+  // requested by this user) POSTs synchronously via a small inline
+  // form on the row instead of routing through this modal, so a
+  // requested row never opens it.
+  $el.on('click', '.request-item', function () {
+    var $btn = $(this);
+    var $modal = $('#requestItemModal');
+    var $form = $('#requestItemForm');
+    $form.attr('action', $btn.data('request-url'));
+    $modal.find('.request-item-name').text($btn.data('item-name') || '');
+    var currentQty = parseInt($btn.data('current-qty'), 10);
+    $modal.find('#requestItemQuantity').val(!isNaN(currentQty) && currentQty > 0 ? currentQty : 1);
+
+    // Hide the qty row for types where qty is meaningless.
+    // Assets are 1:1 (you request THE asset, not N of it).
+    // Licenses are one-seat-per-request by convention (nobody
+    // realistically asks for 3 seats of Photoshop for
+    // themselves). The input stays in the DOM with value=1 so
+    // the POST shape stays uniform across every requestable
+    // type; only the row is display:none.
+    var itemType = ($btn.data('item-type') || '').toString().toLowerCase();
+    var hidesQty = itemType === 'asset' || itemType === 'license';
+    $modal.find('#requestItemQuantityRow').toggle(!hidesQty);
+    if (hidesQty) {
+      $modal.find('#requestItemQuantity').val(1);
+    }
+
+    // Reset dates + notes every open so state left in the modal
+    // by an earlier click can't leak into the next request.
+    $modal.find('#requestItemStartDate').val('');
+    $modal.find('#requestItemEndDate').val('');
+    $modal.find('#requestItemNotes').val('');
+
+    // Snapshot the tab the requester is on so the controller can
+    // restore it on the post-submit redirect. Walks up to the
+    // enclosing .tab-pane and reads its id; the assets tab uses
+    // an API-backed row-formatter that emits the same
+    // data-active-tab attr on its request button (see
+    // assetRequestActionsFormatter) so this handler works there
+    // too without needing the DOM parent.
+    var explicitTab = $btn.data('active-tab');
+    var $tabPane = $btn.closest('.tab-pane');
+    var activeTab = explicitTab || ($tabPane.length ? $tabPane.attr('id') : '');
+    $modal.find('#requestItemActiveTab').val(activeTab || '');
+    $modal.modal('show');
+  });
+
   // confirm delete modal
   $el.on('click', '.delete-asset', function (evnt) {
     var $context = $(this);
@@ -74771,6 +74949,17 @@ $(function () {
             statusType: link.data("asset-status-type"),
             companyId: link.data("company-ids") || link.data("company-id"),
             excludeId: link.data("exclude-id"),
+            excludeIds: link.data("exclude-ids"),
+            // Pre-scope the hardware picker to a user's
+            // assigned assets. Currently used by the
+            // components-checkout screen when reached via
+            // a /requests row (see the requesting_user
+            // wiring in ComponentsController + the checkout
+            // blade). The API endpoint gracefully falls
+            // back to the unfiltered list when the target
+            // user has no assigned assets, so an empty
+            // pre-filter doesn't lock the admin out.
+            assignedTo: link.data("assigned-to"),
             // When true, the companies selectlist marks child companies
             // (those with a parent of their own) as disabled — used by
             // the parent-company picker so users can't choose options
@@ -75045,11 +75234,12 @@ $(function () {
     $('a[href="' + $(this).attr('href') + '"]').tab('show');
   });
 
-  // Bootstrap-table's fixed-columns extension computes the overlay widths
-  // at init time. Tables inside a hidden tab pane initialize with a
-  // zero-width container and the fixed left/right columns never recover
-  // on their own once the pane becomes visible. Force a resetView on any
-  // snipe-tables inside the newly-shown pane so fixed columns line up.
+  // Tables inside a hidden tab pane initialize with a zero-width
+  // container, so their column widths and any sticky-column offsets
+  // computed from those widths never recover on their own once the
+  // pane becomes visible. Force a resetView on any snipe-tables
+  // inside the newly-shown pane so column widths + sticky offsets
+  // re-measure against the now-visible container.
   $('body').on('shown.bs.tab', 'a[data-toggle="tab"]', function (e) {
     var pane = $(e.target).attr('href');
     if (!pane) return;
@@ -75060,10 +75250,10 @@ $(function () {
     });
   });
 
-  // Same story for viewport resizes: the fixed-columns overlay caches
-  // widths from the initial layout and doesn't recompute when the window
-  // width changes. Debounce so a drag-resize doesn't fire resetView on
-  // every intermediate pixel.
+  // Same story for viewport resizes: bootstrap-table caches column
+  // widths from the initial layout and doesn't recompute when the
+  // window width changes. Debounce so a drag-resize doesn't fire
+  // resetView on every intermediate pixel.
   var snipeTableResizeTimer;
   $(window).on('resize', function () {
     clearTimeout(snipeTableResizeTimer);
@@ -75285,8 +75475,41 @@ $(document).ready(function () {
       }
     });
   }
+
+  // MAC-address input mask. Custom fields with format=MAC render as
+  // plain text inputs; without a mask the user only discovers the
+  // required colon-separated shape (see \App\Rules\MacEncrypted)
+  // after a failed submit. The mask strips every non-hex character
+  // on input, uppercases A-F, and re-inserts a colon after every
+  // second character, so common paste shapes (hyphen-separated from
+  // Windows ipconfig, Cisco-dotted aabb.ccdd.eeff, bare hex,
+  // space-separated) all normalize to the canonical AA:BB:CC:DD:EE:FF
+  // form the backend expects.
+  //
+  // Exposed on window (matching snipeitInitDatetimepickers above) so
+  // the asset edit form's AJAX custom-fields-reload handler can
+  // re-init the mask on inputs that only exist after the model
+  // changes and a fresh custom_fields_form.blade.php partial is
+  // swapped into place. Pass a jQuery selector or DOM node to narrow
+  // the scope; omit to init every .mac-address-input on the page.
+  //
+  // The .mac-address-input class is applied in resources/views/models/
+  // custom_fields_form.blade.php on both text-input branches
+  // (format-icon wrapper AND bare input) when $field->format === 'MAC'.
+  window.snipeitInitMacAddressMask = function (scope) {
+    var $targets = scope ? $(scope).find('.mac-address-input') : $('.mac-address-input');
+    $targets.off('input.snipeitMacMask').on('input.snipeitMacMask', function () {
+      var _hex$match;
+      // Trim leading/trailing whitespace first so a paste like
+      // "  AA:BB:CC:DD:EE:FF\n" from a spreadsheet cell doesn't
+      // eat one of the trailing hex chars into the substring cap.
+      var hex = this.value.trim().toUpperCase().replace(/[^0-9A-F]/g, '').substring(0, 12);
+      this.value = ((_hex$match = hex.match(/.{1,2}/g)) === null || _hex$match === void 0 ? void 0 : _hex$match.join(':')) || '';
+    });
+  };
   window.snipeitInitDatetimepickers();
   initDateRangeLinking();
+  window.snipeitInitMacAddressMask();
 });
 
 /**
@@ -75299,8 +75522,33 @@ $(document).ready(function () {
  * 3. Add an attribute called 'data-livewire-component' that points to $this->getId() (via `{{ }}` if you're in a blade,
  *    or just $this->getId() if not).
  */
+// Any livewire-select2 that lives inside a Bootstrap 3 modal has to be
+// initialized with dropdownParent set to the modal, or the search input
+// gets appended to <body> where Bootstrap 3's modal enforceFocus handler
+// immediately steals focus away from it - the dropdown opens, the search
+// field renders, but typing does nothing because focus keeps snapping
+// back into the modal on every keydown. Elements not in a modal get a
+// plain init. Callers with fussier requirements (custom width, template,
+// etc.) can still init select2 manually; this handler only touches
+// elements that don't already have select2 wired up (guarded by the
+// .select2-hidden-accessible class select2 adds after init).
+function initLivewireSelect2($scope) {
+  var $root = $scope && $scope.length ? $scope : $(document);
+  $root.find('.livewire-select2').each(function () {
+    var $el = $(this);
+    if ($el.hasClass('select2-hidden-accessible')) {
+      return;
+    }
+    var opts = {};
+    var $modal = $el.closest('.modal');
+    if ($modal.length) {
+      opts.dropdownParent = $modal;
+    }
+    $el.select2(opts);
+  });
+}
 document.addEventListener('livewire:init', function () {
-  $('.livewire-select2').select2();
+  initLivewireSelect2();
   $(document).on('select2:select', '.livewire-select2', function (event) {
     var target = $(event.target);
     if (!event.target.name || !target.data('livewire-component')) {
@@ -75318,9 +75566,13 @@ document.addEventListener('livewire:init', function () {
   Livewire.interceptMessage(function (_ref) {
     var onFinish = _ref.onFinish;
     onFinish(function () {
-      // Runs after DOM morph completes (or on error/cancel)
+      // Runs after DOM morph completes (or on error/cancel). Livewire
+      // replaces the plain <select> nodes on morph, so a re-init picks
+      // up any that lost their select2 wrapper in the swap. The
+      // already-init guard inside initLivewireSelect2 keeps unchanged
+      // elements untouched.
       queueMicrotask(function () {
-        $(".livewire-select2").select2();
+        initLivewireSelect2();
       });
     });
   });
@@ -75622,6 +75874,80 @@ $(function () {
     $container.find('input[type="checkbox"]').not($master).not(':disabled').prop('checked', $master.prop('checked'));
   });
 
+  // Shift-click a row checkbox to apply its new state to every visible,
+  // enabled checkbox between it and the last checkbox clicked in the same
+  // table and checkbox group.
+  var lastListCheckbox = null;
+  var updatingCheckboxRange = false;
+  document.addEventListener('click', function (event) {
+    var $checkbox = $(event.target);
+    if (updatingCheckboxRange || !$checkbox.is('table tbody input[type="checkbox"]') || $checkbox.is('[data-toggle="check-all"]')) {
+      return;
+    }
+    var checkbox = $checkbox[0];
+    var $table = $checkbox.closest('table');
+    var $checkboxes = $table.find('tbody input[type="checkbox"]').not(':disabled').not('[data-toggle="check-all"]').filter(':visible').filter(function () {
+      return !checkbox.name || this.name === checkbox.name;
+    });
+    var start = $checkboxes.index(lastListCheckbox);
+    var end = $checkboxes.index(checkbox);
+    if (event.shiftKey && start !== -1 && end !== -1 && start !== end) {
+      updatingCheckboxRange = true;
+      try {
+        $checkboxes.slice(Math.min(start, end), Math.max(start, end) + 1).each(function () {
+          if (this !== checkbox && this.checked !== checkbox.checked) {
+            var rowIndex = $(this).data('index');
+            if ($table.data('bootstrap.table') && rowIndex !== undefined) {
+              $table.bootstrapTable(checkbox.checked ? 'check' : 'uncheck', rowIndex);
+            } else {
+              $(this).trigger('click');
+            }
+          }
+        });
+      } finally {
+        updatingCheckboxRange = false;
+      }
+    }
+    lastListCheckbox = checkbox;
+  }, true);
+
+  // Custom-report "save template" flow. The three custom reports
+  // (asset / component / consumable) each have a small side-panel
+  // form that captures a template name and posts to the templates
+  // store endpoint carrying the current field selections of the
+  // report configuration form. This handler forwards the template
+  // name + report type into the main report form as hidden inputs,
+  // then submits the main form to templates.store. Report type comes
+  // from the save form's data-report-type attribute so a single JS
+  // path covers all three pages.
+  $(document).on('submit', 'form[data-report-save-template]', function (event) {
+    event.preventDefault();
+    var $saveForm = $(this);
+    var reportType = $saveForm.data('report-type');
+    var targetSelector = $saveForm.data('report-form') || '#custom-report-form';
+    var storeUrl = $saveForm.data('store-url') || $saveForm.attr('action');
+    var $targetForm = $(targetSelector);
+    var nameValue = $saveForm.find('[name="name"]').val();
+    $('<input>').attr({
+      type: 'hidden',
+      name: 'name',
+      value: nameValue
+    }).appendTo($targetForm);
+    $('<input>').attr({
+      type: 'hidden',
+      name: 'type',
+      value: reportType
+    }).appendTo($targetForm);
+    $targetForm.attr('action', storeUrl).submit();
+  });
+
+  // Custom-report saved-template select2: navigate to the route stored
+  // on the selected <option>'s data-route attribute. Shared by all
+  // three custom report pages.
+  $(document).on('select2:select', '#saved_report_select', function (event) {
+    window.location.href = event.params.data.element.dataset.route;
+  });
+
   // When the "This user can login" (activated) checkbox is off, the
   // password + confirmation fields are functionally useless because
   // login is gated by the activated flag. Hide the whole form-group
@@ -75633,14 +75959,25 @@ $(function () {
   // User::noPassword() raw so no Hash::check can ever match.
   // Applies to both the main users/edit create form and the
   // users/modal form since they share the input names.
+  //
+  // Required-state preservation: the server renders password/password_
+  // confirmation with `required` only on create (see users/edit.blade.php
+  // and modals/user.blade.php). We cache that server-rendered state on
+  // the first call so subsequent activated-toggles only ever re-apply
+  // the ORIGINAL server intent — otherwise editing an existing
+  // (activated) user would silently flip password to required on page
+  // load and jQuery Validate would block Save with the password empty.
   var syncPasswordFields = function syncPasswordFields($checkbox) {
     var $form = $checkbox.closest('form');
     var $passwords = $form.find('input[name="password"], input[name="password_confirmation"]');
-    var visible = $checkbox.is(':checked');
-    $passwords.prop('required', visible);
+    var activated = $checkbox.is(':checked');
     $passwords.each(function () {
+      if (this.dataset.serverRequired === undefined) {
+        this.dataset.serverRequired = this.required ? '1' : '0';
+      }
+      this.required = activated && this.dataset.serverRequired === '1';
       var $wrap = $(this).closest('.form-group, .dynamic-form-row');
-      if (visible) {
+      if (activated) {
         $wrap.show();
       } else {
         $wrap.hide();
