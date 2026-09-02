@@ -24,6 +24,7 @@ return [
         'add_success' => 'Line item added to the order.',
         'delete_success' => 'Line item removed from the order.',
         'receive_success' => 'Line item marked as received.',
+        'nothing_to_receive' => 'Every line on this order is already received.',
         'unreceive_success' => 'Line item marked as not received.',
         'type_invalid' => 'That item type cannot be added to an order.',
         'not_found' => 'The selected item could not be found.',

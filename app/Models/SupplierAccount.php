@@ -73,6 +73,7 @@ class SupplierAccount extends Model
     public function toAccountArray(): array
     {
         return [
+            'supplier_id' => $this->supplier_id === null ? null : (int) $this->supplier_id,
             'number' => $this->number,
             'kind' => $this->kind,
             'scope' => $this->scope,

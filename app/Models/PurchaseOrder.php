@@ -342,8 +342,27 @@ class PurchaseOrder extends SnipeModel
 
     public function committedTotal(): float
     {
-        return (float) $this->lineItems()->get()->sum->lineTotal()
+        return (float) $this->capitalLineItems()->get()->sum->lineTotal()
             + $this->adjustmentTotal();
+    }
+
+    /**
+     * Line items that count as spend against the budget — everything but
+     * consumables.
+     *
+     * A purchase order is capital: it funds devices, and the budget it carries
+     * is sized for them. Ink and toner are operating cost that happens to be
+     * bought from the same vendor on the same order, and counting a $207
+     * cartridge against a device refresh makes the remaining figure a number
+     * nobody can plan from. They stay on the order — the vendor sent them and
+     * the invoice includes them — they just do not consume the budget.
+     */
+    public function capitalLineItems()
+    {
+        return $this->lineItems()->where(function ($query) {
+            $query->whereNull('item_type')
+                ->orWhere('item_type', '!=', Consumable::class);
+        });
     }
 
     /**
@@ -359,7 +378,7 @@ class PurchaseOrder extends SnipeModel
             return $this->committedTotal();
         }
 
-        return (float) $this->lineItems()
+        return (float) $this->capitalLineItems()
             ->whereHas('order', fn ($query) => $query->where('fiscal_year', $fy))
             ->get()->sum->lineTotal()
             + $this->adjustmentTotal($fy);
