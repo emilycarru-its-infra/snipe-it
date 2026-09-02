@@ -537,7 +537,11 @@ class OrdersController extends Controller
      * delivered long ago that nobody ever ticked off, sitting open and making
      * the open-orders list a mix of real commitments and paperwork.
      *
-     * `items` names the lines; omitting it receives every line still open.
+     * Omitting `items` receives every line still open. Naming them in `items`
+     * receives those — and an *empty* `items` is a caller who meant to name
+     * lines and computed none, so it receives nothing rather than silently
+     * meaning "all of them". The two readings differ by a whole order.
+     *
      * `adjust_stock` false records the receipt without moving consumable
      * stock — for an order whose consumables were used up before anyone
      * thought to close it, where a stock bump would invent inventory.
@@ -555,8 +559,21 @@ class OrdersController extends Controller
         $order = Order::findOrFail($orderId);
         $adjustStock = (bool) ($validated['adjust_stock'] ?? true);
 
+        // `items` absent means every open line; `items` present means exactly
+        // those, empty list included. Treating [] as "everything" turns a
+        // caller's empty selection into receiving the whole order.
+        $named = $request->has('items') ? ($validated['items'] ?? []) : null;
+
+        if ($named === []) {
+            return response()->json(Helper::formatStandardApiResponse(
+                'error',
+                null,
+                trans('admin/orders/message.item.no_items_named')
+            ), 200);
+        }
+
         $lines = $order->items()
-            ->when(! empty($validated['items']), fn ($query) => $query->whereIn('id', $validated['items']))
+            ->when($named !== null, fn ($query) => $query->whereIn('id', $named))
             ->whereNull('received_at')
             ->get();
 
