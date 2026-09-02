@@ -14,7 +14,11 @@
     $staleLines = $order->linesWithStalePartNumbers();
 
     $selectedAccount = SupplierAccounts::canonical(old('funding_account', $order->funding_account));
-    $accountRows = collect(SupplierAccounts::accounts())->map(fn ($account, $key) => [
+
+    // This supplier's accounts, not every account on file. The grid belongs to
+    // the reseller; a vendor we hold no account with gets no picker, because
+    // there is nothing to pick and requiring one made the order unsendable.
+    $accountRows = collect(SupplierAccounts::forSupplier($order->supplier_id))->map(fn ($account, $key) => [
         'key' => $key,
         'kind' => SupplierAccounts::kindLabel($key),
         'scope' => SupplierAccounts::scopeLabel($key),
@@ -90,6 +94,7 @@
                  distinction. Same shape as the contract picker on the
                  disposition grid, for the same reason: a row of aligned columns
                  is scannable where "a · b · c · d" is not. --}}
+            @if ($accountRows->isNotEmpty())
             <div class="form-group">
                 <label for="funding-account">{{ trans('admin/purchase-orders/general.vendor_send_account') }} <span class="text-danger">*</span></label>
 
@@ -137,7 +142,7 @@
                     </div>
                 </div>
 
-                <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_account_help') }}</p>
+                <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_account_help', ['supplier' => $order->supplier?->name ?: trans('general.supplier')]) }}</p>
             </div>
 
             <div class="form-group" id="lease-schedule-group" @if (! $selectedRow || ! $selectedRow['needs_schedule']) hidden @endif>
@@ -162,6 +167,7 @@
                     <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule_help') }}</p>
                 @endif
             </div>
+            @endif
 
             <div class="form-group">
                 <label for="order-cc-users">{{ trans('admin/purchase-orders/general.vendor_send_cc') }}</label>

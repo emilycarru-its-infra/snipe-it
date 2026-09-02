@@ -529,6 +529,58 @@ class OrdersController extends Controller
      * (`test: true`) reaches only the caller and stamps nothing. The gates are
      * the dispatch's — see {@see VendorOrderDispatch::send()}.
      */
+    /**
+     * Receive line items on an order.
+     *
+     * Receiving was a browser form only, which is fine for a shipment landing
+     * on the dock and useless for the thing that actually accumulates: orders
+     * delivered long ago that nobody ever ticked off, sitting open and making
+     * the open-orders list a mix of real commitments and paperwork.
+     *
+     * `items` names the lines; omitting it receives every line still open.
+     * `adjust_stock` false records the receipt without moving consumable
+     * stock — for an order whose consumables were used up before anyone
+     * thought to close it, where a stock bump would invent inventory.
+     */
+    public function receive(Request $request, $orderId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'items' => 'nullable|array',
+            'items.*' => 'integer',
+            'adjust_stock' => 'nullable|boolean',
+        ]);
+
+        $order = Order::findOrFail($orderId);
+        $adjustStock = (bool) ($validated['adjust_stock'] ?? true);
+
+        $lines = $order->items()
+            ->when(! empty($validated['items']), fn ($query) => $query->whereIn('id', $validated['items']))
+            ->whereNull('received_at')
+            ->get();
+
+        if ($lines->isEmpty()) {
+            return response()->json(Helper::formatStandardApiResponse(
+                'error',
+                null,
+                trans('admin/orders/message.item.nothing_to_receive')
+            ), 200);
+        }
+
+        $received = $lines->filter(fn (OrderItem $item) => $item->markReceived($adjustStock))->count();
+
+        $order->refresh();
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'order' => $order->order_number,
+            'received' => $received,
+            'stock_adjusted' => $adjustStock,
+            'status' => $order->status,
+            'items_open' => $order->items()->whereNull('received_at')->count(),
+        ], trans('admin/orders/message.item.receive_success')));
+    }
+
     public function sendVendor(Request $request, $orderId): JsonResponse
     {
         $this->authorize('update', Order::class);
