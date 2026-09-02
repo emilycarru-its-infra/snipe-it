@@ -629,7 +629,7 @@ return [
     'vendor_send_cc_external_help' => 'For a vendor contact or anyone outside the university. Comma separated.',
     'vendor_send_cc_resolved' => 'Will be copied',
     'vendor_send_account' => 'Account',
-    'vendor_send_account_help' => 'One of the four CDW accounts. Decides the blanket purchase order and the invoice payee — the purchase accounts bill ECU, the lease accounts bill CSI Leasing.',
+    'vendor_send_account_help' => 'One of the accounts we hold with :supplier. Decides the blanket purchase order and the invoice payee — the purchase accounts bill ECU, the lease accounts bill CSI Leasing.',
     'vendor_send_lease_schedule' => 'CSI lease schedule',
     'vendor_send_lease_schedule_help' => 'Required on a lease account, so CSI rolls the invoice into the right Exhibit A.',
     'vendor_send_missing_part_numbers' => '{1} One line is missing a part number. CDW needs both the MFR# and their own EDC# on every line, so fill it in on the catalog row before sending.|[2,*] :count lines are missing a part number. CDW needs both the MFR# and their own EDC# on every line, so fill these in on the catalog row before sending.',

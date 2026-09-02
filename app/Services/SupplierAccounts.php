@@ -132,6 +132,40 @@ class SupplierAccounts
         return self::$cache = self::SEED_ACCOUNTS;
     }
 
+    /**
+     * The accounts a given supplier can be charged to.
+     *
+     * The grid is the reseller's, not ours, so it is a fact about one supplier
+     * and not about ordering in general. A vendor we have no account with
+     * answers with an empty list, and an order to them is placed without one —
+     * which is how buying from anyone else has always worked, and what the
+     * unconditional requirement was quietly forbidding.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function forSupplier(?int $supplierId): array
+    {
+        if ($supplierId === null) {
+            return [];
+        }
+
+        // An unattached account counts for everyone. The migration leaves the
+        // seed rows unattached when no supplier exists yet to attach them to,
+        // and those must stay usable — scoping them to nobody would make the
+        // reseller's own orders unsendable on a fresh install.
+        return array_filter(
+            self::accounts(),
+            fn (array $account) => ($account['supplier_id'] ?? null) === null
+                || (int) $account['supplier_id'] === $supplierId
+        );
+    }
+
+    /** Does this supplier bill through accounts we have to choose between? */
+    public static function supplierHasAccounts(?int $supplierId): bool
+    {
+        return self::forSupplier($supplierId) !== [];
+    }
+
     /** Forget the per-request cache — after an edit, and between tests. */
     public static function flush(): void
     {

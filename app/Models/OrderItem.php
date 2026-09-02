@@ -223,7 +223,7 @@ class OrderItem extends Model
      * as stock: the consumable's qty is bumped and a 'checkin from' lands in
      * its history, tying the arrival to this order.
      */
-    public function markReceived(): bool
+    public function markReceived(bool $adjustStock = true): bool
     {
         if ($this->isReceived()) {
             return false;
@@ -232,7 +232,13 @@ class OrderItem extends Model
         $this->received_at = now();
         $this->save();
 
-        $this->adjustLinkedConsumableStock((int) $this->quantity);
+        // Closing an order that was delivered long ago is bookkeeping, not a
+        // delivery: the ink was used up years back, and bumping stock now would
+        // invent cartridges nobody can find on a shelf. The default stays the
+        // honest one — receiving today did put something in the stockroom.
+        if ($adjustStock) {
+            $this->adjustLinkedConsumableStock((int) $this->quantity);
+        }
 
         return true;
     }

@@ -27,11 +27,12 @@ trait PlacesVendorOrders
      *
      * Each gate is a round trip through the vendor's desk if it is missing:
      *
-     *   the account      which of the four, and so which blanket purchase order
-     *                    and whether ECU or CSI Leasing is invoiced. CDW cannot
-     *                    infer it. A CSI-financed account also needs the
-     *                    quarter's schedule so the invoice reaches the right
-     *                    Exhibit A
+     *   the account      for a supplier who bills through accounts: which one,
+     *                    and so which blanket purchase order and whether ECU or
+     *                    CSI Leasing is invoiced. The reseller cannot infer it.
+     *                    A CSI-financed account also needs the quarter's
+     *                    schedule so the invoice reaches the right Exhibit A.
+     *                    A vendor with no accounts on file skips this gate
      *   the part numbers both of them on catalog lines. The manufacturer's
      *                    number says which product; CDW's own number (the EDC)
      *                    is the thing they place
@@ -54,10 +55,22 @@ trait PlacesVendorOrders
     public function fundingResolved(): bool
     {
         if (! SupplierAccounts::canonical($this->funding_account)) {
-            return false;
+            // Only a supplier who bills through accounts can be missing one.
+            // The grid belongs to the reseller; a vendor we hold no account
+            // with has nothing to choose, and requiring a choice there made
+            // every order to anyone else permanently unsendable.
+            return ! $this->supplierBillsThroughAccounts();
         }
 
         return ! SupplierAccounts::needsSchedule($this->funding_account) || filled($this->lease_schedule);
+    }
+
+    /** Whether this order's vendor has accounts to be charged to at all. */
+    public function supplierBillsThroughAccounts(): bool
+    {
+        return SupplierAccounts::supplierHasAccounts(
+            $this->supplier_id === null ? null : (int) $this->supplier_id
+        );
     }
 
     /** "Purchase · Admin" — enough for a column or a chip. */
