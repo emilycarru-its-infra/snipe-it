@@ -6,6 +6,7 @@ return [
 
     'create' => [
         'success' => 'Purchase order created successfully.',
+        'duplicate' => 'Purchase order :po already exists.',
     ],
 
     'update' => [
