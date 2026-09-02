@@ -114,6 +114,58 @@ class PurchaseOrdersController extends Controller
         ));
     }
 
+    /**
+     * Create a purchase order.
+     *
+     * Finance owns purchase order creation, which is why the webhook never
+     * invents one and why this stayed web-only for a while. But a purchase
+     * order that arrives as a signed PDF still has to be keyed in before the
+     * store order it pays for can attach and the vendor order can be raised,
+     * and doing that through a browser is not a workflow — it is the absence
+     * of one. The permission is unchanged; only the way in is new.
+     *
+     * `po_number` is the join key the `orders/ingest` webhook resolves
+     * against, so a second record under the same number would silently split
+     * a purchase order's spend in two. Reject it rather than create it.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $this->authorize('create', Order::class);
+
+        $purchaseOrder = new PurchaseOrder;
+        $purchaseOrder->po_number = $request->input('po_number');
+        $purchaseOrder->title = $request->input('title') ?: null;
+        $purchaseOrder->supplier_id = $request->input('supplier_id') ?: null;
+        $purchaseOrder->company_id = $request->input('company_id') ?: null;
+        $purchaseOrder->fiscal_year = $request->input('fiscal_year') ?: null;
+        $purchaseOrder->budget = $request->input('budget') ?: null;
+        $purchaseOrder->cost_center = $request->input('cost_center') ?: null;
+        $purchaseOrder->status = $request->input('status', 'open');
+        $purchaseOrder->order_date = $request->input('order_date') ?: null;
+        $purchaseOrder->notes = $request->input('notes') ?: null;
+        $purchaseOrder->created_by = auth()->id();
+
+        if (PurchaseOrder::where('po_number', $purchaseOrder->po_number)->exists()) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, trans(
+                'admin/purchase-orders/message.create.duplicate',
+                ['po' => $purchaseOrder->po_number]
+            )), 200);
+        }
+
+        if ($purchaseOrder->save()) {
+            return response()->json(Helper::formatStandardApiResponse(
+                'success',
+                (new PurchaseOrdersTransformer)->transformPurchaseOrder($purchaseOrder),
+                trans('admin/purchase-orders/message.create.success')
+            ));
+        }
+
+        return response()->json(
+            Helper::formatStandardApiResponse('error', null, $purchaseOrder->getErrors()),
+            200
+        );
+    }
+
     public function show($id): array
     {
         $this->authorize('view', Order::class);
