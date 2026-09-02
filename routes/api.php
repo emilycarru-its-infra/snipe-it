@@ -1392,9 +1392,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         Api\PurchaseOrdersController::class,
         ['names' => [
             'index' => 'api.purchase-orders.index',
+            'store' => 'api.purchase-orders.store',
             'show' => 'api.purchase-orders.show',
         ],
-            'only' => ['index', 'show'],
+            'only' => ['index', 'store', 'show'],
             'parameters' => ['purchase-orders' => 'purchase_order_id'],
         ]
     ); // end purchase orders API routes
