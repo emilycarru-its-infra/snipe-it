@@ -1358,6 +1358,12 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     // Placing the order, and recording what the vendor says back — the same
     // two moves as the order page, for whatever has no browser: a script that
     // just raised the order, or an agent answering the reps' quote.
+    // Receiving over the API, because the browser form only ever suited a
+    // shipment arriving today — not the backlog of orders delivered long ago
+    // and never ticked off.
+    Route::post('orders/{order_id}/receive', [Api\OrdersController::class, 'receive'])
+        ->name('api.orders.receive');
+
     Route::post('orders/{order_id}/send-vendor', [Api\OrdersController::class, 'sendVendor'])
         ->name('api.orders.send-vendor');
     Route::post('orders/{order_id}/vendor-response', [Api\OrdersController::class, 'vendorResponse'])
