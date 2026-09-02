@@ -238,6 +238,37 @@ class VendorAccountsAndConsumablesTest extends TestCase
         $this->assertSame(7, $ink->fresh()->qty);
     }
 
+    public function test_an_empty_item_list_receives_nothing()
+    {
+        Passport::actingAs(User::factory()->superuser()->create());
+
+        $order = new Order;
+        $order->order_number = 'TEST-5';
+        $order->status = 'ordered';
+        $order->is_planned = false;
+        $order->save();
+
+        $ink = Consumable::factory()->create(['qty' => 5]);
+
+        OrderItem::create([
+            'order_id' => $order->id,
+            'item_type' => Consumable::class,
+            'item_id' => $ink->id,
+            'description' => 'Ink nobody asked to receive',
+            'quantity' => 2,
+            'unit_cost' => 207,
+        ]);
+
+        // A caller who names lines and computes none means none. Reading []
+        // as "every open line" would receive a whole order by accident.
+        $this->postJson(route('api.orders.receive', $order->id), ['items' => []])
+            ->assertOk()
+            ->assertJsonPath('status', 'error');
+
+        $this->assertSame('ordered', $order->fresh()->status);
+        $this->assertSame(5, $ink->fresh()->qty);
+    }
+
     public function test_an_order_with_nothing_open_answers_error()
     {
         Passport::actingAs(User::factory()->superuser()->create());

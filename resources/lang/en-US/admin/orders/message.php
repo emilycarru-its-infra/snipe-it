@@ -25,6 +25,7 @@ return [
         'delete_success' => 'Line item removed from the order.',
         'receive_success' => 'Line item marked as received.',
         'nothing_to_receive' => 'Every line on this order is already received.',
+        'no_items_named' => 'No line items were named. Omit items entirely to receive every open line.',
         'unreceive_success' => 'Line item marked as not received.',
         'type_invalid' => 'That item type cannot be added to an order.',
         'not_found' => 'The selected item could not be found.',
