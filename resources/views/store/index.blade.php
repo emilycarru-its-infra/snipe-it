@@ -138,6 +138,40 @@
     <div id="st-line-inputs" hidden></div>
 </form>
 
+{{-- Adding to the catalog from a vendor link.
+
+     Outside the order form, not nested in it: this is its own POST, and a
+     form inside a form is not a thing the browser will honour. Placed under
+     the grid rather than beside it because it is the answer to having looked
+     through the grid and not found the thing. --}}
+<div class="st-add-link">
+    <h4>{{ trans('admin/store/general.catalog_link_heading') }}</h4>
+    <p class="text-muted">{{ trans('admin/store/general.catalog_link_help') }}</p>
+
+    <form method="POST" action="{{ route('store.catalog-items.store') }}" class="st-add-link-form">
+        {{ csrf_field() }}
+        <label class="sr-only" for="st-catalog-url">{{ trans('admin/store/general.catalog_link_label') }}</label>
+        <input type="url" name="url" id="st-catalog-url" class="form-control"
+               value="{{ old('url') }}" required
+               placeholder="https://www.cdw.ca/product/&hellip;">
+        <button type="submit" class="btn btn-default">
+            {{ trans('admin/store/general.catalog_link_button') }}
+        </button>
+    </form>
+</div>
+
+<style nonce="{{ csrf_token() }}">
+.st-add-link { margin: 32px 0 8px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
+.st-add-link h4 { margin: 0 0 4px; font-weight: 600; }
+.st-add-link p { margin: 0 0 12px; max-width: 62ch; }
+.st-add-link-form { display: flex; gap: 8px; align-items: center; max-width: 640px; }
+.st-add-link-form .form-control { flex: 1 1 auto; }
+.st-add-link-form .btn { flex: 0 0 auto; }
+@media (max-width: 600px) {
+    .st-add-link-form { flex-direction: column; align-items: stretch; }
+}
+</style>
+
 <script type="application/json" id="st-data">@json($payload)</script>
 <script type="application/json" id="st-strings">@json($strings)</script>
 
