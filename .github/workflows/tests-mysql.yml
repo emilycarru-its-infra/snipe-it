@@ -13,19 +13,32 @@ jobs:
 
     services:
       mysql:
-        image: mysql:5.7
+        # Match production. The app image installs PHP 8.3 and the database
+        # behind it is MySQL 8.0 — testing 8.4 against 5.7 proved neither,
+        # and quietly let anything 8.0 is stricter about (ONLY_FULL_GROUP_BY,
+        # utf8mb4 collation defaults) through a green suite.
+        #
+        # The data directory is a tmpfs because none of it outlives the job,
+        # and these are database-bound feature tests.
+        image: mysql:8.0
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: yes
           MYSQL_DATABASE: snipeit
         ports:
           - 33306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+        options: >-
+          --tmpfs /var/lib/mysql
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
     strategy:
       fail-fast: false
       matrix:
         php-version:
-          - "8.4"
+          # The version the shipped container installs, not the newest one.
+          - "8.3"
 
     name: PHP ${{ matrix.php-version }}
 
