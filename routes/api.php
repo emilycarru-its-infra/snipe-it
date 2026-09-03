@@ -776,6 +776,12 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('catalog-items', [Api\CatalogItemsController::class, 'store'])
         ->name('api.catalog-items.store');
 
+    // A row built from a vendor product link rather than keyed field by
+    // field. Same permission as browsing the catalog, because this is the
+    // store's own self-serve path and not catalog administration.
+    Route::post('catalog-items/from-link', [Api\CatalogItemsController::class, 'fromLink'])
+        ->name('api.catalog-items.from-link');
+
     Route::match(['put', 'patch'], 'catalog-items/{catalogItem}', [Api\CatalogItemsController::class, 'update'])
         ->name('api.catalog-items.update');
 
