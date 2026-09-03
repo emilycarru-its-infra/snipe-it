@@ -13613,3 +13613,8 @@ parameters:
 			count: 1
 			path: app/Models/FieldGroup.php
 
+		-
+			message: '#^Dead catch \- Exception is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: app/Models/Labels/FieldOption.php
