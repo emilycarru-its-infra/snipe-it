@@ -1,0 +1,226 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\CatalogItem;
+use App\Models\CatalogItemRequest;
+use App\Models\Manufacturer;
+use App\Models\Supplier;
+use App\Models\User;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * Adding to the catalog from a vendor link, without asking anybody.
+ *
+ * The catalog is curated, and this is the deliberate exception. The thing it
+ * replaces was a request in a chat thread that somebody keyed in by hand days
+ * later; the person wanting an HDMI switch can now paste its link and order
+ * it. Every attempt is recorded, so the curation that still matters happens
+ * after the fact, on evidence, instead of standing between a person and a
+ * $40 part.
+ *
+ * Three rules hold the line that speed buys:
+ *
+ *   the price is an estimate — CDW's page is list, we buy on contract, and a
+ *                              row marked quoted would put a wrong number
+ *                              into a purchase order
+ *   the row says it is self-serve — so the catalog admin can see at a glance
+ *                              what arrived this way and curate it
+ *   a known SKU is never doubled — the second person to want the same switch
+ *                              gets the existing row, not a twin
+ */
+class CatalogSelfServe
+{
+    /** The vendor's image CDNs — the only hosts a product image may come from. */
+    private const IMAGE_HOSTS = ['webobjects2.cdw.com', 'webobjects.cdw.com', 'www.cdw.ca', 'cdw.ca'];
+
+    public function __construct(private readonly CdwProductLookup $lookup) {}
+
+    /**
+     * @return array{request: CatalogItemRequest, item: ?CatalogItem, created: bool}
+     */
+    public function addFromLink(string $url, ?User $user): array
+    {
+        try {
+            $product = $this->lookup->lookup($url);
+        } catch (CdwLookupFailed $e) {
+            $request = CatalogItemRequest::create([
+                'created_by' => $user?->id,
+                'url' => $url,
+                'vendor_sku' => CdwProductLookup::skuFrom($url),
+                'outcome' => CatalogItemRequest::FAILED,
+                'error' => mb_substr($e->getMessage(), 0, 500),
+            ]);
+
+            return ['request' => $request, 'item' => null, 'created' => false];
+        }
+
+        // Somebody already asked for this, or it was always in the catalog.
+        // Hand back what exists rather than a second row that splits the
+        // orders for one product across two SKUs.
+        $existing = CatalogItem::where('vendor_sku', $product['vendor_sku'])->first();
+
+        if ($existing) {
+            $request = CatalogItemRequest::create([
+                'created_by' => $user?->id,
+                'url' => $url,
+                'vendor_sku' => $product['vendor_sku'],
+                'name' => $product['name'],
+                'catalog_item_id' => $existing->id,
+                'outcome' => CatalogItemRequest::DUPLICATE,
+                'payload' => $product,
+            ]);
+
+            return ['request' => $request, 'item' => $existing, 'created' => false];
+        }
+
+        $item = $this->build($product, $user);
+
+        if (! $item->save()) {
+            $request = CatalogItemRequest::create([
+                'created_by' => $user?->id,
+                'url' => $url,
+                'vendor_sku' => $product['vendor_sku'],
+                'name' => $product['name'],
+                'outcome' => CatalogItemRequest::FAILED,
+                'error' => mb_substr((string) $item->getErrors(), 0, 500),
+                'payload' => $product,
+            ]);
+
+            return ['request' => $request, 'item' => null, 'created' => false];
+        }
+
+        $this->attachImage($item, $product['image_url'] ?? null);
+
+        $request = CatalogItemRequest::create([
+            'created_by' => $user?->id,
+            'url' => $url,
+            'vendor_sku' => $product['vendor_sku'],
+            'name' => $product['name'],
+            'catalog_item_id' => $item->id,
+            'outcome' => CatalogItemRequest::CREATED,
+            'payload' => $product,
+        ]);
+
+        return ['request' => $request, 'item' => $item, 'created' => true];
+    }
+
+    /** @param array<string, mixed> $product */
+    private function build(array $product, ?User $user): CatalogItem
+    {
+        $item = new CatalogItem;
+        $item->name = $product['name'];
+        $item->category = $product['category'];
+        $item->subcategory = $product['vendor_category'] ?? null;
+        $item->vendor_sku = $product['vendor_sku'];
+        $item->mfr_part_number = $product['mfr_part_number'] ?? null;
+        $item->product_type = 'standard';
+
+        // List, not contract. The estimate badge is the whole point: nobody
+        // should key this number into Colleague believing it was quoted.
+        $item->price_type = 'estimate';
+        $item->estimated_cost = $product['list_price'] ?? null;
+        $item->currency = 'CAD';
+        $item->source = 'CDW.ca product page';
+        $item->source_url = $product['url'];
+
+        $item->supplier_id = Supplier::where('name', 'like', 'CDW%')->value('id');
+        $item->manufacturer_id = $this->manufacturerId($product['manufacturer'] ?? null);
+
+        $item->is_active = true;
+        $item->show_in_store = true;
+        $item->self_serve = true;
+        $item->store_sort = 0;
+        $item->created_by = $user?->id;
+
+        return $item;
+    }
+
+    private function isVendorImage(?string $url): bool
+    {
+        if ($url === null) {
+            return false;
+        }
+
+        $parts = parse_url($url);
+
+        if ($parts === false || ! isset($parts['host'])) {
+            return false;
+        }
+
+        if (strtolower($parts['scheme'] ?? '') !== 'https' || isset($parts['port'])) {
+            return false;
+        }
+
+        return in_array(strtolower($parts['host']), self::IMAGE_HOSTS, true);
+    }
+
+    /**
+     * Match a manufacturer, never invent one. The manufacturer list is its
+     * own curated thing, and a brand string off a retail page ("Apple iPad",
+     * "AddOn Networks") would litter it with near-duplicates.
+     */
+    private function manufacturerId(?string $name): ?int
+    {
+        if (! $name) {
+            return null;
+        }
+
+        return Manufacturer::whereRaw('LOWER(name) = ?', [strtolower($name)])->value('id');
+    }
+
+    /**
+     * Copy the vendor's product image locally.
+     *
+     * Hotlinking would leave the storefront depending on a CDN that owes us
+     * nothing and on a URL that changes when the product is reshot. A failure
+     * here is not a failure of the request — the row is already saved, and an
+     * item with no picture is still an item somebody can order.
+     */
+    private function attachImage(CatalogItem $item, ?string $url): void
+    {
+        // The URL comes out of the page's own markup, so it is content and not
+        // a constant: whoever controls that page chooses where this server
+        // sends its next request. An https:// prefix is no protection at all
+        // — https://169.254.169.254/ has one — so the host is checked against
+        // the vendor's image CDNs and nothing else.
+        if (! $this->isVendorImage($url)) {
+            return;
+        }
+
+        try {
+            $response = Http::timeout(15)->withoutRedirecting()->get($url);
+
+            if (! $response->successful()) {
+                return;
+            }
+
+            $type = strtolower((string) $response->header('Content-Type'));
+            $extension = match (true) {
+                str_contains($type, 'png') => 'png',
+                str_contains($type, 'webp') => 'webp',
+                str_contains($type, 'gif') => 'gif',
+                str_contains($type, 'jpeg'), str_contains($type, 'jpg') => 'jpg',
+                default => null,
+            };
+
+            if ($extension === null) {
+                return;
+            }
+
+            $name = 'catalog-'.$item->id.'-'.substr(sha1($url), 0, 8).'.'.$extension;
+
+            Storage::disk('public')->put('catalog/'.$name, $response->body());
+
+            $item->image = $name;
+            $item->saveQuietly();
+        } catch (\Throwable $e) {
+            Log::warning('CATALOG.SELF_SERVE image fetch failed', [
+                'catalog_item_id' => $item->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+}

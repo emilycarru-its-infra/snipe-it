@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Models\CatalogItem;
+use App\Services\CatalogSelfServe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -52,6 +53,55 @@ class CatalogItemsController extends Controller
      * A single catalog row by hand, for the products a reseller price list
      * does not carry. The bulk path is still `catalog/price-list`.
      */
+    /**
+     * Build a catalog row from a vendor product link.
+     *
+     * Gated on being able to use the store rather than on the `orders`
+     * permission the rest of this controller rides. That is deliberate: this
+     * is the storefront's own self-serve path, and the people it exists for —
+     * faculty and staff who found a part the catalog does not carry — hold no
+     * procurement permission at all. Requiring one would gate the feature
+     * against exactly the people who asked for it.
+     */
+    public function fromLink(Request $request, CatalogSelfServe $selfServe): JsonResponse
+    {
+        if (! auth()->user()?->canUseStore()) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('general.insufficient_permissions')),
+                403
+            );
+        }
+
+        $validated = $request->validate([
+            'url' => 'required|string|max:1024',
+        ]);
+
+        $result = $selfServe->addFromLink($validated['url'], auth()->user());
+
+        if (! $result['item']) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, $result['request']->error),
+                200
+            );
+        }
+
+        $item = $result['item'];
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'id' => $item->id,
+            'name' => $item->name,
+            'category' => $item->category,
+            'vendor_sku' => $item->vendor_sku,
+            'mfr_part_number' => $item->mfr_part_number,
+            'estimated_cost' => $item->estimated_cost === null ? null : (float) $item->estimated_cost,
+            'price_type' => $item->price_type,
+            'self_serve' => (bool) $item->self_serve,
+            'created' => $result['created'],
+        ], trans($result['created']
+            ? 'admin/store/general.catalog_link_added'
+            : 'admin/store/general.catalog_link_already', ['name' => $item->name])));
+    }
+
     public function store(Request $request): JsonResponse
     {
         $this->authorize('create', CatalogItem::class);

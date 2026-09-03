@@ -81,10 +81,12 @@ class CatalogItem extends Model
         'currency',
         'price_type',
         'source',
+        'source_url',
         'quoted_at',
         'expires_at',
         'is_active',
         'show_in_store',
+        'self_serve',
         'image',
         'store_sort',
         'notes',
@@ -100,6 +102,7 @@ class CatalogItem extends Model
         'estimated_cost' => 'decimal:4',
         'is_active' => 'boolean',
         'show_in_store' => 'boolean',
+        'self_serve' => 'boolean',
         'store_sort' => 'integer',
         'ram_gb' => 'integer',
         'warranty_months' => 'integer',
@@ -124,6 +127,7 @@ class CatalogItem extends Model
         'manufacturer_id' => 'nullable|integer|exists:manufacturers,id',
         'model_id' => 'nullable|integer|exists:models,id',
         'source' => 'nullable|string|max:191',
+        'source_url' => 'nullable|url|max:1024',
         'notes' => 'nullable|string|max:65535',
     ];
 
@@ -198,7 +202,13 @@ class CatalogItem extends Model
     {
         return $query->where('is_active', true)
             ->where('show_in_store', true)
-            ->where(fn ($q) => $q->whereNotNull('model_id')->orWhere('category', 'Accessories'));
+            // A curated row earns its place through an asset model, or by
+            // being an accessory. A self-serve row has neither to offer —
+            // nobody attaches an asset model to an HDMI switch — and saying
+            // so explicitly beats loosening the rule for every other row.
+            ->where(fn ($q) => $q->whereNotNull('model_id')
+                ->orWhere('category', 'Accessories')
+                ->orWhere('self_serve', true));
     }
 
     /**
