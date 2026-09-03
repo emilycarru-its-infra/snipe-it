@@ -14,7 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         php-version:
-          - "8.4"
+          # The version the shipped container installs. Analysing against a
+          # runtime we do not ship reasons about the wrong language version.
+          - "8.3"
 
     name: PHPStan (PHP ${{ matrix.php-version }})
 
