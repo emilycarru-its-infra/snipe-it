@@ -26,6 +26,20 @@ class CdwProductLookup
     public const HOSTS = ['cdw.ca', 'www.cdw.ca'];
 
     /**
+     * How many hops a link may take before we stop following it.
+     *
+     * Redirects are followed by hand rather than by the HTTP client because
+     * the client checks the host once and then goes wherever it is sent. We
+     * depend on one redirect — a wrong slug is canonicalised to the right URL
+     * — so switching them off is not an option, and following them blindly
+     * means a redirect off this vendor's site is a request this server makes
+     * to wherever it is pointed. From inside the cloud that includes the
+     * instance metadata endpoint, which hands out managed-identity tokens.
+     * So every hop is re-checked against the same allowlist as the first.
+     */
+    private const MAX_HOPS = 4;
+
+    /**
      * CDW's taxonomy is not ours. Theirs is a retail tree ("Keyboards &
      * Mice", "Monitor Accessories"); ours is seven buckets sized for how the
      * estate is managed. Map what we can and let the rest fall to
@@ -58,9 +72,19 @@ class CdwProductLookup
      */
     public static function accepts(string $url): bool
     {
-        $host = strtolower((string) parse_url(trim($url), PHP_URL_HOST));
+        $parts = parse_url(trim($url));
 
-        return in_array($host, self::HOSTS, true);
+        if ($parts === false || ! isset($parts['host'])) {
+            return false;
+        }
+
+        // Plain http would be a downgrade somebody on the path could steer,
+        // and a port says somebody is aiming this at something specific.
+        if (strtolower($parts['scheme'] ?? '') !== 'https' || isset($parts['port'])) {
+            return false;
+        }
+
+        return in_array(strtolower($parts['host']), self::HOSTS, true);
     }
 
     /**
@@ -91,26 +115,88 @@ class CdwProductLookup
             throw new CdwLookupFailed(trans('admin/store/general.catalog_link_no_sku'));
         }
 
-        try {
-            $response = Http::timeout($this->timeout)
-                ->withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-                        .'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
-                    'Accept' => 'text/html,application/xhtml+xml',
-                    'Accept-Language' => 'en-CA,en;q=0.9',
-                ])
-                ->get($url);
-        } catch (\Throwable $e) {
-            throw new CdwLookupFailed(trans('admin/store/general.catalog_link_unreachable'), previous: $e);
+        $response = $this->fetch($url);
+
+        return $this->parse($response['body'], $response['url']);
+    }
+
+    /**
+     * Fetch the page, following redirects one at a time and re-checking the
+     * destination of each against the allowlist.
+     *
+     * @return array{body: string, url: string}
+     *
+     * @throws CdwLookupFailed
+     */
+    private function fetch(string $url): array
+    {
+        for ($hop = 0; $hop < self::MAX_HOPS; $hop++) {
+            try {
+                $response = Http::timeout($this->timeout)
+                    ->withoutRedirecting()
+                    ->withHeaders([
+                        'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                            .'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+                        'Accept' => 'text/html,application/xhtml+xml',
+                        'Accept-Language' => 'en-CA,en;q=0.9',
+                    ])
+                    ->get($url);
+            } catch (\Throwable $e) {
+                throw new CdwLookupFailed(trans('admin/store/general.catalog_link_unreachable'), previous: $e);
+            }
+
+            if ($response->redirect()) {
+                $next = $this->resolve($url, (string) $response->header('Location'));
+
+                // A redirect off the vendor's site is where this stops. It is
+                // the same refusal as a link to another site in the first
+                // place, and it says so, because to the person who pasted a
+                // vendor link that is what happened.
+                if ($next === null || ! self::accepts($next)) {
+                    throw new CdwLookupFailed(trans('admin/store/general.catalog_link_not_cdw'));
+                }
+
+                $url = $next;
+
+                continue;
+            }
+
+            if (! $response->successful()) {
+                throw new CdwLookupFailed(trans('admin/store/general.catalog_link_http', [
+                    'status' => $response->status(),
+                ]));
+            }
+
+            return ['body' => $response->body(), 'url' => $url];
         }
 
-        if (! $response->successful()) {
-            throw new CdwLookupFailed(trans('admin/store/general.catalog_link_http', [
-                'status' => $response->status(),
-            ]));
+        throw new CdwLookupFailed(trans('admin/store/general.catalog_link_unreachable'));
+    }
+
+    /** Resolve a Location header, which may be relative, against the current URL. */
+    private function resolve(string $current, string $location): ?string
+    {
+        $location = trim($location);
+
+        if ($location === '') {
+            return null;
         }
 
-        return $this->parse($response->body(), $url);
+        if (preg_match('#^https?://#i', $location)) {
+            return $location;
+        }
+
+        $parts = parse_url($current);
+
+        if (! isset($parts['scheme'], $parts['host'])) {
+            return null;
+        }
+
+        $base = $parts['scheme'].'://'.$parts['host'];
+
+        return str_starts_with($location, '/')
+            ? $base.$location
+            : $base.'/'.ltrim($location, '/');
     }
 
     /**

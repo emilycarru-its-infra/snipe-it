@@ -33,6 +33,9 @@ use Illuminate\Support\Facades\Storage;
  */
 class CatalogSelfServe
 {
+    /** The vendor's image CDNs — the only hosts a product image may come from. */
+    private const IMAGE_HOSTS = ['webobjects2.cdw.com', 'webobjects.cdw.com', 'www.cdw.ca', 'cdw.ca'];
+
     public function __construct(private readonly CdwProductLookup $lookup) {}
 
     /**
@@ -135,6 +138,25 @@ class CatalogSelfServe
         return $item;
     }
 
+    private function isVendorImage(?string $url): bool
+    {
+        if ($url === null) {
+            return false;
+        }
+
+        $parts = parse_url($url);
+
+        if ($parts === false || ! isset($parts['host'])) {
+            return false;
+        }
+
+        if (strtolower($parts['scheme'] ?? '') !== 'https' || isset($parts['port'])) {
+            return false;
+        }
+
+        return in_array(strtolower($parts['host']), self::IMAGE_HOSTS, true);
+    }
+
     /**
      * Match a manufacturer, never invent one. The manufacturer list is its
      * own curated thing, and a brand string off a retail page ("Apple iPad",
@@ -159,12 +181,17 @@ class CatalogSelfServe
      */
     private function attachImage(CatalogItem $item, ?string $url): void
     {
-        if (! $url || ! str_starts_with($url, 'https://')) {
+        // The URL comes out of the page's own markup, so it is content and not
+        // a constant: whoever controls that page chooses where this server
+        // sends its next request. An https:// prefix is no protection at all
+        // — https://169.254.169.254/ has one — so the host is checked against
+        // the vendor's image CDNs and nothing else.
+        if (! $this->isVendorImage($url)) {
             return;
         }
 
         try {
-            $response = Http::timeout(15)->get($url);
+            $response = Http::timeout(15)->withoutRedirecting()->get($url);
 
             if (! $response->successful()) {
                 return;
