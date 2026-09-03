@@ -160,7 +160,10 @@
     </form>
 </div>
 
-<style nonce="{{ csrf_token() }}">
+{{-- No nonce: the CSP this app sends allows 'unsafe-inline' and defines no
+     nonce source, so the attribute does nothing but publish the CSRF token
+     into the DOM for any injected script to read. --}}
+<style>
 .st-add-link { margin: 32px 0 8px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
 .st-add-link h4 { margin: 0 0 4px; font-weight: 600; }
 .st-add-link p { margin: 0 0 12px; max-width: 62ch; }

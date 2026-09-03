@@ -169,6 +169,74 @@ class AddToCatalogFromLinkTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_a_redirect_off_the_vendors_site_is_not_followed()
+    {
+        // The host is checked once at the door, so a redirect is the way past
+        // it. From inside the cloud the interesting destination is the
+        // instance metadata endpoint, which hands out managed-identity tokens.
+        Http::fake([
+            'www.cdw.ca/*' => Http::response('', 302, ['Location' => 'http://169.254.169.254/metadata/identity/oauth2/token']),
+            '169.254.169.254/*' => Http::response('a token you should never have asked for'),
+        ]);
+
+        $result = app(CatalogSelfServe::class)->addFromLink(
+            'https://www.cdw.ca/product/whatever/1234567',
+            User::factory()->create()
+        );
+
+        $this->assertNull($result['item']);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '169.254.169.254'));
+    }
+
+    public function test_a_redirect_within_the_vendors_site_is_followed()
+    {
+        // The one we depend on: a wrong slug is canonicalised, and the row is
+        // built from the page the redirect lands on.
+        Http::fake([
+            'www.cdw.ca/product/wrong-slug/7996075' => Http::response('', 301, [
+                'Location' => 'https://www.cdw.ca/product/adesso-easytouch-7000-keyboard/7996075',
+            ]),
+            'www.cdw.ca/product/adesso-easytouch-7000-keyboard/*' => Http::response($this->fixture('adesso-keyboard.html')),
+            'webobjects2.cdw.com/*' => Http::response('not-an-image', 200, ['Content-Type' => 'text/html']),
+        ]);
+
+        $result = app(CatalogSelfServe::class)->addFromLink(
+            'https://www.cdw.ca/product/wrong-slug/7996075',
+            User::factory()->create()
+        );
+
+        $this->assertTrue($result['created']);
+        $this->assertSame(self::KEYBOARD, $result['item']->source_url);
+    }
+
+    public function test_an_image_url_pointing_anywhere_else_is_not_fetched()
+    {
+        // image_url is read out of the page's markup, so it is content: an
+        // https:// prefix says nothing about where it points.
+        $page = str_replace(
+            'https://webobjects2.cdw.com/is/image/CDW/7996075?$400x350$',
+            'https://169.254.169.254/metadata/instance',
+            $this->fixture('adesso-keyboard.html')
+        );
+
+        Http::fake([
+            'www.cdw.ca/*' => Http::response($page),
+            '*' => Http::response('nope'),
+        ]);
+
+        $result = app(CatalogSelfServe::class)->addFromLink(self::KEYBOARD, User::factory()->create());
+
+        $this->assertTrue($result['created']);
+        $this->assertNull($result['item']->image);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '169.254.169.254'));
+    }
+
+    public function test_a_link_over_plain_http_or_carrying_a_port_is_refused()
+    {
+        $this->assertFalse(CdwProductLookup::accepts('http://www.cdw.ca/product/x/1234567'));
+        $this->assertFalse(CdwProductLookup::accepts('https://www.cdw.ca:8080/product/x/1234567'));
+    }
+
     public function test_the_store_form_adds_the_item()
     {
         $this->fakeVendor();
