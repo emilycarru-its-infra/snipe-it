@@ -38,11 +38,15 @@ jobs:
             type=ref,event=branch         #  <branch‑name>
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # A pull request builds to prove the image still builds; it does not
+      # publish. Its tags are computed from the merge commit, so nothing can
+      # deploy them anyway, and pushing them only filled the registry with
+      # per-PR tags nobody would ever pull.
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
