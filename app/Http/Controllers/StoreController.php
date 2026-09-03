@@ -9,6 +9,8 @@ use App\Models\StoreOrder;
 use App\Services\Deployments\WaveMembership;
 use App\Models\StoreOrderItem;
 use App\Models\UserAgreement;
+use App\Services\CatalogSelfServe;
+use App\Services\CdwProductLookup;
 use App\Services\StoreOrderAssetProvisioner;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +29,49 @@ use Illuminate\Validation\Rule;
  */
 class StoreController extends Controller
 {
+    /**
+     * Add a catalog row from a vendor product link.
+     *
+     * The thing this replaces was a message in a chat thread — "can we add
+     * this?" — answered by hand, days later, by the one person who keys the
+     * catalog. A one-off HDMI switch does not need a person in the middle,
+     * so anybody who may use the store may add from a link and order it in
+     * the same visit.
+     *
+     * Everything the row needs is read off the vendor's page. The price is
+     * taken as an estimate, never a quote — see {@see CatalogSelfServe}.
+     */
+    public function addCatalogItem(Request $request, CatalogSelfServe $selfServe): RedirectResponse
+    {
+        if ($redirect = $this->storeGate()) {
+            return $redirect;
+        }
+
+        $validated = $request->validate([
+            'url' => 'required|string|max:1024',
+        ]);
+
+        $result = $selfServe->addFromLink($validated['url'], auth()->user());
+
+        if ($result['created']) {
+            return redirect()->route('store.index')->with(
+                'success',
+                trans('admin/store/general.catalog_link_added', ['name' => $result['item']->name])
+            );
+        }
+
+        if ($result['item']) {
+            return redirect()->route('store.index')->with(
+                'warning',
+                trans('admin/store/general.catalog_link_already', ['name' => $result['item']->name])
+            );
+        }
+
+        return redirect()->route('store.index')
+            ->withInput()
+            ->with('error', $result['request']->error);
+    }
+
     /**
      * The storefront: an Apple-style walk from product family to a fully
      * specified configuration. The server ships every shelf item with its

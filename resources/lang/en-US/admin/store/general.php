@@ -1,6 +1,19 @@
 <?php
 
 return [
+    // Adding to the catalog from a vendor product link.
+    'catalog_link_heading' => 'Not in the store?',
+    'catalog_link_help' => 'Paste a CDW.ca product link and it is added to the catalog right away, ready to order. The price shown will be CDW\'s list price until a quote comes back.',
+    'catalog_link_label' => 'CDW.ca product link',
+    'catalog_link_button' => 'Add to the catalog',
+    'catalog_link_added' => '":name" was added to the catalog and is ready to order.',
+    'catalog_link_already' => '":name" is already in the catalog.',
+    'catalog_link_not_cdw' => 'That is not a CDW.ca link. Paste the address of the product page on cdw.ca.',
+    'catalog_link_no_sku' => 'That CDW.ca link has no product number in it. Open the product page itself and copy its address.',
+    'catalog_link_not_a_product' => 'No product could be read from that page. Check the link opens a product on CDW.ca rather than a search or a category.',
+    'catalog_link_unreachable' => 'CDW.ca could not be reached just now. Try again shortly.',
+    'catalog_link_http' => 'CDW.ca answered :status for that link. Check the address is right.',
+
     'store' => 'Store',
     'store_intro' => 'Pick what you need and place an order. We review every order before anything is purchased.',
     'procurement' => 'Procurement',

@@ -195,6 +195,10 @@ Route::group(['middleware' => 'auth'], function () {
         ->breadcrumbs($storeCrumb);
     Route::post('store/orders', [StoreController::class, 'store'])
         ->name('store.orders.store');
+    // Adding to the catalog from a vendor link, for anybody who may use the
+    // store — the catalog gap for a one-off part is not worth a person.
+    Route::post('store/catalog-items', [StoreController::class, 'addCatalogItem'])
+        ->name('store.catalog-items.store');
     Route::get('store/orders', [StoreController::class, 'orders'])
         ->name('store.orders')
         ->breadcrumbs(fn (Trail $trail) => ($storeCrumb)($trail)

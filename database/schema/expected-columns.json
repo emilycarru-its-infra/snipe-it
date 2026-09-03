@@ -216,6 +216,19 @@
         "unit_cost",
         "updated_at"
     ],
+    "catalog_item_requests": [
+        "catalog_item_id",
+        "created_at",
+        "created_by",
+        "error",
+        "id",
+        "name",
+        "outcome",
+        "payload",
+        "updated_at",
+        "url",
+        "vendor_sku"
+    ],
     "catalog_items": [
         "bundle_url",
         "category",
@@ -245,8 +258,10 @@
         "quoted_at",
         "ram_gb",
         "screen_size",
+        "self_serve",
         "show_in_store",
         "source",
+        "source_url",
         "spec_cpu",
         "spec_gpu",
         "spec_npu",
