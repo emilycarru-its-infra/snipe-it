@@ -192,7 +192,7 @@ class CdwProductLookup
         }
 
         // "Name - MPN - Category - CDW.ca" — keep the name.
-        return $this->clean(explode(' - ', html_entity_decode($m[1]))[0] ?? null);
+        return $this->clean(explode(' - ', html_entity_decode($m[1]))[0]);
     }
 
     private function price(?string $raw): ?float
