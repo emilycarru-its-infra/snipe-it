@@ -237,6 +237,18 @@ class AddToCatalogFromLinkTest extends TestCase
         $this->assertFalse(CdwProductLookup::accepts('https://www.cdw.ca:8080/product/x/1234567'));
     }
 
+    public function test_the_storefront_renders_the_control_inside_the_order_card()
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('store.index'))
+            ->assertOk()
+            // The fields sit in the order card; the form they submit to lives
+            // outside it, because a form cannot nest inside another. If that
+            // association breaks, the button silently does nothing.
+            ->assertSee('id="st-add-link-form"', false)
+            ->assertSee('form="st-add-link-form"', false);
+    }
+
     public function test_the_store_form_adds_the_item()
     {
         $this->fakeVendor();

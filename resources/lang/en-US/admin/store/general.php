@@ -4,7 +4,9 @@ return [
     // Adding to the catalog from a vendor product link.
     'catalog_images_backfilled' => 'Attached :attached image(s) across :considered catalog row(s).',
     'catalog_link_heading' => 'Not in the store?',
-    'catalog_link_help' => 'Paste a CDW.ca product link and it is added to the catalog right away, ready to order. The price shown will be CDW\'s list price until a quote comes back.',
+    'catalog_link_help' => 'Paste a CDW.ca product link and it is added to the catalog right away, ready to order. The price shown will be CDW\'s list price until an educational pricing quote comes back to us.',
+    'catalog_link_timing' => 'Adding takes a few seconds while we read the product page. It is on the shelf and orderable as soon as the page comes back.',
+    'catalog_link_working' => 'Adding…',
     'catalog_link_label' => 'CDW.ca product link',
     'catalog_link_button' => 'Add to the catalog',
     'catalog_link_added' => '":name" was added to the catalog and is ready to order.',
