@@ -131,6 +131,30 @@
                 <button type="submit" class="btn btn-primary btn-block btn-lg" id="st-submit" disabled>
                     {{ trans('admin/store/general.place_order') }}
                 </button>
+
+                {{-- Adding to the catalog from a vendor link, under the order
+                     button because that is where somebody is standing when
+                     they find the thing they wanted is not on the shelf.
+
+                     The fields live here; the form element they belong to
+                     sits outside the order form further down, because a form
+                     inside a form is not a thing the browser will honour.
+                     The `form` attribute is what joins the two. --}}
+                <div class="st-add-link">
+                    <h4>{{ trans('admin/store/general.catalog_link_heading') }}</h4>
+                    <p class="text-muted">{{ trans('admin/store/general.catalog_link_help') }}</p>
+
+                    <label class="sr-only" for="st-catalog-url">{{ trans('admin/store/general.catalog_link_label') }}</label>
+                    <input type="url" name="url" id="st-catalog-url" class="form-control"
+                           form="st-add-link-form" value="{{ old('url') }}" required
+                           placeholder="https://www.cdw.ca/product/&hellip;">
+                    <button type="submit" class="btn btn-default btn-block" id="st-add-link-submit"
+                            form="st-add-link-form"
+                            data-working="{{ trans('admin/store/general.catalog_link_working') }}">
+                        {{ trans('admin/store/general.catalog_link_button') }}
+                    </button>
+                    <p class="text-muted st-add-link-timing">{{ trans('admin/store/general.catalog_link_timing') }}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -138,42 +162,40 @@
     <div id="st-line-inputs" hidden></div>
 </form>
 
-{{-- Adding to the catalog from a vendor link.
+{{-- The form the fields above belong to. Empty of visible controls: it
+     exists only so the browser has something to submit, since it cannot live
+     inside the order form. --}}
+<form method="POST" action="{{ route('store.catalog-items.store') }}" id="st-add-link-form" hidden>
+    {{ csrf_field() }}
+</form>
 
-     Outside the order form, not nested in it: this is its own POST, and a
-     form inside a form is not a thing the browser will honour. Placed under
-     the grid rather than beside it because it is the answer to having looked
-     through the grid and not found the thing. --}}
-<div class="st-add-link">
-    <h4>{{ trans('admin/store/general.catalog_link_heading') }}</h4>
-    <p class="text-muted">{{ trans('admin/store/general.catalog_link_help') }}</p>
-
-    <form method="POST" action="{{ route('store.catalog-items.store') }}" class="st-add-link-form">
-        {{ csrf_field() }}
-        <label class="sr-only" for="st-catalog-url">{{ trans('admin/store/general.catalog_link_label') }}</label>
-        <input type="url" name="url" id="st-catalog-url" class="form-control"
-               value="{{ old('url') }}" required
-               placeholder="https://www.cdw.ca/product/&hellip;">
-        <button type="submit" class="btn btn-default">
-            {{ trans('admin/store/general.catalog_link_button') }}
-        </button>
-    </form>
-</div>
-
-{{-- No nonce: the CSP this app sends allows 'unsafe-inline' and defines no
-     nonce source, so the attribute does nothing but publish the CSRF token
-     into the DOM for any injected script to read. --}}
 <style>
-.st-add-link { margin: 32px 0 8px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
-.st-add-link h4 { margin: 0 0 4px; font-weight: 600; }
-.st-add-link p { margin: 0 0 12px; max-width: 62ch; }
-.st-add-link-form { display: flex; gap: 8px; align-items: center; max-width: 640px; }
-.st-add-link-form .form-control { flex: 1 1 auto; }
-.st-add-link-form .btn { flex: 0 0 auto; }
-@media (max-width: 600px) {
-    .st-add-link-form { flex-direction: column; align-items: stretch; }
-}
+.st-add-link { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(128,128,128,.35); }
+.st-add-link h4 { margin: 0 0 4px; font-weight: 600; font-size: 15px; }
+.st-add-link p { margin: 0 0 10px; font-size: 12px; line-height: 1.45; }
+.st-add-link .form-control { margin-bottom: 8px; }
+.st-add-link .btn[disabled] { opacity: .65; }
+.st-add-link-timing { margin: 8px 0 0; font-size: 11px; line-height: 1.45; }
 </style>
+
+<script>
+// Reading the vendor's page takes a couple of seconds, and a button that
+// looks idle for two seconds gets pressed twice. Say what is happening and
+// take the second press off the table.
+(function () {
+    var form = document.getElementById('st-add-link-form');
+    var button = document.getElementById('st-add-link-submit');
+
+    if (! form || ! button) {
+        return;
+    }
+
+    form.addEventListener('submit', function () {
+        button.disabled = true;
+        button.textContent = button.dataset.working;
+    });
+})();
+</script>
 
 <script type="application/json" id="st-data">@json($payload)</script>
 <script type="application/json" id="st-strings">@json($strings)</script>
