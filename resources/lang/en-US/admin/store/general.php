@@ -2,6 +2,7 @@
 
 return [
     // Adding to the catalog from a vendor product link.
+    'catalog_images_backfilled' => 'Attached :attached image(s) across :considered catalog row(s).',
     'catalog_link_heading' => 'Not in the store?',
     'catalog_link_help' => 'Paste a CDW.ca product link and it is added to the catalog right away, ready to order. The price shown will be CDW\'s list price until a quote comes back.',
     'catalog_link_label' => 'CDW.ca product link',
