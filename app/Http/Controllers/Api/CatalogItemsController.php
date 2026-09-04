@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Models\CatalogItem;
+use App\Services\CatalogImageBackfill;
 use App\Services\CatalogSelfServe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -100,6 +101,42 @@ class CatalogItemsController extends Controller
         ], trans($result['created']
             ? 'admin/store/general.catalog_link_added'
             : 'admin/store/general.catalog_link_already', ['name' => $item->name])));
+    }
+
+    /**
+     * Give catalog rows with no picture the vendor's own.
+     *
+     * The storefront renders accessories as tiles, so a row with no image is a
+     * blank one. Every such row already carries the vendor's SKU and the
+     * vendor publishes a photo against it — this is a lookup, not work for a
+     * person. `dry_run` reports what it would attach and writes nothing.
+     *
+     * On the catalog's own permission rather than the store's: this rewrites
+     * curated rows, which is administration, not shopping.
+     */
+    public function backfillImages(Request $request, CatalogImageBackfill $backfill): JsonResponse
+    {
+        $this->authorize('update', CatalogItem::class);
+
+        $validated = $request->validate([
+            'ids' => 'nullable|array',
+            'ids.*' => 'integer',
+            'dry_run' => 'nullable|boolean',
+        ]);
+
+        $report = $backfill->run(
+            $validated['ids'] ?? [],
+            (bool) ($validated['dry_run'] ?? false)
+        );
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            $report,
+            trans('admin/store/general.catalog_images_backfilled', [
+                'attached' => $report['attached'],
+                'considered' => $report['considered'],
+            ])
+        ));
     }
 
     public function store(Request $request): JsonResponse
