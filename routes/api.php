@@ -776,6 +776,12 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('catalog-items', [Api\CatalogItemsController::class, 'store'])
         ->name('api.catalog-items.store');
 
+    // Fill in the pictures the catalog is missing from the vendor's own
+    // product pages. Catalog administration, so it rides the orders
+    // permission the rest of this controller does.
+    Route::post('catalog-items/backfill-images', [Api\CatalogItemsController::class, 'backfillImages'])
+        ->name('api.catalog-items.backfill-images');
+
     // A row built from a vendor product link rather than keyed field by
     // field. Same permission as browsing the catalog, because this is the
     // store's own self-serve path and not catalog administration.
