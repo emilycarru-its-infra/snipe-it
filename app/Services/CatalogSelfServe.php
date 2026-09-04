@@ -7,9 +7,6 @@ use App\Models\CatalogItemRequest;
 use App\Models\Manufacturer;
 use App\Models\Supplier;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Adding to the catalog from a vendor link, without asking anybody.
@@ -33,10 +30,10 @@ use Illuminate\Support\Facades\Storage;
  */
 class CatalogSelfServe
 {
-    /** The vendor's image CDNs — the only hosts a product image may come from. */
-    private const IMAGE_HOSTS = ['webobjects2.cdw.com', 'webobjects.cdw.com', 'www.cdw.ca', 'cdw.ca'];
-
-    public function __construct(private readonly CdwProductLookup $lookup) {}
+    public function __construct(
+        private readonly CdwProductLookup $lookup,
+        private readonly CatalogImageFetcher $images,
+    ) {}
 
     /**
      * @return array{request: CatalogItemRequest, item: ?CatalogItem, created: bool}
@@ -92,7 +89,7 @@ class CatalogSelfServe
             return ['request' => $request, 'item' => null, 'created' => false];
         }
 
-        $this->attachImage($item, $product['image_url'] ?? null);
+        $this->images->attach($item, $product['image_url'] ?? null);
 
         $request = CatalogItemRequest::create([
             'created_by' => $user?->id,
@@ -138,25 +135,6 @@ class CatalogSelfServe
         return $item;
     }
 
-    private function isVendorImage(?string $url): bool
-    {
-        if ($url === null) {
-            return false;
-        }
-
-        $parts = parse_url($url);
-
-        if ($parts === false || ! isset($parts['host'])) {
-            return false;
-        }
-
-        if (strtolower($parts['scheme'] ?? '') !== 'https' || isset($parts['port'])) {
-            return false;
-        }
-
-        return in_array(strtolower($parts['host']), self::IMAGE_HOSTS, true);
-    }
-
     /**
      * Match a manufacturer, never invent one. The manufacturer list is its
      * own curated thing, and a brand string off a retail page ("Apple iPad",
@@ -171,56 +149,4 @@ class CatalogSelfServe
         return Manufacturer::whereRaw('LOWER(name) = ?', [strtolower($name)])->value('id');
     }
 
-    /**
-     * Copy the vendor's product image locally.
-     *
-     * Hotlinking would leave the storefront depending on a CDN that owes us
-     * nothing and on a URL that changes when the product is reshot. A failure
-     * here is not a failure of the request — the row is already saved, and an
-     * item with no picture is still an item somebody can order.
-     */
-    private function attachImage(CatalogItem $item, ?string $url): void
-    {
-        // The URL comes out of the page's own markup, so it is content and not
-        // a constant: whoever controls that page chooses where this server
-        // sends its next request. An https:// prefix is no protection at all
-        // — https://169.254.169.254/ has one — so the host is checked against
-        // the vendor's image CDNs and nothing else.
-        if (! $this->isVendorImage($url)) {
-            return;
-        }
-
-        try {
-            $response = Http::timeout(15)->withoutRedirecting()->get($url);
-
-            if (! $response->successful()) {
-                return;
-            }
-
-            $type = strtolower((string) $response->header('Content-Type'));
-            $extension = match (true) {
-                str_contains($type, 'png') => 'png',
-                str_contains($type, 'webp') => 'webp',
-                str_contains($type, 'gif') => 'gif',
-                str_contains($type, 'jpeg'), str_contains($type, 'jpg') => 'jpg',
-                default => null,
-            };
-
-            if ($extension === null) {
-                return;
-            }
-
-            $name = 'catalog-'.$item->id.'-'.substr(sha1($url), 0, 8).'.'.$extension;
-
-            Storage::disk('public')->put('catalog/'.$name, $response->body());
-
-            $item->image = $name;
-            $item->saveQuietly();
-        } catch (\Throwable $e) {
-            Log::warning('CATALOG.SELF_SERVE image fetch failed', [
-                'catalog_item_id' => $item->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
 }
