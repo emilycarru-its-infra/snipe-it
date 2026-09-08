@@ -699,10 +699,12 @@
         "body",
         "cc",
         "created_at",
+        "delivery",
         "id",
         "key",
         "recipients",
         "subject",
+        "teams_channel",
         "updated_at",
         "updated_by"
     ],

@@ -4,7 +4,9 @@ namespace App\Notifications;
 
 use AllowDynamicProperties;
 use App\Models\Setting;
+use App\Notifications\Concerns\BuildsTeamsCards;
 use App\Notifications\Concerns\OverridableMailNotification;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -13,7 +15,37 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class AcceptanceItemAcceptedNotification extends Notification
 {
-    use Queueable, OverridableMailNotification;
+    use BuildsTeamsCards;
+    use OverridableMailNotification, Queueable;
+
+    // The constructor assigns these; upstream leaves them undeclared and
+    // relies on #[AllowDynamicProperties]. Declaring them costs nothing and
+    // is what lets static analysis — and an editor — see them.
+    public $settings;
+
+    public $item_tag;
+
+    public $item_name;
+
+    public $item_model;
+
+    public $item_serial;
+
+    public $item_status;
+
+    public $accepted_date;
+
+    public $assigned_to;
+
+    public $company_name;
+
+    public $file;
+
+    public $qty;
+
+    public $note;
+
+    public $custom_fields;
 
     /**
      * Create a new notification instance.
@@ -64,6 +96,25 @@ class AcceptanceItemAcceptedNotification extends Notification
      * @param  mixed  $notifiable
      * @return MailMessage
      */
+    /**
+     * The card posted to Teams in place of the admin's copy of this email.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        return $this->teamsCard('Item accepted', 'good')
+            ->subtitle($this->item_name)
+            ->facts([
+                trans('mail.assigned_to') => $this->assigned_to,
+                trans('general.asset_tag') => $this->item_tag,
+                trans('admin/hardware/form.serial') => $this->item_serial,
+                trans('admin/hardware/form.model') => $this->item_model,
+                trans('admin/hardware/form.status') => $this->item_status,
+                trans('general.qty') => $this->qty,
+                trans('general.date') => $this->accepted_date,
+            ])
+            ->note($this->note);
+    }
+
     public function toMail()
     {
         $data = [

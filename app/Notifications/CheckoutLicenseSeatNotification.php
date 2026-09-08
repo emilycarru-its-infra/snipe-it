@@ -5,6 +5,8 @@ namespace App\Notifications;
 use App\Models\LicenseSeat;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\Concerns\BuildsTeamsCards;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Channels\SlackWebhookChannel;
 use Illuminate\Notifications\Messages\SlackMessage;
@@ -21,7 +23,21 @@ use NotificationChannels\MicrosoftTeams\MicrosoftTeamsMessage;
 #[AllowDynamicProperties]
 class CheckoutLicenseSeatNotification extends Notification
 {
+    use BuildsTeamsCards;
     use Queueable;
+
+    // The constructor assigns these; upstream leaves them undeclared and
+    // relies on #[AllowDynamicProperties]. Declaring them costs nothing and
+    // is what lets static analysis — and an editor — see them.
+    public $settings;
+
+    public $item;
+
+    public $admin;
+
+    public $note;
+
+    public $target;
 
     private $params;
 
@@ -97,6 +113,22 @@ class CheckoutLicenseSeatNotification extends Notification
                     ->fields($fields)
                     ->content($note);
             });
+    }
+
+    /**
+     * The card posted to Teams.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->item;
+
+        return $this->teamsCard(trans('mail.License_Checkout_Notification'), 'accent', $this->admin)
+            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
+            ->fact(trans('mail.assigned_to'), $this->teamsTargetName($this->target))
+            ->fact(trans('admin/consumables/general.remaining'), $item->availCount()->count())
+            ->note($this->note)
+            ->action(trans('general.teams_view_license'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_user'), $this->teamsUrl($this->target));
     }
 
     public function toMicrosoftTeams()

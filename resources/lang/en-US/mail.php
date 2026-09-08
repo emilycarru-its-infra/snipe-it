@@ -101,6 +101,8 @@ return [
     'serial' => 'Serial',
     'snipe_webhook_test' => 'Snipe-IT Integration Test',
     'snipe_webhook_summary' => 'Snipe-IT Integration Test Summary',
+    'contract_renewal_expired' => 'Contracts that have expired',
+    'contract_renewal_window' => 'Contracts renewing in :window',
     'supplier' => 'Supplier',
     'tag' => 'Tag',
     'test_email' => 'Test Email from Snipe-IT',

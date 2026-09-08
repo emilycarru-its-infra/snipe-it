@@ -3,7 +3,10 @@
 namespace App\Notifications;
 
 use AllowDynamicProperties;
+use App\Models\Asset;
 use App\Models\Setting;
+use App\Notifications\Concerns\BuildsTeamsCards;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Channels\SlackWebhookChannel;
 use Illuminate\Notifications\Messages\SlackMessage;
@@ -21,6 +24,7 @@ use NotificationChannels\MicrosoftTeams\MicrosoftTeamsMessage;
 #[AllowDynamicProperties]
 class AuditNotification extends Notification
 {
+    use BuildsTeamsCards;
     use Queueable;
 
     private $params;
@@ -84,6 +88,29 @@ class AuditNotification extends Notification
                 $attachment->title($item->present()->name, $item->present()->viewUrl())
                     ->fields($fields);
             });
+    }
+
+    /**
+     * The card posted to Teams for an audit.
+     *
+     * Unlike the static toMicrosoftTeams() this replaces, an audit of
+     * something that is not an asset — or one whose item went missing between
+     * the log write and the post — returns a card that still says what
+     * happened, rather than null for the caller to dereference.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->params['item'] ?? null;
+        $admin = $this->params['admin'] ?? null;
+        $asset = $item instanceof Asset ? $item : null;
+
+        return $this->teamsCard(class_basename($item).' '.trans('general.audited'), 'good', $admin)
+            ->subtitle($asset ? $this->teamsAssetSubtitle($asset) : htmlspecialchars_decode((string) ($item->display_name ?? '')))
+            ->facts($this->teamsAssetFacts($asset))
+            ->fact(trans('general.location'), $this->params['location'] ?? null)
+            ->note($this->params['note'] ?? null)
+            ->action(trans('general.teams_view_asset'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_user'), $this->teamsUrl($admin));
     }
 
     public static function toMicrosoftTeams($params)

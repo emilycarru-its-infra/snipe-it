@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Mail\BaseMailable;
+use App\Mail\EmailDelivery;
 use App\Mail\EmailRegistry;
 use App\Mail\EmailTemplateRenderer;
 use App\Models\EmailTemplate;
 use App\Models\User;
+use App\Services\Teams\TeamsChannels;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -60,6 +62,12 @@ class EmailsController extends Controller
             $email['editable'] = EmailRegistry::isEditable($email);
             $email['configurable_recipients'] = $email['configurable_recipients'] ?? false;
             $email['configurable_cc'] = $email['configurable_cc'] ?? false;
+            // Only internal notifications get the delivery selector: a vendor
+            // rep or a faculty member is outside the university's Teams, so
+            // offering to route their mail to a channel would be a trap.
+            $email['routable'] = EmailDelivery::isRoutable($email);
+            $email['delivery'] = $email['routable'] ? EmailDelivery::for($email['key']) : EmailDelivery::EMAIL;
+            $email['teams_channel'] = $email['routable'] ? EmailDelivery::channelFor($email['key']) : null;
             $email['subject_override'] = $override?->subject;
             $email['body_override'] = $override?->body;
             $email['recipients_override'] = $override?->recipients;
@@ -101,7 +109,22 @@ class EmailsController extends Controller
 
         $selected = (string) request('selected', '');
 
-        return view('settings.emails', compact('categories', 'emails', 'selected'));
+        // Channel keys, flagged by whether the deployment has a webhook URL
+        // behind them — an unconfigured channel is still selectable, but the
+        // hub says so rather than letting cards quietly go nowhere.
+        $configured = TeamsChannels::configuredKeys();
+        $channels = collect(TeamsChannels::keys())
+            ->map(fn ($label, $key) => [
+                'key' => $key,
+                'label' => $label,
+                'configured' => in_array($key, $configured, true),
+            ])
+            ->values()
+            ->all();
+
+        $deliveryOptions = EmailDelivery::options();
+
+        return view('settings.emails', compact('categories', 'emails', 'selected', 'channels', 'deliveryOptions'));
     }
 
     /**
@@ -216,6 +239,20 @@ class EmailsController extends Controller
             $lists[$field] = $addresses->isNotEmpty() ? $addresses->implode(',') : null;
         }
 
+        // Delivery routing is only stored for internal notifications. An
+        // email that renders no selector cannot be switched off by a form post
+        // — that is what keeps a faculty member's agreement request going out.
+        $delivery = null;
+        $channel = null;
+
+        if (EmailDelivery::isRoutable($entry)) {
+            $delivery = (string) $request->input('delivery');
+            $delivery = array_key_exists($delivery, EmailDelivery::options()) ? $delivery : null;
+
+            $channel = (string) $request->input('teams_channel');
+            $channel = TeamsChannels::isKnown($channel) ? $channel : null;
+        }
+
         EmailTemplate::updateOrCreate(
             ['key' => $key],
             [
@@ -223,6 +260,8 @@ class EmailsController extends Controller
                 'body' => $body,
                 'recipients' => $lists['recipients'],
                 'cc' => $lists['cc'],
+                'delivery' => $delivery,
+                'teams_channel' => $channel,
                 'updated_by' => auth()->id(),
             ],
         );
@@ -279,11 +318,19 @@ class EmailsController extends Controller
      * Returns a friendly placeholder rather than a 500 if a template can't
      * be built, so one broken email never blocks the rest of the hub.
      */
-    public function preview(string $key): Response
+    public function preview(string $key, Request $request): Response
     {
         $entry = EmailRegistry::find($key);
 
-        if (! $entry || ! EmailRegistry::isPreviewable($entry)) {
+        if (! $entry) {
+            return response(trans('admin/settings/general.emails_preview_missing'), 404);
+        }
+
+        if ($request->input('as') === 'card') {
+            return $this->cardPreview($key, $entry);
+        }
+
+        if (! EmailRegistry::isPreviewable($entry)) {
             return response(trans('admin/settings/general.emails_preview_missing'), 404);
         }
 
@@ -297,5 +344,39 @@ class EmailsController extends Controller
                 .e(trans('admin/settings/general.emails_preview_error')).'</p>'
             );
         }
+    }
+
+    /**
+     * The Teams card an email would post, rendered from the very payload the
+     * notifier sends — including the split into several cards when a report is
+     * long enough to need it, which is worth seeing before it happens in a
+     * channel.
+     *
+     * @param  array<string, mixed>  $entry
+     */
+    private function cardPreview(string $key, array $entry): Response
+    {
+        if (! EmailDelivery::isRoutable($entry)) {
+            return response(trans('admin/settings/general.emails_teams_not_routable'), 404);
+        }
+
+        try {
+            $card = EmailRegistry::makeTeamsCard($key);
+        } catch (\Throwable $e) {
+            Log::warning("Teams card preview failed for [{$key}]: ".$e->getMessage());
+            $card = null;
+        }
+
+        if (! $card) {
+            return response(
+                '<p style="font-family:sans-serif;padding:2em;color:#a94442;">'
+                .e(trans('admin/settings/general.emails_preview_error')).'</p>'
+            );
+        }
+
+        return response(view('settings.partials.teams-card-preview', [
+            'title' => $entry['label'],
+            'payloads' => $card->payloads(),
+        ])->render());
     }
 }

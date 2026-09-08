@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Mail\ContractRenewalAlertMail;
 use App\Models\Contract;
 use App\Models\EmailTemplate;
@@ -27,6 +28,8 @@ use Illuminate\Support\Facades\Mail;
  */
 class SendContractRenewalAlerts extends Command
 {
+    use PostsReportCards;
+
     protected $signature = 'snipeit:contract-renewals
                             {--dry-run : Show what would be sent without emailing or marking}
                             {--force   : Re-send even if the alert timestamp is already set}';
@@ -39,12 +42,13 @@ class SendContractRenewalAlerts extends Command
 
         if (! $settings || $settings->alerts_enabled != 1) {
             $this->info('Alerts disabled in settings — nothing to do.');
+
             return self::SUCCESS;
         }
 
-        $today    = Carbon::today();
-        $dryRun   = (bool) $this->option('dry-run');
-        $force    = (bool) $this->option('force');
+        $today = Carbon::today();
+        $dryRun = (bool) $this->option('dry-run');
+        $force = (bool) $this->option('force');
         // Per-contract admin_user wins; otherwise fall back to the per-email
         // recipient override (Settings → Emails) ?? the global alert_email list.
         $fallback = EmailTemplate::recipientsFor('report.contract_renewal', $settings->alert_email);
@@ -56,7 +60,16 @@ class SendContractRenewalAlerts extends Command
 
             if ($contracts->isEmpty()) {
                 $this->line("[$window] no contracts to alert on");
+
                 continue;
+            }
+
+            // The card covers the whole window in one post. Grouping exists so
+            // that each owner gets an email about their own contracts and
+            // nobody else's; a channel has no such privacy to respect, and a
+            // card per owner would just be the same window three times.
+            if (! $dryRun) {
+                $this->postWindowCard($window, $contracts);
             }
 
             // Group by recipient address(es) so each owner gets ONE email
@@ -65,10 +78,11 @@ class SendContractRenewalAlerts extends Command
 
             foreach ($grouped as $recipientsKey => $bag) {
                 $recipients = $bag['recipients'];
-                $rows       = $bag['contracts'];
+                $rows = $bag['contracts'];
 
                 if (empty($recipients)) {
                     $this->warn("[$window] {$rows->count()} contracts have no recipient (admin_user empty + no Setting::alert_email) — skipped");
+
                     continue;
                 }
 
@@ -79,6 +93,16 @@ class SendContractRenewalAlerts extends Command
                         implode(',', $recipients),
                         $rows->count(),
                     ));
+
+                    continue;
+                }
+
+                if (! $this->shouldEmailReport('report.contract_renewal')) {
+                    // Posted as a card instead. Still mark them, or the same
+                    // contracts alert again tomorrow and every day after.
+                    $this->markAlerted($rows, $window);
+                    $sent[$window] += $rows->count();
+
                     continue;
                 }
 
@@ -95,7 +119,7 @@ class SendContractRenewalAlerts extends Command
                 } catch (\Throwable $e) {
                     Log::error("Contract renewal alert failed for window=$window: ".$e->getMessage(), [
                         'recipients' => $recipients,
-                        'contracts'  => $rows->pluck('id')->all(),
+                        'contracts' => $rows->pluck('id')->all(),
                     ]);
                     $this->error("[$window] mail send failed: ".$e->getMessage());
                 }
@@ -260,12 +284,12 @@ class SendContractRenewalAlerts extends Command
 
         foreach ($contracts as $contract) {
             $recipients = $this->resolveRecipients($contract, $fallback);
-            $key        = implode(',', $recipients);
+            $key = implode(',', $recipients);
 
             if (! isset($bags[$key])) {
                 $bags[$key] = [
                     'recipients' => $recipients,
-                    'contracts'  => new Collection,
+                    'contracts' => new Collection,
                 ];
             }
             $bags[$key]['contracts']->push($contract);
@@ -286,11 +310,45 @@ class SendContractRenewalAlerts extends Command
     private function markAlerted(Collection $contracts, string $window): void
     {
         $column = match ($window) {
-            '14d'     => 'last_renewal_alert_14d_at',
+            '14d' => 'last_renewal_alert_14d_at',
             'expired' => 'last_renewal_alert_expired_at',
-            default   => 'last_renewal_alert_30d_at',
+            default => 'last_renewal_alert_30d_at',
         };
 
         Contract::whereIn('id', $contracts->pluck('id'))->update([$column => now()]);
+    }
+
+    /**
+     * One card for a whole alert window, listing every contract in it.
+     *
+     * @param  \Illuminate\Support\Collection<int, Contract>  $contracts
+     */
+    private function postWindowCard(string $window, $contracts): void
+    {
+        $title = match ($window) {
+            'expired' => trans('mail.contract_renewal_expired'),
+            default => trans('mail.contract_renewal_window', ['window' => $window]),
+        };
+
+        $this->postReportCard(
+            'report.contract_renewal',
+            $title,
+            $window === 'expired' ? 'attention' : 'warning',
+            [
+                trans('general.name'),
+                trans('general.supplier'),
+                trans('admin/contracts/general.contract_number'),
+                trans('admin/contracts/general.end_date'),
+            ],
+            $contracts,
+            fn ($contract) => [
+                $contract->name,
+                $contract->supplier?->name,
+                $contract->contract_number,
+                $contract->end_date,
+            ],
+            [],
+            route('contracts.index'),
+        );
     }
 }

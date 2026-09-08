@@ -3,12 +3,14 @@
 namespace App\Actions\CheckoutRequests;
 
 use App\Exceptions\AssetNotRequestable;
+use App\Mail\EmailDelivery;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\RequestAssetNotification;
+use App\Services\Teams\TeamsNotifier;
 use Illuminate\Auth\Access\AuthorizationException;
 use Log;
 
@@ -43,11 +45,17 @@ class CreateCheckoutRequestAction
 
         $asset->request();
         $asset->increment('requests_counter', 1);
-        try {
-            $settings->notify((new RequestAssetNotification($data))->locale($settings->locale));
-        } catch (\Exception $e) {
-            Log::warning($e);
+        $notification = new RequestAssetNotification($data);
+
+        if (EmailDelivery::shouldEmail('request.asset')) {
+            try {
+                $settings->notify((clone $notification)->locale($settings->locale));
+            } catch (\Exception $e) {
+                Log::warning($e);
+            }
         }
+
+        app(TeamsNotifier::class)->announce('request.asset', $notification);
 
         return true;
     }
