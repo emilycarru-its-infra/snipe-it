@@ -56,8 +56,16 @@
                                            data-configurable-cc="{{ ($email['configurable_cc'] ?? false) ? '1' : '0' }}"
                                            data-merge-vars="{{ implode(',', array_keys($email['merge_vars'] ?? [])) }}"
                                            data-last-edited="{{ $email['last_edited'] ?? '' }}"
-                                           data-preview-url="{{ route('settings.emails.preview', $email['key']) }}">
+                                           data-routable="{{ ($email['routable'] ?? false) ? '1' : '0' }}"
+                                           data-audience="{{ $email['audience'] ?? 'user' }}"
+                                           data-delivery="{{ $email['delivery'] ?? 'email' }}"
+                                           data-teams-channel="{{ $email['teams_channel'] ?? '' }}"
+                                           data-preview-url="{{ route('settings.emails.preview', $email['key']) }}"
+                                           data-card-url="{{ route('settings.emails.preview', $email['key']).'?as=card' }}">
                                             <strong>{{ $email['label'] }}</strong>
+                                            @if (($email['delivery'] ?? 'email') !== 'email')
+                                                <span class="label label-default email-cms-badge">{{ trans('admin/settings/general.emails_badge_teams') }}</span>
+                                            @endif
                                             <br><small class="text-muted">{{ $email['description'] }}</small>
                                         </a>
                                     </li>
@@ -86,6 +94,33 @@
                     <form method="POST" action="{{ route('settings.emails.save') }}" autocomplete="off" style="margin-bottom:15px;">
                         {{ csrf_field() }}
                         <input type="hidden" name="key" id="email-cms-key" value="">
+
+                        <div id="email-cms-delivery-group" style="margin-bottom:8px;">
+                            <div class="form-group" style="margin-bottom:8px;">
+                                <label for="email-cms-delivery">{{ trans('admin/settings/general.emails_delivery') }}</label>
+                                <select name="delivery" id="email-cms-delivery" class="form-control">
+                                    @foreach ($deliveryOptions as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_delivery_help') }}</p>
+                                <p class="help-block text-muted" id="email-cms-delivery-mixed" style="margin-bottom:0;display:none;">
+                                    {{ trans('admin/settings/general.emails_delivery_mixed_help') }}
+                                </p>
+                            </div>
+
+                            <div class="form-group" id="email-cms-channel-group" style="margin-bottom:8px;">
+                                <label for="email-cms-teams-channel">{{ trans('admin/settings/general.emails_teams_channel') }}</label>
+                                <select name="teams_channel" id="email-cms-teams-channel" class="form-control">
+                                    @foreach ($channels as $channel)
+                                        <option value="{{ $channel['key'] }}">
+                                            {{ $channel['label'] }}@unless ($channel['configured']) — {{ trans('admin/settings/general.emails_teams_channel_unconfigured') }}@endunless
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_teams_channel_help') }}</p>
+                            </div>
+                        </div>
 
                         <div id="email-cms-recipients-group" class="form-group {{ $errors->has('recipients') ? 'has-error' : '' }}" style="margin-bottom:8px;">
                             <label for="email-cms-recipients">{{ trans('admin/settings/general.emails_recipients') }}</label>
@@ -141,6 +176,11 @@
                         </div>
                     </form>
 
+                    <div id="email-cms-view-toggle" class="btn-group" style="margin-bottom:8px;display:none;">
+                        <button type="button" class="btn btn-default btn-sm active" data-view="email">{{ trans('admin/settings/general.emails_view_email') }}</button>
+                        <button type="button" class="btn btn-default btn-sm" data-view="card">{{ trans('admin/settings/general.emails_view_card') }}</button>
+                    </div>
+
                     <iframe id="email-cms-preview-frame"
                             title="{{ trans('admin/settings/general.emails_preview') }}"
                             style="width:100%;height:70vh;border:1px solid #ddd;border-radius:3px;background:#fff;">
@@ -184,6 +224,8 @@
     /* Keep the preview iframe readable whichever theme the email adopts.
        !important overrides the element's inline background:#fff so dark mode applies. */
     #email-cms-preview-frame { background: var(--box-bg) !important; }
+    /* Marks the rows that no longer land in an inbox. */
+    .email-cms-badge { font-weight: normal; margin-left: 6px; }
 </style>
 @endpush
 
@@ -205,6 +247,12 @@
         var noPreview = document.getElementById('email-cms-no-preview');
         var lastEditedEl = document.getElementById('email-cms-last-edited');
         var testBtn = document.getElementById('email-cms-test-btn');
+        var deliveryGroup = document.getElementById('email-cms-delivery-group');
+        var deliveryField = document.getElementById('email-cms-delivery');
+        var deliveryMixedHelp = document.getElementById('email-cms-delivery-mixed');
+        var channelGroup = document.getElementById('email-cms-channel-group');
+        var channelField = document.getElementById('email-cms-teams-channel');
+        var viewToggle = document.getElementById('email-cms-view-toggle');
         var selectedKey = @json($selected ?? '');
         var oldInput = @json(old());
         var recipientOptionsUrl = @json(route('settings.emails.recipient-options'));
@@ -291,6 +339,7 @@
             var editable = el.getAttribute('data-editable') === '1';
             var configurableRecipients = el.getAttribute('data-configurable-recipients') === '1';
             var configurableCc = el.getAttribute('data-configurable-cc') === '1';
+            var routable = el.getAttribute('data-routable') === '1';
             // After a validation error we re-show the rejected input for this email.
             var isOld = oldInput && oldInput.key === key;
 
@@ -331,19 +380,72 @@
             // Test-send only makes sense for mailable-backed emails.
             testBtn.style.display = editable ? '' : 'none';
 
-            // Preview iframe, or a note for emails without a preview yet.
-            if (previewable) {
-                frame.style.display = '';
-                noPreview.style.display = 'none';
-                frame.src = url;
-                openTab.href = url;
-                openTab.style.display = '';
-            } else {
+            // Delivery routing, for internal notifications only. Hidden — and
+            // reset — for anything addressed outside the university, so a
+            // stale value can never be posted onto a user-facing email.
+            deliveryGroup.style.display = routable ? '' : 'none';
+            var delivery = routable
+                ? (isOld && oldInput.delivery ? oldInput.delivery : (el.getAttribute('data-delivery') || 'email'))
+                : 'email';
+            deliveryField.value = delivery;
+            channelField.value = (isOld && oldInput.teams_channel)
+                ? oldInput.teams_channel
+                : (el.getAttribute('data-teams-channel') || 'default');
+            deliveryMixedHelp.style.display = el.getAttribute('data-audience') === 'mixed' ? '' : 'none';
+            syncChannelVisibility();
+
+            // Preview: the email, the card, or both behind a toggle. An email
+            // that still goes out as email opens on the email; one that only
+            // posts a card opens on the card, because that is what it sends.
+            var cardUrl = el.getAttribute('data-card-url');
+            var showToggle = routable && previewable;
+            viewToggle.style.display = showToggle ? '' : 'none';
+
+            if (!previewable && !routable) {
                 frame.style.display = 'none';
                 noPreview.style.display = '';
                 openTab.style.display = 'none';
+
+                return;
             }
+
+            var view = (routable && delivery === 'teams') || !previewable ? 'card' : 'email';
+            setView(view, url, cardUrl);
         }
+
+        /** Point the preview at one of the two renderings and mark the toggle. */
+        function setView(view, emailUrl, cardUrl) {
+            var target = view === 'card' ? cardUrl : emailUrl;
+
+            frame.style.display = '';
+            noPreview.style.display = 'none';
+            frame.src = target;
+            openTab.href = target;
+            openTab.style.display = '';
+
+            Array.prototype.forEach.call(viewToggle.querySelectorAll('button'), function (btn) {
+                btn.classList.toggle('active', btn.getAttribute('data-view') === view);
+            });
+        }
+
+        /** The channel only matters when a card is actually being posted. */
+        function syncChannelVisibility() {
+            channelGroup.style.display = deliveryField.value === 'email' ? 'none' : '';
+        }
+
+        deliveryField.addEventListener('change', syncChannelVisibility);
+
+        Array.prototype.forEach.call(viewToggle.querySelectorAll('button'), function (btn) {
+            btn.addEventListener('click', function () {
+                var active = document.querySelector('.email-cms-item');
+                items.forEach(function (i) { if (i.parentElement.classList.contains('active')) { active = i; } });
+                setView(
+                    btn.getAttribute('data-view'),
+                    active.getAttribute('data-preview-url'),
+                    active.getAttribute('data-card-url')
+                );
+            });
+        });
 
         items.forEach(function (el) {
             el.addEventListener('click', function (e) {

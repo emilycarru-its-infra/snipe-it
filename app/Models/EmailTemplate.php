@@ -22,6 +22,8 @@ class EmailTemplate extends Model
         'body',
         'recipients',
         'cc',
+        'delivery',
+        'teams_channel',
         'updated_by',
     ];
 
@@ -55,7 +57,12 @@ class EmailTemplate extends Model
      */
     public function hasOverride(): bool
     {
-        return filled($this->subject) || filled($this->body) || filled($this->recipients) || filled($this->cc);
+        return filled($this->subject)
+            || filled($this->body)
+            || filled($this->recipients)
+            || filled($this->cc)
+            || filled($this->delivery)
+            || filled($this->teams_channel);
     }
 
     /**
