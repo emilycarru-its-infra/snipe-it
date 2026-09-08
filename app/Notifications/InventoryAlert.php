@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use AllowDynamicProperties;
+use App\Models\Consumable;
 use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -12,7 +13,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class InventoryAlert extends Notification
 {
-    use Queueable, OverridableMailNotification;
+    use OverridableMailNotification, Queueable;
 
     private $params;
 
@@ -86,7 +87,7 @@ class InventoryAlert extends Notification
             return $items;
         }
 
-        $modelsByConsumable = \App\Models\Consumable::query()
+        $modelsByConsumable = Consumable::query()
             ->with(['compatibleModels' => fn ($q) => $q->withCount('assets')->with('manufacturer')])
             ->whereIn('id', $needIds)
             ->get()
@@ -129,6 +130,7 @@ class InventoryAlert extends Notification
 
             if (empty($models)) {
                 $other[] = $item;
+
                 continue;
             }
 

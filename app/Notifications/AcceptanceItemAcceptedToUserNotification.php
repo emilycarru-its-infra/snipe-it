@@ -14,7 +14,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class AcceptanceItemAcceptedToUserNotification extends Notification
 {
-    use Queueable, OverridableMailNotification;
+    use OverridableMailNotification, Queueable;
 
     /**
      * Create a new notification instance.

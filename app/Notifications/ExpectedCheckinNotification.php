@@ -13,7 +13,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class ExpectedCheckinNotification extends Notification
 {
-    use Queueable, OverridableMailNotification;
+    use OverridableMailNotification, Queueable;
 
     private $params;
 
