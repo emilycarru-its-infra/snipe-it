@@ -221,6 +221,23 @@ class TeamsCard
     }
 
     /**
+     * Just the Adaptive Cards, without the message envelope.
+     *
+     * Relay takes the card itself and builds its own envelope; the envelope in
+     * payloads() is only for a raw Power Automate webhook, which is the
+     * fallback path rather than the normal one.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function cards(): array
+    {
+        return array_map(
+            fn ($payload) => $payload['attachments'][0]['content'],
+            $this->payloads()
+        );
+    }
+
+    /**
      * Split the rows so each card stays under the size limit. Measured against
      * a real encoded payload rather than an estimate, because column headers
      * and the fact list are part of every chunk's overhead.

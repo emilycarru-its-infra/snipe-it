@@ -101,7 +101,6 @@ class RequestAssetNotification extends Notification
         $item = $this->item;
 
         return $this->teamsCard('Asset requested', 'accent')
-            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
             ->facts([
                 'Requested by' => $this->teamsTargetName($this->target),
                 trans('general.asset_tag') => $item->asset_tag ?? null,

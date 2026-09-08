@@ -9,65 +9,74 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Posts an Adaptive Card to a Teams channel through its Power Automate
- * incoming webhook.
+ * Posts an Adaptive Card to Teams through Relay, the estate's bot.
  *
- * Uses the Http facade rather than the vendor package's own Guzzle client, so
- * the payload is assertable under Http::fake() — nothing about the cards this
- * app sent could be tested before.
+ * Relay is fronted by an HTTP ingress on commits-functions — POST /api/post-card
+ * with {channel, card} — so this app needs no webhook URL, no Power Automate
+ * flow and no Key Vault secret. Adding Relay to a channel in Teams is the whole
+ * onboarding, and the bot's own credentials never leave that function app.
  *
- * A failure here is logged and swallowed. Nobody's checkout should fail
- * because a Power Automate flow was slow, and call sites defer the post past
- * the response for the same reason.
+ * The endpoint has two independent gates, and both are deployment facts rather
+ * than anything this class can arrange: the caller's managed identity must hold
+ * the PostCard.Send app role on the bot registration, and its object id must be
+ * in POST_CARD_ALLOWED_CALLERS. Missing either is a 403, which is logged as the
+ * configuration problem it is.
  *
- * One thing worth knowing when reading the logs: the Workflows trigger
- * returns 202 the moment it accepts the request and runs the flow afterwards.
- * A 202 therefore means accepted, never delivered — a flow that fails every
- * run still answers 202, so this logs "accepted" and leaves proof of delivery
- * to the flow's own run history.
+ * A failure here is logged and swallowed. Nobody's checkout should fail because
+ * a notification could not be posted, and call sites defer the post past the
+ * response for the same reason.
  */
 class TeamsNotifier
 {
     private const DEFAULT_TIMEOUT = 8;
 
     /**
-     * Post a card. Returns true when every payload was accepted — false when
-     * the channel is unconfigured, Teams is switched off, or the post failed.
+     * The App Service managed-identity token endpoint speaks this version.
+     * Not the IMDS one — a container app has IDENTITY_ENDPOINT instead.
      */
-    public function send(TeamsCard $card, string $channel = TeamsChannels::DEFAULT): bool
+    private const IDENTITY_API_VERSION = '2019-08-01';
+
+    /**
+     * Post a card. Returns true when every card was accepted — false when the
+     * integration is off, unconfigured, or the post failed.
+     */
+    public function send(TeamsCard $card, ?string $channel = null): bool
     {
         if (! $this->enabled()) {
             return false;
         }
 
-        $url = TeamsChannels::url($channel);
+        $url = trim((string) config('ecu.teams.post_card_url'));
 
-        if ($url === null) {
-            Log::info('Teams card not sent: no webhook URL for channel "'.$channel.'".');
+        if ($url === '') {
+            Log::info('Teams card not sent: no post-card endpoint configured.');
 
             return false;
         }
 
-        $payloads = $card->payloads();
-        $sent = 0;
+        $token = $this->token();
 
-        foreach ($payloads as $index => $payload) {
-            if (! $this->post($url, $payload, $channel, $index + 1, count($payloads))) {
-                return false;
-            }
-
-            $sent++;
+        if ($token === null) {
+            return false;
         }
 
-        return $sent > 0;
+        $channel = TeamsChannels::resolve($channel);
+        $cards = $card->cards();
+
+        foreach ($cards as $index => $content) {
+            if (! $this->post($url, $token, $channel, $content, $index + 1, count($cards))) {
+                return false;
+            }
+        }
+
+        return $cards !== [];
     }
 
     /**
      * Post one card and swallow whatever goes wrong, logging at a level that
-     * matches whose problem it is: a 4xx is our payload, a 5xx or a refused
-     * connection is theirs.
+     * matches whose problem it is.
      */
-    private function post(string $url, array $payload, string $channel, int $part, int $parts): bool
+    private function post(string $url, string $token, string $channel, array $content, int $part, int $parts): bool
     {
         $context = ['channel' => $channel];
 
@@ -76,49 +85,90 @@ class TeamsNotifier
         }
 
         try {
-            $response = Http::asJson()
-                ->timeout((int) (config('ecu.teams.timeout') ?: self::DEFAULT_TIMEOUT))
-                ->post($url, $payload)
+            $response = Http::withToken($token)
+                ->asJson()
+                ->timeout($this->timeout())
+                ->post($url, ['channel' => $channel, 'card' => $content])
                 ->throw();
 
-            Log::info('Teams card accepted ('.$response->status().') on channel "'.$channel.'".', $context);
+            // Unlike a Power Automate webhook, Relay answers after it has
+            // actually posted — so a 2xx here really is delivery.
+            Log::info('Teams card posted to "'.$channel.'" ('.$response->status().').', $context);
 
             return true;
         } catch (RequestException $e) {
             $status = $e->response->status();
+            $body = substr($e->response->body(), 0, 500);
 
-            // 4xx is a card Teams would not take — that is ours to fix, and it
-            // will keep happening until someone reads it.
-            if ($status < 500) {
-                Log::error('Teams rejected the card ('.$status.').', $context + [
-                    'error' => $e->getMessage(),
-                    'body' => substr($e->response->body(), 0, 500),
-                ]);
+            if ($status === 401 || $status === 403) {
+                // Both gates on the endpoint look like this. Neither is
+                // something a retry fixes, and both need a person.
+                Log::error('Relay refused the card ('.$status.') — check the PostCard.Send role assignment and POST_CARD_ALLOWED_CALLERS.', $context + ['body' => $body]);
+            } elseif ($status < 500) {
+                Log::error('Relay rejected the card ('.$status.').', $context + ['error' => $e->getMessage(), 'body' => $body]);
             } else {
-                Log::error('Teams webhook server error.', $context + [
-                    'status' => $status,
-                    'error' => $e->getMessage(),
-                ]);
+                Log::error('Relay server error.', $context + ['status' => $status, 'error' => $e->getMessage()]);
             }
         } catch (ConnectException $e) {
-            Log::warning('Teams webhook connection failed.', $context + ['error' => $e->getMessage()]);
+            Log::warning('Relay connection failed.', $context + ['error' => $e->getMessage()]);
         } catch (\Throwable $e) {
-            Log::error('Teams webhook failed unexpectedly.', $context + ['error' => $e->getMessage()]);
+            Log::error('Relay post failed unexpectedly.', $context + ['error' => $e->getMessage()]);
         }
 
         return false;
     }
 
     /**
-     * Post the card for one of the registry's notification keys, on the
-     * channel Settings → Emails routes it to, and only if it routes it to
-     * Teams at all.
+     * A managed-identity token for the bot registration.
      *
-     * The source is either a card, or anything that can build one — every
-     * notification with a toTeamsCard() qualifies. This is the one call every
-     * migrated send site makes; the matching `if (EmailDelivery::shouldEmail())`
-     * around the email stays at the call site, because only the call site
-     * knows how to send its own mail.
+     * App Service injects IDENTITY_ENDPOINT and IDENTITY_HEADER; outside it
+     * there is no identity to borrow, which is why local and dev post nothing
+     * rather than failing.
+     */
+    private function token(): ?string
+    {
+        $audience = trim((string) config('ecu.teams.audience'));
+        $endpoint = trim((string) config('ecu.teams.identity_endpoint'));
+        $header = (string) config('ecu.teams.identity_header');
+
+        if ($audience === '' || $endpoint === '') {
+            Log::info('Teams card not sent: no managed identity or audience available for Relay.');
+
+            return null;
+        }
+
+        try {
+            $token = Http::withHeaders(['X-IDENTITY-HEADER' => $header])
+                ->timeout($this->timeout())
+                ->get($endpoint, [
+                    'resource' => $audience,
+                    'api-version' => self::IDENTITY_API_VERSION,
+                ])
+                ->throw()
+                ->json('access_token');
+        } catch (\Throwable $e) {
+            Log::error('Could not get a managed-identity token for Relay: '.$e->getMessage());
+
+            return null;
+        }
+
+        if (! is_string($token) || $token === '') {
+            Log::error('Managed-identity token endpoint returned no access_token for Relay.');
+
+            return null;
+        }
+
+        return $token;
+    }
+
+    /**
+     * Post the card for one of the registry's notification keys, on the channel
+     * Settings → Emails routes it to, and only if it routes it to Teams at all.
+     *
+     * The source is either a card or anything that can build one. This is the
+     * one call every migrated send site makes; the matching
+     * `if (EmailDelivery::shouldEmail())` around the email stays at the call
+     * site, because only the call site knows how to send its own mail.
      */
     public function announce(string $key, object $source, bool $defer = true): void
     {
@@ -137,8 +187,8 @@ class TeamsNotifier
         $channel = EmailDelivery::channelFor($key);
 
         // Scheduled commands post synchronously: deferring past the response
-        // means nothing when there is no response, and a console run that
-        // exits before its callbacks fire would post nothing at all.
+        // means nothing when there is no response, and a console run that exits
+        // before its callbacks fire would post nothing at all.
         $defer ? $this->sendLater($source, $channel) : $this->send($source, $channel);
     }
 
@@ -146,13 +196,18 @@ class TeamsNotifier
      * Post after the response has gone out. Every event-driven call site uses
      * this: a card is never worth holding a request open for.
      *
-     * defer() only runs if the InvokeDeferredCallbacks middleware is
-     * registered — this fork keeps a legacy Http\Kernel, where it was a silent
-     * no-op until that was fixed. TeamsNotifierDeferralTest guards it.
+     * defer() only runs if the InvokeDeferredCallbacks middleware is registered
+     * — this fork keeps a legacy Http\Kernel, where it was a silent no-op until
+     * that was fixed. TeamsCardDeferralOverHttpTest guards it.
      */
-    public function sendLater(TeamsCard $card, string $channel = TeamsChannels::DEFAULT): void
+    public function sendLater(TeamsCard $card, ?string $channel = null): void
     {
         defer(fn () => $this->send($card, $channel));
+    }
+
+    private function timeout(): int
+    {
+        return (int) (config('ecu.teams.timeout') ?: self::DEFAULT_TIMEOUT);
     }
 
     private function enabled(): bool

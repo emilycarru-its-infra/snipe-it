@@ -98,7 +98,6 @@ class AcceptanceItemDeclinedNotification extends Notification
     public function toTeamsCard(): TeamsCard
     {
         return $this->teamsCard('Item declined', 'attention')
-            ->subtitle($this->item_name)
             ->facts([
                 trans('mail.assigned_to') => $this->assigned_to,
                 trans('general.asset_tag') => $this->item_tag,
