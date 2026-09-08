@@ -121,7 +121,7 @@ class TeamsNotifier
      * around the email stays at the call site, because only the call site
      * knows how to send its own mail.
      */
-    public function announce(string $key, object $source): void
+    public function announce(string $key, object $source, bool $defer = true): void
     {
         if (! EmailDelivery::shouldPostToTeams($key)) {
             return;
@@ -135,7 +135,12 @@ class TeamsNotifier
             $source = $source->toTeamsCard();
         }
 
-        $this->sendLater($source, EmailDelivery::channelFor($key));
+        $channel = EmailDelivery::channelFor($key);
+
+        // Scheduled commands post synchronously: deferring past the response
+        // means nothing when there is no response, and a console run that
+        // exits before its callbacks fire would post nothing at all.
+        $defer ? $this->sendLater($source, $channel) : $this->send($source, $channel);
     }
 
     /**

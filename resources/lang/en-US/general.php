@@ -334,6 +334,7 @@ return [
     'teams_view_license' => 'View license',
     'teams_view_report' => 'Open in Snipe-IT',
     'teams_remaining' => 'Remaining',
+    'teams_report_subtitle' => '{1} 1 item|[2,*] :count items',
     'webhook_test_msg' => 'Oh hai! It looks like your :app integration with Snipe-IT is working!',
     'some_features_disabled' => 'DEMO MODE: Some features are disabled for this installation.',
     'site_name' => 'Site Name',
