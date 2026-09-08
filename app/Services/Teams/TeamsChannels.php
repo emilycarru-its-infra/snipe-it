@@ -17,8 +17,15 @@ namespace App\Services\Teams;
 class TeamsChannels
 {
     /**
-     * Channel keys the app offers, in the order the settings dropdown shows
-     * them. The key is the channel name Relay is given.
+     * The channels this app offers, in the order the settings dropdown shows
+     * them: the ones its own notifications plausibly belong in first, then the
+     * rest of the estate's channels so a notification can be split out without
+     * a code change.
+     *
+     * These are names Relay resolves in its own team. Adding one here does not
+     * create anything — the channel has to exist and have Relay in it — but a
+     * name Relay cannot resolve falls back to Automations with a notice rather
+     * than disappearing, so an optimistic list is safe.
      *
      * @return array<string, string> channel name => display label
      */
@@ -28,6 +35,21 @@ class TeamsChannels
             'Inventory' => 'Inventory — checkouts, check-ins, audits, requests',
             'Procurement' => 'Procurement — store and vendor orders',
             'Automations' => 'Automations — scheduled reports',
+            'Devices' => 'Devices',
+            'Macintosh' => 'Macintosh',
+            'Windows' => 'Windows',
+            'PaperCut' => 'PaperCut',
+            'Planning' => 'Planning',
+            'ReportMate' => 'ReportMate',
+            'Vantage' => 'Vantage',
+            'Intune' => 'Intune',
+            'Enrollment' => 'Enrollment',
+            'Entra' => 'Entra',
+            'Adobe' => 'Adobe',
+            'Amazon' => 'Amazon',
+            'TouchNet' => 'TouchNet',
+            'Handbook' => 'Handbook',
+            'Patching' => 'Patching',
         ];
     }
 

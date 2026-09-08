@@ -122,7 +122,7 @@ class CheckoutLicenseSeatNotification extends Notification
     {
         $item = $this->item;
 
-        return $this->teamsCard(trans('mail.License_Checkout_Notification'), 'accent', $this->admin)
+        return $this->teamsCard(trans('general.teams_license_checked_out'), 'accent', $this->admin)
             ->fact(trans('mail.assigned_to'), $this->teamsTargetName($this->target))
             ->fact(trans('admin/consumables/general.remaining'), $item->availCount()->count())
             ->note($this->note)

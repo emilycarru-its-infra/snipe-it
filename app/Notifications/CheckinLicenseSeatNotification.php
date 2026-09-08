@@ -129,7 +129,7 @@ class CheckinLicenseSeatNotification extends Notification
     {
         $item = $this->item;
 
-        return $this->teamsCard(trans('mail.License_Checkin_Notification'), 'good', $this->admin)
+        return $this->teamsCard(trans('general.teams_license_checked_in'), 'good', $this->admin)
             ->fact(trans('mail.checkedin_from'), $this->teamsTargetName($this->target))
             ->fact(trans('admin/consumables/general.remaining'), $item->availCount()->count())
             ->note($this->note)

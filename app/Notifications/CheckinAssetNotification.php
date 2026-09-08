@@ -130,7 +130,7 @@ class CheckinAssetNotification extends Notification
     {
         $item = $this->item;
 
-        return $this->teamsCard(trans('mail.Asset_Checkin_Notification', ['tag' => '']), 'good', $this->admin)
+        return $this->teamsCard(trans('general.teams_asset_checked_in'), 'good', $this->admin)
             ->facts($this->teamsAssetFacts($item))
             ->fact(trans('mail.checkedin_from'), $this->teamsTargetName($this->target))
             ->fact(trans('mail.checked_into'), $this->teamsLocation($item))
