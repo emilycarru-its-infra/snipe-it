@@ -3,7 +3,7 @@
 namespace App\Console\Commands\Concerns;
 
 use App\Mail\EmailDelivery;
-use App\Services\Teams\TeamsCard;
+use App\Services\Teams\ReportCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Collection;
 
@@ -46,15 +46,11 @@ trait PostsReportCards
             return;
         }
 
-        $card = TeamsCard::make($title)
-            ->accent($accent)
-            ->subtitle(trans_choice('general.teams_report_subtitle', $rows->count(), ['count' => $rows->count()]))
-            ->facts($facts)
-            ->table($columns, $rows->map($map)->all())
-            ->action(trans('general.teams_view_report'), $url)
-            ->footer(now()->format('D, M j Y'));
-
-        app(TeamsNotifier::class)->announce($key, $card, defer: false);
+        app(TeamsNotifier::class)->announce(
+            $key,
+            ReportCard::make($title, $accent, $columns, $rows, $map, $facts, $url),
+            defer: false,
+        );
     }
 
     /** Whether this report should still be emailed as well as, or instead of, posted. */

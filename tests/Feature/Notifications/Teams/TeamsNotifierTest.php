@@ -168,7 +168,12 @@ class TeamsNotifierTest extends TestCase
     {
         $this->fakeRelay();
 
-        $this->assertSame(['Inventory', 'Procurement', 'Automations'], array_keys(TeamsChannels::keys()));
+        $keys = array_keys(TeamsChannels::keys());
+
+        // The three this app routes to by default lead the list; the rest are
+        // offered so a notification can be split out without a code change.
+        $this->assertSame(['Inventory', 'Procurement', 'Automations'], array_slice($keys, 0, 3));
+        $this->assertContains('Macintosh', $keys);
         $this->assertSame('Inventory', TeamsChannels::default());
     }
 }
