@@ -23,8 +23,30 @@ return [
         'timeout' => (int) env('ASSET_CHANGE_WEBHOOK_TIMEOUT', 5),
     ],
 
-    // Categories outside the device capital plan (decision 2026-08-13,
-    // AB#4473): they carry lifecycle EOL dates for operations, but the
+    // Teams channels for the internal notifications that used to be admin
+    // email. The URLs are Power Automate ("Workflows") incoming webhooks, set
+    // as app settings resolved from the commits-teams-webhooks Key Vault, so
+    // no webhook URL is ever stored in the database — Settings → Emails picks
+    // a channel key, and this maps the key to the URL. An empty URL turns that
+    // channel off; dev and local leave them all empty on purpose.
+    //
+    // "default" is the fallback: with nothing configured it resolves to the
+    // single endpoint the Settings → Slack form writes, which is where these
+    // cards went before there was more than one channel.
+    'teams' => [
+        'enabled' => filter_var(env('TEAMS_WEBHOOKS_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'timeout' => (int) env('TEAMS_WEBHOOK_TIMEOUT', 8),
+        'channels' => [
+            'default' => env('TEAMS_WEBHOOK_DEFAULT', ''),
+            'devices' => env('TEAMS_WEBHOOK_DEVICES', ''),
+            'procurement' => env('TEAMS_WEBHOOK_PROCUREMENT', ''),
+            'reports' => env('TEAMS_WEBHOOK_REPORTS', ''),
+            'requests' => env('TEAMS_WEBHOOK_REQUESTS', ''),
+        ],
+    ],
+
+    // Categories outside the device capital plan (decision 2026-08-13):
+    // they carry lifecycle EOL dates for operations, but the
     // refresh forecast and the multi-year horizon never surface them —
     // they are replaced ad hoc or with room projects, not on a cycle.
     'forecast_excluded_categories' => [
