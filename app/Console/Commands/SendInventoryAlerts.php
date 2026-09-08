@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Helpers\Helper;
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\Recipients\AlertRecipient;
 use App\Models\Setting;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Notification;
 
 class SendInventoryAlerts extends Command
 {
+    use PostsReportCards;
+
     /**
      * The name and signature of the console command.
      *
@@ -48,12 +51,36 @@ class SendInventoryAlerts extends Command
 
             if (($items) && (count($items) > 0)) {
                 $this->info(trans_choice('mail.low_inventory_alert', count($items)));
-                // Send a rollup to the admin, if settings dictate
-                // Per-email recipient override (Settings → Emails) ?? global alert_email.
-                $recipients = collect(EmailTemplate::recipientsFor('report.low_inventory', $settings->alert_email))
-                    ->map(fn ($email) => new AlertRecipient($email));
 
-                Notification::send($recipients, new InventoryAlert($items, $settings->alert_threshold));
+                $this->postReportCard(
+                    'report.low_inventory',
+                    trans('mail.Low_Inventory_Report'),
+                    'attention',
+                    [
+                        trans('general.name'),
+                        trans('general.type'),
+                        trans('general.teams_remaining'),
+                        trans('mail.min_QTY'),
+                    ],
+                    $items,
+                    fn ($item) => [
+                        $item['name'] ?? null,
+                        ucfirst((string) ($item['type'] ?? '')),
+                        $item['remaining'] ?? null,
+                        $item['min_amt'] ?? null,
+                    ],
+                    [],
+                    route('reports.index'),
+                );
+
+                if ($this->shouldEmailReport('report.low_inventory')) {
+                    // Send a rollup to the admin, if settings dictate
+                    // Per-email recipient override (Settings → Emails) ?? global alert_email.
+                    $recipients = collect(EmailTemplate::recipientsFor('report.low_inventory', $settings->alert_email))
+                        ->map(fn ($email) => new AlertRecipient($email));
+
+                    Notification::send($recipients, new InventoryAlert($items, $settings->alert_threshold));
+                }
             } else {
                 $this->info('No low inventory items found. No mail sent.');
             }

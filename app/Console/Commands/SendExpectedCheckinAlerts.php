@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Helpers\Helper;
 use App\Models\Asset;
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\Recipients\AlertRecipient;
 use App\Models\Setting;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Notification;
 
 class SendExpectedCheckinAlerts extends Command
 {
+    use PostsReportCards;
+
     /**
      * The console command name.
      *
@@ -89,12 +92,34 @@ class SendExpectedCheckinAlerts extends Command
         }
 
         if (($assets) && ($assets->count() > 0) && ($settings->alert_email != '')) {
-            // Send a rollup to the admin, if settings dictate
-            // Per-email recipient override (Settings → Emails) ?? global alert_email.
-            $recipients = collect(EmailTemplate::recipientsFor('report.expected_checkin', $settings->alert_email))
-                ->map(fn ($email) => new AlertRecipient($email));
-            Notification::send($recipients, new ExpectedCheckinAdminNotification($assets));
+            $this->postReportCard(
+                'report.expected_checkin',
+                trans('mail.Expected_Checkin_Report'),
+                'accent',
+                [
+                    trans('admin/hardware/form.tag'),
+                    trans('general.name'),
+                    trans('mail.assigned_to'),
+                    trans('admin/hardware/form.expected_checkin'),
+                ],
+                $assets,
+                fn ($asset) => [
+                    $asset->asset_tag,
+                    $asset->name,
+                    $asset->assignedTo?->display_name,
+                    $asset->expected_checkin_formattedDate,
+                ],
+                [],
+                route('assets.checkins.due'),
+            );
 
+            if ($this->shouldEmailReport('report.expected_checkin')) {
+                // Send a rollup to the admin, if settings dictate
+                // Per-email recipient override (Settings → Emails) ?? global alert_email.
+                $recipients = collect(EmailTemplate::recipientsFor('report.expected_checkin', $settings->alert_email))
+                    ->map(fn ($email) => new AlertRecipient($email));
+                Notification::send($recipients, new ExpectedCheckinAdminNotification($assets));
+            }
         }
 
         $this->info('Sent checkin reminders to to '.$count.' users.');

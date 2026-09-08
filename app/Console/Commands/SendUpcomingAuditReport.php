@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Mail\SendUpcomingAuditMail;
 use App\Models\Asset;
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\Setting;
 use Carbon\Carbon;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Mail;
 
 class SendUpcomingAuditReport extends Command
 {
+    use PostsReportCards;
+
     /**
      * The name and signature of the console command.
      *
@@ -59,8 +62,34 @@ class SendUpcomingAuditReport extends Command
 
             $assets_for_email = $assets_query->limit(30)->get();
 
+            // The card carries every asset due; the email is capped at 30 and
+            // says how many more there are, which is the compromise a mail
+            // body forces and a card does not.
+            $this->postReportCard(
+                'report.upcoming_audits',
+                trans_choice('mail.upcoming-audits', $asset_count, ['count' => $asset_count, 'threshold' => $settings->audit_warning_days]),
+                'accent',
+                [
+                    trans('admin/hardware/form.tag'),
+                    trans('general.name'),
+                    trans('admin/hardware/form.model'),
+                    trans('mail.assigned_to'),
+                    trans('general.next_audit_date'),
+                ],
+                $assets_query->limit(null)->get(),
+                fn ($asset) => [
+                    $asset->asset_tag,
+                    $asset->name,
+                    $asset->model?->name,
+                    $asset->assignedTo?->display_name,
+                    $asset->next_audit_date,
+                ],
+                [trans('admin/settings/general.audit_warning_days') => $settings->audit_warning_days],
+                route('reports.audit'),
+            );
+
             // Send a rollup to the admin, if settings dictate
-            if ($settings->alert_email != '') {
+            if ($settings->alert_email != '' && $this->shouldEmailReport('report.upcoming_audits')) {
 
                 // Per-email recipient override (Settings → Emails) ?? global alert_email.
                 $recipients = EmailTemplate::recipientsFor('report.upcoming_audits', $settings->alert_email);
@@ -68,6 +97,8 @@ class SendUpcomingAuditReport extends Command
                 Mail::to($recipients)->send(new SendUpcomingAuditMail($assets_for_email, $settings->audit_warning_days, $asset_count));
                 $this->info('Audit notification sent to: '.$settings->alert_email);
 
+            } elseif ($settings->alert_email !== '') {
+                $this->info('Upcoming audits are routed to Teams; no email sent.');
             } else {
                 $this->info('There is no admin alert email set so no email will be sent.');
             }

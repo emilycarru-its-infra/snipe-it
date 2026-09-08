@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Mail\ContractRenewalAlertMail;
 use App\Models\Contract;
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\Setting;
 use Carbon\Carbon;
@@ -27,6 +28,8 @@ use Illuminate\Support\Facades\Mail;
  */
 class SendContractRenewalAlerts extends Command
 {
+    use PostsReportCards;
+
     protected $signature = 'snipeit:contract-renewals
                             {--dry-run : Show what would be sent without emailing or marking}
                             {--force   : Re-send even if the alert timestamp is already set}';
@@ -59,6 +62,14 @@ class SendContractRenewalAlerts extends Command
                 continue;
             }
 
+            // The card covers the whole window in one post. Grouping exists so
+            // that each owner gets an email about their own contracts and
+            // nobody else's; a channel has no such privacy to respect, and a
+            // card per owner would just be the same window three times.
+            if (! $dryRun) {
+                $this->postWindowCard($window, $contracts);
+            }
+
             // Group by recipient address(es) so each owner gets ONE email
             // covering all of THEIR contracts in this window.
             $grouped = $this->groupByRecipients($contracts, $fallback);
@@ -79,6 +90,15 @@ class SendContractRenewalAlerts extends Command
                         implode(',', $recipients),
                         $rows->count(),
                     ));
+                    continue;
+                }
+
+                if (! $this->shouldEmailReport('report.contract_renewal')) {
+                    // Posted as a card instead. Still mark them, or the same
+                    // contracts alert again tomorrow and every day after.
+                    $this->markAlerted($rows, $window);
+                    $sent[$window] += $rows->count();
+
                     continue;
                 }
 
@@ -292,5 +312,39 @@ class SendContractRenewalAlerts extends Command
         };
 
         Contract::whereIn('id', $contracts->pluck('id'))->update([$column => now()]);
+    }
+
+    /**
+     * One card for a whole alert window, listing every contract in it.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\Contract>  $contracts
+     */
+    private function postWindowCard(string $window, $contracts): void
+    {
+        $title = match ($window) {
+            'expired' => trans('mail.contract_renewal_expired'),
+            default => trans('mail.contract_renewal_window', ['window' => $window]),
+        };
+
+        $this->postReportCard(
+            'report.contract_renewal',
+            $title,
+            $window === 'expired' ? 'attention' : 'warning',
+            [
+                trans('general.name'),
+                trans('general.supplier'),
+                trans('admin/contracts/general.contract_number'),
+                trans('admin/contracts/general.end_date'),
+            ],
+            $contracts,
+            fn ($contract) => [
+                $contract->name,
+                $contract->supplier?->name,
+                $contract->contract_number,
+                $contract->end_date,
+            ],
+            [],
+            route('contracts.index'),
+        );
     }
 }
