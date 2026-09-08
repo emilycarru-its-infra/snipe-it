@@ -109,7 +109,6 @@ class TeamsNotifier
         return false;
     }
 
-
     /**
      * Post the card for one of the registry's notification keys, on the
      * channel Settings → Emails routes it to, and only if it routes it to

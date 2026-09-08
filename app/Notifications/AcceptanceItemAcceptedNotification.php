@@ -16,7 +16,7 @@ use Symfony\Component\Mime\Email;
 class AcceptanceItemAcceptedNotification extends Notification
 {
     use BuildsTeamsCards;
-    use Queueable, OverridableMailNotification;
+    use OverridableMailNotification, Queueable;
 
     /**
      * Create a new notification instance.

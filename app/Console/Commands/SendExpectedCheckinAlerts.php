@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Helpers\Helper;
 use App\Models\Asset;
-use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\Recipients\AlertRecipient;
 use App\Models\Setting;

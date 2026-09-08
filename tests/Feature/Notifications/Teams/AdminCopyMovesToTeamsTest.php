@@ -65,7 +65,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         event(new CheckoutableCheckedOut($this->asset, $this->user, User::factory()->superuser()->create(), 'Loaned'));
     }
 
-    public function testTheUserKeepsTheirEmailAndTheAdminCopyBecomesACard()
+    public function test_the_user_keeps_their_email_and_the_admin_copy_becomes_a_card()
     {
         $this->checkOut();
 
@@ -75,7 +75,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         Http::assertSent(fn ($request) => $request->url() === self::DEVICES);
     }
 
-    public function testTheSameHoldsOnCheckin()
+    public function test_the_same_holds_on_checkin()
     {
         $asset = Asset::factory()->for(AssetModel::factory()->for($this->category)->create(), 'model')
             ->assignedToUser($this->user)
@@ -89,7 +89,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         Http::assertSent(fn ($request) => $request->url() === self::DEVICES);
     }
 
-    public function testAnAdminCanPutTheEmailCopyBackWithoutADeploy()
+    public function test_an_admin_can_put_the_email_copy_back_without_a_deploy()
     {
         EmailTemplate::updateOrCreate(['key' => 'checkout.asset'], ['delivery' => EmailDelivery::BOTH]);
 
@@ -99,7 +99,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         Http::assertSent(fn ($request) => $request->url() === self::DEVICES);
     }
 
-    public function testChoosingEmailOnlyStopsTheCard()
+    public function test_choosing_email_only_stops_the_card()
     {
         EmailTemplate::updateOrCreate(['key' => 'checkout.asset'], ['delivery' => EmailDelivery::EMAIL]);
 
@@ -109,7 +109,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function testRoutingOneKindOfCheckoutDoesNotMoveTheOthers()
+    public function test_routing_one_kind_of_checkout_does_not_move_the_others()
     {
         // Each checkoutable has its own registry key, so accessories can stay
         // on email while assets post cards.

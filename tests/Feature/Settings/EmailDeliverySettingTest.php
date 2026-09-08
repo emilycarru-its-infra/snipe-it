@@ -36,7 +36,7 @@ class EmailDeliverySettingTest extends TestCase
         return User::factory()->superuser()->create();
     }
 
-    public function testTheHubOffersTheDeliverySelectorAndNamesEachChannel()
+    public function test_the_hub_offers_the_delivery_selector_and_names_each_channel()
     {
         $response = $this->actingAs($this->superuser())
             ->get(route('settings.emails.index'))
@@ -50,7 +50,7 @@ class EmailDeliverySettingTest extends TestCase
         }
     }
 
-    public function testAChannelWithNoWebhookIsMarkedAsSuch()
+    public function test_a_channel_with_no_webhook_is_marked_as_such()
     {
         // Selectable, but not silently. A card posted at an unconfigured
         // channel goes nowhere and says nothing about it.
@@ -60,7 +60,7 @@ class EmailDeliverySettingTest extends TestCase
             ->assertSee(trans('admin/settings/general.emails_teams_channel_unconfigured'));
     }
 
-    public function testInternalEmailsAreMarkedRoutableAndUserFacingOnesAreNot()
+    public function test_internal_emails_are_marked_routable_and_user_facing_ones_are_not()
     {
         $response = $this->actingAs($this->superuser())
             ->get(route('settings.emails.index'))
@@ -78,7 +78,7 @@ class EmailDeliverySettingTest extends TestCase
         );
     }
 
-    public function testSavingADeliveryAndChannelStoresThem()
+    public function test_saving_a_delivery_and_channel_stores_them()
     {
         $this->actingAs($this->superuser())
             ->post(route('settings.emails.save'), [
@@ -94,7 +94,7 @@ class EmailDeliverySettingTest extends TestCase
         $this->assertSame('devices', $override->teams_channel);
     }
 
-    public function testADeliveryPostedAtAUserFacingEmailIsRefusedRatherThanStored()
+    public function test_a_delivery_posted_at_a_user_facing_email_is_refused_rather_than_stored()
     {
         // The hub renders no selector here, so an incoming value is stale or
         // forged. Storing it would quietly stop a faculty member being asked
@@ -114,7 +114,7 @@ class EmailDeliverySettingTest extends TestCase
         $this->assertTrue(EmailDelivery::shouldEmail('agreement.signature_request'));
     }
 
-    public function testAnUnknownChannelIsNotStored()
+    public function test_an_unknown_channel_is_not_stored()
     {
         $this->actingAs($this->superuser())
             ->post(route('settings.emails.save'), [
@@ -127,7 +127,7 @@ class EmailDeliverySettingTest extends TestCase
         $this->assertNull(EmailTemplate::forKey('report.low_inventory')->teams_channel);
     }
 
-    public function testTheCardPreviewRendersTheCardTheChannelWouldGet()
+    public function test_the_card_preview_renders_the_card_the_channel_would_get()
     {
         $response = $this->actingAs($this->superuser())
             ->get(route('settings.emails.preview', 'report.low_inventory').'?as=card')
@@ -137,14 +137,14 @@ class EmailDeliverySettingTest extends TestCase
         $response->assertSee('<table', false);
     }
 
-    public function testTheCardPreviewIsRefusedForAnEmailThatNeverPostsOne()
+    public function test_the_card_preview_is_refused_for_an_email_that_never_posts_one()
     {
         $this->actingAs($this->superuser())
             ->get(route('settings.emails.preview', 'agreement.signature_request').'?as=card')
             ->assertNotFound();
     }
 
-    public function testALongReportPreviewSaysHowManyCardsItWillPost()
+    public function test_a_long_report_preview_says_how_many_cards_it_will_post()
     {
         // A digest that carries a whole inventory can exceed what Teams will
         // take in one card. Seeing that in the preview beats discovering it in
@@ -157,7 +157,7 @@ class EmailDeliverySettingTest extends TestCase
         $response->assertDontSee(trans('admin/settings/general.emails_teams_split', ['count' => 2]));
     }
 
-    public function testTheCardPreviewIsGatedToSuperusers()
+    public function test_the_card_preview_is_gated_to_superusers()
     {
         $this->actingAs(User::factory()->create())
             ->get(route('settings.emails.preview', 'report.low_inventory').'?as=card')

@@ -74,7 +74,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         ), 'text');
     }
 
-    public function testTheCheckoutCardNamesTheAssetByTagAndSerialAndLinksToIt()
+    public function test_the_checkout_card_names_the_asset_by_tag_and_serial_and_links_to_it()
     {
         $asset = Asset::factory()->laptopMbp()->create([
             'asset_tag' => 'TEST-0001',
@@ -97,7 +97,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertContains(route('users.show', $user->id), $urls);
     }
 
-    public function testTheCheckinCardFallsBackToTheAssetsDefaultLocationWhenItGoesToStock()
+    public function test_the_checkin_card_falls_back_to_the_assets_default_location_when_it_goes_to_stock()
     {
         // A check-in to stock leaves location_id null. The card this replaces
         // printed "Checked into" with nothing beside it.
@@ -112,7 +112,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertSame('Sample Stockroom', $this->facts()['Checked into']);
     }
 
-    public function testAnEmptyNoteIsLeftOutOfTheCardEntirely()
+    public function test_an_empty_note_is_left_out_of_the_card_entirely()
     {
         $asset = Asset::factory()->laptopMbp()->assignedToUser()->create();
 
@@ -122,7 +122,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertNotContains('', $this->texts());
     }
 
-    public function testTheCheckinCardCarriesTheAssetsStatus()
+    public function test_the_checkin_card_carries_the_assets_status()
     {
         $status = Statuslabel::factory()->readyToDeploy()->create(['name' => 'Sample Ready']);
         $asset = Asset::factory()->laptopMbp()->assignedToUser()->create(['status_id' => $status->id]);
@@ -132,7 +132,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertSame('Sample Ready', $this->facts()['Status']);
     }
 
-    public function testTheFooterNamesWhoDidItAndWhen()
+    public function test_the_footer_names_who_did_it_and_when()
     {
         $admin = User::factory()->superuser()->create(['first_name' => 'Sample', 'last_name' => 'Admin']);
         $asset = Asset::factory()->laptopMbp()->assignedToUser()->create();
@@ -145,7 +145,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertStringContainsString(now()->format('M j'), $footer['text']);
     }
 
-    public function testNoCardIsPostedWhenNoTeamsChannelIsConfigured()
+    public function test_no_card_is_posted_when_no_teams_channel_is_configured()
     {
         config()->set('ecu.teams.channels', ['default' => '', 'devices' => '']);
         $asset = Asset::factory()->laptopMbp()->assignedToUser()->create();

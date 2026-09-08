@@ -21,7 +21,7 @@ class TeamsCardTest extends TestCase
         ));
     }
 
-    public function testWrapsTheCardInTheWorkflowsMessageEnvelope()
+    public function test_wraps_the_card_in_the_workflows_message_envelope()
     {
         // The Workflows "post card" action reads attachments[0].content and
         // fails the run outright when it is missing, so the envelope is not
@@ -36,7 +36,7 @@ class TeamsCardTest extends TestCase
         $this->assertSame('AdaptiveCard', $this->content($payload)['type']);
     }
 
-    public function testDropsFactsWithNoValue()
+    public function test_drops_facts_with_no_value()
     {
         // The card this replaces rendered "Notes" and "Checked into" as bare
         // labels with nothing beside them whenever the value was null.
@@ -57,7 +57,7 @@ class TeamsCardTest extends TestCase
         );
     }
 
-    public function testRendersAChangeAsOldToNew()
+    public function test_renders_a_change_as_old_to_new()
     {
         $payload = TeamsCard::make('Asset updated')
             ->change('Status', 'Ready to Deploy', 'Deployed')
@@ -70,7 +70,7 @@ class TeamsCardTest extends TestCase
         $this->assertSame('IT Storage', $facts[1]['value']);
     }
 
-    public function testDecodesHtmlEncodedDisplayNames()
+    public function test_decodes_html_encoded_display_names()
     {
         // Snipe stores display names HTML-encoded; a card that prints them raw
         // shows "Devices &amp; Systems".
@@ -84,7 +84,7 @@ class TeamsCardTest extends TestCase
         );
     }
 
-    public function testAddsAbsoluteLinksAsButtonsAndSkipsRelativeOnes()
+    public function test_adds_absolute_links_as_buttons_and_skips_relative_ones()
     {
         $payload = TeamsCard::make('Checked out')
             ->action('View asset', 'https://inventory.example.test/hardware/1')
@@ -99,12 +99,12 @@ class TeamsCardTest extends TestCase
         $this->assertSame('https://inventory.example.test/hardware/1', $actions[0]['url']);
     }
 
-    public function testOmitsTheActionsKeyEntirelyWhenThereAreNoLinks()
+    public function test_omits_the_actions_key_entirely_when_there_are_no_links()
     {
         $this->assertArrayNotHasKey('actions', $this->content(TeamsCard::make('Checked out')->payload()));
     }
 
-    public function testCardsWithATableDeclareTheSchemaVersionTheTableNeeds()
+    public function test_cards_with_a_table_declare_the_schema_version_the_table_needs()
     {
         $plain = TeamsCard::make('Checked out')->payload();
         $tabled = TeamsCard::make('Expiring assets')
@@ -115,7 +115,7 @@ class TeamsCardTest extends TestCase
         $this->assertSame('1.5', $this->content($tabled)['version']);
     }
 
-    public function testTableCarriesAHeaderRowThenEveryDataRow()
+    public function test_table_carries_a_header_row_then_every_data_row()
     {
         $payload = TeamsCard::make('Expiring assets')
             ->table(['Tag', 'Name'], [['A1', 'One'], ['A2', null]])
@@ -131,7 +131,7 @@ class TeamsCardTest extends TestCase
         $this->assertSame('—', $table['rows'][2]['cells'][1]['items'][0]['text']);
     }
 
-    public function testAShortReportIsASingleCard()
+    public function test_a_short_report_is_a_single_card()
     {
         $payload = TeamsCard::make('Expiring assets')
             ->table(['Tag'], array_map(fn ($i) => ['A'.$i], range(1, 20)))
@@ -141,7 +141,7 @@ class TeamsCardTest extends TestCase
         $this->assertStringNotContainsString(' of ', $this->content($payload[0])['body'][0]['text']);
     }
 
-    public function testALongReportSplitsIntoNumberedCardsThatKeepEveryRow()
+    public function test_a_long_report_splits_into_numbered_cards_that_keep_every_row()
     {
         // Rod asked for the whole inventory in the card, and Teams caps a card
         // at about 28 KB — so a long report has to split, never truncate.
@@ -170,7 +170,7 @@ class TeamsCardTest extends TestCase
         $this->assertSame(400, $carried);
     }
 
-    public function testOnlyTheFirstCardOfASplitReportCarriesTheFacts()
+    public function test_only_the_first_card_of_a_split_report_carries_the_facts()
     {
         $rows = array_map(fn ($i) => ['A'.$i, str_repeat('x', 200)], range(1, 300));
 

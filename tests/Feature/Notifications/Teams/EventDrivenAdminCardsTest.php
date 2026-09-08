@@ -9,8 +9,11 @@ use App\Mail\FacultyProgramSubmissionMail;
 use App\Models\Asset;
 use App\Models\EmailTemplate;
 use App\Models\User;
+use App\Models\UserAgreement;
 use App\Notifications\AcceptanceItemAcceptedNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
+use App\Notifications\RequestAssetNotification;
+use App\Services\FacultyProgramNotifier;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -54,7 +57,7 @@ class EventDrivenAdminCardsTest extends TestCase
         return $title;
     }
 
-    public function testRequestingAnAssetPostsACardInsteadOfEmailingTheAlertAddress()
+    public function test_requesting_an_asset_posts_a_card_instead_of_emailing_the_alert_address()
     {
         $this->settings->enableAlertEmail('alerts@example.com');
 
@@ -68,7 +71,7 @@ class EventDrivenAdminCardsTest extends TestCase
         $this->assertStringContainsString('requested', strtolower($this->cardTitle()));
     }
 
-    public function testCancellingARequestPostsItsOwnCard()
+    public function test_cancelling_a_request_posts_its_own_card()
     {
         $this->settings->enableAlertEmail('alerts@example.com');
 
@@ -83,7 +86,7 @@ class EventDrivenAdminCardsTest extends TestCase
         $this->assertStringContainsString('canceled', strtolower($this->cardTitle()));
     }
 
-    public function testAnAdminCanPutAssetRequestsBackOnEmail()
+    public function test_an_admin_can_put_asset_requests_back_on_email()
     {
         $this->settings->enableAlertEmail('alerts@example.com');
         EmailTemplate::updateOrCreate(['key' => 'request.asset'], ['delivery' => EmailDelivery::EMAIL]);
@@ -94,10 +97,10 @@ class EventDrivenAdminCardsTest extends TestCase
         CreateCheckoutRequestAction::run(Asset::factory()->requestable()->create(), $user);
 
         Http::assertNothingSent();
-        Notification::assertSentTimes(\App\Notifications\RequestAssetNotification::class, 1);
+        Notification::assertSentTimes(RequestAssetNotification::class, 1);
     }
 
-    public function testTheAcceptanceCardsCarryTheItemAndTheSigner()
+    public function test_the_acceptance_cards_carry_the_item_and_the_signer()
     {
         $params = [
             'item_tag' => 'TEST-0003',
@@ -136,17 +139,17 @@ class EventDrivenAdminCardsTest extends TestCase
         }
     }
 
-    public function testAFacultyProgramSubmissionPostsACardInsteadOfEmailingTheProgram()
+    public function test_a_faculty_program_submission_posts_a_card_instead_of_emailing_the_program()
     {
-        \App\Services\FacultyProgramNotifier::submitted($this->pickupAgreement(), null, false);
+        FacultyProgramNotifier::submitted($this->pickupAgreement(), null, false);
 
         Mail::assertNotSent(FacultyProgramSubmissionMail::class);
         $this->assertStringContainsString('Faculty Laptop Program', $this->cardTitle());
     }
 
-    public function testAnUpdatedFacultyProgramSubmissionSaysSo()
+    public function test_an_updated_faculty_program_submission_says_so()
     {
-        \App\Services\FacultyProgramNotifier::submitted($this->pickupAgreement(), null, true);
+        FacultyProgramNotifier::submitted($this->pickupAgreement(), null, true);
 
         $this->assertStringContainsString('updated', $this->cardTitle());
     }
@@ -155,7 +158,7 @@ class EventDrivenAdminCardsTest extends TestCase
      * A pickup agreement, inserted directly so the model's saved hook does not
      * fire and send the signature request this test is not about.
      */
-    private function pickupAgreement(): \App\Models\UserAgreement
+    private function pickupAgreement(): UserAgreement
     {
         $id = \DB::table('user_agreements')->insertGetId([
             'agreement_type' => 'pickup',
@@ -167,6 +170,6 @@ class EventDrivenAdminCardsTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        return \App\Models\UserAgreement::findOrFail($id);
+        return UserAgreement::findOrFail($id);
     }
 }

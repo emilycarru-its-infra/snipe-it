@@ -39,7 +39,7 @@ class TeamsCardUponAuditTest extends TestCase
         return $card;
     }
 
-    public function testAnAuditPostsACardNamingTheAssetTheLocationAndTheAuditor()
+    public function test_an_audit_posts_a_card_naming_the_asset_the_location_and_the_auditor()
     {
         $auditor = User::factory()->superuser()->create(['first_name' => 'Sample', 'last_name' => 'Auditor']);
         $this->actingAs($auditor);
@@ -68,7 +68,7 @@ class TeamsCardUponAuditTest extends TestCase
         $this->assertStringContainsString('Sample Auditor', $footer['text']);
     }
 
-    public function testAnAuditOfSomethingWithNoAdminBehindItStillPostsACard()
+    public function test_an_audit_of_something_with_no_admin_behind_it_still_posts_a_card()
     {
         // The static builder this replaces returned null for a missing item
         // and the caller immediately indexed into it. Nothing here can be
