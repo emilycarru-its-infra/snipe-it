@@ -85,14 +85,14 @@ class TeamsNotifier
 
             return true;
         } catch (RequestException $e) {
-            $status = $e->response?->status();
+            $status = $e->response->status();
 
             // 4xx is a card Teams would not take — that is ours to fix, and it
             // will keep happening until someone reads it.
-            if ($status !== null && $status < 500) {
+            if ($status < 500) {
                 Log::error('Teams rejected the card ('.$status.').', $context + [
                     'error' => $e->getMessage(),
-                    'body' => substr((string) $e->response?->body(), 0, 500),
+                    'body' => substr($e->response->body(), 0, 500),
                 ]);
             } else {
                 Log::error('Teams webhook server error.', $context + [

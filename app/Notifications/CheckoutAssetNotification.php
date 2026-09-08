@@ -28,6 +28,23 @@ class CheckoutAssetNotification extends Notification
     use BuildsTeamsCards;
     use Queueable;
 
+    // The constructor assigns these; upstream leaves them undeclared and
+    // relies on #[AllowDynamicProperties]. Declaring them costs nothing and
+    // is what lets static analysis — and an editor — see them.
+    public $settings;
+
+    public $item;
+
+    public $admin;
+
+    public $note;
+
+    public $target;
+
+    public $last_checkout;
+
+    public $expected_checkin;
+
     /**
      * Create a new notification instance.
      *
@@ -104,7 +121,7 @@ class CheckoutAssetNotification extends Notification
             $fields[trans('general.company')] = $item->company->name;
         }
 
-        if (($this->expected_checkin) && ($this->expected_checkin !== '')) {
+        if ($this->expected_checkin) {
             $fields[trans('general.expected_checkin')] = $this->expected_checkin;
         }
 

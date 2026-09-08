@@ -85,7 +85,7 @@ class StoreOrderNotifier
 
         return TeamsCard::make('Store order — '.ucfirst($event))
             ->accent($accent)
-            ->subtitle('#'.$order->id.' · '.($order->user?->display_name ?? ''))
+            ->subtitle('#'.$order->id.' · '.($order->user?->getAttribute('display_name') ?? ''))
             ->facts([
                 trans('general.status') => $order->status,
                 'Tracking' => $extra['tracking'] ?? null,

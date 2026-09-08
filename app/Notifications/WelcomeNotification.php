@@ -13,7 +13,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class WelcomeNotification extends Notification
 {
-    use Queueable, OverridableMailNotification;
+    use OverridableMailNotification, Queueable;
 
     public $expire_date;
 

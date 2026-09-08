@@ -62,6 +62,7 @@ class EmailRegistry
      *
      * @return array<int, array{key:string, category:string, label:string, description:string, merge_vars:array<string,string>, factory?:callable, notification?:callable, configurable_recipients?:bool, configurable_cc?:bool}>
      */
+    /** @return array<int, array<string, mixed>> */
     public static function all(): array
     {
         $routing = self::routing();
@@ -526,9 +527,9 @@ class EmailRegistry
         return $checkoutish + [
             'checkout.bulk_asset' => $devices('mixed', fn (EmailSampleData $s) => TeamsCard::make('Assets checked out')
                 ->accent('accent')
-                ->subtitle($s->recipient()->display_name.' — '.$s->assets()->count().' assets')
-                ->table(['Tag', 'Name', 'Model'], $s->assets()->map(fn ($a) => [$a->asset_tag, $a->name, $a->model?->name])->all())
-                ->footer($s->admin()->display_name)),
+                ->subtitle($s->recipient()->getAttribute('display_name').' — '.$s->assets()->count().' assets')
+                ->table(['Tag', 'Name', 'Model'], $s->assets()->map(fn ($a) => [$a->asset_tag, $a->name, $a->model?->getAttribute('name')])->all())
+                ->footer($s->admin()->getAttribute('display_name'))),
 
             // Acceptance responses go to the admin who started the checkout.
             'acceptance.response' => $devices('admin', fn (EmailSampleData $s) => self::sampleAcceptanceCard($s, 'Item accepted', 'good')),
@@ -537,7 +538,7 @@ class EmailRegistry
 
             'agreements.faculty_program_submitted' => $devices('admin', fn (EmailSampleData $s) => TeamsCard::make('Faculty Laptop Program application')
                 ->accent('accent')
-                ->subtitle($s->recipient()->display_name)
+                ->subtitle($s->recipient()->getAttribute('display_name'))
                 ->facts(['Asset' => $s->asset()->asset_tag, 'Choice' => 'Pickup'])
                 ->action(trans('general.teams_view_user'), route('users.show', $s->recipient()->id))),
 
@@ -546,7 +547,7 @@ class EmailRegistry
             // twelve, which is the work the card was meant to save.
             'report.expiring_assets' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
                 'Expiring assets', 'warning', $s->assets(), ['Tag', 'Name', 'Model', 'Expires'],
-                fn ($a) => [$a->asset_tag, $a->name, $a->model?->name, $a->warranty_expires],
+                fn ($a) => [$a->asset_tag, $a->name, $a->model?->getAttribute('name'), $a->warranty_expires],
                 route('hardware.index'),
             )),
             'report.expiring_licenses' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
@@ -561,12 +562,12 @@ class EmailRegistry
             )),
             'report.contract_renewal' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
                 'Contract renewals', 'warning', $s->contracts(), ['Contract', 'Supplier', 'Ends'],
-                fn ($c) => [$c->name, $c->supplier?->name, $c->end_date],
+                fn ($c) => [$c->name, $c->supplier?->getAttribute('name'), $c->end_date],
                 route('contracts.index'),
             )),
             'report.expected_checkin' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
                 'Assets due for check-in', 'accent', $s->assets(), ['Tag', 'Name', 'Assigned to', 'Due'],
-                fn ($a) => [$a->asset_tag, $a->name, $a->assignedTo?->display_name, $a->expected_checkin],
+                fn ($a) => [$a->asset_tag, $a->name, $a->assignedTo?->getAttribute('display_name'), $a->expected_checkin],
                 route('assets.checkins.due'),
             )),
             'report.low_inventory' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
@@ -611,6 +612,7 @@ class EmailRegistry
             'consumable' => new $notification($s->consumable(), $s->recipient(), $s->admin(), null, 'Picked up from stores.'),
             'license' => new $notification($s->licenseSeat(), $s->recipient(), $s->admin(), null, 'Seat assigned.'),
             'license_in' => new $notification($s->licenseSeat(), $s->recipient(), $s->admin(), 'Seat released.'),
+            default => throw new \InvalidArgumentException('No sample card shape "'.$shape.'".'),
         };
 
         return $card->toTeamsCard();
@@ -622,9 +624,9 @@ class EmailRegistry
 
         return TeamsCard::make($title)
             ->accent($accent)
-            ->subtitle($asset->display_name)
+            ->subtitle($asset->getAttribute('display_name'))
             ->facts([
-                trans('mail.assigned_to') => $s->recipient()->display_name,
+                trans('mail.assigned_to') => $s->recipient()->getAttribute('display_name'),
                 trans('general.asset_tag') => $asset->asset_tag,
                 trans('admin/hardware/form.serial') => $asset->serial,
             ])
@@ -639,9 +641,9 @@ class EmailRegistry
 
         return TeamsCard::make($title)
             ->accent($accent)
-            ->subtitle($asset->display_name)
+            ->subtitle($asset->getAttribute('display_name'))
             ->facts([
-                'Requested by' => $s->recipient()->display_name,
+                'Requested by' => $s->recipient()->getAttribute('display_name'),
                 trans('general.asset_tag') => $asset->asset_tag,
             ])
             ->action(trans('general.teams_view_asset'), route('hardware.show', $asset->id))
@@ -656,7 +658,7 @@ class EmailRegistry
             ->accent($accent)
             ->subtitle('Order #'.$order->id)
             ->facts([
-                'Requested by' => $order->user?->display_name,
+                'Requested by' => $order->user?->getAttribute('display_name'),
                 'Status' => $order->status,
             ])
             ->action('Open order', route('store.orders'));

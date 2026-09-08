@@ -87,7 +87,7 @@ class CheckoutablesCheckedOutInBulkListener
 
         return TeamsCard::make(ucfirst(trans('general.assets_checked_out_count')))
             ->accent('accent')
-            ->subtitle($target?->display_name ?? $target?->name)
+            ->subtitle($target->getAttribute('display_name') ?? $target->getAttribute('name'))
             ->facts([
                 trans('general.qty') => $event->assets->count(),
                 trans('general.date') => $event->checkout_at,
@@ -99,10 +99,10 @@ class CheckoutablesCheckedOutInBulkListener
                 $event->assets->map(fn (Asset $asset) => [
                     $asset->asset_tag,
                     $asset->name,
-                    $asset->model?->name,
+                    $asset->model?->getAttribute('name'),
                 ])->all(),
             )
-            ->footer($event->admin?->display_name);
+            ->footer($event->admin->getAttribute('display_name'));
     }
 
     private function shouldSendCheckoutEmailToUser(?User $user, Collection $assets): bool

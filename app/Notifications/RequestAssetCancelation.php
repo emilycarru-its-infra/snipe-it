@@ -19,6 +19,27 @@ class RequestAssetCancelation extends Notification
     use BuildsTeamsCards;
     use OverridableMailNotification;
 
+    // The constructor assigns these; upstream leaves them undeclared and
+    // relies on #[AllowDynamicProperties]. Declaring them costs nothing and
+    // is what lets static analysis — and an editor — see them.
+    public $settings;
+
+    public $item;
+
+    public $target;
+
+    public $item_type;
+
+    public $item_quantity;
+
+    public $note;
+
+    public $last_checkout;
+
+    public $expected_checkin;
+
+    public $requested_date;
+
     private $params;
 
     /**

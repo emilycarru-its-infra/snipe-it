@@ -26,6 +26,19 @@ class CheckoutConsumableNotification extends Notification
     use BuildsTeamsCards;
     use Queueable;
 
+    // The constructor assigns these; upstream leaves them undeclared and
+    // relies on #[AllowDynamicProperties]. Declaring them costs nothing and
+    // is what lets static analysis — and an editor — see them.
+    public $settings;
+
+    public $item;
+
+    public $admin;
+
+    public $note;
+
+    public $target;
+
     private $params;
 
     /**

@@ -52,12 +52,12 @@ class FacultyProgramNotifier
 
         return TeamsCard::make($updated ? 'Faculty Laptop Program application updated' : 'Faculty Laptop Program application')
             ->accent($updated ? 'warning' : 'accent')
-            ->subtitle($applicant?->display_name)
+            ->subtitle($applicant?->getAttribute('display_name'))
             ->facts([
-                trans('general.department') => $applicant?->department?->name,
+                trans('general.department') => $applicant?->department?->getAttribute('name'),
                 trans('general.asset_tag') => $asset?->asset_tag,
                 trans('admin/hardware/form.serial') => $asset?->serial,
-                trans('admin/hardware/form.model') => $asset?->model?->name,
+                trans('admin/hardware/form.model') => $asset?->model?->getAttribute('name'),
                 'Buyout requested' => $buyout !== null,
             ])
             ->action(trans('general.teams_view_user'), $applicant ? route('users.show', $applicant->id) : null)

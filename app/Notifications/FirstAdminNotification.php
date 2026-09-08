@@ -11,7 +11,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class FirstAdminNotification extends Notification
 {
-    use Queueable, OverridableMailNotification;
+    use OverridableMailNotification, Queueable;
 
     private $_data = [];
 

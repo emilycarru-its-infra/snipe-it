@@ -27,7 +27,7 @@ trait BuildsTeamsCards
         $card = TeamsCard::make($title)->accent($accent);
 
         $when = now()->timezone(config('app.timezone'))->format('D, M j \a\t g:ia');
-        $who = $actor?->display_name ?? $actor?->name;
+        $who = $actor ? $this->teamsTargetName($actor) : null;
 
         return $card->footer($who ? $who.' · '.$when : $when);
     }
@@ -48,7 +48,7 @@ trait BuildsTeamsCards
         return [
             trans('general.asset_tag') => $asset->asset_tag,
             trans('admin/hardware/form.serial') => $asset->serial,
-            trans('admin/hardware/form.model') => $asset->model?->name,
+            trans('admin/hardware/form.model') => $asset->model?->getAttribute('name'),
         ];
     }
 
@@ -62,8 +62,8 @@ trait BuildsTeamsCards
             return null;
         }
 
-        $name = htmlspecialchars_decode((string) $asset->display_name);
-        $model = $asset->model?->name;
+        $name = htmlspecialchars_decode((string) $asset->getAttribute('display_name'));
+        $model = $asset->model?->getAttribute('name');
 
         return $model && ! str_contains($name, (string) $model) ? $name.' — '.$model : ($name ?: null);
     }
@@ -75,7 +75,13 @@ trait BuildsTeamsCards
      */
     protected function teamsLocation(?Asset $asset): ?string
     {
-        return $asset?->location?->name ?? $asset?->defaultLoc?->name;
+        if (! $asset) {
+            return null;
+        }
+
+        $location = $asset->location ?? $asset->defaultLoc;
+
+        return $location?->getAttribute('name');
     }
 
     /**
@@ -108,7 +114,10 @@ trait BuildsTeamsCards
         }
 
         foreach (['display_name', 'name'] as $attribute) {
-            $value = $target->{$attribute} ?? null;
+            // getAttribute() rather than a dynamic property read: a User, an
+            // Asset and a Location all answer to different accessors, and only
+            // one of the three is guaranteed to have either of these.
+            $value = $target instanceof Model ? $target->getAttribute($attribute) : ($target->{$attribute} ?? null);
 
             if (filled($value)) {
                 return htmlspecialchars_decode((string) $value);

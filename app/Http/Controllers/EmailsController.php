@@ -68,7 +68,7 @@ class EmailsController extends Controller
             $email['routable'] = EmailDelivery::isRoutable($email);
             $email['delivery'] = $email['routable'] ? EmailDelivery::for($email['key']) : EmailDelivery::EMAIL;
             $email['teams_channel'] = $email['routable'] ? EmailDelivery::channelFor($email['key']) : null;
-            $email['audience'] = $email['audience'] ?? 'user';
+            $email['audience'] = $email['audience'];
             $email['subject_override'] = $override?->subject;
             $email['body_override'] = $override?->body;
             $email['recipients_override'] = $override?->recipients;

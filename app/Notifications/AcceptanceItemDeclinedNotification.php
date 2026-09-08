@@ -17,6 +17,35 @@ class AcceptanceItemDeclinedNotification extends Notification
     use BuildsTeamsCards;
     use OverridableMailNotification, Queueable;
 
+    // The constructor assigns these; upstream leaves them undeclared and
+    // relies on #[AllowDynamicProperties]. Declaring them costs nothing and
+    // is what lets static analysis — and an editor — see them.
+    public $settings;
+
+    public $item_tag;
+
+    public $item_name;
+
+    public $item_model;
+
+    public $item_serial;
+
+    public $item_status;
+
+    public $declined_date;
+
+    public $assigned_to;
+
+    public $company_name;
+
+    public $file;
+
+    public $qty;
+
+    public $note;
+
+    public $custom_fields;
+
     /**
      * Create a new notification instance.
      *
