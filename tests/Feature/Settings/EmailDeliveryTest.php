@@ -28,8 +28,10 @@ class EmailDeliveryTest extends TestCase
         ]);
     }
 
-    public function testInternalNotificationsDefaultToTeams()
+    public function testInternalNotificationsDefaultToTeamsAndOffEmail()
     {
+        $this->assertFalse(EmailDelivery::shouldEmail('report.low_inventory'));
+
         $this->assertSame(EmailDelivery::TEAMS, EmailDelivery::for('report.low_inventory'));
         $this->assertSame(EmailDelivery::TEAMS, EmailDelivery::for('acceptance.declined'));
         $this->assertTrue(EmailDelivery::shouldPostToTeams('request.asset'));
@@ -80,13 +82,22 @@ class EmailDeliveryTest extends TestCase
         $this->assertSame(EmailDelivery::TEAMS, EmailDelivery::for('report.low_inventory'));
     }
 
-    public function testTeamsIsSkippedWhenNoChannelIsConfiguredForIt()
+    public function testAnUnconfiguredChannelFallsBackToEmailRatherThanNowhere()
     {
-        // Better the notification keeps going out by its default route than
-        // vanishing into a channel nobody wired up.
+        // An install that has not wired up its channels yet must not quietly
+        // lose every internal alert.
         config()->set('ecu.teams.channels', ['default' => '', 'reports' => '']);
 
         $this->assertFalse(EmailDelivery::shouldPostToTeams('report.low_inventory'));
+        $this->assertTrue(EmailDelivery::shouldEmail('report.low_inventory'));
+    }
+
+    public function testSwitchingTheIntegrationOffPutsEverythingBackOnEmail()
+    {
+        config()->set('ecu.teams.enabled', false);
+
+        $this->assertFalse(EmailDelivery::shouldPostToTeams('report.low_inventory'));
+        $this->assertTrue(EmailDelivery::shouldEmail('report.low_inventory'));
     }
 
     public function testAChannelOverrideIsHonouredAndAnUnknownOneIsNot()

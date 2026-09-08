@@ -51,13 +51,29 @@ class EmailDelivery
      */
     public static function shouldEmail(string $key): bool
     {
-        return in_array(self::for($key), [self::EMAIL, self::BOTH], true);
+        if (in_array(self::for($key), [self::EMAIL, self::BOTH], true)) {
+            return true;
+        }
+
+        // Routed to Teams, but Teams cannot take it — the channel has no
+        // webhook, or the integration is switched off. Falling back to email
+        // keeps the notification going out; the alternative is that it
+        // silently goes nowhere, which is how an install that has not wired
+        // up its channels yet would quietly lose every internal alert.
+        return ! self::teamsCanDeliver($key);
     }
 
     /** Whether this email also (or instead) posts a card to Teams. */
     public static function shouldPostToTeams(string $key): bool
     {
-        if (! in_array(self::for($key), [self::TEAMS, self::BOTH], true)) {
+        return in_array(self::for($key), [self::TEAMS, self::BOTH], true)
+            && self::teamsCanDeliver($key);
+    }
+
+    /** Whether a card for this key would actually reach a channel. */
+    private static function teamsCanDeliver(string $key): bool
+    {
+        if (! (config('ecu.teams.enabled') ?? true)) {
             return false;
         }
 

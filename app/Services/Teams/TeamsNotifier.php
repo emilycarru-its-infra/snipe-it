@@ -2,6 +2,7 @@
 
 namespace App\Services\Teams;
 
+use App\Mail\EmailDelivery;
 use GuzzleHttp\Exception\ConnectException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -106,6 +107,35 @@ class TeamsNotifier
         }
 
         return false;
+    }
+
+
+    /**
+     * Post the card for one of the registry's notification keys, on the
+     * channel Settings → Emails routes it to, and only if it routes it to
+     * Teams at all.
+     *
+     * The source is either a card, or anything that can build one — every
+     * notification with a toTeamsCard() qualifies. This is the one call every
+     * migrated send site makes; the matching `if (EmailDelivery::shouldEmail())`
+     * around the email stays at the call site, because only the call site
+     * knows how to send its own mail.
+     */
+    public function announce(string $key, object $source): void
+    {
+        if (! EmailDelivery::shouldPostToTeams($key)) {
+            return;
+        }
+
+        if (! $source instanceof TeamsCard) {
+            if (! method_exists($source, 'toTeamsCard')) {
+                return;
+            }
+
+            $source = $source->toTeamsCard();
+        }
+
+        $this->sendLater($source, EmailDelivery::channelFor($key));
     }
 
     /**

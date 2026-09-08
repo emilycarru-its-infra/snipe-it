@@ -7,6 +7,7 @@ use App\Events\CheckoutDeclined;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Mail\CheckoutAcceptanceResponseMail;
+use App\Mail\EmailDelivery;
 use App\Models\Accessory;
 use App\Models\Actionlog;
 use App\Models\Asset;
@@ -20,7 +21,9 @@ use App\Models\User;
 use App\Notifications\AcceptanceItemAcceptedNotification;
 use App\Notifications\AcceptanceItemAcceptedToUserNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
+use App\Services\Teams\TeamsNotifier;
 use Exception;
+use Illuminate\Notifications\Notification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -261,11 +264,11 @@ class AcceptanceController extends Controller
                     Log::warning($e);
                 }
             }
-            try {
-                $acceptance->notify((new AcceptanceItemAcceptedNotification($data))->locale(Setting::getSettings()->locale));
-            } catch (Exception $e) {
-                Log::warning($e);
-            }
+            $this->announceAcceptanceResponse(
+                new AcceptanceItemAcceptedNotification($data),
+                'acceptance.accepted_admin',
+                fn ($notification) => $acceptance->notify($notification->locale(Setting::getSettings()->locale)),
+            );
             event(new CheckoutAccepted($acceptance));
 
             $return_msg = trans('admin/users/message.accepted');
@@ -277,7 +280,11 @@ class AcceptanceController extends Controller
                 $acceptance->decline($sig_filename, $request->input('note'));
             }
 
-            $acceptance->notify(new AcceptanceItemDeclinedNotification($data));
+            $this->announceAcceptanceResponse(
+                new AcceptanceItemDeclinedNotification($data),
+                'acceptance.declined',
+                fn ($notification) => $acceptance->notify($notification),
+            );
             Log::debug('New event acceptance.');
             event(new CheckoutDeclined($acceptance));
             $return_msg = trans('admin/users/message.declined');
@@ -288,7 +295,7 @@ class AcceptanceController extends Controller
             try {
                 $recipient = User::find($acceptance->alert_on_response_id);
 
-                if ($recipient?->email) {
+                if ($recipient?->email && EmailDelivery::shouldEmail('acceptance.response')) {
                     Log::debug('Attempting to send email acceptance.');
                     Mail::to($recipient)->send(new CheckoutAcceptanceResponseMail(
                         $acceptance,
@@ -462,4 +469,26 @@ class AcceptanceController extends Controller
 
         return is_string($output) ? $output : $signatureBinary;
     }
+
+    /**
+     * Deliver an acceptance response to whoever needs to see it: an email to
+     * the alert list, a card in the channel, or both — whichever Settings →
+     * Emails says for this notification. The signing user's own confirmation
+     * is not routed here at all; it is addressed to them, not to us.
+     *
+     * @param  callable(\Illuminate\Notifications\Notification): void  $email
+     */
+    private function announceAcceptanceResponse(Notification $notification, string $key, callable $email): void
+    {
+        if (EmailDelivery::shouldEmail($key)) {
+            try {
+                $email($notification);
+            } catch (Exception $e) {
+                Log::warning($e);
+            }
+        }
+
+        app(TeamsNotifier::class)->announce($key, $notification);
+    }
+
 }
