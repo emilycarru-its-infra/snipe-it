@@ -6,6 +6,8 @@ use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\Concerns\BuildsTeamsCards;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Channels\SlackWebhookChannel;
 use Illuminate\Notifications\Messages\SlackMessage;
@@ -23,6 +25,7 @@ use NotificationChannels\MicrosoftTeams\MicrosoftTeamsMessage;
 #[AllowDynamicProperties]
 class CheckoutAssetNotification extends Notification
 {
+    use BuildsTeamsCards;
     use Queueable;
 
     /**
@@ -114,6 +117,28 @@ class CheckoutAssetNotification extends Notification
                     ->fields($fields)
                     ->content($note);
             });
+    }
+
+    /**
+     * The card posted to Teams. Carries the tag and serial the old card left
+     * out, links to the asset and to whoever now holds it, and only shows the
+     * facts that have a value.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->item;
+        $target = $this->target;
+
+        return $this->teamsCard(trans('mail.Asset_Checkout_Notification', ['tag' => '']), 'accent', $this->admin)
+            ->subtitle($this->teamsAssetSubtitle($item))
+            ->facts($this->teamsAssetFacts($item))
+            ->fact(trans('mail.assigned_to'), $this->teamsTargetName($target))
+            ->fact(trans('admin/hardware/form.status'), $item->status?->name)
+            ->fact(trans('general.location'), $this->teamsLocation($item))
+            ->fact(trans('general.expected_checkin'), $this->expected_checkin)
+            ->note($this->note)
+            ->action(trans('general.teams_view_asset'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_user'), $this->teamsUrl($target));
     }
 
     public function toMicrosoftTeams()

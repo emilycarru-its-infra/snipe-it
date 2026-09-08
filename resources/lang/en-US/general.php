@@ -327,6 +327,13 @@ return [
     'signed_off_by' => 'Signed Off By',
     'skin' => 'Skin',
     'webhook_msg_note' => 'A notification will be sent via webhook',
+    // Buttons and labels on the Adaptive Cards posted to Microsoft Teams.
+    'teams_view_asset' => 'View asset',
+    'teams_view_user' => 'View user',
+    'teams_view_item' => 'View item',
+    'teams_view_license' => 'View license',
+    'teams_view_report' => 'Open in Snipe-IT',
+    'teams_remaining' => 'Remaining',
     'webhook_test_msg' => 'Oh hai! It looks like your :app integration with Snipe-IT is working!',
     'some_features_disabled' => 'DEMO MODE: Some features are disabled for this installation.',
     'site_name' => 'Site Name',

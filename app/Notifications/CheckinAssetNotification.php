@@ -6,6 +6,8 @@ use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\Concerns\BuildsTeamsCards;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Channels\SlackWebhookChannel;
 use Illuminate\Notifications\Messages\SlackMessage;
@@ -23,6 +25,7 @@ use NotificationChannels\MicrosoftTeams\MicrosoftTeamsMessage;
 #[AllowDynamicProperties]
 class CheckinAssetNotification extends Notification
 {
+    use BuildsTeamsCards;
     use Queueable;
 
     /**
@@ -101,6 +104,26 @@ class CheckinAssetNotification extends Notification
                     ->fields($fields)
                     ->content($note);
             });
+    }
+
+    /**
+     * The card posted to Teams. "Checked into" falls back to the asset's
+     * default location: a check-in to stock leaves location_id null, which is
+     * why the card this replaces printed that label with nothing beside it.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->item;
+
+        return $this->teamsCard(trans('mail.Asset_Checkin_Notification', ['tag' => '']), 'good', $this->admin)
+            ->subtitle($this->teamsAssetSubtitle($item))
+            ->facts($this->teamsAssetFacts($item))
+            ->fact(trans('mail.checkedin_from'), $this->teamsTargetName($this->target))
+            ->fact(trans('mail.checked_into'), $this->teamsLocation($item))
+            ->fact(trans('admin/hardware/form.status'), $item->status?->name)
+            ->note($this->note)
+            ->action(trans('general.teams_view_asset'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_user'), $this->teamsUrl($this->target));
     }
 
     public function toMicrosoftTeams()
