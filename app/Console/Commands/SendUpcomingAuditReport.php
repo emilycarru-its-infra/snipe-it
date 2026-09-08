@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Mail\SendUpcomingAuditMail;
 use App\Models\Asset;
-use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\Setting;
 use Carbon\Carbon;

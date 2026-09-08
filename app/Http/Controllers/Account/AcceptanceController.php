@@ -23,10 +23,10 @@ use App\Notifications\AcceptanceItemAcceptedToUserNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
 use App\Services\Teams\TeamsNotifier;
 use Exception;
-use Illuminate\Notifications\Notification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -476,7 +476,7 @@ class AcceptanceController extends Controller
      * Emails says for this notification. The signing user's own confirmation
      * is not routed here at all; it is addressed to them, not to us.
      *
-     * @param  callable(\Illuminate\Notifications\Notification): void  $email
+     * @param  callable(Notification): void  $email
      */
     private function announceAcceptanceResponse(Notification $notification, string $key, callable $email): void
     {
@@ -490,5 +490,4 @@ class AcceptanceController extends Controller
 
         app(TeamsNotifier::class)->announce($key, $notification);
     }
-
 }

@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Mail\ExpiringAssetsMail;
 use App\Mail\ExpiringLicenseMail;
 use App\Models\Asset;
-use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\License;
 use App\Models\Setting;

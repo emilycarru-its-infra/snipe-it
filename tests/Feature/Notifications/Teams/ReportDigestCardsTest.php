@@ -7,7 +7,9 @@ use App\Mail\ExpiringAssetsMail;
 use App\Models\Asset;
 use App\Models\Consumable;
 use App\Models\EmailTemplate;
+use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\ExpectedCheckinNotification;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -65,7 +67,7 @@ class ReportDigestCardsTest extends TestCase
         return [];
     }
 
-    public function testTheLowInventoryDigestPostsEveryLowItem()
+    public function test_the_low_inventory_digest_posts_every_low_item()
     {
         Consumable::factory()->count(4)->create(['qty' => 1, 'min_amt' => 5]);
 
@@ -78,7 +80,7 @@ class ReportDigestCardsTest extends TestCase
         $this->assertSame('4 items', $cards[0]['body'][1]['text']);
     }
 
-    public function testTheLowInventoryEmailIsNotAlsoSent()
+    public function test_the_low_inventory_email_is_not_also_sent()
     {
         Consumable::factory()->count(2)->create(['qty' => 1, 'min_amt' => 5]);
 
@@ -87,7 +89,7 @@ class ReportDigestCardsTest extends TestCase
         Notification::assertNothingSent();
     }
 
-    public function testAnAdminCanHaveBothTheCardAndTheEmail()
+    public function test_an_admin_can_have_both_the_card_and_the_email()
     {
         EmailTemplate::updateOrCreate(['key' => 'report.expiring_assets'], ['delivery' => EmailDelivery::BOTH]);
         $this->expiringAsset();
@@ -98,14 +100,14 @@ class ReportDigestCardsTest extends TestCase
         $this->assertNotEmpty($this->cards());
     }
 
-    public function testNothingIsPostedWhenThereIsNothingToReport()
+    public function test_nothing_is_posted_when_there_is_nothing_to_report()
     {
         $this->artisan('snipeit:inventory-alerts')->assertSuccessful();
 
         Http::assertNothingSent();
     }
 
-    public function testTheExpiringAssetsDigestCarriesTagsAndDatesAndReplacesTheEmail()
+    public function test_the_expiring_assets_digest_carries_tags_and_dates_and_replaces_the_email()
     {
         $this->expiringAsset();
         $this->expiringAsset();
@@ -119,7 +121,7 @@ class ReportDigestCardsTest extends TestCase
         $this->assertNotEmpty($this->tableRows($cards[0]));
     }
 
-    public function testALongDigestIsPostedAsSeveralCardsRatherThanBeingTrimmed()
+    public function test_a_long_digest_is_posted_as_several_cards_rather_than_being_trimmed()
     {
         // The whole point of carrying every row: a report bigger than one card
         // splits, and every item still appears somewhere.
@@ -137,11 +139,11 @@ class ReportDigestCardsTest extends TestCase
         }
     }
 
-    public function testTheExpectedCheckinDigestStillEmailsTheUsersTheirOwnReminders()
+    public function test_the_expected_checkin_digest_still_emails_the_users_their_own_reminders()
     {
         // The user-facing half of this command is untouched: it is addressed
         // to the person holding the asset, not to us.
-        $settings = \App\Models\Setting::getSettings();
+        $settings = Setting::getSettings();
         $settings->due_checkin_days = 7;
         $settings->saveQuietly();
 
@@ -152,7 +154,7 @@ class ReportDigestCardsTest extends TestCase
 
         $this->artisan('snipeit:expected-checkin')->assertSuccessful();
 
-        Notification::assertSentTo($user, \App\Notifications\ExpectedCheckinNotification::class);
+        Notification::assertSentTo($user, ExpectedCheckinNotification::class);
     }
 
     /**

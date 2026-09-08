@@ -22,7 +22,7 @@ class TeamsCardDeferralOverHttpTest extends TestCase
 {
     private const DEVICES = 'https://prod-1.westus.logic.azure.com/workflows/devices/triggers/manual/paths/invoke';
 
-    public function testAnApiCheckinPostsItsCardAfterTheResponse()
+    public function test_an_api_checkin_posts_its_card_after_the_response()
     {
         Mail::fake();
         Http::fake([self::DEVICES => Http::response('', 202)]);

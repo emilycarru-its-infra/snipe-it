@@ -446,7 +446,6 @@ class EmailRegistry
         ];
     }
 
-
     /**
      * Everything not stated in routing() below: a notification is assumed to
      * be for the person it is about, and therefore stays on email.
@@ -594,7 +593,6 @@ class EmailRegistry
             'procurement.quote_accepted',
         ], ['audience' => 'external']);
     }
-
 
     /**
      * A preview card for one of the checkout/check-in notifications, built by

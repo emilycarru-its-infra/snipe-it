@@ -50,7 +50,7 @@ class TeamsNotifierTest extends TestCase
         $settings->save();
     }
 
-    public function testPostsTheCardToTheChannelsWebhook()
+    public function test_posts_the_card_to_the_channels_webhook()
     {
         Http::fake([self::DEVICES => Http::response('', 202)]);
 
@@ -64,7 +64,7 @@ class TeamsNotifierTest extends TestCase
         });
     }
 
-    public function testAnUnconfiguredChannelFallsBackToTheDefaultOne()
+    public function test_an_unconfigured_channel_falls_back_to_the_default_one()
     {
         // A channel nobody has wired up yet should still land somewhere a
         // human reads, rather than dropping the notification on the floor.
@@ -75,7 +75,7 @@ class TeamsNotifierTest extends TestCase
         Http::assertSent(fn ($request) => $request->url() === self::DEFAULT);
     }
 
-    public function testSendsNothingWhenNoChannelIsConfiguredAtAll()
+    public function test_sends_nothing_when_no_channel_is_configured_at_all()
     {
         config()->set('ecu.teams.channels.default', '');
         config()->set('ecu.teams.channels.devices', '');
@@ -87,7 +87,7 @@ class TeamsNotifierTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function testTheDefaultChannelFallsBackToTheSettingsWebhookEndpoint()
+    public function test_the_default_channel_falls_back_to_the_settings_webhook_endpoint()
     {
         // Installs that predate per-channel config keep posting where they
         // always did — the endpoint the Settings → Slack form writes.
@@ -100,7 +100,7 @@ class TeamsNotifierTest extends TestCase
         Http::assertSent(fn ($request) => $request->url() === self::DEFAULT);
     }
 
-    public function testIgnoresARetiredConnectorEndpointInTheSettings()
+    public function test_ignores_a_retired_connector_endpoint_in_the_settings()
     {
         // The old Office 365 connector URL takes a different payload shape
         // entirely; posting an Adaptive Card at it just fails.
@@ -113,7 +113,7 @@ class TeamsNotifierTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function testTreatsAnUnresolvedKeyVaultReferenceAsUnconfigured()
+    public function test_treats_an_unresolved_key_vault_reference_as_unconfigured()
     {
         // An app setting whose Key Vault reference never resolved arrives
         // verbatim. Posting to it is a guaranteed silent no-delivery.
@@ -127,7 +127,7 @@ class TeamsNotifierTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function testLogsA202AsAcceptedRatherThanDelivered()
+    public function test_logs_a202_as_accepted_rather_than_delivered()
     {
         // The Workflows trigger answers 202 before it runs the flow, so a flow
         // that fails every run still answers 202. Claiming delivery here is
@@ -141,7 +141,7 @@ class TeamsNotifierTest extends TestCase
         app(TeamsNotifier::class)->send($this->card(), 'devices');
     }
 
-    public function testARejectedCardIsLoggedAndSwallowed()
+    public function test_a_rejected_card_is_logged_and_swallowed()
     {
         Http::fake([self::DEVICES => Http::response('Bad Request', 400)]);
 
@@ -152,7 +152,7 @@ class TeamsNotifierTest extends TestCase
         $this->assertFalse(app(TeamsNotifier::class)->send($this->card(), 'devices'));
     }
 
-    public function testAServerErrorIsLoggedAndSwallowed()
+    public function test_a_server_error_is_logged_and_swallowed()
     {
         Http::fake([self::DEVICES => Http::response('', 503)]);
 
@@ -163,7 +163,7 @@ class TeamsNotifierTest extends TestCase
         $this->assertFalse(app(TeamsNotifier::class)->send($this->card(), 'devices'));
     }
 
-    public function testPostsEveryCardOfASplitReport()
+    public function test_posts_every_card_of_a_split_report()
     {
         Http::fake([self::DEVICES => Http::response('', 202)]);
 
@@ -180,7 +180,7 @@ class TeamsNotifierTest extends TestCase
         $this->assertGreaterThan(1, count($card->payloads()));
     }
 
-    public function testStopsPostingTheRestOfASplitReportOnceOneCardFails()
+    public function test_stops_posting_the_rest_of_a_split_report_once_one_card_fails()
     {
         Http::fake([self::DEVICES => Http::response('Bad Request', 400)]);
 
@@ -192,7 +192,7 @@ class TeamsNotifierTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function testTheWholeIntegrationCanBeSwitchedOff()
+    public function test_the_whole_integration_can_be_switched_off()
     {
         config()->set('ecu.teams.enabled', false);
         Http::fake();
@@ -202,7 +202,7 @@ class TeamsNotifierTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function testOnlyChannelsWithAUrlBehindThemAreReportedAsConfigured()
+    public function test_only_channels_with_a_url_behind_them_are_reported_as_configured()
     {
         $this->assertSame(['default', 'devices'], TeamsChannels::configuredKeys());
     }

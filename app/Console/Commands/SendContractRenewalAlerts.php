@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Mail\ContractRenewalAlertMail;
 use App\Models\Contract;
-use App\Console\Commands\Concerns\PostsReportCards;
 use App\Models\EmailTemplate;
 use App\Models\Setting;
 use Carbon\Carbon;
@@ -42,12 +42,13 @@ class SendContractRenewalAlerts extends Command
 
         if (! $settings || $settings->alerts_enabled != 1) {
             $this->info('Alerts disabled in settings — nothing to do.');
+
             return self::SUCCESS;
         }
 
-        $today    = Carbon::today();
-        $dryRun   = (bool) $this->option('dry-run');
-        $force    = (bool) $this->option('force');
+        $today = Carbon::today();
+        $dryRun = (bool) $this->option('dry-run');
+        $force = (bool) $this->option('force');
         // Per-contract admin_user wins; otherwise fall back to the per-email
         // recipient override (Settings → Emails) ?? the global alert_email list.
         $fallback = EmailTemplate::recipientsFor('report.contract_renewal', $settings->alert_email);
@@ -59,6 +60,7 @@ class SendContractRenewalAlerts extends Command
 
             if ($contracts->isEmpty()) {
                 $this->line("[$window] no contracts to alert on");
+
                 continue;
             }
 
@@ -76,10 +78,11 @@ class SendContractRenewalAlerts extends Command
 
             foreach ($grouped as $recipientsKey => $bag) {
                 $recipients = $bag['recipients'];
-                $rows       = $bag['contracts'];
+                $rows = $bag['contracts'];
 
                 if (empty($recipients)) {
                     $this->warn("[$window] {$rows->count()} contracts have no recipient (admin_user empty + no Setting::alert_email) — skipped");
+
                     continue;
                 }
 
@@ -90,6 +93,7 @@ class SendContractRenewalAlerts extends Command
                         implode(',', $recipients),
                         $rows->count(),
                     ));
+
                     continue;
                 }
 
@@ -115,7 +119,7 @@ class SendContractRenewalAlerts extends Command
                 } catch (\Throwable $e) {
                     Log::error("Contract renewal alert failed for window=$window: ".$e->getMessage(), [
                         'recipients' => $recipients,
-                        'contracts'  => $rows->pluck('id')->all(),
+                        'contracts' => $rows->pluck('id')->all(),
                     ]);
                     $this->error("[$window] mail send failed: ".$e->getMessage());
                 }
@@ -280,12 +284,12 @@ class SendContractRenewalAlerts extends Command
 
         foreach ($contracts as $contract) {
             $recipients = $this->resolveRecipients($contract, $fallback);
-            $key        = implode(',', $recipients);
+            $key = implode(',', $recipients);
 
             if (! isset($bags[$key])) {
                 $bags[$key] = [
                     'recipients' => $recipients,
-                    'contracts'  => new Collection,
+                    'contracts' => new Collection,
                 ];
             }
             $bags[$key]['contracts']->push($contract);
@@ -306,9 +310,9 @@ class SendContractRenewalAlerts extends Command
     private function markAlerted(Collection $contracts, string $window): void
     {
         $column = match ($window) {
-            '14d'     => 'last_renewal_alert_14d_at',
+            '14d' => 'last_renewal_alert_14d_at',
             'expired' => 'last_renewal_alert_expired_at',
-            default   => 'last_renewal_alert_30d_at',
+            default => 'last_renewal_alert_30d_at',
         };
 
         Contract::whereIn('id', $contracts->pluck('id'))->update([$column => now()]);
@@ -317,7 +321,7 @@ class SendContractRenewalAlerts extends Command
     /**
      * One card for a whole alert window, listing every contract in it.
      *
-     * @param  \Illuminate\Support\Collection<int, \App\Models\Contract>  $contracts
+     * @param  \Illuminate\Support\Collection<int, Contract>  $contracts
      */
     private function postWindowCard(string $window, $contracts): void
     {
