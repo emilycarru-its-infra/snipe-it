@@ -5,38 +5,21 @@ namespace Tests\Feature\Notifications\Teams;
 use App\Models\Asset;
 use App\Models\Location;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 #[Group('notifications')]
 class TeamsCardUponAuditTest extends TestCase
 {
-    private const DEVICES = 'https://prod-1.westus.logic.azure.com/workflows/devices/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->withoutDefer();
-        Http::fake([self::DEVICES => Http::response('', 202)]);
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => ['default' => '', 'devices' => self::DEVICES],
-        ]);
-    }
-
-    private function sentCard(): array
-    {
-        $card = null;
-        Http::assertSent(function ($request) use (&$card) {
-            $card = $request['attachments'][0]['content'];
-
-            return true;
-        });
-
-        return $card;
+        $this->fakeRelay();
     }
 
     public function test_an_audit_posts_a_card_naming_the_asset_the_location_and_the_auditor()
@@ -52,11 +35,8 @@ class TeamsCardUponAuditTest extends TestCase
 
         $asset->logAudit('Found on the bench', $location->id);
 
-        $card = $this->sentCard();
-        $facts = array_combine(
-            array_column($card['body'][2]['facts'], 'title'),
-            array_column($card['body'][2]['facts'], 'value')
-        );
+        $card = $this->postedCards()[0];
+        $facts = $this->cardFacts($card);
 
         $this->assertStringContainsString('audited', strtolower($card['body'][0]['text']));
         $this->assertSame('TEST-0002', $facts['Asset Tag']);
@@ -77,6 +57,6 @@ class TeamsCardUponAuditTest extends TestCase
 
         $asset->logAudit('Console audit', null);
 
-        $this->assertNotEmpty($this->sentCard()['body'][0]['text']);
+        $this->assertNotEmpty($this->postedCards()[0]['body'][0]['text']);
     }
 }

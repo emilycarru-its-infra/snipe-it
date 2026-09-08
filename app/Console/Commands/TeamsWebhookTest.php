@@ -18,7 +18,7 @@ use Illuminate\Console\Command;
 class TeamsWebhookTest extends Command
 {
     protected $signature = 'snipeit:teams-test
-                            {channel=default : Channel key — default, devices, procurement, reports, requests}
+                            {channel=Inventory : Channel name Relay should post to}
                             {--digest : Post a full-size report card instead of an event card}
                             {--rows=120 : How many rows the digest sample carries}
                             {--dry : Print the payload instead of posting it}';
@@ -39,22 +39,16 @@ class TeamsWebhookTest extends Command
             ? $this->digestCard((int) $this->option('rows'))
             : $this->eventCard();
 
-        $payloads = $card->payloads();
-        $this->line(count($payloads).' card(s), '.implode(' + ', array_map(
-            fn ($p) => strlen((string) json_encode($p)).' bytes',
-            $payloads
+        $cards = $card->cards();
+        $this->line(count($cards).' card(s), '.implode(' + ', array_map(
+            fn ($c) => strlen((string) json_encode($c)).' bytes',
+            $cards
         )));
 
         if ($this->option('dry')) {
-            $this->line(json_encode($payloads[0], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->line(json_encode($cards[0], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
             return 0;
-        }
-
-        if (TeamsChannels::url($channel) === null) {
-            $this->error('Channel "'.$channel.'" has no webhook URL configured.');
-
-            return 1;
         }
 
         if (! $notifier->send($card, $channel)) {
@@ -63,7 +57,7 @@ class TeamsWebhookTest extends Command
             return 1;
         }
 
-        $this->info('Accepted by the Workflows trigger. A 202 means accepted, not delivered — confirm in the channel.');
+        $this->info('Posted through Relay. Unlike a Power Automate webhook, a 2xx here is delivery — but look at the channel anyway.');
 
         return 0;
     }

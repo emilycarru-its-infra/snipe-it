@@ -23,26 +23,29 @@ return [
         'timeout' => (int) env('ASSET_CHANGE_WEBHOOK_TIMEOUT', 5),
     ],
 
-    // Teams channels for the internal notifications that used to be admin
-    // email. The URLs are Power Automate ("Workflows") incoming webhooks, set
-    // as app settings resolved from the commits-teams-webhooks Key Vault, so
-    // no webhook URL is ever stored in the database — Settings → Emails picks
-    // a channel key, and this maps the key to the URL. An empty URL turns that
-    // channel off; dev and local leave them all empty on purpose.
+    // Internal notifications post to Teams through Relay, the estate's bot,
+    // via the post-card ingress on commits-functions. No webhook URL, no Power
+    // Automate flow and no Key Vault secret: adding Relay to a channel in Teams
+    // is the whole onboarding, and the bot's credentials stay in that function
+    // app rather than being handed to every caller.
     //
-    // "default" is the fallback: with nothing configured it resolves to the
-    // single endpoint the Settings → Slack form writes, which is where these
-    // cards went before there was more than one channel.
+    // The endpoint gates on two things this config cannot arrange — the app's
+    // managed identity holding the PostCard.Send app role, and its object id
+    // being in POST_CARD_ALLOWED_CALLERS. An empty URL turns posting off, which
+    // is what local and dev run with.
     'teams' => [
-        'enabled' => filter_var(env('TEAMS_WEBHOOKS_ENABLED', true), FILTER_VALIDATE_BOOL),
-        'timeout' => (int) env('TEAMS_WEBHOOK_TIMEOUT', 8),
-        'channels' => [
-            'default' => env('TEAMS_WEBHOOK_DEFAULT', ''),
-            'devices' => env('TEAMS_WEBHOOK_DEVICES', ''),
-            'procurement' => env('TEAMS_WEBHOOK_PROCUREMENT', ''),
-            'reports' => env('TEAMS_WEBHOOK_REPORTS', ''),
-            'requests' => env('TEAMS_WEBHOOK_REQUESTS', ''),
-        ],
+        'enabled' => filter_var(env('TEAMS_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'timeout' => (int) env('TEAMS_TIMEOUT', 8),
+        'post_card_url' => env('TEAMS_POST_CARD_URL', ''),
+        'audience' => env('TEAMS_POST_CARD_AUDIENCE', ''),
+        'default_channel' => env('TEAMS_DEFAULT_CHANNEL', 'Inventory'),
+
+        // App Service injects these; there is no identity to borrow without
+        // them, which is why local and dev post nothing rather than failing.
+        // Read here rather than at the call site: env() returns null once the
+        // config is cached, and a cached config is how production runs.
+        'identity_endpoint' => env('IDENTITY_ENDPOINT', ''),
+        'identity_header' => env('IDENTITY_HEADER', ''),
     ],
 
     // Categories outside the device capital plan (decision 2026-08-13):

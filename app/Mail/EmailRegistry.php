@@ -23,7 +23,6 @@ use App\Notifications\RequestAssetCancelation;
 use App\Notifications\RequestAssetNotification;
 use App\Notifications\WelcomeNotification;
 use App\Services\Teams\TeamsCard;
-use App\Services\Teams\TeamsChannels;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\Notification;
@@ -454,7 +453,7 @@ class EmailRegistry
     private const DEFAULT_ROUTING = [
         'audience' => 'user',
         'default_delivery' => EmailDelivery::EMAIL,
-        'default_channel' => TeamsChannels::DEFAULT,
+        'default_channel' => 'Inventory',
     ];
 
     /**
@@ -481,28 +480,28 @@ class EmailRegistry
         $devices = fn (string $audience, callable $teams) => [
             'audience' => $audience,
             'default_delivery' => EmailDelivery::TEAMS,
-            'default_channel' => 'devices',
+            'default_channel' => 'Inventory',
             'teams' => $teams,
         ];
 
         $reports = fn (callable $teams) => [
             'audience' => 'admin',
             'default_delivery' => EmailDelivery::TEAMS,
-            'default_channel' => 'reports',
+            'default_channel' => 'Automations',
             'teams' => $teams,
         ];
 
         $requests = fn (callable $teams) => [
             'audience' => 'admin',
             'default_delivery' => EmailDelivery::TEAMS,
-            'default_channel' => 'requests',
+            'default_channel' => 'Inventory',
             'teams' => $teams,
         ];
 
         $procurement = fn (string $audience, callable $teams) => [
             'audience' => $audience,
             'default_delivery' => EmailDelivery::TEAMS,
-            'default_channel' => 'procurement',
+            'default_channel' => 'Procurement',
             'teams' => $teams,
         ];
 

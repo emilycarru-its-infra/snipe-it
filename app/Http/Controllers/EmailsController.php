@@ -109,16 +109,11 @@ class EmailsController extends Controller
 
         $selected = (string) request('selected', '');
 
-        // Channel keys, flagged by whether the deployment has a webhook URL
-        // behind them — an unconfigured channel is still selectable, but the
-        // hub says so rather than letting cards quietly go nowhere.
-        $configured = TeamsChannels::configuredKeys();
+        // Relay resolves a channel by name and falls back loudly when it
+        // cannot, so every known channel is offered without this app having to
+        // know which ones the bot has been added to.
         $channels = collect(TeamsChannels::keys())
-            ->map(fn ($label, $key) => [
-                'key' => $key,
-                'label' => $label,
-                'configured' => in_array($key, $configured, true),
-            ])
+            ->map(fn ($label, $key) => ['key' => $key, 'label' => $label, 'configured' => true])
             ->values()
             ->all();
 
@@ -376,7 +371,7 @@ class EmailsController extends Controller
 
         return response(view('settings.partials.teams-card-preview', [
             'title' => $entry['label'],
-            'payloads' => $card->payloads(),
+            'cards' => $card->cards(),
         ])->render());
     }
 }
