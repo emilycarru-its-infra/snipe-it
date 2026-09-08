@@ -5,6 +5,7 @@ namespace Tests\Feature\Settings;
 use App\Mail\EmailDelivery;
 use App\Models\EmailTemplate;
 use App\Models\User;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 /**
@@ -12,23 +13,13 @@ use Tests\TestCase;
  */
 class EmailDeliverySettingTest extends TestCase
 {
-    private const HOOK = 'https://prod-1.westus.logic.azure.com/workflows/devices/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => [
-                'default' => self::HOOK,
-                'devices' => self::HOOK,
-                'procurement' => '',
-                'reports' => self::HOOK,
-                'requests' => '',
-            ],
-        ]);
+        $this->fakeRelay();
     }
 
     private function superuser(): User
@@ -45,19 +36,9 @@ class EmailDeliverySettingTest extends TestCase
         $response->assertSee(trans('admin/settings/general.emails_delivery'));
         $response->assertSee(trans('admin/settings/general.emails_teams_channel'));
 
-        foreach (['devices', 'procurement', 'reports', 'requests'] as $channel) {
+        foreach (['Inventory', 'Procurement', 'Automations'] as $channel) {
             $response->assertSee('value="'.$channel.'"', false);
         }
-    }
-
-    public function test_a_channel_with_no_webhook_is_marked_as_such()
-    {
-        // Selectable, but not silently. A card posted at an unconfigured
-        // channel goes nowhere and says nothing about it.
-        $this->actingAs($this->superuser())
-            ->get(route('settings.emails.index'))
-            ->assertOk()
-            ->assertSee(trans('admin/settings/general.emails_teams_channel_unconfigured'));
     }
 
     public function test_internal_emails_are_marked_routable_and_user_facing_ones_are_not()
@@ -84,14 +65,14 @@ class EmailDeliverySettingTest extends TestCase
             ->post(route('settings.emails.save'), [
                 'key' => 'report.low_inventory',
                 'delivery' => EmailDelivery::BOTH,
-                'teams_channel' => 'devices',
+                'teams_channel' => 'Inventory',
             ])
             ->assertRedirect(route('settings.emails.index', ['selected' => 'report.low_inventory']));
 
         $override = EmailTemplate::forKey('report.low_inventory');
 
         $this->assertSame(EmailDelivery::BOTH, $override->delivery);
-        $this->assertSame('devices', $override->teams_channel);
+        $this->assertSame('Inventory', $override->teams_channel);
     }
 
     public function test_a_delivery_posted_at_a_user_facing_email_is_refused_rather_than_stored()
@@ -103,7 +84,7 @@ class EmailDeliverySettingTest extends TestCase
             ->post(route('settings.emails.save'), [
                 'key' => 'agreement.signature_request',
                 'delivery' => EmailDelivery::TEAMS,
-                'teams_channel' => 'devices',
+                'teams_channel' => 'Inventory',
             ])
             ->assertRedirect();
 

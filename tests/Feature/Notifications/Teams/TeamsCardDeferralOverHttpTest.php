@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 /**
@@ -20,17 +21,12 @@ use Tests\TestCase;
  */
 class TeamsCardDeferralOverHttpTest extends TestCase
 {
-    private const DEVICES = 'https://prod-1.westus.logic.azure.com/workflows/devices/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     public function test_an_api_checkin_posts_its_card_after_the_response()
     {
         Mail::fake();
-        Http::fake([self::DEVICES => Http::response('', 202)]);
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => ['default' => '', 'devices' => self::DEVICES],
-        ]);
+        $this->fakeRelay();
 
         $asset = Asset::factory()->laptopMbp()->assignedToUser()->create();
 
@@ -38,7 +34,6 @@ class TeamsCardDeferralOverHttpTest extends TestCase
             ->postJson(route('api.asset.checkin', $asset->id), ['note' => 'deferred over http'])
             ->assertOk();
 
-        Http::assertSent(fn ($request) => $request->url() === self::DEVICES
-            && $request['attachments'][0]['content']['body'][0]['text'] !== '');
+        $this->assertNotSame('', $this->postedCards()[0]['body'][0]['text']);
     }
 }

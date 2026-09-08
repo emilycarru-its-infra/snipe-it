@@ -70,14 +70,19 @@ class EmailDelivery
             && self::teamsCanDeliver($key);
     }
 
-    /** Whether a card for this key would actually reach a channel. */
+    /**
+     * Whether a card for this key could actually be posted. Relay resolves the
+     * channel itself, so what matters here is only whether this deployment can
+     * reach Relay at all.
+     */
     private static function teamsCanDeliver(string $key): bool
     {
         if (! (config('ecu.teams.enabled') ?? true)) {
             return false;
         }
 
-        return TeamsChannels::url(self::channelFor($key)) !== null;
+        return trim((string) config('ecu.teams.post_card_url')) !== ''
+            && trim((string) config('ecu.teams.audience')) !== '';
     }
 
     /** The resolved delivery for a key: the admin's override, else the registry default. */
@@ -104,7 +109,7 @@ class EmailDelivery
     public static function channelFor(string $key): string
     {
         $entry = EmailRegistry::find($key);
-        $default = $entry['default_channel'] ?? TeamsChannels::DEFAULT;
+        $default = $entry['default_channel'] ?? TeamsChannels::default();
 
         try {
             $override = EmailTemplate::forKey($key)?->teams_channel;
@@ -112,7 +117,7 @@ class EmailDelivery
             return $default;
         }
 
-        return TeamsChannels::isKnown($override) ? (string) $override : $default;
+        return TeamsChannels::isKnown($override) ? (string) $override : TeamsChannels::resolve($default);
     }
 
     /**

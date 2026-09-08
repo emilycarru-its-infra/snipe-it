@@ -114,7 +114,7 @@
                                 <select name="teams_channel" id="email-cms-teams-channel" class="form-control">
                                     @foreach ($channels as $channel)
                                         <option value="{{ $channel['key'] }}">
-                                            {{ $channel['label'] }}@unless ($channel['configured']) — {{ trans('admin/settings/general.emails_teams_channel_unconfigured') }}@endunless
+                                            {{ $channel['label'] }}
                                         </option>
                                     @endforeach
                                 </select>
