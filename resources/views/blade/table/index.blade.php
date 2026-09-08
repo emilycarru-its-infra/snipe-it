@@ -9,7 +9,11 @@
     'fixed_number' => null,
     'fixed_right_number' => null,
     'sort_order' => 'asc',
-    'sort_field' => 'name',
+    // Null, not 'name': this was declared but never emitted, so every table
+    // has always fallen through to bootstrap-table's own default of the first
+    // sortable column. Giving it a value here would silently reorder all of
+    // them, so a table that wants a sort column now says so.
+    'sort_field' => null,
     'nosticky' => false,
 ])
 
@@ -21,6 +25,9 @@
     data-cookie-id-table="{{ $name }}ListingTable"
     data-id-table="{{ $name }}ListingTable"
     data-sort-order="{{ $sort_order }}"
+    @if ($sort_field)
+        data-sort-name="{{ $sort_field }}"
+    @endif
     data-toolbar="#{{ Illuminate\Support\Str::camel($name) }}Toolbar"
     data-bulk-button-id="#{{ Illuminate\Support\Str::camel($name) }}Button"
     data-bulk-form-id="#{{ Illuminate\Support\Str::camel($name) }}Form"
