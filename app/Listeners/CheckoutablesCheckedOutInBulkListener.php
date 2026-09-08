@@ -4,10 +4,13 @@ namespace App\Listeners;
 
 use App\Events\CheckoutablesCheckedOutInBulk;
 use App\Mail\BulkAssetCheckoutMail;
+use App\Mail\EmailDelivery;
 use App\Models\Asset;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\Teams\TeamsCard;
+use App\Services\Teams\TeamsNotifier;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -16,6 +19,9 @@ use Illuminate\Support\Facades\Mail;
 
 class CheckoutablesCheckedOutInBulkListener
 {
+    /** The registry key whose delivery routing governs the admin copy. */
+    private const KEY = 'checkout.bulk_asset';
+
     public function subscribe($events)
     {
         $events->listen(
@@ -48,7 +54,8 @@ class CheckoutablesCheckedOutInBulkListener
             }
         }
 
-        if ($shouldSendEmailToAlertAddress && Setting::getSettings()->admin_cc_email) {
+        if ($shouldSendEmailToAlertAddress && Setting::getSettings()->admin_cc_email
+            && EmailDelivery::shouldEmail(self::KEY)) {
             try {
                 Mail::to(Setting::getSettings()->admin_cc_email)->send(new BulkAssetCheckoutMail(
                     $event->assets,
@@ -64,6 +71,39 @@ class CheckoutablesCheckedOutInBulkListener
                 Log::debug('Exception caught during BulkAssetCheckoutMail to admin_cc_email: '.$e->getMessage());
             }
         }
+
+        if ($shouldSendEmailToAlertAddress) {
+            app(TeamsNotifier::class)->announce(self::KEY, $this->card($event));
+        }
+    }
+
+    /**
+     * The card for a bulk checkout. A bulk run is the one case where the
+     * interesting content is the list itself, so the assets go in a table
+     * rather than being summarised into a count.
+     */
+    private function card(CheckoutablesCheckedOutInBulk $event): TeamsCard
+    {
+        $target = $event->target;
+
+        return TeamsCard::make(ucfirst(trans('general.assets_checked_out_count')))
+            ->accent('accent')
+            ->subtitle($target?->display_name ?? $target?->name)
+            ->facts([
+                trans('general.qty') => $event->assets->count(),
+                trans('general.date') => $event->checkout_at,
+                trans('general.expected_checkin') => $event->expected_checkin,
+            ])
+            ->note($event->note)
+            ->table(
+                [trans('general.asset_tag'), trans('general.name'), trans('admin/hardware/form.model')],
+                $event->assets->map(fn (Asset $asset) => [
+                    $asset->asset_tag,
+                    $asset->name,
+                    $asset->model?->name,
+                ])->all(),
+            )
+            ->footer($event->admin?->display_name);
     }
 
     private function shouldSendCheckoutEmailToUser(?User $user, Collection $assets): bool

@@ -4,7 +4,9 @@ namespace App\Notifications;
 
 use App\Helpers\Helper;
 use App\Models\Setting;
+use App\Notifications\Concerns\BuildsTeamsCards;
 use App\Notifications\Concerns\OverridableMailNotification;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Messages\SlackMessage;
 use Illuminate\Notifications\Notification;
@@ -14,6 +16,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class RequestAssetCancelation extends Notification
 {
+    use BuildsTeamsCards;
     use OverridableMailNotification;
 
     private $params;
@@ -66,6 +69,29 @@ class RequestAssetCancelation extends Notification
         $notifyBy[] = 'mail';
 
         return $notifyBy;
+    }
+
+    /**
+     * The card posted to Teams in place of this email. Requests are actioned
+     * by staff, so the buttons matter more than usual — the point of the card
+     * is to get from "someone asked" to the item's page in one click.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->item;
+
+        return $this->teamsCard('Asset request canceled', 'warning')
+            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
+            ->facts([
+                'Requested by' => $this->teamsTargetName($this->target),
+                trans('general.asset_tag') => $item->asset_tag ?? null,
+                trans('general.qty') => $this->item_quantity,
+                trans('general.date') => $this->requested_date,
+                trans('general.expected_checkin') => $this->expected_checkin,
+            ])
+            ->note($this->note)
+            ->action(trans('general.teams_view_asset'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_user'), $this->teamsUrl($this->target));
     }
 
     public function toSlack()

@@ -2,12 +2,14 @@
 
 namespace App\Actions\CheckoutRequests;
 
+use App\Mail\EmailDelivery;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\RequestAssetCancelation;
+use App\Services\Teams\TeamsNotifier;
 use Illuminate\Auth\Access\AuthorizationException;
 
 class CancelCheckoutRequestAction
@@ -36,11 +38,17 @@ class CancelCheckoutRequestAction
         $logaction->location_id = $user->location_id ?? null;
         $logaction->logaction('request canceled');
 
-        try {
-            $settings->notify(new RequestAssetCancelation($data));
-        } catch (\Exception $e) {
-            \Log::warning($e);
+        $notification = new RequestAssetCancelation($data);
+
+        if (EmailDelivery::shouldEmail('request.cancel')) {
+            try {
+                $settings->notify(clone $notification);
+            } catch (\Exception $e) {
+                \Log::warning($e);
+            }
         }
+
+        app(TeamsNotifier::class)->announce('request.cancel', $notification);
 
         return true;
     }
