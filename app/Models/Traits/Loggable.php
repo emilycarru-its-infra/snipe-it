@@ -11,19 +11,17 @@ use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\AuditNotification;
-use GuzzleHttp\Exception\ClientException;
-use GuzzleHttp\Exception\ConnectException;
-use GuzzleHttp\Exception\RequestException;
-use GuzzleHttp\Exception\ServerException;
+use App\Services\Teams\TeamsChannels;
+use App\Services\Teams\TeamsNotifier;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
-use Osama\LaravelTeamsNotification\TeamsNotification;
-use Throwable;
 
 trait Loggable
 {
+    /** Audits belong with the other device events. */
+    private const AUDIT_TEAMS_CHANNEL = 'devices';
+
     // an attribute for setting whether or not the item was imported
     public ?bool $imported = false;
 
@@ -429,49 +427,13 @@ trait Loggable
             'note' => $note,
         ];
 
-        if (Setting::getSettings()->webhook_selected === 'microsoft' && Str::contains(Setting::getSettings()->webhook_endpoint, 'workflows')) {
-
-            $endpoint = Setting::getSettings()->webhook_endpoint;
-
-            try {
-                $message = AuditNotification::toMicrosoftTeams($params);
-                $notification = new TeamsNotification($endpoint);
-                $notification->success()->sendMessage($message[0], $message[1]);
-
-            } catch (ConnectException $e) {
-                Log::warning('Teams webhook connection failed', [
-                    'endpoint' => $endpoint,
-                    'error' => $e->getMessage(),
-                ]);
-
-            } catch (ServerException $e) {
-
-                Log::error('Teams webhook server error', [
-                    'endpoint' => $endpoint,
-                    'status' => $e->getResponse()?->getStatusCode(),
-                    'error' => $e->getMessage(),
-                ]);
-
-            } catch (ClientException $e) {
-
-                Log::warning('Teams webhook client error', [
-                    'endpoint' => $endpoint,
-                    'status' => $e->getResponse()?->getStatusCode(),
-                    'error' => $e->getMessage(),
-                ]);
-            } catch (RequestException $e) {
-
-                Log::error('Teams webhook request failure', [
-                    'endpoint' => $endpoint,
-                    'error' => $e->getMessage(),
-                ]);
-            } catch (Throwable $e) {
-                Log::error('Teams webhook failed unexpectedly', [
-                    'endpoint' => $endpoint,
-                    'exception' => get_class($e),
-                    'error' => $e->getMessage(),
-                ]);
-            }
+        // The card sender logs and swallows its own failures, so the whole
+        // typed-catch ladder that used to live here moved in with it.
+        if (TeamsChannels::url(self::AUDIT_TEAMS_CHANNEL) !== null) {
+            app(TeamsNotifier::class)->sendLater(
+                (new AuditNotification($params))->toTeamsCard(),
+                self::AUDIT_TEAMS_CHANNEL
+            );
         } else {
             Setting::getSettings()->notify(new AuditNotification($params));
         }

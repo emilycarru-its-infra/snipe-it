@@ -5,6 +5,8 @@ namespace App\Notifications;
 use App\Models\Accessory;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\Concerns\BuildsTeamsCards;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Channels\SlackWebhookChannel;
 use Illuminate\Notifications\Messages\SlackMessage;
@@ -21,6 +23,7 @@ use NotificationChannels\MicrosoftTeams\MicrosoftTeamsMessage;
 #[AllowDynamicProperties]
 class CheckinAccessoryNotification extends Notification
 {
+    use BuildsTeamsCards;
     use Queueable;
 
     /**
@@ -93,6 +96,23 @@ class CheckinAccessoryNotification extends Notification
                     ->fields($fields)
                     ->content($note);
             });
+    }
+
+    /**
+     * The card posted to Teams.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->item;
+
+        return $this->teamsCard(trans('mail.Accessory_Checkin_Notification'), 'good', $this->admin)
+            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
+            ->fact(trans('mail.checkedin_from'), $this->teamsTargetName($this->target))
+            ->fact(trans('mail.checked_into'), $item->location?->name)
+            ->fact(trans('admin/consumables/general.remaining'), $item->numRemaining())
+            ->note($this->note)
+            ->action(trans('general.teams_view_item'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_user'), $this->teamsUrl($this->target));
     }
 
     public function toMicrosoftTeams()

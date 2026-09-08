@@ -5,6 +5,8 @@ namespace App\Notifications;
 use App\Models\Consumable;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\Concerns\BuildsTeamsCards;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Channels\SlackWebhookChannel;
 use Illuminate\Notifications\Messages\SlackMessage;
@@ -21,6 +23,7 @@ use NotificationChannels\MicrosoftTeams\MicrosoftTeamsMessage;
 #[AllowDynamicProperties]
 class CheckoutConsumableNotification extends Notification
 {
+    use BuildsTeamsCards;
     use Queueable;
 
     private $params;
@@ -98,6 +101,22 @@ class CheckoutConsumableNotification extends Notification
                     ->fields($fields)
                     ->content($note);
             });
+    }
+
+    /**
+     * The card posted to Teams.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->item;
+
+        return $this->teamsCard(trans('mail.Consumable_checkout_notification'), 'accent', $this->admin)
+            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
+            ->fact(trans('mail.assigned_to'), $this->teamsTargetName($this->target))
+            ->fact(trans('admin/consumables/general.remaining'), $item->numRemaining())
+            ->note($this->note)
+            ->action(trans('general.teams_view_item'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_user'), $this->teamsUrl($this->target));
     }
 
     public function toMicrosoftTeams()

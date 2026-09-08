@@ -31,6 +31,8 @@ use App\Notifications\CheckoutAssetNotification;
 use App\Notifications\CheckoutComponentNotification;
 use App\Notifications\CheckoutConsumableNotification;
 use App\Notifications\CheckoutLicenseSeatNotification;
+use App\Services\Teams\TeamsChannels;
+use App\Services\Teams\TeamsNotifier;
 use Exception;
 use GuzzleHttp\Exception\ClientException;
 use Illuminate\Database\Eloquent\Model;
@@ -39,11 +41,12 @@ use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Str;
-use Osama\LaravelTeamsNotification\TeamsNotification;
 
 class CheckoutableListener
 {
+    /** Checkouts, check-ins and their acceptances all belong to the same audience. */
+    private const TEAMS_CHANNEL = 'devices';
+
     private array $skipNotificationsFor = [
         //        Component::class,
     ];
@@ -126,10 +129,8 @@ class CheckoutableListener
 
         if ($shouldSendWebhookNotification) {
             try {
-                if ($this->newMicrosoftTeamsWebhookEnabled()) {
-                    $message = $this->getCheckoutNotification($event, $acceptance, true)->toMicrosoftTeams();
-                    $notification = new TeamsNotification(Setting::getSettings()->webhook_endpoint);
-                    $notification->success()->sendMessage($message[0], $message[1]);  // Send the message to Microsoft Teams
+                if ($this->teamsCardsEnabled()) {
+                    $this->postTeamsCard($this->getCheckoutNotification($event, $acceptance, true));
                 } else {
                     Notification::route($this->webhookSelected(), Setting::getSettings()->webhook_endpoint)
                         ->notify($this->getCheckoutNotification($event, $acceptance, true));
@@ -233,10 +234,8 @@ class CheckoutableListener
         if ($shouldSendWebhookNotification) {
             // Send Webhook notification
             try {
-                if ($this->newMicrosoftTeamsWebhookEnabled()) {
-                    $message = $this->getCheckinNotification($event, true)->toMicrosoftTeams();
-                    $notification = new TeamsNotification(Setting::getSettings()->webhook_endpoint);
-                    $notification->success()->sendMessage($message[0], $message[1]); // Send the message to Microsoft Teams
+                if ($this->teamsCardsEnabled()) {
+                    $this->postTeamsCard($this->getCheckinNotification($event, true));
                 } else {
                     Notification::route($this->webhookSelected(), Setting::getSettings()->webhook_endpoint)
                         ->notify($this->getCheckinNotification($event, true));
@@ -450,8 +449,17 @@ class CheckoutableListener
         return in_array(get_class($checkoutable), $this->skipNotificationsFor);
     }
 
+    /**
+     * Whether these events announce themselves to a chat channel at all. The
+     * settings endpoint is no longer the only way to configure one — a Teams
+     * channel set in config counts too, and on its own.
+     */
     private function shouldSendWebhookNotification(): bool
     {
+        if ($this->teamsCardsEnabled()) {
+            return true;
+        }
+
         return Setting::getSettings() && Setting::getSettings()->webhook_endpoint;
     }
 
@@ -464,9 +472,29 @@ class CheckoutableListener
         return method_exists($checkoutable, 'checkin_email') && $checkoutable->checkin_email();
     }
 
-    private function newMicrosoftTeamsWebhookEnabled(): bool
+    /**
+     * Whether these events post an Adaptive Card rather than going through a
+     * Laravel notification channel. True whenever a Teams channel is wired up
+     * — either as config, or as the Workflows endpoint the settings form
+     * writes. The retired connector format still takes the old path.
+     */
+    private function teamsCardsEnabled(): bool
     {
-        return Setting::getSettings()->webhook_selected === 'microsoft' && Str::contains(Setting::getSettings()->webhook_endpoint, 'workflows');
+        return TeamsChannels::url(self::TEAMS_CHANNEL) !== null;
+    }
+
+    /**
+     * Post a notification's card, after the response has gone out. A checkout
+     * must not wait on a Power Automate trigger, and must not fail if one is
+     * unreachable.
+     */
+    private function postTeamsCard(BaseNotification $notification): void
+    {
+        if (! method_exists($notification, 'toTeamsCard')) {
+            return;
+        }
+
+        app(TeamsNotifier::class)->sendLater($notification->toTeamsCard(), self::TEAMS_CHANNEL);
     }
 
     private function shouldSendCheckoutEmailToUser(Model $checkoutable): bool
