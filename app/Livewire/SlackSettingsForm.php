@@ -5,10 +5,10 @@ namespace App\Livewire;
 use App\Helpers\Helper;
 use App\Models\Setting;
 use GuzzleHttp\Client;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Livewire\Component;
-use Osama\LaravelTeamsNotification\TeamsNotification;
 
 class SlackSettingsForm extends Component
 {
@@ -287,13 +287,17 @@ class SlackSettingsForm extends Component
                 ])->post($this->webhook_endpoint,
                     $payload)->throw();
             } else {
-                $notification = new TeamsNotification($this->webhook_endpoint);
-                $message = trans('general.webhook_test_msg', ['app' => $this->webhook_name]);
-                $notification->success()->sendMessage($message);
+                // The Workflows trigger takes an Adaptive Card in a message
+                // envelope; the same builder every real notification uses, so
+                // a test that renders proves the real ones will too.
+                $card = TeamsCard::make(trans('mail.snipe_webhook_test'))
+                    ->accent('good')
+                    ->subtitle(trans('general.webhook_test_msg', ['app' => $this->webhook_name]))
+                    ->footer(now()->format('D, M j Y \a\t g:ia'));
 
-                $response = Http::withHeaders([
-                    'content-type' => 'application/json',
-                ])->post($this->webhook_endpoint);
+                $response = Http::asJson()
+                    ->post($this->webhook_endpoint, $card->payload())
+                    ->throw();
             }
 
             if (($response->getStatusCode() == 302) || ($response->getStatusCode() == 301)) {
