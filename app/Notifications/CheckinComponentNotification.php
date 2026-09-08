@@ -5,6 +5,8 @@ namespace App\Notifications;
 use App\Models\Component;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\Concerns\BuildsTeamsCards;
+use App\Services\Teams\TeamsCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Channels\SlackWebhookChannel;
 use Illuminate\Notifications\Messages\SlackMessage;
@@ -21,7 +23,21 @@ use NotificationChannels\MicrosoftTeams\MicrosoftTeamsMessage;
 #[AllowDynamicProperties]
 class CheckinComponentNotification extends Notification
 {
+    use BuildsTeamsCards;
     use Queueable;
+
+    // The constructor assigns these; upstream leaves them undeclared and
+    // relies on #[AllowDynamicProperties]. Declaring them costs nothing and
+    // is what lets static analysis — and an editor — see them.
+    public $settings;
+
+    public $item;
+
+    public $admin;
+
+    public $note;
+
+    public $target;
 
     private $params;
 
@@ -103,6 +119,23 @@ class CheckinComponentNotification extends Notification
                     ->fields($fields)
                     ->content($note);
             });
+    }
+
+    /**
+     * The card posted to Teams. A check-in run from the console has no admin
+     * user behind it, which the footer says rather than leaving blank.
+     */
+    public function toTeamsCard(): TeamsCard
+    {
+        $item = $this->item;
+
+        return $this->teamsCard(trans('mail.Component_checkin_notification'), 'good', $this->admin)
+            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
+            ->fact(trans('mail.checkedin_from'), $this->teamsTargetName($this->target))
+            ->fact(trans('admin/consumables/general.remaining'), $item->numRemaining())
+            ->note($this->note)
+            ->action(trans('general.teams_view_item'), $this->teamsUrl($item))
+            ->action(trans('general.teams_view_asset'), $this->teamsUrl($this->target));
     }
 
     public function toMicrosoftTeams()

@@ -11,7 +11,7 @@ use Symfony\Component\Mime\Email;
 #[AllowDynamicProperties]
 class CurrentInventory extends Notification
 {
-    use Queueable, OverridableMailNotification;
+    use OverridableMailNotification, Queueable;
 
     /**
      * Create a new notification instance.

@@ -6,6 +6,7 @@ use App\Actions\CheckoutRequests\CancelCheckoutRequestAction;
 use App\Actions\CheckoutRequests\CreateCheckoutRequestAction;
 use App\Enums\ActionType;
 use App\Exceptions\AssetNotRequestable;
+use App\Mail\EmailDelivery;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\AssetModel;
@@ -13,11 +14,13 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\RequestAssetCancelation;
 use App\Notifications\RequestAssetNotification;
+use App\Services\Teams\TeamsNotifier;
 use Exception;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Notification;
 
 /**
  * This controller handles all actions related to the ability for users
@@ -103,17 +106,13 @@ class ViewAssetsController extends Controller
             $data['item_quantity'] = ($item_request) ? $item_request->qty : 1;
             $logaction->logaction(ActionType::RequestCanceled);
 
-            if (($settings->alert_email != '') && ($settings->alerts_enabled == '1') && (! config('app.lock_passwords'))) {
-                $settings->notify((new RequestAssetCancelation($data))->locale($settings->locale));
-            }
+            $this->announceRequest(new RequestAssetCancelation($data), 'request.cancel', $settings);
 
             return redirect()->back()->with('success')->with('success', trans('admin/hardware/message.requests.canceled'));
         } else {
             $item->request();
-            if (($settings->alert_email != '') && ($settings->alerts_enabled == '1') && (! config('app.lock_passwords'))) {
-                $logaction->logaction('requested');
-                $settings->notify((new RequestAssetNotification($data))->locale($settings->locale));
-            }
+            $logaction->logaction('requested');
+            $this->announceRequest(new RequestAssetNotification($data), 'request.asset', $settings);
 
             return redirect()->route('requestable-assets')->with('success')->with('success', trans('admin/hardware/message.requests.success'));
         }
@@ -157,5 +156,27 @@ class ViewAssetsController extends Controller
     public function getRequestedAssets(): View
     {
         return view('account/requested');
+    }
+
+    /**
+     * Tell whoever fulfils requests that one came in, or was pulled. Email
+     * where Settings → Emails still routes it there, a card otherwise.
+     *
+     * Worth knowing: the email half is gated on alert_email being set, but
+     * Setting::routeNotificationForMail() actually delivers to
+     * config('mail.reply_to.address') — the gate and the destination have
+     * never been the same address. The card path has no such split.
+     */
+    private function announceRequest(Notification $notification, string $key, Setting $settings): void
+    {
+        $emailable = $settings->alert_email !== ''
+            && $settings->alerts_enabled == '1'
+            && ! config('app.lock_passwords');
+
+        if ($emailable && EmailDelivery::shouldEmail($key)) {
+            $settings->notify((clone $notification)->locale($settings->locale));
+        }
+
+        app(TeamsNotifier::class)->announce($key, $notification);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\PostsReportCards;
 use App\Mail\ExpiringAssetsMail;
 use App\Mail\ExpiringLicenseMail;
 use App\Models\Asset;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Mail;
 
 class SendExpirationAlerts extends Command
 {
+    use PostsReportCards;
+
     /**
      * The name and signature of the console command.
      *
@@ -56,8 +59,35 @@ class SendExpirationAlerts extends Command
 
             if ($assets->count() > 0) {
 
-                Mail::to(EmailTemplate::recipientsFor('report.expiring_assets', $settings->alert_email))
-                    ->send(new ExpiringAssetsMail($assets, $alert_interval));
+                if ($this->shouldEmailReport('report.expiring_assets')) {
+                    Mail::to(EmailTemplate::recipientsFor('report.expiring_assets', $settings->alert_email))
+                        ->send(new ExpiringAssetsMail($assets, $alert_interval));
+                }
+
+                $this->postReportCard(
+                    'report.expiring_assets',
+                    trans('mail.Expiring_Assets_Report'),
+                    'warning',
+                    [
+                        trans('admin/hardware/form.tag'),
+                        trans('general.name'),
+                        trans('admin/hardware/form.model'),
+                        trans('mail.assigned_to'),
+                        trans('admin/hardware/form.eol_date'),
+                        trans('admin/hardware/form.warranty_expires'),
+                    ],
+                    $assets,
+                    fn ($item) => [
+                        $item->asset_tag,
+                        $item->name,
+                        $item->model?->name,
+                        $item->assignedTo?->display_name,
+                        $item->eol_date ? $item->eol_formatted_date : null,
+                        $item->warranty_expires ? $item->warranty_expires_formatted_date : null,
+                    ],
+                    [trans('admin/settings/general.alert_interval') => $alert_interval],
+                    route('hardware.index'),
+                );
 
                 $this->table(
                     [
@@ -90,8 +120,31 @@ class SendExpirationAlerts extends Command
                 ->orderBy('termination_date', 'ASC')
                 ->get();
             if ($licenses->count() > 0) {
-                Mail::to(EmailTemplate::recipientsFor('report.expiring_licenses', $settings->alert_email))
-                    ->send(new ExpiringLicenseMail($licenses, $alert_interval));
+                if ($this->shouldEmailReport('report.expiring_licenses')) {
+                    Mail::to(EmailTemplate::recipientsFor('report.expiring_licenses', $settings->alert_email))
+                        ->send(new ExpiringLicenseMail($licenses, $alert_interval));
+                }
+
+                $this->postReportCard(
+                    'report.expiring_licenses',
+                    trans('mail.Expiring_Licenses_Report'),
+                    'warning',
+                    [
+                        trans('general.name'),
+                        trans('general.manufacturer'),
+                        trans('admin/licenses/form.expiration'),
+                        trans('admin/licenses/form.termination_date'),
+                    ],
+                    $licenses,
+                    fn ($item) => [
+                        $item->name,
+                        $item->manufacturer?->name,
+                        $item->expires_formatted_date,
+                        $item->termination_formatted_date,
+                    ],
+                    [trans('admin/settings/general.alert_interval') => $alert_interval],
+                    route('licenses.index'),
+                );
 
                 $this->table(
                     [

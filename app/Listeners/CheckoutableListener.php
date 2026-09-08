@@ -12,6 +12,7 @@ use App\Mail\CheckoutAssetMail;
 use App\Mail\CheckoutComponentMail;
 use App\Mail\CheckoutConsumableMail;
 use App\Mail\CheckoutLicenseMail;
+use App\Mail\EmailDelivery;
 use App\Models\Accessory;
 use App\Models\Asset;
 use App\Models\Category;
@@ -31,6 +32,7 @@ use App\Notifications\CheckoutAssetNotification;
 use App\Notifications\CheckoutComponentNotification;
 use App\Notifications\CheckoutConsumableNotification;
 use App\Notifications\CheckoutLicenseSeatNotification;
+use App\Services\Teams\TeamsNotifier;
 use Exception;
 use GuzzleHttp\Exception\ClientException;
 use Illuminate\Database\Eloquent\Model;
@@ -39,8 +41,6 @@ use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Str;
-use Osama\LaravelTeamsNotification\TeamsNotification;
 
 class CheckoutableListener
 {
@@ -78,9 +78,14 @@ class CheckoutableListener
 
         $acceptance = $this->getCheckoutAcceptance($event);
 
+        $key = $this->registryKeyFor($event->checkoutable, 'checkout');
+
         $shouldSendEmailToUser = $this->shouldSendCheckoutEmailToUser($event->checkoutable);
-        $shouldSendEmailToAlertAddress = $this->shouldSendEmailToAlertAddress($acceptance);
-        $shouldSendWebhookNotification = $this->shouldSendWebhookNotification();
+        // The admin copy is the half that moves to Teams. The user's own mail
+        // is never routed to a channel they cannot read.
+        $shouldSendEmailToAlertAddress = $this->shouldSendEmailToAlertAddress($acceptance)
+            && EmailDelivery::shouldEmail($key);
+        $shouldSendWebhookNotification = $this->shouldSendWebhookNotification($key);
 
         if ($this->shouldSkipInitialAcceptanceEmail($event, $acceptance)) {
             $shouldSendEmailToUser = false;
@@ -126,11 +131,9 @@ class CheckoutableListener
 
         if ($shouldSendWebhookNotification) {
             try {
-                if ($this->newMicrosoftTeamsWebhookEnabled()) {
-                    $message = $this->getCheckoutNotification($event, $acceptance, true)->toMicrosoftTeams();
-                    $notification = new TeamsNotification(Setting::getSettings()->webhook_endpoint);
-                    $notification->success()->sendMessage($message[0], $message[1]);  // Send the message to Microsoft Teams
-                } else {
+                if (EmailDelivery::shouldPostToTeams($key)) {
+                    $this->postTeamsCard($this->getCheckoutNotification($event, $acceptance, true), $key);
+                } elseif ($this->legacyWebhookConfigured()) {
                     Notification::route($this->webhookSelected(), Setting::getSettings()->webhook_endpoint)
                         ->notify($this->getCheckoutNotification($event, $acceptance, true));
                 }
@@ -175,9 +178,12 @@ class CheckoutableListener
             return;
         }
 
+        $key = $this->registryKeyFor($event->checkoutable, 'checkin');
+
         $shouldSendEmailToUser = $this->checkoutableCategoryShouldSendEmail($event->checkoutable);
-        $shouldSendEmailToAlertAddress = $this->shouldSendEmailToAlertAddress();
-        $shouldSendWebhookNotification = $this->shouldSendWebhookNotification();
+        $shouldSendEmailToAlertAddress = $this->shouldSendEmailToAlertAddress()
+            && EmailDelivery::shouldEmail($key);
+        $shouldSendWebhookNotification = $this->shouldSendWebhookNotification($key);
         if (! $shouldSendEmailToUser && ! $shouldSendEmailToAlertAddress && ! $shouldSendWebhookNotification) {
             return;
         }
@@ -233,11 +239,9 @@ class CheckoutableListener
         if ($shouldSendWebhookNotification) {
             // Send Webhook notification
             try {
-                if ($this->newMicrosoftTeamsWebhookEnabled()) {
-                    $message = $this->getCheckinNotification($event, true)->toMicrosoftTeams();
-                    $notification = new TeamsNotification(Setting::getSettings()->webhook_endpoint);
-                    $notification->success()->sendMessage($message[0], $message[1]); // Send the message to Microsoft Teams
-                } else {
+                if (EmailDelivery::shouldPostToTeams($key)) {
+                    $this->postTeamsCard($this->getCheckinNotification($event, true), $key);
+                } elseif ($this->legacyWebhookConfigured()) {
                     Notification::route($this->webhookSelected(), Setting::getSettings()->webhook_endpoint)
                         ->notify($this->getCheckinNotification($event, true));
                 }
@@ -450,9 +454,38 @@ class CheckoutableListener
         return in_array(get_class($checkoutable), $this->skipNotificationsFor);
     }
 
-    private function shouldSendWebhookNotification(): bool
+    /**
+     * Whether this event announces itself to a chat channel at all — either as
+     * a Teams card, or through the Slack/Google/legacy-connector path the
+     * settings form still drives.
+     */
+    private function shouldSendWebhookNotification(string $key): bool
     {
-        return Setting::getSettings() && Setting::getSettings()->webhook_endpoint;
+        return EmailDelivery::shouldPostToTeams($key) || $this->legacyWebhookConfigured();
+    }
+
+    private function legacyWebhookConfigured(): bool
+    {
+        return (bool) (Setting::getSettings()?->webhook_endpoint);
+    }
+
+    /**
+     * The registry key for one of these events, which is what carries its
+     * delivery routing. Anything unrecognised gets a key that is not in the
+     * registry, which resolves to plain email — the safe direction.
+     */
+    private function registryKeyFor(Model $checkoutable, string $direction): string
+    {
+        $type = match (true) {
+            $checkoutable instanceof Asset => 'asset',
+            $checkoutable instanceof Accessory => 'accessory',
+            $checkoutable instanceof Component => 'component',
+            $checkoutable instanceof Consumable => 'consumable',
+            $checkoutable instanceof LicenseSeat => 'license',
+            default => 'unknown',
+        };
+
+        return $direction.'.'.$type;
     }
 
     private function checkoutableCategoryShouldSendEmail(Model $checkoutable): bool
@@ -464,9 +497,24 @@ class CheckoutableListener
         return method_exists($checkoutable, 'checkin_email') && $checkoutable->checkin_email();
     }
 
-    private function newMicrosoftTeamsWebhookEnabled(): bool
+    /**
+     * Whether these events post an Adaptive Card rather than going through a
+     * Laravel notification channel. True whenever a Teams channel is wired up
+     * — either as config, or as the Workflows endpoint the settings form
+     * writes. The retired connector format still takes the old path.
+     */
+    /**
+     * Post a notification's card, after the response has gone out. A checkout
+     * must not wait on a Power Automate trigger, and must not fail if one is
+     * unreachable.
+     */
+    private function postTeamsCard(BaseNotification $notification, string $key): void
     {
-        return Setting::getSettings()->webhook_selected === 'microsoft' && Str::contains(Setting::getSettings()->webhook_endpoint, 'workflows');
+        if (! method_exists($notification, 'toTeamsCard')) {
+            return;
+        }
+
+        app(TeamsNotifier::class)->sendLater($notification->toTeamsCard(), EmailDelivery::channelFor($key));
     }
 
     private function shouldSendCheckoutEmailToUser(Model $checkoutable): bool

@@ -5,6 +5,15 @@ namespace App\Mail;
 use App\Notifications\AcceptanceItemAcceptedNotification;
 use App\Notifications\AcceptanceItemAcceptedToUserNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
+use App\Notifications\CheckinAccessoryNotification;
+use App\Notifications\CheckinAssetNotification;
+use App\Notifications\CheckinComponentNotification;
+use App\Notifications\CheckinLicenseSeatNotification;
+use App\Notifications\CheckoutAccessoryNotification;
+use App\Notifications\CheckoutAssetNotification;
+use App\Notifications\CheckoutComponentNotification;
+use App\Notifications\CheckoutConsumableNotification;
+use App\Notifications\CheckoutLicenseSeatNotification;
 use App\Notifications\CurrentInventory;
 use App\Notifications\ExpectedCheckinAdminNotification;
 use App\Notifications\ExpectedCheckinNotification;
@@ -13,6 +22,8 @@ use App\Notifications\InventoryAlert;
 use App\Notifications\RequestAssetCancelation;
 use App\Notifications\RequestAssetNotification;
 use App\Notifications\WelcomeNotification;
+use App\Services\Teams\TeamsCard;
+use App\Services\Teams\TeamsChannels;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\Notification;
@@ -51,7 +62,23 @@ class EmailRegistry
      *
      * @return array<int, array{key:string, category:string, label:string, description:string, merge_vars:array<string,string>, factory?:callable, notification?:callable, configurable_recipients?:bool, configurable_cc?:bool}>
      */
+    /** @return array<int, array<string, mixed>> */
     public static function all(): array
+    {
+        $routing = self::routing();
+
+        return array_map(
+            fn ($entry) => $entry + ($routing[$entry['key']] ?? []) + self::DEFAULT_ROUTING,
+            self::definitions()
+        );
+    }
+
+    /**
+     * Every registered email as declared, before delivery routing is folded in.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function definitions(): array
     {
         return [
             // ---- Checkout ----
@@ -420,6 +447,239 @@ class EmailRegistry
         ];
     }
 
+    /**
+     * Everything not stated in routing() below: a notification is assumed to
+     * be for the person it is about, and therefore stays on email.
+     */
+    private const DEFAULT_ROUTING = [
+        'audience' => 'user',
+        'default_delivery' => EmailDelivery::EMAIL,
+        'default_channel' => TeamsChannels::DEFAULT,
+    ];
+
+    /**
+     * Who each email is really for, and where it is delivered.
+     *
+     * `audience` is the load-bearing field:
+     *
+     * - **admin** — internal staff only. Defaults to a Teams card.
+     * - **mixed** — one notification with two audiences: the person the item
+     *   belongs to gets an email, and internal staff get a copy. Only the
+     *   internal copy moves; the user's own mail is never routed to a channel
+     *   they cannot read.
+     * - **user** / **external** — the recipient is outside the university's
+     *   Teams. These stay on email and the Settings → Emails hub does not even
+     *   offer the delivery selector for them.
+     *
+     * `teams` builds the preview card for the hub. An entry without one is not
+     * routable, whatever its audience says — see EmailDelivery::isRoutable().
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function routing(): array
+    {
+        $devices = fn (string $audience, callable $teams) => [
+            'audience' => $audience,
+            'default_delivery' => EmailDelivery::TEAMS,
+            'default_channel' => 'devices',
+            'teams' => $teams,
+        ];
+
+        $reports = fn (callable $teams) => [
+            'audience' => 'admin',
+            'default_delivery' => EmailDelivery::TEAMS,
+            'default_channel' => 'reports',
+            'teams' => $teams,
+        ];
+
+        $requests = fn (callable $teams) => [
+            'audience' => 'admin',
+            'default_delivery' => EmailDelivery::TEAMS,
+            'default_channel' => 'requests',
+            'teams' => $teams,
+        ];
+
+        $procurement = fn (string $audience, callable $teams) => [
+            'audience' => $audience,
+            'default_delivery' => EmailDelivery::TEAMS,
+            'default_channel' => 'procurement',
+            'teams' => $teams,
+        ];
+
+        // Checkouts and check-ins: the item's holder keeps their email, the
+        // admin CC becomes a card. The cards themselves come from the
+        // notification classes, which already build them for the live event.
+        $checkoutish = [];
+        foreach ([
+            'checkout.asset' => [CheckoutAssetNotification::class, 'checkout'],
+            'checkout.accessory' => [CheckoutAccessoryNotification::class, 'accessory'],
+            'checkout.component' => [CheckoutComponentNotification::class, 'component'],
+            'checkout.consumable' => [CheckoutConsumableNotification::class, 'consumable'],
+            'checkout.license' => [CheckoutLicenseSeatNotification::class, 'license'],
+            'checkin.asset' => [CheckinAssetNotification::class, 'checkin'],
+            'checkin.accessory' => [CheckinAccessoryNotification::class, 'accessory_in'],
+            'checkin.component' => [CheckinComponentNotification::class, 'component_in'],
+            'checkin.license' => [CheckinLicenseSeatNotification::class, 'license_in'],
+        ] as $key => [$class, $shape]) {
+            $checkoutish[$key] = $devices('mixed', fn (EmailSampleData $s) => self::sampleCheckoutCard($s, $class, $shape));
+        }
+
+        return $checkoutish + [
+            'checkout.bulk_asset' => $devices('mixed', fn (EmailSampleData $s) => TeamsCard::make('Assets checked out')
+                ->accent('accent')
+                ->subtitle($s->recipient()->getAttribute('display_name').' — '.$s->assets()->count().' assets')
+                ->table(['Tag', 'Name', 'Model'], $s->assets()->map(fn ($a) => [$a->asset_tag, $a->name, $a->model?->getAttribute('name')])->all())
+                ->footer($s->admin()->getAttribute('display_name'))),
+
+            // Acceptance responses go to the admin who started the checkout.
+            'acceptance.response' => $devices('admin', fn (EmailSampleData $s) => self::sampleAcceptanceCard($s, 'Item accepted', 'good')),
+            'acceptance.accepted_admin' => $devices('admin', fn (EmailSampleData $s) => self::sampleAcceptanceCard($s, 'Item accepted', 'good')),
+            'acceptance.declined' => $devices('admin', fn (EmailSampleData $s) => self::sampleAcceptanceCard($s, 'Item declined', 'attention')),
+
+            'agreements.faculty_program_submitted' => $devices('admin', fn (EmailSampleData $s) => TeamsCard::make('Faculty Laptop Program application')
+                ->accent('accent')
+                ->subtitle($s->recipient()->getAttribute('display_name'))
+                ->facts(['Asset' => $s->asset()->asset_tag, 'Choice' => 'Pickup'])
+                ->action(trans('general.teams_view_user'), route('users.show', $s->recipient()->id))),
+
+            // The scheduled digests. Every row goes in the card — a report
+            // that only says "12 assets" sends the reader looking for the
+            // twelve, which is the work the card was meant to save.
+            'report.expiring_assets' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
+                'Expiring assets', 'warning', $s->assets(), ['Tag', 'Name', 'Model', 'Expires'],
+                fn ($a) => [$a->asset_tag, $a->name, $a->model?->getAttribute('name'), $a->warranty_expires],
+                route('hardware.index'),
+            )),
+            'report.expiring_licenses' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
+                'Expiring licenses', 'warning', $s->licenses(), ['License', 'Seats', 'Expires'],
+                fn ($l) => [$l->name, $l->seats, $l->expiration_date],
+                route('licenses.index'),
+            )),
+            'report.upcoming_audits' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
+                'Upcoming audits', 'accent', $s->assets(), ['Tag', 'Name', 'Next audit'],
+                fn ($a) => [$a->asset_tag, $a->name, $a->next_audit_date],
+                route('reports.audit'),
+            )),
+            'report.contract_renewal' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
+                'Contract renewals', 'warning', $s->contracts(), ['Contract', 'Supplier', 'Ends'],
+                fn ($c) => [$c->name, $c->supplier?->getAttribute('name'), $c->end_date],
+                route('contracts.index'),
+            )),
+            'report.expected_checkin' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
+                'Assets due for check-in', 'accent', $s->assets(), ['Tag', 'Name', 'Assigned to', 'Due'],
+                fn ($a) => [$a->asset_tag, $a->name, $a->assignedTo?->getAttribute('display_name'), $a->expected_checkin],
+                route('assets.checkins.due'),
+            )),
+            'report.low_inventory' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
+                'Low inventory', 'attention', $s->lowInventoryItems(), ['Item', 'Type', 'Remaining', 'Minimum'],
+                fn ($i) => [$i['name'] ?? null, $i['type'] ?? null, $i['remaining'] ?? null, $i['min_amt'] ?? null],
+                route('reports.index'),
+            )),
+
+            'request.asset' => $requests(fn (EmailSampleData $s) => self::sampleRequestCard($s, 'Asset requested', 'accent')),
+            'request.cancel' => $requests(fn (EmailSampleData $s) => self::sampleRequestCard($s, 'Asset request canceled', 'warning')),
+
+            // Store orders: the requester keeps their email; the procurement
+            // admin CC becomes a card.
+            'store.requested' => $procurement('mixed', fn (EmailSampleData $s) => self::sampleStoreCard($s, 'Store order received', 'accent')),
+            'store.approved' => $procurement('mixed', fn (EmailSampleData $s) => self::sampleStoreCard($s, 'Store order approved', 'good')),
+            'store.declined' => $procurement('mixed', fn (EmailSampleData $s) => self::sampleStoreCard($s, 'Store order declined', 'attention')),
+        ] + array_fill_keys([
+            // Addressed to people outside the university: a lessor, a vendor's
+            // reps. Recorded as external so it is obvious these are email by
+            // nature rather than by an unset default.
+            'request.asset_buyout',
+            'store.vendor_order',
+            'procurement.vendor_order',
+            'procurement.quote_accepted',
+        ], ['audience' => 'external']);
+    }
+
+    /**
+     * A preview card for one of the checkout/check-in notifications, built by
+     * the same toTeamsCard() the live event uses — so what the hub shows is
+     * what the channel gets, not a second description of it.
+     */
+    private static function sampleCheckoutCard(EmailSampleData $s, string $notification, string $shape): TeamsCard
+    {
+        $card = match ($shape) {
+            'checkout' => new $notification($s->asset(), $s->recipient(), $s->admin(), null, 'Loaned for the term.'),
+            'checkin' => new $notification($s->asset(), $s->recipient(), $s->admin(), 'Returned in good condition.'),
+            'accessory' => new $notification($s->accessory(), $s->recipient(), $s->admin(), null, 'Issued at the help desk.'),
+            'accessory_in' => new $notification($s->accessory(), $s->recipient(), $s->admin(), 'Returned to the help desk.'),
+            'component' => new $notification($s->component(), $s->asset(), $s->admin(), null, 'Installed during upgrade.'),
+            'component_in' => new $notification($s->component(), $s->asset(), $s->admin(), 'Removed during upgrade.'),
+            'consumable' => new $notification($s->consumable(), $s->recipient(), $s->admin(), null, 'Picked up from stores.'),
+            'license' => new $notification($s->licenseSeat(), $s->recipient(), $s->admin(), null, 'Seat assigned.'),
+            'license_in' => new $notification($s->licenseSeat(), $s->recipient(), $s->admin(), 'Seat released.'),
+            default => throw new \InvalidArgumentException('No sample card shape "'.$shape.'".'),
+        };
+
+        return $card->toTeamsCard();
+    }
+
+    private static function sampleAcceptanceCard(EmailSampleData $s, string $title, string $accent): TeamsCard
+    {
+        $asset = $s->asset();
+
+        return TeamsCard::make($title)
+            ->accent($accent)
+            ->subtitle($asset->getAttribute('display_name'))
+            ->facts([
+                trans('mail.assigned_to') => $s->recipient()->getAttribute('display_name'),
+                trans('general.asset_tag') => $asset->asset_tag,
+                trans('admin/hardware/form.serial') => $asset->serial,
+            ])
+            ->note('Sample acceptance note.')
+            ->action(trans('general.teams_view_asset'), route('hardware.show', $asset->id))
+            ->action(trans('general.teams_view_user'), route('users.show', $s->recipient()->id));
+    }
+
+    private static function sampleRequestCard(EmailSampleData $s, string $title, string $accent): TeamsCard
+    {
+        $asset = $s->asset();
+
+        return TeamsCard::make($title)
+            ->accent($accent)
+            ->subtitle($asset->getAttribute('display_name'))
+            ->facts([
+                'Requested by' => $s->recipient()->getAttribute('display_name'),
+                trans('general.asset_tag') => $asset->asset_tag,
+            ])
+            ->action(trans('general.teams_view_asset'), route('hardware.show', $asset->id))
+            ->action(trans('general.teams_view_user'), route('users.show', $s->recipient()->id));
+    }
+
+    private static function sampleStoreCard(EmailSampleData $s, string $title, string $accent): TeamsCard
+    {
+        $order = $s->storeOrder();
+
+        return TeamsCard::make($title)
+            ->accent($accent)
+            ->subtitle('Order #'.$order->id)
+            ->facts([
+                'Requested by' => $order->user?->getAttribute('display_name'),
+                'Status' => $order->status,
+            ])
+            ->action('Open order', route('store.orders'));
+    }
+
+    /**
+     * A report card carrying every row it was given. Splitting a long listing
+     * across several cards is the builder's job, not the caller's.
+     */
+    private static function sampleReportCard(string $title, string $accent, $rows, array $columns, callable $map, ?string $url = null): TeamsCard
+    {
+        $rows = collect($rows);
+
+        return TeamsCard::make($title)
+            ->accent($accent)
+            ->subtitle($rows->count().' '.strtolower($title))
+            ->table($columns, $rows->map($map)->all())
+            ->action(trans('general.teams_view_report'), $url)
+            ->footer(now()->format('D, M j Y'));
+    }
+
     /** @return array<string, array> key => definition */
     public static function flat(): array
     {
@@ -462,6 +722,21 @@ class EmailRegistry
         }
 
         return ($entry['notification'])(new EmailSampleData);
+    }
+
+    /**
+     * The Teams card an email would post, built from sample data. Returns null
+     * for anything that is not routable to Teams.
+     */
+    public static function makeTeamsCard(string $key): ?TeamsCard
+    {
+        $entry = self::find($key);
+
+        if (! $entry || ! isset($entry['teams'])) {
+            return null;
+        }
+
+        return ($entry['teams'])(new EmailSampleData);
     }
 
     /**
