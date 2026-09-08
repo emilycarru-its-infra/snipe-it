@@ -5,27 +5,18 @@ namespace Tests\Feature\Settings;
 use App\Mail\EmailDelivery;
 use App\Mail\EmailRegistry;
 use App\Models\EmailTemplate;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 class EmailDeliveryTest extends TestCase
 {
-    private const DEVICES = 'https://prod-1.westus.logic.azure.com/workflows/devices/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => [
-                'default' => self::DEVICES,
-                'devices' => self::DEVICES,
-                'procurement' => self::DEVICES,
-                'reports' => self::DEVICES,
-                'requests' => self::DEVICES,
-            ],
-        ]);
+        $this->fakeRelay();
     }
 
     public function test_internal_notifications_default_to_teams_and_off_email()
@@ -82,11 +73,11 @@ class EmailDeliveryTest extends TestCase
         $this->assertSame(EmailDelivery::TEAMS, EmailDelivery::for('report.low_inventory'));
     }
 
-    public function test_an_unconfigured_channel_falls_back_to_email_rather_than_nowhere()
+    public function test_a_deployment_that_cannot_reach_relay_falls_back_to_email_rather_than_nowhere()
     {
-        // An install that has not wired up its channels yet must not quietly
-        // lose every internal alert.
-        config()->set('ecu.teams.channels', ['default' => '', 'reports' => '']);
+        // An install with no route to Relay must not quietly lose every
+        // internal alert.
+        config()->set('ecu.teams.post_card_url', '');
 
         $this->assertFalse(EmailDelivery::shouldPostToTeams('report.low_inventory'));
         $this->assertTrue(EmailDelivery::shouldEmail('report.low_inventory'));
@@ -102,11 +93,11 @@ class EmailDeliveryTest extends TestCase
 
     public function test_a_channel_override_is_honoured_and_an_unknown_one_is_not()
     {
-        EmailTemplate::updateOrCreate(['key' => 'report.low_inventory'], ['teams_channel' => 'devices']);
-        $this->assertSame('devices', EmailDelivery::channelFor('report.low_inventory'));
+        EmailTemplate::updateOrCreate(['key' => 'report.low_inventory'], ['teams_channel' => 'Inventory']);
+        $this->assertSame('Inventory', EmailDelivery::channelFor('report.low_inventory'));
 
         EmailTemplate::updateOrCreate(['key' => 'report.low_inventory'], ['teams_channel' => 'not-a-channel']);
-        $this->assertSame('reports', EmailDelivery::channelFor('report.low_inventory'));
+        $this->assertSame('Automations', EmailDelivery::channelFor('report.low_inventory'));
     }
 
     public function test_an_unknown_key_is_treated_as_email()

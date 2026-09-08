@@ -2,6 +2,7 @@
 
 namespace App\Models\Traits;
 
+use App\Mail\EmailDelivery;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\ICompanyableChild;
@@ -11,7 +12,6 @@ use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\AuditNotification;
-use App\Services\Teams\TeamsChannels;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Http\Request;
@@ -19,8 +19,8 @@ use Illuminate\Support\Facades\Log;
 
 trait Loggable
 {
-    /** Audits belong with the other device events. */
-    private const AUDIT_TEAMS_CHANNEL = 'devices';
+    /** Audits are announced under the check-in key's routing. */
+    private const AUDIT_KEY = 'checkin.asset';
 
     // an attribute for setting whether or not the item was imported
     public ?bool $imported = false;
@@ -429,11 +429,8 @@ trait Loggable
 
         // The card sender logs and swallows its own failures, so the whole
         // typed-catch ladder that used to live here moved in with it.
-        if (TeamsChannels::url(self::AUDIT_TEAMS_CHANNEL) !== null) {
-            app(TeamsNotifier::class)->sendLater(
-                (new AuditNotification($params))->toTeamsCard(),
-                self::AUDIT_TEAMS_CHANNEL
-            );
+        if (EmailDelivery::shouldPostToTeams(self::AUDIT_KEY)) {
+            app(TeamsNotifier::class)->announce(self::AUDIT_KEY, new AuditNotification($params));
         } else {
             Setting::getSettings()->notify(new AuditNotification($params));
         }

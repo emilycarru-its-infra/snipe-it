@@ -68,14 +68,13 @@
 </head>
 <body>
 
-@if (count($payloads) > 1)
+@if (count($cards) > 1)
     <p class="cards-note">
-        {{ trans('admin/settings/general.emails_teams_split', ['count' => count($payloads)]) }}
+        {{ trans('admin/settings/general.emails_teams_split', ['count' => count($cards)]) }}
     </p>
 @endif
 
-@foreach ($payloads as $payload)
-    @php($card = $payload['attachments'][0]['content'])
+@foreach ($cards as $card)
     <div class="card">
         @foreach ($card['body'] as $block)
             @if ($block['type'] === 'TextBlock' && ($block['weight'] ?? '') === 'Bolder' && ($block['size'] ?? '') === 'Medium')

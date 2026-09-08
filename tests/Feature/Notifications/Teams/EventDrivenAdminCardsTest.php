@@ -15,10 +15,10 @@ use App\Notifications\AcceptanceItemDeclinedNotification;
 use App\Notifications\RequestAssetNotification;
 use App\Services\FacultyProgramNotifier;
 use App\Services\Teams\TeamsNotifier;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 /**
@@ -27,7 +27,7 @@ use Tests\TestCase;
 #[Group('notifications')]
 class EventDrivenAdminCardsTest extends TestCase
 {
-    private const HOOK = 'https://prod-1.westus.logic.azure.com/workflows/x/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     protected function setUp(): void
     {
@@ -36,25 +36,8 @@ class EventDrivenAdminCardsTest extends TestCase
         Mail::fake();
         Notification::fake();
         $this->withoutDefer();
-        Http::fake([self::HOOK => Http::response('', 202)]);
 
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => array_fill_keys(['default', 'devices', 'procurement', 'reports', 'requests'], self::HOOK),
-        ]);
-    }
-
-    private function cardTitle(): string
-    {
-        $title = '';
-        Http::assertSent(function ($request) use (&$title) {
-            $title = $request['attachments'][0]['content']['body'][0]['text'];
-
-            return true;
-        });
-
-        return $title;
+        $this->fakeRelay();
     }
 
     public function test_requesting_an_asset_posts_a_card_instead_of_emailing_the_alert_address()
@@ -68,7 +51,7 @@ class EventDrivenAdminCardsTest extends TestCase
         CreateCheckoutRequestAction::run($asset, $user);
 
         Notification::assertNothingSent();
-        $this->assertStringContainsString('requested', strtolower($this->cardTitle()));
+        $this->assertStringContainsString('requested', strtolower($this->cardTitle($this->postedCards()[0])));
     }
 
     public function test_cancelling_a_request_posts_its_own_card()
@@ -79,11 +62,11 @@ class EventDrivenAdminCardsTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user);
         CreateCheckoutRequestAction::run($asset, $user);
-        Http::fake([self::HOOK => Http::response('', 202)]);
 
         CancelCheckoutRequestAction::run($asset, $user);
 
-        $this->assertStringContainsString('canceled', strtolower($this->cardTitle()));
+        // The create posted a card too, so it is the latest one that matters.
+        $this->assertStringContainsString('canceled', strtolower($this->cardTitle($this->lastPostedCard())));
     }
 
     public function test_an_admin_can_put_asset_requests_back_on_email()
@@ -96,7 +79,7 @@ class EventDrivenAdminCardsTest extends TestCase
 
         CreateCheckoutRequestAction::run(Asset::factory()->requestable()->create(), $user);
 
-        Http::assertNothingSent();
+        $this->assertNoCardPosted();
         Notification::assertSentTimes(RequestAssetNotification::class, 1);
     }
 
@@ -120,18 +103,10 @@ class EventDrivenAdminCardsTest extends TestCase
             AcceptanceItemAcceptedNotification::class => 'accepted',
             AcceptanceItemDeclinedNotification::class => 'declined',
         ] as $class => $word) {
-            Http::fake([self::HOOK => Http::response('', 202)]);
-
             app(TeamsNotifier::class)->announce('acceptance.'.($word === 'accepted' ? 'accepted_admin' : 'declined'), new $class($params));
 
-            $card = null;
-            Http::assertSent(function ($request) use (&$card) {
-                $card = $request['attachments'][0]['content'];
-
-                return true;
-            });
-
-            $facts = array_combine(array_column($card['body'][2]['facts'], 'title'), array_column($card['body'][2]['facts'], 'value'));
+            $card = $this->lastPostedCard();
+            $facts = $this->cardFacts($card);
 
             $this->assertStringContainsString($word, strtolower($card['body'][0]['text']));
             $this->assertSame('TEST-0003', $facts['Asset Tag']);
@@ -144,14 +119,14 @@ class EventDrivenAdminCardsTest extends TestCase
         FacultyProgramNotifier::submitted($this->pickupAgreement(), null, false);
 
         Mail::assertNotSent(FacultyProgramSubmissionMail::class);
-        $this->assertStringContainsString('Faculty Laptop Program', $this->cardTitle());
+        $this->assertStringContainsString('Faculty Laptop Program', $this->cardTitle($this->postedCards()[0]));
     }
 
     public function test_an_updated_faculty_program_submission_says_so()
     {
         FacultyProgramNotifier::submitted($this->pickupAgreement(), null, true);
 
-        $this->assertStringContainsString('updated', $this->cardTitle());
+        $this->assertStringContainsString('updated', $this->cardTitle($this->postedCards()[0]));
     }
 
     /**

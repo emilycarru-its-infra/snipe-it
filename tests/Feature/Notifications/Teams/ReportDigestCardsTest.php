@@ -10,10 +10,10 @@ use App\Models\EmailTemplate;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\ExpectedCheckinNotification;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 /**
@@ -25,7 +25,7 @@ use Tests\TestCase;
 #[Group('notifications')]
 class ReportDigestCardsTest extends TestCase
 {
-    private const REPORTS = 'https://prod-1.westus.logic.azure.com/workflows/reports/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     protected function setUp(): void
     {
@@ -33,26 +33,10 @@ class ReportDigestCardsTest extends TestCase
 
         Mail::fake();
         Notification::fake();
-        Http::fake([self::REPORTS => Http::response('', 202)]);
 
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => ['default' => '', 'reports' => self::REPORTS],
-        ]);
+        $this->fakeRelay();
 
         $this->settings->enableAlertEmail('alerts@example.com')->setAlertInterval(60);
-    }
-
-    /** @return array<int, array<string, mixed>> the cards posted, in order */
-    private function cards(): array
-    {
-        $cards = [];
-        Http::recorded(fn () => true)->each(function ($pair) use (&$cards) {
-            $cards[] = $pair[0]->data()['attachments'][0]['content'];
-        });
-
-        return $cards;
     }
 
     private function tableRows(array $card): array
@@ -73,7 +57,7 @@ class ReportDigestCardsTest extends TestCase
 
         $this->artisan('snipeit:inventory-alerts')->assertSuccessful();
 
-        $cards = $this->cards();
+        $cards = $this->postedCards();
 
         $this->assertCount(1, $cards);
         $this->assertSame(4, count($this->tableRows($cards[0])));
@@ -97,14 +81,14 @@ class ReportDigestCardsTest extends TestCase
         $this->artisan('snipeit:expiring-alerts')->assertSuccessful();
 
         Mail::assertSent(ExpiringAssetsMail::class);
-        $this->assertNotEmpty($this->cards());
+        $this->assertNotEmpty($this->postedCards());
     }
 
     public function test_nothing_is_posted_when_there_is_nothing_to_report()
     {
         $this->artisan('snipeit:inventory-alerts')->assertSuccessful();
 
-        Http::assertNothingSent();
+        $this->assertNoCardPosted();
     }
 
     public function test_the_expiring_assets_digest_carries_tags_and_dates_and_replaces_the_email()
@@ -116,7 +100,7 @@ class ReportDigestCardsTest extends TestCase
 
         Mail::assertNotSent(ExpiringAssetsMail::class);
 
-        $cards = $this->cards();
+        $cards = $this->postedCards();
         $this->assertNotEmpty($cards);
         $this->assertNotEmpty($this->tableRows($cards[0]));
     }
@@ -129,7 +113,7 @@ class ReportDigestCardsTest extends TestCase
 
         $this->artisan('snipeit:inventory-alerts')->assertSuccessful();
 
-        $cards = $this->cards();
+        $cards = $this->postedCards();
         $carried = array_sum(array_map(fn ($card) => count($this->tableRows($card)), $cards));
 
         $this->assertSame(120, $carried);

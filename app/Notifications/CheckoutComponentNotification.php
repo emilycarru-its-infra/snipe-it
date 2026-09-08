@@ -124,7 +124,6 @@ class CheckoutComponentNotification extends Notification
         $item = $this->item;
 
         return $this->teamsCard(trans('mail.Component_checkout_notification'), 'accent', $this->admin)
-            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
             ->fact(trans('mail.assigned_to'), $this->teamsTargetName($this->target))
             ->fact(trans('admin/consumables/general.remaining'), $item->numRemaining())
             ->note($this->note)

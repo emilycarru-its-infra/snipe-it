@@ -12,9 +12,9 @@ use App\Models\AssetModel;
 use App\Models\Category;
 use App\Models\EmailTemplate;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 /**
@@ -25,7 +25,7 @@ use Tests\TestCase;
 #[Group('notifications')]
 class AdminCopyMovesToTeamsTest extends TestCase
 {
-    private const DEVICES = 'https://prod-1.westus.logic.azure.com/workflows/devices/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     private Category $category;
 
@@ -39,13 +39,8 @@ class AdminCopyMovesToTeamsTest extends TestCase
 
         Mail::fake();
         $this->withoutDefer();
-        Http::fake([self::DEVICES => Http::response('', 202)]);
 
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => ['default' => '', 'devices' => self::DEVICES],
-        ]);
+        $this->fakeRelay();
 
         $this->settings->enableAdminCC('cc@example.com');
 
@@ -72,7 +67,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         Mail::assertSent(CheckoutAssetMail::class, fn (CheckoutAssetMail $mail) => $mail->hasTo($this->user->email));
         Mail::assertNotSent(CheckoutAssetMail::class, fn (CheckoutAssetMail $mail) => $mail->hasCc('cc@example.com'));
 
-        Http::assertSent(fn ($request) => $request->url() === self::DEVICES);
+        $this->assertNotEmpty($this->postedCards());
     }
 
     public function test_the_same_holds_on_checkin()
@@ -86,7 +81,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         Mail::assertSent(CheckinAssetMail::class, fn (CheckinAssetMail $mail) => $mail->hasTo($this->user->email));
         Mail::assertNotSent(CheckinAssetMail::class, fn (CheckinAssetMail $mail) => $mail->hasCc('cc@example.com'));
 
-        Http::assertSent(fn ($request) => $request->url() === self::DEVICES);
+        $this->assertNotEmpty($this->postedCards());
     }
 
     public function test_an_admin_can_put_the_email_copy_back_without_a_deploy()
@@ -96,7 +91,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         $this->checkOut();
 
         Mail::assertSent(CheckoutAssetMail::class, fn (CheckoutAssetMail $mail) => $mail->hasCc('cc@example.com'));
-        Http::assertSent(fn ($request) => $request->url() === self::DEVICES);
+        $this->assertNotEmpty($this->postedCards());
     }
 
     public function test_choosing_email_only_stops_the_card()
@@ -106,7 +101,7 @@ class AdminCopyMovesToTeamsTest extends TestCase
         $this->checkOut();
 
         Mail::assertSent(CheckoutAssetMail::class, fn (CheckoutAssetMail $mail) => $mail->hasCc('cc@example.com'));
-        Http::assertNothingSent();
+        $this->assertNoCardPosted();
     }
 
     public function test_routing_one_kind_of_checkout_does_not_move_the_others()

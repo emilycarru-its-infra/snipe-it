@@ -105,7 +105,6 @@ class AuditNotification extends Notification
         $asset = $item instanceof Asset ? $item : null;
 
         return $this->teamsCard(class_basename($item).' '.trans('general.audited'), 'good', $admin)
-            ->subtitle($asset ? $this->teamsAssetSubtitle($asset) : htmlspecialchars_decode((string) ($item->display_name ?? '')))
             ->facts($this->teamsAssetFacts($asset))
             ->fact(trans('general.location'), $this->params['location'] ?? null)
             ->note($this->params['note'] ?? null)

@@ -151,7 +151,6 @@ class CheckoutAccessoryNotification extends Notification
         $item = $this->item;
 
         return $this->teamsCard(trans('mail.Accessory_Checkout_Notification'), 'accent', $this->admin)
-            ->subtitle(htmlspecialchars_decode((string) $item->display_name))
             ->fact(trans('mail.assigned_to'), $this->teamsTargetName($this->target))
             ->fact(trans('general.qty'), $this->checkout_qty)
             ->fact(trans('mail.checkedout_from'), $item->location?->name)

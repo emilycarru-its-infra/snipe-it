@@ -8,9 +8,9 @@ use App\Models\Asset;
 use App\Models\Location;
 use App\Models\Statuslabel;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
 /**
@@ -24,7 +24,7 @@ use Tests\TestCase;
 #[Group('notifications')]
 class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
 {
-    private const DEVICES = 'https://prod-1.westus.logic.azure.com/workflows/devices/triggers/manual/paths/invoke';
+    use PostsThroughRelay;
 
     protected function setUp(): void
     {
@@ -32,32 +32,14 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
 
         Mail::fake();
         $this->withoutDefer();
-        Http::fake([self::DEVICES => Http::response('', 202)]);
 
-        config()->set('ecu.teams', [
-            'enabled' => true,
-            'timeout' => 8,
-            'channels' => ['default' => '', 'devices' => self::DEVICES],
-        ]);
+        $this->fakeRelay();
     }
 
     /** The card body, flattened to text so assertions read as what a person sees. */
-    private function sentCard(): array
-    {
-        $card = null;
-
-        Http::assertSent(function ($request) use (&$card) {
-            $card = $request['attachments'][0]['content'];
-
-            return true;
-        });
-
-        return $card;
-    }
-
     private function facts(): array
     {
-        foreach ($this->sentCard()['body'] as $block) {
+        foreach ($this->postedCards()[0]['body'] as $block) {
             if ($block['type'] === 'FactSet') {
                 return array_combine(array_column($block['facts'], 'title'), array_column($block['facts'], 'value'));
             }
@@ -69,7 +51,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
     private function texts(): array
     {
         return array_column(array_filter(
-            $this->sentCard()['body'],
+            $this->postedCards()[0]['body'],
             fn ($block) => $block['type'] === 'TextBlock'
         ), 'text');
     }
@@ -92,7 +74,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertStringContainsString('Sample Person', $facts['Assigned To']);
         $this->assertContains('Loaned for the term', $this->texts());
 
-        $urls = array_column($this->sentCard()['actions'], 'url');
+        $urls = array_column($this->postedCards()[0]['actions'], 'url');
         $this->assertContains(route('hardware.show', $asset->id), $urls);
         $this->assertContains(route('users.show', $user->id), $urls);
     }
@@ -139,7 +121,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
 
         event(new CheckoutableCheckedIn($asset, $asset->assignedTo, $admin, ''));
 
-        $footer = end($this->sentCard()['body']);
+        $footer = end($this->postedCards()[0]['body']);
 
         $this->assertStringContainsString('Sample Admin', $footer['text']);
         $this->assertStringContainsString(now()->format('M j'), $footer['text']);
@@ -147,11 +129,11 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
 
     public function test_no_card_is_posted_when_no_teams_channel_is_configured()
     {
-        config()->set('ecu.teams.channels', ['default' => '', 'devices' => '']);
+        config()->set('ecu.teams.post_card_url', '');
         $asset = Asset::factory()->laptopMbp()->assignedToUser()->create();
 
         event(new CheckoutableCheckedIn($asset, $asset->assignedTo, User::factory()->superuser()->create(), ''));
 
-        Http::assertNothingSent();
+        $this->assertNoCardPosted();
     }
 }
