@@ -22,6 +22,7 @@ use App\Notifications\InventoryAlert;
 use App\Notifications\RequestAssetCancelation;
 use App\Notifications\RequestAssetNotification;
 use App\Notifications\WelcomeNotification;
+use App\Services\Teams\ReportCard;
 use App\Services\Teams\TeamsCard;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Markdown;
@@ -544,34 +545,54 @@ class EmailRegistry
             // The scheduled digests. Every row goes in the card — a report
             // that only says "12 assets" sends the reader looking for the
             // twelve, which is the work the card was meant to save.
-            'report.expiring_assets' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
-                'Expiring assets', 'warning', $s->assets(), ['Tag', 'Name', 'Model', 'Expires'],
-                fn ($a) => [$a->asset_tag, $a->name, $a->model?->getAttribute('name'), $a->warranty_expires],
+            // Columns and accents mirror what the commands actually send, so
+            // the preview is the card rather than a description of it.
+            'report.expiring_assets' => $reports(fn (EmailSampleData $s) => ReportCard::make(
+                trans('mail.Expiring_Assets_Report'), 'warning',
+                [trans('admin/hardware/form.tag'), trans('general.name'), trans('admin/hardware/form.model'), trans('mail.assigned_to'), trans('admin/hardware/form.eol_date'), trans('admin/hardware/form.warranty_expires')],
+                $s->assets(),
+                fn ($a) => [$a->asset_tag, $a->name, $a->model?->getAttribute('name'), $a->assignedTo?->getAttribute('display_name'), $a->eol_date, $a->warranty_expires],
+                [trans('admin/settings/general.alert_interval') => 60],
                 route('hardware.index'),
             )),
-            'report.expiring_licenses' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
-                'Expiring licenses', 'warning', $s->licenses(), ['License', 'Seats', 'Expires'],
-                fn ($l) => [$l->name, $l->seats, $l->expiration_date],
+            'report.expiring_licenses' => $reports(fn (EmailSampleData $s) => ReportCard::make(
+                trans('mail.Expiring_Licenses_Report'), 'warning',
+                [trans('general.name'), trans('general.manufacturer'), trans('admin/licenses/form.expiration'), trans('admin/licenses/form.termination_date')],
+                $s->licenses(),
+                fn ($l) => [$l->name, $l->manufacturer?->getAttribute('name'), $l->expiration_date, $l->termination_date],
+                [trans('admin/settings/general.alert_interval') => 60],
                 route('licenses.index'),
             )),
-            'report.upcoming_audits' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
-                'Upcoming audits', 'accent', $s->assets(), ['Tag', 'Name', 'Next audit'],
-                fn ($a) => [$a->asset_tag, $a->name, $a->next_audit_date],
+            'report.upcoming_audits' => $reports(fn (EmailSampleData $s) => ReportCard::make(
+                trans_choice('mail.upcoming-audits', 3, ['count' => 3, 'threshold' => 30]), 'accent',
+                [trans('admin/hardware/form.tag'), trans('general.name'), trans('admin/hardware/form.model'), trans('mail.assigned_to'), trans('general.next_audit_date')],
+                $s->assets(),
+                fn ($a) => [$a->asset_tag, $a->name, $a->model?->getAttribute('name'), $a->assignedTo?->getAttribute('display_name'), $a->next_audit_date],
+                [trans('admin/settings/general.audit_warning_days') => 30],
                 route('reports.audit'),
             )),
-            'report.contract_renewal' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
-                'Contract renewals', 'warning', $s->contracts(), ['Contract', 'Supplier', 'Ends'],
-                fn ($c) => [$c->name, $c->supplier?->getAttribute('name'), $c->end_date],
+            'report.contract_renewal' => $reports(fn (EmailSampleData $s) => ReportCard::make(
+                trans('mail.contract_renewal_window', ['window' => '30d']), 'warning',
+                [trans('general.name'), trans('general.supplier'), trans('admin/contracts/general.contract_number'), trans('admin/contracts/general.end_date')],
+                $s->contracts(),
+                fn ($c) => [$c->name, $c->supplier?->getAttribute('name'), $c->contract_number, $c->end_date],
+                [],
                 route('contracts.index'),
             )),
-            'report.expected_checkin' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
-                'Assets due for check-in', 'accent', $s->assets(), ['Tag', 'Name', 'Assigned to', 'Due'],
+            'report.expected_checkin' => $reports(fn (EmailSampleData $s) => ReportCard::make(
+                trans('mail.Expected_Checkin_Report'), 'accent',
+                [trans('admin/hardware/form.tag'), trans('general.name'), trans('mail.assigned_to'), trans('admin/hardware/form.expected_checkin')],
+                $s->assets(),
                 fn ($a) => [$a->asset_tag, $a->name, $a->assignedTo?->getAttribute('display_name'), $a->expected_checkin],
+                [],
                 route('assets.checkins.due'),
             )),
-            'report.low_inventory' => $reports(fn (EmailSampleData $s) => self::sampleReportCard(
-                'Low inventory', 'attention', $s->lowInventoryItems(), ['Item', 'Type', 'Remaining', 'Minimum'],
-                fn ($i) => [$i['name'] ?? null, $i['type'] ?? null, $i['remaining'] ?? null, $i['min_amt'] ?? null],
+            'report.low_inventory' => $reports(fn (EmailSampleData $s) => ReportCard::make(
+                trans('mail.Low_Inventory_Report'), 'attention',
+                [trans('general.name'), trans('general.type'), trans('general.teams_remaining'), trans('mail.min_QTY')],
+                $s->lowInventoryItems(),
+                fn ($i) => [$i['name'] ?? null, ucfirst((string) ($i['type'] ?? '')), $i['remaining'] ?? null, $i['min_amt'] ?? null],
+                [],
                 route('reports.index'),
             )),
 
@@ -661,22 +682,6 @@ class EmailRegistry
                 'Status' => $order->status,
             ])
             ->action('Open order', route('store.orders'));
-    }
-
-    /**
-     * A report card carrying every row it was given. Splitting a long listing
-     * across several cards is the builder's job, not the caller's.
-     */
-    private static function sampleReportCard(string $title, string $accent, $rows, array $columns, callable $map, ?string $url = null): TeamsCard
-    {
-        $rows = collect($rows);
-
-        return TeamsCard::make($title)
-            ->accent($accent)
-            ->subtitle($rows->count().' '.strtolower($title))
-            ->table($columns, $rows->map($map)->all())
-            ->action(trans('general.teams_view_report'), $url)
-            ->footer(now()->format('D, M j Y'));
     }
 
     /** @return array<string, array> key => definition */

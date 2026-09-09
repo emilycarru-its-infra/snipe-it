@@ -118,7 +118,7 @@ class CheckinAccessoryNotification extends Notification
     {
         $item = $this->item;
 
-        return $this->teamsCard(trans('mail.Accessory_Checkin_Notification'), 'good', $this->admin)
+        return $this->teamsCard(trans('general.teams_accessory_checked_in'), 'good', $this->admin)
             ->fact(trans('mail.checkedin_from'), $this->teamsTargetName($this->target))
             ->fact(trans('mail.checked_into'), $item->location?->name)
             ->fact(trans('admin/consumables/general.remaining'), $item->numRemaining())

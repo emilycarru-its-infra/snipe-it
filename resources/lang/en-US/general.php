@@ -335,6 +335,19 @@ return [
     'teams_view_report' => 'Open in Snipe-IT',
     'teams_remaining' => 'Remaining',
     'teams_report_subtitle' => '{1} 1 item|[2,*] :count items',
+    // Card titles. The mail strings these replace are built for a subject line
+    // — they interpolate the asset tag, which the card carries as its own
+    // fact, so using them left a dangling colon.
+    'teams_asset_checked_out' => 'Asset checked out',
+    'teams_asset_checked_in' => 'Asset checked in',
+    'teams_accessory_checked_out' => 'Accessory checked out',
+    'teams_accessory_checked_in' => 'Accessory checked in',
+    'teams_component_checked_out' => 'Component checked out',
+    'teams_component_checked_in' => 'Component checked in',
+    'teams_consumable_checked_out' => 'Consumable checked out',
+    'teams_license_checked_out' => 'Licence seat assigned',
+    'teams_license_checked_in' => 'Licence seat released',
+    'teams_assets_checked_out' => 'Assets checked out',
     'webhook_test_msg' => 'Oh hai! It looks like your :app integration with Snipe-IT is working!',
     'some_features_disabled' => 'DEMO MODE: Some features are disabled for this installation.',
     'site_name' => 'Site Name',
