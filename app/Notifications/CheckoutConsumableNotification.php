@@ -123,7 +123,7 @@ class CheckoutConsumableNotification extends Notification
     {
         $item = $this->item;
 
-        return $this->teamsCard(trans('mail.Consumable_checkout_notification'), 'accent', $this->admin)
+        return $this->teamsCard(trans('general.teams_consumable_checked_out'), 'accent', $this->admin)
             ->fact(trans('mail.assigned_to'), $this->teamsTargetName($this->target))
             ->fact(trans('admin/consumables/general.remaining'), $item->numRemaining())
             ->note($this->note)

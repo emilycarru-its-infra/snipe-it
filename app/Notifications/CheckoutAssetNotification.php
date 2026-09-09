@@ -146,7 +146,7 @@ class CheckoutAssetNotification extends Notification
         $item = $this->item;
         $target = $this->target;
 
-        return $this->teamsCard(trans('mail.Asset_Checkout_Notification', ['tag' => '']), 'accent', $this->admin)
+        return $this->teamsCard(trans('general.teams_asset_checked_out'), 'accent', $this->admin)
             ->facts($this->teamsAssetFacts($item))
             ->fact(trans('mail.assigned_to'), $this->teamsTargetName($target))
             ->fact(trans('admin/hardware/form.status'), $item->status?->name)
