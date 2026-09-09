@@ -97,6 +97,8 @@ class TeamsNotifierTest extends TestCase
     {
         $this->fakeRelay(403, 'caller not allowlisted');
 
+        Log::shouldReceive('channel')->andReturnSelf();
+        Log::shouldReceive('info');
         Log::shouldReceive('error')
             ->once()
             ->withArgs(fn ($message) => str_contains($message, 'PostCard.Send')
@@ -109,6 +111,8 @@ class TeamsNotifierTest extends TestCase
     {
         $this->fakeRelay(400, 'card must be an Adaptive Card object');
 
+        Log::shouldReceive('channel')->andReturnSelf();
+        Log::shouldReceive('info');
         Log::shouldReceive('error')
             ->once()
             ->withArgs(fn ($message) => str_contains($message, 'Relay rejected the card (400)'));
@@ -120,6 +124,8 @@ class TeamsNotifierTest extends TestCase
     {
         $this->fakeRelay(503, '');
 
+        Log::shouldReceive('channel')->andReturnSelf();
+        Log::shouldReceive('info');
         Log::shouldReceive('error')->once()->withArgs(fn ($m) => str_contains($m, 'server error'));
 
         $this->assertFalse(app(TeamsNotifier::class)->send($this->card(), 'Inventory'));

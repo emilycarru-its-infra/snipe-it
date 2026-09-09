@@ -59,6 +59,22 @@ $config = [
             'days' => env('LOG_MAX_DAYS', 14),
         ],
 
+        // Every Teams card this app posts, kept apart from laravel.log.
+        //
+        // Its own channel rather than a Log::info on the default one, for two
+        // reasons. LOG_LEVEL defaults to warning here, so an info line on the
+        // default channel is discarded in production — grepping laravel.log
+        // for evidence a card went out always came back empty whether or not
+        // it had. And laravel.log is a single un-rotated file already past
+        // 300 MB; an audit trail worth keeping should not be buried in it.
+        'teams' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/teams-cards.log'),
+            'level' => 'info',
+            'days' => env('TEAMS_LOG_MAX_DAYS', 90),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
