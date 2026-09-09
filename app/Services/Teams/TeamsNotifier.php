@@ -40,16 +40,17 @@ class TeamsNotifier
      * Post a card. Returns true when every card was accepted — false when the
      * integration is off, unconfigured, or the post failed.
      */
-    public function send(TeamsCard $card, ?string $channel = null): bool
+    public function send(TeamsCard $card, ?string $channel = null, ?string $key = null): bool
     {
         if (! $this->enabled()) {
             return false;
         }
 
+        $channel = TeamsChannels::resolve($channel);
         $url = trim((string) config('ecu.teams.post_card_url'));
 
         if ($url === '') {
-            Log::info('Teams card not sent: no post-card endpoint configured.');
+            $this->audit('skipped', $channel, $key, null, ['reason' => 'no post-card endpoint configured']);
 
             return false;
         }
@@ -57,14 +58,15 @@ class TeamsNotifier
         $token = $this->token();
 
         if ($token === null) {
+            $this->audit('skipped', $channel, $key, null, ['reason' => 'no managed identity available']);
+
             return false;
         }
 
-        $channel = TeamsChannels::resolve($channel);
         $cards = $card->cards();
 
         foreach ($cards as $index => $content) {
-            if (! $this->post($url, $token, $channel, $content, $index + 1, count($cards))) {
+            if (! $this->post($url, $token, $channel, $content, $index + 1, count($cards), $key)) {
                 return false;
             }
         }
@@ -76,7 +78,7 @@ class TeamsNotifier
      * Post one card and swallow whatever goes wrong, logging at a level that
      * matches whose problem it is.
      */
-    private function post(string $url, string $token, string $channel, array $content, int $part, int $parts): bool
+    private function post(string $url, string $token, string $channel, array $content, int $part, int $parts, ?string $key = null): bool
     {
         $context = ['channel' => $channel];
 
@@ -93,12 +95,14 @@ class TeamsNotifier
 
             // Unlike a Power Automate webhook, Relay answers after it has
             // actually posted — so a 2xx here really is delivery.
-            Log::info('Teams card posted to "'.$channel.'" ('.$response->status().').', $context);
+            $this->audit('posted', $channel, $key, $content, ['status' => $response->status()] + $context);
 
             return true;
         } catch (RequestException $e) {
             $status = $e->response->status();
             $body = substr($e->response->body(), 0, 500);
+
+            $this->audit('refused', $channel, $key, $content, ['status' => $status, 'body' => $body] + $context);
 
             if ($status === 401 || $status === 403) {
                 // Both gates on the endpoint look like this. Neither is
@@ -110,8 +114,10 @@ class TeamsNotifier
                 Log::error('Relay server error.', $context + ['status' => $status, 'error' => $e->getMessage()]);
             }
         } catch (ConnectException $e) {
+            $this->audit('failed', $channel, $key, $content, ['error' => $e->getMessage()] + $context);
             Log::warning('Relay connection failed.', $context + ['error' => $e->getMessage()]);
         } catch (\Throwable $e) {
+            $this->audit('failed', $channel, $key, $content, ['error' => $e->getMessage()] + $context);
             Log::error('Relay post failed unexpectedly.', $context + ['error' => $e->getMessage()]);
         }
 
@@ -189,7 +195,7 @@ class TeamsNotifier
         // Scheduled commands post synchronously: deferring past the response
         // means nothing when there is no response, and a console run that exits
         // before its callbacks fire would post nothing at all.
-        $defer ? $this->sendLater($source, $channel) : $this->send($source, $channel);
+        $defer ? $this->sendLater($source, $channel, $key) : $this->send($source, $channel, $key);
     }
 
     /**
@@ -200,9 +206,9 @@ class TeamsNotifier
      * — this fork keeps a legacy Http\Kernel, where it was a silent no-op until
      * that was fixed. TeamsCardDeferralOverHttpTest guards it.
      */
-    public function sendLater(TeamsCard $card, ?string $channel = null): void
+    public function sendLater(TeamsCard $card, ?string $channel = null, ?string $key = null): void
     {
-        defer(fn () => $this->send($card, $channel));
+        defer(fn () => $this->send($card, $channel, $key));
     }
 
     private function timeout(): int
@@ -213,5 +219,25 @@ class TeamsNotifier
     private function enabled(): bool
     {
         return (bool) (config('ecu.teams.enabled') ?? true);
+    }
+
+    /**
+     * One line per card, on its own channel, whatever LOG_LEVEL says.
+     *
+     * This is the audit trail: what was posted, where, on whose behalf, and
+     * whether it landed. It records the card's title rather than the card,
+     * because the point is to answer "did the check-in on Tuesday announce
+     * itself" without keeping a copy of every table ever sent.
+     *
+     * @param  array<string, mixed>|null  $content
+     * @param  array<string, mixed>  $context
+     */
+    private function audit(string $outcome, ?string $channel, ?string $key, ?array $content, array $context = []): void
+    {
+        Log::channel('teams')->info($outcome, array_filter([
+            'channel' => $channel,
+            'notification' => $key,
+            'title' => $content['body'][0]['text'] ?? null,
+        ] + $context, fn ($v) => $v !== null && $v !== ''));
     }
 }
