@@ -144,6 +144,49 @@ class OrdersController extends Controller
      * its linked asset. A re-pushed webhook only fills gaps rather than
      * duplicating records.
      */
+    /**
+     * Delete one line item from an order.
+     *
+     * The order page can already do this, but only from a browser. The Orders
+     * API is index/show, so nothing without a session could remove a line —
+     * and lines are created unattended by the vendor webhook, which means
+     * they can be created wrongly unattended too. Repairing one then needed a
+     * person with a browser, because the app runs in a container with no
+     * shell to run artisan in (the same reason the purchase-order provision
+     * endpoint exists).
+     *
+     * The line must belong to the named order. A line id from a different
+     * order is refused rather than silently deleted, so a stale id from an
+     * earlier ingest cannot quietly damage an unrelated invoice.
+     */
+    public function destroyItem($order_id, $item_id): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $order = Order::findOrFail($order_id);
+        $item = OrderItem::find($item_id);
+
+        if (! $item || (int) $item->order_id !== (int) $order->id) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('admin/orders/message.item.not_found')),
+                404
+            );
+        }
+
+        $item->delete();
+
+        // Removing a line changes what is outstanding, so the order's derived
+        // status has to be recomputed exactly as the ingest does after writing
+        // lines — otherwise an order can stay 'shipped' on the strength of a
+        // line that no longer exists.
+        $order->recalculateStatus();
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'id' => (int) $item_id,
+            'order_id' => (int) $order->id,
+        ], trans('admin/orders/message.item.delete_success')));
+    }
+
     public function ingest(Request $request): array
     {
         $this->authorize('create', Order::class);
