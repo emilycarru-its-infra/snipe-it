@@ -152,4 +152,38 @@ class DeploymentWave extends SnipeModel
     {
         return $this->type?->name ?: '—';
     }
+
+    /**
+     * Whether anything on this wave is replacing an existing device.
+     *
+     * The type carries the intent, the items carry the fact, and either
+     * is enough. A refresh shows the outgoing-device columns from the
+     * day it is created, before a single end-of-life machine has been
+     * matched to it — otherwise there would be nowhere to see what is
+     * still missing. A net-new wave that turns out to be retiring
+     * something after all shows them because its items say so.
+     *
+     * A wave built from equipment we already own is neither: nothing is
+     * bought and nothing is replaced, so moves_devices settles it before
+     * either of the other two get a say.
+     */
+    public function replacesDevices(): bool
+    {
+        // Equipment we already own is being rearranged, not swapped: a
+        // relocation replaces nothing whatever its type's other flags say,
+        // and must not be talked out of that by one left switched on.
+        $type = $this->type;
+
+        if ($type && $type->moves_devices) {
+            return false;
+        }
+
+        $hasReplacements = $this->relationLoaded('items')
+            ? $this->items->contains(fn ($item) => $item->replaces_asset_id)
+            : $this->items()->whereNotNull('replaces_asset_id')->exists();
+
+        // A wave with no type at all is unclassified, not net-new — show
+        // the columns rather than quietly hiding a refresh's outgoing side.
+        return $hasReplacements || ! $type || (bool) $type->replaces_devices;
+    }
 }

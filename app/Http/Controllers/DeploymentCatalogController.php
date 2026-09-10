@@ -158,6 +158,7 @@ class DeploymentCatalogController extends Controller
 
         if ($catalog === 'types') {
             $data['moves_devices'] = $request->boolean('moves_devices');
+            $data['replaces_devices'] = $request->boolean('replaces_devices');
         }
 
         if ($catalog === 'stages') {
