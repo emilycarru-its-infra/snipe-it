@@ -1381,6 +1381,12 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('orders/{order_id}/vendor-response', [Api\OrdersController::class, 'vendorResponse'])
         ->name('api.orders.vendor-response');
 
+    // Removing a line the vendor webhook should not have written. The order
+    // page can do this, but only from a browser; a bad unattended ingest
+    // needs an unattended way back out.
+    Route::delete('orders/{order_id}/items/{item_id}', [Api\OrdersController::class, 'destroyItem'])
+        ->name('api.orders.items.destroy');
+
     Route::resource('orders',
         Api\OrdersController::class,
         ['names' => [
