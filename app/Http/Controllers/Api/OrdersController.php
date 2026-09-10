@@ -145,6 +145,56 @@ class OrdersController extends Controller
      * duplicating records.
      */
     /**
+     * Take an identified unit off the order's planning line.
+     *
+     * An order is raised as a model line — "2 of this model" — and that line
+     * is what provisions the serial-less assets. When the vendor invoice
+     * finally names the serials, the ingest writes one line per asset. Left
+     * alone the order then carries both, and its cost doubles: the same
+     * devices counted once as planned and once as billed.
+     *
+     * So each identified unit comes off the planning line, which disappears
+     * once every unit it stood for has arrived. A part shipment leaves the
+     * remainder outstanding, which is what keeps an order honestly
+     * 'partially_received' rather than complete.
+     *
+     * A planning line is only reduced when the arriving asset carries the
+     * model it planned. If the two disagree the plan is left alone: guessing
+     * which line a mismatched device came from would silently write off a
+     * unit that is still owed.
+     */
+    private function absorbPlannedQuantity(Order $order, int $assetId, int $quantity): void
+    {
+        $modelId = Asset::withTrashed()->find($assetId)?->model_id;
+
+        if (! $modelId) {
+            return;
+        }
+
+        $planned = OrderItem::where('order_id', $order->id)
+            ->where('item_type', AssetModel::class)
+            ->where('item_id', $modelId)
+            ->whereNull('invoice_id')
+            ->orderBy('id')
+            ->first();
+
+        if (! $planned) {
+            return;
+        }
+
+        $remaining = (int) $planned->quantity - $quantity;
+
+        if ($remaining > 0) {
+            $planned->quantity = $remaining;
+            $planned->save();
+
+            return;
+        }
+
+        $planned->delete();
+    }
+
+    /**
      * Delete one line item from an order.
      *
      * The order page can already do this, but only from a browser. The Orders
@@ -328,7 +378,7 @@ class OrdersController extends Controller
                     $key['description'] = $line['description'];
                 }
 
-                OrderItem::updateOrCreate(
+                $lineItem = OrderItem::updateOrCreate(
                     $key,
                     [
                         'purchase_order_id' => $purchaseOrderId,
@@ -339,6 +389,13 @@ class OrdersController extends Controller
                         'warranty_cost' => $line['warranty_cost'] ?? 0,
                     ]
                 );
+
+                // Only a newly created asset line takes stock off the plan.
+                // A re-posted invoice must not decrement twice, and a vendor
+                // re-sending an invoice is routine.
+                if ($lineItem->wasRecentlyCreated && $itemType === Asset::class && $itemId) {
+                    $this->absorbPlannedQuantity($order, (int) $itemId, (int) ($line['quantity'] ?? 1));
+                }
             }
 
             $order->recalculateStatus();
