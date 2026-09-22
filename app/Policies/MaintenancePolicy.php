@@ -85,6 +85,14 @@ final class MaintenancePolicy
     }
 
     /**
+     * Downloading a maintenance record's files follows the same rule.
+     */
+    public function viewFiles(User $user, Maintenance $maintenance): bool
+    {
+        return $this->files($user, $maintenance);
+    }
+
+    /**
      * Determine whether the user can view history for a maintenance record.
      * Allowed when the user can view the maintenance itself, or has global activity view permission.
      */
