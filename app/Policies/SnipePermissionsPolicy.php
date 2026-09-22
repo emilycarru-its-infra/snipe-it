@@ -108,6 +108,16 @@ abstract class SnipePermissionsPolicy
     }
 
     /**
+     * Downloading an attached file. Upstream this is the same right as
+     * attaching one; a policy can widen it where the documents list is shown
+     * to readers.
+     */
+    public function viewFiles(User $user, $item = null)
+    {
+        return $this->files($user, $item);
+    }
+
+    /**
      * Determine whether the user can create model.
      *
      * @return mixed
