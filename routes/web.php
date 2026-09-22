@@ -1080,11 +1080,16 @@ Route::group(['middleware' => ['auth']], function () {
     | not change, so every link in the app followed automatically; these
     | redirects are for what the app does not control: bookmarks, links in
     | emails already sent, and references in older PDFs.
+    |
+    | The uploaded-file routes further down still live at
+    | /purchase-orders/{id}/files/..., so the tail skips that shape — otherwise
+    | the redirect wins by registration order and sends every attachment
+    | download, upload and delete to a /procurement path that 404s.
     */
     foreach (['purchase-orders', 'requisitions', 'orders', 'lease-decisions'] as $legacyProcurementPath) {
         Route::redirect($legacyProcurementPath, '/procurement/'.$legacyProcurementPath, 301);
         Route::redirect($legacyProcurementPath.'/{tail}', '/procurement/'.$legacyProcurementPath.'/{tail}', 301)
-            ->where('tail', '.*');
+            ->where('tail', '(?![^/]+/files(?:/|$)).*');
     }
 
     // The lease portfolio has moved twice: off the reports hub, then from
