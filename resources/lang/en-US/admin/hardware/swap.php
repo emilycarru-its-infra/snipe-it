@@ -1,0 +1,27 @@
+<?php
+
+return [
+    'title' => 'Swap with another asset',
+    'menu' => 'Swap with…',
+    'intro' => 'Exchange the role of two computers in one step. Name, hostname, catalog, area, usage, fleet, status, location and assignee move to the other machine. Asset tag, serial, model and platform stay with the hardware.',
+    'pick' => 'Swap with',
+    'preview' => 'Preview',
+    'field' => 'Field',
+    'now' => 'Now',
+    'after' => 'After swap',
+    'empty' => '(blank)',
+    'unchanged' => 'Same on both — nothing moves.',
+    'note' => 'Note',
+    'note_help' => 'Optional. Added to both assets\' history.',
+    'confirm' => 'Swap these two assets',
+    'change' => 'Choose a different asset',
+    'area' => 'Area',
+    'usage' => 'Usage',
+    'devices_follow' => 'This changes the inventory records only. The machines pick up their new names on their next enrollment sync.',
+    'log_note' => 'Swapped with :asset',
+    'success' => ':asset and :other have been swapped.',
+    'error_same_asset' => 'Choose a different asset to swap with.',
+    'error_deleted' => 'A deleted asset cannot be swapped.',
+    'error_assigned_to_each_other' => 'One of these assets is checked out to the other. Check it in first.',
+    'error_invalid' => 'The swap was not saved: one of the assets would fail validation afterwards.',
+];
