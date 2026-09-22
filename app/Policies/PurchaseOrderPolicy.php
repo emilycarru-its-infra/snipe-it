@@ -49,4 +49,14 @@ class PurchaseOrderPolicy extends SnipePermissionsPolicy
             || $user->hasAccess('orders.edit')
             || $user->hasAccess('procurement.edit');
     }
+
+    /**
+     * The documents list on the purchase order page is shown to every reader,
+     * so every reader can open what it lists. Attaching and deleting still
+     * need files().
+     */
+    public function viewFiles(User $user, $item = null)
+    {
+        return $this->files($user, $item) || $this->view($user, $item);
+    }
 }

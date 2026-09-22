@@ -85,7 +85,7 @@ class UploadedFilesController extends Controller
     {
         // Check the permissions to make sure the user can view the object
         $object = self::$map_object_type[$object_type]::withTrashed()->find($id);
-        $this->authorize('files', $object);
+        $this->authorize('viewFiles', $object);
 
         if (! $object) {
             return redirect()->back()->withFragment('files')->with('error', trans('general.file_upload_status.invalid_object'));

@@ -57,6 +57,19 @@ class PurchaseOrderPageTest extends VendorOrderTestCase
     }
 
     /**
+     * The documents list is shown to every reader of the page, so a reader can
+     * open what it lists — but attaching and deleting still need edit rights.
+     */
+    public function test_a_reader_can_download_purchase_order_documents_but_not_attach_them()
+    {
+        $purchaseOrder = $this->vendorOrder()->purchaseOrder;
+        $reader = \App\Models\User::factory()->create(['permissions' => json_encode(['orders.view' => '1'])]);
+
+        $this->assertTrue($reader->can('viewFiles', $purchaseOrder));
+        $this->assertFalse($reader->can('files', $purchaseOrder));
+    }
+
+    /**
      * Every procurement report that names a purchase order links to it.
      */
     public function test_reports_link_their_purchase_order_numbers()
