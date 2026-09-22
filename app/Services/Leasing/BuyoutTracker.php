@@ -19,6 +19,9 @@ use App\Models\User;
  *
  * Everything here writes to the asset's activity timeline as well, so the
  * buyout reads in one place on the board and in another on the device.
+ *
+ * Approving also tells payroll to deduct the buyer's share — see
+ * BuyoutPayrollNotifier.
  */
 class BuyoutTracker
 {
@@ -164,6 +167,11 @@ class BuyoutTracker
         $this->log($buyout, trans('admin/deployments/general.buyout_log_status', [
             'status' => trans('admin/deployments/general.buyout_status_'.$status),
         ]), $actor);
+
+        // The buyer said yes: payroll is the next party that has to act.
+        if ($status === 'approved') {
+            app(BuyoutPayrollNotifier::class)->send($buyout, $actor);
+        }
     }
 
     /**

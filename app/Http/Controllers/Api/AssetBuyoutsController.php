@@ -7,6 +7,7 @@ use App\Http\Controllers\AssetBuyoutsController as WebBuyouts;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\AssetBuyout;
+use App\Services\Leasing\BuyoutPayrollNotifier;
 use App\Services\Leasing\BuyoutTracker;
 use Illuminate\Http\Request;
 
@@ -119,6 +120,26 @@ class AssetBuyoutsController extends Controller
             'success',
             $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes'])),
             trans('admin/deployments/general.buyout_quote_recorded')
+        ));
+    }
+
+    /**
+     * Send (or re-send) the payroll deduction notice. Approval sends it on its
+     * own; this is for a buyout approved before the notice existed, or one
+     * whose split was corrected after payroll was told.
+     */
+    public function payrollNotice(AssetBuyout $buyout)
+    {
+        $this->authorize('requestBuyout', $buyout->asset ?? Asset::class);
+
+        if ($error = app(BuyoutPayrollNotifier::class)->send($buyout, auth()->user())) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, trans($error)), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes'])),
+            trans('admin/deployments/general.buyout_payroll_sent')
         ));
     }
 

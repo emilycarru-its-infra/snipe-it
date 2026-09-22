@@ -509,6 +509,12 @@ Reply to this email if the device above is not the one you are using, or if ther
     'buyout_completed_note' => 'Buyout completed — the device is now on the :status status and out of the return pool.',
     'buyout_log_quoted' => 'Buyout quoted at :total',
     'buyout_log_status' => 'Buyout marked :status',
+    'buyout_log_payroll' => 'Payroll asked to deduct $:amount (sent to :to)',
+    'buyout_payroll_sent' => 'Payroll deduction notice sent.',
+    'buyout_payroll_not_payroll' => 'This buyout is not settled by payroll deduction, so payroll was not notified.',
+    'buyout_payroll_no_quote' => 'There is no quote on this buyout yet, so there is nothing to deduct.',
+    'buyout_payroll_no_recipients' => 'No payroll recipients are configured (Settings → Emails, or BUYOUT_PAYROLL_TO).',
+    'buyout_payroll_failed' => 'The payroll deduction notice could not be sent.',
     // Aging fleet box (shown on procurement + fleet health).
     'legacy_box_title' => 'Aging Fleet',
     'legacy_box_subtitle' => 'Operational Risk, degraded student experience',
