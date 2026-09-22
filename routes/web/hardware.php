@@ -3,6 +3,7 @@
 use App\Http\Controllers\Assets\AssetCheckinController;
 use App\Http\Controllers\Assets\AssetCheckoutController;
 use App\Http\Controllers\Assets\AssetsController;
+use App\Http\Controllers\Assets\AssetSwapController;
 use App\Http\Controllers\Assets\BulkAssetsController;
 use App\Http\Controllers\MaintenancesController;
 use App\Models\Asset;
@@ -62,6 +63,16 @@ Route::group(
             ->breadcrumbs(fn (Trail $trail, Asset $asset) => $trail->parent('hardware.show', $asset)
                 ->push(trans('general.audit'))
             );
+
+        Route::get('{asset}/swap', [AssetSwapController::class, 'create'])
+            ->name('hardware.swap.create')
+            ->breadcrumbs(fn (Trail $trail, Asset $asset) => $trail->parent('hardware.show', $asset)
+                ->push(trans('admin/hardware/swap.title'))
+            );
+
+        Route::post('{asset}/swap',
+            [AssetSwapController::class, 'store']
+        )->name('hardware.swap.store');
 
         Route::post('{asset}/audit',
             [AssetsController::class, 'auditStore']
