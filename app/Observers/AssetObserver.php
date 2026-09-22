@@ -61,7 +61,7 @@ class AssetObserver
                 }
             }
 
-            if (empty($changed)) {
+            if (empty($changed) || $asset->skipUpdateLog) {
                 return;
             }
 

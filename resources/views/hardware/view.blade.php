@@ -603,6 +603,9 @@
                                         </li>
                                     @endcan
                                     @can('update', $asset)
+                                        <li><a href="{{ route('hardware.swap.create', $asset->id) }}"><i class="fas fa-exchange-alt fa-fw" aria-hidden="true"></i> {{ trans('admin/hardware/swap.menu') }}</a></li>
+                                    @endcan
+                                    @can('update', $asset)
                                         <li><a href="#" data-toggle="modal" data-target="#createNoteModal"><x-icon type="note" class="fa-fw"/> {{ trans('general.add_note') }}</a></li>
                                     @endcan
                                     @can('create', $asset)
