@@ -48,6 +48,12 @@ class PurchaseOrderPageTest extends VendorOrderTestCase
         $this->actingAs($staff)->get('/purchase-orders/P0026041')->assertRedirect('/procurement/purchase-orders/P0026041');
         $this->actingAs($staff)->get('/requisitions')->assertRedirect('/procurement/requisitions');
         $this->actingAs($staff)->get('/reports/lessor-breakdown')->assertRedirect('/procurement/leasing');
+
+        // Attachments still live at /purchase-orders/{id}/files/..., so the
+        // legacy redirect must leave that shape to the file routes.
+        $fileUrl = route('ui.files.show', ['object_type' => 'purchase-orders', 'id' => $purchaseOrder->id, 'file_id' => 1], false);
+        $this->assertSame('/purchase-orders/'.$purchaseOrder->id.'/files/1', $fileUrl);
+        $this->assertSame('{object_type}/{id}/files/{file_id}', app('router')->getRoutes()->match(request()->create($fileUrl))->uri());
     }
 
     /**
