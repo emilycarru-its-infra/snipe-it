@@ -116,6 +116,13 @@ class Asset extends Depreciable
      */
     protected $injectUniqueIdentifier = true;
 
+    /**
+     * Set by a caller that writes its own history entry for this save
+     * (AssetSwap), so the observer does not log a second, partial one.
+     * A declared property, not an attribute: it is never persisted.
+     */
+    public bool $skipUpdateLog = false;
+
     protected $casts = [
         'purchase_date' => 'date',
         'eol_explicit' => 'boolean',
