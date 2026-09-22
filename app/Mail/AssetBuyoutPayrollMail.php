@@ -45,7 +45,7 @@ class AssetBuyoutPayrollMail extends BaseMailable
             replyTo: [new Address(config('leasing.buyout_request_reply_to'))],
             subject: $this->overriddenSubject('request.asset_buyout_payroll', trans('mail.asset_buyout_payroll_subject', [
                 'buyer' => $this->buyerName(),
-                'asset_tag' => $this->buyout->asset?->asset_tag ?? '',
+                'asset_tag' => $this->buyout->asset->asset_tag ?? '',
             ])),
         );
     }
