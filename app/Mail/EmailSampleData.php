@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\AssetBuyout;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Category;
@@ -132,6 +133,32 @@ class EmailSampleData
         $asset->setRelation('assignedto', $this->recipient());
 
         return $asset;
+    }
+
+    /** An approved lease buyout, split all to the buyer, for the payroll notice. */
+    public function buyout(): AssetBuyout
+    {
+        $asset = $this->asset();
+        $asset->lease_contract_id = 'LEASE-2023-0901-1';
+        $asset->lease_end_date = '2027-08-31';
+
+        $buyout = new AssetBuyout([
+            'status' => 'approved',
+            'quote_amount' => 640.00,
+            'remaining_rent' => 0,
+            'quote_total' => 640.00,
+            'buyer_amount' => 640.00,
+            'ecu_amount' => 0,
+            'quoted_at' => '2026-09-22',
+            'approved_at' => '2026-09-22 09:00:00',
+            'payment_method' => 'payroll_deduction',
+        ]);
+        $buyout->id = 0;
+        $buyout->setRelation('asset', $asset);
+        $buyout->setRelation('buyer', $this->recipient());
+        $buyout->setRelation('lessor', new Supplier(['name' => 'Example Leasing']));
+
+        return $buyout;
     }
 
     /** @return Collection<int, Asset> */

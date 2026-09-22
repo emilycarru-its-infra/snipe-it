@@ -21,6 +21,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Payroll deduction on an approved buyout
+    |--------------------------------------------------------------------------
+    |
+    | When the buyer approves, payroll is mailed the quote, the device and the
+    | amount to deduct. Both lists are comma-separated and set per environment;
+    | a Settings → Emails override wins over either. With no recipients the
+    | notice is skipped rather than sent nowhere.
+    |
+    */
+
+    'buyout_payroll_to' => env('BUYOUT_PAYROLL_TO', ''),
+
+    'buyout_payroll_cc' => env('BUYOUT_PAYROLL_CC', env('BUYOUT_REQUEST_REPLY_TO', 'devicesadmins@ecuad.ca')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Where a completed buyout lands the device
     |--------------------------------------------------------------------------
     |

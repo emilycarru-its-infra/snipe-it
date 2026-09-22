@@ -323,6 +323,16 @@ class EmailRegistry
                 'configurable_cc' => true,
                 'factory' => fn (EmailSampleData $s) => new AssetBuyoutRequestMail($s->asset(), $s->admin()),
             ],
+            [
+                'key' => 'request.asset_buyout_payroll',
+                'category' => 'requests',
+                'label' => 'Lease buyout payroll deduction',
+                'description' => 'Sent to payroll when a buyer approves a buyout, with the lessor quote, the device and the amount to deduct. Skipped when the buyout is settled by invoice or other means, and when no recipients are set here or in BUYOUT_PAYROLL_TO. The buyer is always CC\'d as well.',
+                'merge_vars' => ['buyout' => 'The buyout (buyout.approved_at, buyout.quoted_at)', 'buyer_name' => 'The buyer', 'buyer' => 'The buyer (buyer.email, buyer.employee_num)', 'amounts' => 'Formatted amounts (amounts.deduction, amounts.quote, amounts.quote_total, amounts.ecu)', 'asset' => 'The device (asset.asset_tag, asset.serial)', 'lease' => 'Lease facts (lease.contract_id, lease.end_date)', 'lessor' => 'The lessor (lessor.name)'],
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+                'factory' => fn (EmailSampleData $s) => new AssetBuyoutPayrollMail($s->buyout()),
+            ],
 
             // ---- Account & user (notification-channel; preview-only) ----
             // ---- Store & procurement ----
