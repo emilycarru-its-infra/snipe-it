@@ -254,6 +254,8 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ->name('api.buyouts.update');
         Route::post('{buyout}/quote', [Api\AssetBuyoutsController::class, 'quote'])
             ->name('api.buyouts.quote');
+        Route::post('{buyout}/payroll-notice', [Api\AssetBuyoutsController::class, 'payrollNotice'])
+            ->name('api.buyouts.payroll_notice');
         Route::delete('{buyout}', [Api\AssetBuyoutsController::class, 'destroy'])
             ->name('api.buyouts.destroy');
     });

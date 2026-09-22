@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Deployments;
 
+use App\Mail\AssetBuyoutPayrollMail;
 use App\Models\Asset;
 use App\Models\AssetBuyout;
 use App\Models\AssetModel;
@@ -454,5 +455,109 @@ class AssetBuyoutTrackerTest extends TestCase
         $this->assertEquals(899.99, (float) $buyout->buyer_amount);
         $this->assertEquals(872.01, (float) $buyout->ecu_amount);
         $this->assertEquals(1772.00, (float) $buyout->quote_total);
+    }
+
+    private function quotedBuyout(User $buyer, array $overrides = []): AssetBuyout
+    {
+        $asset = $this->leasedAsset($buyer);
+
+        return AssetBuyout::create(array_merge([
+            'asset_id' => $asset->id,
+            'lessor_id' => $asset->lessor_id,
+            'buyer_id' => $buyer->id,
+            'status' => 'quoted',
+            'requested_at' => now(),
+            'quote_amount' => 640.00,
+            'remaining_rent' => 0,
+            'quote_total' => 640.00,
+            'buyer_amount' => 640.00,
+            'ecu_amount' => 0,
+            'quoted_at' => '2026-09-22',
+        ], $overrides));
+    }
+
+    public function test_approving_a_buyout_asks_payroll_for_the_deduction(): void
+    {
+        Mail::fake();
+        config([
+            'leasing.buyout_payroll_to' => 'payroll@example.test,payroll-lead@example.test',
+            'leasing.buyout_payroll_cc' => 'devices@example.test',
+        ]);
+
+        $admin = User::factory()->superuser()->create();
+        $buyer = User::factory()->create(['email' => 'buyer@example.test']);
+        $buyout = $this->quotedBuyout($buyer);
+
+        $this->actingAs($admin)->post(route('buyouts.transition', $buyout->id), ['status' => 'approved'])
+            ->assertSessionHas('success');
+
+        Mail::assertSent(AssetBuyoutPayrollMail::class, function (AssetBuyoutPayrollMail $mail) use ($buyout) {
+            return $mail->hasTo('payroll@example.test')
+                && $mail->hasTo('payroll-lead@example.test')
+                && $mail->hasCc('devices@example.test')
+                && $mail->hasCc('buyer@example.test')
+                && $mail->buyout->is($buyout);
+        });
+
+        $this->assertSame('approved', $buyout->fresh()->status);
+        $this->assertSame('payroll_deduction', $buyout->fresh()->payment_method);
+    }
+
+    public function test_the_payroll_notice_carries_the_quote_and_the_deduction(): void
+    {
+        $buyer = User::factory()->create(['first_name' => 'Pat', 'last_name' => 'Buyer']);
+        $buyout = $this->quotedBuyout($buyer, ['status' => 'approved', 'approved_at' => now()]);
+
+        $html = (new AssetBuyoutPayrollMail($buyout->fresh()))->render();
+
+        $this->assertStringContainsString('Pat Buyer', $html);
+        $this->assertStringContainsString('$640.00', $html);
+        $this->assertStringContainsString($buyout->asset->asset_tag, $html);
+        $this->assertStringContainsString('2026-09-22', $html);
+    }
+
+    public function test_approving_a_buyout_settled_by_invoice_leaves_payroll_alone(): void
+    {
+        Mail::fake();
+        config(['leasing.buyout_payroll_to' => 'payroll@example.test']);
+
+        $admin = User::factory()->superuser()->create();
+        $buyout = $this->quotedBuyout(User::factory()->create(), ['payment_method' => 'invoice']);
+
+        $this->actingAs($admin)->post(route('buyouts.transition', $buyout->id), ['status' => 'approved']);
+
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
+        $this->assertSame('approved', $buyout->fresh()->status);
+    }
+
+    public function test_approving_with_no_payroll_recipients_still_approves(): void
+    {
+        Mail::fake();
+        config(['leasing.buyout_payroll_to' => '']);
+
+        $admin = User::factory()->superuser()->create();
+        $buyout = $this->quotedBuyout(User::factory()->create());
+
+        $this->actingAs($admin)->post(route('buyouts.transition', $buyout->id), ['status' => 'approved'])
+            ->assertSessionHas('success');
+
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
+        $this->assertSame('approved', $buyout->fresh()->status);
+    }
+
+    public function test_the_api_resends_the_payroll_notice(): void
+    {
+        Mail::fake();
+        config(['leasing.buyout_payroll_to' => 'payroll@example.test']);
+
+        $admin = User::factory()->superuser()->create();
+        $buyout = $this->quotedBuyout(User::factory()->create(), ['status' => 'approved', 'approved_at' => now()]);
+
+        $this->actingAsForApi($admin)
+            ->postJson(route('api.buyouts.payroll_notice', $buyout->id))
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
+
+        Mail::assertSent(AssetBuyoutPayrollMail::class, fn ($mail) => $mail->hasTo('payroll@example.test'));
     }
 }
