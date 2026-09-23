@@ -111,6 +111,13 @@
                     </tbody>
                 </table>
 
+                {{-- Documents sit under the money, in the summary's own card:
+                     the PO PDF and the vendor's quote are what somebody opens
+                     this page to read, and this column otherwise stops short
+                     of the details beside it. --}}
+                <h4>{{ trans('admin/lease-schedules/general.documents') }}</h4>
+                @include('partials.object-documents', ['object' => $purchaseOrder, 'object_type' => 'purchase-orders'])
+
                 </div>
                 </div>{{-- /.po-summary --}}
 
@@ -234,18 +241,6 @@
                     @endforelse
                     </tbody>
                 </table>
-            </div>
-        </div>
-        {{-- Documents in the left column with the lines and orders, not at
-             the page's foot: the PO PDF and the vendor's quote are what
-             somebody opens this page to read, and full-width at the bottom
-             they sat below the fold beside an empty gutter. --}}
-        <div class="box box-default">
-            <div class="box-header with-border">
-                <h3 class="box-title"><i class="fas fa-paperclip"></i> {{ trans('admin/lease-schedules/general.documents') }}</h3>
-            </div>
-            <div class="box-body">
-                @include('partials.object-documents', ['object' => $purchaseOrder, 'object_type' => 'purchase-orders'])
             </div>
         </div>
     </div>
