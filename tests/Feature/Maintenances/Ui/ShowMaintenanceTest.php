@@ -27,6 +27,19 @@ class ShowMaintenanceTest extends TestCase
             ->assertSee(route('api.maintenances.history', $maintenance), false);
     }
 
+    public function test_page_shows_details_files_and_history_on_one_page_without_tabs()
+    {
+        $maintenance = Maintenance::factory()->create();
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('maintenances.show', $maintenance))
+            ->assertOk()
+            ->assertDontSee('<!-- start tab container -->', false)
+            ->assertSee('maintenances-FileUploadsTable', false)
+            ->assertSee(route('api.maintenances.history', $maintenance), false)
+            ->assertSee('data-target="#uploadFileModal"', false);
+    }
+
     public function test_user_cannot_view_maintenance_for_another_company_when_fmcs_enabled()
     {
         $this->settings->enableMultipleFullCompanySupport();
