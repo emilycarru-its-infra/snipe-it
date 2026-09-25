@@ -3,6 +3,7 @@
 namespace App\Notifications\Concerns;
 
 use App\Models\Asset;
+use App\Models\Location;
 use App\Services\Teams\TeamsCard;
 use Illuminate\Database\Eloquent\Model;
 
@@ -30,6 +31,79 @@ trait BuildsTeamsCards
         $who = $actor ? $this->teamsTargetName($actor) : null;
 
         return $card->footer($who ? $who.' · '.$when : $when);
+    }
+
+    /**
+     * A checkout or check-in card, told apart by more than its colour: the
+     * outbox and inbox trays read as opposites even in a monochrome preview,
+     * and the title names what kind of thing the item went to or came from.
+     */
+    protected function teamsCheckoutCard(string $title, $target, ?Model $actor): TeamsCard
+    {
+        return $this->teamsCard(trans('general.teams_checked_out_to', [
+            'title' => $title,
+            'kind' => $this->teamsTargetKind($target),
+        ]), 'accent', $actor)->banner('📤');
+    }
+
+    protected function teamsCheckinCard(string $title, $target, ?Model $actor): TeamsCard
+    {
+        return $this->teamsCard(trans('general.teams_checked_in_from', [
+            'title' => $title,
+            'kind' => $this->teamsTargetKind($target),
+        ]), 'good', $actor)->banner('📥');
+    }
+
+    /**
+     * What an item was checked out to, as a lowercase noun. Anything else is
+     * named as a user, which is what the card said before targets were told
+     * apart.
+     */
+    protected function teamsTargetKind($target): string
+    {
+        return match (true) {
+            $target instanceof Asset => trans('general.teams_target_asset'),
+            $target instanceof Location => trans('general.teams_target_location'),
+            default => trans('general.teams_target_user'),
+        };
+    }
+
+    /** The button that opens whatever the item was checked out to. */
+    protected function teamsTargetActionLabel($target): string
+    {
+        return match (true) {
+            $target instanceof Asset => trans('general.teams_view_assigned_asset'),
+            $target instanceof Location => trans('general.teams_view_location'),
+            default => trans('general.teams_view_user'),
+        };
+    }
+
+    /**
+     * The custom fields that say what an asset is for and who pays for it —
+     * Usage, Catalog, Area — matched by field name so the card follows the
+     * fieldset rather than a db column suffix that differs between databases.
+     * Fields the asset's model does not carry are simply absent.
+     *
+     * @return array<string, mixed>
+     */
+    protected function teamsAssetCustomFacts(?Asset $asset): array
+    {
+        $fields = $asset?->model?->fieldset?->fields;
+
+        if (! $fields) {
+            return [];
+        }
+
+        $facts = [];
+        foreach ((array) config('ecu.teams.asset_custom_fields', []) as $name => $label) {
+            $field = $fields->first(fn ($field) => strcasecmp((string) $field->name, (string) $name) === 0);
+
+            if ($field && ! $field->field_encrypted) {
+                $facts[$label] = $asset->getAttribute($field->db_column_name());
+            }
+        }
+
+        return $facts;
     }
 
     /**

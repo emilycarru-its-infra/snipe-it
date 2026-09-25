@@ -34,6 +34,6 @@ class TeamsCardDeferralOverHttpTest extends TestCase
             ->postJson(route('api.asset.checkin', $asset->id), ['note' => 'deferred over http'])
             ->assertOk();
 
-        $this->assertNotSame('', $this->postedCards()[0]['body'][0]['text']);
+        $this->assertStringContainsString('checked in', $this->postedCards()[0]['body'][0]['items'][0]['text']);
     }
 }
