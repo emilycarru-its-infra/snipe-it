@@ -145,7 +145,7 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $facts = $this->facts();
         $this->assertSame('Staff', $facts['Usage']);
         $this->assertSame('Standard', $facts['Catalog']);
-        $this->assertSame('Sample Dept', $facts['Area / Dept']);
+        $this->assertSame('Sample Dept', $facts['Area']);
     }
 
     public function test_the_checkin_card_falls_back_to_the_assets_default_location_when_it_goes_to_stock()
