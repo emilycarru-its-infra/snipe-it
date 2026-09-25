@@ -148,6 +148,21 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertSame('Sample Dept', $facts['Area']);
     }
 
+    public function test_who_or_where_leads_the_fact_list()
+    {
+        $asset = Asset::factory()->laptopMbp()->create();
+        $user = User::factory()->create(['email' => null]);
+        $admin = User::factory()->superuser()->create();
+
+        event(new CheckoutableCheckedOut($asset, $user, $admin, ''));
+        event(new CheckoutableCheckedIn($asset->fresh(), $user, $admin, ''));
+
+        $titles = fn (int $card) => array_column(collect($this->postedCards()[$card]['body'])->firstWhere('type', 'FactSet')['facts'], 'title');
+
+        $this->assertSame('Assigned To', $titles(0)[0]);
+        $this->assertSame(['Checked in from', 'Checked into'], array_slice($titles(1), 0, 2));
+    }
+
     public function test_the_checkin_card_falls_back_to_the_assets_default_location_when_it_goes_to_stock()
     {
         // A check-in to stock leaves location_id null. The card this replaces
