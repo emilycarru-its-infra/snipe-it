@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use App\Services\Teams\TeamsCard;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -105,7 +106,7 @@ trait PostsThroughRelay
     /** A posted card's title. */
     protected function cardTitle(array $card): string
     {
-        return $card['body'][0]['text'] ?? '';
+        return TeamsCard::titleOf($card) ?? '';
     }
 
     protected function assertNoCardPosted(): void

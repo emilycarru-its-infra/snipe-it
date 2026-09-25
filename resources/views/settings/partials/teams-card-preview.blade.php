@@ -37,6 +37,14 @@
         .accent-accent { color: #0f548c; }
         .accent-default, .accent-dark, .accent-light { color: #242424; }
         .subtitle { color: #616161; margin: 0 0 12px; }
+        .band { margin: -16px -16px 12px; padding: 12px 16px; border-radius: 6px 6px 0 0; }
+        .band .card-title { font-size: 18px; margin: 0; }
+        .band .subtitle { margin: 2px 0 0; }
+        .band-accent { background: #e8f1fb; }
+        .band-good { background: #e9f5e9; }
+        .band-warning { background: #fdf3e6; }
+        .band-attention { background: #fbeaea; }
+        .band-emphasis { background: #f0f0f0; }
         dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 12px; }
         dt { font-weight: 600; }
         dd { margin: 0; }
@@ -63,6 +71,11 @@
             th { background: #333; }
             th, td, .note { border-color: #3d3d3d; }
             .accent-default, .accent-dark, .accent-light { color: #e6e6e6; }
+            .band-accent { background: #1c2d3f; }
+            .band-good { background: #1e3320; }
+            .band-warning { background: #3a2c1a; }
+            .band-attention { background: #3d1f21; }
+            .band-emphasis { background: #333; }
         }
     </style>
 </head>
@@ -77,7 +90,13 @@
 @foreach ($cards as $card)
     <div class="card">
         @foreach ($card['body'] as $block)
-            @if ($block['type'] === 'TextBlock' && ($block['weight'] ?? '') === 'Bolder' && ($block['size'] ?? '') === 'Medium')
+            @if ($block['type'] === 'Container')
+                <div class="band band-{{ $block['style'] ?? 'emphasis' }}">
+                    @foreach ($block['items'] ?? [] as $item)
+                        <p class="{{ ($item['weight'] ?? '') === 'Bolder' ? 'card-title accent-'.($item['color'] ?? 'default') : 'subtitle' }}">{{ $item['text'] ?? '' }}</p>
+                    @endforeach
+                </div>
+            @elseif ($block['type'] === 'TextBlock' && ($block['weight'] ?? '') === 'Bolder' && in_array($block['size'] ?? '', ['Medium', 'Large'], true))
                 <p class="card-title accent-{{ $block['color'] ?? 'default' }}">{{ $block['text'] }}</p>
             @elseif ($block['type'] === 'TextBlock' && ($block['isSubtle'] ?? false) && ($block['size'] ?? '') === 'Small')
                 <p class="footer">{{ $block['text'] }}</p>
