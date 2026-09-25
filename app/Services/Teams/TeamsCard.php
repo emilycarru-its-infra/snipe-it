@@ -47,6 +47,8 @@ class TeamsCard
 
     private ?string $subtitle = null;
 
+    private ?string $icon = null;
+
     /** @var array<int, array{title: string, value: string}> */
     private array $facts = [];
 
@@ -84,6 +86,19 @@ class TeamsCard
         $this->accent = in_array($accent, ['default', 'dark', 'light', 'accent', 'good', 'warning', 'attention'], true)
             ? $accent
             : 'default';
+
+        return $this;
+    }
+
+    /**
+     * Lead the title with a symbol and set it on a tinted band. For cards that
+     * come in opposing pairs — checked out, checked in — where colour alone
+     * left the two reading alike at a glance. The symbol stays clear of arrows
+     * and chevrons, which is what the Relay bot's own avatar is made of.
+     */
+    public function banner(string $icon): self
+    {
+        $this->icon = self::clean($icon);
 
         return $this;
     }
@@ -280,17 +295,17 @@ class TeamsCard
      */
     private function body(string $title, array $rows, bool $continuation = false): array
     {
-        $body = [[
+        $heading = [[
             'type' => 'TextBlock',
-            'size' => 'Medium',
+            'size' => $this->icon !== null ? 'Large' : 'Medium',
             'weight' => 'Bolder',
             'color' => $this->accent,
             'wrap' => true,
-            'text' => $title,
+            'text' => $this->icon !== null ? $this->icon.'  '.$title : $title,
         ]];
 
         if ($this->subtitle !== null) {
-            $body[] = [
+            $heading[] = [
                 'type' => 'TextBlock',
                 'spacing' => 'None',
                 'isSubtle' => true,
@@ -298,6 +313,15 @@ class TeamsCard
                 'text' => $this->subtitle,
             ];
         }
+
+        // Container styles share names with text colours except that there is
+        // no "dark" or "light" band; those fall back to the neutral emphasis.
+        $body = $this->icon === null ? $heading : [[
+            'type' => 'Container',
+            'style' => in_array($this->accent, ['good', 'warning', 'attention', 'accent'], true) ? $this->accent : 'emphasis',
+            'bleed' => true,
+            'items' => $heading,
+        ]];
 
         // A continuation card repeats the heading and the table so the listing
         // reads on, but not the facts — they describe the run, not the rows.
