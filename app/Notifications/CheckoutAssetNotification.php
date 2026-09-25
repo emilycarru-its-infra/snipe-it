@@ -148,9 +148,9 @@ class CheckoutAssetNotification extends Notification
         $target = $this->target;
 
         return $this->teamsCheckoutCard(trans('general.teams_asset_checked_out'), $this->target, $this->admin)
+            ->fact(trans('mail.assigned_to'), $this->teamsTargetName($target))
             ->facts($this->teamsAssetFacts($item))
             ->facts($this->teamsAssetCustomFacts($item))
-            ->fact(trans('mail.assigned_to'), $this->teamsTargetName($target))
             ->fact(trans('admin/hardware/form.status'), $item->status?->name)
             // Checked out to a location, the location is the assignee; saying
             // it twice only pushed the rest of the card down.

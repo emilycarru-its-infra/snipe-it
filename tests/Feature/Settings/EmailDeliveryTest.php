@@ -5,6 +5,7 @@ namespace Tests\Feature\Settings;
 use App\Mail\EmailDelivery;
 use App\Mail\EmailRegistry;
 use App\Models\EmailTemplate;
+use App\Services\Teams\TeamsCard;
 use Tests\Support\PostsThroughRelay;
 use Tests\TestCase;
 
@@ -119,9 +120,8 @@ class EmailDeliveryTest extends TestCase
             $card = EmailRegistry::makeTeamsCard($entry['key']);
 
             $this->assertNotNull($card, $entry['key']);
-            $this->assertNotSame(
-                '',
-                $card->payload()['attachments'][0]['content']['body'][0]['text'],
+            $this->assertNotEmpty(
+                TeamsCard::titleOf($card->payload()['attachments'][0]['content']),
                 $entry['key'].' renders a card with no title'
             );
         }
