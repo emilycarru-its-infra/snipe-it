@@ -130,14 +130,15 @@ class CheckinAssetNotification extends Notification
     {
         $item = $this->item;
 
-        return $this->teamsCard(trans('general.teams_asset_checked_in'), 'good', $this->admin)
+        return $this->teamsCheckinCard(trans('general.teams_asset_checked_in'), $this->target, $this->admin)
             ->facts($this->teamsAssetFacts($item))
+            ->facts($this->teamsAssetCustomFacts($item))
             ->fact(trans('mail.checkedin_from'), $this->teamsTargetName($this->target))
             ->fact(trans('mail.checked_into'), $this->teamsLocation($item))
             ->fact(trans('admin/hardware/form.status'), $item->status?->name)
             ->note($this->note)
             ->action(trans('general.teams_view_asset'), $this->teamsUrl($item))
-            ->action(trans('general.teams_view_user'), $this->teamsUrl($this->target));
+            ->action($this->teamsTargetActionLabel($this->target), $this->teamsUrl($this->target));
     }
 
     public function toMicrosoftTeams()

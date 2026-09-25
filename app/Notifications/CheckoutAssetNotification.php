@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Helpers\Helper;
 use App\Models\Asset;
+use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\Concerns\BuildsTeamsCards;
@@ -146,15 +147,18 @@ class CheckoutAssetNotification extends Notification
         $item = $this->item;
         $target = $this->target;
 
-        return $this->teamsCard(trans('general.teams_asset_checked_out'), 'accent', $this->admin)
+        return $this->teamsCheckoutCard(trans('general.teams_asset_checked_out'), $this->target, $this->admin)
             ->facts($this->teamsAssetFacts($item))
+            ->facts($this->teamsAssetCustomFacts($item))
             ->fact(trans('mail.assigned_to'), $this->teamsTargetName($target))
             ->fact(trans('admin/hardware/form.status'), $item->status?->name)
-            ->fact(trans('general.location'), $this->teamsLocation($item))
+            // Checked out to a location, the location is the assignee; saying
+            // it twice only pushed the rest of the card down.
+            ->fact(trans('general.location'), $target instanceof Location ? null : $this->teamsLocation($item))
             ->fact(trans('general.expected_checkin'), $this->expected_checkin)
             ->note($this->note)
             ->action(trans('general.teams_view_asset'), $this->teamsUrl($item))
-            ->action(trans('general.teams_view_user'), $this->teamsUrl($target));
+            ->action($this->teamsTargetActionLabel($target), $this->teamsUrl($target));
     }
 
     public function toMicrosoftTeams()

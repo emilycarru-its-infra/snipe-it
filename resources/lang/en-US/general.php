@@ -330,6 +330,13 @@ return [
     // Buttons and labels on the Adaptive Cards posted to Microsoft Teams.
     'teams_view_asset' => 'View asset',
     'teams_view_user' => 'View user',
+    'teams_view_location' => 'View location',
+    'teams_view_assigned_asset' => 'View assigned asset',
+    'teams_checked_out_to' => ':title to :kind',
+    'teams_checked_in_from' => ':title from :kind',
+    'teams_target_user' => 'user',
+    'teams_target_asset' => 'asset',
+    'teams_target_location' => 'location',
     'teams_view_item' => 'View item',
     'teams_view_license' => 'View license',
     'teams_view_report' => 'Open in Snipe-IT',

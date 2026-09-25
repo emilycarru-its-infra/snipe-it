@@ -123,12 +123,12 @@ class CheckoutComponentNotification extends Notification
     {
         $item = $this->item;
 
-        return $this->teamsCard(trans('general.teams_component_checked_out'), 'accent', $this->admin)
+        return $this->teamsCheckoutCard(trans('general.teams_component_checked_out'), $this->target, $this->admin)
             ->fact(trans('mail.assigned_to'), $this->teamsTargetName($this->target))
             ->fact(trans('admin/consumables/general.remaining'), $item->numRemaining())
             ->note($this->note)
             ->action(trans('general.teams_view_item'), $this->teamsUrl($item))
-            ->action(trans('general.teams_view_asset'), $this->teamsUrl($this->target));
+            ->action($this->teamsTargetActionLabel($this->target), $this->teamsUrl($this->target));
     }
 
     public function toMicrosoftTeams()

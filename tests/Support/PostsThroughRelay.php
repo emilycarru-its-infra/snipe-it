@@ -26,6 +26,7 @@ trait PostsThroughRelay
     protected function fakeRelay(int $status = 200, mixed $body = ['result' => 'posted']): void
     {
         config()->set('ecu.teams', [
+            ...config('ecu.teams'),
             'enabled' => true,
             'timeout' => 8,
             'post_card_url' => $this->relayUrl,

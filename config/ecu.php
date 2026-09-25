@@ -40,6 +40,14 @@ return [
         'audience' => env('TEAMS_POST_CARD_AUDIENCE', ''),
         'default_channel' => env('TEAMS_DEFAULT_CHANNEL', 'Inventory'),
 
+        // Asset custom fields shown on checkout and check-in cards, by field
+        // name => card label, in card order.
+        'asset_custom_fields' => [
+            'Usage' => 'Usage',
+            'Catalog' => 'Catalog',
+            'Area' => 'Area / Dept',
+        ],
+
         // App Service injects these; there is no identity to borrow without
         // them, which is why local and dev post nothing rather than failing.
         // Read here rather than at the call site: env() returns null once the
