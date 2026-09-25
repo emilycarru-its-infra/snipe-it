@@ -45,7 +45,7 @@ return [
         'asset_custom_fields' => [
             'Usage' => 'Usage',
             'Catalog' => 'Catalog',
-            'Area' => 'Area / Dept',
+            'Area' => 'Area',
         ],
 
         // App Service injects these; there is no identity to borrow without
