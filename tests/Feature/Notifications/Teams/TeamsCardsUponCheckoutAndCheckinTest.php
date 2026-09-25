@@ -5,6 +5,7 @@ namespace Tests\Feature\Notifications\Teams;
 use App\Events\CheckoutableCheckedIn;
 use App\Events\CheckoutableCheckedOut;
 use App\Models\Asset;
+use App\Models\CustomField;
 use App\Models\Location;
 use App\Models\Statuslabel;
 use App\Models\User;
@@ -77,6 +78,74 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $urls = array_column($this->postedCards()[0]['actions'], 'url');
         $this->assertContains(route('hardware.show', $asset->id), $urls);
         $this->assertContains(route('users.show', $user->id), $urls);
+    }
+
+    /** The heading band: the first body block, holding the title. */
+    private function heading(int $card = 0): array
+    {
+        return $this->postedCards()[$card]['body'][0];
+    }
+
+    public function test_checkout_and_checkin_are_told_apart_by_symbol_and_band_not_colour_alone()
+    {
+        $asset = Asset::factory()->laptopMbp()->create();
+        $user = User::factory()->create(['email' => null]);
+        $admin = User::factory()->superuser()->create();
+
+        event(new CheckoutableCheckedOut($asset, $user, $admin, ''));
+        event(new CheckoutableCheckedIn($asset->fresh(), $user, $admin, ''));
+
+        [$out, $in] = [$this->heading(0), $this->heading(1)];
+
+        $this->assertSame('Container', $out['type']);
+        $this->assertSame('accent', $out['style']);
+        $this->assertSame('good', $in['style']);
+        $this->assertStringStartsWith('📤', $out['items'][0]['text']);
+        $this->assertStringStartsWith('📥', $in['items'][0]['text']);
+        $this->assertStringContainsString('checked out to user', $out['items'][0]['text']);
+        $this->assertStringContainsString('checked in from user', $in['items'][0]['text']);
+    }
+
+    public function test_a_checkout_to_a_location_says_so_and_links_to_the_location()
+    {
+        $location = Location::factory()->create(['name' => 'Sample Room']);
+        $asset = Asset::factory()->laptopMbp()->create();
+
+        event(new CheckoutableCheckedOut($asset, $location, User::factory()->superuser()->create(), ''));
+
+        $this->assertStringContainsString('checked out to location', $this->heading()['items'][0]['text']);
+        $this->assertArrayNotHasKey('Location', $this->facts());
+        $this->assertContains('View location', array_column($this->postedCards()[0]['actions'], 'title'));
+    }
+
+    public function test_a_checkout_to_another_asset_says_so()
+    {
+        $parent = Asset::factory()->laptopMbp()->create();
+        $asset = Asset::factory()->laptopMbp()->create();
+
+        event(new CheckoutableCheckedOut($asset, $parent, User::factory()->superuser()->create(), ''));
+
+        $this->assertStringContainsString('checked out to asset', $this->heading()['items'][0]['text']);
+        $this->assertContains('View assigned asset', array_column($this->postedCards()[0]['actions'], 'title'));
+    }
+
+    public function test_the_card_carries_usage_catalog_and_area_when_the_model_has_them()
+    {
+        $fields = collect(['Usage' => 'Staff', 'Catalog' => 'Standard', 'Area' => 'Sample Dept'])
+            ->map(fn ($value, $name) => [CustomField::factory()->create(['name' => $name, 'field_encrypted' => '0'])->fresh(), $value]);
+
+        $asset = Asset::factory()->hasMultipleCustomFields($fields->pluck(0)->all())->create();
+        foreach ($fields as [$field, $value]) {
+            $asset->{$field->db_column} = $value;
+        }
+        $asset->save();
+
+        event(new CheckoutableCheckedOut($asset->fresh(), User::factory()->create(['email' => null]), User::factory()->superuser()->create(), ''));
+
+        $facts = $this->facts();
+        $this->assertSame('Staff', $facts['Usage']);
+        $this->assertSame('Standard', $facts['Catalog']);
+        $this->assertSame('Sample Dept', $facts['Area / Dept']);
     }
 
     public function test_the_checkin_card_falls_back_to_the_assets_default_location_when_it_goes_to_stock()
