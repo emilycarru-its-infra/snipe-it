@@ -237,7 +237,7 @@ class TeamsNotifier
         Log::channel('teams')->info($outcome, array_filter([
             'channel' => $channel,
             'notification' => $key,
-            'title' => $content['body'][0]['text'] ?? null,
+            'title' => TeamsCard::titleOf($content),
         ] + $context, fn ($v) => $v !== null && $v !== ''));
     }
 }

@@ -253,6 +253,19 @@ class TeamsCard
     }
 
     /**
+     * The title text of a built card, whether it sits at the top of the body
+     * or inside the heading band banner() wraps it in.
+     *
+     * @param  array<string, mixed>|null  $card
+     */
+    public static function titleOf(?array $card): ?string
+    {
+        $first = $card['body'][0] ?? null;
+
+        return $first['text'] ?? $first['items'][0]['text'] ?? null;
+    }
+
+    /**
      * Split the rows so each card stays under the size limit. Measured against
      * a real encoded payload rather than an estimate, because column headers
      * and the fact list are part of every chunk's overhead.
