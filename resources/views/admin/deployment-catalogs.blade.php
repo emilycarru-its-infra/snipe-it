@@ -26,6 +26,7 @@
                             <th style="width:70px;">{{ trans('admin/deployments/general.catalog_color') }}</th>
                             <th style="width:70px;">{{ trans('admin/deployments/general.catalog_sort') }}</th>
                             <th style="width:70px;" title="{{ trans('admin/deployments/general.catalog_moves_devices_help') }}">{{ trans('admin/deployments/general.catalog_moves_devices') }}</th>
+                            <th style="width:70px;" title="{{ trans('admin/deployments/general.catalog_replaces_devices_help') }}">{{ trans('admin/deployments/general.catalog_replaces_devices') }}</th>
                             <th style="width:60px;">{{ trans('admin/deployments/general.catalog_active') }}</th>
                             <th style="width:120px;"></th>
                         </tr>
@@ -44,6 +45,7 @@
                             <td><input form="type-{{ $type->id }}" type="color" name="color" class="form-control input-sm" value="{{ $type->color ?: '#2980b9' }}" style="padding:2px;"></td>
                             <td><input form="type-{{ $type->id }}" type="number" name="sort_order" class="form-control input-sm" value="{{ $type->sort_order }}"></td>
                             <td class="text-center"><input form="type-{{ $type->id }}" type="checkbox" name="moves_devices" value="1" @checked($type->moves_devices) title="{{ trans('admin/deployments/general.catalog_moves_devices_help') }}"></td>
+                            <td class="text-center"><input form="type-{{ $type->id }}" type="checkbox" name="replaces_devices" value="1" @checked($type->replaces_devices) title="{{ trans('admin/deployments/general.catalog_replaces_devices_help') }}"></td>
                             <td class="text-center"><input form="type-{{ $type->id }}" type="checkbox" name="active" value="1" @checked($type->active)></td>
                             <td class="text-right" style="white-space:nowrap;">
                                 <button form="type-{{ $type->id }}" type="submit" class="btn btn-xs btn-default" title="{{ trans('general.save') }}"><i class="fas fa-check"></i></button>
@@ -65,6 +67,7 @@
                             <td><input form="type-new" type="color" name="color" class="form-control input-sm" value="#2980b9" style="padding:2px;"></td>
                             <td><input form="type-new" type="number" name="sort_order" class="form-control input-sm" value="0"></td>
                             <td class="text-center"><input form="type-new" type="checkbox" name="moves_devices" value="1" title="{{ trans('admin/deployments/general.catalog_moves_devices_help') }}"></td>
+                            <td class="text-center"><input form="type-new" type="checkbox" name="replaces_devices" value="1" checked title="{{ trans('admin/deployments/general.catalog_replaces_devices_help') }}"></td>
                             <td class="text-center"><input form="type-new" type="checkbox" name="active" value="1" checked></td>
                             <td class="text-right">
                                 <button form="type-new" type="submit" class="btn btn-xs btn-primary"><i class="fas fa-plus"></i> {{ trans('general.create') }}</button>

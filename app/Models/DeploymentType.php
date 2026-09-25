@@ -11,6 +11,13 @@ use Watson\Validating\ValidatingTrait;
  * Exhibit, Ad-hoc). deployment_waves belong to one type by FK, so
  * renaming/recoloring/adding a type never breaks existing waves. The
  * `color` drives the dashboard donut + count table.
+ *
+ * Two flags say what shape of work the type is, and they are separate
+ * axes: `moves_devices` means the wave buys nothing — it rearranges
+ * equipment we already own — and `replaces_devices` means each incoming
+ * device stands in for an outgoing one. A refresh does both halves of
+ * the swap; a new teaching lab buys but replaces nothing; a relocation
+ * neither buys nor replaces.
  */
 class DeploymentType extends SnipeModel
 {
@@ -25,12 +32,13 @@ class DeploymentType extends SnipeModel
         'color' => 'nullable|string|max:32',
         'sort_order' => 'nullable|integer',
         'moves_devices' => 'boolean',
+        'replaces_devices' => 'boolean',
         'active' => 'boolean',
     ];
 
-    protected $fillable = ['name', 'slug', 'color', 'moves_devices', 'sort_order', 'active'];
+    protected $fillable = ['name', 'slug', 'color', 'moves_devices', 'replaces_devices', 'sort_order', 'active'];
 
-    protected $casts = ['active' => 'boolean', 'moves_devices' => 'boolean', 'sort_order' => 'integer'];
+    protected $casts = ['active' => 'boolean', 'moves_devices' => 'boolean', 'replaces_devices' => 'boolean', 'sort_order' => 'integer'];
 
     protected static function booted(): void
     {
