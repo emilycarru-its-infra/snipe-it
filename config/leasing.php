@@ -88,6 +88,10 @@ return [
     */
     'okp_mode' => env('LEASING_OKP_MODE', 'off'),
     'okp_review_hours' => (int) env('LEASING_OKP_REVIEW_HOURS', 48),
+    // Only invoices dated on or after this are considered. A vendor re-sending
+    // old invoices (to close a gap in the webhook) must not tell the lessor to
+    // pay for equipment it paid for months ago. Unset, nothing is considered.
+    'okp_invoices_from' => env('LEASING_OKP_INVOICES_FROM', ''),
     'okp_to' => env('LEASING_OKP_TO', ''),
     'okp_cc' => env('LEASING_OKP_CC', ''),
     'okp_from_address' => env('LEASING_OKP_FROM_ADDRESS', ''),

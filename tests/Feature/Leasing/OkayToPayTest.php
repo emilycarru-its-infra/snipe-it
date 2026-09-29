@@ -26,6 +26,7 @@ class OkayToPayTest extends TestCase
         config([
             'leasing.okp_mode' => 'auto',
             'leasing.okp_review_hours' => 48,
+            'leasing.okp_invoices_from' => '2026-09-01',
             'leasing.okp_to' => 'lessor@example.test',
             'leasing.okp_cc' => 'finance@example.test,team@example.test',
             'leasing.okp_from_address' => 'approver@example.test',
@@ -232,6 +233,42 @@ class OkayToPayTest extends TestCase
         $this->ingest('ORD-LEASE-1', 'INV-13', $assets);
 
         $this->assertTrue($first->equalTo($this->invoice('INV-13')->okp_send_after));
+    }
+
+    public function test_an_invoice_dated_before_the_cutoff_is_left_alone()
+    {
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-OLD', Asset::factory()->count(1)->create()->all(), invoiceOverrides: [
+            'invoice_date' => '2026-03-16',
+        ]);
+
+        $this->assertNull($this->invoice('INV-OLD')->okp_status);
+    }
+
+    public function test_without_a_cutoff_nothing_is_considered()
+    {
+        config(['leasing.okp_invoices_from' => '']);
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-NOCUT', Asset::factory()->count(1)->create()->all());
+
+        $this->assertNull($this->invoice('INV-NOCUT')->okp_status);
+    }
+
+    public function test_an_invoice_already_approved_by_hand_is_not_resent()
+    {
+        $order = $this->leaseOrder();
+        $assets = Asset::factory()->count(1)->create()->all();
+        OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'invoice_number' => 'INV-DONE',
+            'approval_status' => 'approved',
+        ]);
+
+        $this->ingest('ORD-LEASE-1', 'INV-DONE', $assets);
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        $this->assertNull($this->invoice('INV-DONE')->okp_status);
+        Mail::assertNothingSent();
     }
 
     public function test_the_mail_lists_every_serial_and_the_total()
