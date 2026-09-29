@@ -28,6 +28,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('snipeit:backup')->weekly();
         $schedule->command('backup:clean')->daily();
         $schedule->command('auth:clear-resets')->everyFifteenMinutes();
+
+        // Lessor OK-to-pay sign-offs: send what is due, remind the day before.
+        // A no-op unless LEASING_OKP_MODE is review or auto.
+        $schedule->command('snipeit:okay-to-pay')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('saml:clear_expired_nonces')->weekly();
 
         // Nightly toner ↔ printer compatibility backfill. Idempotent

@@ -18,6 +18,7 @@ use App\Models\LicenseSeat;
 use App\Models\Location;
 use App\Models\Manufacturer;
 use App\Models\Order;
+use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
@@ -470,6 +471,52 @@ class EmailSampleData
         ]));
 
         return $order;
+    }
+
+    /**
+     * A lease invoice as the lessor's OK to pay renders it: two devices on a
+     * schedule, their soft cost folded into each line as the webhook records
+     * it, and the GST the vendor charged.
+     */
+    public function okayToPayInvoice(): OrderInvoice
+    {
+        $order = $this->vendorOrder();
+        $order->forceFill([
+            'order_number' => 'ORD-SAMPLE-1',
+            'funding_account' => 'lease_admin',
+            'lease_schedule' => '100000-009',
+        ]);
+
+        $device = function (string $serial) {
+            $asset = $this->asset();
+            $asset->serial = $serial;
+
+            $line = new OrderItem([
+                'description' => 'APPLE MBP 14 SL/18C/20C GPU/24GB/2T',
+                'quantity' => 1,
+                'unit_cost' => 4305.56,
+                'warranty_cost' => 374.44,
+            ]);
+            $line->item_type = Asset::class;
+            $line->setRelation('item', $asset);
+
+            return $line;
+        };
+
+        $invoice = new OrderInvoice([
+            'invoice_number' => 'INV-SAMPLE-1',
+            'invoice_date' => '2026-09-04',
+            'subtotal' => 9360.00,
+            'tax_gst' => 468.00,
+            'tax_pst' => 0,
+            'shipping' => 0,
+            'total' => 9828.00,
+            'invoice_type' => 'standard',
+        ]);
+        $invoice->setRelation('order', $order);
+        $invoice->setRelation('items', collect([$device('SERIAL-SAMPLE-1'), $device('SERIAL-SAMPLE-2')]));
+
+        return $invoice;
     }
 
     /**

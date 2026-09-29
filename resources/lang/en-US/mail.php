@@ -286,4 +286,17 @@ return [
     'purchase_order_quote_accepted_heading' => 'Quote :quote accepted — purchase order :reference',
     'purchase_order_quote_accepted_intro' => 'Hello :supplier team, Emily Carr University of Art + Design accepts quote :quote as issued. Please place the following order at the quoted prices.',
     'purchase_order_quote_accepted_footer' => 'Please reference :reference on the order confirmation and invoice, and reply with your order number so our systems can match the shipment automatically. Thank you.',
+
+    // OK to pay, sent to the lessor as each lease invoice lands.
+    'okay_to_pay_subject' => 'OK to pay — :supplier invoice :invoice, Equipment Schedule :schedule (:total CAD)',
+    'okay_to_pay_greeting' => 'Hello,',
+    'okay_to_pay_intro' => 'We have received :supplier invoice :invoice (dated :date) for Equipment Schedule :schedule and checked it against our order: every line and serial below is accounted for.',
+    'okay_to_pay_ok' => 'Invoice :invoice is OK to pay: :total CAD.',
+    'okay_to_pay_qty' => 'Qty',
+    'okay_to_pay_description' => 'Item',
+    'okay_to_pay_amount' => 'Amount',
+    'okay_to_pay_subtotal' => 'Subtotal',
+    'okay_to_pay_shipping' => 'Shipping',
+    'okay_to_pay_total' => 'Total',
+    'okay_to_pay_closing' => 'Thank you,',
 ];

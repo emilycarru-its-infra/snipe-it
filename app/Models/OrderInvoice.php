@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A vendor invoice against an order. A single order (e.g. a CDW order)
@@ -72,6 +73,10 @@ class OrderInvoice extends Model
         'invoice_date' => 'date',
         'approved_at' => 'datetime',
         'is_final_invoice' => 'boolean',
+        'okp_reasons' => 'array',
+        'okp_send_after' => 'datetime',
+        'okp_reminded_at' => 'datetime',
+        'okp_sent_at' => 'datetime',
     ];
 
     /**
@@ -157,6 +162,8 @@ class OrderInvoice extends Model
 
     /**
      * Line items billed on this invoice.
+     *
+     * @return HasMany<OrderItem, $this>
      */
     public function items()
     {
