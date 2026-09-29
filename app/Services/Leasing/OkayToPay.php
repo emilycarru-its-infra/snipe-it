@@ -68,6 +68,12 @@ class OkayToPay
             return;
         }
 
+        // Settled before this existed, or by hand: someone already attested
+        // it, so re-sending the vendor's invoice must not re-send ours.
+        if ($invoice->okp_status === null && $invoice->approval_status === 'approved') {
+            return;
+        }
+
         if (! $this->recipients()) {
             Log::warning('OK to pay: no recipients configured, invoice '.$invoice->invoice_number.' not queued.');
 
@@ -101,6 +107,11 @@ class OkayToPay
     public function applies(OrderInvoice $invoice): bool
     {
         $order = $invoice->order;
+        $from = (string) config('leasing.okp_invoices_from');
+
+        if ($from === '' || ! $invoice->invoice_date || $invoice->invoice_date->lt(Carbon::parse($from)->startOfDay())) {
+            return false;
+        }
 
         return $order
             && ! $invoice->isAdjustment()
