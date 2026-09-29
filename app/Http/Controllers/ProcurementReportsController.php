@@ -24,6 +24,7 @@ use App\Models\StoreApprover;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\Leasing\OkayToPay;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
@@ -3540,6 +3541,7 @@ class ProcurementReportsController extends Controller
             trans('admin/purchase-orders/general.invoice_usage'),
             trans('admin/purchase-orders/general.invoice_final'),
             trans('admin/purchase-orders/general.invoice_approval_status'),
+            trans('admin/purchase-orders/general.okp_status'),
             trans('admin/purchase-orders/general.invoice_approver'),
         ];
 
@@ -3588,6 +3590,7 @@ class ProcurementReportsController extends Controller
                     (string) $invoice->usage_tag,
                     $invoice->is_final_invoice ? trans('general.yes') : trans('general.no'),
                     trans('admin/purchase-orders/general.invoice_approval_'.($invoice->approval_status ?: 'pending')),
+                    $this->okayToPayCell($invoice),
                     (string) $invoice->approver?->full_name,
                 ],
             ];
@@ -3599,10 +3602,27 @@ class ProcurementReportsController extends Controller
             $this->money($totalVendor),
             $this->money($totalExpected),
             $this->money($totalVariance),
-            '', '', '', '',
+            '', '', '', '', '',
         ];
 
         return ['columns' => $columns, 'records' => $records, 'footer' => $footer];
+    }
+
+    /**
+     * Where the lessor's OK to pay stands for an invoice: blank when it does
+     * not apply, otherwise queued (with its send time), held (with why) or
+     * sent. See App\Services\Leasing\OkayToPay.
+     */
+    private function okayToPayCell(OrderInvoice $invoice): string
+    {
+        $when = fn ($date) => $date ? $date->timezone(config('app.timezone'))->format('M j, g:i A') : '';
+
+        return match ($invoice->okp_status) {
+            OkayToPay::QUEUED => trans('admin/purchase-orders/general.okp_status_queued', ['date' => $when($invoice->okp_send_after)]),
+            OkayToPay::HELD => trim(trans('admin/purchase-orders/general.okp_status_held').' — '.implode(' ', (array) $invoice->okp_reasons), ' —'),
+            OkayToPay::SENT => trans('admin/purchase-orders/general.okp_status_sent', ['date' => $when($invoice->okp_sent_at)]),
+            default => '',
+        };
     }
 
     /**

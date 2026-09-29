@@ -17,6 +17,7 @@ use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
 use App\Models\StoreOrder;
+use App\Services\Leasing\OkayToPay;
 use App\Services\StoreOrderNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -407,6 +408,19 @@ class OrdersController extends Controller
             ->findOrFail($order->id);
 
         $this->notifyStoreRequesters($order, $data);
+
+        // A lease invoice queues its OK to pay to the lessor the moment it
+        // lands. Never allowed to fail the ingest: the invoice is the record.
+        if (! empty($data['invoice'])) {
+            try {
+                $invoice = $order->invoices->firstWhere('invoice_number', $data['invoice']['invoice_number']);
+                if ($invoice) {
+                    app(OkayToPay::class)->consider($invoice);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('OK to pay: could not consider invoice '.$data['invoice']['invoice_number'].': '.$e->getMessage());
+            }
+        }
 
         return Helper::formatStandardApiResponse(
             'success',
