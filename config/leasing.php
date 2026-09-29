@@ -67,4 +67,31 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | OK to pay — the lessor's approval-to-pay, sent before they ask
+    |--------------------------------------------------------------------------
+    |
+    | A vendor bills the lessor for equipment on a lease schedule, and the
+    | lessor will not remit until we reply "OK to pay". App\Services\Leasing\
+    | OkayToPay sends that reply as each lease invoice lands and matches its
+    | order, after a review window announced in the Procurement Teams channel.
+    |
+    |   off     nothing is queued or sent
+    |   review  invoices are queued and announced, but only sent once someone
+    |           approves them in the Invoice Approval Queue
+    |   auto    as review, and a queued invoice also sends when the window ends
+    |
+    | Recipients and sender are per environment (Settings → Emails overrides
+    | To and CC). With no recipient nothing is queued.
+    |
+    */
+    'okp_mode' => env('LEASING_OKP_MODE', 'off'),
+    'okp_review_hours' => (int) env('LEASING_OKP_REVIEW_HOURS', 48),
+    'okp_to' => env('LEASING_OKP_TO', ''),
+    'okp_cc' => env('LEASING_OKP_CC', ''),
+    'okp_from_address' => env('LEASING_OKP_FROM_ADDRESS', ''),
+    'okp_from_name' => env('LEASING_OKP_FROM_NAME', ''),
+    // Funding accounts whose invoices the lessor pays, so need its sign-off.
+    'okp_funding_accounts' => ['lease_admin', 'lease_curriculum'],
 ];

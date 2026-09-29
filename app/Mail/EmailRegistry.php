@@ -423,6 +423,17 @@ class EmailRegistry
             ],
 
             [
+                'key' => 'procurement.okay_to_pay',
+                'category' => 'store',
+                'label' => 'OK to pay (to lessor)',
+                'description' => 'Our approval-to-pay for one vendor invoice on a lease schedule, sent to the lessor as the invoice lands instead of waiting for its approval letter. Queued when the invoice matches its order and announced in the Procurement Teams channel; sends when the review window ends, or at once when approved in the Invoice Approval Queue. Nothing is sent while no recipient is set here or in LEASING_OKP_TO.',
+                'merge_vars' => ['invoice' => 'The invoice (invoice.invoice_number, invoice.invoice_date)', 'order' => 'The order it bills', 'supplier' => 'The vendor', 'schedule' => 'The lease schedule', 'lines' => 'Billed lines (description, quantity, serial, amount)', 'amounts' => 'Formatted totals (amounts.subtotal, amounts.gst, amounts.total)', 'signature' => 'Who it is from'],
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+                'factory' => fn (EmailSampleData $s) => new OkayToPayMail($s->okayToPayInvoice()),
+            ],
+
+            [
                 'key' => 'account.welcome',
                 'category' => 'account',
                 'label' => 'Welcome (new user)',
@@ -622,6 +633,7 @@ class EmailRegistry
             'store.vendor_order',
             'procurement.vendor_order',
             'procurement.quote_accepted',
+            'procurement.okay_to_pay',
         ], ['audience' => 'external']);
     }
 
