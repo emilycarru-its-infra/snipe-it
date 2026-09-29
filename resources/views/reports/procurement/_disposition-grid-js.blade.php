@@ -14,19 +14,26 @@
     .disp-combo { position: relative; max-width: 720px; }
     .disp-combo-button {
         display: flex; align-items: center; gap: 8px; width: 100%;
-        background: var(--pp-surface, #fff); color: inherit;
-        border: 1px solid var(--pp-line, #ccc); border-radius: 4px;
+        background: var(--pp-surface, var(--box-bg, #fff)); color: inherit;
+        border: 1px solid var(--pp-line, var(--chrome-border-color, #ccc)); border-radius: 4px;
         padding: 6px 10px; font-size: 12.5px; text-align: left;
     }
     .disp-combo-current { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .disp-combo-caret { flex: 0 0 auto; opacity: .6; }
+    /* The --pp-* tokens only exist inside the procurement dashboard; on the
+       standalone page the fallbacks must follow the layout's theme tokens, or
+       dark mode paints a white panel under light text. The panel is fixed
+       and placed from the button in JS (placeCombo) so an overflow-clipping
+       card or table wrapper can never cut the list short. */
     .disp-combo-panel {
-        position: absolute; z-index: 40; top: calc(100% + 2px); left: 0; right: 0;
-        background: var(--pp-surface, #fff); border: 1px solid var(--pp-line, #ccc);
+        position: fixed; z-index: 1050; top: 0; left: 0; width: 720px;
+        background: var(--pp-surface, var(--box-bg, #fff)); color: inherit;
+        border: 1px solid var(--pp-line, var(--chrome-border-color, #ccc));
         border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.18);
         max-height: 60vh; display: flex; flex-direction: column;
     }
-    .disp-combo-filter { padding: 8px; border-bottom: 1px solid var(--pp-line, #eee); }
+    .disp-combo-panel[hidden] { display: none; }
+    .disp-combo-filter { padding: 8px; border-bottom: 1px solid var(--pp-line, var(--chrome-border-color, #eee)); }
     .disp-combo-head, .disp-combo-option {
         display: grid;
         grid-template-columns: minmax(150px, 1.3fr) minmax(150px, 1fr) 72px minmax(110px, .8fr);
@@ -34,14 +41,14 @@
     }
     .disp-combo-head {
         font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-        color: var(--pp-ink2, #767676); border-bottom: 1px solid var(--pp-line, #eee);
+        color: var(--pp-ink2, var(--text-legend-help, #767676)); border-bottom: 1px solid var(--pp-line, var(--chrome-border-color, #eee));
     }
-    .disp-combo-list { overflow-y: auto; }
+    .disp-combo-list { overflow-y: auto; min-height: 0; }
     .disp-combo-option { font-size: 12.5px; cursor: pointer; white-space: nowrap; }
     .disp-combo-option > span { overflow: hidden; text-overflow: ellipsis; }
     .disp-combo-num { text-align: right; font-variant-numeric: tabular-nums; }
     .disp-combo-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-    .disp-combo-lessor, .disp-combo-num { color: var(--pp-ink2, #767676); }
+    .disp-combo-lessor, .disp-combo-num { color: var(--pp-ink2, var(--text-legend-help, #767676)); }
     .disp-combo-option:hover, .disp-combo-option.is-active { background: color-mix(in srgb, currentColor 8%, transparent); }
     .disp-combo-option.is-selected .disp-combo-name { font-weight: 700; }
     .disp-combo-option[hidden] { display: none; }
@@ -185,11 +192,30 @@
         combo.querySelectorAll('.disp-combo-option.is-active').forEach(function (o) { o.classList.remove('is-active'); });
     }
 
+    // Pin the open panel under its button in viewport coordinates, and give
+    // it every pixel down to the bottom of the window — flipping above the
+    // button when there is more room there.
+    function placeCombo(combo) {
+        var panel = combo ? combo.querySelector('.disp-combo-panel') : null;
+        var button = combo ? combo.querySelector('.disp-combo-button') : null;
+        if (! panel || ! button || panel.hidden) { return; }
+        var rect = button.getBoundingClientRect();
+        var gap = 2, margin = 12;
+        var below = window.innerHeight - rect.bottom - gap - margin;
+        var above = rect.top - gap - margin;
+        var up = below < 240 && above > below;
+        panel.style.left = Math.max(margin, rect.left) + 'px';
+        panel.style.width = Math.min(rect.width, window.innerWidth - 2 * margin) + 'px';
+        panel.style.maxHeight = Math.max(160, up ? above : below) + 'px';
+        panel.style.top = up ? 'auto' : (rect.bottom + gap) + 'px';
+        panel.style.bottom = up ? (window.innerHeight - rect.top + gap) + 'px' : 'auto';
+    }
+
     function openCombo(combo) {
         if (! combo) { return; }
         var panel = combo.querySelector('.disp-combo-panel');
         var button = combo.querySelector('.disp-combo-button');
-        if (panel) { panel.hidden = false; }
+        if (panel) { panel.hidden = false; placeCombo(combo); }
         if (button) { button.setAttribute('aria-expanded', 'true'); }
         var selected = combo.querySelector('.disp-combo-option.is-selected');
         if (selected) {
@@ -229,6 +255,15 @@
         var button = comboOf(grid) ? comboOf(grid).querySelector('.disp-combo-button') : null;
         if (button) { button.focus(); }
     }
+
+    // A fixed panel does not travel with the page, so follow the button.
+    function placeOpenCombos() {
+        document.querySelectorAll('.disp-combo-button[aria-expanded="true"]').forEach(function (button) {
+            placeCombo(button.closest('.disp-combo'));
+        });
+    }
+    window.addEventListener('scroll', placeOpenCombos, true);
+    window.addEventListener('resize', placeOpenCombos);
 
     document.addEventListener('click', function (e) {
         var button = e.target.closest ? e.target.closest('.disp-combo-button') : null;
