@@ -87,7 +87,9 @@ return [
     |
     */
     'okp_mode' => env('LEASING_OKP_MODE', 'off'),
-    'okp_review_hours' => (int) env('LEASING_OKP_REVIEW_HOURS', 48),
+    'okp_review_hours' => (int) env('LEASING_OKP_REVIEW_HOURS', 24),
+    // Teams channel the queued / reminder / held / sent cards post to.
+    'okp_teams_channel' => env('LEASING_OKP_TEAMS_CHANNEL', 'Procurement'),
     // Only invoices dated on or after this are considered. A vendor re-sending
     // old invoices (to close a gap in the webhook) must not tell the lessor to
     // pay for equipment it paid for months ago. Unset, nothing is considered.

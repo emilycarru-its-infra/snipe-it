@@ -125,8 +125,39 @@ class OkayToPayTest extends TestCase
         $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
 
         Mail::assertNothingSent();
-        // Inside the last day: the reminder is stamped, once.
+        $this->assertNull($this->invoice('INV-3')->okp_reminded_at);
+
+        // Inside the last quarter of the window: the reminder is stamped.
+        $this->travel(7)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        Mail::assertNothingSent();
         $this->assertNotNull($this->invoice('INV-3')->okp_reminded_at);
+    }
+
+    public function test_a_one_day_window_reminds_six_hours_out_and_sends_at_a_day()
+    {
+        config(['leasing.okp_review_hours' => 24]);
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-DAY', Asset::factory()->count(1)->create()->all());
+
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        $this->assertNull($this->invoice('INV-DAY')->okp_reminded_at, 'no reminder on arrival');
+
+        $this->travel(19)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        $this->assertNotNull($this->invoice('INV-DAY')->okp_reminded_at);
+        Mail::assertNothingSent();
+
+        $this->travel(6)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        Mail::assertSent(OkayToPayMail::class);
+    }
+
+    public function test_the_cards_go_to_the_configured_channel()
+    {
+        $this->assertSame('Procurement', app(OkayToPay::class)->channel());
+        config(['leasing.okp_teams_channel' => 'Inventory']);
+        $this->assertSame('Inventory', app(OkayToPay::class)->channel());
     }
 
     public function test_approving_it_in_the_queue_sends_it_at_once()

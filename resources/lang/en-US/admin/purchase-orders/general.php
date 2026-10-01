@@ -681,7 +681,7 @@ return [
 
     // OK to pay — the lessor sign-off sent as each lease invoice lands.
     'okp_card_queued' => 'OK to pay queued',
-    'okp_card_reminder' => 'OK to pay sends within a day',
+    'okp_card_reminder' => 'OK to pay sends soon',
     'okp_card_held' => 'OK to pay held — needs you',
     'okp_card_sent' => 'OK to pay sent',
     'okp_card_review_note' => 'Checked against the order and ready to send. Dispute it in the Invoice Approval Queue to stop it, or approve it there to send now.',

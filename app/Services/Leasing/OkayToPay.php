@@ -30,8 +30,8 @@ use Illuminate\Support\Facades\Mail;
  *           never sent unless a person approves it
  *   sent    done, never sent twice
  *
- * Each transition is announced in the Procurement Teams channel, with a
- * reminder the day before a queued invoice sends.
+ * Each transition is announced in Teams (LEASING_OKP_TEAMS_CHANNEL), with a
+ * reminder in the last quarter of the window before a queued invoice sends.
  */
 class OkayToPay
 {
@@ -43,10 +43,7 @@ class OkayToPay
 
     public const SENT = 'sent';
 
-    public const CHANNEL = 'Procurement';
-
-    /** How close to its send time a queued invoice gets its reminder. */
-    private const REMINDER_HOURS = 24;
+    public const DEFAULT_CHANNEL = 'Procurement';
 
     public function __construct(private readonly TeamsNotifier $teams) {}
 
@@ -244,7 +241,7 @@ class OkayToPay
                 continue;
             }
 
-            if (! $invoice->okp_reminded_at && $invoice->okp_send_after->lte(now()->addHours(self::REMINDER_HOURS))) {
+            if (! $invoice->okp_reminded_at && $invoice->okp_send_after->lte(now()->addHours($this->reminderHours()))) {
                 $invoice->forceFill(['okp_reminded_at' => now()])->save();
                 $this->announce($invoice, 'reminder', false);
                 $counts['reminded']++;
@@ -308,7 +305,23 @@ class OkayToPay
 
     private function reviewHours(): int
     {
-        return max(1, (int) config('leasing.okp_review_hours', 48));
+        return max(1, (int) config('leasing.okp_review_hours', 24));
+    }
+
+    /**
+     * How close to its send time a queued invoice gets its reminder: the last
+     * quarter of the window, so a one-day window nudges six hours out rather
+     * than repeating the queued card the moment it is posted.
+     */
+    private function reminderHours(): int
+    {
+        return max(1, min(24, intdiv($this->reviewHours(), 4)));
+    }
+
+    /** The Teams channel the cards go to. */
+    public function channel(): string
+    {
+        return (string) (config('leasing.okp_teams_channel') ?: self::DEFAULT_CHANNEL);
     }
 
     /**
@@ -320,8 +333,8 @@ class OkayToPay
 
         try {
             $defer
-                ? $this->teams->sendLater($card, self::CHANNEL, self::KEY)
-                : $this->teams->send($card, self::CHANNEL, self::KEY);
+                ? $this->teams->sendLater($card, $this->channel(), self::KEY)
+                : $this->teams->send($card, $this->channel(), self::KEY);
         } catch (\Throwable $e) {
             Log::warning('OK to pay card failed for invoice '.$invoice->invoice_number.': '.$e->getMessage());
         }
