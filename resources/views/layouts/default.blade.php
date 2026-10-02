@@ -4469,6 +4469,17 @@
                 if (link.target === '_blank' || link.hasAttribute('data-toggle') || link.classList.contains('js-asset-edit-mode')) { return; }
                 if (link.origin !== window.location.origin || !isEditPath(link.pathname)) { return; }
                 e.preventDefault();
+                // An asset is edited on its own page, not in a form: go
+                // there with edit mode already on.
+                if (/\/hardware\/\d+\/edit\/?$/.test(link.pathname)) {
+                    var page = link.pathname.replace(/\/edit\/?$/, '');
+                    if (page === window.location.pathname) {
+                        window.location.hash = 'edit';
+                    } else {
+                        window.location.href = link.origin + page + '#edit';
+                    }
+                    return;
+                }
                 open(link.href);
             });
             panel.querySelector('.edit-panel-backdrop').addEventListener('click', close);

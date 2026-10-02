@@ -995,6 +995,16 @@
                     e.preventDefault();
                     if ($('body').hasClass('asset-edit-mode')) { leaveEditMode(); } else { enterEditMode(); }
                 });
+                // Edit links elsewhere land here as #edit and open straight
+                // into edit mode; the hash is dropped so a reload after
+                // saving shows the result, not the editors again.
+                function editFromHash() {
+                    if (window.location.hash !== '#edit' || !$bar.length) { return; }
+                    history.replaceState(null, '', window.location.pathname + window.location.search);
+                    if (!$('body').hasClass('asset-edit-mode')) { enterEditMode(); }
+                }
+                editFromHash();
+                $(window).on('hashchange', editFromHash);
                 $bar.on('click', '.js-asset-edit-save', saveEditMode);
                 $bar.on('click', '.js-asset-edit-cancel', leaveEditMode);
                 // Enter in any field saves the lot, not just that one field.
