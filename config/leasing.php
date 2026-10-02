@@ -104,4 +104,21 @@ return [
     'okp_from_name' => env('LEASING_OKP_FROM_NAME', ''),
     // Funding accounts whose invoices the lessor pays, so need its sign-off.
     'okp_funding_accounts' => ['lease_admin', 'lease_curriculum'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Opening the next lease schedules — the quarterly email to the lessor
+    |--------------------------------------------------------------------------
+    |
+    | The email itself is composed and sent by an automation outside this app,
+    | which asks this app who it goes to (GET /api/v1/settings/emails/{key}).
+    | These are the deployment defaults; Settings → Emails overrides each one.
+    | A value left empty everywhere leaves the automation on its own default.
+    |
+    */
+    'schedule_init_to' => env('LEASING_SCHEDULE_INIT_TO', ''),
+    'schedule_init_cc' => env('LEASING_SCHEDULE_INIT_CC', ''),
+    'schedule_init_reply_to' => env('LEASING_SCHEDULE_INIT_REPLY_TO', ''),
+    'schedule_init_headsup_to' => env('LEASING_SCHEDULE_INIT_HEADSUP_TO', ''),
+    'schedule_init_spend' => env('LEASING_SCHEDULE_INIT_SPEND', ''),
 ];

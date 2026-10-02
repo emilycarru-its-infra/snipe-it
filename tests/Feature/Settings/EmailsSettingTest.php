@@ -3,8 +3,8 @@
 namespace Tests\Feature\Settings;
 
 use App\Mail\BaseMailable;
-use App\Mail\EmailRegistry;
 use App\Mail\CheckoutAssetMail;
+use App\Mail\EmailRegistry;
 use App\Models\EmailTemplate;
 use App\Models\User;
 use App\Notifications\InventoryAlert;
@@ -521,5 +521,37 @@ class EmailsSettingTest extends TestCase
             ->post(route('settings.emails.test'), ['key' => 'checkout.asset'])
             ->assertRedirect(route('settings.emails.index', ['selected' => 'checkout.asset']))
             ->assertSessionHas('error');
+    }
+
+    public function test_the_api_reports_what_an_email_is_set_to(): void
+    {
+        config(['leasing.schedule_init_to' => 'lessor@example.test', 'leasing.schedule_init_cc' => 'a@example.test,b@example.test', 'leasing.schedule_init_spend' => '$100']);
+        $admin = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($admin)
+            ->getJson(route('api.settings.emails.show', 'procurement.schedule_initiation'))
+            ->assertOk()
+            ->assertJson(['recipients' => ['lessor@example.test'], 'cc' => ['a@example.test', 'b@example.test'], 'options' => ['spend' => '$100', 'reply_to' => '']]);
+
+        EmailTemplate::create([
+            'key' => 'procurement.schedule_initiation',
+            'cc' => 'c@example.test',
+            'options' => ['spend' => '$200'],
+        ]);
+
+        $this->actingAsForApi($admin)
+            ->getJson(route('api.settings.emails.show', 'procurement.schedule_initiation'))
+            ->assertJson(['recipients' => ['lessor@example.test'], 'cc' => ['c@example.test'], 'options' => ['spend' => '$200']]);
+    }
+
+    public function test_the_api_is_gated_and_rejects_an_unknown_email(): void
+    {
+        $this->actingAsForApi(User::factory()->create())
+            ->getJson(route('api.settings.emails.show', 'procurement.schedule_initiation'))
+            ->assertForbidden();
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->getJson(route('api.settings.emails.show', 'no.such.email'))
+            ->assertNotFound();
     }
 }

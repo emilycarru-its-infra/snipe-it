@@ -445,6 +445,21 @@ class EmailRegistry
                 ],
                 'factory' => fn (EmailSampleData $s) => new OkayToPayMail($s->okayToPayInvoice()),
             ],
+            [
+                'key' => 'procurement.schedule_initiation',
+                'category' => 'store',
+                'label' => 'Open next lease schedules (quarterly, to lessor)',
+                'description' => 'The quarterly request asking the lessor to open the next pair of lease schedules. Drafted on the 10th of March, June, September and December and sent on the 15th by an automation outside this app, which reads who it goes to from here each time. The wording is edited in the draft itself, so there is no preview.',
+                'merge_vars' => [],
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+                'defaults' => fn () => ['recipients' => config('leasing.schedule_init_to'), 'cc' => config('leasing.schedule_init_cc')],
+                'options' => [
+                    ['name' => 'reply_to', 'type' => 'email', 'label' => 'Reply-To', 'config' => 'leasing.schedule_init_reply_to', 'help' => 'Where the lessor\'s reply lands.'],
+                    ['name' => 'headsup_to', 'type' => 'email', 'label' => 'Heads-up goes to', 'config' => 'leasing.schedule_init_headsup_to', 'help' => 'Who is told on the 10th that the draft is waiting.'],
+                    ['name' => 'spend', 'type' => 'text', 'label' => 'Expected spend per schedule', 'config' => 'leasing.schedule_init_spend', 'help' => 'The figure quoted in the email, as it should read.'],
+                ],
+            ],
 
             [
                 'key' => 'account.welcome',
