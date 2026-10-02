@@ -183,6 +183,32 @@ class EmailsController extends Controller
         ]);
     }
 
+    /**
+     * What one email is set to right now — its recipients, CC and own settings,
+     * each the saved override or else the deployment default. For automations
+     * outside this app that send an email registered here, so that who it goes
+     * to is a setting on this page rather than a value in their own code.
+     */
+    public function apiShow(string $key): JsonResponse
+    {
+        $entry = EmailRegistry::find($key);
+
+        if (! $entry) {
+            return response()->json(['status' => 'error', 'messages' => trans('admin/settings/general.emails_preview_missing')], 404);
+        }
+
+        $defaults = isset($entry['defaults']) ? (array) ($entry['defaults'])() : [];
+
+        return response()->json([
+            'key' => $key,
+            'recipients' => EmailTemplate::recipientsFor($key, $defaults['recipients'] ?? null),
+            'cc' => EmailTemplate::ccFor($key, $defaults['cc'] ?? null),
+            'options' => collect($entry['options'] ?? [])
+                ->mapWithKeys(fn ($def) => [$def['name'] => (string) EmailTemplate::optionFor($key, $def['name'], config($def['config']))])
+                ->all(),
+        ]);
+    }
+
     /** Save (or clear) an admin subject override for one email. */
     public function save(Request $request): RedirectResponse
     {
