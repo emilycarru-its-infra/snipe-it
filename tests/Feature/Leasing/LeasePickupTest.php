@@ -165,6 +165,33 @@ class LeasePickupTest extends TestCase
         $this->assertSame('2026-10-08', (string) $asset->decommission_date);
     }
 
+    public function test_lane_shows_the_requested_pickup_and_flags_its_devices(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->superuser()->create();
+        $lessor = $this->lessor('First Leasing', 'rep@first.example');
+        $asset = $this->waiting($lessor, 'SCHED-1');
+
+        $this->actingAs($admin)->get(route('deployments.decommissioning'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.pickup_request_button'))
+            ->assertDontSee(trans('admin/deployments/general.lease_pickups_title'));
+
+        $this->bundle($admin, [$asset]);
+        $pickup = LeasePickup::first();
+
+        $this->actingAs($admin)->get(route('deployments.decommissioning'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.lease_pickups_title'))
+            ->assertSee(trans('admin/deployments/general.pickup_on', ['id' => $pickup->id]))
+            ->assertSee('SCHED-1');
+
+        $this->actingAs($admin)->get(route('lease-pickups.csv', $pickup))
+            ->assertOk()
+            ->assertSee($asset->serial);
+    }
+
     public function test_only_deployment_editors_can_request_a_pickup(): void
     {
         Mail::fake();
