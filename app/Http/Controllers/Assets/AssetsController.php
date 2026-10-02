@@ -619,6 +619,11 @@ class AssetsController extends Controller
 
         $asset->{$column} = ($value === '') ? null : $value;
 
+        // A hand-set end of life overrides the one the model implies.
+        if ($column === 'asset_eol_date') {
+            $asset->eol_explicit = ($value !== '' && $value !== null);
+        }
+
         if ($asset->save()) {
             // Inline editors live on more pages than the asset view now
             // (decommissioning cards); land back where the pencil was.
@@ -773,22 +778,33 @@ class AssetsController extends Controller
      * nothing is written unless every field is good, so a half-saved asset is
      * never left behind.
      */
-    public function updateFields(Request $request, Asset $asset): JsonResponse
+    public function updateFields(ImageUploadRequest $request, Asset $asset): JsonResponse
     {
         $this->authorize('update', $asset);
 
         $errors = [];
 
-        foreach ((array) $request->input('core', []) as $column => $value) {
+        // A new image has to travel as a multipart form, so the fields ride
+        // along as one JSON string instead of the request body.
+        $input = $request->has('payload')
+            ? (array) json_decode((string) $request->input('payload'), true)
+            : $request->only(['core', 'custom']);
+
+        foreach ((array) ($input['core'] ?? []) as $column => $value) {
             if ($problem = $this->coreFieldProblem((string) $column, $value)) {
                 $errors["core.{$column}"] = $problem;
 
                 continue;
             }
             $asset->{$column} = ($value === '') ? null : $value;
+
+            // A hand-set end of life overrides the one the model implies.
+            if ($column === 'asset_eol_date') {
+                $asset->eol_explicit = ($value !== '' && $value !== null);
+            }
         }
 
-        foreach ((array) $request->input('custom', []) as $column => $value) {
+        foreach ((array) ($input['custom'] ?? []) as $column => $value) {
             [$problem, $clean] = $this->customFieldValue($asset, (string) $column, $value);
             if ($problem) {
                 $errors["custom.{$column}"] = $problem;
@@ -796,6 +812,10 @@ class AssetsController extends Controller
                 continue;
             }
             $asset->{$column} = $clean;
+        }
+
+        if (! $errors && $request->hasFile('image')) {
+            $asset = $request->handleImages($asset);
         }
 
         if (! $errors && ! $asset->save()) {

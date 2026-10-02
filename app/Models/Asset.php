@@ -534,6 +534,9 @@ class Asset extends Depreciable
             'company_id' => 'select',
             'byod' => 'select',
             'requestable' => 'select',
+            'tracking_number' => 'text',
+            'tracking_carrier' => 'text',
+            'asset_eol_date' => 'date',
         ];
     }
 

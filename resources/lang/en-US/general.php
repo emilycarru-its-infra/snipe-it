@@ -750,7 +750,6 @@ return [
     'edit_mode_hint' => 'Editing — change any field, then save.',
     'edit_mode_no_changes' => 'Nothing was changed.',
     'edit_mode_fix_errors' => 'Some fields could not be saved. They are marked below.',
-    'all_fields' => 'All fields',
     'expires' => 'Expires',
     'filename' => 'File Name',
     'map_fields' => 'Map :item_type Fields',

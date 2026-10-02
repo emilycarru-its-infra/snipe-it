@@ -696,6 +696,15 @@
                         </span>
                     </x-info-element>
 
+                    @can('update', $asset)
+                        <li class="list-group-item asset-edit-only">
+                            <x-icon type="image" class="fa-fw"/>
+                            <label for="asset-edit-image" style="font-weight: normal; margin: 0;">{{ trans('general.image_upload') }}</label>
+                            <input type="file" id="asset-edit-image" class="form-control input-sm" style="margin-top: 4px;" accept="image/gif,image/jpeg,image/webp,image/png,image/svg+xml,image/avif">
+                            <span class="js-inline-error text-danger" id="asset-edit-image-error" hidden></span>
+                        </li>
+                    @endcan
+
                     {{-- Notes, supplier and company are read from the shared
                          panel rows just below; in edit mode those step aside
                          for these editors, in the same spot. --}}
@@ -916,6 +925,7 @@
                         this.reset();
                         hideForm(this.id.replace(/-form$/, ''));
                     });
+                    $('#asset-edit-image').val('');
                     $('body').removeClass('asset-edit-mode');
                     $bar.prop('hidden', true);
                 }
@@ -929,25 +939,44 @@
                         payload[$form.data('kind')][$form.data('column')] = value;
                         changed++;
                     });
-                    if (!changed) {
+                    var image = ($('#asset-edit-image')[0] || {}).files;
+                    image = image && image.length ? image[0] : null;
+                    if (!changed && !image) {
                         $bar.find('.js-asset-edit-status').text(@js(trans('general.edit_mode_no_changes')));
                         return;
                     }
                     var $save = $bar.find('.js-asset-edit-save').prop('disabled', true);
                     $forms().find('.js-inline-error').prop('hidden', true).text('');
-                    $.ajax({
+                    var request = {
                         url: @js(route('hardware.fields.update', $asset->id)),
                         type: 'PATCH',
                         contentType: 'application/json',
                         dataType: 'json',
                         data: JSON.stringify(payload),
-                        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
-                    }).done(function () {
+                        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'), 'Accept': 'application/json' }
+                    };
+                    if (image) {
+                        // Files only travel in a multipart POST.
+                        var form = new FormData();
+                        form.append('_method', 'PATCH');
+                        form.append('payload', JSON.stringify(payload));
+                        form.append('image', image);
+                        request.type = 'POST';
+                        request.data = form;
+                        request.contentType = false;
+                        request.processData = false;
+                    }
+                    $('#asset-edit-image-error').prop('hidden', true).text('');
+                    $.ajax(request).done(function () {
                         window.location.reload();
                     }).fail(function (xhr) {
                         $save.prop('disabled', false);
                         var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
                         var $first = null;
+                        if (errors.image) {
+                            $first = $('#asset-edit-image-error').prop('hidden', false).text([].concat(errors.image)[0]);
+                            delete errors.image;
+                        }
                         $.each(errors, function (key, message) {
                             var parts = key.split('.');
                             var $form = $forms().filter(function () {
@@ -982,7 +1011,6 @@
             <div id="asset-edit-bar" class="hidden-print" hidden>
                 <span class="js-asset-edit-status" role="status"></span>
                 <span class="asset-edit-bar-actions">
-                    <a href="{{ route('hardware.edit', $asset->id) }}" class="btn btn-sm btn-default">{{ trans('general.all_fields') }}</a>
                     <button type="button" class="btn btn-sm btn-default js-asset-edit-cancel">{{ trans('general.cancel') }}</button>
                     <button type="button" class="btn btn-sm btn-success js-asset-edit-save"><i class="fas fa-check" aria-hidden="true"></i> {{ trans('general.save_changes') }}</button>
                 </span>
@@ -1016,7 +1044,7 @@
             body.asset-edit-mode .js-inline-error { flex: 1 1 100%; font-size: 12px; }
             /* Sidebar rows are label-left, value-right; an input needs the
                full width, so it drops under its label. */
-            body.asset-edit-mode .asset-side-box .list-group-item .pull-right { float: none !important; display: block; margin-top: 4px; }
+            body.asset-edit-mode .asset-side-box .list-group-item .pull-right:has(.js-inline-edit-form) { float: none !important; display: block; margin-top: 4px; }
             #asset-edit-bar {
                 position: fixed; right: 16px; top: calc(var(--header-h, 50px) + 10px); z-index: 1500;
                 display: flex; align-items: center; gap: 16px;
