@@ -88,6 +88,24 @@ class EmailsController extends Controller
             $email['recipients_json'] = $toOptions($override?->recipients);
             $email['cc_json'] = $toOptions($override?->cc);
 
+            // The lists this email falls back to while no override is saved,
+            // so the page answers "who gets it today" before anything is set.
+            $defaults = isset($email['defaults']) ? (array) ($email['defaults'])() : [];
+            $email['recipients_default'] = (string) ($defaults['recipients'] ?? '');
+            $email['cc_default'] = (string) ($defaults['cc'] ?? '');
+
+            // The email's own settings, each with what is saved and what it
+            // falls back to.
+            $email['options'] = collect($email['options'] ?? [])->map(fn ($def) => [
+                'name' => $def['name'],
+                'type' => $def['type'],
+                'label' => $def['label'],
+                'help' => $def['help'] ?? '',
+                'choices' => $def['type'] === 'channel' ? TeamsChannels::keys() : ($def['choices'] ?? []),
+                'value' => (string) ($override?->options[$def['name']] ?? ''),
+                'default' => (string) config($def['config']),
+            ])->values()->all();
+
             // "Last edited by … · …" shown when an override exists with an editor.
             $email['last_edited'] = '';
             if ($override && $override->editor && $override->updated_at) {
@@ -248,6 +266,34 @@ class EmailsController extends Controller
             $channel = TeamsChannels::isKnown($channel) ? $channel : null;
         }
 
+        // The email's own settings. Only the ones its registry entry declares
+        // are read, each checked against its type; blank keeps the default.
+        $options = [];
+        foreach ($entry['options'] ?? [] as $def) {
+            $value = trim((string) $request->input('options.'.$def['name']));
+
+            if ($value === '') {
+                continue;
+            }
+
+            $valid = match ($def['type']) {
+                'select' => array_key_exists($value, $def['choices']),
+                'channel' => TeamsChannels::isKnown($value),
+                'number' => ctype_digit($value) && (int) $value <= 8760,
+                'date' => (\DateTime::createFromFormat('Y-m-d', $value) ?: null)?->format('Y-m-d') === $value,
+                'email' => filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
+                default => mb_strlen($value) <= 255,
+            };
+
+            if (! $valid) {
+                return redirect()->route('settings.emails.index', ['selected' => $key])
+                    ->withInput()
+                    ->withErrors(['options' => trans('admin/settings/general.emails_option_invalid', ['label' => $def['label']])]);
+            }
+
+            $options[$def['name']] = $value;
+        }
+
         EmailTemplate::updateOrCreate(
             ['key' => $key],
             [
@@ -257,6 +303,7 @@ class EmailsController extends Controller
                 'cc' => $lists['cc'],
                 'delivery' => $delivery,
                 'teams_channel' => $channel,
+                'options' => $options ?: null,
                 'updated_by' => auth()->id(),
             ],
         );

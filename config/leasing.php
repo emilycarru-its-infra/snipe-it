@@ -82,8 +82,10 @@ return [
     |           approves them in the Invoice Approval Queue
     |   auto    as review, and a queued invoice also sends when the window ends
     |
-    | Recipients and sender are per environment (Settings → Emails overrides
-    | To and CC). With no recipient nothing is queued.
+    | Every value below is only the deployment default: Settings → Emails →
+    | OK to pay overrides each one, so changing who it goes to, who it is from
+    | or whether it sends at all is a setting, not a deploy. With no recipient
+    | nothing is queued.
     |
     */
     'okp_mode' => env('LEASING_OKP_MODE', 'off'),
