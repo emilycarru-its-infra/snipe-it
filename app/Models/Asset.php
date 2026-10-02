@@ -523,6 +523,16 @@ class Asset extends Depreciable
             'buyout_cost' => 'text',
             'warranty_soft_cost' => 'text',
             'lease_book_value' => 'text',
+            // The rest of the full edit form, so the asset view's edit mode
+            // can change them where they are shown.
+            'purchase_date' => 'date',
+            'purchase_cost' => 'text',
+            'warranty_months' => 'text',
+            'supplier_id' => 'select',
+            'lessor_id' => 'select',
+            'company_id' => 'select',
+            'byod' => 'select',
+            'requestable' => 'select',
         ];
     }
 
