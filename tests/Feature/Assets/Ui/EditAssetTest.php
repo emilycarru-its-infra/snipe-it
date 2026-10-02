@@ -30,6 +30,37 @@ class EditAssetTest extends TestCase
         $response->assertStatus(200);
     }
 
+    /**
+     * A misplaced loop once rendered everything below the lease dropdowns
+     * three times; the untouched copies were submitted last and overwrote
+     * what had just been typed, so the form looked like it would not save.
+     */
+    public function test_every_field_on_the_edit_form_is_rendered_once(): void
+    {
+        $asset = Asset::factory()->create();
+
+        $html = $this->actingAs(User::factory()->editAssets()->create())
+            ->get(route('hardware.edit', $asset))
+            ->assertOk()
+            ->getContent();
+
+        preg_match('/<form id="create-form".*?<\/form>/s', $html, $form);
+        preg_match_all('/<(?:input|select|textarea)\b[^>]*>/', $form[0], $controls);
+
+        $names = [];
+        foreach ($controls[0] as $control) {
+            if (preg_match('/type="(?:radio|checkbox|file)"/', $control) || ! preg_match('/\sname="([^"]+)"/', $control, $name)) {
+                continue;
+            }
+            $names[] = $name[1];
+        }
+
+        foreach (['name', 'purchase_date', 'order_number', 'ownership_type', 'lease_usage', 'lease_area'] as $expected) {
+            $this->assertContains($expected, $names);
+        }
+        $this->assertSame([], array_keys(array_filter(array_count_values($names), fn ($count) => $count > 1)));
+    }
+
     public function test_asset_edit_post_is_redirected_if_redirect_selection_is_index()
     {
         $asset = Asset::factory()->assignedToUser()->create();
