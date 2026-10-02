@@ -28,6 +28,7 @@ use App\View\Label;
 use Carbon\Carbon;
 use Com\Tecnick\Barcode\Barcode;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -37,6 +38,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use League\Csv\Reader;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use TypeError;
@@ -607,43 +609,20 @@ class AssetsController extends Controller
         $this->authorize('update', $asset);
 
         $column = (string) $request->input('field');
-
-        if (! array_key_exists($column, Asset::inlineEditableCoreFields())) {
-            return redirect()->route('hardware.show', $asset->id)
-                ->with('error', trans('admin/hardware/message.update.error'));
-        }
-
         $value = $request->input('value');
 
-        // FK selects must reference a real row (model_id is required).
-        $fkTables = ['model_id' => 'models', 'rtd_location_id' => 'locations', 'status_id' => 'status_labels'];
-        if (array_key_exists($column, $fkTables)) {
-            $request->validate([
-                'value' => [$column === 'model_id' ? 'required' : 'nullable', "exists:{$fkTables[$column]},id"],
-            ]);
-        }
-
-        // Date columns must be a valid date (or blank).
-        if (Asset::inlineEditableCoreFields()[$column] === 'date') {
-            $request->validate(['value' => ['nullable', 'date']]);
-        }
-
-        // Taxonomy selects: the value must be one of the column's known
-        // options (blank clears) — same containment the listbox custom
-        // fields enforce, so a crafted request can't mint a new variant.
-        $optionLists = [
-            'ownership_type' => array_combine(Asset::OWNERSHIP_TYPES, Asset::OWNERSHIP_TYPES),
-            'lease_usage' => array_combine(Asset::LEASE_USAGES, Asset::LEASE_USAGES),
-            'lease_area' => Asset::leaseAreaOptions(),
-        ];
-        if (array_key_exists($column, $optionLists)
-            && $value !== '' && $value !== null
-            && ! array_key_exists((string) $value, $optionLists[$column])) {
+        if ($problem = $this->coreFieldProblem($column, $value)) {
             return redirect()->route('hardware.show', $asset->id)
-                ->with('error', trans('admin/hardware/message.update.error'));
+                ->with('error', $problem)
+                ->withErrors(['value' => $problem]);
         }
 
         $asset->{$column} = ($value === '') ? null : $value;
+
+        // A hand-set end of life overrides the one the model implies.
+        if ($column === 'asset_eol_date') {
+            $asset->eol_explicit = ($value !== '' && $value !== null);
+        }
 
         if ($asset->save()) {
             // Inline editors live on more pages than the asset view now
@@ -662,6 +641,67 @@ class AssetsController extends Controller
     }
 
     /**
+     * Why a value cannot go into a native column from the asset view, or null
+     * when it can. The column must be whitelisted by
+     * Asset::inlineEditableCoreFields(); selects must name a real row or a
+     * known option, dates must parse.
+     */
+    private function coreFieldProblem(string $column, mixed $value): ?string
+    {
+        $types = Asset::inlineEditableCoreFields();
+
+        if (! array_key_exists($column, $types) || is_array($value)) {
+            return trans('admin/hardware/message.update.error');
+        }
+
+        $blank = ($value === '' || $value === null);
+        $label = ['value' => str_replace('_', ' ', preg_replace('/_id$/', '', $column))];
+
+        // FK selects must reference a real row (model_id is required).
+        $fkTables = [
+            'model_id' => 'models',
+            'rtd_location_id' => 'locations',
+            'status_id' => 'status_labels',
+            'supplier_id' => 'suppliers',
+            'lessor_id' => 'suppliers',
+            'company_id' => 'companies',
+        ];
+        if (array_key_exists($column, $fkTables)) {
+            $required = in_array($column, ['model_id', 'status_id'], true);
+            $check = Validator::make(['value' => $value], [
+                'value' => [$required ? 'required' : 'nullable', "exists:{$fkTables[$column]},id"],
+            ], [], $label);
+            if ($check->fails()) {
+                return $check->errors()->first('value');
+            }
+        }
+
+        // Date columns must be a valid date (or blank).
+        if ($types[$column] === 'date') {
+            $check = Validator::make(['value' => $value], ['value' => ['nullable', 'date']], [], $label);
+            if ($check->fails()) {
+                return $check->errors()->first('value');
+            }
+        }
+
+        // Closed lists: the value must be one of the column's known options
+        // (blank clears) — same containment the listbox custom fields
+        // enforce, so a crafted request can't mint a new variant.
+        $optionLists = [
+            'ownership_type' => array_combine(Asset::OWNERSHIP_TYPES, Asset::OWNERSHIP_TYPES),
+            'lease_usage' => array_combine(Asset::LEASE_USAGES, Asset::LEASE_USAGES),
+            'lease_area' => Asset::leaseAreaOptions(),
+            'byod' => ['0' => 0, '1' => 1],
+            'requestable' => ['0' => 0, '1' => 1],
+        ];
+        if (array_key_exists($column, $optionLists) && ! $blank && ! array_key_exists((string) $value, $optionLists[$column])) {
+            return trans('admin/hardware/message.update.error');
+        }
+
+        return null;
+    }
+
+    /**
      * Inline single-field update of a custom field from the asset detail view,
      * without opening the full edit form. The field must belong to the asset
      * model's fieldset (the whitelist). Text/textarea take a free-text value;
@@ -673,21 +713,36 @@ class AssetsController extends Controller
     {
         $this->authorize('update', $asset);
 
-        $column = $request->input('field');
         $redirect = Helper::getRedirectOption($request, $asset->id, 'Assets');
 
-        // Whitelist: the column must be a real custom field on this asset's
-        // model fieldset. Anything else is rejected outright.
-        $field = null;
-        if (($asset->model) && ($asset->model->fieldset)) {
-            $field = $asset->model->fieldset->fields->firstWhere('db_column', $column);
+        [$problem, $value] = $this->customFieldValue($asset, (string) $request->input('field'), $request->input('value'));
+
+        if ($problem) {
+            return $redirect->with('error', $problem);
         }
+
+        $asset->{$request->input('field')} = $value;
+
+        if ($asset->save()) {
+            return $redirect->with('success', trans('admin/hardware/message.update.success'));
+        }
+
+        return $redirect->withErrors($asset->getErrors());
+    }
+
+    /**
+     * The value to store for one custom field edited from the asset view, as
+     * [problem, value] — problem is null when the value is good. The column
+     * must be a field on the asset model's fieldset; option fields only take
+     * their own options; encrypted fields need the encrypted-fields gate.
+     */
+    private function customFieldValue(Asset $asset, string $column, mixed $value): array
+    {
+        $field = $asset->model?->fieldset?->fields->firstWhere('db_column', $column);
 
         if (! $field || ! in_array($field->element, ['text', 'textarea', 'listbox', 'radio', 'checkbox'], true)) {
-            return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+            return [trans('admin/custom_fields/message.field.invalid'), null];
         }
-
-        $value = $request->input('value');
 
         // Option-based fields: every submitted value must be one of the field's
         // configured options (the '' placeholder is treated as "cleared").
@@ -697,29 +752,86 @@ class AssetsController extends Controller
 
             foreach ($submitted as $v) {
                 if (! in_array($v, $allowed, true)) {
-                    return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+                    return [trans('admin/custom_fields/message.field.invalid'), null];
                 }
             }
 
             $value = implode(', ', $submitted);
         } elseif (is_array($value)) {
-            return $redirect->with('error', trans('admin/custom_fields/message.field.invalid'));
+            return [trans('admin/custom_fields/message.field.invalid'), null];
         }
 
         if ($field->field_encrypted == '1') {
             if (! Gate::allows('assets.view.encrypted_custom_fields')) {
-                return $redirect->with('error', trans('admin/custom_fields/general.encrypted'));
+                return [trans('admin/custom_fields/general.encrypted'), null];
             }
             $value = ($value === null || $value === '') ? $value : Crypt::encrypt($value);
         }
 
-        $asset->{$field->db_column} = $value;
+        return [null, $value];
+    }
 
-        if ($asset->save()) {
-            return $redirect->with('success', trans('admin/hardware/message.update.success'));
+    /**
+     * Save everything changed in the asset view's edit mode in one request:
+     * `core[column]` for native columns, `custom[db_column]` for custom
+     * fields. Each value passes the same checks as its single-field editor;
+     * nothing is written unless every field is good, so a half-saved asset is
+     * never left behind.
+     */
+    public function updateFields(ImageUploadRequest $request, Asset $asset): JsonResponse
+    {
+        $this->authorize('update', $asset);
+
+        $errors = [];
+
+        // A new image has to travel as a multipart form, so the fields ride
+        // along as one JSON string instead of the request body.
+        $input = $request->has('payload')
+            ? (array) json_decode((string) $request->input('payload'), true)
+            : $request->only(['core', 'custom']);
+
+        foreach ((array) ($input['core'] ?? []) as $column => $value) {
+            if ($problem = $this->coreFieldProblem((string) $column, $value)) {
+                $errors["core.{$column}"] = $problem;
+
+                continue;
+            }
+            $asset->{$column} = ($value === '') ? null : $value;
+
+            // A hand-set end of life overrides the one the model implies.
+            if ($column === 'asset_eol_date') {
+                $asset->eol_explicit = ($value !== '' && $value !== null);
+            }
         }
 
-        return $redirect->withErrors($asset->getErrors());
+        foreach ((array) ($input['custom'] ?? []) as $column => $value) {
+            [$problem, $clean] = $this->customFieldValue($asset, (string) $column, $value);
+            if ($problem) {
+                $errors["custom.{$column}"] = $problem;
+
+                continue;
+            }
+            $asset->{$column} = $clean;
+        }
+
+        if (! $errors && $request->hasFile('image')) {
+            $request->handleImages($asset);
+        }
+
+        if (! $errors && ! $asset->save()) {
+            foreach ($asset->getErrors()->toArray() as $column => $messages) {
+                $key = array_key_exists($column, Asset::inlineEditableCoreFields()) ? "core.{$column}" : "custom.{$column}";
+                $errors[$key] = preg_replace('/ snipeit /', ' ', $messages[0]);
+            }
+        }
+
+        if ($errors) {
+            return response()->json(['status' => 'error', 'errors' => $errors], 422);
+        }
+
+        session()->flash('success', trans('admin/hardware/message.update.success'));
+
+        return response()->json(['status' => 'success']);
     }
 
     /**

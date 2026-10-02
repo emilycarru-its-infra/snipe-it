@@ -27,24 +27,27 @@
     <div class="box-body asset-card-body">
         {{-- Procurement leads with the purchase facts (date + cost). --}}
         @if ($g && $g->slug === 'procurement')
-            @if ($asset->purchase_date)
-                <div class="asset-card-row">
-                    <div class="asset-card-lbl">{{ trans('general.purchase_date') }}</div>
-                    <div class="asset-card-val">
-                        <span class="inline-core-value js-copy-pd-{{ $asset->id }}">{{ Helper::getFormattedDateObject($asset->purchase_date, 'date', false) }}</span>
-                        {!! $copyIcon('js-copy-pd-'.$asset->id) !!}
-                    </div>
+            {{-- Empty purchase facts stay out of the read view and appear
+                 only in edit mode, where they can be filled in. --}}
+            @php $supplierOptions = \App\Models\Supplier::orderBy('name')->pluck('name', 'id'); @endphp
+            <div class="asset-card-row{{ $asset->purchase_date ? '' : ' asset-edit-only' }}">
+                <div class="asset-card-lbl">{{ trans('general.purchase_date') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="purchase_date" element="date" copy_what="pd-{{ $asset->id }}">{{ $asset->purchase_date ? Helper::getFormattedDateObject($asset->purchase_date, 'date', false) : '' }}</x-inline-core-field>
                 </div>
-            @endif
-            @if ($asset->purchase_cost)
-                <div class="asset-card-row">
-                    <div class="asset-card-lbl">{{ trans('general.purchase_cost') }}</div>
-                    <div class="asset-card-val">
-                        <span class="inline-core-value js-copy-uc-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}</span>
-                        {!! $copyIcon('js-copy-uc-'.$asset->id) !!}
-                    </div>
+            </div>
+            <div class="asset-card-row{{ $asset->purchase_cost ? '' : ' asset-edit-only' }}">
+                <div class="asset-card-lbl">{{ trans('general.purchase_cost') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="purchase_cost" copy_what="uc-{{ $asset->id }}">{{ ($asset->location ? $asset->location->currency : $snipeSettings->default_currency) }} {{ Helper::formatCurrencyOutput($asset->purchase_cost) }}</x-inline-core-field>
                 </div>
-            @endif
+            </div>
+            <div class="asset-card-row{{ $asset->warranty_months ? '' : ' asset-edit-only' }}">
+                <div class="asset-card-lbl">{{ trans('admin/hardware/form.warranty') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="warranty_months">{{ $asset->warranty_months }} {{ trans('admin/hardware/form.months') }}</x-inline-core-field>
+                </div>
+            </div>
             @if ($asset->supplier)
                 <div class="asset-card-row">
                     <div class="asset-card-lbl">{{ trans('general.supplier') }}</div>
@@ -52,14 +55,14 @@
                 </div>
             @endif
             {{-- Lessor: who financed the lease (a Supplier record in the lessor role),
-                 distinct from the supplier who sold the device. Surfaced here so leased
-                 assets show their lessor without opening the edit form. --}}
-            @if ($asset->lessor)
-                <div class="asset-card-row">
-                    <div class="asset-card-lbl">{{ trans('general.lessor') }}</div>
-                    <div class="asset-card-val"><a href="{{ route('suppliers.show', $asset->lessor->id) }}">{{ $asset->lessor->name }}</a></div>
+                 distinct from the supplier who sold the device. --}}
+            <div class="asset-card-row{{ $asset->lessor ? '' : ' asset-edit-only' }}">
+                <div class="asset-card-lbl">{{ trans('general.lessor') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="lessor_id" element="select" :options="$supplierOptions"
+                        :link="$asset->lessor ? route('suppliers.show', $asset->lessor->id) : null" :link_title="trans('general.lessor')">{{ $asset->lessor?->name }}</x-inline-core-field>
                 </div>
-            @endif
+            </div>
 
             {{-- Lease / purchasing fields, now rendered from NATIVE asset columns
                  (F2 lease migration) so they survive the _snipeit_* custom-field
@@ -183,6 +186,25 @@
                     <x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"
                         :link="$linkedOrder ? route('orders.show', $linkedOrder->id) : null"
                         :link_title="$linkedOrder ? trans('admin/orders/general.view_order') : null"/>
+                </div>
+            </div>
+            @foreach ([
+                'gl_code' => trans('admin/hardware/form.gl_code'),
+                'tracking_number' => trans('general.tracking_number'),
+                'tracking_carrier' => trans('general.tracking_carrier'),
+            ] as $plainColumn => $plainLabel)
+                <div class="asset-card-row{{ filled($asset->{$plainColumn}) ? '' : ' asset-edit-only' }}">
+                    <div class="asset-card-lbl">{{ $plainLabel }}</div>
+                    <div class="asset-card-val">
+                        <x-inline-core-field :asset="$asset" :column="$plainColumn" copy_what="{{ $plainColumn }}-{{ $asset->id }}"/>
+                    </div>
+                </div>
+            @endforeach
+            {{-- End of life is read in the sidebar; this row is its editor. --}}
+            <div class="asset-card-row asset-edit-only">
+                <div class="asset-card-lbl">{{ trans('admin/hardware/form.eol_date') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="asset_eol_date" element="date"/>
                 </div>
             </div>
         @endif
