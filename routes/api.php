@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\ToolbarController;
 use App\Http\Controllers\Api;
+use App\Http\Controllers\EmailsController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Passport\Client;
 
@@ -262,9 +264,9 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
 
     // GUI-editable toolbar — readable and writable by admins, so the
     // chrome itself can be reshaped agentically.
-    Route::get('settings/toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'apiShow'])
+    Route::get('settings/toolbar', [ToolbarController::class, 'apiShow'])
         ->name('api.settings.toolbar.show');
-    Route::put('settings/toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'apiUpdate'])
+    Route::put('settings/toolbar', [ToolbarController::class, 'apiUpdate'])
         ->name('api.settings.toolbar.update');
 
     /**
@@ -1195,6 +1197,9 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 'ajaxTestEmail',
             ]
         )->name('api.settings.mailtest');
+
+        Route::get('emails/{key}', [EmailsController::class, 'apiShow'])
+            ->name('api.settings.emails.show');
 
         Route::get('backups',
             [

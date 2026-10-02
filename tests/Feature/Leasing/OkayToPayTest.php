@@ -4,10 +4,13 @@ namespace Tests\Feature\Leasing;
 
 use App\Mail\OkayToPayMail;
 use App\Models\Asset;
+use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\User;
 use App\Services\Leasing\OkayToPay;
+use App\Services\Teams\TeamsCard;
+use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -171,14 +174,14 @@ class OkayToPayTest extends TestCase
     public function test_with_no_window_a_match_sends_on_the_next_pass_and_only_a_hold_posts_a_card()
     {
         config(['leasing.okp_review_hours' => 0]);
-        $teams = \Mockery::mock(\App\Services\Teams\TeamsNotifier::class);
+        $teams = \Mockery::mock(TeamsNotifier::class);
         $cards = [];
         $teams->shouldReceive('sendLater', 'send')->andReturnUsing(function ($card) use (&$cards) {
-            $cards[] = \App\Services\Teams\TeamsCard::titleOf($card->payload()['attachments'][0]['content'] ?? null) ?? 'card';
+            $cards[] = TeamsCard::titleOf($card->payload()['attachments'][0]['content'] ?? null) ?? 'card';
 
             return true;
         });
-        $this->app->instance(\App\Services\Teams\TeamsNotifier::class, $teams);
+        $this->app->instance(TeamsNotifier::class, $teams);
 
         $this->leaseOrder();
         $this->ingest('ORD-LEASE-1', 'INV-NOW', Asset::factory()->count(1)->create()->all());
@@ -355,5 +358,68 @@ class OkayToPayTest extends TestCase
         }
         $this->assertStringContainsString('301452-009', $html);
         $this->assertStringContainsString('$9,828.00', $html);
+    }
+
+    public function test_settings_saved_in_the_emails_hub_win_over_the_environment()
+    {
+        config(['leasing.okp_review_hours' => 0]);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), [
+                'key' => OkayToPay::KEY,
+                'recipients' => ['someone-else@example.test'],
+                'options' => [
+                    'from_address' => 'new-approver@example.test',
+                    'from_name' => 'New Approver',
+                    'teams_channel' => 'Inventory',
+                    'invoices_from' => '',
+                ],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Inventory', app(OkayToPay::class)->channel());
+        $this->assertSame('auto', app(OkayToPay::class)->mode(), 'a blank setting keeps the environment default');
+
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-SET', Asset::factory()->count(1)->create()->all());
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        Mail::assertSent(OkayToPayMail::class, fn (OkayToPayMail $mail) => $mail->hasTo('someone-else@example.test')
+            && $mail->hasFrom('new-approver@example.test', 'New Approver'));
+    }
+
+    public function test_switching_it_off_in_the_emails_hub_stops_it()
+    {
+        $admin = User::factory()->superuser()->create();
+        $this->actingAs($admin)
+            ->post(route('settings.emails.save'), ['key' => OkayToPay::KEY, 'options' => ['mode' => 'off']])
+            ->assertSessionHasNoErrors();
+
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-OFF', Asset::factory()->count(1)->create()->all());
+
+        $this->assertNull($this->invoice('INV-OFF')->okp_status);
+    }
+
+    public function test_a_setting_of_the_wrong_shape_is_refused()
+    {
+        $admin = User::factory()->superuser()->create();
+
+        foreach (['mode' => 'sometimes', 'from_address' => 'not-an-address', 'invoices_from' => 'last week', 'review_hours' => '-3', 'teams_channel' => 'Nowhere'] as $name => $value) {
+            $this->actingAs($admin)
+                ->post(route('settings.emails.save'), ['key' => OkayToPay::KEY, 'options' => [$name => $value]])
+                ->assertSessionHasErrors('options');
+        }
+
+        $this->assertNull(EmailTemplate::forKey(OkayToPay::KEY)?->options);
+    }
+
+    public function test_an_email_only_stores_the_settings_it_declares()
+    {
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => OkayToPay::KEY, 'options' => ['mode' => 'review', 'made_up' => 'x']])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['mode' => 'review'], EmailTemplate::forKey(OkayToPay::KEY)->options);
     }
 }

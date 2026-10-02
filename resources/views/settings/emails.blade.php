@@ -50,6 +50,9 @@
                                            data-recipients-json="{{ json_encode($email['recipients_json'] ?? []) }}"
                                            data-cc-override="{{ $email['cc_override'] ?? '' }}"
                                            data-cc-json="{{ json_encode($email['cc_json'] ?? []) }}"
+                                           data-recipients-default="{{ $email['recipients_default'] ?? '' }}"
+                                           data-cc-default="{{ $email['cc_default'] ?? '' }}"
+                                           data-options="{{ json_encode($email['options'] ?? []) }}"
                                            data-previewable="{{ ($email['previewable'] ?? false) ? '1' : '0' }}"
                                            data-editable="{{ ($email['editable'] ?? false) ? '1' : '0' }}"
                                            data-configurable-recipients="{{ ($email['configurable_recipients'] ?? false) ? '1' : '0' }}"
@@ -128,7 +131,8 @@
                             <select name="recipients[]" id="email-cms-recipients" class="form-control" multiple style="width:100%;"></select>
                             {!! $errors->first('recipients', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                             <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_recipients_help') }}</p>
-                            <p class="help-block text-muted" style="margin-bottom:0;">
+                            <p class="help-block text-muted" id="email-cms-recipients-builtin" style="margin-bottom:0;display:none;"></p>
+                            <p class="help-block text-muted" id="email-cms-recipients-alert-default" style="margin-bottom:0;">
                                 @if (trim((string) ($snipeSettings->alert_email ?? '')) !== '')
                                     {{ trans('admin/settings/general.emails_recipients_default', ['list' => $snipeSettings->alert_email]) }}
                                 @else
@@ -143,6 +147,13 @@
                             <select name="cc[]" id="email-cms-cc" class="form-control" multiple style="width:100%;"></select>
                             {!! $errors->first('cc', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                             <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_cc_help') }}</p>
+                            <p class="help-block text-muted" id="email-cms-cc-builtin" style="margin-bottom:0;display:none;"></p>
+                        </div>
+
+                        <div id="email-cms-options-group" class="{{ $errors->has('options') ? 'has-error' : '' }}" style="display:none;margin-bottom:8px;">
+                            <label>{{ trans('admin/settings/general.emails_options') }}</label>
+                            {!! $errors->first('options', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
+                            <div id="email-cms-options-fields"></div>
                         </div>
 
                         <div id="email-cms-editable-fields">
@@ -253,6 +264,14 @@
         var channelGroup = document.getElementById('email-cms-channel-group');
         var channelField = document.getElementById('email-cms-teams-channel');
         var viewToggle = document.getElementById('email-cms-view-toggle');
+        var optionsGroup = document.getElementById('email-cms-options-group');
+        var optionsFields = document.getElementById('email-cms-options-fields');
+        var recipientsBuiltin = document.getElementById('email-cms-recipients-builtin');
+        var recipientsAlertDefault = document.getElementById('email-cms-recipients-alert-default');
+        var ccBuiltin = document.getElementById('email-cms-cc-builtin');
+        var builtinListText = @json(trans('admin/settings/general.emails_builtin_list', ['list' => '__LIST__']));
+        var optionDefaultText = @json(trans('admin/settings/general.emails_option_default', ['value' => '__VALUE__']));
+        var optionDefaultNone = @json(trans('admin/settings/general.emails_option_default_none'));
         var selectedKey = @json($selected ?? '');
         var oldInput = @json(old());
         var recipientOptionsUrl = @json(route('settings.emails.recipient-options'));
@@ -330,6 +349,64 @@
             });
         }
 
+        /** Show the list an email falls back to, where it declares one. */
+        function showBuiltin(target, csv) {
+            target.style.display = csv ? '' : 'none';
+            target.textContent = csv ? builtinListText.replace('__LIST__', csv.split(',').join(', ')) : '';
+        }
+
+        // The email's own settings (sender, whether it sends, …), built from
+        // what its registry entry declares. A blank field keeps the default,
+        // which is shown as the placeholder or the first choice.
+        function renderOptions(defs, old) {
+            optionsFields.innerHTML = '';
+            optionsGroup.style.display = defs.length ? '' : 'none';
+
+            defs.forEach(function (def) {
+                var id = 'email-cms-option-' + def.name;
+                var value = old && old[def.name] !== undefined && old[def.name] !== null ? old[def.name] : def.value;
+                var isChoice = def.type === 'select' || def.type === 'channel';
+                var fallback = isChoice && def.choices[def.default] ? def.choices[def.default] : def.default;
+                var fallbackText = optionDefaultText.replace('__VALUE__', fallback || optionDefaultNone);
+
+                var group = document.createElement('div');
+                group.className = 'form-group';
+                group.style.marginBottom = '8px';
+
+                var label = document.createElement('label');
+                label.htmlFor = id;
+                label.style.fontWeight = 'normal';
+                label.textContent = def.label;
+                group.appendChild(label);
+
+                var field;
+                if (isChoice) {
+                    field = document.createElement('select');
+                    field.appendChild(new Option(fallbackText, ''));
+                    Object.keys(def.choices).forEach(function (choice) {
+                        field.appendChild(new Option(def.choices[choice], choice));
+                    });
+                } else {
+                    field = document.createElement('input');
+                    field.type = def.type;
+                    if (def.type === 'number') { field.min = '0'; }
+                }
+                field.id = id;
+                field.name = 'options[' + def.name + ']';
+                field.className = 'form-control';
+                field.value = value || '';
+                group.appendChild(field);
+
+                var help = document.createElement('p');
+                help.className = 'help-block';
+                help.style.marginBottom = '0';
+                help.textContent = (def.help ? def.help + ' ' : '') + (isChoice ? '' : fallbackText + '.');
+                group.appendChild(help);
+
+                optionsFields.appendChild(group);
+            });
+        }
+
         function select(el) {
             items.forEach(function (i) { i.parentElement.classList.remove('active'); });
             el.parentElement.classList.add('active');
@@ -376,6 +453,16 @@
             }
             hydratePicker(recipientsGroup, 'email-cms-recipients', configurableRecipients, oldInput && oldInput.recipients, 'data-recipients-json');
             hydratePicker(ccGroup, 'email-cms-cc', configurableCc, oldInput && oldInput.cc, 'data-cc-json');
+
+            var recipientsDefault = el.getAttribute('data-recipients-default') || '';
+            showBuiltin(recipientsBuiltin, recipientsDefault);
+            recipientsAlertDefault.style.display = recipientsDefault ? 'none' : '';
+            showBuiltin(ccBuiltin, el.getAttribute('data-cc-default') || '');
+
+            var optionDefs;
+            try { optionDefs = JSON.parse(el.getAttribute('data-options') || '[]'); }
+            catch (err) { optionDefs = []; }
+            renderOptions(optionDefs, isOld ? oldInput.options : null);
 
             // Test-send only makes sense for mailable-backed emails.
             testBtn.style.display = editable ? '' : 'none';
