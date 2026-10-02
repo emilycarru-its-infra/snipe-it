@@ -55,7 +55,7 @@
     @endif
 </span>
 @if ($canEdit)
-    <form class="js-inline-edit-form form-inline hidden-print" id="{{ $editId }}-form" method="POST" action="{{ route('hardware.field.update', $asset->id) }}" style="display:none;">
+    <form class="js-inline-edit-form form-inline hidden-print" id="{{ $editId }}-form" data-kind="custom" data-column="{{ $field->db_column }}" method="POST" action="{{ route('hardware.field.update', $asset->id) }}" style="display:none;">
         {{ csrf_field() }}
         @method('PATCH')
         <input type="hidden" name="field" value="{{ $field->db_column }}">
@@ -83,5 +83,6 @@
         @endswitch
         <button type="submit" class="btn btn-xs btn-primary"><i class="fas fa-check" aria-hidden="true"></i> {{ trans('general.save') }}</button>
         <a href="#" class="btn btn-xs btn-default js-inline-edit-cancel" data-target="{{ $editId }}">{{ trans('general.cancel') }}</a>
+        <span class="js-inline-error text-danger" hidden></span>
     </form>
 @endif

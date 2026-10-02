@@ -140,13 +140,13 @@
                                         <div class="asset-identity-field">
                                             <div class="asset-identity-label">{{ trans('general.asset_tag') }}</div>
                                             <div class="asset-identity-value">
-                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
+                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false" :edit_mode="true"/>
                                             </div>
                                         </div>
                                         <div class="asset-identity-field">
                                             <div class="asset-identity-label">{{ trans('general.serial_number') }}</div>
                                             <div class="asset-identity-value asset-identity-mono">
-                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false"/>
+                                                <x-inline-core-field :asset="$asset" column="serial" copy_what="serial_hdr" :editable="false" :edit_mode="true"/>
                                             </div>
                                         </div>
                                     </div>
@@ -551,7 +551,9 @@
                         {{-- Primary: edit (labeled, inline) --}}
                         @can('update', $asset)
                             @unless ($assetDeleted)
-                                <a href="{{ route('hardware.edit', $asset->id) }}" class="btn btn-sm btn-warning hidden-print" data-tooltip="true" data-placement="top" data-title="{{ trans('general.update') }}">
+                                {{-- Turns the page's own fields editable in place. The
+                                     href is the full form, for a new tab or no JS. --}}
+                                <a href="{{ route('hardware.edit', $asset->id) }}" class="btn btn-sm btn-warning hidden-print js-asset-edit-mode" data-tooltip="true" data-placement="top" data-title="{{ trans('general.update') }}">
                                     <x-icon type="edit" class="fa-fw"/> {{ trans('general.update') }}
                                 </a>
                             @endunless
@@ -643,7 +645,13 @@
                          at the top of the info list. Default Location is now the
                          editable Location in Inventory. --}}
                     <x-info-element title="{{ trans('general.status') }}">
-                        <x-info-element.status :infoObject="$asset"/>
+                        <span class="asset-read-only"><x-info-element.status :infoObject="$asset"/></span>
+                        <span class="asset-edit-only">
+                            {{ trans('general.status') }}
+                            <span class="pull-right">
+                                <x-inline-core-field :asset="$asset" column="status_id" element="select" :editable="false" :edit_mode="true" :options="\App\Models\Statuslabel::orderBy('name')->pluck('name', 'id')">{{ $asset->status?->name }}</x-inline-core-field>
+                            </span>
+                        </span>
                     </x-info-element>
 
                     <x-info-element icon_type="calendar" title="{{ trans('general.last_checkout') }}">
@@ -726,18 +734,30 @@
                     <h3 class="box-title asset-card-title"><i class="fas fa-database" style="color:#7f8c8d;" aria-hidden="true"></i> {{ trans('general.metadata') }}</h3>
                 </div>
                 <div class="box-body asset-card-body">
-                    @if (isset($asset->byod))
+                    @php $yesNo = ['1' => trans('general.yes'), '0' => trans('general.no')]; @endphp
+                    @foreach (['byod' => trans('general.byod'), 'requestable' => trans('admin/hardware/general.requestable')] as $flag => $flagLabel)
                         <div class="asset-card-row">
-                            <div class="asset-card-lbl">{{ trans('general.byod') }}</div>
-                            <div class="asset-card-val">@if ($asset->byod == 1)<x-icon type="checkmark" class="text-success"/> {{ trans('general.yes') }}@else<x-icon type="x" class="text-danger"/> {{ trans('general.no') }}@endif</div>
+                            <div class="asset-card-lbl">{{ $flagLabel }}</div>
+                            <div class="asset-card-val">
+                                <x-inline-core-field :asset="$asset" :column="$flag" element="select" :options="$yesNo">@if ($asset->{$flag} == 1)<x-icon type="checkmark" class="text-success"/> {{ trans('general.yes') }}@else<x-icon type="x" class="text-danger"/> {{ trans('general.no') }}@endif</x-inline-core-field>
+                            </div>
                         </div>
-                    @endif
-                    @if (isset($asset->requestable))
-                        <div class="asset-card-row">
-                            <div class="asset-card-lbl">{{ trans('admin/hardware/general.requestable') }}</div>
-                            <div class="asset-card-val">@if ($asset->requestable == 1)<x-icon type="checkmark" class="text-success"/> {{ trans('general.yes') }}@else<x-icon type="x" class="text-danger"/> {{ trans('general.no') }}@endif</div>
+                    @endforeach
+                    {{-- Company and notes are read elsewhere on the page (the
+                         side panel, the notes tab); these rows exist so edit
+                         mode can change them. --}}
+                    <div class="asset-card-row asset-edit-only">
+                        <div class="asset-card-lbl">{{ trans('general.company') }}</div>
+                        <div class="asset-card-val">
+                            <x-inline-core-field :asset="$asset" column="company_id" element="select" :options="\App\Models\Company::orderBy('name')->pluck('name', 'id')">{{ $asset->company?->name }}</x-inline-core-field>
                         </div>
-                    @endif
+                    </div>
+                    <div class="asset-card-row{{ filled($asset->notes) ? '' : ' asset-edit-only' }}">
+                        <div class="asset-card-lbl">{{ trans('general.notes') }}</div>
+                        <div class="asset-card-val">
+                            <x-inline-core-field :asset="$asset" column="notes" element="textarea"/>
+                        </div>
+                    </div>
                     @if ($asset->adminuser)
                         <div class="asset-card-row">
                             <div class="asset-card-lbl">{{ trans('general.created_by') }}</div>
@@ -863,12 +883,138 @@
                     e.preventDefault();
                     hideForm($(this).data('target'));
                 });
+
+                // Edit mode: Update opens every editor on the page at once and
+                // one Save sends whatever changed. The single-field pencils
+                // keep working outside it.
+                var $bar = $('#asset-edit-bar');
+                var $forms = function () { return $('.js-inline-edit-form[data-kind]'); };
+
+                function valueOf($form) {
+                    var $boxes = $form.find('input[type="checkbox"][name="value[]"]');
+                    if ($boxes.length) {
+                        return $boxes.filter(':checked').map(function () { return this.value; }).get();
+                    }
+                    return $form.find('[name="value"]').first().val();
+                }
+                function enterEditMode() {
+                    $('body').addClass('asset-edit-mode');
+                    $forms().each(function () {
+                        var $form = $(this);
+                        $form.data('initial', JSON.stringify(valueOf($form)));
+                        $form.find('.js-inline-error').prop('hidden', true).text('');
+                        $('#' + this.id.replace(/-form$/, '-display')).hide();
+                        $form.closest('.asset-card-val').addClass('inline-editing');
+                        $form.show();
+                    });
+                    $bar.prop('hidden', false).find('.js-asset-edit-status').text(@js(trans('general.edit_mode_hint')));
+                }
+                function leaveEditMode() {
+                    $forms().each(function () {
+                        this.reset();
+                        hideForm(this.id.replace(/-form$/, ''));
+                    });
+                    $('body').removeClass('asset-edit-mode');
+                    $bar.prop('hidden', true);
+                }
+                function saveEditMode() {
+                    var payload = { core: {}, custom: {} };
+                    var changed = 0;
+                    $forms().each(function () {
+                        var $form = $(this);
+                        var value = valueOf($form);
+                        if (JSON.stringify(value) === $form.data('initial')) { return; }
+                        payload[$form.data('kind')][$form.data('column')] = value;
+                        changed++;
+                    });
+                    if (!changed) {
+                        $bar.find('.js-asset-edit-status').text(@js(trans('general.edit_mode_no_changes')));
+                        return;
+                    }
+                    var $save = $bar.find('.js-asset-edit-save').prop('disabled', true);
+                    $forms().find('.js-inline-error').prop('hidden', true).text('');
+                    $.ajax({
+                        url: @js(route('hardware.fields.update', $asset->id)),
+                        type: 'PATCH',
+                        contentType: 'application/json',
+                        dataType: 'json',
+                        data: JSON.stringify(payload),
+                        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+                    }).done(function () {
+                        window.location.reload();
+                    }).fail(function (xhr) {
+                        $save.prop('disabled', false);
+                        var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
+                        var $first = null;
+                        $.each(errors, function (key, message) {
+                            var parts = key.split('.');
+                            var $form = $forms().filter(function () {
+                                return $(this).data('kind') === parts[0] && $(this).data('column') === parts.slice(1).join('.');
+                            }).first();
+                            $form.find('.js-inline-error').prop('hidden', false).text(message);
+                            $first = $first || $form;
+                        });
+                        $bar.find('.js-asset-edit-status').text($first ? @js(trans('general.edit_mode_fix_errors')) : @js(trans('admin/hardware/message.update.error')));
+                        if ($first && $first[0].scrollIntoView) { $first[0].scrollIntoView({ block: 'center' }); }
+                    });
+                }
+
+                $(document).on('click', '.js-asset-edit-mode', function (e) {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !$bar.length) { return; }
+                    e.preventDefault();
+                    if ($('body').hasClass('asset-edit-mode')) { leaveEditMode(); } else { enterEditMode(); }
+                });
+                $bar.on('click', '.js-asset-edit-save', saveEditMode);
+                $bar.on('click', '.js-asset-edit-cancel', leaveEditMode);
+                // Enter in any field saves the lot, not just that one field.
+                $(document).on('submit', '.js-inline-edit-form', function (e) {
+                    if ($('body').hasClass('asset-edit-mode')) {
+                        e.preventDefault();
+                        saveEditMode();
+                    }
+                });
             });
         </script>
+
+        @can('update', $asset)
+            <div id="asset-edit-bar" class="hidden-print" hidden>
+                <span class="js-asset-edit-status" role="status"></span>
+                <span class="asset-edit-bar-actions">
+                    <a href="{{ route('hardware.edit', $asset->id) }}" class="btn btn-sm btn-default">{{ trans('general.all_fields') }}</a>
+                    <button type="button" class="btn btn-sm btn-default js-asset-edit-cancel">{{ trans('general.cancel') }}</button>
+                    <button type="button" class="btn btn-sm btn-success js-asset-edit-save"><i class="fas fa-check" aria-hidden="true"></i> {{ trans('general.save_changes') }}</button>
+                </span>
+            </div>
+        @endcan
     @endsection
 
     @push('css')
         <style>
+            /* Edit mode. Rows that only exist to be edited stay out of the
+               read view; the per-field save/cancel and pencils give way to
+               the one bar at the bottom. */
+            body:not(.asset-edit-mode) .asset-edit-only { display: none !important; }
+            body.asset-edit-mode .asset-read-only { display: none !important; }
+            body.asset-edit-mode .js-inline-edit-form .btn { display: none; }
+            body.asset-edit-mode .js-inline-edit-form { display: flex !important; flex-wrap: wrap; gap: 4px; max-width: 100%; }
+            body.asset-edit-mode .js-inline-edit-form .form-control { flex: 1 1 160px; min-width: 0 !important; max-width: 100%; }
+            body.asset-edit-mode .js-inline-error { flex: 1 1 100%; font-size: 12px; }
+            body.asset-edit-mode .content-wrapper { padding-bottom: 72px; }
+            /* Sidebar rows are label-left, value-right; an input needs the
+               full width, so it drops under its label. */
+            body.asset-edit-mode .asset-side-box .list-group-item .pull-right { float: none !important; display: block; margin-top: 4px; }
+            #asset-edit-bar {
+                position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 1500;
+                display: flex; align-items: center; gap: 16px;
+                max-width: calc(100vw - 32px);
+                padding: 10px 12px 10px 18px; border-radius: 12px;
+                background: var(--box-bg, #fff); color: var(--color-fg, #333);
+                border: 1px solid var(--box-header-top-border-color, #d2d6de);
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            }
+            #asset-edit-bar[hidden] { display: none; }
+            #asset-edit-bar .asset-edit-bar-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+
             /* Identity header: name (primary), tag and serial in one left-aligned
                row — snug, not pushed to the far right. */
             .asset-identity-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 40px; }

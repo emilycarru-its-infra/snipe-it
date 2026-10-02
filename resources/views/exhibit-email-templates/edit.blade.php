@@ -39,13 +39,13 @@
             <div class="box-body">
                 <p class="text-muted">{{ trans('admin/exhibit-projects/general.merge_vars_help') }}</p>
                 <ul class="list-unstyled">
-                    <li><code>{{ '{{student_name}}' }}</code></li>
-                    <li><code>{{ '{{show}}' }}</code></li>
-                    <li><code>{{ '{{year}}' }}</code></li>
-                    <li><code>{{ '{{project_type}}' }}</code></li>
-                    <li><code>{{ '{{requested_device}}' }}</code></li>
-                    <li><code>{{ '{{peripherals}}' }}</code></li>
-                    <li><code>{{ '{{assigned_asset}}' }}</code></li>
+                    <li><code>@{{student_name}}</code></li>
+                    <li><code>@{{show}}</code></li>
+                    <li><code>@{{year}}</code></li>
+                    <li><code>@{{project_type}}</code></li>
+                    <li><code>@{{requested_device}}</code></li>
+                    <li><code>@{{peripherals}}</code></li>
+                    <li><code>@{{assigned_asset}}</code></li>
                 </ul>
             </div>
         </div>

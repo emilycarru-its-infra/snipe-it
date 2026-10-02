@@ -99,6 +99,11 @@ Route::group(
             [AssetsController::class, 'updateField']
         )->name('hardware.field.update');
 
+        // The asset view's edit mode saves every changed field at once.
+        Route::patch('{asset}/fields',
+            [AssetsController::class, 'updateFields']
+        )->name('hardware.fields.update');
+
         Route::get('history', [AssetsController::class, 'getImportHistory'])
             ->name('asset.import-history')
             ->breadcrumbs(fn (Trail $trail) => $trail->parent('hardware.index')
