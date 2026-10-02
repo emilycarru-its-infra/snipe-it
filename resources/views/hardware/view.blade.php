@@ -999,12 +999,11 @@
             body.asset-edit-mode .js-inline-edit-form { display: flex !important; flex-wrap: wrap; gap: 4px; max-width: 100%; }
             body.asset-edit-mode .js-inline-edit-form .form-control { flex: 1 1 160px; min-width: 0 !important; max-width: 100%; }
             body.asset-edit-mode .js-inline-error { flex: 1 1 100%; font-size: 12px; }
-            body.asset-edit-mode .content-wrapper { padding-bottom: 72px; }
             /* Sidebar rows are label-left, value-right; an input needs the
                full width, so it drops under its label. */
             body.asset-edit-mode .asset-side-box .list-group-item .pull-right { float: none !important; display: block; margin-top: 4px; }
             #asset-edit-bar {
-                position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 1500;
+                position: fixed; right: 16px; top: calc(var(--header-h, 50px) + 10px); z-index: 1500;
                 display: flex; align-items: center; gap: 16px;
                 max-width: calc(100vw - 32px);
                 padding: 10px 12px 10px 18px; border-radius: 12px;
