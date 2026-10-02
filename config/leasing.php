@@ -82,8 +82,10 @@ return [
     |           approves them in the Invoice Approval Queue
     |   auto    as review, and a queued invoice also sends when the window ends
     |
-    | Recipients and sender are per environment (Settings → Emails overrides
-    | To and CC). With no recipient nothing is queued.
+    | Every value below is only the deployment default: Settings → Emails →
+    | OK to pay overrides each one, so changing who it goes to, who it is from
+    | or whether it sends at all is a setting, not a deploy. With no recipient
+    | nothing is queued.
     |
     */
     'okp_mode' => env('LEASING_OKP_MODE', 'off'),
@@ -102,4 +104,21 @@ return [
     'okp_from_name' => env('LEASING_OKP_FROM_NAME', ''),
     // Funding accounts whose invoices the lessor pays, so need its sign-off.
     'okp_funding_accounts' => ['lease_admin', 'lease_curriculum'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Opening the next lease schedules — the quarterly email to the lessor
+    |--------------------------------------------------------------------------
+    |
+    | The email itself is composed and sent by an automation outside this app,
+    | which asks this app who it goes to (GET /api/v1/settings/emails/{key}).
+    | These are the deployment defaults; Settings → Emails overrides each one.
+    | A value left empty everywhere leaves the automation on its own default.
+    |
+    */
+    'schedule_init_to' => env('LEASING_SCHEDULE_INIT_TO', ''),
+    'schedule_init_cc' => env('LEASING_SCHEDULE_INIT_CC', ''),
+    'schedule_init_reply_to' => env('LEASING_SCHEDULE_INIT_REPLY_TO', ''),
+    'schedule_init_headsup_to' => env('LEASING_SCHEDULE_INIT_HEADSUP_TO', ''),
+    'schedule_init_spend' => env('LEASING_SCHEDULE_INIT_SPEND', ''),
 ];

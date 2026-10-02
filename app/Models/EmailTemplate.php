@@ -24,7 +24,12 @@ class EmailTemplate extends Model
         'cc',
         'delivery',
         'teams_channel',
+        'options',
         'updated_by',
+    ];
+
+    protected $casts = [
+        'options' => 'array',
     ];
 
     /** The admin who last edited this override (updated_by). */
@@ -62,7 +67,24 @@ class EmailTemplate extends Model
             || filled($this->recipients)
             || filled($this->cc)
             || filled($this->delivery)
-            || filled($this->teams_channel);
+            || filled($this->teams_channel)
+            || filled($this->options);
+    }
+
+    /**
+     * One of an email's own settings (EmailRegistry 'options'): what an admin
+     * saved in Settings → Emails, otherwise the given fallback. Defensive in
+     * the same way as recipientsFor() — a failed lookup falls back.
+     */
+    public static function optionFor(string $key, string $name, mixed $fallback = null): mixed
+    {
+        try {
+            $value = static::forKey($key)?->options[$name] ?? null;
+
+            return filled($value) ? $value : $fallback;
+        } catch (\Throwable $e) {
+            return $fallback;
+        }
     }
 
     /**
