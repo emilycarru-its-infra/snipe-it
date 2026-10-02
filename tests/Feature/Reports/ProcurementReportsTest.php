@@ -162,7 +162,7 @@ class ProcurementReportsTest extends TestCase
         // The asset factory recomputes asset_eol_date in an afterMaking hook,
         // so pin it directly to a date inside the forecast window.
         Asset::query()->whereKey($asset->id)
-            ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
+            ->update(['asset_eol_date' => \App\Helpers\Helper::fiscalYearRange(\App\Helpers\Helper::currentFiscalYear())[1]->format('Y-m-d')]);
         $superuser = $this->superuser();
 
         // One forecast page now: the procurement address redirects into
@@ -332,7 +332,7 @@ class ProcurementReportsTest extends TestCase
     {
         $asset = Asset::factory()->create(['asset_tag' => 'LIGHTBOX-1']);
         Asset::query()->whereKey($asset->id)
-            ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
+            ->update(['asset_eol_date' => \App\Helpers\Helper::fiscalYearRange(\App\Helpers\Helper::currentFiscalYear())[1]->format('Y-m-d')]);
         $superuser = $this->superuser();
 
         // The forecast table links the asset cells into the lightbox…

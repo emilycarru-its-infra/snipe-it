@@ -24,14 +24,16 @@ use Illuminate\Support\Facades\Mail;
  * the vendor's invoice lands, so the reply can go out on its own.
  *
  * Lifecycle, on order_invoices.okp_status:
- *   queued  the invoice matches its order; sends when the review window ends
- *           (auto mode) or as soon as someone approves it in the queue
+ *   queued  the invoice matches its order; sends on the next scheduled pass,
+ *           or when the review window ends if one is set (auto mode), or as
+ *           soon as someone approves it in the queue
  *   held    something does not add up, or someone disputed it in the queue;
  *           never sent unless a person approves it
  *   sent    done, never sent twice
  *
- * Each transition is announced in the Procurement Teams channel, with a
- * reminder the day before a queued invoice sends.
+ * A held invoice is always announced in Teams (LEASING_OKP_TEAMS_CHANNEL).
+ * With a review window set, so are queued, a reminder in the last quarter of
+ * the window, and sent; with none, a match goes out without a card.
  */
 class OkayToPay
 {
@@ -43,10 +45,7 @@ class OkayToPay
 
     public const SENT = 'sent';
 
-    public const CHANNEL = 'Procurement';
-
-    /** How close to its send time a queued invoice gets its reminder. */
-    private const REMINDER_HOURS = 24;
+    public const DEFAULT_CHANNEL = 'Procurement';
 
     public function __construct(private readonly TeamsNotifier $teams) {}
 
@@ -209,7 +208,14 @@ class OkayToPay
             // A person's call in the approval queue outranks the checks
             // either way: approving attests the invoice, disputing stops it.
             if ($invoice->approval_status === 'approved') {
-                $counts['sent'] += (int) $this->send($invoice);
+                // Approved-and-held is retried once per approval: a send that
+                // fails again puts it back to pending so the next pass does
+                // not loop on it.
+                if (! $this->send($invoice)) {
+                    $invoice->forceFill(['approval_status' => 'pending'])->save();
+                } else {
+                    $counts['sent']++;
+                }
 
                 continue;
             }
@@ -244,7 +250,7 @@ class OkayToPay
                 continue;
             }
 
-            if (! $invoice->okp_reminded_at && $invoice->okp_send_after->lte(now()->addHours(self::REMINDER_HOURS))) {
+            if ($this->reviewed() && ! $invoice->okp_reminded_at && $invoice->okp_send_after->lte(now()->addHours($this->reminderHours()))) {
                 $invoice->forceFill(['okp_reminded_at' => now()])->save();
                 $this->announce($invoice, 'reminder', false);
                 $counts['reminded']++;
@@ -277,6 +283,11 @@ class OkayToPay
         } catch (\Throwable $e) {
             Log::error('OK to pay failed for invoice '.$invoice->invoice_number.': '.$e->getMessage());
 
+            // Held, not left queued: retrying every pass would hide a mail
+            // problem behind a log line, and the lessor would simply never
+            // hear from us. Approving it in the queue tries again.
+            $this->hold($invoice, [trans('admin/purchase-orders/general.okp_reason_send_failed', ['error' => mb_substr($e->getMessage(), 0, 200)])]);
+
             return false;
         }
 
@@ -308,7 +319,33 @@ class OkayToPay
 
     private function reviewHours(): int
     {
-        return max(1, (int) config('leasing.okp_review_hours', 48));
+        return max(0, (int) config('leasing.okp_review_hours', 0));
+    }
+
+    /**
+     * With no review window an invoice that matches simply goes, and the only
+     * thing worth a card is one that did not: queued, reminder and sent cards
+     * belong to the reviewed flow.
+     */
+    private function reviewed(): bool
+    {
+        return $this->reviewHours() > 0;
+    }
+
+    /**
+     * How close to its send time a queued invoice gets its reminder: the last
+     * quarter of the window, so a one-day window nudges six hours out rather
+     * than repeating the queued card the moment it is posted.
+     */
+    private function reminderHours(): int
+    {
+        return max(1, min(24, intdiv(max(1, $this->reviewHours()), 4)));
+    }
+
+    /** The Teams channel the cards go to. */
+    public function channel(): string
+    {
+        return (string) (config('leasing.okp_teams_channel') ?: self::DEFAULT_CHANNEL);
     }
 
     /**
@@ -316,12 +353,16 @@ class OkayToPay
      */
     public function announce(OrderInvoice $invoice, string $event, bool $defer = true): void
     {
+        if ($event !== 'held' && ! $this->reviewed()) {
+            return;
+        }
+
         $card = $this->card($invoice, $event);
 
         try {
             $defer
-                ? $this->teams->sendLater($card, self::CHANNEL, self::KEY)
-                : $this->teams->send($card, self::CHANNEL, self::KEY);
+                ? $this->teams->sendLater($card, $this->channel(), self::KEY)
+                : $this->teams->send($card, $this->channel(), self::KEY);
         } catch (\Throwable $e) {
             Log::warning('OK to pay card failed for invoice '.$invoice->invoice_number.': '.$e->getMessage());
         }
