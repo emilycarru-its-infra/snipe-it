@@ -36,7 +36,6 @@ class EditModeTest extends TestCase
             ->patchJson(route('hardware.fields.update', $asset), [
                 'core' => [
                     'name' => 'Edited in place',
-                    'asset_tag' => 'IN-PLACE-1',
                     'serial' => 'INPLACESERIAL',
                     'purchase_date' => '2025-04-05',
                     'purchase_cost' => '1234.56',
@@ -57,7 +56,6 @@ class EditModeTest extends TestCase
 
         $asset->refresh();
         $this->assertSame('Edited in place', $asset->name);
-        $this->assertSame('IN-PLACE-1', $asset->asset_tag);
         $this->assertSame('INPLACESERIAL', $asset->serial);
         $this->assertSame('2025-04-05', $asset->purchase_date->format('Y-m-d'));
         $this->assertEquals(1234.56, $asset->purchase_cost);
@@ -82,12 +80,13 @@ class EditModeTest extends TestCase
                     'status_id' => 999999,
                     'ownership_type' => 'Not a real type',
                     'created_at' => '2001-01-01',
+                    'asset_tag' => 'RETAGGED',
                 ],
                 'custom' => ['_snipeit_not_on_this_fieldset_1' => 'x'],
             ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => [
-                'core.status_id', 'core.ownership_type', 'core.created_at', 'custom._snipeit_not_on_this_fieldset_1',
+                'core.status_id', 'core.ownership_type', 'core.created_at', 'core.asset_tag', 'custom._snipeit_not_on_this_fieldset_1',
             ]])
             ->assertJsonMissingPath('errors.core.name');
 
@@ -104,11 +103,12 @@ class EditModeTest extends TestCase
             ->getContent();
 
         foreach ([
-            'name', 'asset_tag', 'serial', 'model_id', 'status_id', 'notes', 'company_id',
+            'name', 'serial', 'model_id', 'status_id', 'notes', 'company_id',
             'purchase_date', 'purchase_cost', 'warranty_months', 'supplier_id', 'lessor_id',
             'ownership_type', 'order_number', 'expected_checkin', 'next_audit_date', 'byod', 'requestable',
         ] as $column) {
             $this->assertStringContainsString('data-kind="core" data-column="'.$column.'"', $html, "[{$column}] has no in-place editor.");
         }
+        $this->assertStringNotContainsString('data-column="asset_tag"', $html);
     }
 }

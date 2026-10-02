@@ -140,7 +140,7 @@
                                         <div class="asset-identity-field">
                                             <div class="asset-identity-label">{{ trans('general.asset_tag') }}</div>
                                             <div class="asset-identity-value">
-                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false" :edit_mode="true"/>
+                                                <x-inline-core-field :asset="$asset" column="asset_tag" copy_what="asset_tag_hdr" :editable="false"/>
                                             </div>
                                         </div>
                                         <div class="asset-identity-field">
@@ -695,6 +695,23 @@
                             <x-inline-core-field :asset="$asset" column="decommission_date" element="date">{{ $asset->decommission_date ? Helper::getFormattedDateObject($asset->decommission_date, 'date', false) : '' }}</x-inline-core-field>
                         </span>
                     </x-info-element>
+
+                    {{-- Notes, supplier and company are read from the shared
+                         panel rows just below; in edit mode those step aside
+                         for these editors, in the same spot. --}}
+                    @foreach ([
+                        ['notes', 'notes', trans('general.notes'), 'textarea', []],
+                        ['supplier_id', 'supplier', trans('general.supplier'), 'select', \App\Models\Supplier::orderBy('name')->pluck('name', 'id')],
+                        ['company_id', 'company', trans('general.company'), 'select', \App\Models\Company::orderBy('name')->pluck('name', 'id')],
+                    ] as [$sideColumn, $sideIcon, $sideLabel, $sideElement, $sideOptions])
+                        <li class="list-group-item asset-edit-only">
+                            <x-icon :type="$sideIcon" class="fa-fw"/>
+                            {{ $sideLabel }}
+                            <span class="pull-right">
+                                <x-inline-core-field :asset="$asset" :column="$sideColumn" :element="$sideElement" :options="$sideOptions" :editable="false" :edit_mode="true"/>
+                            </span>
+                        </li>
+                    @endforeach
                 </x-info-panel>
             </x-box>
 
@@ -743,21 +760,6 @@
                             </div>
                         </div>
                     @endforeach
-                    {{-- Company and notes are read elsewhere on the page (the
-                         side panel, the notes tab); these rows exist so edit
-                         mode can change them. --}}
-                    <div class="asset-card-row asset-edit-only">
-                        <div class="asset-card-lbl">{{ trans('general.company') }}</div>
-                        <div class="asset-card-val">
-                            <x-inline-core-field :asset="$asset" column="company_id" element="select" :options="\App\Models\Company::orderBy('name')->pluck('name', 'id')">{{ $asset->company?->name }}</x-inline-core-field>
-                        </div>
-                    </div>
-                    <div class="asset-card-row{{ filled($asset->notes) ? '' : ' asset-edit-only' }}">
-                        <div class="asset-card-lbl">{{ trans('general.notes') }}</div>
-                        <div class="asset-card-val">
-                            <x-inline-core-field :asset="$asset" column="notes" element="textarea"/>
-                        </div>
-                    </div>
                     @if ($asset->adminuser)
                         <div class="asset-card-row">
                             <div class="asset-card-lbl">{{ trans('general.created_by') }}</div>
@@ -995,6 +997,19 @@
                the one bar at the bottom. */
             body:not(.asset-edit-mode) .asset-edit-only { display: none !important; }
             body.asset-edit-mode .asset-read-only { display: none !important; }
+            body.asset-edit-mode .asset-side-box #notes,
+            body.asset-edit-mode .asset-side-box #supplier,
+            body.asset-edit-mode .asset-side-box #supplierContact,
+            body.asset-edit-mode .asset-side-box #company { display: none !important; }
+            /* A native select draws its arrow hard against the rounded
+               edge; draw one with room around it instead. */
+            body.asset-edit-mode .js-inline-edit-form select.form-control {
+                -webkit-appearance: none; appearance: none;
+                height: auto; line-height: 1.4; padding: 5px 30px 5px 10px;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right 11px center;
+            }
             body.asset-edit-mode .js-inline-edit-form .btn { display: none; }
             body.asset-edit-mode .js-inline-edit-form { display: flex !important; flex-wrap: wrap; gap: 4px; max-width: 100%; }
             body.asset-edit-mode .js-inline-edit-form .form-control { flex: 1 1 160px; min-width: 0 !important; max-width: 100%; }

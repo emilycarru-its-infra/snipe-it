@@ -48,13 +48,12 @@
                     <x-inline-core-field :asset="$asset" column="warranty_months">{{ $asset->warranty_months }} {{ trans('admin/hardware/form.months') }}</x-inline-core-field>
                 </div>
             </div>
-            <div class="asset-card-row{{ $asset->supplier ? '' : ' asset-edit-only' }}">
-                <div class="asset-card-lbl">{{ trans('general.supplier') }}</div>
-                <div class="asset-card-val">
-                    <x-inline-core-field :asset="$asset" column="supplier_id" element="select" :options="$supplierOptions"
-                        :link="$asset->supplier ? route('suppliers.show', $asset->supplier->id) : null" :link_title="trans('general.supplier')">{{ $asset->supplier?->name }}</x-inline-core-field>
+            @if ($asset->supplier)
+                <div class="asset-card-row">
+                    <div class="asset-card-lbl">{{ trans('general.supplier') }}</div>
+                    <div class="asset-card-val"><a href="{{ route('suppliers.show', $asset->supplier->id) }}">{{ $asset->supplier->name }}</a></div>
                 </div>
-            </div>
+            @endif
             {{-- Lessor: who financed the lease (a Supplier record in the lessor role),
                  distinct from the supplier who sold the device. --}}
             <div class="asset-card-row{{ $asset->lessor ? '' : ' asset-edit-only' }}">

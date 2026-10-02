@@ -491,7 +491,8 @@ class Asset extends Depreciable
     {
         return [
             'name' => 'text',
-            'asset_tag' => 'text',
+            // The asset tag is deliberately absent: it is the printed label on
+            // the device and is never changed from the asset page.
             'serial' => 'text',
             'order_number' => 'text',
             'gl_code' => 'text',
