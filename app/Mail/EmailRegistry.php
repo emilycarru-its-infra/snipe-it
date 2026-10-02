@@ -426,7 +426,7 @@ class EmailRegistry
                 'key' => 'procurement.okay_to_pay',
                 'category' => 'store',
                 'label' => 'OK to pay (to lessor)',
-                'description' => 'Our approval-to-pay for one vendor invoice on a lease schedule, sent to the lessor as the invoice lands instead of waiting for its approval letter. Sends as soon as the invoice matches its order. One that does not match is held and announced in Teams, and sends once approved in the Invoice Approval Queue. Everything about it is set here; a field left blank keeps the deployment default shown beside it.',
+                'description' => 'Our approval-to-pay for one vendor invoice on a lease schedule, sent to the lessor as the invoice lands instead of waiting for its approval letter. Sends as soon as the invoice matches its order. One that does not match is held and announced in Teams, and sends once approved in the Invoice Approval Queue. Everything about it is set here.',
                 'merge_vars' => ['invoice' => 'The invoice (invoice.invoice_number, invoice.invoice_date)', 'order' => 'The order it bills', 'supplier' => 'The vendor', 'schedule' => 'The lease schedule', 'lines' => 'Billed lines (description, quantity, serial, amount)', 'amounts' => 'Formatted totals (amounts.subtotal, amounts.gst, amounts.total)', 'signature' => 'Who it is from'],
                 'configurable_recipients' => true,
                 'configurable_cc' => true,
