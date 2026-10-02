@@ -102,10 +102,10 @@ class OkayToPayMail extends BaseMailable
      */
     private function fromAddress(): Address
     {
-        $address = (string) config('leasing.okp_from_address');
+        $address = (string) OkayToPay::setting('from_address');
 
         return filled($address)
-            ? new Address($address, (string) config('leasing.okp_from_name') ?: null)
+            ? new Address($address, (string) OkayToPay::setting('from_name') ?: null)
             : new Address(config('mail.from.address'), config('mail.from.name'));
     }
 }

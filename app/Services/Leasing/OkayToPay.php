@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Mail;
  *           never sent unless a person approves it
  *   sent    done, never sent twice
  *
- * A held invoice is always announced in Teams (LEASING_OKP_TEAMS_CHANNEL).
+ * A held invoice is always announced in Teams, on the channel set for it.
  * With a review window set, so are queued, a reminder in the last quarter of
  * the window, and sent; with none, a match goes out without a card.
  */
@@ -49,9 +49,18 @@ class OkayToPay
 
     public function __construct(private readonly TeamsNotifier $teams) {}
 
+    /**
+     * One of this email's settings: Settings → Emails when an admin has set
+     * it, otherwise the environment default in config/leasing.php.
+     */
+    public static function setting(string $name): mixed
+    {
+        return EmailTemplate::optionFor(self::KEY, $name, config('leasing.okp_'.$name));
+    }
+
     public function mode(): string
     {
-        $mode = (string) config('leasing.okp_mode', 'off');
+        $mode = (string) self::setting('mode');
 
         return in_array($mode, ['review', 'auto'], true) ? $mode : 'off';
     }
@@ -106,7 +115,7 @@ class OkayToPay
     public function applies(OrderInvoice $invoice): bool
     {
         $order = $invoice->order;
-        $from = (string) config('leasing.okp_invoices_from');
+        $from = (string) self::setting('invoices_from');
 
         if ($from === '' || ! $invoice->invoice_date || $invoice->invoice_date->lt(Carbon::parse($from)->startOfDay())) {
             return false;
@@ -319,7 +328,7 @@ class OkayToPay
 
     private function reviewHours(): int
     {
-        return max(0, (int) config('leasing.okp_review_hours', 0));
+        return max(0, (int) self::setting('review_hours'));
     }
 
     /**
@@ -345,7 +354,7 @@ class OkayToPay
     /** The Teams channel the cards go to. */
     public function channel(): string
     {
-        return (string) (config('leasing.okp_teams_channel') ?: self::DEFAULT_CHANNEL);
+        return (string) (self::setting('teams_channel') ?: self::DEFAULT_CHANNEL);
     }
 
     /**

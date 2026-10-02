@@ -702,6 +702,7 @@
         "delivery",
         "id",
         "key",
+        "options",
         "recipients",
         "subject",
         "teams_channel",
