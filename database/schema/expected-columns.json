@@ -860,6 +860,29 @@
         "status",
         "updated_at"
     ],
+    "lease_pickup_assets": [
+        "asset_id",
+        "created_at",
+        "id",
+        "lease_pickup_id",
+        "updated_at"
+    ],
+    "lease_pickups": [
+        "created_at",
+        "deleted_at",
+        "id",
+        "lessor_id",
+        "load_number",
+        "notes",
+        "picked_up_at",
+        "preferred_dates",
+        "requested_at",
+        "requested_by",
+        "scheduled_date",
+        "scheduled_window",
+        "status",
+        "updated_at"
+    ],
     "lease_schedules": [
         "annexure_a_path",
         "contract_id",
