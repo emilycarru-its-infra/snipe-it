@@ -43,6 +43,9 @@ class LeasePickup extends Model
         'picked_up_at' => 'date:Y-m-d',
     ];
 
+    /**
+     * @return BelongsToMany<Asset, $this>
+     */
     public function assets(): BelongsToMany
     {
         return $this->belongsToMany(Asset::class, 'lease_pickup_assets')
@@ -50,11 +53,17 @@ class LeasePickup extends Model
             ->withTimestamps();
     }
 
+    /**
+     * @return BelongsTo<Supplier, $this>
+     */
     public function lessor(): BelongsTo
     {
         return $this->belongsTo(Supplier::class, 'lessor_id');
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');

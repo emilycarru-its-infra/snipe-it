@@ -11,6 +11,7 @@ use App\Models\LeasePickup;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -34,11 +35,11 @@ class PickupRequester
     /**
      * Open one pickup per lessor for the given assets and mail each lessor.
      *
-     * @param  Collection<int, Asset>  $assets
+     * @param  EloquentCollection<int, Asset>  $assets
      * @return array{pickups: Collection<int, LeasePickup>, skipped: array<string, string>}
      *                                                                                      skipped is asset tag => translation key
      */
-    public function request(Collection $assets, ?User $requester, ?string $preferredDates = null, ?string $notes = null): array
+    public function request(EloquentCollection $assets, ?User $requester, ?string $preferredDates = null, ?string $notes = null): array
     {
         $assets->loadMissing(['lessor', 'model.manufacturer', 'status']);
         $onOpenPickup = $this->assetIdsOnOpenPickups();
