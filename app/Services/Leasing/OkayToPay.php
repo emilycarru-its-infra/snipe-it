@@ -206,7 +206,14 @@ class OkayToPay
             // A person's call in the approval queue outranks the checks
             // either way: approving attests the invoice, disputing stops it.
             if ($invoice->approval_status === 'approved') {
-                $counts['sent'] += (int) $this->send($invoice);
+                // Approved-and-held is retried once per approval: a send that
+                // fails again puts it back to pending so the next pass does
+                // not loop on it.
+                if (! $this->send($invoice)) {
+                    $invoice->forceFill(['approval_status' => 'pending'])->save();
+                } else {
+                    $counts['sent']++;
+                }
 
                 continue;
             }
@@ -273,6 +280,11 @@ class OkayToPay
             Mail::to($to)->cc($cc)->send(new OkayToPayMail($invoice));
         } catch (\Throwable $e) {
             Log::error('OK to pay failed for invoice '.$invoice->invoice_number.': '.$e->getMessage());
+
+            // Held, not left queued: retrying every pass would hide a mail
+            // problem behind a log line, and the lessor would simply never
+            // hear from us. Approving it in the queue tries again.
+            $this->hold($invoice, [trans('admin/purchase-orders/general.okp_reason_send_failed', ['error' => mb_substr($e->getMessage(), 0, 200)])]);
 
             return false;
         }

@@ -153,6 +153,21 @@ class OkayToPayTest extends TestCase
         Mail::assertSent(OkayToPayMail::class);
     }
 
+    public function test_a_failed_send_holds_the_invoice_instead_of_retrying_silently()
+    {
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-FAIL', Asset::factory()->count(1)->create()->all());
+
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('relay refused the sender'));
+        $this->travel(49)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        $invoice = $this->invoice('INV-FAIL');
+        $this->assertSame(OkayToPay::HELD, $invoice->okp_status);
+        $this->assertStringContainsString('relay refused the sender', implode(' ', $invoice->okp_reasons));
+        $this->assertNotSame('approved', $invoice->approval_status);
+    }
+
     public function test_the_cards_go_to_the_configured_channel()
     {
         $this->assertSame('Procurement', app(OkayToPay::class)->channel());
