@@ -188,6 +188,25 @@
                         :link_title="$linkedOrder ? trans('admin/orders/general.view_order') : null"/>
                 </div>
             </div>
+            @foreach ([
+                'gl_code' => trans('admin/hardware/form.gl_code'),
+                'tracking_number' => trans('general.tracking_number'),
+                'tracking_carrier' => trans('general.tracking_carrier'),
+            ] as $plainColumn => $plainLabel)
+                <div class="asset-card-row{{ filled($asset->{$plainColumn}) ? '' : ' asset-edit-only' }}">
+                    <div class="asset-card-lbl">{{ $plainLabel }}</div>
+                    <div class="asset-card-val">
+                        <x-inline-core-field :asset="$asset" :column="$plainColumn" copy_what="{{ $plainColumn }}-{{ $asset->id }}"/>
+                    </div>
+                </div>
+            @endforeach
+            {{-- End of life is read in the sidebar; this row is its editor. --}}
+            <div class="asset-card-row asset-edit-only">
+                <div class="asset-card-lbl">{{ trans('admin/hardware/form.eol_date') }}</div>
+                <div class="asset-card-val">
+                    <x-inline-core-field :asset="$asset" column="asset_eol_date" element="date"/>
+                </div>
+            </div>
         @endif
     </div>
 </div>
