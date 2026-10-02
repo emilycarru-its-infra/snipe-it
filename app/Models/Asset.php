@@ -491,7 +491,8 @@ class Asset extends Depreciable
     {
         return [
             'name' => 'text',
-            'asset_tag' => 'text',
+            // The asset tag is deliberately absent: it is the printed label on
+            // the device and is never changed from the asset page.
             'serial' => 'text',
             'order_number' => 'text',
             'gl_code' => 'text',
@@ -523,6 +524,19 @@ class Asset extends Depreciable
             'buyout_cost' => 'text',
             'warranty_soft_cost' => 'text',
             'lease_book_value' => 'text',
+            // The rest of the full edit form, so the asset view's edit mode
+            // can change them where they are shown.
+            'purchase_date' => 'date',
+            'purchase_cost' => 'text',
+            'warranty_months' => 'text',
+            'supplier_id' => 'select',
+            'lessor_id' => 'select',
+            'company_id' => 'select',
+            'byod' => 'select',
+            'requestable' => 'select',
+            'tracking_number' => 'text',
+            'tracking_carrier' => 'text',
+            'asset_eol_date' => 'date',
         ];
     }
 

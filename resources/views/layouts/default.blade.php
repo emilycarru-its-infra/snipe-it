@@ -2155,6 +2155,9 @@
          every page in the frame runs this same check. --}}
     <script nonce="{{ csrf_token() }}">
         if (window.self !== window.top) { document.documentElement.classList.add('framed'); }
+        // The edit side panel names its frame, so a form inside it can drop
+        // what only makes sense on a full page.
+        if (window.name === 'edit-panel') { document.documentElement.classList.add('in-edit-panel'); }
     </script>
     <style nonce="{{ csrf_token() }}">
         html.framed { --header-h: 0px; }
@@ -2217,6 +2220,59 @@
         #app-lightbox .lightbox-position { order: -3; }
         #app-lightbox .lightbox-next { order: -1; }
         body.lightbox-open { overflow: hidden; }
+
+        /* Edit side panel: an edit form slides in from the right, over the
+           page it was opened from, instead of replacing it. */
+        #edit-panel { position: fixed; inset: 0; z-index: 2001; }
+        #edit-panel[hidden] { display: none; }
+        #edit-panel .edit-panel-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); opacity: 0; transition: opacity .18s ease; }
+        #edit-panel .edit-panel-drawer {
+            position: absolute; top: 0; right: 0; bottom: 0;
+            width: min(760px, 100vw);
+            background: var(--body-bg, #fff);
+            border-left: 1px solid var(--box-header-top-border-color, #d2d6de);
+            box-shadow: -18px 0 60px rgba(0, 0, 0, 0.3);
+            display: flex; flex-direction: column;
+            transform: translateX(100%); transition: transform .2s ease;
+        }
+        #edit-panel.is-open .edit-panel-backdrop { opacity: 1; }
+        #edit-panel.is-open .edit-panel-drawer { transform: none; }
+        #edit-panel .edit-panel-bar {
+            flex: 0 0 auto; display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+            padding: 6px 10px;
+            background: var(--box-bg, #fff);
+            border-bottom: 1px solid var(--box-header-top-border-color, #d2d6de);
+        }
+        #edit-panel .edit-panel-bar a,
+        #edit-panel .edit-panel-bar button {
+            width: 32px; height: 32px; border-radius: 999px; line-height: 30px; text-align: center; padding: 0;
+            background: var(--box-bg, #fff); color: var(--color-fg, #444);
+            border: 1px solid var(--box-header-top-border-color, #d2d6de);
+            font-size: 14px; cursor: pointer;
+        }
+        #edit-panel .edit-panel-frame { position: relative; flex: 1 1 auto; min-height: 0; }
+        #edit-panel iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--body-bg, #fff); }
+        #edit-panel .edit-panel-busy {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            background: var(--body-bg, #fff); color: var(--color-fg, #444); font-size: 15px;
+        }
+        #edit-panel .edit-panel-busy[hidden] { display: none; }
+        body.edit-panel-open { overflow: hidden; }
+        @media (prefers-reduced-motion: reduce) {
+            #edit-panel .edit-panel-backdrop, #edit-panel .edit-panel-drawer { transition: none; }
+        }
+        /* Inside the panel the form is the whole page: no breadcrumb strip,
+           no footer, and no "where to next" picker — the panel just closes. */
+        html.in-edit-panel .content-header,
+        html.in-edit-panel .main-footer,
+        html.in-edit-panel .redirect-options,
+        html.in-edit-panel .redirect-options + .select2 { display: none !important; }
+        html.in-edit-panel .content-wrapper > .content { padding: 12px 8px 24px !important; }
+
+        #edit-panel-toast {
+            position: fixed; top: 16px; right: 16px; z-index: 2002; max-width: 420px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+        }
         /* Native color swatches ship a white chrome that glares in dark
            mode; theme the well so the swatch is the only color. */
         input[type="color"] {
@@ -4327,6 +4383,128 @@
                 <iframe src="about:blank" title="{{ trans('general.view') }}"></iframe>
             </div>
         </div>
+        {{-- Edit side panel: a plain left-click on any link to an edit page
+             opens the form here, on the right, over the page it came from.
+             Modified clicks keep their open-in-tab meaning, the address
+             still works as a full page, and the framed form hides its own
+             chrome through the html.framed hook above. --}}
+        <div id="edit-panel" hidden>
+            <div class="edit-panel-backdrop"></div>
+            <div class="edit-panel-drawer" role="dialog" aria-modal="true" aria-label="{{ trans('general.update') }}">
+                <div class="edit-panel-bar">
+                    <a href="#" target="_blank" rel="noopener" class="edit-panel-open-full" title="{{ trans('general.open_full_page') }}" aria-label="{{ trans('general.open_full_page') }}">
+                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                    </a>
+                    <button type="button" class="edit-panel-close" aria-label="{{ trans('general.close') }}">&times;</button>
+                </div>
+                <div class="edit-panel-frame">
+                    <iframe src="about:blank" name="edit-panel" title="{{ trans('general.update') }}"></iframe>
+                    <div class="edit-panel-busy" hidden><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>&nbsp; {{ trans('general.saving') }}</div>
+                </div>
+            </div>
+        </div>
+        <script nonce="{{ csrf_token() }}">
+        (function () {
+            var panel = document.getElementById('edit-panel');
+            if (!panel || window.self !== window.top) { return; }
+            var frame = panel.querySelector('iframe');
+            var full = panel.querySelector('.edit-panel-open-full');
+            var busy = panel.querySelector('.edit-panel-busy');
+            var submitted = false;
+            var FLASH = 'editPanelFlash';
+
+            function isEditPath(path) { return /\/edit\/?$/.test(path); }
+
+            function open(url) {
+                submitted = false;
+                busy.hidden = true;
+                frame.src = url;
+                full.href = url;
+                panel.hidden = false;
+                document.body.classList.add('edit-panel-open');
+                requestAnimationFrame(function () { panel.classList.add('is-open'); });
+            }
+            function close() {
+                panel.classList.remove('is-open');
+                panel.hidden = true;
+                frame.src = 'about:blank';
+                document.body.classList.remove('edit-panel-open');
+            }
+
+            // The form posts and redirects inside the frame. Landing back on
+            // an edit page means it was refused and is showing why; landing
+            // anywhere else after a submit means it saved, so the page
+            // underneath is reloaded to show the result.
+            frame.addEventListener('load', function () {
+                var where, doc;
+                try { where = frame.contentWindow.location; doc = frame.contentDocument; } catch (e) { return; }
+                if (!where || where.href === 'about:blank') { return; }
+
+                if (isEditPath(where.pathname)) {
+                    busy.hidden = true;
+                    submitted = false;
+                    doc.addEventListener('submit', function () { submitted = true; busy.hidden = false; });
+                    return;
+                }
+                if (!submitted) { close(); return; }
+
+                var note = doc.querySelector('.alert-success, .alert-warning, .alert-danger');
+                if (note) {
+                    try {
+                        sessionStorage.setItem(FLASH, JSON.stringify({
+                            kind: note.classList.contains('alert-success') ? 'success' : (note.classList.contains('alert-warning') ? 'warning' : 'danger'),
+                            text: note.textContent.replace(/[×\s]+/g, ' ').trim()
+                        }));
+                    } catch (e) {}
+                }
+                window.location.reload();
+            });
+
+            window.editPanel = { open: open, close: close };
+
+            document.addEventListener('click', function (e) {
+                var link = e.target.closest ? e.target.closest('a[href]') : null;
+                if (!link || link.closest('#edit-panel')) { return; }
+                if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) { return; }
+                if (link.target === '_blank' || link.hasAttribute('data-toggle') || link.classList.contains('js-asset-edit-mode')) { return; }
+                if (link.origin !== window.location.origin || !isEditPath(link.pathname)) { return; }
+                e.preventDefault();
+                // An asset is edited on its own page, not in a form: go
+                // there with edit mode already on.
+                if (/\/hardware\/\d+\/edit\/?$/.test(link.pathname)) {
+                    var page = link.pathname.replace(/\/edit\/?$/, '');
+                    if (page === window.location.pathname) {
+                        window.location.hash = 'edit';
+                    } else {
+                        window.location.href = link.origin + page + '#edit';
+                    }
+                    return;
+                }
+                open(link.href);
+            });
+            panel.querySelector('.edit-panel-backdrop').addEventListener('click', close);
+            panel.querySelector('.edit-panel-close').addEventListener('click', close);
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !panel.hidden) { close(); }
+            });
+
+            // The save message was shown inside the frame; repeat it here,
+            // on the page the person is actually looking at.
+            try {
+                var flash = JSON.parse(sessionStorage.getItem(FLASH) || 'null');
+                sessionStorage.removeItem(FLASH);
+                if (flash && flash.text) {
+                    var toast = document.createElement('div');
+                    toast.id = 'edit-panel-toast';
+                    toast.className = 'alert alert-' + flash.kind;
+                    toast.setAttribute('role', 'status');
+                    toast.textContent = flash.text;
+                    document.body.appendChild(toast);
+                    setTimeout(function () { toast.remove(); }, 5000);
+                }
+            } catch (e) {}
+        })();
+        </script>
         <script nonce="{{ csrf_token() }}">
         (function () {
             var box = document.getElementById('app-lightbox');

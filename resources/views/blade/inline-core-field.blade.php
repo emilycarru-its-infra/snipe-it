@@ -4,6 +4,10 @@
     'element' => 'text',
     'copy_what' => null,
     'editable' => true,
+    // Offer the field in the asset view's edit mode. Defaults to following
+    // `editable`; asset tag and serial turn it on alone, so they stay out of
+    // reach of a stray pencil click but can still be changed on purpose.
+    'edit_mode' => null,
     'options' => [],
     'link' => null,
     // Most links here filter the asset list; a few (the order number) open a
@@ -21,7 +25,9 @@
     Asset::inlineEditableCoreFields().
 --}}
 @php
-    $canEdit  = $editable && auth()->user()?->can('update', $asset);
+    $mayUpdate = (bool) auth()->user()?->can('update', $asset);
+    $canEdit  = $editable && $mayUpdate;
+    $hasForm  = $mayUpdate && ($edit_mode ?? $editable);
     $editId   = 'inline-core-'.$asset->id.'-'.$column;
     $raw      = $asset->{$column};
     $hasValue = ($raw !== null && $raw !== '');
@@ -46,8 +52,8 @@
         </a>
     @endif
 </span>
-@if ($canEdit)
-    <form class="js-inline-edit-form form-inline hidden-print" id="{{ $editId }}-form" method="POST" action="{{ route('hardware.corefield.update', $asset->id) }}" style="display:none;">
+@if ($hasForm)
+    <form class="js-inline-edit-form form-inline hidden-print" id="{{ $editId }}-form" data-kind="core" data-column="{{ $column }}" method="POST" action="{{ route('hardware.corefield.update', $asset->id) }}" style="display:none;">
         {{ csrf_field() }}
         @method('PATCH')
         <input type="hidden" name="field" value="{{ $column }}">
@@ -67,6 +73,7 @@
         @endif
         <button type="submit" class="btn btn-xs btn-primary"><i class="fas fa-check" aria-hidden="true"></i> {{ trans('general.save') }}</button>
         <a href="#" class="btn btn-xs btn-default js-inline-edit-cancel" data-target="{{ $editId }}">{{ trans('general.cancel') }}</a>
+        <span class="js-inline-error text-danger" hidden></span>
     </form>
 @endif
 
