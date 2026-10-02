@@ -24,14 +24,16 @@ use Illuminate\Support\Facades\Mail;
  * the vendor's invoice lands, so the reply can go out on its own.
  *
  * Lifecycle, on order_invoices.okp_status:
- *   queued  the invoice matches its order; sends when the review window ends
- *           (auto mode) or as soon as someone approves it in the queue
+ *   queued  the invoice matches its order; sends on the next scheduled pass,
+ *           or when the review window ends if one is set (auto mode), or as
+ *           soon as someone approves it in the queue
  *   held    something does not add up, or someone disputed it in the queue;
  *           never sent unless a person approves it
  *   sent    done, never sent twice
  *
- * Each transition is announced in Teams (LEASING_OKP_TEAMS_CHANNEL), with a
- * reminder in the last quarter of the window before a queued invoice sends.
+ * A held invoice is always announced in Teams (LEASING_OKP_TEAMS_CHANNEL).
+ * With a review window set, so are queued, a reminder in the last quarter of
+ * the window, and sent; with none, a match goes out without a card.
  */
 class OkayToPay
 {
@@ -248,7 +250,7 @@ class OkayToPay
                 continue;
             }
 
-            if (! $invoice->okp_reminded_at && $invoice->okp_send_after->lte(now()->addHours($this->reminderHours()))) {
+            if ($this->reviewed() && ! $invoice->okp_reminded_at && $invoice->okp_send_after->lte(now()->addHours($this->reminderHours()))) {
                 $invoice->forceFill(['okp_reminded_at' => now()])->save();
                 $this->announce($invoice, 'reminder', false);
                 $counts['reminded']++;
@@ -317,7 +319,17 @@ class OkayToPay
 
     private function reviewHours(): int
     {
-        return max(1, (int) config('leasing.okp_review_hours', 24));
+        return max(0, (int) config('leasing.okp_review_hours', 0));
+    }
+
+    /**
+     * With no review window an invoice that matches simply goes, and the only
+     * thing worth a card is one that did not: queued, reminder and sent cards
+     * belong to the reviewed flow.
+     */
+    private function reviewed(): bool
+    {
+        return $this->reviewHours() > 0;
     }
 
     /**
@@ -327,7 +339,7 @@ class OkayToPay
      */
     private function reminderHours(): int
     {
-        return max(1, min(24, intdiv($this->reviewHours(), 4)));
+        return max(1, min(24, intdiv(max(1, $this->reviewHours()), 4)));
     }
 
     /** The Teams channel the cards go to. */
@@ -341,6 +353,10 @@ class OkayToPay
      */
     public function announce(OrderInvoice $invoice, string $event, bool $defer = true): void
     {
+        if ($event !== 'held' && ! $this->reviewed()) {
+            return;
+        }
+
         $card = $this->card($invoice, $event);
 
         try {

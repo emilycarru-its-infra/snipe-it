@@ -87,7 +87,9 @@ return [
     |
     */
     'okp_mode' => env('LEASING_OKP_MODE', 'off'),
-    'okp_review_hours' => (int) env('LEASING_OKP_REVIEW_HOURS', 24),
+    // Hours a matching invoice waits before it sends. 0 sends on the next
+    // scheduled pass and posts a card only for invoices that are held.
+    'okp_review_hours' => (int) env('LEASING_OKP_REVIEW_HOURS', 0),
     // Teams channel the queued / reminder / held / sent cards post to.
     'okp_teams_channel' => env('LEASING_OKP_TEAMS_CHANNEL', 'Procurement'),
     // Only invoices dated on or after this are considered. A vendor re-sending

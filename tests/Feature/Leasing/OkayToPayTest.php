@@ -168,6 +168,31 @@ class OkayToPayTest extends TestCase
         $this->assertNotSame('approved', $invoice->approval_status);
     }
 
+    public function test_with_no_window_a_match_sends_on_the_next_pass_and_only_a_hold_posts_a_card()
+    {
+        config(['leasing.okp_review_hours' => 0]);
+        $teams = \Mockery::mock(\App\Services\Teams\TeamsNotifier::class);
+        $cards = [];
+        $teams->shouldReceive('sendLater', 'send')->andReturnUsing(function ($card) use (&$cards) {
+            $cards[] = \App\Services\Teams\TeamsCard::titleOf($card->payload()['attachments'][0]['content'] ?? null) ?? 'card';
+
+            return true;
+        });
+        $this->app->instance(\App\Services\Teams\TeamsNotifier::class, $teams);
+
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-NOW', Asset::factory()->count(1)->create()->all());
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        Mail::assertSent(OkayToPayMail::class);
+        $this->assertSame(OkayToPay::SENT, $this->invoice('INV-NOW')->okp_status);
+        $this->assertSame([], $cards, 'a clean match posts nothing');
+
+        $this->ingest('ORD-LEASE-1', 'INV-BAD', [Asset::factory()->create(['serial' => ''])]);
+        $this->assertSame(OkayToPay::HELD, $this->invoice('INV-BAD')->okp_status);
+        $this->assertCount(1, $cards, 'a held invoice posts one card');
+    }
+
     public function test_the_cards_go_to_the_configured_channel()
     {
         $this->assertSame('Procurement', app(OkayToPay::class)->channel());
