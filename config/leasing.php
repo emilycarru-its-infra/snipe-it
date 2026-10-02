@@ -56,6 +56,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Lease return pickups
+    |--------------------------------------------------------------------------
+    |
+    | "Request pickup" on the decommissioning lane mails a lessor the devices
+    | waiting to go back. It is addressed like the buyout request: To the
+    | lessor's own contacts, Cc this list (a Settings → Emails override wins).
+    |
+    | The site details are the standing answers a lessor's end-of-lease
+    | partner asks for before booking a truck — where the equipment waits,
+    | receiving hours, site contact, dock and elevator access, truck limits.
+    | One value, with \n between lines; empty leaves the section out.
+    |
+    | A picked-up device lands on the completed status, which must be an
+    | archived one. Resolved by name, like the buyout status below.
+    |
+    */
+
+    'pickup_request_cc' => env('LEASING_PICKUP_REQUEST_CC', env('BUYOUT_REQUEST_REPLY_TO', '')),
+
+    'pickup_request_reply_to' => env('LEASING_PICKUP_REQUEST_REPLY_TO', env('BUYOUT_REQUEST_REPLY_TO', env('MAIL_FROM_ADDR'))),
+
+    'pickup_site_details' => env('LEASING_PICKUP_SITE_DETAILS', ''),
+
+    'pickup_completed_status' => env('LEASING_PICKUP_COMPLETED_STATUS', 'Returned Lease End'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Extra buyout recipients live on the lessor, not here
     |--------------------------------------------------------------------------
     |
