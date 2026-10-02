@@ -815,7 +815,7 @@ class AssetsController extends Controller
         }
 
         if (! $errors && $request->hasFile('image')) {
-            $asset = $request->handleImages($asset);
+            $request->handleImages($asset);
         }
 
         if (! $errors && ! $asset->save()) {
