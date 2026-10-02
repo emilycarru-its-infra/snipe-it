@@ -125,8 +125,79 @@ class OkayToPayTest extends TestCase
         $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
 
         Mail::assertNothingSent();
-        // Inside the last day: the reminder is stamped, once.
+        $this->assertNull($this->invoice('INV-3')->okp_reminded_at);
+
+        // Inside the last quarter of the window: the reminder is stamped.
+        $this->travel(7)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        Mail::assertNothingSent();
         $this->assertNotNull($this->invoice('INV-3')->okp_reminded_at);
+    }
+
+    public function test_a_one_day_window_reminds_six_hours_out_and_sends_at_a_day()
+    {
+        config(['leasing.okp_review_hours' => 24]);
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-DAY', Asset::factory()->count(1)->create()->all());
+
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        $this->assertNull($this->invoice('INV-DAY')->okp_reminded_at, 'no reminder on arrival');
+
+        $this->travel(19)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        $this->assertNotNull($this->invoice('INV-DAY')->okp_reminded_at);
+        Mail::assertNothingSent();
+
+        $this->travel(6)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        Mail::assertSent(OkayToPayMail::class);
+    }
+
+    public function test_a_failed_send_holds_the_invoice_instead_of_retrying_silently()
+    {
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-FAIL', Asset::factory()->count(1)->create()->all());
+
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('relay refused the sender'));
+        $this->travel(49)->hours();
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        $invoice = $this->invoice('INV-FAIL');
+        $this->assertSame(OkayToPay::HELD, $invoice->okp_status);
+        $this->assertStringContainsString('relay refused the sender', implode(' ', $invoice->okp_reasons));
+        $this->assertNotSame('approved', $invoice->approval_status);
+    }
+
+    public function test_with_no_window_a_match_sends_on_the_next_pass_and_only_a_hold_posts_a_card()
+    {
+        config(['leasing.okp_review_hours' => 0]);
+        $teams = \Mockery::mock(\App\Services\Teams\TeamsNotifier::class);
+        $cards = [];
+        $teams->shouldReceive('sendLater', 'send')->andReturnUsing(function ($card) use (&$cards) {
+            $cards[] = \App\Services\Teams\TeamsCard::titleOf($card->payload()['attachments'][0]['content'] ?? null) ?? 'card';
+
+            return true;
+        });
+        $this->app->instance(\App\Services\Teams\TeamsNotifier::class, $teams);
+
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-NOW', Asset::factory()->count(1)->create()->all());
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        Mail::assertSent(OkayToPayMail::class);
+        $this->assertSame(OkayToPay::SENT, $this->invoice('INV-NOW')->okp_status);
+        $this->assertSame([], $cards, 'a clean match posts nothing');
+
+        $this->ingest('ORD-LEASE-1', 'INV-BAD', [Asset::factory()->create(['serial' => ''])]);
+        $this->assertSame(OkayToPay::HELD, $this->invoice('INV-BAD')->okp_status);
+        $this->assertCount(1, $cards, 'a held invoice posts one card');
+    }
+
+    public function test_the_cards_go_to_the_configured_channel()
+    {
+        $this->assertSame('Procurement', app(OkayToPay::class)->channel());
+        config(['leasing.okp_teams_channel' => 'Inventory']);
+        $this->assertSame('Inventory', app(OkayToPay::class)->channel());
     }
 
     public function test_approving_it_in_the_queue_sends_it_at_once()

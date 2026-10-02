@@ -20,9 +20,12 @@ class ForecastPlannedOrderTest extends TestCase
         $asset = Asset::factory()->create(['asset_tag' => $tag, 'purchase_cost' => 1200]);
 
         // The asset factory recomputes asset_eol_date in an afterMaking hook,
-        // so pin it directly to a date inside the forecast window.
+        // so pin it directly to a date inside the forecast window: the last
+        // day of the current fiscal year. "Six months from now" worked only
+        // from April to September — from October it lands in the next fiscal
+        // year, outside the window the page opens on.
         Asset::query()->whereKey($asset->id)
-            ->update(['asset_eol_date' => now()->addMonths(6)->format('Y-m-d')]);
+            ->update(['asset_eol_date' => \App\Helpers\Helper::fiscalYearRange(\App\Helpers\Helper::currentFiscalYear())[1]->format('Y-m-d')]);
 
         return $asset;
     }

@@ -31,7 +31,7 @@ class Kernel extends ConsoleKernel
 
         // Lessor OK-to-pay sign-offs: send what is due, remind the day before.
         // A no-op unless LEASING_OKP_MODE is review or auto.
-        $schedule->command('snipeit:okay-to-pay')->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->command('snipeit:okay-to-pay')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('saml:clear_expired_nonces')->weekly();
 
         // Nightly toner ↔ printer compatibility backfill. Idempotent

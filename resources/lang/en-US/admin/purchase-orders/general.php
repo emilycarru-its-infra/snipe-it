@@ -681,7 +681,7 @@ return [
 
     // OK to pay — the lessor sign-off sent as each lease invoice lands.
     'okp_card_queued' => 'OK to pay queued',
-    'okp_card_reminder' => 'OK to pay sends within a day',
+    'okp_card_reminder' => 'OK to pay sends soon',
     'okp_card_held' => 'OK to pay held — needs you',
     'okp_card_sent' => 'OK to pay sent',
     'okp_card_review_note' => 'Checked against the order and ready to send. Dispute it in the Invoice Approval Queue to stop it, or approve it there to send now.',
@@ -702,6 +702,7 @@ return [
     'okp_reason_no_quote' => 'Order :order has no confirmed quote to check against.',
     'okp_reason_over_quote' => 'Order :order has been invoiced :invoiced so far, more than its quote of :quote.',
     'okp_reason_disputed' => 'Disputed in the Invoice Approval Queue.',
+    'okp_reason_send_failed' => 'The email could not be sent: :error',
     'okp_status' => 'OK to pay',
     'okp_status_queued' => 'Queued · sends :date',
     'okp_status_held' => 'Held',
