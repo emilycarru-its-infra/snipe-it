@@ -125,6 +125,12 @@
                     @foreach ($taxOptions as $optVal => $optLabel)
                         <option value="{{ $optVal }}" @selected(old($taxField, $item->{$taxField}) === $optVal)>{{ $optLabel }}</option>
                     @endforeach
+                </select>
+                {!! $errors->first($taxField, '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+            </div>
+        </div>
+    @endforeach
+
     @include ('partials.forms.edit.requestable', ['requestable_text' => trans('admin/hardware/general.requestable')])
 
 
@@ -205,12 +211,6 @@
                 @include ('partials.forms.edit.datepicker', ['translated_name' => trans('admin/hardware/form.eol_date'),'fieldname' => 'asset_eol_date'])
                 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.supplier'), 'fieldname' => 'supplier_id'])
                 @include ('partials.forms.edit.supplier-select', ['translated_name' => trans('general.lessor'), 'fieldname' => 'lessor_id', 'hide_new' => 'true'])
-
-                            </select>
-                            {!! $errors->first($taxField, '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
-                        </div>
-                    </div>
-                @endforeach
 
                 @php
                     $currency_type = null;
