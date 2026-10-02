@@ -131,7 +131,6 @@
                             <select name="recipients[]" id="email-cms-recipients" class="form-control" multiple style="width:100%;"></select>
                             {!! $errors->first('recipients', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                             <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_recipients_help') }}</p>
-                            <p class="help-block text-muted" id="email-cms-recipients-builtin" style="margin-bottom:0;display:none;"></p>
                             <p class="help-block text-muted" id="email-cms-recipients-alert-default" style="margin-bottom:0;">
                                 @if (trim((string) ($snipeSettings->alert_email ?? '')) !== '')
                                     {{ trans('admin/settings/general.emails_recipients_default', ['list' => $snipeSettings->alert_email]) }}
@@ -147,7 +146,6 @@
                             <select name="cc[]" id="email-cms-cc" class="form-control" multiple style="width:100%;"></select>
                             {!! $errors->first('cc', '<span class="alert-msg" aria-hidden="true">:message</span>') !!}
                             <p class="help-block" style="margin-bottom:0;">{{ trans('admin/settings/general.emails_cc_help') }}</p>
-                            <p class="help-block text-muted" id="email-cms-cc-builtin" style="margin-bottom:0;display:none;"></p>
                         </div>
 
                         <div id="email-cms-options-group" class="{{ $errors->has('options') ? 'has-error' : '' }}" style="display:none;margin-bottom:8px;">
@@ -266,12 +264,7 @@
         var viewToggle = document.getElementById('email-cms-view-toggle');
         var optionsGroup = document.getElementById('email-cms-options-group');
         var optionsFields = document.getElementById('email-cms-options-fields');
-        var recipientsBuiltin = document.getElementById('email-cms-recipients-builtin');
         var recipientsAlertDefault = document.getElementById('email-cms-recipients-alert-default');
-        var ccBuiltin = document.getElementById('email-cms-cc-builtin');
-        var builtinListText = @json(trans('admin/settings/general.emails_builtin_list', ['list' => '__LIST__']));
-        var optionDefaultText = @json(trans('admin/settings/general.emails_option_default', ['value' => '__VALUE__']));
-        var optionDefaultNone = @json(trans('admin/settings/general.emails_option_default_none'));
         var selectedKey = @json($selected ?? '');
         var oldInput = @json(old());
         var recipientOptionsUrl = @json(route('settings.emails.recipient-options'));
@@ -349,25 +342,19 @@
             });
         }
 
-        /** Show the list an email falls back to, where it declares one. */
-        function showBuiltin(target, csv) {
-            target.style.display = csv ? '' : 'none';
-            target.textContent = csv ? builtinListText.replace('__LIST__', csv.split(',').join(', ')) : '';
-        }
-
         // The email's own settings (sender, whether it sends, …), built from
-        // what its registry entry declares. A blank field keeps the default,
-        // which is shown as the placeholder or the first choice.
+        // what its registry entry declares.
         function renderOptions(defs, old) {
             optionsFields.innerHTML = '';
             optionsGroup.style.display = defs.length ? '' : 'none';
 
             defs.forEach(function (def) {
                 var id = 'email-cms-option-' + def.name;
-                var value = old && old[def.name] !== undefined && old[def.name] !== null ? old[def.name] : def.value;
+                // The field always carries the value in force — what was saved,
+                // or the starting value until something is — so the page reads
+                // as the setting itself and saving it makes it so.
+                var value = old && old[def.name] !== undefined && old[def.name] !== null ? old[def.name] : (def.value || def.default);
                 var isChoice = def.type === 'select' || def.type === 'channel';
-                var fallback = isChoice && def.choices[def.default] ? def.choices[def.default] : def.default;
-                var fallbackText = optionDefaultText.replace('__VALUE__', fallback || optionDefaultNone);
 
                 var group = document.createElement('div');
                 group.className = 'form-group';
@@ -382,7 +369,6 @@
                 var field;
                 if (isChoice) {
                     field = document.createElement('select');
-                    field.appendChild(new Option(fallbackText, ''));
                     Object.keys(def.choices).forEach(function (choice) {
                         field.appendChild(new Option(def.choices[choice], choice));
                     });
@@ -400,7 +386,7 @@
                 var help = document.createElement('p');
                 help.className = 'help-block';
                 help.style.marginBottom = '0';
-                help.textContent = (def.help ? def.help + ' ' : '') + (isChoice ? '' : fallbackText + '.');
+                help.textContent = def.help || '';
                 group.appendChild(help);
 
                 optionsFields.appendChild(group);
@@ -437,7 +423,7 @@
             // picker from this email's saved options (or the rejected input
             // after a validation error); clear it when hidden so a stale list
             // can never be saved onto a different email.
-            function hydratePicker(group, pickerId, enabled, oldValue, jsonAttr) {
+            function hydratePicker(group, pickerId, enabled, oldValue, jsonAttr, defaultCsv) {
                 group.style.display = enabled ? '' : 'none';
                 if (!enabled) { setPicker(pickerId, []); return; }
                 var picks;
@@ -448,16 +434,19 @@
                 } else {
                     try { picks = JSON.parse(el.getAttribute(jsonAttr) || '[]'); }
                     catch (err) { picks = []; }
+                    // Nothing saved yet: show the list the email starts with,
+                    // so who receives it is on the page and editable in place.
+                    if (!picks.length && defaultCsv) {
+                        picks = defaultCsv.split(',').map(function (e2) { e2 = e2.trim(); return { id: e2, text: e2 }; })
+                                          .filter(function (o) { return o.id; });
+                    }
                 }
                 setPicker(pickerId, picks);
             }
-            hydratePicker(recipientsGroup, 'email-cms-recipients', configurableRecipients, oldInput && oldInput.recipients, 'data-recipients-json');
-            hydratePicker(ccGroup, 'email-cms-cc', configurableCc, oldInput && oldInput.cc, 'data-cc-json');
-
             var recipientsDefault = el.getAttribute('data-recipients-default') || '';
-            showBuiltin(recipientsBuiltin, recipientsDefault);
+            hydratePicker(recipientsGroup, 'email-cms-recipients', configurableRecipients, oldInput && oldInput.recipients, 'data-recipients-json', recipientsDefault);
+            hydratePicker(ccGroup, 'email-cms-cc', configurableCc, oldInput && oldInput.cc, 'data-cc-json', el.getAttribute('data-cc-default') || '');
             recipientsAlertDefault.style.display = recipientsDefault ? 'none' : '';
-            showBuiltin(ccBuiltin, el.getAttribute('data-cc-default') || '');
 
             var optionDefs;
             try { optionDefs = JSON.parse(el.getAttribute('data-options') || '[]'); }
