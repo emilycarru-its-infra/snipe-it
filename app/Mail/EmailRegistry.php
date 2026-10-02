@@ -324,6 +324,15 @@ class EmailRegistry
                 'factory' => fn (EmailSampleData $s) => new AssetBuyoutRequestMail($s->asset(), $s->admin()),
             ],
             [
+                'key' => 'request.lease_pickup',
+                'category' => 'requests',
+                'label' => 'Lease return pickup request',
+                'description' => 'Sent to a lessor when devices waiting to go back are bundled with "Request pickup" on the decommissioning lane. It lists every device with its lease schedule, the preferred dates and the site details, and attaches the list as a CSV. Recipients are not editable here — it goes to that lessor\'s contact email plus the "Lease contact emails" on that Supplier record. CC set here replaces the built-in team CC list (the requesting admin is always CC\'d as well).',
+                'merge_vars' => ['pickup' => 'The pickup (pickup.id, pickup.preferred_dates, pickup.notes)', 'assets' => 'The devices (asset_tag, serial, lease_contract_id)', 'schedules' => 'Device count per lease schedule', 'lessor' => 'The lessor (lessor.name)', 'requester' => 'Admin who requested it (requester.full_name)', 'siteDetails' => 'Standing site details'],
+                'configurable_cc' => true,
+                'factory' => fn (EmailSampleData $s) => new LeasePickupRequestMail($s->leasePickup()),
+            ],
+            [
                 'key' => 'request.asset_buyout_payroll',
                 'category' => 'requests',
                 'label' => 'Lease buyout payroll deduction',
@@ -658,6 +667,7 @@ class EmailRegistry
             // reps. Recorded as external so it is obvious these are email by
             // nature rather than by an unset default.
             'request.asset_buyout',
+            'request.lease_pickup',
             'store.vendor_order',
             'procurement.vendor_order',
             'procurement.quote_accepted',

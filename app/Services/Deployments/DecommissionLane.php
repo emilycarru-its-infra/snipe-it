@@ -3,9 +3,11 @@
 namespace App\Services\Deployments;
 
 use App\Models\Asset;
+use App\Models\LeasePickup;
 use App\Models\AssetBuyout;
 use App\Models\Statuslabel;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The reverse pipeline on the Deployments board: devices on their way OUT —
@@ -64,6 +66,7 @@ class DecommissionLane
         // are handled by different parties, so they read separately. Any
         // Processing status naming none of the three gets its own bucket
         // under the status name. Always the FULL list, no row cap.
+        $onPickup = $this->openPickupByAsset();
         $buckets = [];
         foreach ($collecting as $asset) {
             $kind = $this->kindOf($asset->status?->name ?: '');
@@ -83,6 +86,8 @@ class DecommissionLane
                 // Plain 'Y-m-d' string — the lease date columns are
                 // deliberately not Carbon-cast (see Asset::$casts).
                 'lease_end_date' => $asset->lease_end_date,
+                // The open pickup this device already rides on, if any.
+                'pickup_id' => $onPickup[$asset->id] ?? null,
             ];
             $buckets[$kind['key']]['count']++;
         }
@@ -142,7 +147,37 @@ class DecommissionLane
             'archivedCount' => $archivedCount,
             'unarchivedCount' => max($decommissioned->count() - $archivedCount, 0),
             'pickups' => $pickups,
+            'leasePickups' => $this->leasePickups(),
         ];
+    }
+
+    /**
+     * Requested pickups, the open ones first: what the lessor has been asked
+     * to collect and what they have answered.
+     */
+    public function leasePickups(): array
+    {
+        return LeasePickup::query()
+            ->with(['assets', 'lessor', 'requester'])
+            ->where(fn ($q) => $q->whereIn('status', LeasePickup::OPEN_STATUSES)
+                ->orWhere('updated_at', '>=', now()->subDays(90)))
+            ->orderByRaw("CASE WHEN status IN ('requested','scheduled') THEN 0 ELSE 1 END")
+            ->orderByDesc('requested_at')
+            ->get()
+            ->all();
+    }
+
+    /**
+     * @return array<int, int> asset id => open pickup id
+     */
+    private function openPickupByAsset(): array
+    {
+        return DB::table('lease_pickup_assets')
+            ->join('lease_pickups', 'lease_pickups.id', '=', 'lease_pickup_assets.lease_pickup_id')
+            ->whereIn('lease_pickups.status', LeasePickup::OPEN_STATUSES)
+            ->whereNull('lease_pickups.deleted_at')
+            ->pluck('lease_pickup_assets.lease_pickup_id', 'lease_pickup_assets.asset_id')
+            ->all();
     }
 
     /**

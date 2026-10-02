@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Accessory;
 use App\Models\Asset;
 use App\Models\AssetBuyout;
+use App\Models\LeasePickup;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Category;
@@ -134,6 +135,25 @@ class EmailSampleData
         $asset->setRelation('assignedto', $this->recipient());
 
         return $asset;
+    }
+
+    /** Two devices bundled for return, for the pickup request preview. */
+    public function leasePickup(): LeasePickup
+    {
+        $asset = $this->asset();
+        $asset->lease_contract_id = 'LEASE-2023-0901-1';
+        $asset->lease_end_date = '2027-08-31';
+
+        $pickup = new LeasePickup([
+            'status' => 'requested',
+            'preferred_dates' => 'Tuesday or Wednesday next week',
+        ]);
+        $pickup->id = 0;
+        $pickup->setRelation('assets', new \Illuminate\Database\Eloquent\Collection([$asset]));
+        $pickup->setRelation('lessor', new Supplier(['name' => 'Example Leasing']));
+        $pickup->setRelation('requester', $this->admin());
+
+        return $pickup;
     }
 
     /** An approved lease buyout, split all to the buyer, for the payroll notice. */

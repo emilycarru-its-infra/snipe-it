@@ -6,6 +6,7 @@ use App\Http\Controllers\AccessAuditController;
 use App\Http\Controllers\Account;
 use App\Http\Controllers\ActionlogController;
 use App\Http\Controllers\AssetBuyoutsController;
+use App\Http\Controllers\LeasePickupsController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
@@ -551,6 +552,19 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('buyouts.transition');
     Route::patch('buyouts/{buyout}', [AssetBuyoutsController::class, 'update'])
         ->name('buyouts.update');
+
+    // Devices leaving by pickup: bundle what is waiting to go back, ask the
+    // lessor to collect it, record the load number and the day it left.
+    Route::post('lease-pickups', [LeasePickupsController::class, 'store'])
+        ->name('lease-pickups.store');
+    Route::post('lease-pickups/{pickup}/schedule', [LeasePickupsController::class, 'schedule'])
+        ->name('lease-pickups.schedule');
+    Route::post('lease-pickups/{pickup}/picked-up', [LeasePickupsController::class, 'pickedUp'])
+        ->name('lease-pickups.picked-up');
+    Route::post('lease-pickups/{pickup}/cancel', [LeasePickupsController::class, 'cancel'])
+        ->name('lease-pickups.cancel');
+    Route::get('lease-pickups/{pickup}/csv', [LeasePickupsController::class, 'csv'])
+        ->name('lease-pickups.csv');
     Route::post('deployment-items', [DeploymentItemsController::class, 'store'])
         ->name('deployment-items.store');
     Route::post('deployment-items/{deploymentItem}/stage', [DeploymentItemsController::class, 'updateStage'])
