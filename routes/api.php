@@ -1201,6 +1201,9 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         Route::get('emails/{key}', [EmailsController::class, 'apiShow'])
             ->name('api.settings.emails.show');
 
+        Route::post('emails/{key}/test', [EmailsController::class, 'apiTest'])
+            ->name('api.settings.emails.test');
+
         Route::get('backups',
             [
                 Api\SettingsController::class,
