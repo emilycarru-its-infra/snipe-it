@@ -441,4 +441,15 @@ class OkayToPayTest extends TestCase
         $this->assertStringStartsWith('OK to pay — ', $mail->envelope()->subject);
         $this->assertStringEndsWith(' invoice INV-CSV', $mail->envelope()->subject);
     }
+
+    public function test_a_billed_line_that_looks_like_a_formula_stays_text_in_the_csv()
+    {
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-FORMULA', Asset::factory()->count(1)->create()->all());
+        $this->invoice('INV-FORMULA')->items()->update(['description' => '=HYPERLINK("http://x","y")']);
+
+        $rows = array_map('str_getcsv', array_filter(explode("\n", (new OkayToPayMail($this->invoice('INV-FORMULA')->fresh()))->csv())));
+
+        $this->assertSame("'=HYPERLINK(\"http://x\",\"y\")", $rows[1][10]);
+    }
 }
