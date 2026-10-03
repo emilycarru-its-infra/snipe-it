@@ -299,7 +299,7 @@ return [
     'purchase_order_quote_accepted_footer' => 'Please reference :reference on the order confirmation and invoice, and reply with your order number so our systems can match the shipment automatically. Thank you.',
 
     // OK to pay, sent to the lessor as each lease invoice lands.
-    'okay_to_pay_subject' => 'OK to pay — :supplier invoice :invoice, Equipment Schedule :schedule (:total CAD)',
+    'okay_to_pay_subject' => 'OK to pay — :supplier invoice :invoice',
     'okay_to_pay_greeting' => 'Hello,',
     'okay_to_pay_intro' => 'We have received :supplier invoice :invoice (dated :date) for Equipment Schedule :schedule and checked it against our order: every line and serial below is accounted for.',
     'okay_to_pay_ok' => 'Invoice :invoice is OK to pay: :total CAD.',
