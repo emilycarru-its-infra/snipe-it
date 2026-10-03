@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\Company;
 use App\Models\CustomField;
+use App\Models\Location;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -132,6 +133,26 @@ class BulkEditAssetsTest extends TestCase
             $this->assertEquals(1, $asset->requestable);
             $this->assertEquals('This is a newer note!', $asset->notes);
         });
+    }
+
+    public function test_bulk_storage_room_moves_shelf_devices_and_leaves_checked_out_devices_with_their_holder()
+    {
+        $room = Location::factory()->create();
+        $holderLocation = Location::factory()->create();
+        $shelf = Asset::factory()->create(['location_id' => Location::factory()->create()->id]);
+        $out = Asset::factory()->assignedToUser()->create(['location_id' => $holderLocation->id]);
+
+        $this->actingAs(User::factory()->editAssets()->create())->post(route('hardware/bulksave'), [
+            'ids' => [$shelf->id, $out->id],
+            'rtd_location_id' => $room->id,
+        ])->assertStatus(302);
+
+        $shelf->refresh();
+        $out->refresh();
+        $this->assertEquals($room->id, $shelf->rtd_location_id);
+        $this->assertEquals($room->id, $shelf->location_id);
+        $this->assertEquals($room->id, $out->rtd_location_id);
+        $this->assertEquals($holderLocation->id, $out->location_id);
     }
 
     public function test_bulk_edit_assets_nulls_out_fields_if_selected()
