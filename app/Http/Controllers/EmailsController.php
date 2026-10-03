@@ -6,8 +6,12 @@ use App\Mail\BaseMailable;
 use App\Mail\EmailDelivery;
 use App\Mail\EmailRegistry;
 use App\Mail\EmailTemplateRenderer;
+use App\Models\Asset;
 use App\Models\EmailTemplate;
+use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Leasing\LessorGuard;
+use App\Services\Leasing\OkayToPay;
 use App\Services\Teams\TeamsChannels;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +21,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Symfony\Component\Mime\Email;
 
 /**
  * Settings → Emails: a single place to see every email Snipe-IT sends,
@@ -101,7 +106,11 @@ class EmailsController extends Controller
                 'type' => $def['type'],
                 'label' => $def['label'],
                 'help' => $def['help'] ?? '',
-                'choices' => $def['type'] === 'channel' ? TeamsChannels::keys() : ($def['choices'] ?? []),
+                'choices' => match ($def['type']) {
+                    'channel' => TeamsChannels::keys(),
+                    'lessor' => self::lessorChoices(),
+                    default => $def['choices'] ?? [],
+                },
                 'value' => (string) ($override?->options[$def['name']] ?? ''),
                 'default' => (string) config($def['config']),
             ])->values()->all();
@@ -183,6 +192,55 @@ class EmailsController extends Controller
         ]);
     }
 
+    /** @return array<string, string> lessor name => name, for every Supplier that leases assets */
+    private static function lessorChoices(): array
+    {
+        return Supplier::query()
+            ->whereIn('id', Asset::query()->whereNotNull('lessor_id')->distinct()->select('lessor_id'))
+            ->orderBy('name')
+            ->pluck('name', 'name')
+            ->all();
+    }
+
+    /**
+     * The outside addresses an email to a lessor would reach that are not that
+     * lessor's, given the recipients being saved (or, where none are, the
+     * deployment defaults). No lessor resolvable means every outside address
+     * is foreign.
+     *
+     * @param  array<string, ?string>  $lists
+     * @return array<int, string>
+     */
+    private function foreignForLessor(array $entry, string $key, array $lists, EmailTemplate $probe): array
+    {
+        $defaults = isset($entry['defaults']) ? (array) ($entry['defaults'])() : [];
+        $addresses = array_merge(
+            explode(',', (string) ($lists['recipients'] ?? $defaults['recipients'] ?? '')),
+            explode(',', (string) ($lists['cc'] ?? $defaults['cc'] ?? '')),
+        );
+
+        // Resolve the lessor as it will stand after this save.
+        $lessor = null;
+        if ($key === OkayToPay::KEY) {
+            $name = (string) ($probe->options['lessor'] ?? config('leasing.okp_lessor'));
+            $lessor = $name !== '' ? Supplier::where('name', $name)->first() : null;
+        } else {
+            $lessor = ($entry['lessor'])();
+        }
+
+        $guard = app(LessorGuard::class);
+
+        if (! $lessor) {
+            $internal = $guard->internalDomains();
+
+            return collect($addresses)->map(fn ($a) => trim($a))->filter()
+                ->reject(fn ($a) => in_array(strtolower(substr(strrchr($a, '@') ?: '', 1)), $internal, true))
+                ->values()->all();
+        }
+
+        return $guard->foreignRecipients($lessor, $addresses);
+    }
+
     /**
      * What one email is set to right now — its recipients, CC and own settings,
      * each the saved override or else the deployment default. For automations
@@ -198,6 +256,17 @@ class EmailsController extends Controller
         }
 
         $defaults = isset($entry['defaults']) ? (array) ($entry['defaults'])() : [];
+
+        if (isset($entry['lessor'])) {
+            $foreign = $this->foreignForLessor($entry, $key, [
+                'recipients' => implode(',', EmailTemplate::recipientsFor($key, $defaults['recipients'] ?? null)),
+                'cc' => implode(',', EmailTemplate::ccFor($key, $defaults['cc'] ?? null)),
+            ], EmailTemplate::forKey($key) ?? new EmailTemplate(['key' => $key]));
+
+            if ($foreign) {
+                return response()->json(['status' => 'error', 'messages' => trans('admin/settings/general.emails_foreign_recipient', ['addresses' => implode(', ', $foreign)])], 409);
+            }
+        }
 
         return response()->json([
             'key' => $key,
@@ -242,7 +311,7 @@ class EmailsController extends Controller
         }
 
         $message = $sent?->getOriginalMessage();
-        $from = $message instanceof \Symfony\Component\Mime\Email ? ($message->getFrom()[0] ?? null) : null;
+        $from = $message instanceof Email ? ($message->getFrom()[0] ?? null) : null;
 
         return response()->json([
             'status' => 'success',
@@ -349,6 +418,7 @@ class EmailsController extends Controller
             $valid = match ($def['type']) {
                 'select' => array_key_exists($value, $def['choices']),
                 'channel' => TeamsChannels::isKnown($value),
+                'lessor' => array_key_exists($value, self::lessorChoices()),
                 'number' => ctype_digit($value) && (int) $value <= 8760,
                 'date' => (\DateTime::createFromFormat('Y-m-d', $value) ?: null)?->format('Y-m-d') === $value,
                 'email' => filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
@@ -362,6 +432,24 @@ class EmailsController extends Controller
             }
 
             $options[$def['name']] = $value;
+        }
+
+        // An email to a lessor may reach nobody outside the university but
+        // that lessor. Checked against the lessor this save leaves in force,
+        // so changing the lessor and the list together is judged as a pair.
+        if (isset($entry['lessor'])) {
+            $saved = EmailTemplate::forKey($key);
+            $before = $saved?->options;
+            $probe = $saved ?? new EmailTemplate(['key' => $key]);
+            $probe->options = $options ?: null;
+            $foreign = $this->foreignForLessor($entry, $key, $lists, $probe);
+            $probe->options = $before;
+
+            if ($foreign) {
+                return redirect()->route('settings.emails.index', ['selected' => $key])
+                    ->withInput()
+                    ->withErrors(['cc' => trans('admin/settings/general.emails_foreign_recipient', ['addresses' => implode(', ', $foreign)])]);
+            }
         }
 
         EmailTemplate::updateOrCreate(

@@ -28,7 +28,8 @@ use Illuminate\Support\Facades\Mail;
  *
  * Addressing follows the buyout request: To this lessor's contact email and
  * its own extra lease contacts, never another lessor's; Cc the team list and
- * whoever asked.
+ * whoever asked. LessorGuard skips a device filed under the wrong lessor and
+ * refuses a recipient list that reaches outside this lessor.
  */
 class PickupRequester
 {
@@ -45,10 +46,13 @@ class PickupRequester
         $onOpenPickup = $this->assetIdsOnOpenPickups();
         $skipped = [];
 
-        $eligible = $assets->filter(function (Asset $asset) use ($onOpenPickup, &$skipped) {
+        $guard = app(LessorGuard::class);
+
+        $eligible = $assets->filter(function (Asset $asset) use ($onOpenPickup, &$skipped, $guard) {
             $reason = match (true) {
                 ! $asset->lessor => 'admin/deployments/general.pickup_skip_no_lessor',
                 ! filled($asset->lessor->email) => 'admin/deployments/general.pickup_skip_no_email',
+                ! $guard->assetMatchesContract($asset) => 'admin/deployments/general.pickup_skip_lessor_conflict',
                 in_array($asset->id, $onOpenPickup, true) => 'admin/deployments/general.pickup_skip_already',
                 default => null,
             };
@@ -62,6 +66,27 @@ class PickupRequester
         $pickups = collect();
         foreach ($eligible->groupBy('lessor_id') as $group) {
             $lessor = $group->first()->lessor;
+
+            $to = array_values(array_unique(array_filter(array_merge(
+                [$lessor->email],
+                $lessor->leaseEmailList()
+            ))));
+            $cc = EmailTemplate::ccFor('request.lease_pickup', config('leasing.pickup_request_cc'));
+            if ($requester && filled($requester->email)) {
+                $cc[] = $requester->email;
+            }
+            $cc = array_values(array_diff(array_unique(array_filter($cc)), $to));
+
+            // Nobody outside the university but this lessor may see its
+            // lease facts; a CC saved for the other lessor stops it here,
+            // before a pickup is opened.
+            if ($guard->foreignRecipients($lessor, array_merge($to, $cc))) {
+                foreach ($group as $asset) {
+                    $skipped[$asset->asset_tag ?: '#'.$asset->id] = 'admin/deployments/general.pickup_skip_foreign_recipient';
+                }
+
+                continue;
+            }
 
             $pickup = DB::transaction(function () use ($group, $lessor, $requester, $preferredDates, $notes) {
                 $pickup = LeasePickup::create([
@@ -77,16 +102,6 @@ class PickupRequester
                 return $pickup;
             });
             $pickup->load(['assets.model.manufacturer', 'lessor', 'requester']);
-
-            $to = array_values(array_unique(array_filter(array_merge(
-                [$lessor->email],
-                $lessor->leaseEmailList()
-            ))));
-            $cc = EmailTemplate::ccFor('request.lease_pickup', config('leasing.pickup_request_cc'));
-            if ($requester && filled($requester->email)) {
-                $cc[] = $requester->email;
-            }
-            $cc = array_values(array_diff(array_unique(array_filter($cc)), $to));
 
             Mail::to($to)->cc($cc)->send(new LeasePickupRequestMail($pickup));
 

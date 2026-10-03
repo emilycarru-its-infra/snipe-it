@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Leasing\OkayToPay;
 use App\Services\Teams\TeamsCard;
@@ -34,6 +35,8 @@ class OkayToPayTest extends TestCase
             'leasing.okp_cc' => 'finance@example.test,team@example.test',
             'leasing.okp_from_address' => 'approver@example.test',
             'leasing.okp_from_name' => 'The Approver',
+            'leasing.okp_lessor' => 'Lessor One',
+            'leasing.internal_domains' => 'example.test',
             // No Teams endpoint in tests: cards are skipped, not failed.
             'ecu.teams.post_card_url' => '',
         ]);
@@ -41,6 +44,13 @@ class OkayToPayTest extends TestCase
 
     private function leaseOrder(array $overrides = []): Order
     {
+        // The schedule's master agreement belongs to Lessor One because its
+        // assets do; that is how the OK to pay knows whose lease it is.
+        $lessor = Supplier::firstOrCreate(['name' => 'Lessor One'], ['email' => 'lessor@lessor.test']);
+        if (! Asset::where('lease_contract_id', '100000-001')->exists()) {
+            Asset::factory()->create(['lease_contract_id' => '100000-001', 'lessor_id' => $lessor->id]);
+        }
+
         return Order::factory()->create(array_merge([
             'order_number' => 'ORD-LEASE-1',
             'status' => 'ordered',
@@ -451,5 +461,58 @@ class OkayToPayTest extends TestCase
         $rows = array_map('str_getcsv', array_filter(explode("\n", (new OkayToPayMail($this->invoice('INV-FORMULA')->fresh()))->csv())));
 
         $this->assertSame("'=HYPERLINK(\"http://x\",\"y\")", $rows[1][10]);
+    }
+
+    public function test_another_lessors_invoice_never_gets_an_ok_to_pay()
+    {
+        $other = Supplier::create(['name' => 'Lessor Two', 'email' => 'rep@second.test']);
+        Asset::factory()->create(['lease_contract_id' => '4130-ECI-1', 'lessor_id' => $other->id]);
+        $this->leaseOrder(['order_number' => 'ORD-OTHER', 'lease_schedule' => '4130-ECI-2']);
+
+        $this->ingest('ORD-OTHER', 'INV-OTHER', Asset::factory()->count(1)->create()->all());
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        $this->assertNull($this->invoice('INV-OTHER')->okp_status);
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_schedule_whose_lessor_cannot_be_told_is_held()
+    {
+        $this->leaseOrder(['order_number' => 'ORD-NEW', 'lease_schedule' => '999999-001']);
+        $this->ingest('ORD-NEW', 'INV-NEW', Asset::factory()->count(1)->create()->all());
+
+        $this->assertSame(OkayToPay::HELD, $this->invoice('INV-NEW')->okp_status);
+    }
+
+    public function test_a_device_filed_under_the_other_lessor_is_held()
+    {
+        $other = Supplier::create(['name' => 'Lessor Two', 'email' => 'rep@second.test']);
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-MIXED', [Asset::factory()->create(['lessor_id' => $other->id])]);
+
+        $this->assertSame(OkayToPay::HELD, $this->invoice('INV-MIXED')->okp_status);
+    }
+
+    public function test_it_never_sends_to_an_address_outside_this_lessor()
+    {
+        config(['leasing.okp_review_hours' => 0, 'leasing.okp_cc' => 'rep@second.test']);
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-LEAK', Asset::factory()->count(1)->create()->all());
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        Mail::assertNothingSent();
+        $this->assertSame(OkayToPay::HELD, $this->invoice('INV-LEAK')->okp_status);
+    }
+
+    public function test_settings_refuse_a_recipient_from_the_other_lessor()
+    {
+        $this->leaseOrder();
+        Supplier::create(['name' => 'Lessor Two', 'email' => 'rep@second.test']);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->post(route('settings.emails.save'), ['key' => OkayToPay::KEY, 'cc' => ['rep@second.test']])
+            ->assertSessionHasErrors('cc');
+
+        $this->assertNull(EmailTemplate::forKey(OkayToPay::KEY));
     }
 }

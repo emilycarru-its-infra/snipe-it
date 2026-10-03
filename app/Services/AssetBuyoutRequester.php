@@ -10,6 +10,7 @@ use App\Models\EmailTemplate;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Leasing\BuyoutTracker;
+use App\Services\Leasing\LessorGuard;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -84,6 +85,17 @@ class AssetBuyoutRequester
             $cc[] = $requester->email;
         }
         $cc = array_values(array_diff(array_unique(array_filter($cc)), $to));
+
+        // Never to the wrong lessor: the asset must belong to the lessor its
+        // contract does, and nobody outside the university but that lessor
+        // may be on the message.
+        $guard = app(LessorGuard::class);
+        if (! $guard->assetMatchesContract($asset)) {
+            return 'general.request_buyout_lessor_conflict';
+        }
+        if ($guard->foreignRecipients($asset->lessor, array_merge($to, $cc))) {
+            return 'general.request_buyout_foreign_recipient';
+        }
 
         Mail::to($to)
             ->cc($cc)
