@@ -422,4 +422,34 @@ class OkayToPayTest extends TestCase
 
         $this->assertSame(['mode' => 'review'], EmailTemplate::forKey(OkayToPay::KEY)->options);
     }
+
+    public function test_the_mail_attaches_the_billed_lines_as_a_csv_and_keeps_the_subject_short()
+    {
+        $this->leaseOrder();
+        $assets = Asset::factory()->count(2)->create()->all();
+        $this->ingest('ORD-LEASE-1', 'INV-CSV', $assets);
+
+        $mail = new OkayToPayMail($this->invoice('INV-CSV'));
+        $rows = array_map('str_getcsv', array_filter(explode("\n", $mail->csv())));
+
+        $this->assertSame(['Invoice', 'Invoice Date', 'Vendor', 'Equipment Schedule', 'Order', 'Asset Tag', 'Serial', 'Manufacturer', 'Model', 'Model Number', 'Description', 'Quantity', 'Unit Cost', 'Soft Cost', 'Line Total'], $rows[0]);
+        $this->assertCount(3, $rows);
+        $this->assertSame([$assets[0]->serial, $assets[1]->serial], [$rows[1][6], $rows[2][6]]);
+        $this->assertSame(['INV-CSV', '2026-09-04', 'ORD-LEASE-1', '4305.56', '374.44', '4680.00'], [$rows[1][0], $rows[1][1], $rows[1][4], $rows[1][12], $rows[1][13], $rows[1][14]]);
+
+        $mail->assertHasAttachedData($mail->csv(), 'ok-to-pay-INV-CSV.csv', ['mime' => 'text/csv']);
+        $this->assertStringStartsWith('OK to pay — ', $mail->envelope()->subject);
+        $this->assertStringEndsWith(' invoice INV-CSV', $mail->envelope()->subject);
+    }
+
+    public function test_a_billed_line_that_looks_like_a_formula_stays_text_in_the_csv()
+    {
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-FORMULA', Asset::factory()->count(1)->create()->all());
+        $this->invoice('INV-FORMULA')->items()->update(['description' => '=HYPERLINK("http://x","y")']);
+
+        $rows = array_map('str_getcsv', array_filter(explode("\n", (new OkayToPayMail($this->invoice('INV-FORMULA')->fresh()))->csv())));
+
+        $this->assertSame("'=HYPERLINK(\"http://x\",\"y\")", $rows[1][10]);
+    }
 }
