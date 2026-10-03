@@ -686,7 +686,7 @@ return [
     'copy_to_clipboard' => 'Copy to Clipboard',
     'copied' => 'Copied!',
     'status_compatibility' => 'If assets are already assigned, they cannot be changed to a non-deployable status type and this value change will be skipped.',
-    'rtd_location_help' => 'This is the location of the asset when it is not checked out',
+    'rtd_location_help' => 'The storage room the asset is kept in whenever it is checked in',
     'item_not_found' => ':item_type ID :id does not exist or has been deleted',
     'item_target_not_found_hard' => ':item_type ID :id does not exist or has been hard-deleted. Would you like to force a checkin?',
     'force_checkin' => 'Force Checkin',

@@ -343,6 +343,17 @@ class Location extends SnipeModel
     }
 
     /**
+     * The rooms a checked-in device can be stored in: the ones flagged on the
+     * storage page, or given a capacity there. A checked-in device has no
+     * holder, so where it is stored is the only location it has.
+     */
+    public function scopeStorageRooms($query)
+    {
+        return $query->where(fn ($q) => $q->where('show_in_storage', true)
+            ->orWhereNotNull('storage_capacity'));
+    }
+
+    /**
      * Query builder scope to order on parent
      *
      * @param  Illuminate\Database\Query\Builder  $query  Query builder instance
