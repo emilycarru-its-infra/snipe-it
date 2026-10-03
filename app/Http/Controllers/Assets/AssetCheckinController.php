@@ -135,7 +135,12 @@ class AssetCheckinController extends Controller
 
         $asset->location_id = $asset->rtd_location_id;
 
-        if ($request->has('location_id')) {
+        // A checked-in device is wherever it is stored, so the storage room
+        // is both where it is now and where it returns to next time.
+        if ($request->filled('storage_location_id')) {
+            $asset->rtd_location_id = (int) $request->input('storage_location_id');
+            $asset->location_id = $asset->rtd_location_id;
+        } elseif ($request->has('location_id')) {
             if ($request->filled('location_id')) {
                 Log::debug('NEW Location ID: '.$request->input('location_id'));
                 $asset->location_id = $request->input('location_id');

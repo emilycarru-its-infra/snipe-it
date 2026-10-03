@@ -136,26 +136,7 @@
                                             </div>
                                         </div>
 
-                                        <x-input.location-select
-                                            :label="trans('general.location')"
-                                            name="location_id"
-                                            :help_text="($asset->defaultLoc) ? trans('general.checkin_to_diff_location', ['default_location' => $asset->defaultLoc->name]) : null"
-                                            :selected="old('location_id')"
-                                        />
-
-                                        <!-- Update actual location  -->
-                                        <div class="form-group">
-                                            <div class="col-md-9 col-md-offset-3">
-                                                <label class="form-control">
-                                                    <input name="update_default_location" type="radio" value="1" checked="checked" aria-label="update_default_location" />
-                                                    {{ trans('admin/hardware/form.asset_location') }}
-                                                </label>
-                                                <label class="form-control">
-                                                    <input name="update_default_location" type="radio" value="0" aria-label="update_default_location" />
-                                                    {{ trans('admin/hardware/form.asset_location_update_default_current') }}
-                                                </label>
-                                            </div>
-                                        </div> <!--/form-group-->
+                                        @include('hardware/partials/storage-room-select', ['asset' => $asset])
 
                                         <!-- Checkout/Checkin Date -->
                                         <div class="form-group{{ $errors->has('checkin_at') ? ' has-error' : '' }}">

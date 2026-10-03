@@ -193,6 +193,51 @@ class AssetCheckinTest extends TestCase
         $this->assertTrue($asset->refresh()->defaultLoc()->is($location));
     }
 
+    public function test_storage_room_sets_both_locations_upon_checkin()
+    {
+        $room = Location::factory()->create(['show_in_storage' => true]);
+        $asset = Asset::factory()->assignedToUser()->create([
+            'location_id' => Location::factory()->create()->id,
+            'rtd_location_id' => Location::factory()->create()->id,
+        ]);
+
+        $this->actingAs(User::factory()->checkinAssets()->create())
+            ->post(route('hardware.checkin.store', [$asset]), [
+                'storage_location_id' => $room->id,
+            ]);
+
+        $asset->refresh();
+        $this->assertTrue($asset->location()->is($room));
+        $this->assertTrue($asset->defaultLoc()->is($room));
+    }
+
+    public function test_storage_room_is_required_once_storage_rooms_exist()
+    {
+        Location::factory()->create(['storage_capacity' => 20]);
+        $asset = Asset::factory()->assignedToUser()->create();
+
+        $this->actingAs(User::factory()->checkinAssets()->create())
+            ->post(route('hardware.checkin.store', [$asset]), [
+                'storage_location_id' => '',
+            ])
+            ->assertSessionHasErrors('storage_location_id');
+
+        $this->assertNotNull($asset->refresh()->assigned_to);
+    }
+
+    public function test_checkin_page_offers_storage_rooms()
+    {
+        $room = Location::factory()->create(['name' => 'Shelf Room 9', 'show_in_storage' => true]);
+        $asset = Asset::factory()->assignedToUser()->create();
+
+        $this->actingAs(User::factory()->checkinAssets()->create())
+            ->get(route('hardware.checkin.create', [$asset]))
+            ->assertOk()
+            ->assertSee('name="storage_location_id"', false)
+            ->assertSee('Shelf Room 9')
+            ->assertDontSee('name="update_default_location"', false);
+    }
+
     public function test_assets_license_seats_are_cleared_upon_checkin()
     {
         $asset = Asset::factory()->assignedToUser()->create();
