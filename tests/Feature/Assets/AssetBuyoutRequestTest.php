@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CustomField;
 use App\Models\CustomFieldset;
+use App\Models\EmailTemplate;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -22,6 +23,8 @@ class AssetBuyoutRequestTest extends TestCase
     {
         parent::setUp();
 
+        config(['leasing.internal_domains' => 'ecuad.example,ecuad.ca,example.com,example.org,example.net']);
+
         $ownership = CustomField::factory()->create(['name' => 'Ownership Type', 'format' => 'ANY']);
         $end = CustomField::factory()->create(['name' => 'Lease End Date', 'format' => 'DATE']);
 
@@ -34,7 +37,7 @@ class AssetBuyoutRequestTest extends TestCase
         $model = AssetModel::factory()->create(['fieldset_id' => $this->fieldset->id]);
         $status = Statuslabel::factory()->rtd()->create();
         $asset = Asset::factory()->create([
-            'model_id'  => $model->id,
+            'model_id' => $model->id,
             'status_id' => $status->id,
             'lessor_id' => $lessor?->id,
         ]);
@@ -48,7 +51,7 @@ class AssetBuyoutRequestTest extends TestCase
 
         if ($assignedTo) {
             DB::table('assets')->where('id', $asset->id)->update([
-                'assigned_to'   => $assignedTo->id,
+                'assigned_to' => $assignedTo->id,
                 'assigned_type' => User::class,
             ]);
         }
@@ -96,8 +99,8 @@ class AssetBuyoutRequestTest extends TestCase
         });
 
         $this->assertDatabaseHas('action_logs', [
-            'item_id'     => $asset->id,
-            'item_type'   => Asset::class,
+            'item_id' => $asset->id,
+            'item_type' => Asset::class,
             'action_type' => 'buyout requested',
         ]);
     }
@@ -108,7 +111,7 @@ class AssetBuyoutRequestTest extends TestCase
 
         // An admin sets a CC override in Settings → Emails; it replaces the
         // config team list, while the acting admin is still CC'd on top.
-        \App\Models\EmailTemplate::updateOrCreate(
+        EmailTemplate::updateOrCreate(
             ['key' => 'request.asset_buyout'],
             ['cc' => 'hrteam@ecuad.example, finance@ecuad.example']
         );
@@ -221,7 +224,7 @@ class AssetBuyoutRequestTest extends TestCase
 
         // Recipients are no longer configurable for this email. A row left over
         // from when they were must not resurrect the global To list.
-        \App\Models\EmailTemplate::updateOrCreate(
+        EmailTemplate::updateOrCreate(
             ['key' => 'request.asset_buyout'],
             ['recipients' => 'newrep@ccafinancial.example, extra@ccafinancial.example']
         );

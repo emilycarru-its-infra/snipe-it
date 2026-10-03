@@ -6,6 +6,7 @@ use App\Mail\OkayToPayMail;
 use App\Models\Asset;
 use App\Models\EmailTemplate;
 use App\Models\OrderInvoice;
+use App\Models\Supplier;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Carbon;
@@ -56,6 +57,17 @@ class OkayToPay
     public static function setting(string $name): mixed
     {
         return EmailTemplate::optionFor(self::KEY, $name, config('leasing.okp_'.$name));
+    }
+
+    /**
+     * The lessor this is for. Only its invoices are considered, and nobody
+     * outside the university but this lessor may receive the email.
+     */
+    public static function lessor(): ?Supplier
+    {
+        $name = trim((string) self::setting('lessor'));
+
+        return $name === '' ? null : Supplier::where('name', $name)->first();
     }
 
     public function mode(): string
@@ -121,8 +133,19 @@ class OkayToPay
             return false;
         }
 
-        return $order
-            && ! $invoice->isAdjustment()
+        // Another lessor's lease is not ours to sign off to this one. A
+        // schedule whose lessor cannot be told is still considered, and held
+        // by mismatches() so a person decides.
+        $lessor = self::lessor();
+        if (! $lessor || ! $order) {
+            return false;
+        }
+        $owner = app(LessorGuard::class)->lessorForContract($order->lease_schedule);
+        if ($owner && $owner->id !== $lessor->id) {
+            return false;
+        }
+
+        return ! $invoice->isAdjustment()
             && filled($order->lease_schedule)
             && in_array($order->funding_account, (array) config('leasing.okp_funding_accounts', []), true);
     }
@@ -141,6 +164,12 @@ class OkayToPay
 
         if ($invoice->items->isEmpty()) {
             return [trans('admin/purchase-orders/general.okp_reason_no_lines')];
+        }
+
+        $lessor = self::lessor();
+        $owner = app(LessorGuard::class)->lessorForContract($order->lease_schedule);
+        if (! $lessor || ! $owner || $owner->id !== $lessor->id) {
+            $reasons[] = trans('admin/purchase-orders/general.okp_reason_lessor_unknown', ['schedule' => $order->lease_schedule]);
         }
 
         if (abs($invoice->variance()) > 1.00) {
@@ -167,6 +196,8 @@ class OkayToPay
 
             if (! $asset instanceof Asset) {
                 $reasons[] = trans('admin/purchase-orders/general.okp_reason_missing_asset', ['description' => $line->description ?: '#'.$line->item_id]);
+            } elseif ($lessor && $asset->lessor_id && (int) $asset->lessor_id !== (int) $lessor->id) {
+                $reasons[] = trans('admin/purchase-orders/general.okp_reason_asset_lessor', ['tag' => $asset->asset_tag]);
             } elseif (blank($asset->serial)) {
                 $reasons[] = trans('admin/purchase-orders/general.okp_reason_no_serial', ['tag' => $asset->asset_tag]);
             }
@@ -286,6 +317,14 @@ class OkayToPay
         }
 
         $cc = array_values(array_diff(EmailTemplate::ccFor(self::KEY, config('leasing.okp_cc')), $to));
+
+        $lessor = self::lessor();
+        $foreign = $lessor ? app(LessorGuard::class)->foreignRecipients($lessor, array_merge($to, $cc)) : array_merge($to, $cc);
+        if ($foreign) {
+            $this->hold($invoice, [trans('admin/purchase-orders/general.okp_reason_foreign_recipient', ['addresses' => implode(', ', $foreign)])]);
+
+            return false;
+        }
 
         try {
             Mail::to($to)->cc($cc)->send(new OkayToPayMail($invoice));

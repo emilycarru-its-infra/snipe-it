@@ -22,6 +22,8 @@ use App\Notifications\InventoryAlert;
 use App\Notifications\RequestAssetCancelation;
 use App\Notifications\RequestAssetNotification;
 use App\Notifications\WelcomeNotification;
+use App\Services\Leasing\LessorGuard;
+use App\Services\Leasing\OkayToPay;
 use App\Services\Teams\ReportCard;
 use App\Services\Teams\TeamsCard;
 use Illuminate\Mail\Mailable;
@@ -440,7 +442,9 @@ class EmailRegistry
                 'configurable_recipients' => true,
                 'configurable_cc' => true,
                 'defaults' => fn () => ['recipients' => config('leasing.okp_to'), 'cc' => config('leasing.okp_cc')],
+                'lessor' => fn () => OkayToPay::lessor(),
                 'options' => [
+                    ['name' => 'lessor', 'type' => 'lessor', 'label' => 'Lessor', 'config' => 'leasing.okp_lessor', 'help' => 'Only this lessor\'s invoices get an OK to pay, and nobody outside the university but this lessor may receive it.'],
                     ['name' => 'mode', 'type' => 'select', 'label' => 'Sending', 'config' => 'leasing.okp_mode', 'choices' => [
                         'auto' => 'On — send when the invoice matches',
                         'review' => 'Only when approved in the Invoice Approval Queue',
@@ -463,6 +467,7 @@ class EmailRegistry
                 'configurable_recipients' => true,
                 'configurable_cc' => true,
                 'defaults' => fn () => ['recipients' => config('leasing.schedule_init_to'), 'cc' => config('leasing.schedule_init_cc')],
+                'lessor' => fn () => app(LessorGuard::class)->lessorForContract(config('leasing.schedule_init_master')),
                 'options' => [
                     ['name' => 'reply_to', 'type' => 'email', 'label' => 'Reply-To', 'config' => 'leasing.schedule_init_reply_to', 'help' => 'Where the lessor\'s reply lands.'],
                     ['name' => 'headsup_to', 'type' => 'email', 'label' => 'Heads-up goes to', 'config' => 'leasing.schedule_init_headsup_to', 'help' => 'Who is told on the 10th that the draft is waiting.'],
