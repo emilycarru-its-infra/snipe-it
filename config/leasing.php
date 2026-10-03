@@ -131,6 +131,10 @@ return [
     'okp_from_name' => env('LEASING_OKP_FROM_NAME', ''),
     // Funding accounts whose invoices the lessor pays, so need its sign-off.
     'okp_funding_accounts' => ['lease_admin', 'lease_curriculum'],
+    // Which lessor the OK to pay is for, by Supplier name. Its invoices are
+    // the only ones considered, and every outside recipient must be one of
+    // that lessor's own addresses. Unset, nothing is considered.
+    'okp_lessor' => env('LEASING_OKP_LESSOR', ''),
 
     /*
     |--------------------------------------------------------------------------
@@ -148,4 +152,19 @@ return [
     'schedule_init_reply_to' => env('LEASING_SCHEDULE_INIT_REPLY_TO', ''),
     'schedule_init_headsup_to' => env('LEASING_SCHEDULE_INIT_HEADSUP_TO', ''),
     'schedule_init_spend' => env('LEASING_SCHEDULE_INIT_SPEND', ''),
+    // The master agreement the quarterly schedules are opened under; its
+    // lessor is the only outside party the email may go to.
+    'schedule_init_master' => env('LEASING_SCHEDULE_INIT_MASTER', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | The university's own mail domains
+    |--------------------------------------------------------------------------
+    |
+    | Every email to a lessor may only go to these and to that lessor's own
+    | domains (App\Services\Leasing\LessorGuard). The domain of the app's
+    | From address is always included; list any others, comma-separated.
+    |
+    */
+    'internal_domains' => env('LEASING_INTERNAL_DOMAINS', ''),
 ];

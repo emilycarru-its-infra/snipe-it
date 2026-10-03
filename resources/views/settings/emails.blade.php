@@ -354,7 +354,7 @@
                 // or the starting value until something is — so the page reads
                 // as the setting itself and saving it makes it so.
                 var value = old && old[def.name] !== undefined && old[def.name] !== null ? old[def.name] : (def.value || def.default);
-                var isChoice = def.type === 'select' || def.type === 'channel';
+                var isChoice = def.type === 'select' || def.type === 'channel' || def.type === 'lessor';
 
                 var group = document.createElement('div');
                 group.className = 'form-group';
