@@ -5,6 +5,7 @@ namespace Tests\Feature\Settings;
 use App\Mail\BaseMailable;
 use App\Mail\CheckoutAssetMail;
 use App\Mail\EmailRegistry;
+use App\Mail\OkayToPayMail;
 use App\Models\EmailTemplate;
 use App\Models\User;
 use App\Notifications\InventoryAlert;
@@ -553,5 +554,30 @@ class EmailsSettingTest extends TestCase
         $this->actingAsForApi(User::factory()->superuser()->create())
             ->getJson(route('api.settings.emails.show', 'no.such.email'))
             ->assertNotFound();
+    }
+
+    public function test_the_api_sends_an_email_sample_to_a_given_address(): void
+    {
+        Mail::fake();
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => 'someone@example.test', 'from' => 'other@example.test'])
+            ->assertOk()
+            ->assertJson(['status' => 'success', 'to' => 'someone@example.test']);
+
+        Mail::assertSent(OkayToPayMail::class, fn ($mail) => $mail->hasTo('someone@example.test') && $mail->hasFrom('other@example.test'));
+    }
+
+    public function test_the_api_test_send_is_gated_and_needs_an_address(): void
+    {
+        $this->actingAsForApi(User::factory()->create())
+            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => 'someone@example.test'])
+            ->assertForbidden();
+
+        Mail::fake();
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), [])
+            ->assertJson(['status' => 'error']);
+        Mail::assertNothingSent();
     }
 }
