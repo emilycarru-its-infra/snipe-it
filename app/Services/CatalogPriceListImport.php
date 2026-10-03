@@ -273,7 +273,7 @@ class CatalogPriceListImport
                 if ($key === null) {
                     continue;
                 }
-                $row[$key] = trim((string) ($cells[$index] ?? ''));
+                $row[$key] = $this->normalizeCell((string) ($cells[$index] ?? ''));
             }
 
             if (array_filter($row, fn ($v) => $v !== '') !== []) {
@@ -371,9 +371,36 @@ class CatalogPriceListImport
      */
     private function cleanName(string $description): string
     {
-        $name = preg_replace('/[|l]?\s*~?\s*C?\$\s*[\d,]+(?:\.\d+)?\s*$/i', '', $description) ?? $description;
+        // A stray quote after the ballpark is common enough in these sheets
+        // to be worth expecting — one row arrived as `... | 2TB | ~$4300"`
+        // and kept the price in its display name because the pattern
+        // insisted the digits were last.
+        $name = preg_replace('/[|l]?\s*~?\s*C?\$\s*[\d,]+(?:\.\d+)?[\s"\'\x{201C}\x{201D}\x{2018}\x{2019}]*$/iu', '', $description) ?? $description;
 
         return trim(rtrim(trim($name), '|l ')) ?: trim($description);
+    }
+
+    /**
+     * A cell as the reseller typed it, minus the invisible padding.
+     *
+     * PHP's trim() knows nothing of U+00A0, and these workbooks are full of
+     * it — several part numbers arrive wrapped in non-breaking spaces. The
+     * damage is not cosmetic: rows key on (supplier, vendor SKU), so a SKU
+     * stored as "7233554\u{00A0}" fails to match the same SKU typed cleanly
+     * next month and the next import creates a duplicate of a curated row
+     * rather than updating it.
+     *
+     * CatalogItem::tidyIdentifier already strips exactly these characters
+     * for the same reason on the editing path; this puts the import on the
+     * same footing.
+     */
+    private function normalizeCell(string $value): string
+    {
+        $value = CatalogItem::tidyIdentifier($value);
+
+        // Runs of ordinary whitespace left behind by the removal read as
+        // gaps in a name — "M4 l  256GB" — so collapse them too.
+        return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
     }
 
     /**
