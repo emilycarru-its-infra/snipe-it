@@ -209,6 +209,50 @@ class EmailsController extends Controller
         ]);
     }
 
+    /**
+     * Send one email's sample to a given address and report what the mail
+     * server said. The Settings → Emails test button only reaches the signed-in
+     * admin and only says "sent"; this is for diagnosing delivery on a deployed
+     * environment, where the transport's own answer is the evidence. `from`
+     * swaps the sender for this one send, to compare one address with another.
+     */
+    public function apiTest(Request $request, string $key): JsonResponse
+    {
+        $request->validate([
+            'to' => 'required|email',
+            'from' => 'nullable|email',
+        ]);
+
+        $mailable = EmailRegistry::makeMailable($key);
+
+        if (! $mailable) {
+            return response()->json(['status' => 'error', 'messages' => trans('admin/settings/general.emails_test_unavailable')], 404);
+        }
+
+        if ($request->filled('from')) {
+            $mailable->from((string) $request->input('from'));
+        }
+
+        try {
+            $sent = Mail::to((string) $request->input('to'))->send($mailable);
+        } catch (\Throwable $e) {
+            Log::warning("Email API test-send failed for [{$key}]: ".$e->getMessage());
+
+            return response()->json(['status' => 'error', 'messages' => $e->getMessage()], 502);
+        }
+
+        $message = $sent?->getOriginalMessage();
+        $from = $message instanceof \Symfony\Component\Mime\Email ? ($message->getFrom()[0] ?? null) : null;
+
+        return response()->json([
+            'status' => 'success',
+            'from' => $from?->getAddress(),
+            'to' => (string) $request->input('to'),
+            'message_id' => $sent?->getMessageId(),
+            'transport' => $sent?->getDebug(),
+        ]);
+    }
+
     /** Save (or clear) an admin subject override for one email. */
     public function save(Request $request): RedirectResponse
     {
