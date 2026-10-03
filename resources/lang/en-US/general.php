@@ -388,6 +388,8 @@ return [
     'request_buyout_no_lessor' => 'Set a lessor with a contact email on this asset to request a buyout.',
     'request_buyout_success' => 'Buyout quote request sent to the lessor.',
     'request_buyout_not_eligible' => 'This asset is not on an active lease, so a buyout cannot be requested.',
+    'request_buyout_lessor_conflict' => 'This asset\'s lessor is not the lessor its contract belongs to, so the buyout request was not sent. Correct the lessor on the asset first.',
+    'request_buyout_foreign_recipient' => 'The buyout request lists someone outside the university who is not with this asset\'s lessor, so it was not sent. Check the CC list in Settings → Emails.',
     'request_buyout_missing_email' => 'This asset\'s lessor has no contact email set, so the buyout request could not be sent.',
     'request_buyout_already_requested' => 'A buyout request for this asset already went to the lessor recently — no need to send another.',
     'suppliers' => 'Suppliers',

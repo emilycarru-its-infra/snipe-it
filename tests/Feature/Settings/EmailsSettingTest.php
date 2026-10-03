@@ -6,7 +6,9 @@ use App\Mail\BaseMailable;
 use App\Mail\CheckoutAssetMail;
 use App\Mail\EmailRegistry;
 use App\Mail\OkayToPayMail;
+use App\Models\Asset;
 use App\Models\EmailTemplate;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Notifications\InventoryAlert;
 use Illuminate\Support\Facades\Mail;
@@ -526,7 +528,9 @@ class EmailsSettingTest extends TestCase
 
     public function test_the_api_reports_what_an_email_is_set_to(): void
     {
-        config(['leasing.schedule_init_to' => 'lessor@example.test', 'leasing.schedule_init_cc' => 'a@example.test,b@example.test', 'leasing.schedule_init_spend' => '$100']);
+        config(['leasing.schedule_init_to' => 'lessor@example.test', 'leasing.schedule_init_cc' => 'a@example.test,b@example.test', 'leasing.schedule_init_spend' => '$100', 'leasing.schedule_init_master' => 'M1']);
+        $lessor = Supplier::factory()->create(['email' => 'lessor@example.test']);
+        Asset::factory()->create(['lease_contract_id' => 'M1-001', 'lessor_id' => $lessor->id]);
         $admin = User::factory()->superuser()->create();
 
         $this->actingAsForApi($admin)
@@ -579,5 +583,17 @@ class EmailsSettingTest extends TestCase
             ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), [])
             ->assertJson(['status' => 'error']);
         Mail::assertNothingSent();
+    }
+
+    public function test_the_api_refuses_to_hand_out_another_lessors_addresses(): void
+    {
+        config(['leasing.schedule_init_to' => 'rep@first.test', 'leasing.schedule_init_cc' => 'rep@second.test', 'leasing.schedule_init_master' => 'M1']);
+        $first = Supplier::factory()->create(['email' => 'rep@first.test']);
+        Supplier::factory()->create(['email' => 'rep@second.test']);
+        Asset::factory()->create(['lease_contract_id' => 'M1-001', 'lessor_id' => $first->id]);
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->getJson(route('api.settings.emails.show', 'procurement.schedule_initiation'))
+            ->assertStatus(409);
     }
 }

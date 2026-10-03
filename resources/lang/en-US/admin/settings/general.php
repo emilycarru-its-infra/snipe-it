@@ -122,6 +122,7 @@ return [
     'emails_delivery_mixed_help' => 'Only the internal copy moves. The person the item belongs to keeps their email either way.',
     'emails_options' => 'Settings for this email',
     'emails_option_invalid' => ':label is not valid.',
+    'emails_foreign_recipient' => 'Not saved: :addresses is outside the university and not with this email\'s lessor. A lessor\'s email may only go to that lessor and to university addresses.',
     'emails_teams_channel' => 'Teams channel',
     'emails_teams_channel_help' => 'Which channel the card posts to. Relay resolves the channel by name — adding it to a channel in Teams is the whole setup.',
     'emails_teams_split' => 'Too long for one card, so it posts as :count cards.',

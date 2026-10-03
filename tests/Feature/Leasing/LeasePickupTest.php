@@ -21,6 +21,7 @@ class LeasePickupTest extends TestCase
         parent::setUp();
 
         $this->processing = Statuslabel::factory()->pending()->create(['name' => 'Processing Return']);
+        config(['leasing.internal_domains' => 'example.test,example.com,example.org,example.net']);
     }
 
     private function lessor(string $name, ?string $email): Supplier
@@ -67,7 +68,7 @@ class LeasePickupTest extends TestCase
 
         $a = $this->waiting($first, 'SCHED-1');
         $b = $this->waiting($first, 'SCHED-2');
-        $c = $this->waiting($second, 'SCHED-9');
+        $c = $this->waiting($second, 'OTHER-9');
 
         $this->bundle($admin, [$a, $b, $c])->assertSessionHas('success');
 
@@ -121,7 +122,7 @@ class LeasePickupTest extends TestCase
         $lessor = $this->lessor('First Leasing', 'rep@first.example');
         $silent = $this->lessor('Silent Leasing', null);
         $asset = $this->waiting($lessor, 'SCHED-1');
-        $noEmail = $this->waiting($silent, 'SCHED-5');
+        $noEmail = $this->waiting($silent, 'QUIET-5');
 
         $this->bundle($admin, [$asset], ['confirmed_ready' => null])->assertSessionHasErrors('confirmed_ready');
         $this->assertSame(0, LeasePickup::count());
@@ -201,5 +202,33 @@ class LeasePickupTest extends TestCase
 
         $this->bundle(User::factory()->create(), [$asset])->assertForbidden();
         Mail::assertNothingSent();
+    }
+
+    public function test_a_device_filed_under_the_wrong_lessor_is_never_sent_to_it(): void
+    {
+        Mail::fake();
+        $first = $this->lessor('First Lessor', 'rep@first.example');
+        $second = $this->lessor('Second Lessor', 'rep@second.example');
+        $this->waiting($first, '4130-ECI-1');
+        $this->waiting($first, '4130-ECI-2');
+        $misfiled = $this->waiting($second, '4130-ECI-3');
+
+        $this->bundle(User::factory()->superuser()->create(), [$misfiled]);
+
+        Mail::assertNothingSent();
+        $this->assertSame(0, LeasePickup::count());
+    }
+
+    public function test_a_cc_from_the_other_lessor_stops_the_request(): void
+    {
+        Mail::fake();
+        config(['leasing.pickup_request_cc' => 'rep@second.example']);
+        $this->lessor('Second Lessor', 'rep@second.example');
+        $asset = $this->waiting($this->lessor('First Lessor', 'rep@first.example'), '4130-ECI-1');
+
+        $this->bundle(User::factory()->superuser()->create(), [$asset]);
+
+        Mail::assertNothingSent();
+        $this->assertSame(0, LeasePickup::count());
     }
 }

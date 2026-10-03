@@ -436,6 +436,8 @@ Reply to this email if the device above is not the one you are using, or if ther
     'pickup_skip_no_lessor' => 'no lessor on the asset.',
     'pickup_skip_no_email' => 'the lessor has no contact email.',
     'pickup_skip_already' => 'already on an open pickup.',
+    'pickup_skip_lessor_conflict' => 'its lessor is not the lessor its contract belongs to; correct the lessor on the asset.',
+    'pickup_skip_foreign_recipient' => 'the request would reach someone outside the university who is not with this lessor; check the CC list in Settings → Emails.',
     'pickup_updated' => 'Pickup updated.',
     'pickup_marked' => 'Pickup recorded; :count device(s) returned.',
     'pickup_cancelled' => 'Pickup cancelled.',
