@@ -146,27 +146,8 @@
 
         @include ('partials.forms.edit.model-select', ['translated_name' => trans('admin/hardware/form.model'), 'fieldname' => 'model_id'])
 
-          <!-- Default Location -->
-        @include ('partials.forms.edit.location-select', ['translated_name' => trans('admin/hardware/form.default_location'), 'fieldname' => 'rtd_location_id'])
-
-        <!-- Update actual location  -->
-          <div class="form-group">
-            <div class="col-md-9 col-md-offset-3">
-                <label class="form-control">
-                  <input type="radio" name="update_real_loc" value="1" checked aria-label="update_real_loc">
-                  {{ trans('admin/hardware/form.asset_location_update_default_current') }}
-                </label>
-              <label class="form-control">
-                <input type="radio" name="update_real_loc" value="0" aria-label="update_default_loc">
-                {{ trans('admin/hardware/form.asset_location_update_default') }}
-              </label>
-                <label class="form-control">
-                  <input type="radio" name="update_real_loc" value="2" aria-label="update_default_loc">
-                  {{ trans('admin/hardware/form.asset_location_update_actual') }}
-                </label>
-
-            </div>
-          </div> <!--/form-group-->
+          <!-- Storage Room -->
+        @include ('partials.forms.edit.location-select', ['translated_name' => trans('admin/hardware/form.storage_room'), 'fieldname' => 'rtd_location_id', 'help_text' => trans('admin/hardware/form.storage_room_bulk_help')])
 
 
 
