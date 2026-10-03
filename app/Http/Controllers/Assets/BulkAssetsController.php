@@ -417,30 +417,17 @@ class BulkAssetsController extends Controller
                 }
 
                 /**
-                 * We're changing the location ID - figure out which location we should apply
-                 * this change to:
-                 *
-                 * 0 - RTD location only
-                 * 1 - location ID and RTD location ID
-                 * 2 - location ID only
-                 *
-                 * Note: this is kinda dumb and we should just use human-readable values IMHO. - snipe
+                 * The storage room is where a device is kept whenever it is
+                 * checked in. A device on the shelf is in that room now, so its
+                 * current location moves too; a checked-out device stays with
+                 * its holder and only learns where it goes back to.
                  */
                 if ($request->filled('rtd_location_id')) {
+                    $this->update_array['rtd_location_id'] = $request->input('rtd_location_id');
 
-                    if (($request->filled('update_real_loc')) && (($request->input('update_real_loc')) == '0')) {
-                        $this->update_array['rtd_location_id'] = $request->input('rtd_location_id');
-                    }
-
-                    if (($request->filled('update_real_loc')) && (($request->input('update_real_loc')) == '1')) {
-                        $this->update_array['location_id'] = $request->input('rtd_location_id');
-                        $this->update_array['rtd_location_id'] = $request->input('rtd_location_id');
-                    }
-
-                    if (($request->filled('update_real_loc')) && (($request->input('update_real_loc')) == '2')) {
+                    if ($asset->assigned_to === null) {
                         $this->update_array['location_id'] = $request->input('rtd_location_id');
                     }
-
                 }
 
                 /**

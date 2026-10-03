@@ -28,6 +28,7 @@ return [
     'storage_room_select' => 'Select the room it is stored in',
     'storage_room_help' => 'Where the device is kept while nobody has it. It appears on that room\'s shelf on the storage page.',
     'storage_room_manage' => 'Manage storage rooms',
+    'storage_room_bulk_help' => 'Devices on the shelf move to this room now; checked-out devices stay with their holder and return here when checked in.',
     'eol_date' => 'EOL Date',
     'eol_rate' => 'EOL Rate',
     'expected_checkin' => 'Expected Checkin Date',
