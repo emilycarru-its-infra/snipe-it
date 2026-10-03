@@ -92,17 +92,17 @@ class OkayToPayMail extends BaseMailable
             $asset = $line->item instanceof Asset ? $line->item : null;
 
             fputcsv($out, [
-                $this->invoice->invoice_number,
+                self::cell($this->invoice->invoice_number),
                 optional($this->invoice->invoice_date)->toDateString(),
-                $order?->supplier?->name,
-                $order?->lease_schedule,
-                $order?->order_number,
-                $asset?->asset_tag,
-                $asset?->serial,
-                $asset?->model?->manufacturer?->name,
-                $asset?->model?->name,
-                $asset?->model?->model_number,
-                (string) ($line->description ?: ($line->item->name ?? '')),
+                self::cell($order?->supplier?->name),
+                self::cell($order?->lease_schedule),
+                self::cell($order?->order_number),
+                self::cell($asset?->asset_tag),
+                self::cell($asset?->serial),
+                self::cell($asset?->model?->manufacturer?->name),
+                self::cell($asset?->model?->name),
+                self::cell($asset?->model?->model_number),
+                self::cell($line->description ?: ($line->item->name ?? '')),
                 (int) $line->quantity,
                 number_format((float) $line->unit_cost, 2, '.', ''),
                 number_format((float) $line->warranty_cost, 2, '.', ''),
@@ -130,6 +130,18 @@ class OkayToPayMail extends BaseMailable
             'serial' => $line->item instanceof Asset ? $line->item->serial : null,
             'amount' => OkayToPay::money($line->lineTotal()),
         ])->values()->all();
+    }
+
+    /**
+     * A text cell that a spreadsheet will not read as a formula. The lines
+     * come from the vendor's invoice and the file is opened by the lessor, so
+     * a description starting with "=" must stay text on their side.
+     */
+    private static function cell(mixed $value): string
+    {
+        $value = (string) $value;
+
+        return preg_match('/^[=+\-@\t\r]/', $value) ? "'".$value : $value;
     }
 
     /** @return array<string, string> */
