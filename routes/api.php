@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ToolbarController;
 use App\Http\Controllers\Api;
 use App\Http\Controllers\EmailsController;
+use App\Services\Settings\SettingsPages;
 use Illuminate\Support\Facades\Route;
 use Laravel\Passport\Client;
 
@@ -1251,18 +1252,23 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ]
         )->name('api.settings.backups.download');
 
+        // The settings table itself, one Admin → Settings page at a time.
+        // Constrained to the known page names so the fixed routes above
+        // (emails, backups, login-attempts…) are never read as a page.
+        Route::get('/', [Api\SettingsController::class, 'index'])
+            ->name('api.settings.index');
+
+        Route::get('{page}', [Api\SettingsController::class, 'showPage'])
+            ->whereIn('page', SettingsPages::names())
+            ->name('api.settings.pages.show');
+
+        Route::patch('{page}', [Api\SettingsController::class, 'updatePage'])
+            ->whereIn('page', SettingsPages::names())
+            ->name('api.settings.pages.update');
+
     });
 
-    Route::resource('settings',
-        Api\SettingsController::class,
-        ['names' => [
-            'update' => 'api.settings.update',
-            'store' => 'api.settings.store',
-        ],
-            'except' => ['create', 'edit', 'index', 'destroy', 'show'],
-            'parameters' => ['setting' => 'setting_id'],
-        ]
-    ); // end settings API
+    // end settings API
 
     /**
      * Status labels API routes
