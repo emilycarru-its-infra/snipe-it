@@ -56,6 +56,18 @@ return [
         'not_saved' => 'Your settings were not saved.',
         'mismatch' => 'There is 1 item in the database that need your attention before you can enable location scoping.|There are :count items in the database that need your attention before you can enable location scoping.',
     ],
+    'api' => [
+        'page_not_found' => 'There is no settings page called :page.',
+        'nothing_to_update' => 'Send at least one setting to change.',
+        'unknown_keys' => 'Not settings on the :page page: :keys',
+        'logged' => 'Settings (:page) changed through the API.',
+        'saml_keypair_mismatch' => 'The SP certificate does not belong to this private key.',
+        'emails_unknown_fields' => 'Not editable on an email: :keys',
+        'emails_not_configurable' => 'This email does not take :keys.',
+        'emails_unknown_options' => 'This email has no setting called :keys.',
+        'emails_delivery_invalid' => 'Delivery must be one of: :choices.',
+        'emails_channel_invalid' => 'That Teams channel is not a known one.',
+    ],
     'oauth' => [
         'token_revoked' => 'Personal access token revoked successfully.',
         'token_unrevoked' => 'Personal access token reinstated successfully.',

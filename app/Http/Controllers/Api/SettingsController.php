@@ -6,9 +6,11 @@ use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Transformers\DatatablesTransformer;
 use App\Http\Transformers\LoginAttemptsTransformer;
+use App\Http\Transformers\SettingsTransformer;
 use App\Models\Ldap;
 use App\Models\Setting;
 use App\Notifications\MailTest;
+use App\Services\Settings\SettingsPages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -17,6 +19,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SettingsController extends Controller
@@ -220,6 +223,48 @@ class SettingsController extends Controller
         }
 
         return response()->json(['message' => 'Deleted '.$file_count.' barcodes'], 200);
+    }
+
+    /**
+     * Every settings page the API can read and write, with the keys a PATCH
+     * to it accepts.
+     */
+    public function index(): JsonResponse
+    {
+        return response()->json(['pages' => SettingsPages::index()]);
+    }
+
+    /** One settings page as stored now; credentials are reported as set or not, never returned. */
+    public function showPage(string $page): JsonResponse
+    {
+        if (! SettingsPages::page($page)) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/settings/message.api.page_not_found', ['page' => $page])), 404);
+        }
+
+        return response()->json((new SettingsTransformer)->transformPage($page, Setting::getSettings()));
+    }
+
+    /**
+     * Change some of one settings page. Only the keys sent are touched; an
+     * unknown key, a failed rule or a demo-locked key refuses the whole PATCH.
+     */
+    public function updatePage(Request $request, string $page): JsonResponse
+    {
+        if (! SettingsPages::page($page)) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/settings/message.api.page_not_found', ['page' => $page])), 404);
+        }
+
+        try {
+            SettingsPages::update($page, $request->all());
+        } catch (ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()));
+        }
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            (new SettingsTransformer)->transformPage($page, Setting::getSettings()),
+            trans('admin/settings/message.update.success'),
+        ));
     }
 
     /**
