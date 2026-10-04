@@ -2,25 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Helper;
 use App\Mail\BaseMailable;
 use App\Mail\EmailDelivery;
 use App\Mail\EmailRegistry;
-use App\Mail\EmailTemplateRenderer;
-use App\Models\Asset;
+use App\Mail\EmailTemplateWriter;
 use App\Models\EmailTemplate;
-use App\Models\Supplier;
 use App\Models\User;
-use App\Services\Leasing\LessorGuard;
-use App\Services\Leasing\OkayToPay;
 use App\Services\Teams\TeamsChannels;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\Mime\Email;
 
 /**
@@ -108,7 +107,7 @@ class EmailsController extends Controller
                 'help' => $def['help'] ?? '',
                 'choices' => match ($def['type']) {
                     'channel' => TeamsChannels::keys(),
-                    'lessor' => self::lessorChoices(),
+                    'lessor' => EmailTemplateWriter::lessorChoices(),
                     default => $def['choices'] ?? [],
                 },
                 'value' => (string) ($override?->options[$def['name']] ?? ''),
@@ -192,58 +191,10 @@ class EmailsController extends Controller
         ]);
     }
 
-    /** @return array<string, string> lessor name => name, for every Supplier that leases assets */
-    private static function lessorChoices(): array
-    {
-        return Supplier::query()
-            ->whereIn('id', Asset::query()->whereNotNull('lessor_id')->distinct()->select('lessor_id'))
-            ->orderBy('name')
-            ->pluck('name', 'name')
-            ->all();
-    }
-
     /**
-     * The outside addresses an email to a lessor would reach that are not that
-     * lessor's, given the recipients being saved (or, where none are, the
-     * deployment defaults). No lessor resolvable means every outside address
-     * is foreign.
-     *
-     * @param  array<string, ?string>  $lists
-     * @return array<int, string>
-     */
-    private function foreignForLessor(array $entry, string $key, array $lists, EmailTemplate $probe): array
-    {
-        $defaults = isset($entry['defaults']) ? (array) ($entry['defaults'])() : [];
-        $addresses = array_merge(
-            explode(',', (string) ($lists['recipients'] ?? $defaults['recipients'] ?? '')),
-            explode(',', (string) ($lists['cc'] ?? $defaults['cc'] ?? '')),
-        );
-
-        // Resolve the lessor as it will stand after this save.
-        $lessor = null;
-        if ($key === OkayToPay::KEY) {
-            $name = (string) ($probe->options['lessor'] ?? config('leasing.okp_lessor'));
-            $lessor = $name !== '' ? Supplier::where('name', $name)->first() : null;
-        } else {
-            $lessor = ($entry['lessor'])();
-        }
-
-        $guard = app(LessorGuard::class);
-
-        if (! $lessor) {
-            $internal = $guard->internalDomains();
-
-            return collect($addresses)->map(fn ($a) => trim($a))->filter()
-                ->reject(fn ($a) => in_array(strtolower(substr(strrchr($a, '@') ?: '', 1)), $internal, true))
-                ->values()->all();
-        }
-
-        return $guard->foreignRecipients($lessor, $addresses);
-    }
-
-    /**
-     * What one email is set to right now — its recipients, CC and own settings,
-     * each the saved override or else the deployment default. For automations
+     * What one email is set to right now — its recipients, CC, own settings,
+     * subject, body, delivery and Teams channel, each the saved override or
+     * else the deployment default, with a flag saying which. For automations
      * outside this app that send an email registered here, so that who it goes
      * to is a setting on this page rather than a value in their own code.
      */
@@ -255,10 +206,9 @@ class EmailsController extends Controller
             return response()->json(['status' => 'error', 'messages' => trans('admin/settings/general.emails_preview_missing')], 404);
         }
 
-        $defaults = isset($entry['defaults']) ? (array) ($entry['defaults'])() : [];
-
         if (isset($entry['lessor'])) {
-            $foreign = $this->foreignForLessor($entry, $key, [
+            $defaults = isset($entry['defaults']) ? (array) ($entry['defaults'])() : [];
+            $foreign = EmailTemplateWriter::foreignForLessor($entry, $key, [
                 'recipients' => implode(',', EmailTemplate::recipientsFor($key, $defaults['recipients'] ?? null)),
                 'cc' => implode(',', EmailTemplate::ccFor($key, $defaults['cc'] ?? null)),
             ], EmailTemplate::forKey($key) ?? new EmailTemplate(['key' => $key]));
@@ -268,14 +218,150 @@ class EmailsController extends Controller
             }
         }
 
+        return response()->json($this->apiState($key, $entry));
+    }
+
+    /** Every email the registry knows, for finding the key to read or change. */
+    public function apiIndex(): JsonResponse
+    {
+        $categories = EmailRegistry::categories();
+
         return response()->json([
+            'emails' => collect(EmailRegistry::all())->map(fn ($entry) => [
+                'key' => $entry['key'],
+                'label' => $entry['label'],
+                'category' => $entry['category'],
+                'category_label' => $categories[$entry['category']] ?? $entry['category'],
+            ])->values()->all(),
+        ]);
+    }
+
+    /**
+     * Change some of one email's overrides. Only the fields sent change; the
+     * rest keep what is saved. A field this email does not offer on the
+     * Settings → Emails page (recipients without configurable_recipients, CC
+     * without configurable_cc, delivery on a user-facing email, subject and
+     * body on one with no editable template) is refused rather than dropped,
+     * and the merged result goes through the same EmailTemplateWriter as the
+     * web form.
+     */
+    public function apiUpdate(Request $request, string $key): JsonResponse
+    {
+        $entry = EmailRegistry::find($key);
+
+        if (! $entry) {
+            return response()->json(['status' => 'error', 'messages' => trans('admin/settings/general.emails_preview_missing')], 404);
+        }
+
+        $input = $request->all();
+        $errors = [];
+
+        if ($unknown = array_diff(array_keys($input), EmailTemplateWriter::FIELDS)) {
+            $errors['fields'] = [trans('admin/settings/message.api.emails_unknown_fields', ['keys' => implode(', ', $unknown)])];
+        }
+
+        $offered = [
+            'recipients' => (bool) ($entry['configurable_recipients'] ?? false),
+            'cc' => (bool) ($entry['configurable_cc'] ?? false),
+            'subject' => EmailRegistry::isEditable($entry),
+            'body' => EmailRegistry::isEditable($entry),
+            'delivery' => EmailDelivery::isRoutable($entry),
+            'teams_channel' => EmailDelivery::isRoutable($entry),
+        ];
+        if ($refused = array_keys(array_filter($offered, fn ($ok, $field) => ! $ok && array_key_exists($field, $input), ARRAY_FILTER_USE_BOTH))) {
+            $errors['fields'][] = trans('admin/settings/message.api.emails_not_configurable', ['keys' => implode(', ', $refused)]);
+        }
+
+        // The web form can only offer valid choices; over the API a bad one
+        // is an error, not a silent fall back to the default.
+        if (filled($input['delivery'] ?? null) && ! array_key_exists((string) $input['delivery'], EmailDelivery::options())) {
+            $errors['delivery'] = [trans('admin/settings/message.api.emails_delivery_invalid', ['choices' => implode(', ', array_keys(EmailDelivery::options()))])];
+        }
+        if (filled($input['teams_channel'] ?? null) && ! TeamsChannels::isKnown((string) $input['teams_channel'])) {
+            $errors['teams_channel'] = [trans('admin/settings/message.api.emails_channel_invalid')];
+        }
+
+        if (array_key_exists('options', $input)) {
+            $declared = collect($entry['options'] ?? [])->pluck('name')->all();
+            if (! is_array($input['options'])) {
+                $errors['options'] = [trans('validation.array', ['attribute' => 'options'])];
+            } elseif ($unknownOptions = array_diff(array_keys($input['options']), $declared)) {
+                $errors['options'] = [trans('admin/settings/message.api.emails_unknown_options', ['keys' => implode(', ', $unknownOptions)])];
+            }
+        }
+
+        if ($errors) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $errors));
+        }
+
+        // Start from what is saved so a field left out keeps its override.
+        $saved = EmailTemplate::forKey($key);
+        $merged = array_merge([
+            'subject' => $saved?->subject,
+            'body' => $saved?->body,
+            'recipients' => $saved?->recipients,
+            'cc' => $saved?->cc,
+            'delivery' => $saved?->delivery,
+            'teams_channel' => $saved?->teams_channel,
+        ], Arr::except($input, 'options'));
+        $merged['options'] = array_merge((array) ($saved->options ?? []), (array) ($input['options'] ?? []));
+
+        try {
+            EmailTemplateWriter::save($key, $merged, auth()->id());
+        } catch (ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()));
+        }
+
+        return response()->json(Helper::formatStandardApiResponse('success', $this->apiState($key, $entry), trans('admin/settings/message.update.success')));
+    }
+
+    /**
+     * What one email resolves to now: each field's effective value and
+     * whether that is the built-in default rather than a saved override.
+     *
+     * @param  array<string, mixed>  $entry
+     * @return array<string, mixed>
+     */
+    private function apiState(string $key, array $entry): array
+    {
+        $defaults = isset($entry['defaults']) ? (array) ($entry['defaults'])() : [];
+        $saved = EmailTemplate::forKey($key);
+        $routable = EmailDelivery::isRoutable($entry);
+        $editable = EmailRegistry::isEditable($entry);
+
+        $subjectDefault = '';
+        if ($editable && blank($saved?->subject)) {
+            // Read the pristine built-in subject, as the hub's placeholder does.
+            $ignoring = BaseMailable::$ignoreOverrides;
+            BaseMailable::$ignoreOverrides = true;
+            $subjectDefault = EmailRegistry::defaultSubject($key);
+            BaseMailable::$ignoreOverrides = $ignoring;
+        }
+
+        return [
             'key' => $key,
             'recipients' => EmailTemplate::recipientsFor($key, $defaults['recipients'] ?? null),
             'cc' => EmailTemplate::ccFor($key, $defaults['cc'] ?? null),
             'options' => collect($entry['options'] ?? [])
                 ->mapWithKeys(fn ($def) => [$def['name'] => (string) EmailTemplate::optionFor($key, $def['name'], config($def['config']))])
                 ->all(),
-        ]);
+            'subject' => $editable ? (filled($saved?->subject) ? $saved->subject : $subjectDefault) : null,
+            'subject_is_default' => blank($saved?->subject),
+            // The built-in body is a Blade view, not an editable template, so
+            // only an override has a body to return.
+            'body' => $saved?->body,
+            'body_is_default' => blank($saved?->body),
+            'delivery' => EmailDelivery::for($key),
+            'delivery_is_default' => ! $routable || blank($saved?->delivery),
+            'teams_channel' => $routable ? EmailDelivery::channelFor($key) : null,
+            'teams_channel_is_default' => ! $routable || blank($saved?->teams_channel),
+            'recipients_is_default' => blank($saved?->recipients),
+            'cc_is_default' => blank($saved?->cc),
+            'editable' => $editable,
+            'configurable_recipients' => (bool) ($entry['configurable_recipients'] ?? false),
+            'configurable_cc' => (bool) ($entry['configurable_cc'] ?? false),
+            'routable' => $routable,
+        ];
     }
 
     /**
@@ -322,149 +408,26 @@ class EmailsController extends Controller
         ]);
     }
 
-    /** Save (or clear) an admin subject override for one email. */
+    /**
+     * Save (or clear) an admin's overrides for one email. Validation and
+     * storage live in EmailTemplateWriter, shared with the settings API.
+     */
     public function save(Request $request): RedirectResponse
     {
         $key = (string) $request->input('key');
-        $entry = EmailRegistry::find($key);
 
-        if (! $entry) {
+        if (! EmailRegistry::find($key)) {
             return redirect()->route('settings.emails.index')
                 ->with('error', trans('admin/settings/general.emails_preview_missing'));
         }
 
-        $request->validate([
-            'subject' => 'nullable|string|max:255',
-            'body' => 'nullable|string|max:65535',
-        ]);
-
-        $subject = trim((string) $request->input('subject'));
-        // Don't trim the body itself (preserve intentional formatting), but treat
-        // an all-whitespace body as "no override".
-        $body = (string) $request->input('body');
-        $body = trim($body) !== '' ? $body : null;
-
-        // Reject a body that isn't a valid Handlebars template, rather than
-        // silently storing one that will fall back to the default on every send.
-        if ($body !== null && ! EmailTemplateRenderer::isValid($body)) {
+        try {
+            EmailTemplateWriter::save($key, $request->only(EmailTemplateWriter::FIELDS), auth()->id());
+        } catch (ValidationException $e) {
             return redirect()->route('settings.emails.index', ['selected' => $key])
                 ->withInput()
-                ->withErrors(['body' => trans('admin/settings/general.emails_body_invalid')]);
+                ->withErrors($e->errors());
         }
-
-        // Recipients / CC arrive as arrays from the multi-select pickers, or a
-        // CSV string from the legacy text field / API. Normalise both to a
-        // clean, de-duplicated list where every entry is a valid email.
-        // An email that doesn't declare configurable_recipients renders no
-        // Recipients picker, so an incoming list is stale or forged — either
-        // way it isn't stored. This is what keeps the buyout request honest:
-        // its To is derived from the asset's own lessor, and a stored global
-        // list is what once put a second lessor on another lessor's quote.
-        $recipientsConfigurable = (bool) ($entry['configurable_recipients'] ?? false);
-
-        $lists = [];
-        foreach (['recipients', 'cc'] as $field) {
-            if ($field === 'recipients' && ! $recipientsConfigurable) {
-                $lists[$field] = null;
-
-                continue;
-            }
-
-            $input = $request->input($field, []);
-            if (is_string($input)) {
-                $input = explode(',', $input);
-            }
-            $addresses = collect($input)
-                ->map(fn ($email) => trim((string) $email))
-                ->filter()
-                ->unique()
-                ->values();
-
-            foreach ($addresses as $email) {
-                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    return redirect()->route('settings.emails.index', ['selected' => $key])
-                        ->withInput()
-                        ->withErrors([$field => trans('admin/settings/general.emails_recipients_invalid', ['email' => $email])]);
-                }
-            }
-
-            $lists[$field] = $addresses->isNotEmpty() ? $addresses->implode(',') : null;
-        }
-
-        // Delivery routing is only stored for internal notifications. An
-        // email that renders no selector cannot be switched off by a form post
-        // — that is what keeps a faculty member's agreement request going out.
-        $delivery = null;
-        $channel = null;
-
-        if (EmailDelivery::isRoutable($entry)) {
-            $delivery = (string) $request->input('delivery');
-            $delivery = array_key_exists($delivery, EmailDelivery::options()) ? $delivery : null;
-
-            $channel = (string) $request->input('teams_channel');
-            $channel = TeamsChannels::isKnown($channel) ? $channel : null;
-        }
-
-        // The email's own settings. Only the ones its registry entry declares
-        // are read, each checked against its type; blank keeps the default.
-        $options = [];
-        foreach ($entry['options'] ?? [] as $def) {
-            $value = trim((string) $request->input('options.'.$def['name']));
-
-            if ($value === '') {
-                continue;
-            }
-
-            $valid = match ($def['type']) {
-                'select' => array_key_exists($value, $def['choices']),
-                'channel' => TeamsChannels::isKnown($value),
-                'lessor' => array_key_exists($value, self::lessorChoices()),
-                'number' => ctype_digit($value) && (int) $value <= 8760,
-                'date' => (\DateTime::createFromFormat('Y-m-d', $value) ?: null)?->format('Y-m-d') === $value,
-                'email' => filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
-                default => mb_strlen($value) <= 255,
-            };
-
-            if (! $valid) {
-                return redirect()->route('settings.emails.index', ['selected' => $key])
-                    ->withInput()
-                    ->withErrors(['options' => trans('admin/settings/general.emails_option_invalid', ['label' => $def['label']])]);
-            }
-
-            $options[$def['name']] = $value;
-        }
-
-        // An email to a lessor may reach nobody outside the university but
-        // that lessor. Checked against the lessor this save leaves in force,
-        // so changing the lessor and the list together is judged as a pair.
-        if (isset($entry['lessor'])) {
-            $saved = EmailTemplate::forKey($key);
-            $before = $saved?->options;
-            $probe = $saved ?? new EmailTemplate(['key' => $key]);
-            $probe->options = $options ?: null;
-            $foreign = $this->foreignForLessor($entry, $key, $lists, $probe);
-            $probe->options = $before;
-
-            if ($foreign) {
-                return redirect()->route('settings.emails.index', ['selected' => $key])
-                    ->withInput()
-                    ->withErrors(['cc' => trans('admin/settings/general.emails_foreign_recipient', ['addresses' => implode(', ', $foreign)])]);
-            }
-        }
-
-        EmailTemplate::updateOrCreate(
-            ['key' => $key],
-            [
-                'subject' => $subject !== '' ? $subject : null,
-                'body' => $body,
-                'recipients' => $lists['recipients'],
-                'cc' => $lists['cc'],
-                'delivery' => $delivery,
-                'teams_channel' => $channel,
-                'options' => $options ?: null,
-                'updated_by' => auth()->id(),
-            ],
-        );
 
         return redirect()->route('settings.emails.index', ['selected' => $key])
             ->with('success', trans('admin/settings/message.update.success'));

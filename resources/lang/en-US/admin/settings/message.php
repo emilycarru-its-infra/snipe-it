@@ -62,6 +62,11 @@ return [
         'unknown_keys' => 'Not settings on the :page page: :keys',
         'logged' => 'Settings (:page) changed through the API.',
         'saml_keypair_mismatch' => 'The SP certificate does not belong to this private key.',
+        'emails_unknown_fields' => 'Not editable on an email: :keys',
+        'emails_not_configurable' => 'This email does not take :keys.',
+        'emails_unknown_options' => 'This email has no setting called :keys.',
+        'emails_delivery_invalid' => 'Delivery must be one of: :choices.',
+        'emails_channel_invalid' => 'That Teams channel is not a known one.',
     ],
     'oauth' => [
         'token_revoked' => 'Personal access token revoked successfully.',
