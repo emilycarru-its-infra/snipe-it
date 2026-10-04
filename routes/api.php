@@ -1218,8 +1218,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ]
         )->name('api.settings.mailtest');
 
+        Route::get('emails', [EmailsController::class, 'apiIndex'])
+            ->name('api.settings.emails.index');
+
         Route::get('emails/{key}', [EmailsController::class, 'apiShow'])
             ->name('api.settings.emails.show');
+
+        Route::patch('emails/{key}', [EmailsController::class, 'apiUpdate'])
+            ->name('api.settings.emails.update');
 
         Route::post('emails/{key}/test', [EmailsController::class, 'apiTest'])
             ->name('api.settings.emails.test');
