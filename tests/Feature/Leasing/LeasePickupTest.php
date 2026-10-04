@@ -193,6 +193,25 @@ class LeasePickupTest extends TestCase
             ->assertSee($asset->serial);
     }
 
+    public function test_pickup_contact_leads_the_to_and_account_contacts_are_copied(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->superuser()->create();
+        $lessor = $this->lessor('First Leasing', 'rep@first.example');
+        $lessor->update(['lease_emails' => 'returns@first.example', 'pickup_emails' => 'booker@first.example']);
+        $asset = $this->waiting($lessor, 'SCHED-1');
+
+        $this->bundle($admin, [$asset])->assertSessionHas('success');
+
+        Mail::assertSent(LeasePickupRequestMail::class, function (LeasePickupRequestMail $mail) {
+            return $mail->hasTo('booker@first.example')
+                && ! $mail->hasTo('rep@first.example')
+                && $mail->hasCc('rep@first.example')
+                && $mail->hasCc('returns@first.example');
+        });
+    }
+
     public function test_only_deployment_editors_can_request_a_pickup(): void
     {
         Mail::fake();

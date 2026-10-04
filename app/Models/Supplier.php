@@ -34,6 +34,7 @@ class Supplier extends SnipeModel
         'email' => 'email|max:150|nullable',
         'order_emails' => 'string|max:191|nullable',
         'lease_emails' => 'string|max:191|nullable',
+        'pickup_emails' => 'string|max:191|nullable',
         'address' => 'max:250|nullable',
         'address2' => 'max:250|nullable',
         'city' => 'max:191|nullable',
@@ -76,7 +77,7 @@ class Supplier extends SnipeModel
      *
      * @var array
      */
-    protected $fillable = ['name', 'colleague_vendor_id', 'order_emails', 'lease_emails', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
+    protected $fillable = ['name', 'colleague_vendor_id', 'order_emails', 'lease_emails', 'pickup_emails', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
 
     /**
      * Extra addresses for lease correspondence with this lessor — the buyout
@@ -88,6 +89,21 @@ class Supplier extends SnipeModel
      *
      * @return array<int, string>
      */
+    /**
+     * Who books this lessor's end-of-lease pickups — the To of a pickup
+     * request, ahead of the account contacts, who are copied.
+     *
+     * @return array<int, string>
+     */
+    public function pickupEmailList(): array
+    {
+        return collect(explode(',', (string) $this->pickup_emails))
+            ->map(fn ($email) => trim($email))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
     public function leaseEmailList(): array
     {
         return collect(explode(',', (string) $this->lease_emails))

@@ -86,7 +86,7 @@ class LessorGuard
     /** @return array<int, string> the lessor's own mail domains */
     public function domains(Supplier $lessor): array
     {
-        return collect(array_merge([$lessor->email], $lessor->leaseEmailList()))
+        return collect(array_merge([$lessor->email], $lessor->leaseEmailList(), $lessor->pickupEmailList()))
             ->map(fn ($address) => self::domainOf($address))
             ->filter()
             ->unique()
