@@ -1635,6 +1635,7 @@
         "notes",
         "order_emails",
         "phone",
+        "pickup_emails",
         "state",
         "tag_color",
         "updated_at",
