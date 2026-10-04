@@ -262,6 +262,25 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ->name('api.buyouts.destroy');
     });
 
+    /**
+     * Lease-return pickups — the decommissioning lane's way back to the
+     * lessor, so a pickup can be requested and closed without the browser.
+     */
+    Route::group(['prefix' => 'lease-pickups'], function () {
+        Route::get('/', [Api\LeasePickupsController::class, 'index'])
+            ->name('api.lease-pickups.index');
+        Route::post('/', [Api\LeasePickupsController::class, 'store'])
+            ->name('api.lease-pickups.store');
+        Route::get('{pickup}', [Api\LeasePickupsController::class, 'show'])
+            ->name('api.lease-pickups.show');
+        Route::post('{pickup}/schedule', [Api\LeasePickupsController::class, 'schedule'])
+            ->name('api.lease-pickups.schedule');
+        Route::post('{pickup}/picked-up', [Api\LeasePickupsController::class, 'pickedUp'])
+            ->name('api.lease-pickups.picked-up');
+        Route::post('{pickup}/cancel', [Api\LeasePickupsController::class, 'cancel'])
+            ->name('api.lease-pickups.cancel');
+    });
+
     // GUI-editable toolbar — readable and writable by admins, so the
     // chrome itself can be reshaped agentically.
     Route::get('settings/toolbar', [ToolbarController::class, 'apiShow'])
