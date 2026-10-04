@@ -67,11 +67,17 @@ class PickupRequester
         foreach ($eligible->groupBy('lessor_id') as $group) {
             $lessor = $group->first()->lessor;
 
-            $to = array_values(array_unique(array_filter(array_merge(
+            $account = array_values(array_unique(array_filter(array_merge(
                 [$lessor->email],
                 $lessor->leaseEmailList()
             ))));
+            // Whoever books this lessor's pickups leads the To; the account
+            // contacts are copied. Without one, the account contacts are To.
+            $to = $lessor->pickupEmailList() ?: $account;
             $cc = EmailTemplate::ccFor('request.lease_pickup', config('leasing.pickup_request_cc'));
+            if ($to !== $account) {
+                $cc = array_merge($account, $cc);
+            }
             if ($requester && filled($requester->email)) {
                 $cc[] = $requester->email;
             }

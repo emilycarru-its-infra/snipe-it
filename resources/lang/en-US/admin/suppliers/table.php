@@ -13,6 +13,8 @@ return [
     'fax' => 'Fax',
     'id' => 'ID',
     'lease_emails' => 'Lease Contact Emails',
+    'pickup_emails' => 'Pickup Contact Emails',
+    'pickup_emails_help' => 'Who books this lessor\'s end-of-lease pickups. A pickup request is addressed here, with the contact and lease contact emails copied. Comma-separated; leave empty to address pickups to the lease contacts.',
     'lease_emails_help' => 'Where lease correspondence for this lessor goes, including buyout quote requests. Comma-separated, added to the contact email above. Only ever used for this lessor\'s own leases.',
     'licenses' => 'Licenses',
     'name' => 'Supplier Name',
