@@ -55,6 +55,14 @@
         {!! $errors->first('lease_emails', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
     </div>
 </div>
+<div class="form-group {{ $errors->has('pickup_emails') ? ' has-error' : '' }}">
+    <label for="pickup_emails" class="col-md-3 control-label">{{ trans('admin/suppliers/table.pickup_emails') }}</label>
+    <div class="col-md-7">
+        <input class="form-control" name="pickup_emails" type="text" id="pickup_emails" value="{{ old('pickup_emails', $item->pickup_emails) }}" maxlength="191">
+        <p class="help-block">{{ trans('admin/suppliers/table.pickup_emails_help') }}</p>
+        {!! $errors->first('pickup_emails', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
 
 <div class="form-group {{ $errors->has('url') ? ' has-error' : '' }}">
     <label for="url" class="col-md-3 control-label">{{ trans('general.url') }}</label>

@@ -48,6 +48,7 @@ class SuppliersTransformer
                 // exposing it is how you confirm a lessor's second rep is set on
                 // the right lessor.
                 'lease_emails' => e($supplier->lease_emails),
+                'pickup_emails' => e($supplier->pickup_emails),
                 'contact' => e($supplier->contact),
                 'assets_count' => (int) $supplier->assets_count,
                 'accessories_count' => (int) $supplier->accessories_count,
