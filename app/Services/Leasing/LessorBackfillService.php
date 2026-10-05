@@ -3,18 +3,16 @@
 namespace App\Services\Leasing;
 
 use App\Models\Asset;
-use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Populates the native asset `lessor_id` (a Supplier record in the lessor role)
  * for leased devices, deriving the lessor from the "Lease Contract ID" custom
- * field prefix — the same mapping the 2026_06_19 migration seeded once:
+ * field through LessorGuard: the lessor declaring the contract's prefix on its
+ * Supplier record, else the one lessor the contract family's other assets have.
  *
- *   301452-*        -> CSI Leasing
- *   ECI* / 4130*    -> CCA Financial
- *
- * This is the durable, re-runnable version of that one-time backfill: it only
+ * This is the durable, re-runnable version of the one-time backfill: it only
  * ever sets lessor_id where it's currently null (never overwrites a manual
  * assignment), so it's safe to schedule. Assets that look leased (an Ownership
  * Type of "Lease", or any Lease Contract ID) but whose contract ID doesn't
@@ -28,30 +26,19 @@ class LessorBackfillService
         return DB::table('custom_fields')->where('name', $name)->value('db_column');
     }
 
-    /** Get-or-create a lessor Supplier by name, returning its id. */
-    private function ensureSupplier(string $name): int
-    {
-        return (int) (Supplier::firstOrCreate(['name' => $name])->id);
-    }
-
     /**
-     * Map a Lease Contract ID to a lessor supplier id, or null when the prefix
-     * isn't recognised.
+     * Map a Lease Contract ID to a lessor supplier id, or null when no single
+     * lessor owns it.
      */
-    private function resolve(string $contractId, int $csiId, int $ccaId): ?int
+    private function resolve(string $contractId): ?int
     {
-        $id = trim($contractId);
-        if ($id === '') {
+        if (trim($contractId) === '') {
             return null;
         }
-        if (str_starts_with($id, '301452')) {
-            return $csiId;
-        }
-        if (str_starts_with(strtoupper($id), 'ECI') || str_starts_with($id, '4130')) {
-            return $ccaId;
-        }
 
-        return null;
+        $lessor = app(LessorGuard::class)->lessorForContract($contractId);
+
+        return $lessor ? (int) $lessor->id : null;
     }
 
     /**
@@ -73,8 +60,9 @@ class LessorBackfillService
             return $report;
         }
 
-        $csiId = $this->ensureSupplier('CSI Leasing');
-        $ccaId = $this->ensureSupplier('CCA Financial');
+        if (app(LessorGuard::class)->declaredPrefixes() === []) {
+            Log::warning('Lessor backfill: no supplier declares lease contract prefixes, so only contracts other assets already place can resolve.');
+        }
 
         $query = Asset::query()->whereNull('lessor_id')
             ->where(function ($q) use ($contractCol, $ownershipCol) {
@@ -90,14 +78,15 @@ class LessorBackfillService
             $report->scanned++;
 
             $contractId = $contractCol ? (string) $asset->{$contractCol} : '';
-            $lessorId = $this->resolve($contractId, $csiId, $ccaId);
+            $lessorId = $this->resolve($contractId);
 
             if ($lessorId === null) {
                 $report->unresolved[] = [
-                    'id'          => $asset->id,
-                    'asset_tag'   => $asset->asset_tag,
+                    'id' => $asset->id,
+                    'asset_tag' => $asset->asset_tag,
                     'contract_id' => trim($contractId),
                 ];
+
                 continue;
             }
 

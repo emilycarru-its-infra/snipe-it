@@ -29,6 +29,7 @@ use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
 use App\Services\FiscalYear;
 use App\Services\Leasing\LeaseClosure;
+use App\Services\Leasing\LessorGuard;
 use App\Services\Leasing\OkayToPay;
 use App\Services\LegacyFleet;
 use App\Services\ProcurementPipeline;
@@ -763,7 +764,7 @@ class ProcurementReportsController extends Controller
         $t = fn ($k) => trans('admin/purchase-orders/general.'.$k);
 
         // Lessor draft Exhibit "A" emails arrive one Equipment Schedule at a
-        // time (e.g. #301452-008), so group the arrivals the same way with a
+        // time (e.g. #<master>-008), so group the arrivals the same way with a
         // per-schedule subtotal — that is the unit receiving reconciles
         // against. Devices not yet on a schedule bucket under a clear label.
         $pendingLabel = $t('csi_recon_pending_schedule');
@@ -1151,7 +1152,7 @@ class ProcurementReportsController extends Controller
         // Resolve the deep-linked contract to a pane (default: first pane) so
         // the picker, panes and download links all agree on the selection.
         // Exact match first, then substring — so a link minted before a
-        // schedule id was renamed (e.g. the 4130- lessor prefix) still lands
+        // schedule id was renamed (e.g. a lessor-account prefix) still lands
         // on the right lease.
         $contractIds = collect($data['contracts'])->pluck('contract_id');
         $selectedContract = $contractIds->first(fn ($id) => strcasecmp($id, $contract) === 0)
@@ -1350,7 +1351,7 @@ class ProcurementReportsController extends Controller
      * One lease, the whole story: the terms, the money, and the device
      * schedule — the in-app mirror of the lessor's own Exhibit A, which is
      * currently a workbook somebody has to go find. Addressable by the
-     * contract id itself (/procurement/leasing/301452-007) so any table
+     * contract id itself (/procurement/leasing/<master>-007) so any table
      * naming a lease can open it.
      */
     public function leaseDetail(Request $request, string $contract)
@@ -2500,37 +2501,39 @@ class ProcurementReportsController extends Controller
             return false;
         }
 
-        // CCA Financial schedules: bare ECI* historically, 4130-ECI* since
-        // the lessor-account prefix landed (2026-08). CSI Leasing: 301452-*.
-        return str_starts_with($contractId, 'ECI')
-            || str_starts_with($contractId, '4130-ECI')
-            || str_starts_with($contractId, '301452-');
+        // A lease contract is one whose prefix a lessor declares on its
+        // Supplier record (Suppliers → edit → Lease Contract Prefixes).
+        return app(LessorGuard::class)->isLeaseContract($contractId);
     }
 
     /**
-     * CSI Leasing handles the 301452-* schedules; CCA Financial owns the
-     * ECI* contracts. Mirrors the provider mapping in the TDX sync.
+     * The lessor declaring this contract's prefix, for a row whose asset has
+     * no lessor set. Empty when no single lessor claims it.
      */
     private function contractProvider(string $contractId): string
     {
-        return str_starts_with($contractId, '301452-') ? 'CSI Leasing' : 'CCA Financial';
+        return app(LessorGuard::class)->declaredLessorFor($contractId)->name ?? '';
     }
 
     /**
-     * Extract a CSI schedule reference (`301452-008`) from the asset's
+     * Extract a CSI schedule reference (`<master>-008`) from the asset's
      * "PO Number" field. The 007/008 acquisitions were filed with the
      * schedule in that field and an empty Lease Contract ID, so this is the
      * fallback that keeps them in the lease rollups. Values like
-     * `301452-008-041426` collapse to `301452-008`; anything else (a
+     * `<master>-008-041426` collapse to `<master>-008`; anything else (a
      * university PO such as `P0025420`, or blank) yields null.
      */
+    private ?CsiReconciliation $csi = null;
+
+    /** One CSI reader per request, so its lessor and prefixes are read once. */
+    private function csi(): CsiReconciliation
+    {
+        return $this->csi ??= new CsiReconciliation;
+    }
+
     private function scheduleFromPoField(?string $value): ?string
     {
-        if ($value && preg_match('/^(301452-\d{3})/', trim($value), $m)) {
-            return $m[1];
-        }
-
-        return null;
+        return $this->csi()->scheduleRef($value);
     }
 
     /**
@@ -2798,7 +2801,9 @@ class ProcurementReportsController extends Controller
                 ->where(function ($q) use ($contractIdColumn, $poNumberColumn) {
                     $q->where(fn ($w) => $w->whereNotNull($contractIdColumn)->where($contractIdColumn, '!=', ''));
                     if ($poNumberColumn) {
-                        $q->orWhere($poNumberColumn, 'like', '301452-%');
+                        foreach ($this->csi()->contractPrefixes() as $prefix) {
+                            $q->orWhere($poNumberColumn, 'like', rtrim($prefix, '-').'-%');
+                        }
                     }
                 }),
             $fy,
@@ -3312,7 +3317,7 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * CSI Schedule Reconciliation. For every 301452-* contract, lists each
+     * CSI Schedule Reconciliation. For every contract of the CSI lessor, lists each
      * model as its own line: qty, unit equipment cost, unit warranty cost,
      * line total, plus the distinct POs and CDW orders the model was
      * billed against. Mirrors the per-schedule reconciliation tables in
@@ -3335,11 +3340,12 @@ class ProcurementReportsController extends Controller
 
         $warrantyColumn = $this->leaseFieldColumns()['warranty_cost'] ?? null;
 
-        // Restrict to CSI schedules — ECI* contracts have their own
-        // CCA Financial reconciliation and don't fit the schedule layout.
+        // Restrict to the CSI lessor's schedules — other lessors' contracts
+        // have their own reconciliation and don't fit the schedule layout.
+        $csi = $this->csi();
         $groups = array_filter(
             $this->groupedLeaseAssets($fy),
-            fn ($g) => str_starts_with($g['contract_id'], '301452-')
+            fn ($g) => $csi->isCsiContract($g['contract_id'])
         );
 
         $assetIds = collect($groups)
@@ -4049,7 +4055,7 @@ class ProcurementReportsController extends Controller
 
         // Contractual term dates, keyed by schedule. The register knows what a
         // lease actually runs for; guessing 48/60 months off the first purchase
-        // flagged ECI20221101 (a real 2022-11-01 -> 2027-12-01 term) as extended
+        // flagged a contract (a real 2022-11-01 -> 2027-12-01 term) as extended
         // when it has years left.
         $terms = Contract::whereNotNull('schedule_number')
             ->where('schedule_number', '!=', '')
@@ -4062,7 +4068,7 @@ class ProcurementReportsController extends Controller
             // A lease whose every device has gone back or been bought out is
             // finished — there is nothing left to extend, chase or pay for.
             // Without this a schedule returned in full two years ago accrued
-            // "months extended" forever; ECI20210601A, 23 of 23 returned with
+            // "months extended" forever; one contract, 23 of 23 returned with
             // decommission dates, was the worst-looking row on the report.
             if ($state['is_closed']) {
                 continue;
@@ -4108,9 +4114,9 @@ class ProcurementReportsController extends Controller
 
             // The watch is driven by the lease end date carried on the devices,
             // not by a term computed from the first purchase. That guess had
-            // flagged ECI20221101 — a genuine 2022-11-01 to 2027-12-01 term —
+            // flagged a contract — a genuine 2022-11-01 to 2027-12-01 term —
             // as extended, while the register's own end date can disagree with
-            // the devices outright: ECI20220201 reads 2027-10-01 on the
+            // the devices outright: one contract reads 2027-10-01 on the
             // contract and 2026-04-01 on all 26 assets. The device date is what
             // the fleet is actually being held against, so it governs here and
             // the disagreement is surfaced rather than silently resolved.
@@ -4137,7 +4143,7 @@ class ProcurementReportsController extends Controller
 
             // Lease Rent is only usable when every unit carries one: summing a
             // handful of populated values reported the whole contract's rent
-            // from a fraction of it — ECI20200301 read $24,929.70/month for ten
+            // from a fraction of it — one contract read $24,929.70/month for ten
             // devices off six values. Otherwise amortise the contract over its
             // term, and say which basis was used rather than implying precision.
             $rentIsComplete = $group['monthly_rent_total'] > 0
@@ -4345,7 +4351,7 @@ class ProcurementReportsController extends Controller
             // "Kept at term end" is only a fact once term end is in sight.
             // Without this, a lease-to-own signed this year showed up as a
             // Retained decision five years before anyone could make it —
-            // 301452-008, ending 2031, read as already settled. Synthetic
+            // a schedule ending 2031, read as already settled. Synthetic
             // rows wait for the decision window; a row a human logged is
             // theirs to keep (and now theirs to edit or delete).
             if (! $decision && ! $this->withinLeaseDecisionWindow($leaseEndRaw)) {
@@ -4460,7 +4466,7 @@ class ProcurementReportsController extends Controller
         // contract is the row, its devices are the nested table underneath.
         // Flat, this report was thousands of device rows with the contract
         // id repeated down one column — sorted by it, but never adding up to
-        // it, so "what is on 301452-007 and what does it cost" meant reading
+        // it, so "what is on schedule 007 and what does it cost" meant reading
         // a run of rows and totalling them by eye.
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
@@ -5131,11 +5137,9 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Lessor / Vendor breakdown. Mirrors the TDX provider mapping in the
-     * sync function: CSI Leasing handles the 301452-* schedules and CCA
-     * Financial the ECI* contracts (the ECI portfolio was sold to CCA
-     * Financial in mid-2025 — same contract IDs, new lessor). This is a
-     * global portfolio snapshot and is never scoped to a single fiscal
+     * Lessor / Vendor breakdown, by the lessor each contract belongs to
+     * (the asset's lessor, else the one declaring the contract's prefix on
+     * its Supplier record). This is a global portfolio snapshot and is never scoped to a single fiscal
      * year — every lessor's full book is always shown.
      */
     private function lessorBreakdownReport(?string $fy = null): array

@@ -16,6 +16,8 @@ return [
     'pickup_emails' => 'Pickup Contact Emails',
     'pickup_emails_help' => 'Who books this lessor\'s end-of-lease pickups. A pickup request is addressed here, with the contact and lease contact emails copied. Comma-separated; leave empty to address pickups to the lease contacts.',
     'lease_emails_help' => 'Where lease correspondence for this lessor goes, including buyout quote requests. Comma-separated, added to the contact email above. Only ever used for this lessor\'s own leases.',
+    'contract_prefixes' => 'Lease Contract Prefixes',
+    'contract_prefixes_help' => 'Lease contract numbers starting with one of these belong to this lessor, which decides where its lease mail may go. Comma-separated, for example ABC-,XYZ; the longest matching prefix wins. A prefix another lessor claims, or that overlaps one, is refused.',
     'licenses' => 'Licenses',
     'name' => 'Supplier Name',
     'notes' => 'Notes',

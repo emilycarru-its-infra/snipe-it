@@ -7,6 +7,8 @@ use App\Models\CsiAsset;
 use App\Models\CsiInprocessAsset;
 use App\Models\CsiInvoice;
 use App\Models\CsiSchedule;
+use App\Models\Supplier;
+use App\Services\Leasing\LessorGuard;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -22,17 +24,68 @@ use Illuminate\Support\Facades\Schema;
  */
 class CsiReconciliation
 {
-    /** Native lease_contract_id column (e.g. 301452-007-041426), mirrored from the custom field. */
+    /** Native lease_contract_id column (e.g. <master>-007-041426), mirrored from the custom field. */
     private function leaseContractColumn(): ?string
     {
         return Schema::hasColumn('assets', 'lease_contract_id') ? 'lease_contract_id' : null;
     }
 
-    /** Normalize a Snipe lease contract id to a CSI schedule ref: 301452-007-041426 -> 301452-007. */
+    /** @var array<int, string>|null */
+    private ?array $schedulePatterns = null;
+
+    private ?Supplier $lessor = null;
+
+    private bool $lessorLoaded = false;
+
+    /** The CSI lessor's Supplier record, by the configured name. */
+    public function lessor(): ?Supplier
+    {
+        if (! $this->lessorLoaded) {
+            $name = trim((string) config('leasing.csi_lessor'));
+            $this->lessor = $name === '' ? null : Supplier::where('name', $name)->first();
+            $this->lessorLoaded = true;
+        }
+
+        return $this->lessor;
+    }
+
+    /** @return array<int, string> the CSI lessor's declared contract prefixes */
+    public function contractPrefixes(): array
+    {
+        return app(LessorGuard::class)->prefixesOf($this->lessor());
+    }
+
+    /** Whether the CSI lessor is the one whose declared prefix this contract matches. */
+    public function isCsiContract(?string $contractId): bool
+    {
+        $lessor = app(LessorGuard::class)->declaredLessorFor($contractId);
+        $csi = $this->lessor();
+
+        return $lessor !== null && $csi !== null && $lessor->is($csi);
+    }
+
+    /**
+     * Normalize a Snipe lease contract id to a CSI schedule ref, the master
+     * agreement plus a three-digit schedule: <prefix>007-041426 -> <prefix>007.
+     * The master agreement is any of the CSI lessor's declared prefixes.
+     */
     public function scheduleRef(?string $contractId): ?string
     {
-        if ($contractId && preg_match('/^(301452-\d{3})/', trim($contractId), $m)) {
-            return $m[1];
+        $contractId = trim((string) $contractId);
+
+        if ($contractId === '') {
+            return null;
+        }
+
+        $this->schedulePatterns ??= array_map(
+            fn ($prefix) => '/^('.preg_quote(rtrim($prefix, '-'), '/').'-\d{3})/i',
+            $this->contractPrefixes()
+        );
+
+        foreach ($this->schedulePatterns as $pattern) {
+            if (preg_match($pattern, $contractId, $m)) {
+                return $m[1];
+            }
         }
 
         return null;
@@ -248,7 +301,7 @@ class CsiReconciliation
     /**
      * The full CSI picture for one device, for the asset-detail CSI tab.
      * Returns null when the device has no CSI relevance (not in the mirror and
-     * no 301452 lease ref in Snipe), so the tab only shows for leased devices.
+     * no CSI lease ref in Snipe), so the tab only shows for leased devices.
      * This is the per-asset spine: CSI lifecycle state + schedule terms + rent
      * invoices + how it reconciles against Snipe's own lease fields.
      */
