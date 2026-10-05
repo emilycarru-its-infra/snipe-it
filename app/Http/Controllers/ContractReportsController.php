@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Contract;
 use App\Models\ContractSerial;
+use App\Services\Settings\Preferences;
 use Illuminate\Http\Request;
 use League\Csv\EscapeFormula;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -31,7 +32,7 @@ class ContractReportsController extends Controller
     {
         $this->authorize('view', Contract::class);
 
-        $days = max(1, (int) $request->query('days', 90));
+        $days = max(1, (int) $request->query('days', Preferences::get('contracts.expiring_later_days')));
         $rows = Contract::realOnly()
             ->with('supplier', 'parent')
             ->where('is_active', true)
@@ -186,7 +187,7 @@ class ContractReportsController extends Controller
         return $this->render(
             $request,
             'contracts-stale-in-tdx',
-            trans('admin/contracts/general.report_stale'),
+            trans('admin/contracts/general.report_stale', ['days' => Preferences::get('contracts.stale_tdx_days')]),
             'contracts.reports.stale',
             [
                 'columns' => [
@@ -223,7 +224,7 @@ class ContractReportsController extends Controller
         return Contract::realOnly()
             ->where('is_active', true)
             ->whereNotNull('tdx_modified_date')
-            ->where('tdx_modified_date', '<', now()->subDays(180));
+            ->where('tdx_modified_date', '<', now()->subDays((int) Preferences::get('contracts.stale_tdx_days')));
     }
 
     // ─── Report builders ────────────────────────────────────────────────
@@ -290,17 +291,17 @@ class ContractReportsController extends Controller
         if ($request->boolean('embed')) {
             return view('contracts/reports/_report-table', [
                 'columns' => $report['columns'],
-                'rows'    => $report['records'],
-                'footer'  => $report['footer'] ?? null,
+                'rows' => $report['records'],
+                'footer' => $report['footer'] ?? null,
             ]);
         }
 
         return view('contracts/reports/show', [
             'reportTitle' => $title,
-            'columns'     => $report['columns'],
-            'rows'        => $report['records'],
-            'footer'      => $report['footer'] ?? null,
-            'controls'    => $controls,
+            'columns' => $report['columns'],
+            'rows' => $report['records'],
+            'footer' => $report['footer'] ?? null,
+            'controls' => $controls,
             'downloadUrl' => route($routeName, array_merge(['format' => 'csv'], $extraParams)),
         ]);
     }
@@ -321,7 +322,7 @@ class ContractReportsController extends Controller
             }
             fclose($handle);
         }, 200, [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="'.$filename.'-'.date('Y-m-d').'.csv"',
         ]);
     }
@@ -333,6 +334,7 @@ class ContractReportsController extends Controller
         }
         $value = (float) $value;
         $formatted = '$'.number_format(abs($value), 2);
+
         return $value < 0 ? '('.$formatted.')' : $formatted;
     }
 }

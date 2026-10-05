@@ -4,10 +4,14 @@ namespace App\Services\Settings;
 
 use App\Enums\ActionType;
 use App\Models\Actionlog;
+use App\Models\CatalogItem;
+use App\Models\ExhibitProject;
 use App\Models\RuntimeSetting;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Services\AppleStoreSync;
 use App\Services\StoreOrderAssetProvisioner;
+use App\Services\Teams\TeamsChannels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -31,11 +35,23 @@ use Illuminate\Validation\ValidationException;
  *
  * Reads are cached for the request (one query loads every override) and the
  * cache is flushed on write, the same contract as ProcurementSetting.
+ *
+ * A key whose default is an institution's own value (a mailbox, a deep-link
+ * host) takes it from config, so this public code carries none of them; the
+ * env value is the default and an override here wins over it. A `nullable`
+ * key may be blank, and a config value of null or "" is kept rather than
+ * replaced by the literal default.
  */
 class Preferences
 {
     /** Types a definition may declare. */
-    public const TYPES = ['int', 'decimal', 'string', 'bool', 'month', 'list', 'email_list', 'status_label', 'status_labels'];
+    public const TYPES = ['int', 'decimal', 'string', 'bool', 'month', 'time', 'date', 'list', 'int_list', 'map', 'email_list', 'status_label', 'status_labels'];
+
+    /** Types whose value is a list. */
+    private const LIST_TYPES = ['list', 'int_list', 'email_list', 'status_labels'];
+
+    /** A wall-clock time, 24-hour HH:MM. */
+    private const TIME_PATTERN = '/^([01]\d|2[0-3]):[0-5]\d$/';
 
     /** @var array<string, string|null>|null Raw overrides by key, loaded once. */
     private static ?array $rows = null;
@@ -51,7 +67,8 @@ class Preferences
      *
      * Each maps to: group, type, default, and optionally config (a config key
      * whose value is the default when set), resolve (a callable computing the
-     * default at read time) and rules (extra validation for the value).
+     * default at read time), rules (extra validation for the value) and
+     * nullable (the value may be blank).
      *
      * @return array<string, array<string, mixed>>
      */
@@ -92,6 +109,108 @@ class Preferences
             'leasing.buyout_completed_status' => ['group' => 'status', 'type' => 'status_label', 'default' => 'Purchased', 'config' => 'leasing.buyout_completed_status'],
             'leasing.pickup_completed_status' => ['group' => 'status', 'type' => 'status_label', 'default' => 'Returned Lease End', 'config' => 'leasing.pickup_completed_status'],
             'forms.purchase_auto_create.lease_end_status_labels' => ['group' => 'status', 'type' => 'status_labels', 'default' => [], 'config' => 'forms.purchase_auto_create.lease_end_status_labels'],
+        ] + self::batchTwo();
+    }
+
+    /**
+     * Thresholds, terms, contacts, vocabulary and schedule times that were
+     * literals. Each default is the value the code hard-coded before.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function batchTwo(): array
+    {
+        $days = ['min:0', 'max:3650'];
+        $months = ['min:0', 'max:120'];
+
+        return [
+            'fiscal.contracts_first_year' => ['group' => 'fiscal', 'type' => 'int', 'default' => 2024, 'rules' => ['min:2000', 'max:2100']],
+            'fiscal.picker_span_years' => ['group' => 'fiscal', 'type' => 'int', 'default' => 3, 'rules' => ['min:0', 'max:20']],
+
+            'contracts.expiring_soon_days' => ['group' => 'contracts', 'type' => 'int', 'default' => 30, 'rules' => ['min:1', 'max:3650']],
+            'contracts.expiring_later_days' => ['group' => 'contracts', 'type' => 'int', 'default' => 90, 'rules' => ['min:1', 'max:3650']],
+            'contracts.stale_tdx_days' => ['group' => 'contracts', 'type' => 'int', 'default' => 180, 'rules' => ['min:1', 'max:3650']],
+            'contracts.renewal_alert.first_days' => ['group' => 'contracts', 'type' => 'int', 'default' => 30, 'rules' => $days],
+            'contracts.renewal_alert.second_days' => ['group' => 'contracts', 'type' => 'int', 'default' => 14, 'rules' => $days],
+            'contracts.renewal_alert.tolerance_days' => ['group' => 'contracts', 'type' => 'int', 'default' => 2, 'rules' => ['min:0', 'max:30']],
+            'contracts.renewal_alert.expired_days' => ['group' => 'contracts', 'type' => 'int', 'default' => 7, 'rules' => ['min:1', 'max:365']],
+
+            'leasing.buyout_request_cooldown_days' => ['group' => 'leasing', 'type' => 'int', 'default' => 30, 'rules' => $days],
+            'leasing.term_months.lease_to_return' => ['group' => 'leasing', 'type' => 'int', 'default' => 48, 'rules' => ['min:1', 'max:120']],
+            'leasing.term_months.lease_to_own' => ['group' => 'leasing', 'type' => 'int', 'default' => 60, 'rules' => ['min:1', 'max:120']],
+            'leasing.extension_watch.lookahead_months' => ['group' => 'leasing', 'type' => 'int', 'default' => 3, 'rules' => $months],
+            'leasing.extension_watch.lookback_months' => ['group' => 'leasing', 'type' => 'int', 'default' => 6, 'rules' => $months],
+            'leasing.extension_watch.overdue_months' => ['group' => 'leasing', 'type' => 'int', 'default' => 12, 'rules' => $months],
+            'leasing.okp_funding_accounts' => ['group' => 'leasing', 'type' => 'list', 'default' => [], 'config' => 'leasing.okp_funding_accounts'],
+            'leasing.okp_teams_channel' => ['group' => 'leasing', 'type' => 'string', 'default' => 'Procurement', 'config' => 'leasing.okp_teams_channel'],
+
+            'procurement.part_number_stale_days' => ['group' => 'procurement', 'type' => 'int', 'default' => 92, 'rules' => ['min:1', 'max:3650']],
+            'procurement.pipeline_item_cap' => ['group' => 'procurement', 'type' => 'int', 'default' => 20, 'rules' => ['min:1', 'max:500']],
+            'procurement.money_match_tolerance' => ['group' => 'procurement', 'type' => 'decimal', 'default' => 0.05, 'rules' => ['min:0', 'max:1000']],
+            'procurement.variance_tolerance' => ['group' => 'procurement', 'type' => 'decimal', 'default' => 1.0, 'rules' => ['min:0', 'max:100000']],
+            'procurement.warranty_month_options' => ['group' => 'procurement', 'type' => 'int_list', 'default' => [12, 24, 36, 48, 60], 'rules' => ['min:1']],
+
+            'deployments.lease_end_window_months' => ['group' => 'deployments', 'type' => 'int', 'default' => 12, 'rules' => $months],
+            'deployments.pickup_history_days' => ['group' => 'deployments', 'type' => 'int', 'default' => 90, 'rules' => $days],
+            'deployments.forecast_excluded_categories' => ['group' => 'deployments', 'type' => 'list', 'default' => [], 'config' => 'ecu.forecast_excluded_categories'],
+
+            'dashboard.renewal_prompt_days' => ['group' => 'reports', 'type' => 'int', 'default' => 240, 'rules' => $days],
+            'dashboard.stuck_processing_days' => ['group' => 'reports', 'type' => 'int', 'default' => 14, 'rules' => $days],
+            'reports.audit_overdue_months' => ['group' => 'reports', 'type' => 'int', 'default' => 12, 'rules' => ['min:1', 'max:120']],
+            'reports.printer_usage.trend_months' => ['group' => 'reports', 'type' => 'int', 'default' => 12, 'rules' => ['min:1', 'max:60']],
+            'reports.printer_usage.recent_days' => ['group' => 'reports', 'type' => 'int', 'default' => 30, 'rules' => ['min:1', 'max:365']],
+
+            'agreements.lease_years' => ['group' => 'agreements', 'type' => 'int', 'default' => 4, 'rules' => ['min:1', 'max:10']],
+            'agreements.loan_months' => ['group' => 'agreements', 'type' => 'int', 'default' => 12, 'rules' => ['min:1', 'max:120']],
+            'agreements.loan_installments' => ['group' => 'agreements', 'type' => 'int', 'default' => 24, 'rules' => ['min:1', 'max:240']],
+            'agreements.return_term_months' => ['group' => 'agreements', 'type' => 'int', 'default' => 48, 'rules' => ['min:1', 'max:120']],
+            'forms.buyout_estimate.annual_rent_factor' => ['group' => 'agreements', 'type' => 'decimal', 'default' => 0.24, 'config' => 'forms.buyout_estimate.annual_rent_factor', 'rules' => ['min:0', 'max:1']],
+            'forms.signature_reminders.enabled' => ['group' => 'agreements', 'type' => 'bool', 'default' => true, 'config' => 'forms.signature_reminders.enabled'],
+            'forms.signature_reminders.interval_days' => ['group' => 'agreements', 'type' => 'int', 'default' => 3, 'config' => 'forms.signature_reminders.interval_days', 'rules' => ['min:1', 'max:365']],
+            'forms.signature_reminders.max_reminders' => ['group' => 'agreements', 'type' => 'int', 'default' => 5, 'config' => 'forms.signature_reminders.max_reminders', 'rules' => ['min:0', 'max:100']],
+            'forms.pickup_auto_create.enabled' => ['group' => 'agreements', 'type' => 'bool', 'default' => true, 'config' => 'forms.pickup_auto_create.enabled'],
+            'forms.pickup_auto_create.base_program_price' => ['group' => 'agreements', 'type' => 'decimal', 'default' => null, 'config' => 'forms.pickup_auto_create.base_program_price', 'nullable' => true, 'rules' => ['min:0']],
+            'forms.pickup_auto_create.lease_end_within_months' => ['group' => 'agreements', 'type' => 'int', 'default' => 6, 'config' => 'forms.pickup_auto_create.lease_end_within_months', 'rules' => $months],
+            'forms.pickup_auto_create.eligibility_form_slug' => ['group' => 'agreements', 'type' => 'string', 'default' => 'faculty-program', 'config' => 'forms.pickup_auto_create.eligibility_form_slug'],
+            'forms.pickup_auto_create.asset_category' => ['group' => 'agreements', 'type' => 'string', 'default' => 'Laptop', 'config' => 'forms.pickup_auto_create.asset_category'],
+            'forms.pickup_auto_create.asset_manufacturer' => ['group' => 'agreements', 'type' => 'string', 'default' => 'Apple', 'config' => 'forms.pickup_auto_create.asset_manufacturer', 'nullable' => true],
+            'forms.pickup_auto_create.reconcile_from' => ['group' => 'agreements', 'type' => 'date', 'default' => null, 'config' => 'forms.pickup_auto_create.reconcile_from', 'nullable' => true],
+
+            'contacts.device_team' => ['group' => 'contacts', 'type' => 'email_list', 'default' => [], 'config' => 'ecu.device_team_emails'],
+            'teams.channels' => ['group' => 'contacts', 'type' => 'map', 'default' => TeamsChannels::defaults(), 'rules' => ['min:1']],
+            'teams.default_channel' => ['group' => 'contacts', 'type' => 'string', 'default' => 'Inventory', 'config' => 'ecu.teams.default_channel'],
+            'teams.asset_custom_fields' => ['group' => 'contacts', 'type' => 'map', 'default' => [], 'config' => 'ecu.teams.asset_custom_fields'],
+
+            'store.order_reference_prefix' => ['group' => 'vocabulary', 'type' => 'string', 'default' => 'ECU-STORE-', 'rules' => ['regex:/^[A-Za-z][A-Za-z0-9-]*$/', 'max:40']],
+            'store.category_order' => ['group' => 'vocabulary', 'type' => 'list', 'default' => CatalogItem::CATEGORY_ORDER],
+            'groups.shared_purchasers' => ['group' => 'vocabulary', 'type' => 'string', 'default' => 'Shared Purchasers'],
+            'groups.faculty_match' => ['group' => 'vocabulary', 'type' => 'string', 'default' => 'faculty'],
+            'catalog.self_serve_supplier' => ['group' => 'vocabulary', 'type' => 'string', 'default' => 'CDW'],
+            'catalog.self_serve_source' => ['group' => 'vocabulary', 'type' => 'string', 'default' => 'CDW.ca product page'],
+            'exhibits.requested_devices' => ['group' => 'vocabulary', 'type' => 'list', 'default' => ExhibitProject::REQUESTED_DEVICES],
+
+            'links.tdx_contract' => ['group' => 'links', 'type' => 'string', 'default' => '', 'config' => 'ecu.tdx_contract_url', 'nullable' => true, 'rules' => ['regex:/^https:\/\/\S+$/']],
+            'links.carrier_tracking' => ['group' => 'links', 'type' => 'map', 'default' => [
+                'canada post' => 'https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=',
+                'purolator' => 'https://www.purolator.com/en/shipping/tracker?pin=',
+                'ups' => 'https://www.ups.com/track?tracknum=',
+                'fedex' => 'https://www.fedex.com/fedextrack/?trknbr=',
+                'usps' => 'https://tools.usps.com/go/TrackConfirmAction?tLabels=',
+                'dhl' => 'https://www.dhl.com/ca-en/home/tracking.html?tracking-id=',
+            ]],
+            'catalog.apple_store_pages' => ['group' => 'links', 'type' => 'list', 'default' => AppleStoreSync::DEFAULT_PAGES],
+
+            'schedule.contract_renewals' => ['group' => 'schedule', 'type' => 'time', 'default' => '07:30'],
+            'schedule.user_pregen_pdfs' => ['group' => 'schedule', 'type' => 'time', 'default' => '05:00'],
+            'schedule.signature_reminders' => ['group' => 'schedule', 'type' => 'time', 'default' => '06:00'],
+            'schedule.user_agreements_reconcile' => ['group' => 'schedule', 'type' => 'time', 'default' => '04:30'],
+            'schedule.link_printer_models' => ['group' => 'schedule', 'type' => 'time', 'default' => '02:30'],
+            'schedule.backfill_lessors' => ['group' => 'schedule', 'type' => 'time', 'default' => '03:15'],
+            'schedule.reconcile_lease_ownership' => ['group' => 'schedule', 'type' => 'time', 'default' => '03:20'],
+            'schedule.sync_lease_names' => ['group' => 'schedule', 'type' => 'time', 'default' => '03:25'],
+            'schedule.reconcile_legacy_licenses' => ['group' => 'schedule', 'type' => 'time', 'default' => '03:30'],
+            'schedule.catalog_sync_apple' => ['group' => 'schedule', 'type' => 'time', 'default' => '05:30'],
+            'schedule.okay_to_pay_minutes' => ['group' => 'schedule', 'type' => 'int', 'default' => 5, 'rules' => ['min:1', 'max:59']],
         ];
     }
 
@@ -121,7 +240,7 @@ class Preferences
 
         $rows = self::rows();
         if (array_key_exists($key, $rows)) {
-            return self::$values[$key] = self::cast($def['type'], json_decode((string) $rows[$key], true));
+            return self::$values[$key] = self::castFor($def, json_decode((string) $rows[$key], true));
         }
 
         // A resolved default costs a query, so it is kept for the request; a
@@ -145,14 +264,26 @@ class Preferences
             }
         } elseif (isset($def['config'])) {
             $value = config($def['config'], $def['default']);
-            if ($value === null || $value === '') {
+            if (($value === null || $value === '') && empty($def['nullable'])) {
                 $value = $def['default'];
             }
         } else {
             $value = $def['default'];
         }
 
-        return self::cast($def['type'], $value);
+        return self::castFor($def, $value);
+    }
+
+    /** A list preference joined with commas, for the APIs that take an address CSV. */
+    public static function csv(string $key): string
+    {
+        return implode(',', (array) self::get($key));
+    }
+
+    /** Whether a string is a 24-hour HH:MM time. */
+    public static function isTime(string $value): bool
+    {
+        return preg_match(self::TIME_PATTERN, $value) === 1;
     }
 
     public static function isOverridden(string $key): bool
@@ -271,7 +402,7 @@ class Preferences
 
         $changed = [];
         foreach ($normalized as $key => $value) {
-            $value = self::cast(self::definitions()[$key]['type'], $value);
+            $value = self::castFor(self::definitions()[$key], $value);
             $old = self::get($key);
             if (self::isOverridden($key) && $old === $value) {
                 continue;
@@ -307,7 +438,7 @@ class Preferences
             }
 
             $normalized = self::normalizeInput($def['type'], $value);
-            if (self::cast($def['type'], $normalized) !== self::get((string) $key)) {
+            if (self::castFor($def, $normalized) !== self::get((string) $key)) {
                 $changed[$key] = $normalized;
             }
         }
@@ -347,6 +478,16 @@ class Preferences
         $def = self::definitions()[$key];
         $field = self::alias($key);
         $extra = $def['rules'] ?? [];
+        $presence = empty($def['nullable']) ? 'required' : 'nullable';
+        $mapKeys = function (string $attribute, mixed $value, \Closure $fail) {
+            foreach (array_keys((array) $value) as $name) {
+                if (! is_string($name) || trim($name) === '') {
+                    $fail(trans('admin/settings/preferences.map_needs_names'));
+
+                    return;
+                }
+            }
+        };
         $statusExists = function (string $attribute, mixed $value, \Closure $fail) {
             if (! is_string($value) || ! Statuslabel::where(DB::raw('LOWER(name)'), mb_strtolower($value))->exists()) {
                 $fail(trans('admin/settings/preferences.unknown_status', ['name' => is_scalar($value) ? (string) $value : '?']));
@@ -354,12 +495,16 @@ class Preferences
         };
 
         return match ($def['type']) {
-            'int' => [$field => array_merge(['required', 'integer'], $extra)],
-            'decimal' => [$field => array_merge(['required', 'numeric'], $extra)],
+            'int' => [$field => array_merge([$presence, 'integer'], $extra)],
+            'decimal' => [$field => array_merge([$presence, 'numeric'], $extra)],
             'month' => [$field => array_merge(['required', 'integer', 'between:1,12'], $extra)],
+            'time' => [$field => array_merge(['required', 'string', 'regex:'.self::TIME_PATTERN], $extra)],
+            'date' => [$field => array_merge([$presence, 'date_format:Y-m-d'], $extra)],
             'bool' => [$field => ['required', 'boolean']],
-            'string' => [$field => array_merge(['required', 'string', 'max:191'], $extra)],
+            'string' => [$field => array_merge([$presence, 'string', 'max:191'], $extra)],
             'list' => [$field => array_merge(['present', 'array'], $extra), $field.'.*' => ['string', 'max:191']],
+            'int_list' => [$field => ['present', 'array'], $field.'.*' => array_merge(['integer'], $extra)],
+            'map' => [$field => array_merge(['present', 'array', $mapKeys], $extra), $field.'.*' => ['string', 'max:191']],
             'email_list' => [$field => array_merge(['present', 'array'], $extra), $field.'.*' => ['email']],
             'status_label' => [$field => ['required', 'string', $statusExists]],
             'status_labels' => [$field => array_merge(['present', 'array'], $extra), $field.'.*' => [$statusExists]],
@@ -373,7 +518,11 @@ class Preferences
      */
     private static function normalizeInput(string $type, mixed $value): mixed
     {
-        if (in_array($type, ['list', 'email_list', 'status_labels'], true)) {
+        if ($type === 'map') {
+            return self::toMap($value);
+        }
+
+        if (in_array($type, self::LIST_TYPES, true)) {
             if (is_string($value)) {
                 $value = preg_split('/[\r\n,]+/', $value) ?: [];
             }
@@ -385,17 +534,69 @@ class Preferences
         return is_string($value) ? trim($value) : $value;
     }
 
-    /** Bring a stored or default value to the type the definition declares. */
+    /**
+     * Bring a stored or default value to the type its definition declares. A
+     * nullable key keeps a blank as null.
+     *
+     * @param  array<string, mixed>  $def
+     */
+    private static function castFor(array $def, mixed $value): mixed
+    {
+        if (! empty($def['nullable']) && ($value === null || $value === '')) {
+            return null;
+        }
+
+        return self::cast($def['type'], $value);
+    }
+
     private static function cast(string $type, mixed $value): mixed
     {
+        // A list default from env arrives as one comma-separated string.
+        if (in_array($type, self::LIST_TYPES, true) && is_string($value)) {
+            $value = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $value) ?: []), fn ($v) => $v !== ''));
+        }
+
         return match ($type) {
             'int', 'month' => (int) $value,
             'decimal' => (float) $value,
             'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-            'string', 'status_label' => (string) (is_array($value) ? (reset($value) ?: '') : $value),
+            'string', 'status_label', 'time', 'date' => (string) (is_array($value) ? (reset($value) ?: '') : $value),
             'list', 'email_list', 'status_labels' => array_values(array_map('strval', (array) $value)),
+            'int_list' => array_values(array_map('intval', (array) $value)),
+            'map' => self::toMap($value),
             default => $value,
         };
+    }
+
+    /**
+     * A name => value map from what a form or API client sends: an object, a
+     * list of "name = value" lines, or the same as one newline-separated
+     * string. The first "=" splits, so a value may itself contain one (a URL
+     * with a query string); a line with no "=" maps a name to itself.
+     *
+     * @return array<string, string>
+     */
+    private static function toMap(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = preg_split('/\r\n|\r|\n/', $value) ?: [];
+        }
+
+        $map = [];
+        foreach ((array) $value as $name => $entry) {
+            if (is_int($name) && is_string($entry)) {
+                if (trim($entry) === '') {
+                    continue;
+                }
+                // A bare name is its own value: "Inventory" offers Inventory.
+                $parts = explode('=', $entry, 2);
+                [$name, $entry] = [$parts[0], $parts[1] ?? $parts[0]];
+            }
+            $name = trim((string) $name);
+            $map[$name] = trim(is_scalar($entry) ? (string) $entry : '');
+        }
+
+        return $map;
     }
 
     /** @return array<string, string|null> */

@@ -4,6 +4,7 @@ namespace App\Services\Transactions;
 
 use App\Models\Asset;
 use App\Models\Transactions\RawRow;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -35,19 +36,19 @@ class PrinterUsageService
     {
         $assetId = (int) $asset->id;
 
-        $monthly = $this->monthlyVolume($assetId, 12);
+        $monthly = $this->monthlyVolume($assetId, (int) Preferences::get('reports.printer_usage.trend_months'));
         $latest = $this->latestMonth($assetId);
         $last30 = $this->last30DaysTotals($assetId);
 
         return [
-            'asset'        => $asset,
-            'last30'       => $last30,
-            'monthly'      => $monthly,
+            'asset' => $asset,
+            'last30' => $last30,
+            'monthly' => $monthly,
             'latestPeriod' => $latest,
-            'topUsers'     => $latest
+            'topUsers' => $latest
                 ? $this->topUsers($assetId, $latest['year'], $latest['month'])
                 : collect(),
-            'recentJobs'   => $this->recentJobs($assetId, 20),
+            'recentJobs' => $this->recentJobs($assetId, 20),
             'glAllocation' => $latest
                 ? $this->glAllocation($assetId, $latest['year'], $latest['month'])
                 : collect(),
@@ -55,7 +56,8 @@ class PrinterUsageService
     }
 
     /**
-     * Last-30-days totals: jobs · pages · cost · refund rate.
+     * Recent totals (the last 30 days unless reports.printer_usage.recent_days
+     * says otherwise): jobs · pages · cost · refund rate.
      * Filters by `ingested_at` rather than period because we want a sliding
      * window, not a calendar month.
      */
@@ -63,7 +65,7 @@ class PrinterUsageService
     {
         $rows = RawRow::forPrinter($assetId)
             ->whereIn('source_kind', self::PRINT_LOG_KINDS)
-            ->where('ingested_at', '>=', Carbon::now()->subDays(30))
+            ->where('ingested_at', '>=', Carbon::now()->subDays((int) Preferences::get('reports.printer_usage.recent_days')))
             ->get(['row_data']);
 
         return $this->aggregateJobs($rows);
@@ -101,10 +103,10 @@ class PrinterUsageService
             $agg = $this->aggregateJobs($bucket);
 
             $series[] = [
-                'label'  => $month->format('M Y'),
-                'jobs'   => $agg['jobs'],
-                'pages'  => $agg['pages'],
-                'cost'   => $agg['cost'],
+                'label' => $month->format('M Y'),
+                'jobs' => $agg['jobs'],
+                'pages' => $agg['pages'],
+                'cost' => $agg['cost'],
             ];
         }
 
@@ -141,9 +143,10 @@ class PrinterUsageService
             ->groupBy(fn ($r) => $this->userKey($r->row_data ?? []))
             ->map(function ($group, $user) {
                 $agg = $this->aggregateJobs($group);
+
                 return [
-                    'user'  => $user,
-                    'jobs'  => $agg['jobs'],
+                    'user' => $user,
+                    'jobs' => $agg['jobs'],
                     'pages' => $agg['pages'],
                 ];
             })
@@ -162,13 +165,13 @@ class PrinterUsageService
             ->limit($limit)
             ->get(['ingested_at', 'source_kind', 'row_data'])
             ->map(fn ($r) => [
-                'when'      => $r->ingested_at,
-                'user'      => $this->userKey($r->row_data ?? []),
-                'document'  => $r->row_data['document'] ?? $r->row_data['document name'] ?? '—',
-                'pages'     => (int) ($r->row_data['total printed pages'] ?? $r->row_data['pages'] ?? 0),
-                'cost'      => (float) ($r->row_data['cost'] ?? $r->row_data['amount'] ?? 0),
-                'isRefund'  => $this->looksLikeRefund($r->row_data ?? []),
-                'mailroom'  => $r->source_kind === 'papercut.print_logs.mailroom',
+                'when' => $r->ingested_at,
+                'user' => $this->userKey($r->row_data ?? []),
+                'document' => $r->row_data['document'] ?? $r->row_data['document name'] ?? '—',
+                'pages' => (int) ($r->row_data['total printed pages'] ?? $r->row_data['pages'] ?? 0),
+                'cost' => (float) ($r->row_data['cost'] ?? $r->row_data['amount'] ?? 0),
+                'isRefund' => $this->looksLikeRefund($r->row_data ?? []),
+                'mailroom' => $r->source_kind === 'papercut.print_logs.mailroom',
             ]);
     }
 
@@ -191,6 +194,7 @@ class PrinterUsageService
                 foreach ($group as $r) {
                     $cost += (float) ($r->row_data['cost'] ?? $r->row_data['amount'] ?? 0);
                 }
+
                 return ['gl' => $gl, 'cost' => $cost];
             })
             ->sortByDesc('cost')
@@ -241,13 +245,14 @@ class PrinterUsageService
                 foreach ($rows as $r) {
                     $pages += (int) (($r->row_data['total printed pages'] ?? $r->row_data['pages'] ?? 0));
                 }
+
                 return (object) [
                     'printer_asset_id' => $printerId,
-                    'jobs'             => $agg['jobs'],
-                    'pages'            => $pages,
-                    'cost'             => $agg['cost'],
-                    'refunds'          => $agg['refunds'],
-                    'last_seen'        => $rows->max('ingested_at'),
+                    'jobs' => $agg['jobs'],
+                    'pages' => $pages,
+                    'cost' => $agg['cost'],
+                    'refunds' => $agg['refunds'],
+                    'last_seen' => $rows->max('ingested_at'),
                 ];
             });
     }
@@ -279,10 +284,10 @@ class PrinterUsageService
         }
 
         return [
-            'jobs'       => $jobs,
-            'pages'      => $pages,
-            'cost'       => round($cost, 2),
-            'refunds'    => $refunds,
+            'jobs' => $jobs,
+            'pages' => $pages,
+            'cost' => round($cost, 2),
+            'refunds' => $refunds,
             'refundRate' => $jobs > 0 ? round($refunds / $jobs, 4) : 0.0,
         ];
     }
@@ -294,6 +299,7 @@ class PrinterUsageService
             return $name;
         }
         $user = trim((string) ($data['username'] ?? $data['user'] ?? ''));
+
         return $user !== '' ? $user : '—';
     }
 
@@ -317,6 +323,7 @@ class PrinterUsageService
             return true;
         }
         $type = strtoupper((string) ($data['transaction type'] ?? ''));
+
         return str_contains($type, 'REFUND');
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Services\Teams;
 
+use App\Services\Settings\Preferences;
+
 /**
  * The Teams channels this app can post to.
  *
@@ -22,7 +24,8 @@ class TeamsChannels
      * rest of the estate's channels so a notification can be split out without
      * a code change.
      *
-     * These are names Relay resolves in its own team. Adding one here does not
+     * These are names Relay resolves in its own team, held in the
+     * teams.channels preference (this list is its default). Adding one does not
      * create anything — the channel has to exist and have Relay in it — but a
      * name Relay cannot resolve falls back to Automations with a notice rather
      * than disappearing, so an optimistic list is safe.
@@ -30,6 +33,16 @@ class TeamsChannels
      * @return array<string, string> channel name => display label
      */
     public static function keys(): array
+    {
+        return Preferences::get('teams.channels');
+    }
+
+    /**
+     * The built-in channel list: the teams.channels default.
+     *
+     * @return array<string, string>
+     */
+    public static function defaults(): array
     {
         return [
             'Inventory' => 'Inventory — checkouts, check-ins, audits, requests',
@@ -58,12 +71,19 @@ class TeamsChannels
         return $key !== null && array_key_exists($key, self::keys());
     }
 
-    /** The channel used by anything that has not chosen one. */
+    /**
+     * The channel used by anything that has not chosen one: the
+     * teams.default_channel preference when it is a known channel, else the
+     * first channel offered.
+     */
     public static function default(): string
     {
-        $configured = trim((string) config('ecu.teams.default_channel'));
+        $configured = trim((string) Preferences::get('teams.default_channel'));
+        if (self::isKnown($configured)) {
+            return $configured;
+        }
 
-        return self::isKnown($configured) ? $configured : 'Inventory';
+        return (string) (array_key_first(self::keys()) ?? 'Inventory');
     }
 
     /** Normalise a stored value to a channel this app actually offers. */

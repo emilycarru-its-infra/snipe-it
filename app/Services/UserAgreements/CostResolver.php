@@ -4,6 +4,7 @@ namespace App\Services\UserAgreements;
 
 use App\Models\Asset;
 use App\Models\OrderItem;
+use App\Services\Settings\Preferences;
 
 /**
  * Single source of truth for the dollar values that land on a
@@ -37,7 +38,8 @@ class CostResolver
 {
     public function baseProgramPrice(): ?float
     {
-        $value = config('forms.pickup_auto_create.base_program_price');
+        $value = Preferences::get('forms.pickup_auto_create.base_program_price');
+
         return $value === null ? null : (float) $value;
     }
 
@@ -54,7 +56,7 @@ class CostResolver
     public function topUpAmount(Asset $asset, ?float $deviceCost = null, ?float $basePrice = null): ?float
     {
         $device = $deviceCost ?? $this->deviceCost($asset);
-        $base   = $basePrice  ?? $this->baseProgramPrice();
+        $base = $basePrice ?? $this->baseProgramPrice();
 
         if ($device === null || $base === null) {
             return null;

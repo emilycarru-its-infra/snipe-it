@@ -18,8 +18,14 @@
             if (is_bool($value)) {
                 return $value ? trans('general.yes') : trans('general.no');
             }
+            if (is_array($value) && ! array_is_list($value)) {
+                return collect($value)->map(fn ($v, $k) => $k.' = '.$v)->implode(', ');
+            }
             if (is_array($value)) {
                 return $value ? implode(', ', $value) : trans('admin/settings/preferences.none');
+            }
+            if ($value === null || $value === '') {
+                return trans('admin/settings/preferences.none');
             }
 
             return (string) $value;
@@ -91,9 +97,18 @@
                                                     </select>
                                                     @break
                                                 @case('list')
+                                                @case('int_list')
                                                 @case('email_list')
                                                     <textarea name="{{ $name }}" id="{{ $id }}" class="form-control" rows="3">{{ implode("\n", (array) $pref['value']) }}</textarea>
                                                     <p class="help-block">{{ trans('admin/settings/preferences.list_hint') }}</p>
+                                                    @break
+                                                @case('map')
+                                                    <textarea name="{{ $name }}" id="{{ $id }}" class="form-control" rows="4">{{ collect((array) $pref['value'])->map(fn ($v, $k) => $k.' = '.$v)->implode("\n") }}</textarea>
+                                                    <p class="help-block">{{ trans('admin/settings/preferences.map_hint') }}</p>
+                                                    @break
+                                                @case('time')
+                                                    <input type="time" name="{{ $name }}" id="{{ $id }}" class="form-control" style="width: 220px"
+                                                           value="{{ is_scalar($current) ? $current : '' }}">
                                                     @break
                                                 @default
                                                     <input type="text" name="{{ $name }}" id="{{ $id }}" class="form-control" style="width: 220px"

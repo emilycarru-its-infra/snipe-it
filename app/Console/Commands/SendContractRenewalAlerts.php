@@ -7,6 +7,7 @@ use App\Mail\ContractRenewalAlertMail;
 use App\Models\Contract;
 use App\Models\EmailTemplate;
 use App\Models\Setting;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection;
@@ -135,7 +136,8 @@ class SendContractRenewalAlerts extends Command
     /**
      * Pulls contracts matching the given window. Tolerance is ±2 days
      * so a single daily run won't miss a date because cron fired a few
-     * hours late.
+     * hours late. The window names ('30d', '14d') are the column names;
+     * the days themselves are the contracts.renewal_alert.* preferences.
      */
     private function contractsForWindow(string $window, Carbon $today, bool $force): Collection
     {
@@ -145,19 +147,22 @@ class SendContractRenewalAlerts extends Command
             ->realOnly()
             ->whereNotNull('end_date');
 
+        $tolerance = (int) Preferences::get('contracts.renewal_alert.tolerance_days');
+        $around = fn (int $days) => [$today->copy()->addDays($days - $tolerance), $today->copy()->addDays($days + $tolerance)];
+
         $rows = match ($window) {
             '30d' => $query
-                ->whereBetween('end_date', [$today->copy()->addDays(28), $today->copy()->addDays(32)])
+                ->whereBetween('end_date', $around((int) Preferences::get('contracts.renewal_alert.first_days')))
                 ->when(! $force, fn ($q) => $q->whereNull('last_renewal_alert_30d_at'))
                 ->get(),
 
             '14d' => $query
-                ->whereBetween('end_date', [$today->copy()->addDays(12), $today->copy()->addDays(16)])
+                ->whereBetween('end_date', $around((int) Preferences::get('contracts.renewal_alert.second_days')))
                 ->when(! $force, fn ($q) => $q->whereNull('last_renewal_alert_14d_at'))
                 ->get(),
 
             'expired' => $query
-                ->whereBetween('end_date', [$today->copy()->subDays(7), $today->copy()->subDay()])
+                ->whereBetween('end_date', [$today->copy()->subDays((int) Preferences::get('contracts.renewal_alert.expired_days')), $today->copy()->subDay()])
                 ->when(! $force, fn ($q) => $q->whereNull('last_renewal_alert_expired_at'))
                 ->get(),
 

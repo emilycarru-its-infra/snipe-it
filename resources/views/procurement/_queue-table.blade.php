@@ -27,9 +27,9 @@
                 @endphp
                 <tr class="{{ $isDone ? 'is-done' : '' }}">
                     @if ($selectedStatus === 'approved')
-                        <td><input type="checkbox" name="orders[]" value="{{ $order->id }}" aria-label="{{ trans('admin/store/general.queue_order_ref', ['id' => $order->id]) }}"></td>
+                        <td><input type="checkbox" name="orders[]" value="{{ $order->id }}" aria-label="{{ $order->reference() }}"></td>
                     @endif
-                    <td><strong>{{ trans('admin/store/general.queue_order_ref', ['id' => $order->id]) }}</strong></td>
+                    <td><strong>{{ $order->reference() }}</strong></td>
                     <td>
                         {{ $order->user?->present()->fullName ?: trans('general.na') }}
                         @if ($order->user?->department)

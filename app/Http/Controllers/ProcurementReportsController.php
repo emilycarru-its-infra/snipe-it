@@ -61,19 +61,32 @@ class ProcurementReportsController extends Controller
      * schedule inside this window needs a renew/return/buy decision now, so it
      * belongs on the watchlist before it lapses into holdover.
      */
-    /**
-     * The status marking a device as funded for replacement this fiscal year,
-     * as opposed to "Active (Legacy)", which marks one that wants replacing but
-     * has no plan or money behind it.
-     */
-    private const EXTENSION_LOOKAHEAD_MONTHS = 3;
+    private static function extensionLookaheadMonths(): int
+    {
+        return (int) Preferences::get('leasing.extension_watch.lookahead_months');
+    }
 
     /**
      * How long after its end date a lease stays on the Extension Watch. Past
      * this the holdover is no longer a live negotiation and any device still
      * showing open is a records gap for Lease Data Health to carry instead.
      */
-    private const EXTENSION_LOOKBACK_MONTHS = 6;
+    private static function extensionLookbackMonths(): int
+    {
+        return (int) Preferences::get('leasing.extension_watch.lookback_months');
+    }
+
+    /** Dollars an invoice or PO may be off by before it reads as a variance. */
+    private static function varianceTolerance(): float
+    {
+        return (float) Preferences::get('procurement.variance_tolerance');
+    }
+
+    /** Months a lease of this kind amortises over when the register has no dates. */
+    private static function defaultTermMonths(bool $isLeaseToOwn): int
+    {
+        return (int) Preferences::get($isLeaseToOwn ? 'leasing.term_months.lease_to_own' : 'leasing.term_months.lease_to_return');
+    }
 
     /**
      * Procurement dashboard: budget/spend summary cards, charts and links
@@ -3555,7 +3568,7 @@ class ProcurementReportsController extends Controller
             $records[] = [
                 // Variance over a dollar gets the danger class — that's
                 // the threshold below which Mark is happy to wave through.
-                'class' => abs($variance) > 1.0 && $invoice->isPendingApproval() ? 'danger' : '',
+                'class' => abs($variance) > self::varianceTolerance() && $invoice->isPendingApproval() ? 'danger' : '',
                 'cells' => [
                     trans('admin/purchase-orders/general.attestation_'.($invoice->attestation_type ?: 'vendor_invoice')),
                     (string) $invoice->order?->purchaseOrder?->po_number,
@@ -4008,13 +4021,13 @@ class ProcurementReportsController extends Controller
         if ($po->status === 'closed' || $po->status === 'cancelled') {
             return trans('admin/purchase-orders/general.disposition_closed');
         }
-        if ($remaining < -1.0) {
+        if ($remaining < -self::varianceTolerance()) {
             return trans('admin/purchase-orders/general.disposition_overrun');
         }
         if ($openOrders > 0) {
             return trans('admin/purchase-orders/general.disposition_roll');
         }
-        if ($remaining > 1.0) {
+        if ($remaining > self::varianceTolerance()) {
             return trans('admin/purchase-orders/general.disposition_reallocate');
         }
 
@@ -4105,7 +4118,7 @@ class ProcurementReportsController extends Controller
             // Term length, for amortising the cost. The register's own dates
             // when it has both, else the 48/60-month convention.
             $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
-            $termMonths = $isLeaseToOwn ? 60 : 48;
+            $termMonths = self::defaultTermMonths($isLeaseToOwn);
             if ($term?->start_date && $term->end_date) {
                 $days = (int) (new \DateTime($term->start_date->format('Y-m-d')))
                     ->diff(new \DateTime($term->end_date->format('Y-m-d')))->format('%r%a');
@@ -4129,8 +4142,8 @@ class ProcurementReportsController extends Controller
             // its end with a few devices never checked in is not a lease
             // decision any more, it is a records problem — those belong on Lease
             // Data Health, not here, and mixing them made this report unreadable.
-            if ($monthsPastEnd < -self::EXTENSION_LOOKAHEAD_MONTHS
-                || $monthsPastEnd > self::EXTENSION_LOOKBACK_MONTHS) {
+            if ($monthsPastEnd < -self::extensionLookaheadMonths()
+                || $monthsPastEnd > self::extensionLookbackMonths()) {
                 continue;
             }
 
@@ -4180,7 +4193,7 @@ class ProcurementReportsController extends Controller
             // rides along on the contract cell instead of a dedicated
             // Original End column.
             $records[] = [
-                'class' => $months > 12 ? 'danger' : ($months > 0 ? 'warning' : ''),
+                'class' => $months > (int) Preferences::get('leasing.extension_watch.overdue_months') ? 'danger' : ($months > 0 ? 'warning' : ''),
                 'cells' => [
                     $group['contract_id']
                         .($datesDisagree ? ' '.trans('admin/purchase-orders/general.extension_date_conflict_contract', ['date' => $originalEnd->format('Y-m-d')]) : ''),
@@ -4416,7 +4429,7 @@ class ProcurementReportsController extends Controller
         }
 
         return $leaseEnd <= (new \DateTime('today'))
-            ->modify('+'.self::EXTENSION_LOOKAHEAD_MONTHS.' months');
+            ->modify('+'.self::extensionLookaheadMonths().' months');
     }
 
     /**
@@ -4712,7 +4725,7 @@ class ProcurementReportsController extends Controller
                     $poExpected += $expected;
                     $poVariance += $variance;
                     $invoiceCount++;
-                    $offBy = abs($variance) > 1.0;
+                    $offBy = abs($variance) > self::varianceTolerance();
                     $hasVariance = $hasVariance || $offBy;
 
                     $childRows[] = [
@@ -5314,7 +5327,7 @@ class ProcurementReportsController extends Controller
         }
 
         $isLeaseToOwn = ! empty($group['ownership_counts']['Lease to Own']);
-        $termMonths = $isLeaseToOwn ? 60 : 48;
+        $termMonths = self::defaultTermMonths($isLeaseToOwn);
 
         $end = null;
         if (! empty($group['lease_end_date'])) {

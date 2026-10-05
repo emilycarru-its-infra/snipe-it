@@ -6,6 +6,7 @@ use App\Mail\EmailDelivery;
 use App\Mail\StoreOrderStatusMail;
 use App\Models\EmailTemplate;
 use App\Models\StoreOrder;
+use App\Services\Settings\Preferences;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Facades\Log;
@@ -56,7 +57,7 @@ class StoreOrderNotifier
 
             $cc = EmailTemplate::ccFor(
                 'store.'.$event,
-                $copiedToProcurement ? 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca' : null,
+                $copiedToProcurement ? Preferences::csv('contacts.device_team') : null,
             );
 
             if ($cc !== []) {

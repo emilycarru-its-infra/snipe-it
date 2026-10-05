@@ -25,7 +25,7 @@ use Illuminate\Console\Command;
 class ReprovisionStoreOrder extends Command
 {
     protected $signature = 'store:reprovision
-                            {order : Store order id, or its ECU-STORE-<id> reference}
+                            {order : Store order id, or its store reference (prefix + id)}
                             {--dry-run : Report what is missing without creating anything}';
 
     protected $description = 'Create the asset records a store order is missing';
@@ -93,8 +93,9 @@ class ReprovisionStoreOrder extends Command
 
     private function resolveOrder(string $argument): ?StoreOrder
     {
-        if (preg_match('/^ECU-STORE-(\d+)$/i', trim($argument), $matches)) {
-            return StoreOrder::find((int) $matches[1]);
+        $orderId = StoreOrder::idFromReference(trim($argument), anyCase: true);
+        if ($orderId !== null) {
+            return StoreOrder::find($orderId);
         }
 
         return is_numeric($argument) ? StoreOrder::find((int) $argument) : null;

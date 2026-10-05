@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Settings\Preferences;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,16 +38,24 @@ class CatalogItem extends Model
      * the store's pills, the store's shelves, and the catalog page behind
      * them. Computers first because that is what people come for; the
      * things that hang off a computer after. A category not listed here
-     * sorts last, alphabetically, rather than disappearing.
+     * sorts last, alphabetically, rather than disappearing. This is the
+     * default of the store.category_order preference, which is what is read.
      */
     public const CATEGORY_ORDER = ['Laptops', 'Desktops', 'Tablets', 'Displays', 'Accessories', 'Components', 'Scanners'];
 
-    /** Where a category sits in {@see CATEGORY_ORDER}; unlisted ones go last. */
+    /** @return array<int, string> the category order in effect */
+    public static function categoryOrder(): array
+    {
+        return Preferences::get('store.category_order');
+    }
+
+    /** Where a category sits in {@see categoryOrder()}; unlisted ones go last. */
     public static function categoryRank(?string $category): int
     {
-        $rank = array_search($category, self::CATEGORY_ORDER, true);
+        $order = self::categoryOrder();
+        $rank = array_search($category, $order, true);
 
-        return $rank === false ? count(self::CATEGORY_ORDER) : $rank;
+        return $rank === false ? count($order) : $rank;
     }
 
     protected $table = 'catalog_items';

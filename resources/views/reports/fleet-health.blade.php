@@ -134,12 +134,12 @@
             <div class="box-body">
                 @if ($auditOverdue === 0)
                     <p class="text-muted" style="margin:0;">
-                        {{ trans('admin/reports/general.fleet_audit_zero') }}
+                        {{ trans('admin/reports/general.fleet_audit_zero', ['months' => \App\Services\Settings\Preferences::get('reports.audit_overdue_months')]) }}
                     </p>
                 @else
                     <p style="margin:0; font-size:18px;">
                         <strong>{{ number_format($auditOverdue) }}</strong>
-                        {{ trans('admin/reports/general.fleet_audit_overdue', ['count' => $auditOverdue]) }}
+                        {{ trans('admin/reports/general.fleet_audit_overdue', ['count' => $auditOverdue, 'months' => \App\Services\Settings\Preferences::get('reports.audit_overdue_months')]) }}
                     </p>
                 @endif
             </div>

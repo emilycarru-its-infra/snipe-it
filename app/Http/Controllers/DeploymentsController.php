@@ -63,7 +63,7 @@ class DeploymentsController extends Controller
         // while the board can never have anything to show there.
         $currentStartYear = FiscalYear::currentStartYear();
         $currentFy = FiscalYear::label($currentStartYear);
-        $window = collect(range($currentStartYear - 3, $currentStartYear + 3))
+        $window = collect(FiscalYear::pickerStartYears($currentStartYear))
             ->map(fn ($y) => FiscalYear::label($y));
         $waveFys = DeploymentWave::query()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')->all();
         // Oldest first — reading order matches the passage of time.
@@ -870,7 +870,7 @@ class DeploymentsController extends Controller
 
         $currentStartYear = FiscalYear::currentStartYear();
         $currentFy = FiscalYear::label($currentStartYear);
-        $fiscalYears = collect(range($currentStartYear - 3, $currentStartYear + 3))
+        $fiscalYears = collect(FiscalYear::pickerStartYears($currentStartYear))
             ->map(fn ($y) => FiscalYear::label($y))
             ->values()->all();
 

@@ -2,7 +2,10 @@
 
 namespace App\Services\UserAgreements;
 
+use App\Models\Setting;
 use App\Models\UserAgreement;
+use App\Services\Settings\Preferences;
+use Illuminate\Support\Facades\Storage;
 use TCPDF;
 
 /**
@@ -11,19 +14,34 @@ use TCPDF;
  * that the assets team maintains in OneDrive (Devices/Procurement/Current/Faculty
  * Program/). Output is raw PDF bytes; callers wrap in HTTP responses or
  * persist to private storage.
+ *
+ * A title or body saved under Settings → Agreements replaces the built-in
+ * one, so the signing page and the PDF say the same thing; a blank field
+ * keeps the layout below. The logo and the name in the PDF metadata follow
+ * Settings → Branding when set, and the terms quoted in the built-in text
+ * (lease length, loan length and instalments, return term) are the
+ * agreements.* preferences.
  */
 class PdfRenderer
 {
     private const LOGO_PATH = 'img/branding/ecu-logo.png';
+
+    /** The PDF metadata's institution when Settings → Branding has no site name. */
+    private const DEFAULT_INSTITUTION = 'Emily Carr University';
+
     private const FONT = 'dejavusans';
 
     public function render(UserAgreement $agreement): string
     {
+        if ($this->override($agreement->agreement_type, 'body') !== null) {
+            return $this->renderSaved($agreement);
+        }
+
         return match ($agreement->agreement_type) {
-            'pickup'   => $this->renderPickup($agreement),
-            'upgrade'  => $this->renderUpgrade($agreement),
+            'pickup' => $this->renderPickup($agreement),
+            'upgrade' => $this->renderUpgrade($agreement),
             'purchase' => $this->renderPurchase($agreement),
-            default    => throw new \InvalidArgumentException(
+            default => throw new \InvalidArgumentException(
                 "Unsupported agreement type: {$agreement->agreement_type}"
             ),
         };
@@ -34,7 +52,7 @@ class PdfRenderer
         $pdf = new TCPDF('P', 'mm', 'LETTER', true, 'UTF-8', false);
         $pdf->setRTL(false);
         $pdf->SetFontSubsetting(true);
-        $pdf->SetCreator('Snipe-IT — Emily Carr University');
+        $pdf->SetCreator('Snipe-IT — '.$this->institutionName());
         $pdf->SetTitle($title);
         $pdf->SetSubject($title);
         $pdf->SetPrintHeader(false);
@@ -53,7 +71,7 @@ class PdfRenderer
      */
     private function drawHeader(TCPDF $pdf, string $title): void
     {
-        $logoFullPath = public_path(self::LOGO_PATH);
+        $logoFullPath = $this->logoPath();
         $logoWidthMm = 42;
         $logoHeightMm = 38;
         $startY = $pdf->GetY();
@@ -83,11 +101,68 @@ class PdfRenderer
         $pdf->Cell(0, 8, $line, 0, 1, 'L');
     }
 
+    /**
+     * An agreement whose body was saved under Settings → Agreements: that
+     * text, merge variables filled, under the saved (or built-in) title.
+     */
+    private function renderSaved(UserAgreement $agreement): string
+    {
+        $title = $this->title($agreement->agreement_type, match ($agreement->agreement_type) {
+            'pickup' => 'Faculty Laptop Receipt Acknowledgment',
+            'upgrade' => 'Faculty Laptop Upgrade Agreement',
+            default => 'Faculty Laptop Purchase Agreement',
+        });
+
+        $pdf = $this->newPdf($title);
+        $this->drawHeader($pdf, $title);
+        $pdf->writeHTML(nl2br($this->e($agreement->eulaBody())), true, false, true, false, '');
+        $this->drawSignatureBlock($pdf);
+
+        return $pdf->Output('user-agreement-'.$agreement->agreement_type.'.pdf', 'S');
+    }
+
+    /** A Settings → Agreements field, or null when it is blank. */
+    private function override(string $type, string $part): ?string
+    {
+        $value = trim((string) (Setting::getSettings()->{'agreement_'.$type.'_'.$part} ?? ''));
+
+        return $value === '' ? null : $value;
+    }
+
+    /** The saved title for a type, else the built-in one. */
+    private function title(string $type, string $builtIn): string
+    {
+        return $this->override($type, 'title') ?? $builtIn;
+    }
+
+    /** The branding site name, else the name the PDFs have always carried. */
+    private function institutionName(): string
+    {
+        $name = trim((string) (Setting::getSettings()->site_name ?? ''));
+
+        return $name !== '' ? $name : self::DEFAULT_INSTITUTION;
+    }
+
+    /** The acceptance PDF logo from Settings → Branding when one is uploaded, else the bundled one. */
+    private function logoPath(): string
+    {
+        $logo = (string) (Setting::getSettings()->acceptance_pdf_logo ?? '');
+        if ($logo !== '' && Storage::disk('public')->exists($logo)) {
+            $uploaded = public_path('uploads/'.basename($logo));
+            if (is_file($uploaded)) {
+                return $uploaded;
+            }
+        }
+
+        return public_path(self::LOGO_PATH);
+    }
+
     private function renderPickup(UserAgreement $agreement): string
     {
         $vars = $agreement->mergeVariables();
-        $pdf = $this->newPdf('Faculty Laptop Receipt Acknowledgment');
-        $this->drawHeader($pdf, 'Faculty Laptop Receipt Acknowledgment');
+        $title = $this->title('pickup', 'Faculty Laptop Receipt Acknowledgment');
+        $pdf = $this->newPdf($title);
+        $this->drawHeader($pdf, $title);
 
         $intro = sprintf(
             'I, <b>%s</b>, acknowledge receipt of a laptop from Emily Carr University with the serial # <b>%s</b> and asset tag <b>%s</b>.',
@@ -98,7 +173,7 @@ class PdfRenderer
         $pdf->writeHTML($intro, true, false, true, false, '');
         $pdf->Ln(3);
         $pdf->writeHTML(
-            'I will return the laptop promptly to the University upon employment termination. Laptop leases are 4 years in duration. I will return the laptop to the University promptly after receiving a laptop return request in the year the laptop\'s lease is expiring. I understand that I may be requested to briefly return the laptop for administrative or technical reasons.',
+            'I will return the laptop promptly to the University upon employment termination. Laptop leases are '.(int) Preferences::get('agreements.lease_years').' years in duration. I will return the laptop to the University promptly after receiving a laptop return request in the year the laptop\'s lease is expiring. I understand that I may be requested to briefly return the laptop for administrative or technical reasons.',
             true, false, true, false, ''
         );
         $pdf->Ln(4);
@@ -141,20 +216,24 @@ class PdfRenderer
     {
         $vars = $agreement->mergeVariables();
         $upgradeAmount = (float) ($agreement->top_up_amount ?? 0);
-        $semiMonthly = $upgradeAmount > 0 ? $upgradeAmount / 24 : 0;
+        $loanMonths = (int) Preferences::get('agreements.loan_months');
+        $installments = max(1, (int) Preferences::get('agreements.loan_installments'));
+        $semiMonthly = $upgradeAmount > 0 ? $upgradeAmount / $installments : 0;
         $semiMonthlyStr = '$'.number_format($semiMonthly, 2);
 
         $checkLump = $agreement->payment_method === 'pay_in_full' ? '&#9746;' : '&#9744;';
         $checkSemi = $agreement->payment_method === 'pay_in_full' ? '&#9744;' : '&#9746;';
 
-        $pdf = $this->newPdf('Faculty Laptop Upgrade Agreement');
-        $this->drawHeader($pdf, 'Faculty Laptop Upgrade Agreement');
+        $title = $this->title('upgrade', 'Faculty Laptop Upgrade Agreement');
+        $pdf = $this->newPdf($title);
+        $this->drawHeader($pdf, $title);
 
         $intro = sprintf(
-            'I, <b>%s</b>, hereby acknowledge receipt of a laptop from Emily Carr University of Art + Design. I agree to repay the additional costs faced by Emily Carr to lease this upgraded laptop <b>%s</b> | <b>%s</b> by way of a 12 month interest-free loan, or through one lump sum payment. The conditions and provisions laid out below apply to this agreement:',
+            'I, <b>%s</b>, hereby acknowledge receipt of a laptop from Emily Carr University of Art + Design. I agree to repay the additional costs faced by Emily Carr to lease this upgraded laptop <b>%s</b> | <b>%s</b> by way of a %d month interest-free loan, or through one lump sum payment. The conditions and provisions laid out below apply to this agreement:',
             $this->e($vars['faculty_name']),
             $this->e($vars['serial']),
-            $this->e($vars['asset_tag'])
+            $this->e($vars['asset_tag']),
+            $loanMonths
         );
         $pdf->writeHTML($intro, true, false, true, false, '');
         $pdf->Ln(4);
@@ -170,13 +249,13 @@ class PdfRenderer
             true, false, true, false, ''
         );
         $pdf->writeHTML(
-            '&nbsp;&nbsp;&nbsp;&nbsp;<font size="14">'.$checkSemi.'</font>&nbsp;&nbsp;Pay in semi-monthly installments over a loan period of 12 months and authorize 24 semi-monthly installment payments of <b>'.$semiMonthlyStr.'</b>',
+            '&nbsp;&nbsp;&nbsp;&nbsp;<font size="14">'.$checkSemi.'</font>&nbsp;&nbsp;Pay in semi-monthly installments over a loan period of '.$loanMonths.' months and authorize '.$installments.' semi-monthly installment payments of <b>'.$semiMonthlyStr.'</b>',
             true, false, true, false, ''
         );
         $pdf->Ln(4);
 
         $pdf->writeHTML(
-            '<b>2.</b> &nbsp; I agree to return the laptop to Emily Carr should cessation of employment with Emily Carr occur during the loan period. Otherwise I agree to repay the loan as per above and return the laptop after a 48 month term, unless Emily Carr approval is granted stating otherwise.',
+            '<b>2.</b> &nbsp; I agree to return the laptop to Emily Carr should cessation of employment with Emily Carr occur during the loan period. Otherwise I agree to repay the loan as per above and return the laptop after a '.(int) Preferences::get('agreements.return_term_months').' month term, unless Emily Carr approval is granted stating otherwise.',
             true, false, true, false, ''
         );
         $pdf->Ln(3);
@@ -194,8 +273,9 @@ class PdfRenderer
     private function renderPurchase(UserAgreement $agreement): string
     {
         $vars = $agreement->mergeVariables();
-        $pdf = $this->newPdf('Faculty Laptop Purchase Agreement');
-        $this->drawHeader($pdf, 'Faculty Laptop Purchase Agreement');
+        $title = $this->title('purchase', 'Faculty Laptop Purchase Agreement');
+        $pdf = $this->newPdf($title);
+        $this->drawHeader($pdf, $title);
 
         $body = sprintf(
             'I, <b>%s</b>, hereby acknowledge I would like to purchase the laptop <b>%s</b> with serial number <b>%s</b> which I have been using as my assigned device under the Faculty Laptop Program.',
