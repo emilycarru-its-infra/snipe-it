@@ -224,7 +224,6 @@ return [
     'queue_col_qty' => 'Qty',
     'queue_col_unit' => 'Unit',
     'queue_col_total' => 'Line total',
-    'queue_order_ref' => 'ECU-STORE-:id',
     'line_requested_by' => 'Requested by :name via the Store',
 
     // Which account an order is charged to — the reseller places it

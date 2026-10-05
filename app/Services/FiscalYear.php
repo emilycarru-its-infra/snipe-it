@@ -41,6 +41,19 @@ class FiscalYear
         return self::startYearFor($date);
     }
 
+    /**
+     * Start years a fiscal-year picker offers around $startYear: that year
+     * plus `fiscal.picker_span_years` either side.
+     *
+     * @return array<int, int>
+     */
+    public static function pickerStartYears(int $startYear): array
+    {
+        $span = max(0, (int) Preferences::get('fiscal.picker_span_years'));
+
+        return range($startYear - $span, $startYear + $span);
+    }
+
     /** The label of the fiscal year starting in $startYear: `FY2025-26`. */
     public static function label(int $startYear): string
     {

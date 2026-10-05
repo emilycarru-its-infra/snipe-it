@@ -341,7 +341,7 @@ class StoreFunnelTest extends TestCase
 
         Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => ! $mail->test
             && $mail->hasTo('rep1@cdw.ca') && $mail->hasTo('rep2@cdw.ca')
-            && $mail->hasCc('devicesadmins@example.edu') && $mail->hasCc('assetsadmins@example.edu'));
+            && $mail->hasCc('devices@example.org') && $mail->hasCc('assets@example.org'));
         Mail::assertSent(StoreOrderStatusMail::class, fn ($mail) => $mail->event === 'ordered' && $mail->hasTo($requester->email));
 
         $order->refresh();

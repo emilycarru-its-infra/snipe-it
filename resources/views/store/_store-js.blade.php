@@ -184,7 +184,7 @@
     var STEPS = ['screen_size', 'chip', 'color', 'ram_gb', 'storage', 'display_finish', 'extras'];
     // One list, owned by the model, so the store and the catalog page
     // behind it never disagree about where Accessories sit.
-    var CATEGORY_ORDER = STR.categoryOrder || ['Laptops', 'Desktops', 'Tablets', 'Displays', 'Accessories', 'Components', 'Scanners'];
+    var CATEGORY_ORDER = STR.categoryOrder || [];
     // Computers are chosen platform-first — nobody cross-shops a MacBook
     // against a ThinkPad — so those two sections are split down the middle.
     // Everywhere else the platform is not how the choice is made.

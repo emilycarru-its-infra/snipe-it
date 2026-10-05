@@ -121,10 +121,10 @@ class CatalogSelfServe
         $item->price_type = 'estimate';
         $item->estimated_cost = $product['list_price'] ?? null;
         $item->currency = Preferences::get('currency.default');
-        $item->source = 'CDW.ca product page';
+        $item->source = Preferences::get('catalog.self_serve_source');
         $item->source_url = $product['url'];
 
-        $item->supplier_id = Supplier::where('name', 'like', 'CDW%')->value('id');
+        $item->supplier_id = Supplier::where('name', 'like', Preferences::get('catalog.self_serve_supplier').'%')->value('id');
         $item->manufacturer_id = $this->manufacturerId($product['manufacturer'] ?? null);
 
         $item->is_active = true;

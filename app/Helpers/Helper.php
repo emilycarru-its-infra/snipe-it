@@ -16,6 +16,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Services\FiscalYear;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\RedirectResponse;
@@ -1960,7 +1961,8 @@ class Helper
      * Carrier matching is a loose contains-check so feed values like
      * "FedEx Ground" or "UPS - Next Day" still resolve. Returns null when the
      * carrier is unknown or either argument is empty — callers should fall
-     * back to showing the tracking number as plain text.
+     * back to showing the tracking number as plain text. Carriers and their
+     * URL prefixes are the links.carrier_tracking preference.
      */
     public static function trackingUrl($carrier, $tracking_number): ?string
     {
@@ -1971,18 +1973,11 @@ class Helper
             return null;
         }
 
-        $patterns = [
-            'canada post' => 'https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=',
-            'purolator' => 'https://www.purolator.com/en/shipping/tracker?pin=',
-            'ups' => 'https://www.ups.com/track?tracknum=',
-            'fedex' => 'https://www.fedex.com/fedextrack/?trknbr=',
-            'usps' => 'https://tools.usps.com/go/TrackConfirmAction?tLabels=',
-            'dhl' => 'https://www.dhl.com/ca-en/home/tracking.html?tracking-id=',
-        ];
+        $patterns = Preferences::get('links.carrier_tracking');
 
         $haystack = strtolower($carrier);
         foreach ($patterns as $needle => $base) {
-            if (str_contains($haystack, $needle)) {
+            if (str_contains($haystack, strtolower((string) $needle))) {
                 return $base.rawurlencode($tracking_number);
             }
         }

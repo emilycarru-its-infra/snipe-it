@@ -52,7 +52,7 @@ class ArrivalAllocator
             ->where('serial', '!=', '')
             ->whereNull('assigned_to')
             ->where(fn ($q) => $q->whereNull('order_number')
-                ->orWhere('order_number', 'not like', 'ECU-STORE-%'))
+                ->orWhere(fn ($q) => StoreOrder::whereReference($q, 'order_number', false)))
             ->whereHas('status', fn ($q) => $q->where('pending', 1))
             ->with('model', 'status')
             ->orderByDesc('created_at')
@@ -67,7 +67,7 @@ class ArrivalAllocator
      */
     public function waitingRequests(): Collection
     {
-        return Asset::where('order_number', 'like', 'ECU-STORE-%')
+        return StoreOrder::whereReference(Asset::query(), 'order_number')
             ->where(fn ($q) => $q->whereNull('serial')->orWhere('serial', ''))
             ->whereNull('assigned_to')
             ->with('model', 'status')
@@ -111,7 +111,7 @@ class ArrivalAllocator
     {
         $reference = trim((string) $asset->order_number);
 
-        return $reference !== '' && ! str_starts_with($reference, 'ECU-STORE-') && filled($asset->serial);
+        return $reference !== '' && ! StoreOrder::isReference($reference) && filled($asset->serial);
     }
 
     public function autoAllocate(Asset $arrival): ?Asset
@@ -152,7 +152,7 @@ class ArrivalAllocator
                 fn ($q) => $q->where('vendor_order_number', $vendorOrderNumber))
             ->orderBy('created_at')
             ->pluck('id')
-            ->map(fn ($id) => 'ECU-STORE-'.$id);
+            ->flatMap(fn ($id) => array_map(fn (string $prefix) => $prefix.$id, StoreOrder::referencePrefixes()));
 
         if ($references->isEmpty()) {
             return collect();
@@ -182,7 +182,7 @@ class ArrivalAllocator
             throw new \InvalidArgumentException(trans('admin/orders/general.allocate_no_serial'));
         }
 
-        if (filled($waiting->serial) || ! str_starts_with((string) $waiting->order_number, 'ECU-STORE-')) {
+        if (filled($waiting->serial) || ! StoreOrder::isReference((string) $waiting->order_number)) {
             throw new \InvalidArgumentException(trans('admin/orders/general.allocate_not_waiting'));
         }
 
@@ -239,11 +239,12 @@ class ArrivalAllocator
      */
     private function notifyStoreOrder(Asset $waiting): void
     {
-        if (! preg_match('/^ECU-STORE-(\d+)$/', (string) $waiting->order_number, $m)) {
+        $orderId = StoreOrder::idFromReference((string) $waiting->order_number);
+        if ($orderId === null) {
             return;
         }
 
-        $order = StoreOrder::find((int) $m[1]);
+        $order = StoreOrder::find($orderId);
 
         if (! $order || ! in_array($order->status, ['approved', 'ordered'], true)) {
             return;

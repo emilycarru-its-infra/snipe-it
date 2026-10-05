@@ -162,7 +162,7 @@ class DecommissionLane
         return LeasePickup::query()
             ->with(['assets', 'lessor', 'requester'])
             ->where(fn ($q) => $q->whereIn('status', LeasePickup::OPEN_STATUSES)
-                ->orWhere('updated_at', '>=', now()->subDays(90)))
+                ->orWhere('updated_at', '>=', now()->subDays((int) Preferences::get('deployments.pickup_history_days'))))
             ->orderByRaw("CASE WHEN status IN ('requested','scheduled') THEN 0 ELSE 1 END")
             ->orderByDesc('requested_at')
             ->get()

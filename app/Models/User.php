@@ -10,6 +10,7 @@ use App\Models\Traits\Searchable;
 use App\Presenters\Presentable;
 use App\Presenters\UserPresenter;
 use App\Services\FormAccess;
+use App\Services\Settings\Preferences;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Auth\Passwords\CanResetPassword;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
@@ -644,7 +645,8 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      * Whether this person may place shared-usage orders — carts for labs,
      * classrooms and team spaces rather than their own assigned machine.
      * Group-driven by name, like Regular Faculty: membership in "Shared
-     * Purchasers" is synced/managed in one place and read here.
+     * Purchasers" (the groups.shared_purchasers preference) is synced/managed
+     * in one place and read here.
      */
     public function canOrderShared(): bool
     {
@@ -652,7 +654,7 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
             return true;
         }
 
-        return $this->groups()->where('name', 'Shared Purchasers')->exists();
+        return $this->groups()->where('name', Preferences::get('groups.shared_purchasers'))->exists();
     }
 
     public function hasAccess($section)

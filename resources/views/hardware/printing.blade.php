@@ -49,7 +49,7 @@
                 <div class="small-box bg-{{ $card['tone'] }}">
                     <div class="inner">
                         <h3 style="font-size:24px">{{ $card['value'] }}</h3>
-                        <p>{{ $card['label'] }} <small style="opacity:0.75;">— {{ trans('admin/hardware/printing.last_30_days') }}</small></p>
+                        <p>{{ $card['label'] }} <small style="opacity:0.75;">— {{ trans('admin/hardware/printing.last_n_days', ['days' => \App\Services\Settings\Preferences::get('reports.printer_usage.recent_days')]) }}</small></p>
                     </div>
                     <div class="icon"><i class="fas {{ $card['icon'] }}" aria-hidden="true"></i></div>
                 </div>
@@ -62,7 +62,7 @@
 <div class="col-md-8">
     <div class="box box-default">
         <div class="box-header with-border">
-            <h3 class="box-title">{{ trans('admin/hardware/printing.monthly_volume') }}</h3>
+            <h3 class="box-title">{{ trans('admin/hardware/printing.monthly_volume', ['months' => \App\Services\Settings\Preferences::get('reports.printer_usage.trend_months')]) }}</h3>
         </div>
         <div class="box-body">
             <canvas id="printerMonthlyChart-{{ $asset->id }}" height="160"></canvas>

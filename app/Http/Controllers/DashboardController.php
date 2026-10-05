@@ -323,7 +323,7 @@ class DashboardController extends Controller
 
         $stuckProcessing = Asset::join('status_labels', 'assets.status_id', '=', 'status_labels.id')
             ->whereIn('status_labels.id', Preferences::statusIds('status.stuck_processing') ?: [-1])
-            ->where('assets.updated_at', '<', $now->copy()->subDays(14))
+            ->where('assets.updated_at', '<', $now->copy()->subDays((int) Preferences::get('dashboard.stuck_processing_days')))
             ->whereNull('assets.deleted_at')
             ->count();
 
@@ -543,12 +543,13 @@ class DashboardController extends Controller
             }
         }
 
-        // Renewal season: the lease is inside its last eight months and no
-        // journey has started — the dashboard's job is to start it.
+        // Renewal season: the lease is inside its last stretch (eight months
+        // unless dashboard.renewal_prompt_days says otherwise) and no journey
+        // has started — the dashboard's job is to start it.
         $leaseEnd = $laptop?->leaseEndDate();
         $renewalDue = $leaseEnd !== null
             && ! $agreement && ! $order
-            && now()->diffInDays($leaseEnd, false) < 240;
+            && now()->diffInDays($leaseEnd, false) < (int) Preferences::get('dashboard.renewal_prompt_days');
 
         return view('dashboard.my', [
             'user' => $user,
