@@ -8,6 +8,8 @@ use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
 use App\Presenters\Presentable;
 use App\Presenters\SupplierPresenter;
+use App\Rules\ContractPrefixesUnclaimed;
+use App\Services\Leasing\LessorGuard;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -35,6 +37,7 @@ class Supplier extends SnipeModel
         'order_emails' => 'string|max:191|nullable',
         'lease_emails' => 'string|max:191|nullable',
         'pickup_emails' => 'string|max:191|nullable',
+        'contract_prefixes' => 'string|max:191|nullable',
         'address' => 'max:250|nullable',
         'address2' => 'max:250|nullable',
         'city' => 'max:191|nullable',
@@ -77,18 +80,8 @@ class Supplier extends SnipeModel
      *
      * @var array
      */
-    protected $fillable = ['name', 'colleague_vendor_id', 'order_emails', 'lease_emails', 'pickup_emails', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
+    protected $fillable = ['name', 'colleague_vendor_id', 'order_emails', 'lease_emails', 'pickup_emails', 'contract_prefixes', 'address', 'address2', 'city', 'state', 'country', 'zip', 'phone', 'fax', 'email', 'contact', 'url', 'tag_color', 'notes'];
 
-    /**
-     * Extra addresses for lease correspondence with this lessor — the buyout
-     * quote request is the one email that uses them. `email` holds the single
-     * account contact; a lessor fielding a second rep (CCA Financial does) puts
-     * the rest here, comma-separated. Scoped to the supplier on purpose: a
-     * buyout request names the contract, asset tag and serial, so it may only
-     * ever be addressed to the lessor that holds that lease.
-     *
-     * @return array<int, string>
-     */
     /**
      * Who books this lessor's end-of-lease pickups — the To of a pickup
      * request, ahead of the account contacts, who are copied.
@@ -104,6 +97,16 @@ class Supplier extends SnipeModel
             ->all();
     }
 
+    /**
+     * Extra addresses for lease correspondence with this lessor — the buyout
+     * quote request is the one email that uses them. `email` holds the single
+     * account contact; a lessor fielding a second rep (CCA Financial does) puts
+     * the rest here, comma-separated. Scoped to the supplier on purpose: a
+     * buyout request names the contract, asset tag and serial, so it may only
+     * ever be addressed to the lessor that holds that lease.
+     *
+     * @return array<int, string>
+     */
     public function leaseEmailList(): array
     {
         return collect(explode(',', (string) $this->lease_emails))
@@ -111,6 +114,58 @@ class Supplier extends SnipeModel
             ->filter()
             ->values()
             ->all();
+    }
+
+    /**
+     * The contract-number prefixes that mark a lease contract as this
+     * lessor's, upper-cased, longest first. LessorGuard reads them to decide
+     * which lessor a contract belongs to, so a prefix may only ever be
+     * claimed by one lessor (see ContractPrefixesUnclaimed).
+     *
+     * @return array<int, string>
+     */
+    public function contractPrefixList(): array
+    {
+        return self::parseContractPrefixes($this->contract_prefixes);
+    }
+
+    /** @return array<int, string> */
+    public static function parseContractPrefixes(?string $value): array
+    {
+        return collect(explode(',', (string) $value))
+            ->map(fn ($prefix) => strtoupper(trim($prefix)))
+            ->filter()
+            ->unique()
+            ->sortByDesc(fn ($prefix) => strlen($prefix))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The base rules plus the cross-supplier prefix check, which needs this
+     * record's id to leave its own prefixes out.
+     *
+     * @return array<string, mixed>
+     */
+    public function getRules()
+    {
+        $rules = $this->rules;
+        $rules['contract_prefixes'] = [
+            ...explode('|', $rules['contract_prefixes']),
+            new ContractPrefixesUnclaimed($this->getKey()),
+        ];
+
+        return $rules;
+    }
+
+    protected static function booted(): void
+    {
+        // The guard caches the prefix table for the request; a saved
+        // supplier must not leave it reading the old one.
+        $forget = fn () => app(LessorGuard::class)->forgetPrefixes();
+        static::saved($forget);
+        static::deleted($forget);
+        static::restored($forget);
     }
 
     public function isDeletable()

@@ -49,6 +49,9 @@ class SuppliersTransformer
                 // the right lessor.
                 'lease_emails' => e($supplier->lease_emails),
                 'pickup_emails' => e($supplier->pickup_emails),
+                // The lease contract prefixes that mark a contract as this
+                // lessor's; LessorGuard reads them.
+                'contract_prefixes' => e($supplier->contract_prefixes),
                 'contact' => e($supplier->contact),
                 'assets_count' => (int) $supplier->assets_count,
                 'accessories_count' => (int) $supplier->accessories_count,
