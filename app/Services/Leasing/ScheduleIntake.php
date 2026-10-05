@@ -9,6 +9,8 @@ use App\Models\ContractSerial;
 use App\Models\CsiSchedule;
 use App\Models\LeaseSchedule;
 use App\Models\Supplier;
+use App\Services\FiscalYear;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -259,7 +261,7 @@ class ScheduleIntake
             'product' => $parsed['schedule_ref'],
             'fiscal_year' => $fiscalYear,
             'type' => 'lease',
-            'currency' => 'CAD',
+            'currency' => Preferences::get('currency.default'),
             'source' => 'snipe',
             'created_by' => auth()->id(),
         ]);
@@ -388,11 +390,10 @@ class ScheduleIntake
         $item->logUpload($filename, $note);
     }
 
-    /** Fiscal year runs April to March: 2026-07-01 → "FY26-27". */
+    /** The two-digit fiscal year label of a date: 2026-07-01 → "FY26-27" with an April start. */
     private function fiscalYearShort(?string $date): string
     {
-        $d = $date ? Carbon::parse($date) : now();
-        $start = $d->month >= 4 ? $d->year : $d->year - 1;
+        $start = FiscalYear::startYearFor($date ? Carbon::parse($date) : now());
 
         return sprintf('FY%02d-%02d', $start % 100, ($start + 1) % 100);
     }

@@ -5,6 +5,7 @@ namespace Tests;
 use App\Http\Middleware\SecurityHeaders;
 use App\Models\Asset;
 use App\Services\FormAccess;
+use App\Services\Settings\Preferences;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use RuntimeException;
@@ -52,6 +53,10 @@ abstract class TestCase extends BaseTestCase
         // — which showed up only in a full run, as a redirect in a test
         // that passes on its own.
         FormAccess::flush();
+
+        // Preferences cache every override for the request; a fresh
+        // database per test must not read the last test's values.
+        Preferences::flush();
     }
 
     // ...existing code...

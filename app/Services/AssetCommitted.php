@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\PurchaseOrder;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -131,28 +131,13 @@ class AssetCommitted
     }
 
     /**
-     * The [start, end] bounds of an ECU fiscal year (April 1 → March 31).
+     * The [start, end] bounds of a fiscal year; see App\Services\FiscalYear.
      * Accepts `FY2025-26`, `2025-26` and `FY25-26`; null/'all' yields null
      * (no scoping).
      */
     private static function fiscalYearRange(?string $fy): ?array
     {
-        if ($fy === null || trim($fy) === '' || strtolower(trim($fy)) === 'all') {
-            return null;
-        }
-
-        if (preg_match('/(\d{4})\s*-\s*\d{2}$/', trim($fy), $m)) {
-            $start = (int) $m[1];
-        } elseif (preg_match('/(\d{2})\s*-\s*\d{2}$/', trim($fy), $m)) {
-            $start = 2000 + (int) $m[1];
-        } else {
-            return null;
-        }
-
-        return [
-            Carbon::create($start, 4, 1)->startOfDay(),
-            Carbon::create($start + 1, 3, 31)->endOfDay(),
-        ];
+        return Helper::fiscalYearRange($fy);
     }
 
     private static function parseMoney($value): float

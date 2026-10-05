@@ -11,6 +11,7 @@ use App\Models\StoreOrder;
 use App\Models\User;
 use App\Services\ArrivalAllocator;
 use App\Services\AssetChangeNotifier;
+use App\Services\Settings\Preferences;
 use App\Services\StoreOrderNotifier;
 use App\Services\UserAgreements\PickupUpgradeAutoCreator;
 use App\Services\UserAgreements\PurchaseAutoCreator;
@@ -365,9 +366,10 @@ class AssetObserver
     {
         // Read the label fresh by id: the `status` relation may still hold
         // the pre-update label on the instance the observer receives.
-        $event = match (Statuslabel::find($asset->status_id)?->name) {
-            'New (Inventoried)' => 'inventoried',
-            'New (Provisioned)' => 'ready',
+        $statusName = Statuslabel::find($asset->status_id)?->name;
+        $event = match (true) {
+            Preferences::statusMatches('status.store_journey.inventoried', $statusName) => 'inventoried',
+            Preferences::statusMatches('status.store_journey.provisioned', $statusName) => 'ready',
             default => null,
         };
 
