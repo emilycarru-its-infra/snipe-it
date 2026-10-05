@@ -44,12 +44,15 @@ class Location extends SnipeModel
         'manager_id' => 'exists:users,id|nullable',
         'parent_id' => 'nullable|exists:locations,id|non_circular:locations,id',
         'company_id' => 'integer|nullable|exists:companies,id',
+        'show_in_storage' => 'boolean|nullable',
+        'storage_capacity' => 'integer|min:0|max:100000|nullable',
     ];
 
     protected $casts = [
         'parent_id' => 'integer',
         'manager_id' => 'integer',
         'company_id' => 'integer',
+        'show_in_storage' => 'boolean',
     ];
 
     /**
