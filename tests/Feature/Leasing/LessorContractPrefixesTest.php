@@ -17,15 +17,6 @@ use Tests\TestCase;
  */
 class LessorContractPrefixesTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Migrated databases carry the seeded lessors; start from none.
-        DB::table('suppliers')->update(['contract_prefixes' => null]);
-        $this->guard()->forgetPrefixes();
-    }
-
     private function guard(): LessorGuard
     {
         return app(LessorGuard::class);
@@ -36,29 +27,11 @@ class LessorContractPrefixesTest extends TestCase
         return Supplier::factory()->create(['name' => $name, 'contract_prefixes' => $prefixes]);
     }
 
-    public function test_the_seed_does_nothing_when_the_lessors_do_not_exist(): void
+    public function test_the_migration_declares_no_prefixes(): void
     {
-        DB::table('suppliers')->delete();
-        $migration = require database_path('migrations/2026_10_04_130000_add_contract_prefixes_to_suppliers.php');
-
-        $migration->seed();
-
-        $this->assertSame(0, DB::table('suppliers')->count());
-    }
-
-    public function test_the_seed_stamps_existing_lessors_and_keeps_an_edited_value(): void
-    {
-        DB::table('suppliers')->delete();
-        DB::table('suppliers')->insert([
-            ['name' => 'CSI Leasing', 'contract_prefixes' => null],
-            ['name' => 'CCA Financial', 'contract_prefixes' => 'EDITED-'],
-        ]);
-        $migration = require database_path('migrations/2026_10_04_130000_add_contract_prefixes_to_suppliers.php');
-
-        $migration->seed();
-
-        $this->assertSame('100000-', DB::table('suppliers')->where('name', 'CSI Leasing')->value('contract_prefixes'));
-        $this->assertSame('EDITED-', DB::table('suppliers')->where('name', 'CCA Financial')->value('contract_prefixes'));
+        $this->assertSame(0, Supplier::whereNotNull('contract_prefixes')->count());
+        $this->assertSame([], $this->guard()->declaredPrefixes());
+        $this->assertNull($this->guard()->declaredLessorFor('700100-001'));
     }
 
     public function test_the_prefix_list_is_trimmed_upper_cased_and_longest_first(): void
@@ -81,13 +54,22 @@ class LessorContractPrefixesTest extends TestCase
         $this->assertSame(['QQ-1', 'QQ-2'], array_column(array_slice($this->guard()->declaredPrefixes(), 0, 2), 'prefix'));
     }
 
-    public function test_a_declared_prefix_wins_over_the_assets_on_the_contract(): void
+    public function test_a_declared_prefix_the_assets_contradict_resolves_to_no_lessor(): void
     {
-        $declared = $this->lessor('Lessor A', 'QQ-');
+        $this->lessor('Lessor A', 'QQ-');
         $other = $this->lessor('Lessor B', null);
         Asset::factory()->create(['lease_contract_id' => 'QQ-001', 'lessor_id' => $other->id]);
 
+        $this->assertNull($this->guard()->lessorForContract('QQ-002'));
+    }
+
+    public function test_a_declared_prefix_the_assets_agree_with_resolves(): void
+    {
+        $declared = $this->lessor('Lessor A', 'QQ-');
+        Asset::factory()->create(['lease_contract_id' => 'QQ-001', 'lessor_id' => $declared->id]);
+
         $this->assertTrue($this->guard()->lessorForContract('QQ-002')->is($declared));
+        $this->assertTrue($this->guard()->lessorForContract('QQ-777')->is($declared));
     }
 
     public function test_with_no_declared_prefix_the_assets_decide_as_before(): void

@@ -478,6 +478,38 @@ class OkayToPayTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_another_lessors_invoice_never_gets_an_ok_to_pay_by_declared_prefix()
+    {
+        Supplier::firstOrCreate(['name' => 'Lessor One'], ['email' => 'lessor@lessor.test'])
+            ->update(['contract_prefixes' => '700100-']);
+        Supplier::create(['name' => 'Lessor Two', 'email' => 'rep@second.test', 'contract_prefixes' => '700200-']);
+        // No asset sits on the 700200 family: only the declared prefix knows.
+        $this->leaseOrder(['order_number' => 'ORD-OTHER', 'lease_schedule' => '700200-002']);
+
+        $this->ingest('ORD-OTHER', 'INV-OTHER', Asset::factory()->count(1)->create()->all());
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        $this->assertNull($this->invoice('INV-OTHER')->okp_status);
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_declared_prefix_the_assets_contradict_is_held_and_never_sent()
+    {
+        config(['leasing.okp_review_hours' => 0]);
+        $other = Supplier::create(['name' => 'Lessor Two', 'email' => 'rep@second.test']);
+        // Lessor One declares the schedule's prefix, but the asset already on
+        // that master agreement is filed under Lessor Two.
+        Supplier::create(['name' => 'Lessor One', 'email' => 'lessor@lessor.test', 'contract_prefixes' => '700100-']);
+        Asset::factory()->create(['lease_contract_id' => '700100-001', 'lessor_id' => $other->id]);
+        $this->leaseOrder();
+
+        $this->ingest('ORD-LEASE-1', 'INV-SPLIT', Asset::factory()->count(1)->create()->all());
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+
+        $this->assertSame(OkayToPay::HELD, $this->invoice('INV-SPLIT')->okp_status);
+        Mail::assertNothingSent();
+    }
+
     public function test_a_schedule_whose_lessor_cannot_be_told_is_held()
     {
         $this->leaseOrder(['order_number' => 'ORD-NEW', 'lease_schedule' => '999999-001']);

@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\LeaseDecision;
 use App\Models\Statuslabel;
 use App\Models\User;
+use Tests\Support\DeclaresLessors;
 use Tests\TestCase;
 
 /**
@@ -16,6 +17,14 @@ use Tests\TestCase;
  */
 class LeaseEndSchedulesTest extends TestCase
 {
+    use DeclaresLessors;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->declareLessors();
+    }
+
     private function superuser(): User
     {
         return User::factory()->superuser()->create();
@@ -43,13 +52,13 @@ class LeaseEndSchedulesTest extends TestCase
 
     public function test_dashboard_lists_ending_schedules_and_defaults_to_refresh()
     {
-        $this->seedSchedule('ECI20221207', '2026-12-31', 2, 1111.11);
+        $this->seedSchedule('QQ-20221201', '2026-12-31', 2, 1111.11);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertSee('ECI20221207')
-            ->assertSee('CCA Financial')
+            ->assertSee('QQ-20221201')
+            ->assertSee('Lessor Two')
             ->assertSee('2026-12-31')
             ->assertSee(trans('admin/purchase-orders/general.lease_end_refresh_planned'))
             // 2 × $1,111.11 lands in both the schedule row and the
@@ -59,10 +68,10 @@ class LeaseEndSchedulesTest extends TestCase
 
     public function test_decided_schedule_stays_in_the_preapproval_estimate()
     {
-        $this->seedSchedule('ECI20221207', '2026-12-31', 2, 1111.11);
+        $this->seedSchedule('QQ-20221201', '2026-12-31', 2, 1111.11);
 
         LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20221207',
+            'contract_reference' => 'QQ-20221201',
             'decision_type' => 'buyout',
             'status' => 'approved',
             'decision_date' => '2026-12-31',
@@ -73,7 +82,7 @@ class LeaseEndSchedulesTest extends TestCase
             ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
             // The schedule shows, carrying its decision and note…
-            ->assertSee('ECI20221207')
+            ->assertSee('QQ-20221201')
             ->assertSee(trans('admin/lease-decisions/general.type_buyout'))
             // The Plan tag spells the decision status out ("decision confirmed")
             // instead of a bare "Approved" that reads like budget approval.
@@ -89,10 +98,10 @@ class LeaseEndSchedulesTest extends TestCase
 
     public function test_replace_decision_keeps_schedule_in_the_estimate()
     {
-        $this->seedSchedule('ECI20220907', '2026-09-01', 1, 500.00);
+        $this->seedSchedule('QQ-20220901', '2026-09-01', 1, 500.00);
 
         LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20220907',
+            'contract_reference' => 'QQ-20220901',
             'decision_type' => 'replace',
             'status' => 'approved',
             'decision_date' => '2026-09-01',
@@ -101,7 +110,7 @@ class LeaseEndSchedulesTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertSee('ECI20220907')
+            ->assertSee('QQ-20220901')
             ->assertSee(trans('admin/lease-decisions/general.type_replace'))
             ->assertSee('$500.00');
     }
@@ -109,7 +118,7 @@ class LeaseEndSchedulesTest extends TestCase
     public function test_disposed_devices_drop_from_the_count_but_keep_their_budget()
     {
         // Two devices still active on the schedule…
-        $this->seedSchedule('ECI20990101', '2026-12-31', 2, 1000.00);
+        $this->seedSchedule('QQ-20990101', '2026-12-31', 2, 1000.00);
 
         // …and one already returned (archived) — its body leaves the
         // headcount, but its cost stays in the pre-approval envelope.
@@ -119,7 +128,7 @@ class LeaseEndSchedulesTest extends TestCase
             'purchase_cost' => 777.00,
         ]);
         Asset::query()->whereKey($returned->id)->update([
-            'lease_contract_id' => 'ECI20990101',
+            'lease_contract_id' => 'QQ-20990101',
             'lease_end_date' => '2026-12-31',
         ]);
 
@@ -141,13 +150,13 @@ class LeaseEndSchedulesTest extends TestCase
 
     public function test_schedule_outside_selected_fy_is_hidden()
     {
-        $this->seedSchedule('ECI20221207', '2026-12-31', 1, 100.00);
-        $this->seedSchedule('ECI20200407', '2025-04-30', 1, 100.00);
+        $this->seedSchedule('QQ-20221201', '2026-12-31', 1, 100.00);
+        $this->seedSchedule('QQ-20200401', '2025-04-30', 1, 100.00);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.lease-end-schedules', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertSee('ECI20221207')
-            ->assertDontSee('ECI20200407');
+            ->assertSee('QQ-20221201')
+            ->assertDontSee('QQ-20200401');
     }
 }

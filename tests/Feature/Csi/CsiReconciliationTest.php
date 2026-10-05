@@ -11,14 +11,23 @@ use App\Models\CsiSchedule;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Services\CsiReconciliation;
+use Tests\Support\DeclaresLessors;
 use Tests\TestCase;
 
 class CsiReconciliationTest extends TestCase
 {
+    use DeclaresLessors;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->declareLessors();
+    }
+
     public function test_reconciliation_report_renders()
     {
         $col = $this->leaseColumn();
-        CsiAsset::create(['serial' => 'GHOSTX', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
+        CsiAsset::create(['serial' => 'GHOSTX', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
 
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('reports.procurement.csi-reconciliation'))
@@ -32,10 +41,10 @@ class CsiReconciliationTest extends TestCase
         // Make FY2026-27 an available scope (resolveFiscalYear validates
         // against FYs that actually carry activity).
         PurchaseOrder::factory()->create(['fiscal_year' => 'FY2026-27']);
-        Contract::factory()->create(['schedule_number' => '100000-003', 'fiscal_year' => 'FY25-26']);
-        Contract::factory()->create(['schedule_number' => '100000-007', 'fiscal_year' => 'FY26-27']);
-        CsiAsset::create(['serial' => 'OLDYEAR1', 'lease_number' => '100000', 'schedule_name' => '100000-003', 'model' => 'iMac']);
-        CsiAsset::create(['serial' => 'NEWYEAR1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'MacBook']);
+        Contract::factory()->create(['schedule_number' => '700100-003', 'fiscal_year' => 'FY25-26']);
+        Contract::factory()->create(['schedule_number' => '700100-007', 'fiscal_year' => 'FY26-27']);
+        CsiAsset::create(['serial' => 'OLDYEAR1', 'lease_number' => '700100', 'schedule_name' => '700100-003', 'model' => 'iMac']);
+        CsiAsset::create(['serial' => 'NEWYEAR1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'MacBook']);
 
         $response = $this->actingAs(User::factory()->superuser()->create())
             ->get(route('reports.procurement.csi-reconciliation', ['fiscal_year' => 'FY2026-27']));
@@ -45,7 +54,7 @@ class CsiReconciliationTest extends TestCase
 
     public function test_unserialized_feed_lines_are_informational_not_missing()
     {
-        CsiAsset::create(['serial' => 'N/A', 'lease_number' => '100000', 'schedule_name' => '100000-008', 'model' => 'Z2 G1A MINI RAIL RACK KIT']);
+        CsiAsset::create(['serial' => 'N/A', 'lease_number' => '700100', 'schedule_name' => '700100-008', 'model' => 'Z2 G1A MINI RAIL RACK KIT']);
 
         $response = $this->actingAs(User::factory()->superuser()->create())
             ->get(route('reports.procurement.csi-reconciliation'));
@@ -57,7 +66,7 @@ class CsiReconciliationTest extends TestCase
 
     public function test_arrivals_report_renders()
     {
-        CsiInprocessAsset::create(['serial' => 'ARRX', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'MacBook']);
+        CsiInprocessAsset::create(['serial' => 'ARRX', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'MacBook']);
 
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('reports.procurement.csi-arrivals'))
@@ -71,16 +80,16 @@ class CsiReconciliationTest extends TestCase
 
         // One device Snipe already knows, one it doesn't — same schedule.
         $this->snipeAsset('ARRIN', $col, null);
-        CsiInprocessAsset::create(['serial' => 'ARRIN', 'lease_number' => '100000', 'schedule_name' => '100000-008', 'model' => 'Studio Display']);
-        CsiInprocessAsset::create(['serial' => 'ARROUT', 'lease_number' => '100000', 'schedule_name' => '100000-008', 'model' => 'Studio Display']);
+        CsiInprocessAsset::create(['serial' => 'ARRIN', 'lease_number' => '700100', 'schedule_name' => '700100-008', 'model' => 'Studio Display']);
+        CsiInprocessAsset::create(['serial' => 'ARROUT', 'lease_number' => '700100', 'schedule_name' => '700100-008', 'model' => 'Studio Display']);
 
         $response = $this->actingAs(User::factory()->superuser()->create())
             ->get(route('reports.procurement.csi-arrivals'))
             ->assertOk()
             // "Missing in Snipe" was shortened to just "Missing" on this report.
             ->assertSee(trans('admin/purchase-orders/general.csi_recon_missing'))
-            // Per-schedule subtotal row: "100000-008 Total" + "1 / 2 in Snipe".
-            ->assertSee('100000-008 '.trans('admin/orders/general.total'))
+            // Per-schedule subtotal row: "700100-008 Total" + "1 / 2 in Snipe".
+            ->assertSee('700100-008 '.trans('admin/orders/general.total'))
             ->assertSee('1 / 2 '.trans('admin/purchase-orders/general.csi_recon_in_snipe_suffix'))
             // The missing device gets a one-click add-to-inventory deep link
             // prefilled with its serial; the matched one does not.
@@ -92,7 +101,7 @@ class CsiReconciliationTest extends TestCase
 
     public function test_embedded_reconciliation_summary_footer_spans_the_table()
     {
-        CsiAsset::create(['serial' => 'GHOSTY', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
+        CsiAsset::create(['serial' => 'GHOSTY', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
 
         // The tally summary lives in footer column 0; merged across the row
         // it no longer participates in the Status column's auto-layout width
@@ -108,9 +117,9 @@ class CsiReconciliationTest extends TestCase
     public function test_matches_fold_into_one_collapsed_group_and_discrepancies_stay_flat()
     {
         // One device that agrees, one that only the feed knows about.
-        $agreed = $this->snipeAsset('AGREES1', $this->leaseColumn(), '100000-007');
-        CsiAsset::create(['serial' => 'AGREES1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
-        CsiAsset::create(['serial' => 'ONLYFEED', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
+        $agreed = $this->snipeAsset('TESTAGREES1', $this->leaseColumn(), '700100-007');
+        CsiAsset::create(['serial' => 'TESTAGREES1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
+        CsiAsset::create(['serial' => 'ONLYFEED', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
 
         $content = $this->actingAs(User::factory()->superuser()->create())
             ->get(route('reports.procurement.csi-reconciliation', ['embed' => 1]))
@@ -140,8 +149,8 @@ class CsiReconciliationTest extends TestCase
 
     public function test_the_csv_export_still_lists_every_matched_device_flat()
     {
-        $this->snipeAsset('AGREES1', $this->leaseColumn(), '100000-007');
-        CsiAsset::create(['serial' => 'AGREES1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
+        $this->snipeAsset('TESTAGREES1', $this->leaseColumn(), '700100-007');
+        CsiAsset::create(['serial' => 'TESTAGREES1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
 
         $response = $this->actingAs(User::factory()->superuser()->create())
             ->get(route('reports.procurement.csi-reconciliation', ['format' => 'csv']))
@@ -149,7 +158,7 @@ class CsiReconciliationTest extends TestCase
 
         $csv = $response->streamedContent();
 
-        $this->assertStringContainsString('AGREES1', $csv);
+        $this->assertStringContainsString('TESTAGREES1', $csv);
         $this->assertStringNotContainsString(
             trans('admin/purchase-orders/general.csi_recon_match_fold', ['count' => 1]),
             $csv,
@@ -178,18 +187,18 @@ class CsiReconciliationTest extends TestCase
         $col = $this->leaseColumn();
 
         // match: same serial, Snipe lease ref (with -suffix) normalizes to the CSI schedule
-        $this->snipeAsset('MATCH1', $col, '100000-007-041426');
-        CsiAsset::create(['serial' => 'MATCH1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
+        $this->snipeAsset('MATCH1', $col, '700100-007-041426');
+        CsiAsset::create(['serial' => 'MATCH1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
 
         // schedule_mismatch: Snipe says 003, CSI says 007
-        $this->snipeAsset('MISM1', $col, '100000-003-041426');
-        CsiAsset::create(['serial' => 'MISM1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
+        $this->snipeAsset('MISM1', $col, '700100-003-041426');
+        CsiAsset::create(['serial' => 'MISM1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
 
         // missing_in_snipe: CSI has it, Snipe doesn't
-        CsiAsset::create(['serial' => 'GHOST1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'iPad']);
+        CsiAsset::create(['serial' => 'GHOST1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'iPad']);
 
         // extra_in_snipe: Snipe on a CSI schedule, CSI doesn't list it
-        $this->snipeAsset('EXTRA1', $col, '100000-008-041426');
+        $this->snipeAsset('EXTRA1', $col, '700100-008-041426');
 
         $diff = collect((new CsiReconciliation)->assetDiff());
 
@@ -208,8 +217,8 @@ class CsiReconciliationTest extends TestCase
     public function test_serial_match_is_case_and_space_insensitive()
     {
         $col = $this->leaseColumn();
-        $this->snipeAsset('abc123', $col, '100000-007-041426');
-        CsiAsset::create(['serial' => ' ABC123 ', 'lease_number' => '100000', 'schedule_name' => '100000-007']);
+        $this->snipeAsset('abc123', $col, '700100-007-041426');
+        CsiAsset::create(['serial' => ' ABC123 ', 'lease_number' => '700100', 'schedule_name' => '700100-007']);
 
         $diff = collect((new CsiReconciliation)->assetDiff());
         $this->assertEquals('match', $diff->firstWhere('serial', ' ABC123 ')['status']);
@@ -220,8 +229,8 @@ class CsiReconciliationTest extends TestCase
     {
         $col = $this->leaseColumn();
         $this->snipeAsset('ARR1', $col, null);
-        CsiInprocessAsset::create(['serial' => 'ARR1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'MacBook']);
-        CsiInprocessAsset::create(['serial' => 'ARR2', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'MacBook']);
+        CsiInprocessAsset::create(['serial' => 'ARR1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'MacBook']);
+        CsiInprocessAsset::create(['serial' => 'ARR2', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'MacBook']);
 
         $arrivals = collect((new CsiReconciliation)->inProcessArrivals());
         $this->assertTrue($arrivals->firstWhere('serial', 'ARR1')['in_snipe']);
@@ -232,64 +241,64 @@ class CsiReconciliationTest extends TestCase
     {
         // Accepted onto a schedule — the in-process feed still carries the
         // device, but it is no longer "incoming".
-        CsiAsset::create(['serial' => 'DONE1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'MacBook']);
-        CsiInprocessAsset::create(['serial' => 'DONE1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'MacBook']);
+        CsiAsset::create(['serial' => 'DONE1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'MacBook']);
+        CsiInprocessAsset::create(['serial' => 'DONE1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'MacBook']);
 
         // Still genuinely in flight.
-        CsiInprocessAsset::create(['serial' => 'FLIGHT1', 'lease_number' => '100000', 'schedule_name' => '100000-007', 'model' => 'MacBook']);
+        CsiInprocessAsset::create(['serial' => 'TESTFLIGHT1', 'lease_number' => '700100', 'schedule_name' => '700100-007', 'model' => 'MacBook']);
 
         // Unserialized financed lines have no serial to join on; they drop
         // once the same schedule + model shows on the accepted feed. (The
         // in-process mirror keys on serial, so at most one N/A row exists.)
-        CsiAsset::create(['serial' => 'N/A', 'lease_number' => '100000', 'schedule_name' => '100000-008', 'model' => 'RACK KIT']);
-        $unserialized = CsiInprocessAsset::create(['serial' => 'N/A', 'lease_number' => '100000', 'schedule_name' => '100000-008', 'model' => 'RACK KIT']);
+        CsiAsset::create(['serial' => 'N/A', 'lease_number' => '700100', 'schedule_name' => '700100-008', 'model' => 'RACK KIT']);
+        $unserialized = CsiInprocessAsset::create(['serial' => 'N/A', 'lease_number' => '700100', 'schedule_name' => '700100-008', 'model' => 'RACK KIT']);
 
         $arrivals = collect((new CsiReconciliation)->inProcessArrivals());
 
         $this->assertNull($arrivals->firstWhere('serial', 'DONE1'));
-        $this->assertNotNull($arrivals->firstWhere('serial', 'FLIGHT1'));
+        $this->assertNotNull($arrivals->firstWhere('serial', 'TESTFLIGHT1'));
         $this->assertCount(0, $arrivals->where('serial', 'N/A'));
 
         // A later unserialized line on a schedule the accepted feed doesn't
         // list yet is still genuinely incoming.
-        $unserialized->update(['schedule_name' => '100000-009']);
+        $unserialized->update(['schedule_name' => '700100-009']);
         $arrivals = collect((new CsiReconciliation)->inProcessArrivals());
         $this->assertCount(1, $arrivals->where('serial', 'N/A'));
-        $this->assertEquals('100000-009', $arrivals->firstWhere('serial', 'N/A')['csi_schedule']);
+        $this->assertEquals('700100-009', $arrivals->firstWhere('serial', 'N/A')['csi_schedule']);
     }
 
     public function test_schedule_summary_counts_csi_vs_snipe()
     {
         $col = $this->leaseColumn();
-        CsiSchedule::create(['schedule_name' => '100000-007', 'lease_number' => '100000', 'rent' => 2979.44]);
-        CsiAsset::create(['serial' => 'S1', 'schedule_name' => '100000-007']);
-        CsiAsset::create(['serial' => 'S2', 'schedule_name' => '100000-007']);
-        $this->snipeAsset('S1', $col, '100000-007-041426');
+        CsiSchedule::create(['schedule_name' => '700100-007', 'lease_number' => '700100', 'rent' => 2979.44]);
+        CsiAsset::create(['serial' => 'S1', 'schedule_name' => '700100-007']);
+        CsiAsset::create(['serial' => 'S2', 'schedule_name' => '700100-007']);
+        $this->snipeAsset('S1', $col, '700100-007-041426');
 
-        $row = collect((new CsiReconciliation)->scheduleSummary())->firstWhere('schedule', '100000-007');
+        $row = collect((new CsiReconciliation)->scheduleSummary())->firstWhere('schedule', '700100-007');
         $this->assertEquals(2, $row['csi_assets']);
         $this->assertEquals(1, $row['snipe_assets']);
     }
 
     public function test_rent_invoices_listed()
     {
-        CsiInvoice::create(['csi_invoice_number' => 'TESTINV0001', 'lease_number' => '100000', 'schedule_name' => '100000-003', 'invoice_date' => '2026-03-03', 'amount' => 7498.22]);
+        CsiInvoice::create(['csi_invoice_number' => 'TESTTESTINV0001', 'lease_number' => '700100', 'schedule_name' => '700100-003', 'invoice_date' => '2026-03-03', 'amount' => 7498.22]);
         $rows = (new CsiReconciliation)->rentInvoices();
         $this->assertCount(1, $rows);
-        $this->assertEquals('TESTINV0001', $rows[0]['invoice']);
+        $this->assertEquals('TESTTESTINV0001', $rows[0]['invoice']);
     }
 
     public function test_for_asset_accepted_matches_snipe()
     {
         $col = $this->leaseColumn();
-        $asset = $this->snipeAsset('FA1', $col, '100000-007-041426');
-        CsiAsset::create(['serial' => 'FA1', 'schedule_name' => '100000-007']);
-        CsiSchedule::create(['schedule_name' => '100000-007', 'lease_number' => '100000', 'rent' => 2979.44]);
+        $asset = $this->snipeAsset('FA1', $col, '700100-007-041426');
+        CsiAsset::create(['serial' => 'FA1', 'schedule_name' => '700100-007']);
+        CsiSchedule::create(['schedule_name' => '700100-007', 'lease_number' => '700100', 'rent' => 2979.44]);
 
         $r = (new CsiReconciliation)->forAsset($asset->fresh());
         $this->assertEquals('accepted', $r['state']);
         $this->assertEquals('match', $r['recon']);
-        $this->assertEquals('100000-007', $r['schedule_name']);
+        $this->assertEquals('700100-007', $r['schedule_name']);
         $this->assertNotNull($r['schedule']);
     }
 
@@ -297,7 +306,7 @@ class CsiReconciliationTest extends TestCase
     {
         $col = $this->leaseColumn();
         $asset = $this->snipeAsset('FA2', $col, null);
-        CsiInprocessAsset::create(['serial' => 'FA2', 'schedule_name' => '100000-007']);
+        CsiInprocessAsset::create(['serial' => 'FA2', 'schedule_name' => '700100-007']);
 
         $r = (new CsiReconciliation)->forAsset($asset->fresh());
         $this->assertEquals('in_process', $r['state']);
@@ -307,7 +316,7 @@ class CsiReconciliationTest extends TestCase
     public function test_for_asset_snipe_only_when_csi_does_not_list_it()
     {
         $col = $this->leaseColumn();
-        $asset = $this->snipeAsset('FA3', $col, '100000-009-041426');
+        $asset = $this->snipeAsset('FA3', $col, '700100-009-041426');
 
         $r = (new CsiReconciliation)->forAsset($asset->fresh());
         $this->assertEquals('snipe_only', $r['state']);

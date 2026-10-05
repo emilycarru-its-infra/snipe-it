@@ -12,7 +12,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
  * LessorGuard picks a contract's lessor by prefix, and every email to a
  * lessor names lease facts, so two lessors claiming the same contracts would
  * let one lessor's lease reach the other. A clash is an exact duplicate, or
- * one prefix being the leading part of another's ("4130" against "4130-ECI"),
+ * one prefix being the leading part of another's ("AB" against "AB-1"),
  * because then a contract can match both.
  */
 class ContractPrefixesUnclaimed implements ValidationRule
