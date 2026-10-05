@@ -6,6 +6,8 @@ use App\Models\Asset;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentWave;
 use App\Models\User;
+use App\Services\Settings\Preferences;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -76,7 +78,7 @@ class WaveMembership
     public function ineligible(DeploymentWave $wave, ?Collection $recipients = null): Collection
     {
         $recipients ??= (new WaveAnnouncer)->recipients($wave);
-        $cutoff = now()->addMonths(self::LEASE_END_WINDOW_MONTHS);
+        $cutoff = now()->addMonths((int) Preferences::get('deployments.lease_end_window_months'));
 
         $flagged = collect();
 
@@ -109,19 +111,12 @@ class WaveMembership
      * its lease end. Either alone is an incomplete answer — a lease-to-own runs a
      * year past the refresh, and a purchased machine has no lease date at all.
      */
-    public function dueDate(Asset $asset): ?\Illuminate\Support\Carbon
+    public function dueDate(Asset $asset): ?Carbon
     {
         $dates = collect([$asset->asset_eol_date, $asset->lease_end_date])
             ->filter()
-            ->map(fn ($date) => \Illuminate\Support\Carbon::parse($date));
+            ->map(fn ($date) => Carbon::parse($date));
 
         return $dates->isEmpty() ? null : $dates->sort()->first();
     }
-
-    /**
-     * How far ahead a lease still counts as ending. A quarter past the wave's own
-     * year would be arguing; twelve months matches the refresh forecast, which is
-     * where these cohorts are drawn from in the first place.
-     */
-    public const LEASE_END_WINDOW_MONTHS = 12;
 }

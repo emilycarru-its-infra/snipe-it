@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\FormAccess;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -31,16 +32,14 @@ use Illuminate\Support\Facades\Log;
  */
 class PickupUpgradeAutoCreator
 {
-    public function __construct(private readonly CostResolver $costs)
-    {
-    }
+    public function __construct(private readonly CostResolver $costs) {}
 
     /** @return array{pickup: ?UserAgreement, upgrade: ?UserAgreement} */
     public function ensureForCheckout(Asset $newAsset): array
     {
         $none = ['pickup' => null, 'upgrade' => null];
 
-        if (! (bool) config('forms.pickup_auto_create.enabled', true)) {
+        if (! (bool) Preferences::get('forms.pickup_auto_create.enabled')) {
             return $none;
         }
 
@@ -69,23 +68,23 @@ class PickupUpgradeAutoCreator
             return $none;
         }
 
-        $base   = $this->costs->baseProgramPrice() ?? 0.0;
+        $base = $this->costs->baseProgramPrice() ?? 0.0;
         $device = $this->costs->deviceCost($newAsset) ?? 0.0;
-        $topUp  = $this->costs->topUpAmount($newAsset, $device, $base) ?? 0.0;
+        $topUp = $this->costs->topUpAmount($newAsset, $device, $base) ?? 0.0;
 
-        $pickup  = $this->ensurePickup($user, $newAsset, $base, $device);
+        $pickup = $this->ensurePickup($user, $newAsset, $base, $device);
         $upgrade = $topUp > 0
             ? $this->ensureUpgrade($user, $newAsset, $base, $device, $topUp)
             : null;
 
         Log::info('pickup/upgrade auto-create complete', [
-            'user_id'         => $user->id,
-            'asset_id'        => $newAsset->id,
-            'pickup_id'       => $pickup?->id,
-            'upgrade_id'      => $upgrade?->id,
+            'user_id' => $user->id,
+            'asset_id' => $newAsset->id,
+            'pickup_id' => $pickup?->id,
+            'upgrade_id' => $upgrade?->id,
             'base_program_price' => $base,
-            'device_cost'     => $device,
-            'top_up_amount'   => $topUp,
+            'device_cost' => $device,
+            'top_up_amount' => $topUp,
         ]);
 
         return ['pickup' => $pickup, 'upgrade' => $upgrade];
@@ -96,6 +95,7 @@ class PickupUpgradeAutoCreator
         if ($asset->assigned_type !== User::class) {
             return null;
         }
+
         return $asset->assigned_to ? (int) $asset->assigned_to : null;
     }
 
@@ -109,7 +109,8 @@ class PickupUpgradeAutoCreator
      */
     private function isFacultyEligible(User $user): bool
     {
-        $slug = (string) config('forms.pickup_auto_create.eligibility_form_slug', 'faculty-program');
+        $slug = (string) Preferences::get('forms.pickup_auto_create.eligibility_form_slug');
+
         return FormAccess::canSubmit($user, $slug);
     }
 
@@ -123,9 +124,9 @@ class PickupUpgradeAutoCreator
      */
     private function hasOtherAssetNearingLeaseEnd(User $user, Asset $newAsset): bool
     {
-        $now    = Carbon::now();
+        $now = Carbon::now();
         $cutoff = $now->copy()->addMonths(
-            (int) config('forms.pickup_auto_create.lease_end_within_months', 6)
+            (int) Preferences::get('forms.pickup_auto_create.lease_end_within_months')
         );
 
         $otherAssetIds = Asset::where('assigned_type', User::class)
@@ -159,12 +160,12 @@ class PickupUpgradeAutoCreator
         }
 
         return UserAgreement::create([
-            'agreement_type'     => 'pickup',
-            'user_id'            => $user->id,
-            'asset_id'           => $asset->id,
-            'lifecycle_stage'    => 'quoted',
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'quoted',
             'base_program_price' => $base ?: null,
-            'device_cost'        => $device ?: null,
+            'device_cost' => $device ?: null,
         ]);
     }
 
@@ -182,13 +183,13 @@ class PickupUpgradeAutoCreator
         }
 
         return UserAgreement::create([
-            'agreement_type'     => 'upgrade',
-            'user_id'            => $user->id,
-            'asset_id'           => $asset->id,
-            'lifecycle_stage'    => 'quoted',
+            'agreement_type' => 'upgrade',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'quoted',
             'base_program_price' => $base ?: null,
-            'device_cost'        => $device ?: null,
-            'top_up_amount'      => $topUp,
+            'device_cost' => $device ?: null,
+            'top_up_amount' => $topUp,
         ]);
     }
 }

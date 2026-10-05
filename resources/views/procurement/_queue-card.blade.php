@@ -13,9 +13,9 @@
     <div class="pq-card-head">
         <div class="pq-card-title">
             @if ($selectedStatus === 'approved')
-                <input type="checkbox" name="orders[]" value="{{ $order->id }}" aria-label="{{ trans('admin/store/general.queue_order_ref', ['id' => $order->id]) }}">
+                <input type="checkbox" name="orders[]" value="{{ $order->id }}" aria-label="{{ $order->reference() }}">
             @endif
-            <span class="pq-ref">{{ trans('admin/store/general.queue_order_ref', ['id' => $order->id]) }}</span>
+            <span class="pq-ref">{{ $order->reference() }}</span>
             <span class="pq-amount">${{ \App\Helpers\Helper::formatCurrencyOutput($order->total()) }}</span>
         </div>
 

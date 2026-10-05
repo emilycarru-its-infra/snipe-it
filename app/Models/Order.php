@@ -3,24 +3,25 @@
 namespace App\Models;
 
 use App\Models\Traits\Loggable;
-use App\Models\Traits\Searchable;
 use App\Models\Traits\PlacesVendorOrders;
+use App\Models\Traits\Searchable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Watson\Validating\ValidatingTrait;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Watson\Validating\ValidatingTrait;
 
 /**
  * @property string|null $funding_account
  * @property string|null $lease_schedule
  * @property string|null $quote_number
  * @property float|string|null $quote_total
- * @property \Illuminate\Support\Carbon|null $quote_expires_at
- * @property \Illuminate\Support\Carbon|null $quote_confirmed_at
- * @property \Illuminate\Support\Carbon|null $vendor_sent_at
- * @property \Illuminate\Support\Carbon|null $vendor_changes_at
+ * @property Carbon|null $quote_expires_at
+ * @property Carbon|null $quote_confirmed_at
+ * @property Carbon|null $vendor_sent_at
+ * @property Carbon|null $vendor_changes_at
  * @property string|null $vendor_changes_notes
  * @property string|null $vendor_order_number
  * @property string|null $order_cc
@@ -31,13 +32,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Order extends SnipeModel
 {
-    use PlacesVendorOrders;
-
-    /** A catalog row unchecked against the vendor's list for this long is flagged on the send. */
-    public const PART_NUMBER_STALE_DAYS = 92;
-
     use HasFactory;
     use Loggable;
+    use PlacesVendorOrders;
     use Searchable;
     use SoftDeletes;
     use ValidatingTrait;

@@ -11,14 +11,18 @@
             {{ trans('general.edit') }}
         </a>
     @endcan
-    @if ($contract->tdx_id)
-        <a href="https://servicedesk.emilycarru.ca/TDNext/Apps/116/Assets/Contracts?ContractID={{ $contract->tdx_id }}"
+    @if ($contract->tdx_id && ($tdxUrl = \App\Models\Contract::tdxUrlFor($contract->tdx_id)))
+        <a href="{{ $tdxUrl }}"
            target="_blank" rel="noopener"
            class="label label-info pull-right" style="margin:5px;"
            data-tooltip="true" title="{{ trans('admin/contracts/general.open_in_tdx') }}">
             {{ trans('admin/contracts/general.tdx_id') }}: {{ $contract->tdx_id }}
             <x-icon type="external-link" class="fa-fw"/>
         </a>
+    @elseif ($contract->tdx_id)
+        <span class="label label-info pull-right" style="margin:5px;">
+            {{ trans('admin/contracts/general.tdx_id') }}: {{ $contract->tdx_id }}
+        </span>
     @endif
 @stop
 

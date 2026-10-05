@@ -2050,12 +2050,17 @@
         return '<span class="label label-default">' + safe + '</span>';
     }
 
-    // Turn tdx_id into a clickable link back to the TDX UI for that contract.
+    // Turn tdx_id into a clickable link back to the TDX UI for that contract,
+    // from the links.tdx_contract template ({id} = the TDX id). With no
+    // template the id shows unlinked.
+    var contractsTdxUrlTemplate = @json((string) \App\Services\Settings\Preferences::get('links.tdx_contract'));
     function contractsTdxIdLinkFormatter(value) {
         if (!value) return '';
         var n = parseInt(value, 10);
         if (!n) return '';
-        return '<a href="https://servicedesk.emilycarru.ca/TDNext/Apps/116/Assets/Contracts?ContractID=' + n +
+        if (!contractsTdxUrlTemplate) return String(n);
+        var url = contractsTdxUrlTemplate.split('{id}').join(String(n));
+        return '<a href="' + url.replace(/"/g, '&quot;') +
                '" target="_blank" rel="noopener" data-tooltip="true" title="{{ trans('admin/contracts/general.open_in_tdx') }}">' + n +
                ' <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>';
     }

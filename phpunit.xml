@@ -23,6 +23,7 @@
     <env name="CACHE_DRIVER" value="array"/>
     <env name="MAIL_FROM_ADDR" value="app@example.com"/>
     <env name="LEASING_INTERNAL_DOMAINS" value="example.org,example.net,example.test,example.edu"/>
+    <env name="ECU_DEVICE_TEAM_EMAILS" value="devices@example.org,assets@example.org"/>
     <env name="MAIL_MAILER" value="array"/>
     <env name="QUEUE_DRIVER" value="sync"/>
     <env name="SESSION_DRIVER" value="array"/>

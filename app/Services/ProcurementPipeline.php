@@ -9,6 +9,7 @@ use App\Models\OrderInvoice;
 use App\Models\Requisition;
 use App\Models\StoreOrder;
 use App\Models\UserAgreement;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Collection;
 
 /**
@@ -38,12 +39,6 @@ use Illuminate\Support\Collection;
  */
 class ProcurementPipeline
 {
-    /**
-     * Line items listed inside a card's lightbox before it defers to the
-     * full order page.
-     */
-    private const ITEM_CAP = 20;
-
     public static function build(?string $fy): array
     {
         $planned = self::plannedCards($fy);
@@ -338,12 +333,16 @@ class ProcurementPipeline
             return null;
         }
 
-        $now = now();
+        // Seasons are counted from the fiscal year's first month (0 = that
+        // month), so they move with fiscal.start_month. With an April start:
+        // Feb–May budgeting, Jun–Jul ordering, Aug–Nov deploying, Dec–Jan
+        // reconciling.
+        $offset = (now()->month - FiscalYear::startMonth() + 12) % 12;
 
         return match (true) {
-            in_array($now->month, [2, 3, 4, 5], true) => 'budgeting',
-            in_array($now->month, [6, 7], true) => 'ordering',
-            in_array($now->month, [8, 9, 10, 11], true) => 'deploying',
+            in_array($offset, [10, 11, 0, 1], true) => 'budgeting',
+            in_array($offset, [2, 3], true) => 'ordering',
+            in_array($offset, [4, 5, 6, 7], true) => 'deploying',
             default => 'reconciling',
         };
     }
@@ -355,7 +354,7 @@ class ProcurementPipeline
      */
     private static function itemRows(Order $order): array
     {
-        return $order->items->take(self::ITEM_CAP)->map(function ($item) {
+        return $order->items->take((int) Preferences::get('procurement.pipeline_item_cap'))->map(function ($item) {
             $linked = $item->item;
             $label = $item->description;
             if ($linked instanceof Asset) {

@@ -138,7 +138,7 @@ class RefreshForecast
      */
     private function excludeNonPlanCategories($query): void
     {
-        $excluded = (array) config('ecu.forecast_excluded_categories', []);
+        $excluded = Preferences::get('deployments.forecast_excluded_categories');
         if ($excluded === []) {
             return;
         }

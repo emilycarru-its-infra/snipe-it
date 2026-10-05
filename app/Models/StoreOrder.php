@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
+use App\Services\Settings\Preferences;
 use App\Services\SupplierAccounts;
-
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -59,7 +60,7 @@ class StoreOrder extends Model
      */
     public static function fundingAccounts(): array
     {
-        return \App\Services\SupplierAccounts::keys() ?: self::FUNDING_ACCOUNTS;
+        return SupplierAccounts::keys() ?: self::FUNDING_ACCOUNTS;
     }
 
     protected $table = 'store_orders';
@@ -193,7 +194,75 @@ class StoreOrder extends Model
      */
     public function reference(): string
     {
-        return 'ECU-STORE-'.$this->id;
+        return self::referencePrefix().$this->id;
+    }
+
+    /** What a new reference starts with: the store.order_reference_prefix preference. */
+    public static function referencePrefix(): string
+    {
+        return (string) Preferences::get('store.order_reference_prefix');
+    }
+
+    /**
+     * Every prefix a stored reference may carry: today's and the default.
+     * Assets keep the reference they were provisioned with, so changing the
+     * prefix must not orphan the orders already waiting on hardware.
+     *
+     * @return array<int, string>
+     */
+    public static function referencePrefixes(): array
+    {
+        return array_values(array_unique(array_filter([
+            self::referencePrefix(),
+            (string) Preferences::defaultFor('store.order_reference_prefix'),
+        ], fn ($prefix) => $prefix !== '')));
+    }
+
+    /** Whether a value is a store order reference (prefix only, as the allocator has always judged it). */
+    public static function isReference(?string $value): bool
+    {
+        foreach (self::referencePrefixes() as $prefix) {
+            if (str_starts_with((string) $value, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** The order id a full reference names, or null when it is not one. */
+    public static function idFromReference(?string $value, bool $anyCase = false): ?int
+    {
+        foreach (self::referencePrefixes() as $prefix) {
+            if (preg_match('/^'.preg_quote($prefix, '/').'(\d+)$/'.($anyCase ? 'i' : ''), (string) $value, $matches)) {
+                return (int) $matches[1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Constrain $column to values that carry a store reference, or with
+     * $carrying false to values that carry none.
+     *
+     * @template TModel of Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
+    public static function whereReference($query, string $column, bool $carrying = true)
+    {
+        $patterns = array_map(
+            fn (string $prefix) => str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $prefix).'%',
+            self::referencePrefixes(),
+        );
+
+        return $query->where(function ($q) use ($patterns, $column, $carrying) {
+            foreach ($patterns as $pattern) {
+                $carrying ? $q->orWhere($column, 'like', $pattern) : $q->where($column, 'not like', $pattern);
+            }
+        });
     }
 
     public function total(): float

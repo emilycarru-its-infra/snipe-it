@@ -7,8 +7,10 @@ use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
 use App\Presenters\ContractPresenter;
 use App\Presenters\Presentable;
+use App\Services\Settings\Preferences;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Watson\Validating\ValidatingTrait;
 
@@ -18,11 +20,27 @@ class Contract extends Model
     use HasUploads;
     use Loggable;
     use Presentable;
+    use Searchable;
     use SoftDeletes;
     use ValidatingTrait;
-    use Searchable;
 
     protected $presenter = ContractPresenter::class;
+
+    /**
+     * The link to a contract in TeamDynamix, from the links.tdx_contract
+     * preference with `{id}` standing for the TDX id. Null when no template
+     * is set or the id is not a number, so the page shows the id unlinked.
+     */
+    public static function tdxUrlFor(mixed $tdxId): ?string
+    {
+        $template = trim((string) Preferences::get('links.tdx_contract'));
+        $id = (int) $tdxId;
+        if ($template === '' || $id <= 0) {
+            return null;
+        }
+
+        return str_replace('{id}', (string) $id, $template);
+    }
 
     protected $table = 'contracts';
 
@@ -31,28 +49,28 @@ class Contract extends Model
     protected $guarded = 'id';
 
     protected $casts = [
-        'is_synthesized'    => 'boolean',
-        'is_active'         => 'boolean',
-        'start_date'        => 'date',
-        'end_date'          => 'date',
+        'is_synthesized' => 'boolean',
+        'is_active' => 'boolean',
+        'start_date' => 'date',
+        'end_date' => 'date',
         'tdx_modified_date' => 'datetime',
-        'total_cost'        => 'decimal:4',
-        'last_renewal_alert_30d_at'      => 'datetime',
-        'last_renewal_alert_14d_at'      => 'datetime',
-        'last_renewal_alert_expired_at'  => 'datetime',
+        'total_cost' => 'decimal:4',
+        'last_renewal_alert_30d_at' => 'datetime',
+        'last_renewal_alert_14d_at' => 'datetime',
+        'last_renewal_alert_expired_at' => 'datetime',
     ];
 
     protected $rules = [
-        'contract_number'    => 'required|string|max:255',
-        'name'               => 'required|string|max:255',
-        'theme'              => 'nullable|string|max:255',
-        'product'            => 'nullable|string|max:255',
-        'fiscal_year'        => 'nullable|string|max:16',
-        'type'               => 'nullable|string|max:255',
-        'workflow_status'    => 'nullable|string|max:255',
-        'supplier_id'        => 'nullable|integer|exists:suppliers,id',
+        'contract_number' => 'required|string|max:255',
+        'name' => 'required|string|max:255',
+        'theme' => 'nullable|string|max:255',
+        'product' => 'nullable|string|max:255',
+        'fiscal_year' => 'nullable|string|max:16',
+        'type' => 'nullable|string|max:255',
+        'workflow_status' => 'nullable|string|max:255',
+        'supplier_id' => 'nullable|integer|exists:suppliers,id',
         'parent_contract_id' => 'nullable|integer|exists:contracts,id',
-        'tdx_id'             => 'nullable|integer|unique:contracts,tdx_id,NULL,id,deleted_at,NULL',
+        'tdx_id' => 'nullable|integer|unique:contracts,tdx_id,NULL,id,deleted_at,NULL',
         // Use `date` (not `date_format:Y-m-d`) because the model casts these
         // columns to Carbon on fill(). `date_format` validates against the
         // raw input string but by validation time the value is already a
@@ -60,15 +78,15 @@ class Contract extends Model
         // regardless of the input format. `date` validates Carbon and
         // YYYY-MM-DD strings both, which is what we want here. See:
         // https://laravel.com/docs/validation#rule-date-format
-        'start_date'         => 'nullable|date',
-        'end_date'           => 'nullable|date',
-        'total_cost'         => 'nullable|numeric|gte:0|max:99999999999.9999',
-        'currency'           => 'nullable|string|size:3',
-        'ticket_url'         => 'nullable|url|max:512',
-        'source'             => 'nullable|in:tdx,manual,synthesized,snipe',
-        'ssot'               => 'nullable|in:tdx,snipe',
-        'service_catalogue'  => 'nullable|string|max:255',
-        'admin_user_id'      => 'nullable|integer|exists:users,id',
+        'start_date' => 'nullable|date',
+        'end_date' => 'nullable|date',
+        'total_cost' => 'nullable|numeric|gte:0|max:99999999999.9999',
+        'currency' => 'nullable|string|size:3',
+        'ticket_url' => 'nullable|url|max:512',
+        'source' => 'nullable|in:tdx,manual,synthesized,snipe',
+        'ssot' => 'nullable|in:tdx,snipe',
+        'service_catalogue' => 'nullable|string|max:255',
+        'admin_user_id' => 'nullable|integer|exists:users,id',
     ];
 
     protected $fillable = [
@@ -132,10 +150,10 @@ class Contract extends Model
     ];
 
     protected $searchableRelations = [
-        'supplier'  => ['name'],
-        'serials'   => ['serial'],
-        'licenses'  => ['name'],
-        'parent'    => ['name', 'contract_number'],
+        'supplier' => ['name'],
+        'serials' => ['serial'],
+        'licenses' => ['name'],
+        'parent' => ['name', 'contract_number'],
     ];
 
     // ─── Relations ──────────────────────────────────────────────────────
@@ -155,9 +173,9 @@ class Contract extends Model
      * skips relation methods named `parent` (reserved word), so query-side
      * callers (with(), whereHas(), property access) use this alias.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Contract, $this>
+     * @return BelongsTo<Contract, $this>
      */
-    public function parentContract(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function parentContract(): BelongsTo
     {
         return $this->belongsTo(Contract::class, 'parent_contract_id');
     }

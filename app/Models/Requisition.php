@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Watson\Validating\ValidatingTrait;
 
 /**
@@ -29,10 +31,10 @@ use Watson\Validating\ValidatingTrait;
  * @property string|null $lease_schedule
  * @property string|null $quote_number
  * @property string|null $quote_total
- * @property \Illuminate\Support\Carbon|null $quote_expires_at
- * @property \Illuminate\Support\Carbon|null $quote_confirmed_at
- * @property \Illuminate\Support\Carbon|null $vendor_sent_at
- * @property \Illuminate\Support\Carbon|null $vendor_changes_at
+ * @property Carbon|null $quote_expires_at
+ * @property Carbon|null $quote_confirmed_at
+ * @property Carbon|null $vendor_sent_at
+ * @property Carbon|null $vendor_changes_at
  * @property string|null $vendor_changes_notes
  * @property string|null $vendor_order_number
  * @property string|null $order_cc
@@ -61,13 +63,6 @@ class Requisition extends SnipeModel
         'ordered',
         'cancelled',
     ];
-
-    /**
-     * How long a catalog row's part numbers are trusted before the order form
-     * flags them. A quarter, because that is the cadence CDW can supply an
-     * updated list from the distribution warehouses at.
-     */
-    public const PART_NUMBER_STALE_DAYS = 92;
 
     protected $rules = [
         'title' => 'required|string|max:191',
@@ -231,21 +226,11 @@ class Requisition extends SnipeModel
         return $this->items->contains(fn (RequisitionItem $item) => $item->isEstimate());
     }
 
-
-
-
-
-
-
-
-
-
-
     /**
      * The lines this requisition would send: its own. The purchase order it
      * resolves to gathers these together with any sibling requisition's.
      *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
+     * @return Collection<int, RequisitionItem>
      */
     public function vendorOrderLines()
     {

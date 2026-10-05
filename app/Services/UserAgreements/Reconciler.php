@@ -274,7 +274,7 @@ class Reconciler
      */
     private function isAfterReconcileCutoff(Asset $asset): bool
     {
-        $cutoff = config('forms.pickup_auto_create.reconcile_from');
+        $cutoff = Preferences::get('forms.pickup_auto_create.reconcile_from');
         if (! $cutoff) {
             return true;
         }
@@ -312,8 +312,8 @@ class Reconciler
      */
     private function assignedAssets(User $user): iterable
     {
-        $category = (string) config('forms.pickup_auto_create.asset_category', 'Laptop');
-        $manufacturer = (string) config('forms.pickup_auto_create.asset_manufacturer', 'Apple');
+        $category = (string) Preferences::get('forms.pickup_auto_create.asset_category');
+        $manufacturer = (string) Preferences::get('forms.pickup_auto_create.asset_manufacturer');
 
         return Asset::query()
             ->where('assigned_type', User::class)
@@ -334,7 +334,7 @@ class Reconciler
      */
     private function facultyUsersWithAssets(): iterable
     {
-        $slug = (string) config('forms.pickup_auto_create.eligibility_form_slug', 'faculty-program');
+        $slug = (string) Preferences::get('forms.pickup_auto_create.eligibility_form_slug');
         $groupIds = FormEligibility::where('form_slug', $slug)->pluck('group_id')->all();
 
         if (empty($groupIds)) {

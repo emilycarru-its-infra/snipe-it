@@ -25,7 +25,7 @@ class ExhibitProject extends SnipeModel
 
     protected $table = 'exhibit_projects';
 
-    /** Suggested values for the requested-device datalist (free string allows combos). */
+    /** Suggested values for the requested-device datalist (free string allows combos): the exhibits.requested_devices default. */
     public const REQUESTED_DEVICES = [
         'iMac',
         'iPad',

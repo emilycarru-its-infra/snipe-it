@@ -373,11 +373,12 @@ class AssetObserver
             default => null,
         };
 
-        if (! $event || ! preg_match('/^ECU-STORE-(\d+)$/', (string) $asset->order_number, $matches)) {
+        $orderId = StoreOrder::idFromReference((string) $asset->order_number);
+        if (! $event || $orderId === null) {
             return;
         }
 
-        $order = StoreOrder::find((int) $matches[1]);
+        $order = StoreOrder::find($orderId);
 
         if ($order) {
             StoreOrderNotifier::requester($order->load('items', 'user'), $event, [

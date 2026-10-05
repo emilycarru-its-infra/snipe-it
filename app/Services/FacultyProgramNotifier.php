@@ -6,6 +6,7 @@ use App\Mail\EmailDelivery;
 use App\Mail\FacultyProgramSubmissionMail;
 use App\Models\EmailTemplate;
 use App\Models\UserAgreement;
+use App\Services\Settings\Preferences;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Facades\Log;
@@ -21,14 +22,11 @@ use Illuminate\Support\Facades\Mail;
  */
 class FacultyProgramNotifier
 {
-    /** Where applications land when nobody has configured it otherwise. */
-    private const DEFAULT_RECIPIENTS = 'devicesadmins@example.edu,assetsadmins@example.edu';
-
     public static function submitted(UserAgreement $pickup, ?UserAgreement $buyout, bool $updated): void
     {
         $key = FacultyProgramSubmissionMail::KEY;
 
-        $recipients = EmailTemplate::recipientsFor($key, self::DEFAULT_RECIPIENTS);
+        $recipients = EmailTemplate::recipientsFor($key, Preferences::csv('contacts.device_team'));
 
         if ($recipients !== [] && EmailDelivery::shouldEmail($key)) {
             try {

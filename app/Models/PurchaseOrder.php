@@ -3,14 +3,16 @@
 namespace App\Models;
 
 use App\Models\Traits\HasUploads;
-use App\Services\AssetCommitted;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\PlacesVendorOrders;
 use App\Models\Traits\Searchable;
+use App\Services\AssetCommitted;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Watson\Validating\ValidatingTrait;
 
 /**
@@ -27,15 +29,15 @@ use Watson\Validating\ValidatingTrait;
  * Colleague, carrying the REQM until this number exists — and after that it is a
  * tracking record. The vendor bills against this.
  *
- * @property-read \App\Models\Supplier|null $supplier
+ * @property-read Supplier|null $supplier
  * @property string|null $funding_account
  * @property string|null $lease_schedule
  * @property string|null $quote_number
  * @property string|null $quote_total
- * @property \Illuminate\Support\Carbon|null $quote_expires_at
- * @property \Illuminate\Support\Carbon|null $quote_confirmed_at
- * @property \Illuminate\Support\Carbon|null $vendor_sent_at
- * @property \Illuminate\Support\Carbon|null $vendor_changes_at
+ * @property Carbon|null $quote_expires_at
+ * @property Carbon|null $quote_confirmed_at
+ * @property Carbon|null $vendor_sent_at
+ * @property Carbon|null $vendor_changes_at
  * @property string|null $vendor_changes_notes
  * @property string|null $vendor_order_number
  * @property string|null $order_cc
@@ -115,13 +117,6 @@ class PurchaseOrder extends SnipeModel
         'vendor_changes_at' => 'datetime',
     ];
 
-    /**
-     * How long a catalog row's part numbers are trusted before the order form
-     * flags them. A quarter, because that is the cadence the vendor can supply
-     * an updated list from the distribution warehouses at.
-     */
-    public const PART_NUMBER_STALE_DAYS = 92;
-
     protected $searchableAttributes = ['po_number', 'title', 'fiscal_year', 'cost_center', 'status', 'notes'];
 
     protected $searchableRelations = [
@@ -160,7 +155,7 @@ class PurchaseOrder extends SnipeModel
      * vendor is sent: the purchase order is the authority, but the basket that
      * describes what to buy was built on the requisition.
      *
-     * @return \Illuminate\Support\Collection<int, RequisitionItem>
+     * @return Collection<int, RequisitionItem>
      */
     public function vendorOrderLines()
     {

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Asset;
-use App\Models\Maintenance;
 use App\Models\AssetModel;
+use App\Models\Maintenance;
 use App\Models\Statuslabel;
+use App\Services\LegacyFleet;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,21 +28,21 @@ class FleetHealthReportsController extends Controller
     {
         $this->authorize('reports.fleet-health.view');
 
-        $cards         = $this->headlineCards();
-        $statusDonut   = $this->statusDonut();
-        $topModels     = $this->topModels(15);
-        $ageHistogram  = $this->ageHistogram();
-        $topRepairs    = $this->topRepairModels(10);
-        $auditOverdue  = $this->unauditedCount(months: 12);
+        $cards = $this->headlineCards();
+        $statusDonut = $this->statusDonut();
+        $topModels = $this->topModels(15);
+        $ageHistogram = $this->ageHistogram();
+        $topRepairs = $this->topRepairModels(10);
+        $auditOverdue = $this->unauditedCount(months: (int) Preferences::get('reports.audit_overdue_months'));
 
         return view('reports.fleet-health', [
-            'cards'         => $cards,
-            'statusDonut'   => $statusDonut,
-            'topModels'     => $topModels,
-            'ageHistogram'  => $ageHistogram,
-            'topRepairs'    => $topRepairs,
-            'auditOverdue'  => $auditOverdue,
-            'legacyFleet'   => \App\Services\LegacyFleet::summary(),
+            'cards' => $cards,
+            'statusDonut' => $statusDonut,
+            'topModels' => $topModels,
+            'ageHistogram' => $ageHistogram,
+            'topRepairs' => $topRepairs,
+            'auditOverdue' => $auditOverdue,
+            'legacyFleet' => LegacyFleet::summary(),
         ]);
     }
 
@@ -49,11 +51,11 @@ class FleetHealthReportsController extends Controller
      */
     private function headlineCards(): array
     {
-        $assetsTotal     = Asset::count();
-        $assetsDeployed  = Asset::whereHas('status', fn ($q) => $q->where('deployable', 1))
+        $assetsTotal = Asset::count();
+        $assetsDeployed = Asset::whereHas('status', fn ($q) => $q->where('deployable', 1))
             ->whereNotNull('assigned_to')
             ->count();
-        $modelsActive    = AssetModel::has('assets')->count();
+        $modelsActive = AssetModel::has('assets')->count();
         $repairsThisYear = Maintenance::whereYear('created_at', now()->year)->count();
 
         return [
@@ -72,10 +74,10 @@ class FleetHealthReportsController extends Controller
     private function statusDonut(): array
     {
         $buckets = [
-            'deployable'   => ['label' => trans('admin/reports/general.fleet_status_deployable'), 'count' => 0, 'color' => '#00a65a'],
-            'pending'      => ['label' => trans('admin/reports/general.fleet_status_pending'),    'count' => 0, 'color' => '#f39c12'],
-            'undeployable' => ['label' => trans('admin/reports/general.fleet_status_undeployable'),'count' => 0, 'color' => '#dd4b39'],
-            'archived'     => ['label' => trans('admin/reports/general.fleet_status_archived'),   'count' => 0, 'color' => '#6c757d'],
+            'deployable' => ['label' => trans('admin/reports/general.fleet_status_deployable'), 'count' => 0, 'color' => '#00a65a'],
+            'pending' => ['label' => trans('admin/reports/general.fleet_status_pending'),    'count' => 0, 'color' => '#f39c12'],
+            'undeployable' => ['label' => trans('admin/reports/general.fleet_status_undeployable'), 'count' => 0, 'color' => '#dd4b39'],
+            'archived' => ['label' => trans('admin/reports/general.fleet_status_archived'),   'count' => 0, 'color' => '#6c757d'],
         ];
 
         $rows = DB::table('assets')
@@ -95,9 +97,16 @@ class FleetHealthReportsController extends Controller
 
     private function statusBucket(int $deployable, int $pending, int $archived): string
     {
-        if ($archived === 1)  return 'archived';
-        if ($pending === 1)   return 'pending';
-        if ($deployable === 1) return 'deployable';
+        if ($archived === 1) {
+            return 'archived';
+        }
+        if ($pending === 1) {
+            return 'pending';
+        }
+        if ($deployable === 1) {
+            return 'deployable';
+        }
+
         return 'undeployable';
     }
 
@@ -128,11 +137,11 @@ class FleetHealthReportsController extends Controller
     {
         $today = Carbon::now()->startOfDay();
         $buckets = [
-            '<1y'   => ['label' => trans('admin/reports/general.fleet_age_lt_1y'),  'count' => 0, 'min' => 0, 'max' => 1],
-            '1-2y'  => ['label' => trans('admin/reports/general.fleet_age_1_2y'),   'count' => 0, 'min' => 1, 'max' => 2],
-            '2-3y'  => ['label' => trans('admin/reports/general.fleet_age_2_3y'),   'count' => 0, 'min' => 2, 'max' => 3],
-            '3-5y'  => ['label' => trans('admin/reports/general.fleet_age_3_5y'),   'count' => 0, 'min' => 3, 'max' => 5],
-            '5y+'   => ['label' => trans('admin/reports/general.fleet_age_gt_5y'),  'count' => 0, 'min' => 5, 'max' => 999],
+            '<1y' => ['label' => trans('admin/reports/general.fleet_age_lt_1y'),  'count' => 0, 'min' => 0, 'max' => 1],
+            '1-2y' => ['label' => trans('admin/reports/general.fleet_age_1_2y'),   'count' => 0, 'min' => 1, 'max' => 2],
+            '2-3y' => ['label' => trans('admin/reports/general.fleet_age_2_3y'),   'count' => 0, 'min' => 2, 'max' => 3],
+            '3-5y' => ['label' => trans('admin/reports/general.fleet_age_3_5y'),   'count' => 0, 'min' => 3, 'max' => 5],
+            '5y+' => ['label' => trans('admin/reports/general.fleet_age_gt_5y'),  'count' => 0, 'min' => 5, 'max' => 999],
         ];
 
         Asset::query()
@@ -140,7 +149,9 @@ class FleetHealthReportsController extends Controller
             ->select('purchase_date')
             ->chunk(2000, function ($chunk) use (&$buckets, $today) {
                 foreach ($chunk as $asset) {
-                    if (! $asset->purchase_date) continue;
+                    if (! $asset->purchase_date) {
+                        continue;
+                    }
                     $ageYears = Carbon::parse($asset->purchase_date)->floatDiffInYears($today);
                     foreach ($buckets as $key => $b) {
                         if ($ageYears >= $b['min'] && $ageYears < $b['max']) {
@@ -188,7 +199,7 @@ class FleetHealthReportsController extends Controller
             ->whereHas('status', fn ($q) => $q->where('deployable', 1))
             ->where(function ($q) use ($cutoff) {
                 $q->whereNull('last_audit_date')
-                  ->orWhere('last_audit_date', '<', $cutoff);
+                    ->orWhere('last_audit_date', '<', $cutoff);
             })
             ->count();
     }
