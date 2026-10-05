@@ -23,8 +23,8 @@ use App\Models\Supplier;
  *    That catches a recipient list saved for one lessor on another's email.
  *
  * Nothing here names a lessor: which lessor owns a contract comes from the
- * contract prefixes declared on the Supplier records, else from the assets
- * on it, and which domains are a lessor's comes from its Supplier record.
+ * contract prefixes declared on the Supplier records and from the assets on
+ * it, which must agree when both speak, and which domains are a lessor's comes from its Supplier record.
  * A prefix two lessors both match never picks one: the contract has no
  * lessor until the data is fixed. Saving such a prefix is refused
  * (ContractPrefixesUnclaimed); this read path does not rely on that.
@@ -130,29 +130,36 @@ class LessorGuard
 
     /**
      * The lessor that owns this contract, or null when that is unknown or —
-     * which must never be acted on — ambiguous. A declared prefix decides
-     * where one matches (two lessors matching gives null, never a fallback);
-     * otherwise the one lessor whose assets carry the contract family.
+     * which must never be acted on — ambiguous. Two sources can say: the
+     * lessor declaring the contract's prefix, and the one lessor whose assets
+     * carry the contract family. Either alone is enough; when both speak they
+     * must agree. Two lessors matching the prefix, more than one lessor on
+     * the family's assets, or the two sources disagreeing all give null.
      */
     public function lessorForContract(?string $contract): ?Supplier
     {
         $claimants = $this->claimants($contract);
 
-        if ($claimants !== []) {
-            return count($claimants) === 1 ? reset($claimants) : null;
-        }
-
-        $family = self::family($contract);
-
-        if ($family === null) {
+        if (count($claimants) > 1) {
             return null;
         }
 
-        $ids = Asset::query()
+        $declared = $claimants === [] ? null : reset($claimants);
+        $family = self::family($contract);
+        $ids = $family === null ? collect() : Asset::query()
             ->where(fn ($q) => $q->where('lease_contract_id', $family)->orWhere('lease_contract_id', 'like', $family.'-%'))
             ->whereNotNull('lessor_id')
             ->distinct()
-            ->pluck('lessor_id');
+            ->pluck('lessor_id')
+            ->map(fn ($id) => (int) $id);
+
+        if ($ids->count() > 1) {
+            return null;
+        }
+
+        if ($declared !== null) {
+            return $ids->isEmpty() || $ids->first() === (int) $declared->id ? $declared : null;
+        }
 
         return $ids->count() === 1 ? Supplier::find($ids->first()) : null;
     }

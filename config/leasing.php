@@ -175,8 +175,8 @@ return [
     |
     | The CSI reconciliation and schedule reports cover one lessor's leases:
     | the Supplier with this name. Its contract prefixes (Suppliers → edit)
-    | decide which contracts those are.
+    | decide which contracts those are. Unset, they cover none.
     |
     */
-    'csi_lessor' => env('LEASING_CSI_LESSOR', 'CSI Leasing'),
+    'csi_lessor' => env('LEASING_CSI_LESSOR', ''),
 ];
