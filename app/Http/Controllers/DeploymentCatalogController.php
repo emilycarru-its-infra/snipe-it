@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentType;
-use App\Models\DeploymentWave;
 use App\Models\Statuslabel;
+use App\Services\Deployments\DeploymentCatalogs;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -21,17 +20,9 @@ use Illuminate\Http\Request;
  */
 class DeploymentCatalogController extends Controller
 {
-    /** catalog key => [model class, label key]. */
-    private const CATALOGS = [
-        'types' => [DeploymentType::class, 'catalog_types'],
-        'stages' => [DeploymentStage::class, 'catalog_stages'],
-    ];
-
     private function resolve(string $catalog): array
     {
-        abort_unless(isset(self::CATALOGS[$catalog]), 404);
-
-        return self::CATALOGS[$catalog];
+        return DeploymentCatalogs::resolve($catalog);
     }
 
     /** Both catalogs on one admin page — set once, rarely touched. */
@@ -77,7 +68,7 @@ class DeploymentCatalogController extends Controller
         [$class] = $this->resolve($catalog);
 
         $item = new $class;
-        $item->fill($this->input($request, $catalog));
+        $item->fill(DeploymentCatalogs::attributes($catalog, $request->all()));
 
         if (! $item->save()) {
             return redirect()->back()->withInput()->withErrors($item->getErrors());
@@ -108,7 +99,7 @@ class DeploymentCatalogController extends Controller
         [$class] = $this->resolve($catalog);
 
         $item = $class::findOrFail($id);
-        $item->fill($this->input($request, $catalog));
+        $item->fill(DeploymentCatalogs::attributes($catalog, $request->all()));
 
         if (! $item->save()) {
             return redirect()->back()->withInput()->withErrors($item->getErrors());
@@ -127,45 +118,13 @@ class DeploymentCatalogController extends Controller
 
         $item = $class::findOrFail($id);
 
-        // Don't orphan rows — if the entry is in use, deactivate it instead
-        // of deleting (hides it from pickers/widgets).
-        $inUse = $catalog === 'types'
-            ? DeploymentWave::where('deployment_type_id', $id)->exists()
-            : DeploymentItem::where('stage_id', $id)->exists();
-
-        if ($inUse) {
-            $item->active = false;
-            $item->save();
-
+        // In use: deactivated rather than deleted, so no row is orphaned.
+        if (! DeploymentCatalogs::remove($catalog, $item)) {
             return redirect()->back(fallback: route('deployment-config.index', $catalog))
                 ->with('warning', trans('admin/deployments/general.catalog_in_use_deactivated'));
         }
 
-        $item->delete();
-
         return redirect()->back(fallback: route('deployment-config.index', $catalog))
             ->with('success', trans('admin/deployments/general.catalog_deleted'));
-    }
-
-    private function input(Request $request, string $catalog): array
-    {
-        $data = [
-            'name' => $request->input('name'),
-            'color' => $request->input('color'),
-            'sort_order' => (int) $request->input('sort_order', 0),
-            'active' => $request->boolean('active'),
-        ];
-
-        if ($catalog === 'types') {
-            $data['moves_devices'] = $request->boolean('moves_devices');
-        }
-
-        if ($catalog === 'stages') {
-            $data['is_terminal'] = $request->boolean('is_terminal');
-            $data['is_on_hand'] = $request->boolean('is_on_hand');
-            $data['maps_to_status_id'] = $request->input('maps_to_status_id') ?: null;
-        }
-
-        return $data;
     }
 }

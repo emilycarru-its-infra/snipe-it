@@ -4,9 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\CustomField;
 use App\Models\FieldGroup;
+use App\Services\FieldGroupWriter;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Contracts\View\View;
 
 /**
  * CRUD for the editable field-group taxonomy (Specs, Lease & Procurement,
@@ -42,7 +43,7 @@ class FieldGroupsController extends Controller
         $this->authorize('update', CustomField::class);
 
         $item = new FieldGroup;
-        $item->fill($this->input($request));
+        $item->fill(FieldGroupWriter::attributes($request->all()));
 
         if (! $item->save()) {
             return redirect()->back()->withInput()->withErrors($item->getErrors());
@@ -63,7 +64,7 @@ class FieldGroupsController extends Controller
     {
         $this->authorize('update', CustomField::class);
 
-        $fieldGroup->fill($this->input($request));
+        $fieldGroup->fill(FieldGroupWriter::attributes($request->all()));
 
         if (! $fieldGroup->save()) {
             return redirect()->back()->withInput()->withErrors($fieldGroup->getErrors());
@@ -77,10 +78,7 @@ class FieldGroupsController extends Controller
     {
         $this->authorize('update', CustomField::class);
 
-        // Don't orphan field assignments — null them out so those fields fall
-        // back to the "Other" box rather than pointing at a missing group.
-        CustomField::where('field_group_id', $fieldGroup->id)->update(['field_group_id' => null]);
-        $fieldGroup->delete();
+        FieldGroupWriter::remove($fieldGroup);
 
         return redirect()->route('field-groups.index')
             ->with('success', trans('admin/custom_fields/general.field_group_deleted'));
@@ -94,31 +92,9 @@ class FieldGroupsController extends Controller
     {
         $this->authorize('update', CustomField::class);
 
-        $groupId = $request->input('field_group_id');
-
-        if ($groupId !== null && $groupId !== '') {
-            // Reject dangling assignments — the group has to exist.
-            $request->validate(['field_group_id' => 'integer|exists:field_groups,id']);
-            $field->field_group_id = (int) $groupId;
-        } else {
-            $field->field_group_id = null;
-        }
-
-        $field->saveQuietly();
+        FieldGroupWriter::assign($field, $request->input('field_group_id'));
 
         return redirect()->route('field-groups.index')
             ->with('success', trans('admin/custom_fields/general.field_group_assigned'));
-    }
-
-    private function input(Request $request): array
-    {
-        return [
-            'name' => $request->input('name'),
-            'color' => $request->input('color'),
-            'icon' => $request->input('icon'),
-            'sort_order' => (int) $request->input('sort_order', 0),
-            'collapsed_by_default' => $request->boolean('collapsed_by_default'),
-            'active' => $request->boolean('active'),
-        ];
     }
 }

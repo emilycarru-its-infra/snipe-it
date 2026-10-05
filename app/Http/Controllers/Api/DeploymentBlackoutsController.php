@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\StaffBlackout;
 use App\Models\User;
+use App\Services\Deployments\ManualBlackouts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -54,6 +55,34 @@ class DeploymentBlackoutsController extends Controller
 
         return response()->json(
             Helper::formatStandardApiResponse('success', null, trans('admin/deployments/general.blackout_deleted')),
+        );
+    }
+
+    /**
+     * Edit a hand-entered blackout, as the Waves page does: the same
+     * deployments gate, the same fields, and synced rows stay read-only
+     * because the calendar sync owns them. Only the fields sent change.
+     */
+    public function update(Request $request, StaffBlackout $blackout): JsonResponse
+    {
+        $this->authorize('deployments.edit');
+
+        if (! ManualBlackouts::isEditable($blackout)) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('admin/deployments/general.blackout_synced_readonly')),
+            );
+        }
+
+        $blackout->fill(ManualBlackouts::attributes($request->all(), partial: true));
+
+        if (! $blackout->save()) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, $blackout->getErrors()),
+            );
+        }
+
+        return response()->json(
+            Helper::formatStandardApiResponse('success', $blackout->load('user'), trans('admin/deployments/general.blackout_saved')),
         );
     }
 
