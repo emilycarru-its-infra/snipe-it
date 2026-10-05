@@ -375,13 +375,30 @@ class EmailsController extends Controller
     {
         $request->validate([
             'to' => 'required|email',
+            'cc' => 'nullable|array|max:20',
+            'cc.*' => 'email',
             'from' => 'nullable|email',
         ]);
 
+        $entry = EmailRegistry::find($key);
         $mailable = EmailRegistry::makeMailable($key);
 
-        if (! $mailable) {
+        if (! $entry || ! $mailable) {
             return response()->json(['status' => 'error', 'messages' => trans('admin/settings/general.emails_test_unavailable')], 404);
+        }
+
+        $cc = array_values(array_filter((array) $request->input('cc', [])));
+
+        // A sample of a lessor's email still goes only to that lessor and us.
+        if (isset($entry['lessor'])) {
+            $foreign = EmailTemplateWriter::foreignForLessor($entry, $key, [
+                'recipients' => (string) $request->input('to'),
+                'cc' => implode(',', $cc),
+            ], EmailTemplate::forKey($key) ?? new EmailTemplate(['key' => $key]));
+
+            if ($foreign) {
+                return response()->json(['status' => 'error', 'messages' => trans('admin/settings/general.emails_foreign_recipient', ['addresses' => implode(', ', $foreign)])], 409);
+            }
         }
 
         if ($request->filled('from')) {
@@ -389,7 +406,7 @@ class EmailsController extends Controller
         }
 
         try {
-            $sent = Mail::to((string) $request->input('to'))->send($mailable);
+            $sent = Mail::to((string) $request->input('to'))->cc($cc)->send($mailable);
         } catch (\Throwable $e) {
             Log::warning("Email API test-send failed for [{$key}]: ".$e->getMessage());
 
@@ -403,6 +420,7 @@ class EmailsController extends Controller
             'status' => 'success',
             'from' => $from?->getAddress(),
             'to' => (string) $request->input('to'),
+            'cc' => $cc,
             'message_id' => $sent?->getMessageId(),
             'transport' => $sent?->getDebug(),
         ]);
