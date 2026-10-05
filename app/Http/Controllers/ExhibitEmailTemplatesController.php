@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ExhibitEmailTemplate;
 use App\Models\Order;
+use App\Services\Exhibits\ExhibitEmailTemplates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -35,9 +36,7 @@ class ExhibitEmailTemplatesController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        $exhibitEmailTemplate->subject = $request->input('subject');
-        $exhibitEmailTemplate->body = $request->input('body');
-        $exhibitEmailTemplate->enabled = $request->boolean('enabled');
+        $exhibitEmailTemplate->fill(ExhibitEmailTemplates::attributes($request->all()));
 
         if (! $exhibitEmailTemplate->save()) {
             return redirect()->back()->withInput()->withErrors($exhibitEmailTemplate->getErrors());
