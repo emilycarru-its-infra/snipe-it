@@ -29,6 +29,7 @@ use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
 use App\Services\FiscalYear;
 use App\Services\Leasing\LeaseClosure;
+use App\Services\Leasing\LessorGuard;
 use App\Services\Leasing\OkayToPay;
 use App\Services\LegacyFleet;
 use App\Services\ProcurementPipeline;
@@ -2500,20 +2501,18 @@ class ProcurementReportsController extends Controller
             return false;
         }
 
-        // CCA Financial schedules: bare ECI* historically, 4130-ECI* since
-        // the lessor-account prefix landed (2026-08). CSI Leasing: 301452-*.
-        return str_starts_with($contractId, 'ECI')
-            || str_starts_with($contractId, '4130-ECI')
-            || str_starts_with($contractId, '301452-');
+        // A lease contract is one whose prefix a lessor declares on its
+        // Supplier record (Suppliers → edit → Lease Contract Prefixes).
+        return app(LessorGuard::class)->isLeaseContract($contractId);
     }
 
     /**
-     * CSI Leasing handles the 301452-* schedules; CCA Financial owns the
-     * ECI* contracts. Mirrors the provider mapping in the TDX sync.
+     * The lessor declaring this contract's prefix, for a row whose asset has
+     * no lessor set. Empty when no single lessor claims it.
      */
     private function contractProvider(string $contractId): string
     {
-        return str_starts_with($contractId, '301452-') ? 'CSI Leasing' : 'CCA Financial';
+        return app(LessorGuard::class)->declaredLessorFor($contractId)->name ?? '';
     }
 
     /**
@@ -2524,13 +2523,17 @@ class ProcurementReportsController extends Controller
      * `301452-008-041426` collapse to `301452-008`; anything else (a
      * university PO such as `P0025420`, or blank) yields null.
      */
+    private ?CsiReconciliation $csi = null;
+
+    /** One CSI reader per request, so its lessor and prefixes are read once. */
+    private function csi(): CsiReconciliation
+    {
+        return $this->csi ??= new CsiReconciliation;
+    }
+
     private function scheduleFromPoField(?string $value): ?string
     {
-        if ($value && preg_match('/^(301452-\d{3})/', trim($value), $m)) {
-            return $m[1];
-        }
-
-        return null;
+        return $this->csi()->scheduleRef($value);
     }
 
     /**
@@ -2798,7 +2801,9 @@ class ProcurementReportsController extends Controller
                 ->where(function ($q) use ($contractIdColumn, $poNumberColumn) {
                     $q->where(fn ($w) => $w->whereNotNull($contractIdColumn)->where($contractIdColumn, '!=', ''));
                     if ($poNumberColumn) {
-                        $q->orWhere($poNumberColumn, 'like', '301452-%');
+                        foreach ($this->csi()->contractPrefixes() as $prefix) {
+                            $q->orWhere($poNumberColumn, 'like', rtrim($prefix, '-').'-%');
+                        }
                     }
                 }),
             $fy,
@@ -3335,11 +3340,12 @@ class ProcurementReportsController extends Controller
 
         $warrantyColumn = $this->leaseFieldColumns()['warranty_cost'] ?? null;
 
-        // Restrict to CSI schedules — ECI* contracts have their own
-        // CCA Financial reconciliation and don't fit the schedule layout.
+        // Restrict to the CSI lessor's schedules — other lessors' contracts
+        // have their own reconciliation and don't fit the schedule layout.
+        $csi = $this->csi();
         $groups = array_filter(
             $this->groupedLeaseAssets($fy),
-            fn ($g) => str_starts_with($g['contract_id'], '301452-')
+            fn ($g) => $csi->isCsiContract($g['contract_id'])
         );
 
         $assetIds = collect($groups)

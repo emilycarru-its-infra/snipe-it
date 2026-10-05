@@ -25,6 +25,7 @@ use App\Observers\LocationObserver;
 use App\Observers\MaintenanceObserver;
 use App\Observers\SettingObserver;
 use App\Observers\UserObserver;
+use App\Services\Leasing\LessorGuard;
 use App\Services\Settings\Preferences;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Routing\UrlGenerator;
@@ -104,6 +105,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        // One guard per request, so its contract-prefix table is read once.
+        $this->app->scoped(LessorGuard::class);
 
         if ($this->app->environment('local')) {
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);

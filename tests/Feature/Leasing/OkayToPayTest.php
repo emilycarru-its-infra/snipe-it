@@ -46,16 +46,18 @@ class OkayToPayTest extends TestCase
     {
         // The schedule's master agreement belongs to Lessor One because its
         // assets do; that is how the OK to pay knows whose lease it is.
+        // No lessor declares the 700100 prefix, so this exercises the
+        // asset-derived path of LessorGuard.
         $lessor = Supplier::firstOrCreate(['name' => 'Lessor One'], ['email' => 'lessor@lessor.test']);
-        if (! Asset::where('lease_contract_id', '301452-001')->exists()) {
-            Asset::factory()->create(['lease_contract_id' => '301452-001', 'lessor_id' => $lessor->id]);
+        if (! Asset::where('lease_contract_id', '700100-001')->exists()) {
+            Asset::factory()->create(['lease_contract_id' => '700100-001', 'lessor_id' => $lessor->id]);
         }
 
         return Order::factory()->create(array_merge([
             'order_number' => 'ORD-LEASE-1',
             'status' => 'ordered',
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '700100-009',
             'quote_total' => 10000.00,
         ], $overrides));
     }
@@ -366,7 +368,7 @@ class OkayToPayTest extends TestCase
         foreach ($assets as $asset) {
             $this->assertStringContainsString($asset->serial, $html);
         }
-        $this->assertStringContainsString('301452-009', $html);
+        $this->assertStringContainsString('700100-009', $html);
         $this->assertStringContainsString('$9,828.00', $html);
     }
 
@@ -466,8 +468,8 @@ class OkayToPayTest extends TestCase
     public function test_another_lessors_invoice_never_gets_an_ok_to_pay()
     {
         $other = Supplier::create(['name' => 'Lessor Two', 'email' => 'rep@second.test']);
-        Asset::factory()->create(['lease_contract_id' => '4130-ECI-1', 'lessor_id' => $other->id]);
-        $this->leaseOrder(['order_number' => 'ORD-OTHER', 'lease_schedule' => '4130-ECI-2']);
+        Asset::factory()->create(['lease_contract_id' => '700200-1', 'lessor_id' => $other->id]);
+        $this->leaseOrder(['order_number' => 'ORD-OTHER', 'lease_schedule' => '700200-2']);
 
         $this->ingest('ORD-OTHER', 'INV-OTHER', Asset::factory()->count(1)->create()->all());
         $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
