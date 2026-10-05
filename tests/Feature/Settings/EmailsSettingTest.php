@@ -572,6 +572,34 @@ class EmailsSettingTest extends TestCase
         Mail::assertSent(OkayToPayMail::class, fn ($mail) => $mail->hasTo('someone@example.test') && $mail->hasFrom('other@example.test'));
     }
 
+    public function test_the_api_test_send_copies_the_cc_list(): void
+    {
+        Mail::fake();
+        $csi = Supplier::factory()->create(['name' => 'Sample Lessor', 'email' => 'rep@lessor.test']);
+        config(['leasing.okp_lessor' => $csi->name, 'leasing.internal_domains' => 'example.test']);
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => 'rep@lessor.test', 'cc' => ['boss@lessor.test', 'me@example.test']])
+            ->assertOk()
+            ->assertJson(['status' => 'success', 'cc' => ['boss@lessor.test', 'me@example.test']]);
+
+        Mail::assertSent(OkayToPayMail::class, fn ($mail) => $mail->hasTo('rep@lessor.test') && $mail->hasCc('boss@lessor.test') && $mail->hasCc('me@example.test'));
+    }
+
+    public function test_the_api_test_send_refuses_another_lessors_address(): void
+    {
+        Mail::fake();
+        $csi = Supplier::factory()->create(['name' => 'Sample Lessor', 'email' => 'rep@lessor.test']);
+        Supplier::factory()->create(['name' => 'Other Lessor', 'email' => 'rep@other.test']);
+        config(['leasing.okp_lessor' => $csi->name, 'leasing.internal_domains' => 'example.test']);
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => 'rep@lessor.test', 'cc' => ['rep@other.test']])
+            ->assertStatus(409);
+
+        Mail::assertNothingSent();
+    }
+
     public function test_the_api_test_send_is_gated_and_needs_an_address(): void
     {
         $this->actingAsForApi(User::factory()->create())
