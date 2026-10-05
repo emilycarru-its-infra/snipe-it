@@ -1897,7 +1897,7 @@ class ProcurementReportsTest extends TestCase
         ], ['serial' => 'LESSORFK1', 'lessor_id' => $lessor->id]);
 
         // The disposition grid reads the provider from the asset's lessor FK,
-        // not the QQ->CCA prefix fallback.
+        // not the QQ prefix fallback.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.disposition-grid'))
             ->assertOk()
@@ -2352,7 +2352,7 @@ class ProcurementReportsTest extends TestCase
 
     public function test_prefixed_cca_contract_ids_stay_recognised()
     {
-        // The 700200- lessor-account prefix (2026-08 rename) must keep CCA
+        // The 700200- lessor-account prefix (2026-08 rename) must keep the second lessor
         // schedules inside every lease rollup — the validity check once
         // required a bare QQ prefix, which silently dropped them all.
         $this->seedLeaseAsset([
