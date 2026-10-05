@@ -6,6 +6,7 @@ use App\Http\Middleware\SecurityHeaders;
 use App\Models\Asset;
 use App\Services\FormAccess;
 use App\Services\Settings\Preferences;
+use App\Services\SupplierAccounts;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use RuntimeException;
@@ -57,6 +58,10 @@ abstract class TestCase extends BaseTestCase
         // Preferences cache every override for the request; a fresh
         // database per test must not read the last test's values.
         Preferences::flush();
+
+        // Supplier accounts are cached the same way, and a test that seeds
+        // its own accounts otherwise decides the list the next test reads.
+        SupplierAccounts::flush();
     }
 
     // ...existing code...

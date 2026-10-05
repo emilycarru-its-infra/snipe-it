@@ -70,18 +70,18 @@
                 'color' => 'bg-navy',
             ],
             [
-                'count' => number_format($expiring30),
-                'label' => trans('admin/contracts/general.tile_expiring_30'),
-                'href'  => $link(['expiring_within_days' => 30]),
+                'count' => number_format($expiringSoon),
+                'label' => trans('admin/contracts/general.tile_expiring_days', ['days' => $expiringSoonDays]),
+                'href'  => $link(['expiring_within_days' => $expiringSoonDays]),
                 'icon'  => 'fa-hourglass-end',
-                'color' => (string) $expiringDays === '30' ? 'bg-blue' : ($expiring30 > 0 ? 'bg-red' : 'bg-green'),
+                'color' => (string) $expiringDays === (string) $expiringSoonDays ? 'bg-blue' : ($expiringSoon > 0 ? 'bg-red' : 'bg-green'),
             ],
             [
-                'count' => number_format($expiring90),
-                'label' => trans('admin/contracts/general.tile_expiring_90'),
-                'href'  => $link(['expiring_within_days' => 90]),
+                'count' => number_format($expiringLater),
+                'label' => trans('admin/contracts/general.tile_expiring_days', ['days' => $expiringLaterDays]),
+                'href'  => $link(['expiring_within_days' => $expiringLaterDays]),
                 'icon'  => 'fa-calendar-alt',
-                'color' => (string) $expiringDays === '90' ? 'bg-blue' : ($expiring90 > 0 ? 'bg-yellow' : 'bg-aqua'),
+                'color' => (string) $expiringDays === (string) $expiringLaterDays ? 'bg-blue' : ($expiringLater > 0 ? 'bg-yellow' : 'bg-aqua'),
             ],
             [
                 'count' => number_format($renewalSeriesCount),
@@ -93,7 +93,7 @@
         ];
 
         $reports = [
-            ['route' => 'contracts.reports.expiring-soon',    'name' => 'report_expiring_soon_title',    'desc' => 'report_expiring_soon_desc',    'params' => ['days' => 90]],
+            ['route' => 'contracts.reports.expiring-soon',    'name' => 'report_expiring_soon_title',    'desc' => 'report_expiring_soon_desc',    'params' => ['days' => $expiringLaterDays]],
             ['route' => 'contracts.reports.renewal-series',   'name' => 'report_renewal_series_title',   'desc' => 'report_renewal_series_desc',   'params' => []],
             ['route' => 'contracts.reports.by-area',          'name' => 'report_by_area_title',          'desc' => 'report_by_area_desc',          'params' => []],
             ['route' => 'contracts.reports.by-provider',      'name' => 'report_by_provider_title',      'desc' => 'report_by_provider_desc',      'params' => []],
@@ -243,7 +243,7 @@
                             @foreach ($reports as $report)
                                 <x-tabs.pane name="rpt-{{ $report['name'] }}" class="{{ $loop->first ? 'active in' : '' }}">
                                     <div class="contracts-report-head">
-                                        <p class="text-muted" style="margin:0;">{{ trans('admin/contracts/general.'.$report['desc']) }}</p>
+                                        <p class="text-muted" style="margin:0;">{{ trans('admin/contracts/general.'.$report['desc'], ['days' => $report['desc'] === 'report_stale_desc' ? \App\Services\Settings\Preferences::get('contracts.stale_tdx_days') : $expiringLaterDays]) }}</p>
                                         <span class="contracts-report-actions">
                                             <a href="{{ route($report['route'], $report['params']) }}" class="btn btn-sm btn-default">
                                                 <x-icon type="reports" /> {{ trans('general.view') }}

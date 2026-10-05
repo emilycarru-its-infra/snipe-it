@@ -334,11 +334,14 @@ class ScheduleIntake
             return $parsed['lease_type'];
         }
 
-        // The two schedule types run fixed terms: 48 months returns to the
-        // lessor, 60 months ends in a $1 buyout.
-        return match ($parsed['term_months'] ?? null) {
-            48 => 'Lease to Return',
-            60 => 'Lease to Own',
+        // The two schedule types run fixed terms (the leasing.term_months.*
+        // preferences): the shorter returns to the lessor, the longer ends in
+        // a $1 buyout.
+        $term = isset($parsed['term_months']) ? (int) $parsed['term_months'] : null;
+
+        return match ($term) {
+            (int) Preferences::get('leasing.term_months.lease_to_return') => 'Lease to Return',
+            (int) Preferences::get('leasing.term_months.lease_to_own') => 'Lease to Own',
             default => null,
         };
     }
@@ -464,7 +467,7 @@ class ScheduleIntake
         $lineTotal = collect($lines)->sum(fn ($l) => $l['yearly_rental'] ?? 0);
         $stated = $parsed['yearly_rental'] ?? ($parsed['totals']['total_rent'] ?? null);
 
-        if ($stated !== null && $lineTotal > 0 && abs($lineTotal - $stated) > 0.05) {
+        if ($stated !== null && $lineTotal > 0 && abs($lineTotal - $stated) > (float) Preferences::get('procurement.money_match_tolerance')) {
             $warnings[] = trans('admin/lease-intake/general.warning_rental_sum', [
                 'lines' => number_format($lineTotal, 2),
                 'stated' => number_format($stated, 2),

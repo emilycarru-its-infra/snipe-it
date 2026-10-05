@@ -2,7 +2,10 @@
 
 namespace App\Models\Traits;
 
+use App\Models\User;
+use App\Services\Settings\Preferences;
 use App\Services\SupplierAccounts;
+use Illuminate\Support\Collection;
 
 /**
  * Everything about putting an order to the vendor and recording what comes back.
@@ -104,7 +107,7 @@ trait PlacesVendorOrders
      * and issues them. Blocking those would push exactly the awkward orders back
      * into email, which is the thing this replaces.
      *
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
     public function linesMissingPartNumbers()
     {
@@ -119,7 +122,7 @@ trait PlacesVendorOrders
      * rather than left to be noticed, so their desk knows which lines need an
      * EDC issuing and which are simply charges.
      *
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
     public function specialRequestLines()
     {
@@ -138,11 +141,12 @@ trait PlacesVendorOrders
      * quietly wrong without anybody touching it. A warning, never a gate: a
      * stale number is their desk asking a question, not a wrong order.
      *
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
     public function linesWithStalePartNumbers()
     {
-        $cutoff = now()->subDays(self::PART_NUMBER_STALE_DAYS);
+        // How long part numbers are trusted: the procurement.part_number_stale_days preference.
+        $cutoff = now()->subDays((int) Preferences::get('procurement.part_number_stale_days'));
 
         return $this->vendorOrderLines()
             ->filter(function ($line) use ($cutoff) {
@@ -221,7 +225,7 @@ trait PlacesVendorOrders
      * the picker can show who was chosen last time instead of a string somebody
      * has to read to recognise.
      *
-     * @return \Illuminate\Support\Collection<int, \App\Models\User>
+     * @return Collection<int, User>
      */
     public function orderCcUsers()
     {
@@ -234,7 +238,7 @@ trait PlacesVendorOrders
             ->unique()
             ->all();
 
-        return $ids === [] ? collect() : \App\Models\User::whereIn('id', $ids)->get();
+        return $ids === [] ? collect() : User::whereIn('id', $ids)->get();
     }
 
     /**

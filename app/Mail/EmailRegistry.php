@@ -401,7 +401,7 @@ class EmailRegistry
                 'category' => 'store',
                 'label' => 'Vendor order request (to reps)',
                 'description' => 'The order request emailed to the vendor\'s reps from the queue. Recipients default to the supplier\'s order email list; CC defaults to the procurement admin lists.',
-                'merge_vars' => ['orders' => 'The orders (lines with CDW/MFR part numbers)', 'references' => 'ECU-STORE references', 'supplier' => 'The vendor'],
+                'merge_vars' => ['orders' => 'The orders (lines with CDW/MFR part numbers)', 'references' => 'Store order references', 'supplier' => 'The vendor'],
                 'factory' => fn (EmailSampleData $s) => new StoreVendorOrderMail(collect([$s->storeOrder('approved'), $s->storeOrder('approved', 482)])),
                 'configurable_recipients' => true,
                 'configurable_cc' => true,

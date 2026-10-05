@@ -60,7 +60,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
 
         Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => ! $mail->test
             && $mail->hasTo('rep1@cdw.ca') && $mail->hasTo('rep2@cdw.ca')
-            && $mail->hasCc('devicesadmins@ecuad.ca') && $mail->hasCc('assetsadmins@ecuad.ca'));
+            && $mail->hasCc('devices@example.org') && $mail->hasCc('assets@example.org'));
 
         $order->refresh();
         $this->assertNotNull($order->vendor_sent_at);
@@ -399,7 +399,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
         Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => $mail->hasCc('faculty@ecuad.ca')
             && $mail->hasCc('dean@ecuad.ca')
             && $mail->hasCc('chair@ecuad.ca')
-            && $mail->hasCc('devicesadmins@ecuad.ca'));
+            && $mail->hasCc('devices@example.org'));
 
         $this->assertStringContainsString('dean@ecuad.ca', $order->fresh()->order_cc);
         $this->assertNotContains('not-an-address', $order->fresh()->orderCcAddresses());

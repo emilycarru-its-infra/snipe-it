@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\EmailTemplate;
 use App\Models\OrderInvoice;
 use App\Models\Supplier;
+use App\Services\Settings\Preferences;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Carbon;
@@ -45,8 +46,6 @@ class OkayToPay
     public const HELD = 'held';
 
     public const SENT = 'sent';
-
-    public const DEFAULT_CHANNEL = 'Procurement';
 
     public function __construct(private readonly TeamsNotifier $teams) {}
 
@@ -147,7 +146,7 @@ class OkayToPay
 
         return ! $invoice->isAdjustment()
             && filled($order->lease_schedule)
-            && in_array($order->funding_account, (array) config('leasing.okp_funding_accounts', []), true);
+            && in_array($order->funding_account, Preferences::get('leasing.okp_funding_accounts'), true);
     }
 
     /**
@@ -180,7 +179,7 @@ class OkayToPay
         }
 
         $sum = (float) $invoice->subtotal + (float) $invoice->tax_gst + (float) $invoice->tax_pst + (float) $invoice->shipping;
-        if (abs($sum - (float) $invoice->total) > 0.05) {
+        if (abs($sum - (float) $invoice->total) > (float) Preferences::get('procurement.money_match_tolerance')) {
             $reasons[] = trans('admin/purchase-orders/general.okp_reason_total', [
                 'total' => self::money($invoice->total),
                 'sum' => self::money($sum),
@@ -393,7 +392,7 @@ class OkayToPay
     /** The Teams channel the cards go to. */
     public function channel(): string
     {
-        return (string) (self::setting('teams_channel') ?: self::DEFAULT_CHANNEL);
+        return (string) (EmailTemplate::optionFor(self::KEY, 'teams_channel') ?: Preferences::get('leasing.okp_teams_channel'));
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\Helper;
 use App\Models\Contract;
 use App\Services\FiscalYear;
+use App\Services\Settings\Preferences;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -66,8 +67,10 @@ class ContractsController extends Controller
 
         $totalCount = $scoped()->count();
         $activeCount = $scoped()->active()->count();
-        $expiring30 = $scoped()->expiringWithin(30)->count();
-        $expiring90 = $scoped()->expiringWithin(90)->count();
+        $expiringSoonDays = (int) Preferences::get('contracts.expiring_soon_days');
+        $expiringLaterDays = (int) Preferences::get('contracts.expiring_later_days');
+        $expiringSoon = $scoped()->expiringWithin($expiringSoonDays)->count();
+        $expiringLater = $scoped()->expiringWithin($expiringLaterDays)->count();
         $renewalSeriesCount = $scoped()->where('is_synthesized', true)->count();
 
         // Spend is a figure rather than a filter, so it excludes the
@@ -91,8 +94,10 @@ class ContractsController extends Controller
                 'selectedFy',
                 'totalCount',
                 'activeCount',
-                'expiring30',
-                'expiring90',
+                'expiringSoonDays',
+                'expiringLaterDays',
+                'expiringSoon',
+                'expiringLater',
                 'renewalSeriesCount',
                 'totalCost',
                 'themes',
@@ -163,14 +168,6 @@ class ContractsController extends Controller
      * asked for the renewal series rows; a series row would otherwise show up
      * as an extra contract carrying no cost.
      */
-    /**
-     * The contract register starts at FY2024-25: the picker and the FY chart
-     * run from there through next fiscal year regardless of which years hold
-     * rows yet, in whichever label format the data already uses (TDX parses
-     * short "FY24-25" labels; the app generates long "FY2024-25" ones).
-     */
-    private const FY_RANGE_FLOOR = 2024;
-
     private function fyStartYear(?string $label): ?int
     {
         if ($label && preg_match('/FY\s*(\d{4}|\d{2})/i', (string) $label, $m)) {
@@ -201,7 +198,7 @@ class ContractsController extends Controller
         $maxData = $dataYears->map(fn ($v) => $this->fyStartYear($v))->filter()->max() ?? $currentStart;
         $to = max($currentStart + 1, $maxData);
 
-        return collect(range(self::FY_RANGE_FLOOR, $to))
+        return collect(range(min((int) Preferences::get('fiscal.contracts_first_year'), $to), $to))
             ->map(fn ($y) => $this->fyLabel($y, $short));
     }
 

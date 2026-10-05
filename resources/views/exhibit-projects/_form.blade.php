@@ -1,7 +1,7 @@
 @php($exhibits = \App\Models\Exhibit::where('active', true)->orderBy('sort_order')->orderBy('name')->get())
 @php($statuses = \App\Models\ExhibitStatus::where('active', true)->orderBy('sort_order')->orderBy('name')->get())
 @php($types = \App\Models\ExhibitProjectType::where('active', true)->orderBy('sort_order')->orderBy('name')->get())
-@php($devices = \App\Models\ExhibitProject::REQUESTED_DEVICES)
+@php($devices = \App\Services\Settings\Preferences::get('exhibits.requested_devices'))
 
 <div class="form-group {{ $errors->has('exhibit_id') ? 'has-error' : '' }}">
     <label for="exhibit_id" class="col-md-3 control-label">{{ trans('admin/exhibit-projects/general.show') }}</label>

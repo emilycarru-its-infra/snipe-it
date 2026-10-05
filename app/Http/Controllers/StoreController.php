@@ -6,11 +6,12 @@ use App\Models\Asset;
 use App\Models\CatalogItem;
 use App\Models\Location;
 use App\Models\StoreOrder;
-use App\Services\Deployments\WaveMembership;
 use App\Models\StoreOrderItem;
+use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\CatalogSelfServe;
-use App\Services\CdwProductLookup;
+use App\Services\Deployments\WaveMembership;
+use App\Services\Settings\Preferences;
 use App\Services\StoreOrderAssetProvisioner;
 use App\Services\StoreOrderNotifier;
 use Illuminate\Http\RedirectResponse;
@@ -166,7 +167,7 @@ class StoreController extends Controller
             'displayStandard' => trans('admin/store/general.display_standard'),
             'displayNano' => trans('admin/store/general.display_nano'),
             'allProducts' => trans('admin/store/general.all_categories'),
-            'categoryOrder' => CatalogItem::CATEGORY_ORDER,
+            'categoryOrder' => CatalogItem::categoryOrder(),
             'storeEmpty' => trans('admin/store/general.store_empty'),
             'otherHeading' => trans('admin/store/general.other_heading'),
             'steps' => [
@@ -197,7 +198,7 @@ class StoreController extends Controller
 
         $mine = $asset
             && (int) $asset->assigned_to === (int) auth()->id()
-            && $asset->assigned_type === \App\Models\User::class;
+            && $asset->assigned_type === User::class;
 
         return ($mine && $asset->isStaffCatalog()) ? $asset : null;
     }
@@ -243,7 +244,7 @@ class StoreController extends Controller
         // intake and agreement flow picks them up from the queue. A shared
         // cart never does, whoever placed it.
         $isFaculty = ! $shared && auth()->user()->groups()
-            ->where('permission_groups.name', 'like', '%faculty%')
+            ->where('permission_groups.name', 'like', '%'.Preferences::get('groups.faculty_match').'%')
             ->exists();
 
         // An early-refresh order remembers which machine it replaces. The

@@ -11,6 +11,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Leasing\BuyoutTracker;
 use App\Services\Leasing\LessorGuard;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -22,14 +23,18 @@ use Illuminate\Support\Facades\Mail;
  * lease contacts — never another lessor's, since the body names the contract
  * and the device; Cc the device team list, the assigned end user, and
  * whoever asked. Every send is logged to the asset's activity timeline, and
- * that log is also the throttle — one request per asset per 30 days, so a
+ * that log is also the throttle — one request per asset per cooldown (30 days unless
+ * leasing.buyout_request_cooldown_days says otherwise), so a
  * lessor's rep is never mailed twice about the same machine because someone
  * clicked again while waiting.
  */
 class AssetBuyoutRequester
 {
     /** Days before the same asset may be requested again. */
-    public const REQUEST_COOLDOWN_DAYS = 30;
+    public static function cooldownDays(): int
+    {
+        return (int) Preferences::get('leasing.buyout_request_cooldown_days');
+    }
 
     /**
      * The still-cooling-down request for this asset, if one exists.
@@ -39,7 +44,7 @@ class AssetBuyoutRequester
         return Actionlog::where('item_type', Asset::class)
             ->where('item_id', $asset->id)
             ->where('action_type', ActionType::BuyoutRequested->value)
-            ->where('created_at', '>=', now()->subDays(self::REQUEST_COOLDOWN_DAYS))
+            ->where('created_at', '>=', now()->subDays(self::cooldownDays()))
             ->latest('created_at')
             ->first();
     }

@@ -126,7 +126,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => ! $mail->test
             && $mail->hasTo('rep1@cdw.ca') && $mail->hasTo('rep2@cdw.ca')
-            && $mail->hasCc('devicesadmins@ecuad.ca') && $mail->hasCc('assetsadmins@ecuad.ca'));
+            && $mail->hasCc('devices@example.org') && $mail->hasCc('assets@example.org'));
 
         $order->refresh();
         $this->assertNotNull($order->vendor_sent_at);
@@ -174,7 +174,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         Mail::assertSent(PurchaseOrderQuoteAcceptanceMail::class, 1);
         Mail::assertSent(PurchaseOrderQuoteAcceptanceMail::class, fn ($mail) => $mail->hasTo('rep1@cdw.ca')
-            && $mail->hasCc('devicesadmins@ecuad.ca'));
+            && $mail->hasCc('devices@example.org'));
 
         $order->refresh();
         $this->assertNotNull($order->quote_confirmed_at);

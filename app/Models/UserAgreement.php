@@ -6,6 +6,7 @@ use App\Helpers\Helper;
 use App\Mail\UserAgreementSignatureRequestMail;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
+use App\Services\Settings\Preferences;
 use App\Services\UserAgreements\PdfRenderer;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -359,8 +360,8 @@ class UserAgreement extends SnipeModel
      */
     public static function programCovers(Asset $asset): bool
     {
-        $category = (string) config('forms.pickup_auto_create.asset_category', 'Laptop');
-        $manufacturer = (string) config('forms.pickup_auto_create.asset_manufacturer', 'Apple');
+        $category = (string) Preferences::get('forms.pickup_auto_create.asset_category');
+        $manufacturer = (string) Preferences::get('forms.pickup_auto_create.asset_manufacturer');
 
         $model = $asset->model;
         if (! $model || ! $model->category || $model->category->name !== $category) {

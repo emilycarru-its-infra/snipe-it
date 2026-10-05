@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\FacultyProgramNotifier;
+use App\Services\Settings\Preferences;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -358,7 +359,7 @@ class FacultyProgramForm extends FormDefinition
             return null;
         }
 
-        $factor = (float) config('forms.buyout_estimate.annual_rent_factor');
+        $factor = (float) Preferences::get('forms.buyout_estimate.annual_rent_factor');
 
         return $factor > 0 ? round((float) $asset->purchase_cost * $factor, 2) : null;
     }

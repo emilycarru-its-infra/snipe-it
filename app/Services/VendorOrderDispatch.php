@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Mail\PurchaseOrderQuoteAcceptanceMail;
 use App\Mail\RequisitionVendorOrderMail;
+use App\Models\Asset;
 use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -242,7 +244,7 @@ class VendorOrderDispatch
             if (filled($order->vendor_order_number) && $order->order_number !== $order->vendor_order_number) {
                 // The devices provisioned under our interim name follow it:
                 // an asset's order number is the vendor's, its PO number ours.
-                \App\Models\Asset::where('order_number', $order->order_number)
+                Asset::where('order_number', $order->order_number)
                     ->update(['order_number' => $order->vendor_order_number]);
 
                 $order->order_number = $order->vendor_order_number;
@@ -292,7 +294,7 @@ class VendorOrderDispatch
         $to = EmailTemplate::recipientsFor('procurement.vendor_order', $order->supplier?->order_emails);
 
         $cc = array_values(array_unique(array_merge(
-            EmailTemplate::ccFor('procurement.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca'),
+            EmailTemplate::ccFor('procurement.vendor_order', Preferences::csv('contacts.device_team')),
             $order->orderCcAddresses()
         )));
 

@@ -101,7 +101,7 @@
                         <td style="width:120px;">
                             <select name="warranty_months" form="sa-{{ $item->id }}" class="form-control input-sm">
                                 <option value="">{{ trans('general.na') }}</option>
-                                @foreach ([12, 24, 36, 48, 60] as $months)
+                                @foreach (\App\Services\Settings\Preferences::get('procurement.warranty_month_options') as $months)
                                     <option value="{{ $months }}" @selected((int) $item->warranty_months === $months)>
                                         {{ trans_choice('admin/store/general.warranty_years', intdiv($months, 12), ['count' => intdiv($months, 12)]) }}
                                     </option>

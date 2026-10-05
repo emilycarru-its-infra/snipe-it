@@ -4,6 +4,7 @@ namespace App\Notifications\Concerns;
 
 use App\Models\Asset;
 use App\Models\Location;
+use App\Services\Settings\Preferences;
 use App\Services\Teams\TeamsCard;
 use Illuminate\Database\Eloquent\Model;
 
@@ -95,7 +96,7 @@ trait BuildsTeamsCards
         }
 
         $facts = [];
-        foreach ((array) config('ecu.teams.asset_custom_fields', []) as $name => $label) {
+        foreach (Preferences::get('teams.asset_custom_fields') as $name => $label) {
             $field = $fields->first(fn ($field) => strcasecmp((string) $field->name, (string) $name) === 0);
 
             if ($field && ! $field->field_encrypted) {

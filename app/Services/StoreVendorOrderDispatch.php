@@ -6,6 +6,7 @@ use App\Mail\StoreVendorOrderMail;
 use App\Models\EmailTemplate;
 use App\Models\StoreOrder;
 use App\Models\User;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -48,7 +49,7 @@ class StoreVendorOrderDispatch
             $cc = [];
         } else {
             $to = EmailTemplate::recipientsFor('store.vendor_order', $orders->first()->supplier()?->order_emails);
-            $cc = EmailTemplate::ccFor('store.vendor_order', 'devicesadmins@ecuad.ca,assetsadmins@ecuad.ca');
+            $cc = EmailTemplate::ccFor('store.vendor_order', Preferences::csv('contacts.device_team'));
         }
 
         $to = array_values(array_filter($to));

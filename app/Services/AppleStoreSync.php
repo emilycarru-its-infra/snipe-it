@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CatalogItem;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
@@ -28,7 +29,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class AppleStoreSync
 {
-    /** The buy pages that cover what the store shelves carry. */
+    /** The buy pages that cover what the store shelves carry: the catalog.apple_store_pages default. */
     public const DEFAULT_PAGES = [
         'https://www.apple.com/ca/shop/buy-mac/macbook-pro/14-inch',
         'https://www.apple.com/ca/shop/buy-mac/macbook-pro/16-inch',
@@ -58,7 +59,7 @@ class AppleStoreSync
      */
     public function sync(array $pages = [], bool $dryRun = false): array
     {
-        $pages = $pages ?: self::DEFAULT_PAGES;
+        $pages = $pages ?: Preferences::get('catalog.apple_store_pages');
         $stats = ['pages' => 0, 'page_errors' => [], 'products' => 0, 'updated' => 0, 'unmatched' => 0];
 
         foreach ($pages as $url) {

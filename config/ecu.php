@@ -11,6 +11,15 @@ return [
 
     'version_suffix' => '+ecu',
 
+    // The device team's shared mailboxes, comma separated: copied on store
+    // and vendor orders and sent faculty program applications. The default
+    // for the contacts.device_team preference.
+    // Link to a contract in TeamDynamix; {id} is replaced by the TDX id.
+    // Empty shows TDX ids unlinked. The default for links.tdx_contract.
+    'tdx_contract_url' => env('TDX_CONTRACT_URL', ''),
+
+    'device_team_emails' => env('ECU_DEVICE_TEAM_EMAILS', ''),
+
     // Outbound asset-change announcement. Every asset create,
     // update, delete and restore posts to the Inventory automations
     // function app, which rebuilds staging/assets.csv on demand instead
