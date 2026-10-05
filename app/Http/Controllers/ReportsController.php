@@ -26,6 +26,7 @@ use App\Models\LicenseSeat;
 use App\Models\Maintenance;
 use App\Models\ReportTemplate;
 use App\Models\Setting;
+use App\Services\FiscalYear;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -65,15 +66,16 @@ class ReportsController extends Controller
         // page at /procurement/leasing — procurement's view, procurement's
         // path — not as a section here.
         return view('reports/index', [
-            'fleetRefresh'        => $this->fleetRefreshByFiscalYear(6),
+            'fleetRefresh' => $this->fleetRefreshByFiscalYear(6),
             'contractExpirations' => $this->contractExpirationsByQuarter(8),
         ]);
     }
 
     /**
      * Asset EOL distribution for the next N fiscal years, plus a "past" bucket
-     * for anything already overdue and a "future" bucket past the window. ECU's
-     * fiscal year runs Apr 1 → Mar 31, labelled "FY26-27" for 2026-04 → 2027-03.
+     * for anything already overdue and a "future" bucket past the window. The
+     * fiscal year starts in the fiscal.start_month preference, labelled
+     * "FY26-27" for the year starting in 2026.
      */
     private function fleetRefreshByFiscalYear(int $years): array
     {
@@ -83,12 +85,12 @@ class ReportsController extends Controller
         $rows = Asset::query()
             ->leftJoin('models', 'models.id', '=', 'assets.model_id')
             ->whereRaw("$eolExpr IS NOT NULL")
-            ->selectRaw("YEAR($eolExpr) - (MONTH($eolExpr) < 4) AS fy_start, COUNT(*) AS n")
+            ->selectRaw("YEAR($eolExpr) - (MONTH($eolExpr) < ?) AS fy_start, COUNT(*) AS n", [FiscalYear::startMonth()])
             ->groupBy('fy_start')
             ->pluck('n', 'fy_start');
 
-        $today  = Carbon::today();
-        $startY = (int) $today->format('n') >= 4 ? (int) $today->format('Y') : (int) $today->format('Y') - 1;
+        $today = Carbon::today();
+        $startY = FiscalYear::startYearFor($today);
         $buckets = ['__past__' => 0];
         for ($i = 0; $i < $years; $i++) {
             $y = $startY + $i;
@@ -99,7 +101,7 @@ class ReportsController extends Controller
 
         foreach ($rows as $eolStartY => $count) {
             $eolStartY = (int) $eolStartY;
-            $count     = (int) $count;
+            $count = (int) $count;
             if ($eolStartY < $startY) {
                 $buckets['__past__'] += $count;
             } elseif ($eolStartY > $endY) {
@@ -137,10 +139,10 @@ class ReportsController extends Controller
      */
     private function contractExpirationsByQuarter(int $quarters): array
     {
-        $start    = Carbon::today()->startOfQuarter();
-        $end      = $start->copy()->addQuarters($quarters);
-        $buckets  = [];
-        $cursor   = $start->copy();
+        $start = Carbon::today()->startOfQuarter();
+        $end = $start->copy()->addQuarters($quarters);
+        $buckets = [];
+        $cursor = $start->copy();
         while ($cursor->lt($end)) {
             $buckets[$cursor->format('Y').'-Q'.$cursor->quarter] = 0;
             $cursor->addQuarter();

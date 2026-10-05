@@ -3,7 +3,19 @@
 namespace App\Services\Deployments;
 
 use App\Models\Asset;
+use App\Models\Category;
+use App\Models\Company;
+use App\Models\CustomField;
 use App\Models\DeploymentItem;
+use App\Models\LeaseDecision;
+use App\Models\Manufacturer;
+use App\Models\Statuslabel;
+use App\Models\Supplier;
+use App\Services\FiscalYear;
+use App\Services\Settings\Preferences;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -12,110 +24,46 @@ use Illuminate\Support\Facades\Schema;
  * headline E1 feature behind /reports/deployments/planning. Replaces Rod
  * manually flipping devices to a stopgap "Active (Lease End)" status: it
  * sweeps assets whose native EOL date OR (if present) "Lease End Date"
- * custom field lands inside an ECU fiscal year (April 1 -> March 31), and
- * lets a tech bulk-add them to a deployment wave as replacement items.
+ * custom field lands inside a fiscal year, and lets a tech bulk-add them to
+ * a deployment wave as replacement items.
  *
- * NOTE: the FY helpers below mirror ProcurementReportsController's private
- * normalizeFy / fiscalYearStartYear / fiscalYearRange / fiscalYearFromEndDate;
- * kept self-contained here — candidate for a shared util later.
+ * The FY helpers below are kept as thin aliases of App\Services\FiscalYear,
+ * which owns the start month, because callers across the app use them.
+ *
+ * Devices on a "funded replacement" status (the status.funded_replacement
+ * preference) are a funded decision, not a prediction: they join the current
+ * fiscal year's forecast regardless of their dates.
  */
 class RefreshForecast
 {
-    /**
-     * "Active (Replace)" is a funded decision, not a prediction — devices
-     * somebody flipped to it are identified for replacement in the CURRENT
-     * fiscal year's capital regardless of their dates, so they join the
-     * current year's forecast. Its sibling "Active (Legacy)" is a wishlist
-     * and deliberately does not.
-     */
-    public const STATUS_FUNDED_REPLACEMENT = 'Active (Replace)';
-
     /**
      * Canonicalize a fiscal-year string to `FY2025-26`, or null for an
      * empty / "all" / unparseable input.
      */
     public static function normalizeFy(?string $fy): ?string
     {
-        if ($fy === null) {
-            return null;
-        }
-
-        $fy = trim($fy);
-        if ($fy === '' || strtolower($fy) === 'all') {
-            return null;
-        }
-
-        if (preg_match('/(\d{4})\s*-\s*(\d{2})$/', $fy, $m)) {
-            return 'FY'.$m[1].'-'.$m[2];
-        }
-
-        if (preg_match('/(\d{2})\s*-\s*(\d{2})$/', $fy, $m)) {
-            return 'FY20'.$m[1].'-'.$m[2];
-        }
-
-        if (preg_match('/(\d{4})$/', $fy, $m)) {
-            $start = (int) $m[1];
-
-            return 'FY'.$start.'-'.substr((string) ($start + 1), -2);
-        }
-
-        return null;
+        return FiscalYear::normalize($fy);
     }
 
     /** The start calendar year of a canonical FY label (FY2025-26 -> 2025), or null. */
     public static function fiscalYearStartYear(?string $fy): ?int
     {
-        $fy = self::normalizeFy($fy);
-        if ($fy === null) {
-            return null;
-        }
-
-        return (int) substr($fy, 2, 4);
+        return FiscalYear::startYearOf($fy);
     }
 
     /**
-     * The [start, end] Carbon bounds of a fiscal year (April 1 -> March 31),
-     * or null for an unparseable / "all" FY.
+     * The [start, end] Carbon bounds of a fiscal year, or null for an
+     * unparseable / "all" FY.
      */
     public static function fiscalYearRange(?string $fy): ?array
     {
-        $startYear = self::fiscalYearStartYear($fy);
-        if ($startYear === null) {
-            return null;
-        }
-
-        return [
-            \Carbon\Carbon::create($startYear, 4, 1)->startOfDay(),
-            \Carbon\Carbon::create($startYear + 1, 3, 31)->endOfDay(),
-        ];
+        return FiscalYear::range($fy);
     }
 
     /** The FY label a 'Y-m-d' (or m/d/Y, Y/m/d, d/m/Y) date string falls into, or null. */
     public static function fiscalYearFromEndDate(?string $endDateStr): ?string
     {
-        if (empty($endDateStr)) {
-            return null;
-        }
-
-        $endDate = null;
-        foreach (['Y-m-d', 'm/d/Y', 'Y/m/d', 'd/m/Y'] as $format) {
-            $endDate = \DateTime::createFromFormat($format, $endDateStr);
-            if ($endDate !== false) {
-                break;
-            }
-        }
-
-        if (! $endDate) {
-            return null;
-        }
-
-        $month = (int) $endDate->format('m');
-        $year = (int) $endDate->format('Y');
-
-        $start = $month >= 4 ? $year : $year - 1;
-        $end = $start + 1;
-
-        return sprintf('FY%d-%02d', $start, $end % 100);
+        return FiscalYear::fromDateString($endDateStr);
     }
 
     /**
@@ -160,11 +108,10 @@ class RefreshForecast
             }
         }
 
-        // Always offer current + next FY (ECU FY starts in April).
-        $now = \Carbon\Carbon::now();
-        $startYear = $now->month >= 4 ? $now->year : $now->year - 1;
+        // Always offer current + next FY.
+        $startYear = FiscalYear::currentStartYear();
         foreach ([$startYear, $startYear + 1] as $sy) {
-            $labels[sprintf('FY%d-%02d', $sy, ($sy + 1) % 100)] = true;
+            $labels[FiscalYear::label($sy)] = true;
         }
 
         $out = array_keys($labels);
@@ -187,7 +134,7 @@ class RefreshForecast
      * even though they carry lifecycle EOL dates for operations. Assets
      * with no category at all pass through: unclassified is not excluded.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Asset>  $query
+     * @param  Builder<Asset>  $query
      */
     private function excludeNonPlanCategories($query): void
     {
@@ -214,7 +161,7 @@ class RefreshForecast
      */
     private function approvedBuyouts(): array
     {
-        $decisions = \App\Models\LeaseDecision::query()
+        $decisions = LeaseDecision::query()
             ->whereIn('decision_type', ['buyout', 'retain'])
             ->whereIn('status', ['approved', 'completed'])
             ->get(['asset_id', 'contract_reference']);
@@ -255,10 +202,8 @@ class RefreshForecast
 
                 // Funded replacements carry no FY of their own and read
                 // "this year", so they join the current FY's forecast only.
-                $now = \Carbon\Carbon::now();
-                $currentFy = sprintf('FY%d-%02d', $sy = ($now->month >= 4 ? $now->year : $now->year - 1), ($sy + 1) % 100);
-                if (self::normalizeFy($fy) === $currentFy) {
-                    $q->orWhereHas('status', fn ($status) => $status->where('name', self::STATUS_FUNDED_REPLACEMENT));
+                if (self::normalizeFy($fy) === FiscalYear::current()) {
+                    $q->orWhereIn('assets.status_id', Preferences::statusIds('status.funded_replacement') ?: [-1]);
                 }
 
                 if ($leaseCol !== null) {
@@ -299,7 +244,7 @@ class RefreshForecast
         // decision stamped with a target FY takes the device out of the
         // year its dates put it in, and drops it into the target year's
         // list instead — where it surfaces with reason "deferred".
-        $deferrals = \App\Models\LeaseDecision::query()
+        $deferrals = LeaseDecision::query()
             ->where('decision_type', 'extend')
             ->whereNotNull('deferred_to_fy')
             ->whereNotNull('asset_id')
@@ -333,7 +278,7 @@ class RefreshForecast
         // retained lease-to-own has its refresh budget redirected, so the
         // planner must see the decision right on the candidate row.
         $contractIds = $assets->pluck('lease_contract_id')->filter()->unique()->values()->all();
-        $decisions = \App\Models\LeaseDecision::query()
+        $decisions = LeaseDecision::query()
             ->where('status', '!=', 'cancelled')
             ->where(function ($q) use ($contractIds, $assets) {
                 $q->whereIn('contract_reference', $contractIds ?: ['-'])
@@ -346,7 +291,7 @@ class RefreshForecast
         return $assets->map(function (Asset $asset) use ($start, $end, $leaseCol, $startStr, $endStr, $decisionByAsset, $decisionByContract) {
             $eolIn = false;
             if ($asset->asset_eol_date) {
-                $eol = \Carbon\Carbon::parse($asset->asset_eol_date);
+                $eol = Carbon::parse($asset->asset_eol_date);
                 $eolIn = $eol->betweenIncluded($start, $end);
             }
 
@@ -356,7 +301,7 @@ class RefreshForecast
                 $leaseIn = ($leaseVal >= $startStr && $leaseVal <= $endStr);
             }
 
-            $eolStr = $asset->asset_eol_date ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString() : '';
+            $eolStr = $asset->asset_eol_date ? Carbon::parse($asset->asset_eol_date)->toDateString() : '';
 
             // When both dates land in the FY, the lease end wins — that's
             // the contractual return window. The one exception: an End of
@@ -366,7 +311,7 @@ class RefreshForecast
             $reason = match (true) {
                 $eolIn && $leaseIn => ($eolStr !== '' && $eolStr < $leaseVal) ? 'eol' : 'lease',
                 $leaseIn => 'lease',
-                ! $eolIn && $asset->status?->name === self::STATUS_FUNDED_REPLACEMENT => 'funded',
+                ! $eolIn && Preferences::statusMatches('status.funded_replacement', $asset->status?->name) => 'funded',
                 default => 'eol',
             };
 
@@ -423,7 +368,7 @@ class RefreshForecast
             ->map(function (Asset $asset) {
                 $asset->refresh_reason = 'criteria';
                 $asset->source_date = $asset->asset_eol_date
-                    ? \Carbon\Carbon::parse($asset->asset_eol_date)->toDateString()
+                    ? Carbon::parse($asset->asset_eol_date)->toDateString()
                     : (string) ($asset->lease_end_date ?? '');
                 $asset->lease_decision_label = null;
                 $asset->lease_decision_note = null;
@@ -438,7 +383,7 @@ class RefreshForecast
      *
      * @return array<int, array{field: string, value: string}>
      */
-    public function criteriaFromRequest(\Illuminate\Http\Request $request): array
+    public function criteriaFromRequest(Request $request): array
     {
         $raw = $request->query('criteria', []);
         if (! is_array($raw)) {
@@ -479,7 +424,7 @@ class RefreshForecast
             'company' => trans('general.company'),
         ];
 
-        foreach (\App\Models\CustomField::orderBy('name')->get() as $field) {
+        foreach (CustomField::orderBy('name')->get() as $field) {
             if ($field->db_column) {
                 $fields['cf:'.$field->db_column] = $field->name;
             }
@@ -498,14 +443,14 @@ class RefreshForecast
     public function filterValues(): array
     {
         $values = [
-            'category' => \App\Models\Category::where('category_type', 'asset')->orderBy('name')->pluck('name')->all(),
-            'manufacturer' => \App\Models\Manufacturer::orderBy('name')->pluck('name')->all(),
-            'status' => \App\Models\Statuslabel::orderBy('name')->pluck('name')->all(),
-            'supplier' => \App\Models\Supplier::orderBy('name')->pluck('name')->all(),
-            'company' => \App\Models\Company::orderBy('name')->pluck('name')->all(),
+            'category' => Category::where('category_type', 'asset')->orderBy('name')->pluck('name')->all(),
+            'manufacturer' => Manufacturer::orderBy('name')->pluck('name')->all(),
+            'status' => Statuslabel::orderBy('name')->pluck('name')->all(),
+            'supplier' => Supplier::orderBy('name')->pluck('name')->all(),
+            'company' => Company::orderBy('name')->pluck('name')->all(),
         ];
 
-        foreach (\App\Models\CustomField::orderBy('name')->get() as $field) {
+        foreach (CustomField::orderBy('name')->get() as $field) {
             if (! $field->db_column) {
                 continue;
             }
@@ -527,7 +472,7 @@ class RefreshForecast
      * custom fields match the generated column, validated against the
      * live allow-list before touching the builder.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Asset>  $query
+     * @param  Builder<Asset>  $query
      */
     private function applyCriterion($query, string $field, string $value): void
     {
@@ -553,7 +498,7 @@ class RefreshForecast
             default:
                 if (str_starts_with($field, 'cf:')) {
                     $column = substr($field, 3);
-                    $allowed = \App\Models\CustomField::pluck('db_column')->filter()->all();
+                    $allowed = CustomField::pluck('db_column')->filter()->all();
                     if (in_array($column, $allowed, true)) {
                         $query->where($column, $value);
                     }

@@ -3,25 +3,34 @@
 namespace App\Http\Controllers;
 
 use App\Models\Asset;
+use App\Models\AssetBuyout;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
+use App\Models\LeaseDecision;
 use App\Models\Location;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\StaffBlackout;
 use App\Models\Statuslabel;
+use App\Models\StoreOrder;
+use App\Models\User;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\HistoricalFlow;
 use App\Services\Deployments\RefreshForecast;
 use App\Services\Deployments\StageAutomation;
-use Carbon\Carbon;
-use Illuminate\Http\RedirectResponse;
+use App\Services\Deployments\WaveAnnouncementTemplates;
 use App\Services\Deployments\WaveAnnouncer;
 use App\Services\Deployments\WaveMembership;
-use App\Services\Deployments\WaveAnnouncementTemplates;
-use Illuminate\Support\Facades\Log;
+use App\Services\FiscalYear;
+use App\Services\UserAgreements\IntentReconciler;
+use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -52,10 +61,10 @@ class DeploymentsController extends Controller
         // the list from every asset EOL/lease-end date offered stray far
         // future years (a single 2036 EOL date put FY2036-37 in the picker)
         // while the board can never have anything to show there.
-        $currentStartYear = now()->month >= 4 ? now()->year : now()->year - 1;
-        $currentFy = sprintf('FY%d-%02d', $currentStartYear, ($currentStartYear + 1) % 100);
+        $currentStartYear = FiscalYear::currentStartYear();
+        $currentFy = FiscalYear::label($currentStartYear);
         $window = collect(range($currentStartYear - 3, $currentStartYear + 3))
-            ->map(fn ($y) => sprintf('FY%d-%02d', $y, ($y + 1) % 100));
+            ->map(fn ($y) => FiscalYear::label($y));
         $waveFys = DeploymentWave::query()->whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year')->all();
         // Oldest first — reading order matches the passage of time.
         $fiscalYears = $window->merge($waveFys)->unique()->sort()->values()->all();
@@ -801,8 +810,8 @@ class DeploymentsController extends Controller
                 auth()->user(),
                 $test,
                 [],
-                \App\Models\User::whereIn('id', $validated['cc'] ?? [])->get(),
-                \App\Models\User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
+                User::whereIn('id', $validated['cc'] ?? [])->get(),
+                User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
                 $audience,
             );
         } catch (\Throwable $e) {
@@ -840,7 +849,7 @@ class DeploymentsController extends Controller
         $this->authorize('deployments.view');
 
         return view('deployment-waves.index', [
-            'blackouts' => \App\Models\StaffBlackout::with('user')->orderByDesc('start_date')->orderByDesc('id')->get(),
+            'blackouts' => StaffBlackout::with('user')->orderByDesc('start_date')->orderByDesc('id')->get(),
             'waves' => DeploymentWave::with(['type', 'owner'])->withCount('items')
                 ->orderByDesc('fiscal_year')->orderBy('sort_order')->orderBy('name')->get(),
             'types' => DeploymentType::orderBy('sort_order')->orderBy('name')->get(),
@@ -859,10 +868,10 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.view');
 
-        $currentStartYear = now()->month >= 4 ? now()->year : now()->year - 1;
-        $currentFy = sprintf('FY%d-%02d', $currentStartYear, ($currentStartYear + 1) % 100);
+        $currentStartYear = FiscalYear::currentStartYear();
+        $currentFy = FiscalYear::label($currentStartYear);
         $fiscalYears = collect(range($currentStartYear - 3, $currentStartYear + 3))
-            ->map(fn ($y) => sprintf('FY%d-%02d', $y, ($y + 1) % 100))
+            ->map(fn ($y) => FiscalYear::label($y))
             ->values()->all();
 
         $fy = RefreshForecast::normalizeFy($request->query('fiscal_year')) ?: $currentFy;
@@ -914,7 +923,7 @@ class DeploymentsController extends Controller
 
         // Who has acted on the invitation. Keyed by user so the roster can say
         // "ordered" beside a name rather than making somebody compare two screens.
-        $ordersByUser = \App\Models\StoreOrder::where('deployment_wave_id', $deploymentWave->id)
+        $ordersByUser = StoreOrder::where('deployment_wave_id', $deploymentWave->id)
             ->orderByDesc('created_at')
             ->get()
             ->keyBy('user_id');
@@ -940,7 +949,7 @@ class DeploymentsController extends Controller
             'waveOrders' => $ordersByUser,
             // What each person said they would do with the old laptop, against
             // what happened to it.
-            'intentRows' => (new \App\Services\UserAgreements\IntentReconciler)->rows(),
+            'intentRows' => (new IntentReconciler)->rows(),
             'projectedTotal' => (float) $projected->sum(),
             'stages' => DeploymentStage::active()->ordered()->get(),
             'arrivals' => $timeline->arrivals($deploymentWave),
@@ -1058,8 +1067,8 @@ class DeploymentsController extends Controller
         // No explicit choice opens on the CURRENT fiscal year — the sorted
         // list leads with the oldest year on record, which made the page
         // greet its reader with FY2020-21's leftovers.
-        $currentStartYear = now()->month >= 4 ? now()->year : now()->year - 1;
-        $currentFy = sprintf('FY%d-%02d', $currentStartYear, ($currentStartYear + 1) % 100);
+        $currentStartYear = FiscalYear::currentStartYear();
+        $currentFy = FiscalYear::label($currentStartYear);
         $fy = RefreshForecast::normalizeFy($request->query('fiscal_year'))
             ?: (in_array($currentFy, $fiscalYears, true) ? $currentFy : ($fiscalYears[0] ?? null));
 
@@ -1083,7 +1092,7 @@ class DeploymentsController extends Controller
 
         // Devices already carrying a planned replacement line, so the page
         // can't double-book them into a second planned order.
-        $plannedAssetIds = \App\Models\OrderItem::whereIn('replaces_asset_id', $candidates->pluck('id'))
+        $plannedAssetIds = OrderItem::whereIn('replaces_asset_id', $candidates->pluck('id'))
             ->whereHas('order', fn ($q) => $q->where('is_planned', true))
             ->pluck('replaces_asset_id')
             ->all();
@@ -1132,7 +1141,7 @@ class DeploymentsController extends Controller
      * The forecast as finance receives it — the same column shape the
      * retired procurement forecast report exported.
      *
-     * @param  \Illuminate\Support\Collection<int, Asset>  $candidates
+     * @param  Collection<int, Asset>  $candidates
      */
     private function streamForecastCsv($candidates, ?string $fy, float $totalEstimate): StreamedResponse
     {
@@ -1309,7 +1318,7 @@ class DeploymentsController extends Controller
                 continue;
             }
 
-            $line = \App\Models\OrderItem::find($lineId);
+            $line = OrderItem::find($lineId);
             if (! $line) {
                 continue;
             }
@@ -1353,7 +1362,7 @@ class DeploymentsController extends Controller
     {
         $startYear = RefreshForecast::fiscalYearStartYear($fy) + 1;
 
-        return sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+        return FiscalYear::label($startYear);
     }
 
     /**
@@ -1384,7 +1393,7 @@ class DeploymentsController extends Controller
                 continue;
             }
 
-            \App\Models\LeaseDecision::updateOrCreate(
+            LeaseDecision::updateOrCreate(
                 ['asset_id' => $asset->id, 'decision_type' => 'extend'],
                 [
                     'contract_reference' => $asset->lease_contract_id ?: ($asset->asset_tag ?: ('ASSET-'.$asset->id)),
@@ -1433,7 +1442,7 @@ class DeploymentsController extends Controller
                 continue;
             }
 
-            \App\Models\LeaseDecision::updateOrCreate(
+            LeaseDecision::updateOrCreate(
                 ['asset_id' => $asset->id, 'decision_type' => 'buyout'],
                 [
                     'contract_reference' => $asset->lease_contract_id ?: ($asset->asset_tag ?: ('ASSET-'.$asset->id)),
@@ -1444,11 +1453,11 @@ class DeploymentsController extends Controller
                 ]
             );
 
-            if (! \App\Models\AssetBuyout::where('asset_id', $asset->id)->open()->exists()) {
-                \App\Models\AssetBuyout::create([
+            if (! AssetBuyout::where('asset_id', $asset->id)->open()->exists()) {
+                AssetBuyout::create([
                     'asset_id' => $asset->id,
                     'lessor_id' => $asset->lessor_id ?? null,
-                    'buyer_id' => $asset->assigned_type === \App\Models\User::class ? $asset->assigned_to : null,
+                    'buyer_id' => $asset->assigned_type === User::class ? $asset->assigned_to : null,
                     'status' => 'requested',
                     'requested_at' => now(),
                     'requested_by' => auth()->id(),
@@ -1464,12 +1473,9 @@ class DeploymentsController extends Controller
             ->with('success', trans('admin/deployments/general.buyout_decided', ['count' => $decided, 'amount' => number_format($estimate, 2)]));
     }
 
-    /** Default FY label for a new wave (current ECU fiscal year). */
+    /** Default FY label for a new wave (the current fiscal year). */
     private function defaultFiscalYear(): string
     {
-        $now = Carbon::now();
-        $startYear = $now->month >= 4 ? $now->year : $now->year - 1;
-
-        return sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+        return FiscalYear::current();
     }
 }

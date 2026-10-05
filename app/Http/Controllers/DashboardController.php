@@ -17,6 +17,7 @@ use App\Models\StoreOrder;
 use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\AssetBuyoutRequester;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -163,7 +164,7 @@ class DashboardController extends Controller
             ->count();
 
         $damagedMissing = Asset::join('status_labels', 'assets.status_id', '=', 'status_labels.id')
-            ->whereIn(DB::raw('LOWER(status_labels.name)'), ['damaged', 'missing'])
+            ->whereIn('status_labels.id', Preferences::statusIds('status.attention') ?: [-1])
             ->whereNull('assets.deleted_at')
             ->count();
 
@@ -321,7 +322,7 @@ class DashboardController extends Controller
         };
 
         $stuckProcessing = Asset::join('status_labels', 'assets.status_id', '=', 'status_labels.id')
-            ->where(DB::raw('LOWER(status_labels.name)'), 'like', 'processing %')
+            ->whereIn('status_labels.id', Preferences::statusIds('status.stuck_processing') ?: [-1])
             ->where('assets.updated_at', '<', $now->copy()->subDays(14))
             ->whereNull('assets.deleted_at')
             ->count();
@@ -511,7 +512,9 @@ class DashboardController extends Controller
 
         if ($agreement || $order) {
             $statusName = $incoming?->status->name ?? '';
-            $arrivedByAsset = in_array($statusName, ['New (Arrived)', 'New (Inventoried)', 'New (Provisioned)'], true);
+            $isStage = fn (string ...$stages) => collect($stages)
+                ->contains(fn ($stage) => Preferences::statusMatches('status.store_journey.'.$stage, $statusName));
+            $arrivedByAsset = $isStage('arrived', 'inventoried', 'provisioned');
 
             $done = [
                 // Inside this branch a journey exists by definition, so the
@@ -521,8 +524,8 @@ class DashboardController extends Controller
                 'processing' => $order && in_array($order->status, ['approved', 'ordered'], true),
                 'shipped' => (bool) ($order?->shipped_at),
                 'arrived' => (bool) ($order?->arrived_at) || $arrivedByAsset,
-                'inventoried' => in_array($statusName, ['New (Inventoried)', 'New (Provisioned)'], true),
-                'ready' => $statusName === 'New (Provisioned)',
+                'inventoried' => $isStage('inventoried', 'provisioned'),
+                'ready' => $isStage('provisioned'),
             ];
 
             // Picked up: the incoming machine is in their hands — the journey

@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
@@ -31,9 +32,6 @@ class ImportProcurement extends Command
         {--dry-run : Report what would happen without writing anything}';
 
     protected $description = 'Import purchase orders, order-to-PO links, planned orders and invoices from procurement CSV exports.';
-
-    /** BC GST rate. PST is 7%, but only on what is not exempt. */
-    private const GST_RATE = 0.05;
 
     /** Invoice number => purchase order number, learned from the reconciliation CSV. */
     private array $invoicePoMap = [];
@@ -452,7 +450,7 @@ class ImportProcurement extends Command
     private function splitTax(float $subtotal, float $tax): array
     {
         // Clamp so a credit note or a zero-tax line can't push PST negative.
-        $gst = min($tax, round($subtotal * self::GST_RATE, 2));
+        $gst = min($tax, round($subtotal * (float) Preferences::get('tax.gst_rate'), 2));
         $gst = max($gst, 0.0);
 
         return [$gst, round($tax - $gst, 2)];

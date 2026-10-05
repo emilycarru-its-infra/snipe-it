@@ -7,6 +7,7 @@ use App\Models\CatalogItemRequest;
 use App\Models\Manufacturer;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Settings\Preferences;
 
 /**
  * Adding to the catalog from a vendor link, without asking anybody.
@@ -119,7 +120,7 @@ class CatalogSelfServe
         // should key this number into Colleague believing it was quoted.
         $item->price_type = 'estimate';
         $item->estimated_cost = $product['list_price'] ?? null;
-        $item->currency = 'CAD';
+        $item->currency = Preferences::get('currency.default');
         $item->source = 'CDW.ca product page';
         $item->source_url = $product['url'];
 
@@ -148,5 +149,4 @@ class CatalogSelfServe
 
         return Manufacturer::whereRaw('LOWER(name) = ?', [strtolower($name)])->value('id');
     }
-
 }

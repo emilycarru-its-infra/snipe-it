@@ -7,6 +7,7 @@ use App\Models\AssetModel;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Statuslabel;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -27,9 +28,6 @@ use Illuminate\Support\Facades\Log;
  */
 class OrderAssetProvisioner
 {
-    /** Status a pre-created asset waits in until its serial arrives. */
-    public const ORDERED_STATUS = 'New (Ordered)';
-
     /**
      * Create the devices this order is missing: one asset per unit, less
      * whatever already stands for it. Lines resolving to no model are
@@ -131,7 +129,7 @@ class OrderAssetProvisioner
     private function orderedStatus(): Statuslabel
     {
         return Statuslabel::firstOrCreate(
-            ['name' => self::ORDERED_STATUS],
+            ['name' => Preferences::statusNames('status.store_journey.ordered')[0]],
             ['notes' => 'Ordered from the supplier; serial arrives with the shipment.', 'pending' => 1,
                 'archived' => 0, 'deployable' => 0, 'deleted_at' => null, 'default_label' => 0]
         );

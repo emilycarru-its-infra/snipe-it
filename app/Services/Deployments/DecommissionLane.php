@@ -3,18 +3,20 @@
 namespace App\Services\Deployments;
 
 use App\Models\Asset;
-use App\Models\LeasePickup;
 use App\Models\AssetBuyout;
+use App\Models\LeasePickup;
 use App\Models\Statuslabel;
-use Illuminate\Support\Str;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * The reverse pipeline on the Deployments board: devices on their way OUT —
  * lease returns, donations, recycling. Derived from fields devices already
  * carry, nothing new to maintain:
  *
- *   collecting      status label in the Processing* family, no decommission
+ *   collecting      status label in the status.decommission_lane
+ *                   preference (the Processing* family), no decommission
  *                   date yet. The device is being gathered, wiped, packed.
  *                   Only meaningful for the CURRENT fiscal year. Split into
  *                   buckets per Processing kind (returns / donations /
@@ -35,7 +37,7 @@ class DecommissionLane
     {
         $range = RefreshForecast::fiscalYearRange($fy);
 
-        $processingStatuses = Statuslabel::where('name', 'like', 'Processing%')
+        $processingStatuses = Statuslabel::whereIn('id', Preferences::statusIds('status.decommission_lane') ?: [-1])
             ->orderBy('name')
             ->get();
 

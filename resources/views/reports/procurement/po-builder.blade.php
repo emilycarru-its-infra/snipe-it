@@ -241,7 +241,7 @@
                                     <label for="pob-gst-rate" class="pob-inline-label">{{ trans('admin/purchase-orders/general.builder_gst') }}</label>
                                     <input type="number" step="0.00001" min="0" max="1" name="gst_rate" id="pob-gst-rate"
                                            class="form-control input-sm pob-rate-input"
-                                           value="{{ old('gst_rate', $requisition ? rtrim(rtrim((string) $requisition->gst_rate, '0'), '.') : '0.05') }}">
+                                           value="{{ old('gst_rate', $requisition ? rtrim(rtrim((string) $requisition->gst_rate, '0'), '.') : $defaultGstRate) }}">
                                 </td>
                                 <td class="pob-num" id="pob-gst">—</td>
                             </tr>
@@ -250,7 +250,7 @@
                                     <label for="pob-pst-rate" class="pob-inline-label">{{ trans('admin/purchase-orders/general.builder_pst') }}</label>
                                     <input type="number" step="0.00001" min="0" max="1" name="pst_rate" id="pob-pst-rate"
                                            class="form-control input-sm pob-rate-input"
-                                           value="{{ old('pst_rate', $requisition ? rtrim(rtrim((string) $requisition->pst_rate, '0'), '.') : '0.07') }}">
+                                           value="{{ old('pst_rate', $requisition ? rtrim(rtrim((string) $requisition->pst_rate, '0'), '.') : $defaultPstRate) }}">
                                 </td>
                                 <td class="pob-num" id="pob-pst">—</td>
                             </tr>

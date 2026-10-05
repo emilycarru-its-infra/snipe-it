@@ -1345,6 +1345,14 @@
         "vendor_order_number",
         "vendor_sent_at"
     ],
+    "runtime_settings": [
+        "created_at",
+        "id",
+        "key",
+        "updated_at",
+        "updated_by",
+        "value"
+    ],
     "saml_nonces": [
         "id",
         "nonce",

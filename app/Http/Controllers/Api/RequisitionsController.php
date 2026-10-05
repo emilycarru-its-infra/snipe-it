@@ -13,6 +13,7 @@ use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Services\RequisitionBasket;
 use App\Services\RequisitionPromotion;
+use App\Services\Settings\Preferences;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -64,8 +65,8 @@ class RequisitionsController extends Controller
             // the vendor: it decides the blanket purchase order and the payee.
             'funding_accounts' => StoreOrder::fundingAccounts(),
             'defaults' => [
-                'gst_rate' => 0.05,
-                'pst_rate' => 0.07,
+                'gst_rate' => Preferences::get('tax.gst_rate'),
+                'pst_rate' => Preferences::get('tax.pst_rate'),
                 'shipping' => 0,
                 'unit_of_measure' => 'EA',
                 'pst_applicable' => true,

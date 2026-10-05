@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CatalogItem;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -101,8 +102,8 @@ class RequisitionBasket
             'cost_center' => $validated['cost_center'] ?? null,
             'default_gl_number' => $validated['default_gl_number'] ?? null,
             'needed_by' => $validated['needed_by'] ?? null,
-            'gst_rate' => $validated['gst_rate'] ?? 0.05,
-            'pst_rate' => $validated['pst_rate'] ?? 0.07,
+            'gst_rate' => $validated['gst_rate'] ?? Preferences::get('tax.gst_rate'),
+            'pst_rate' => $validated['pst_rate'] ?? Preferences::get('tax.pst_rate'),
             'shipping' => $validated['shipping'] ?? 0,
             'notes' => $validated['notes'] ?? null,
             'internal_comments' => $validated['internal_comments'] ?? null,

@@ -6,6 +6,9 @@ use App\Models\Asset;
 use App\Models\LeaseDecision;
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\Requisition;
+use App\Models\StoreOrder;
+use App\Models\UserAgreement;
 use Illuminate\Support\Collection;
 
 /**
@@ -71,18 +74,18 @@ class ProcurementPipeline
             // stage: the label says "awaiting signature" and the link
             // filters to Sent, so counting quoted rows too made the number
             // and the page it opened disagree.
-            'awaitingSignature' => \App\Models\UserAgreement::query()
+            'awaitingSignature' => UserAgreement::query()
                 ->where('lifecycle_stage', 'agreement_sent')
                 ->forProgramFiscalYear($fy)
                 ->count(),
             // Unplanned capital asks that aren't a PO yet — ministry funding
             // and other ad-hoc requests sitting in the requisition queue.
-            'openRequisitions' => \App\Models\Requisition::whereIn('status', ['draft', 'submitted', 'requisitioned'])->count(),
+            'openRequisitions' => Requisition::whereIn('status', ['draft', 'submitted', 'requisitioned'])->count(),
             // In-flight work that belongs ON the board, not in side tables:
             // open requisitions as Budgeting cards (their exit gate is the
             // PO number, same as planned orders), and store orders awaiting
             // review as Ordering cards linking to the approval queue.
-            'requisitionCards' => \App\Models\Requisition::query()
+            'requisitionCards' => Requisition::query()
                 ->whereIn('status', ['draft', 'submitted', 'requisitioned'])
                 ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
                 ->with('items')
@@ -107,7 +110,7 @@ class ProcurementPipeline
             // order vanishes off the board for the weeks between sending it
             // and its first shipment, which is exactly when somebody asks
             // where it is.
-            'sentRequisitionCards' => \App\Models\Requisition::query()
+            'sentRequisitionCards' => Requisition::query()
                 ->whereNotNull('vendor_sent_at')
                 ->whereNotNull('purchase_order_id')
                 ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
@@ -142,7 +145,7 @@ class ProcurementPipeline
             // it has been pulled into a requisition and given a PO. An
             // approved order had nowhere to live in between, so somebody
             // approving one then went looking for it and found nothing.
-            'storeQueue' => \App\Models\StoreOrder::query()
+            'storeQueue' => StoreOrder::query()
                 ->whereIn('status', ['pending', 'approved'])
                 ->with(['user', 'items'])
                 ->orderBy('created_at')
@@ -326,18 +329,16 @@ class ProcurementPipeline
 
     /**
      * Which chevron the calendar says the FY is in right now — only
-     * meaningful when the selected FY is the current one (April-start).
+     * meaningful when the selected FY is the current one.
      * Completed never highlights; it's a terminal bucket, not a season.
      */
     private static function activeStage(?string $fy): ?string
     {
-        $now = now();
-        $startYear = $now->month >= 4 ? $now->year : $now->year - 1;
-        $currentFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
-
-        if ($fy !== $currentFy) {
+        if ($fy !== FiscalYear::current()) {
             return null;
         }
+
+        $now = now();
 
         return match (true) {
             in_array($now->month, [2, 3, 4, 5], true) => 'budgeting',

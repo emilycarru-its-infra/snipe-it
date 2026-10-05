@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetBuyout;
+use App\Models\User;
+use App\Services\Deployments\DecommissionLane;
 use App\Services\Leasing\BuyoutTracker;
+use App\Services\Settings\Preferences;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -39,7 +42,7 @@ class AssetBuyoutsController extends Controller
             ->orderByDesc('requested_at')
             ->get();
 
-        $lane = new \App\Services\Deployments\DecommissionLane;
+        $lane = new DecommissionLane;
 
         return view('buyouts.show', [
             'asset' => $asset->loadMissing(['model', 'lessor', 'assignedTo']),
@@ -66,7 +69,7 @@ class AssetBuyoutsController extends Controller
         AssetBuyout::create([
             'asset_id' => $asset->id,
             'lessor_id' => $asset->lessor_id ?? null,
-            'buyer_id' => $asset->assigned_type === \App\Models\User::class ? $asset->assigned_to : null,
+            'buyer_id' => $asset->assigned_type === User::class ? $asset->assigned_to : null,
             'status' => 'requested',
             'requested_at' => now(),
             'requested_by' => auth()->id(),
@@ -181,7 +184,7 @@ class AssetBuyoutsController extends Controller
         $message = $status === 'completed'
             ? trans('admin/deployments/general.buyout_completed_note', [
                 'status' => app(BuyoutTracker::class)->completedStatus()?->name
-                    ?: config('leasing.buyout_completed_status'),
+                    ?: Preferences::get('leasing.buyout_completed_status'),
             ])
             : trans('admin/deployments/general.buyout_updated');
 

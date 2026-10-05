@@ -4,10 +4,11 @@ namespace App\Services;
 
 use App\Models\Asset;
 use App\Models\Statuslabel;
+use App\Services\Settings\Preferences;
 
 /**
- * The unfunded aging fleet: devices parked on 'Active (Legacy)' and
- * 'Active (Buyout*)' statuses — still in daily use, past their funded
+ * The unfunded aging fleet: devices parked on the status.legacy and
+ * status.legacy_buyouts statuses — still in daily use, past their funded
  * life. Leases carry pre-approved replacement money from signing; these
  * devices have none, which is exactly what an exec reading the
  * procurement board needs to see next to the funded pipeline. Shared by
@@ -22,10 +23,10 @@ class LegacyFleet
         $totalCost = 0.0;
 
         foreach ([
-            ['key' => 'legacy', 'pattern' => 'Active (Legacy)%'],
-            ['key' => 'buyout', 'pattern' => 'Active (Buyout%'],
+            ['key' => 'legacy', 'role' => 'status.legacy'],
+            ['key' => 'buyout', 'role' => 'status.legacy_buyouts'],
         ] as $definition) {
-            $statuses = Statuslabel::where('name', 'like', $definition['pattern'])->get();
+            $statuses = Statuslabel::whereIn('id', Preferences::statusIds($definition['role']) ?: [-1])->orderBy('name')->get();
             if ($statuses->isEmpty()) {
                 continue;
             }
@@ -56,7 +57,7 @@ class LegacyFleet
             $totalCost += $sectionCost;
             $sections[] = [
                 'key' => $definition['key'],
-                'label' => $statuses->count() === 1 ? $statuses->first()->name : rtrim($definition['pattern'], '%'),
+                'label' => $statuses->pluck('name')->implode(' / '),
                 'count' => $assets->count(),
                 'purchase_cost' => $sectionCost,
                 'avg_age_years' => $ages->isEmpty() ? null : round($ages->avg(), 1),

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\ToolbarController;
 use App\Http\Controllers\Api;
 use App\Http\Controllers\EmailsController;
+use App\Http\Controllers\PreferencesController;
 use App\Services\Settings\SettingsPages;
 use Illuminate\Support\Facades\Route;
 use Laravel\Passport\Client;
@@ -1328,6 +1329,17 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
                 'downloadBackup',
             ]
         )->name('api.settings.backups.download');
+
+        // Runtime preferences: business values that used to be literals
+        // (fiscal year start, tax rates, status roles).
+        Route::get('preferences', [PreferencesController::class, 'apiIndex'])
+            ->name('api.settings.preferences.index');
+
+        Route::patch('preferences', [PreferencesController::class, 'apiUpdate'])
+            ->name('api.settings.preferences.update');
+
+        Route::delete('preferences/{key}', [PreferencesController::class, 'apiReset'])
+            ->name('api.settings.preferences.reset');
 
         // The settings table itself, one Admin → Settings page at a time.
         // Constrained to the known page names so the fixed routes above

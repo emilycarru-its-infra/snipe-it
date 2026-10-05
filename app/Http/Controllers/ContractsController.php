@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Helpers\Helper;
 use App\Models\Contract;
+use App\Services\FiscalYear;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Web controller for Contracts — the licenses-side analogue of the
@@ -49,11 +51,11 @@ class ContractsController extends Controller
         }
 
         $filters = [
-            'fiscal_year'      => $selectedFy,
-            'is_active'        => $request->query('is_active'),
-            'theme'            => $request->query('theme'),
-            'expiring_days'    => $request->query('expiring_within_days'),
-            'top_level'        => filter_var($request->query('top_level'), FILTER_VALIDATE_BOOLEAN),
+            'fiscal_year' => $selectedFy,
+            'is_active' => $request->query('is_active'),
+            'theme' => $request->query('theme'),
+            'expiring_days' => $request->query('expiring_within_days'),
+            'top_level' => filter_var($request->query('top_level'), FILTER_VALIDATE_BOOLEAN),
             'synthesized_only' => filter_var($request->query('synthesized_only'), FILTER_VALIDATE_BOOLEAN),
         ];
 
@@ -62,10 +64,10 @@ class ContractsController extends Controller
         // year alone, which is exactly what clicking it leaves in the table.
         $scoped = fn () => $this->applyFilters(Contract::query(), $filters, except: ['is_active', 'theme', 'expiring_days', 'top_level', 'synthesized_only']);
 
-        $totalCount       = $scoped()->count();
-        $activeCount      = $scoped()->active()->count();
-        $expiring30       = $scoped()->expiringWithin(30)->count();
-        $expiring90       = $scoped()->expiringWithin(90)->count();
+        $totalCount = $scoped()->count();
+        $activeCount = $scoped()->active()->count();
+        $expiring30 = $scoped()->expiringWithin(30)->count();
+        $expiring90 = $scoped()->expiringWithin(90)->count();
         $renewalSeriesCount = $scoped()->where('is_synthesized', true)->count();
 
         // Spend is a figure rather than a filter, so it excludes the
@@ -189,7 +191,7 @@ class ContractsController extends Controller
             : 'FY'.$startYear.'-'.$end;
     }
 
-    private function fiscalYearRange(): \Illuminate\Support\Collection
+    private function fiscalYearRange(): Collection
     {
         $dataYears = Contract::whereNotNull('fiscal_year')->distinct()->pluck('fiscal_year');
         $short = $dataYears->isNotEmpty()
@@ -234,7 +236,7 @@ class ContractsController extends Controller
             ->where('contracts.is_active', true)
             ->whereNotNull('contracts.end_date')
             ->where('contracts.end_date', '>=', now())
-            ->selectRaw('CASE WHEN MONTH(contracts.end_date) >= 4 THEN YEAR(contracts.end_date) ELSE YEAR(contracts.end_date) - 1 END AS fy_start, SUM(contracts.total_cost) AS total')
+            ->selectRaw('CASE WHEN MONTH(contracts.end_date) >= ? THEN YEAR(contracts.end_date) ELSE YEAR(contracts.end_date) - 1 END AS fy_start, SUM(contracts.total_cost) AS total', [FiscalYear::startMonth()])
             ->groupBy('fy_start')
             ->pluck('total', 'fy_start');
 
@@ -279,16 +281,16 @@ class ContractsController extends Controller
 
         return [
             'charts' => [
-                'fyLabels'       => $spendByFy->keys()->all(),
-                'fyValues'       => array_values($spendByFy->all()),
-                'fyForecast'     => array_values($forecastByFy->all()),
+                'fyLabels' => $spendByFy->keys()->all(),
+                'fyValues' => array_values($spendByFy->all()),
+                'fyForecast' => array_values($forecastByFy->all()),
                 'providerLabels' => $spendByProvider->keys()->all(),
                 'providerValues' => array_values($spendByProvider->all()),
-                'themeLabels'    => $countByTheme->keys()->all(),
-                'themeValues'    => array_values($countByTheme->all()),
-                'themeSelected'  => $filters['theme'],
-                'renewalLabels'  => $renewalCalendar->keys()->all(),
-                'renewalValues'  => array_values($renewalCalendar->all()),
+                'themeLabels' => $countByTheme->keys()->all(),
+                'themeValues' => array_values($countByTheme->all()),
+                'themeSelected' => $filters['theme'],
+                'renewalLabels' => $renewalCalendar->keys()->all(),
+                'renewalValues' => array_values($renewalCalendar->all()),
             ],
         ];
     }

@@ -4,9 +4,11 @@ namespace App\Services\UserAgreements;
 
 use App\Models\Asset;
 use App\Models\Contract;
+use App\Models\FormEligibility;
 use App\Models\Statuslabel;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -38,9 +40,7 @@ use Illuminate\Support\Facades\Log;
  */
 class Reconciler
 {
-    public function __construct(private readonly CostResolver $costs)
-    {
-    }
+    public function __construct(private readonly CostResolver $costs) {}
 
     /**
      * Walk every faculty-eligible user with at least one assigned
@@ -55,6 +55,7 @@ class Reconciler
         foreach ($this->facultyUsersWithAssets() as $user) {
             $reports[] = $this->reconcileForUser($user, $dryRun);
         }
+
         return $reports;
     }
 
@@ -84,19 +85,20 @@ class Reconciler
 
         if ($dryRun) {
             $report->plannedPickup++;
+
             return;
         }
 
-        $base   = $this->costs->baseProgramPrice();
+        $base = $this->costs->baseProgramPrice();
         $device = $this->costs->deviceCost($asset);
 
         $row = UserAgreement::create([
-            'agreement_type'     => 'pickup',
-            'user_id'            => $user->id,
-            'asset_id'           => $asset->id,
-            'lifecycle_stage'    => 'quoted',
+            'agreement_type' => 'pickup',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'quoted',
             'base_program_price' => $base,
-            'device_cost'        => $device,
+            'device_cost' => $device,
         ]);
 
         $report->createdPickup++;
@@ -123,17 +125,18 @@ class Reconciler
 
         if ($dryRun) {
             $report->plannedUpgrade++;
+
             return;
         }
 
         $row = UserAgreement::create([
-            'agreement_type'     => 'upgrade',
-            'user_id'            => $user->id,
-            'asset_id'           => $asset->id,
-            'lifecycle_stage'    => 'quoted',
+            'agreement_type' => 'upgrade',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
+            'lifecycle_stage' => 'quoted',
             'base_program_price' => $this->costs->baseProgramPrice(),
-            'device_cost'        => $this->costs->deviceCost($asset),
-            'top_up_amount'      => $topUp,
+            'device_cost' => $this->costs->deviceCost($asset),
+            'top_up_amount' => $topUp,
         ]);
 
         $report->createdUpgrade++;
@@ -152,17 +155,18 @@ class Reconciler
 
         if ($dryRun) {
             $report->plannedPurchase++;
+
             return;
         }
 
         $row = UserAgreement::create([
-            'agreement_type'  => 'purchase',
-            'user_id'         => $user->id,
-            'asset_id'        => $asset->id,
+            'agreement_type' => 'purchase',
+            'user_id' => $user->id,
+            'asset_id' => $asset->id,
             'lifecycle_stage' => 'quoted',
-            'buyout_cost'     => $this->costs->buyoutCost($asset),
-            'old_asset_tag'   => $asset->asset_tag,
-            'old_serial'      => $asset->serial,
+            'buyout_cost' => $this->costs->buyoutCost($asset),
+            'old_asset_tag' => $asset->asset_tag,
+            'old_serial' => $asset->serial,
         ]);
 
         $report->createdPurchase++;
@@ -181,7 +185,7 @@ class Reconciler
             return;
         }
 
-        $targetLabels = (array) config('forms.purchase_auto_create.lease_end_status_labels', []);
+        $targetLabels = Preferences::statusNames('forms.purchase_auto_create.lease_end_status_labels');
         if (empty($targetLabels)) {
             return;
         }
@@ -190,21 +194,23 @@ class Reconciler
             ? optional(Statuslabel::find($asset->status_id))->name
             : null;
 
-        if ($currentName && in_array($currentName, $targetLabels, true)) {
+        if (Preferences::statusMatches('forms.purchase_auto_create.lease_end_status_labels', $currentName)) {
             return;
         }
 
-        $target = Statuslabel::whereIn('name', $targetLabels)->orderBy('id')->first();
+        $target = Statuslabel::whereIn('id', Preferences::statusIds('forms.purchase_auto_create.lease_end_status_labels') ?: [-1])->orderBy('id')->first();
         if (! $target) {
             Log::warning('reconciler: configured lease-end Statuslabel not found', [
                 'asset_id' => $asset->id,
                 'looking_for' => $targetLabels,
             ]);
+
             return;
         }
 
         if ($dryRun) {
             $report->plannedStatusFlip++;
+
             return;
         }
 
@@ -248,10 +254,9 @@ class Reconciler
             return true;
         }
 
-        $labels = (array) config('forms.purchase_auto_create.lease_end_status_labels', []);
-        if (! empty($labels) && $asset->status_id) {
+        if ($asset->status_id) {
             $statusName = optional(Statuslabel::find($asset->status_id))->name;
-            if ($statusName && in_array($statusName, $labels, true)) {
+            if (Preferences::statusMatches('forms.purchase_auto_create.lease_end_status_labels', $statusName)) {
                 return true;
             }
         }
@@ -329,8 +334,8 @@ class Reconciler
      */
     private function facultyUsersWithAssets(): iterable
     {
-        $slug     = (string) config('forms.pickup_auto_create.eligibility_form_slug', 'faculty-program');
-        $groupIds = \App\Models\FormEligibility::where('form_slug', $slug)->pluck('group_id')->all();
+        $slug = (string) config('forms.pickup_auto_create.eligibility_form_slug', 'faculty-program');
+        $groupIds = FormEligibility::where('form_slug', $slug)->pluck('group_id')->all();
 
         if (empty($groupIds)) {
             return [];
