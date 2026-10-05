@@ -202,6 +202,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ]
         )->name('api.deployments.blackouts.store');
 
+        Route::patch('blackouts/{blackout}',
+            [
+                Api\DeploymentBlackoutsController::class,
+                'update',
+            ]
+        )->name('api.deployments.blackouts.update');
+
         Route::delete('blackouts/{blackout}',
             [
                 Api\DeploymentBlackoutsController::class,
@@ -214,6 +221,30 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         // the decommissioning lane — so planning can run agentically.
         Route::get('stages', [Api\DeploymentsController::class, 'stages'])
             ->name('api.deployments.stages');
+        Route::post('stages', [Api\DeploymentCatalogController::class, 'store'])
+            ->defaults('catalog', 'stages')
+            ->name('api.deployments.stages.store');
+        Route::get('stages/{id}', [Api\DeploymentCatalogController::class, 'show'])
+            ->defaults('catalog', 'stages')->whereNumber('id')
+            ->name('api.deployments.stages.show');
+        Route::patch('stages/{id}', [Api\DeploymentCatalogController::class, 'update'])
+            ->defaults('catalog', 'stages')->whereNumber('id')
+            ->name('api.deployments.stages.update');
+        Route::delete('stages/{id}', [Api\DeploymentCatalogController::class, 'destroy'])
+            ->defaults('catalog', 'stages')->whereNumber('id')
+            ->name('api.deployments.stages.destroy');
+        Route::post('types', [Api\DeploymentCatalogController::class, 'store'])
+            ->defaults('catalog', 'types')
+            ->name('api.deployments.types.store');
+        Route::get('types/{id}', [Api\DeploymentCatalogController::class, 'show'])
+            ->defaults('catalog', 'types')->whereNumber('id')
+            ->name('api.deployments.types.show');
+        Route::patch('types/{id}', [Api\DeploymentCatalogController::class, 'update'])
+            ->defaults('catalog', 'types')->whereNumber('id')
+            ->name('api.deployments.types.update');
+        Route::delete('types/{id}', [Api\DeploymentCatalogController::class, 'destroy'])
+            ->defaults('catalog', 'types')->whereNumber('id')
+            ->name('api.deployments.types.destroy');
         Route::get('types', [Api\DeploymentsController::class, 'types'])
             ->name('api.deployments.types');
 
@@ -550,6 +581,23 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     ); // end custom fieldsets API routes
 
     /**
+     * Field groups — the boxes custom fields are grouped into on the asset
+     * page, with the same gates as the Field Groups admin page.
+     */
+    Route::get('field-groups', [Api\FieldGroupsController::class, 'index'])
+        ->name('api.field-groups.index');
+    Route::post('field-groups', [Api\FieldGroupsController::class, 'store'])
+        ->name('api.field-groups.store');
+    Route::post('field-groups/assign/{field}', [Api\FieldGroupsController::class, 'assign'])
+        ->name('api.field-groups.assign');
+    Route::get('field-groups/{group}', [Api\FieldGroupsController::class, 'show'])
+        ->name('api.field-groups.show');
+    Route::patch('field-groups/{group}', [Api\FieldGroupsController::class, 'update'])
+        ->name('api.field-groups.update');
+    Route::delete('field-groups/{group}', [Api\FieldGroupsController::class, 'destroy'])
+        ->name('api.field-groups.destroy');
+
+    /**
      * Groups API routes
      */
     Route::resource('groups',
@@ -884,6 +932,29 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     // historical import without an SSO session.
     Route::post('exhibit/import', [Api\ExhibitImportController::class, 'import'])
         ->name('api.exhibit.import');
+
+    // The exhibit student-email templates and the exhibit catalogs, with
+    // the same Order-policy gates as their pages.
+    Route::get('exhibit/email-templates', [Api\ExhibitEmailTemplatesController::class, 'index'])
+        ->name('api.exhibit-email-templates.index');
+    Route::get('exhibit/email-templates/{template}', [Api\ExhibitEmailTemplatesController::class, 'show'])
+        ->name('api.exhibit-email-templates.show');
+    Route::patch('exhibit/email-templates/{template}', [Api\ExhibitEmailTemplatesController::class, 'update'])
+        ->name('api.exhibit-email-templates.update');
+
+    Route::get('exhibit/config/{catalog}', [Api\ExhibitCatalogController::class, 'index'])
+        ->name('api.exhibit-config.index');
+    Route::post('exhibit/config/{catalog}', [Api\ExhibitCatalogController::class, 'store'])
+        ->name('api.exhibit-config.store');
+    Route::get('exhibit/config/{catalog}/{id}', [Api\ExhibitCatalogController::class, 'show'])
+        ->whereNumber('id')
+        ->name('api.exhibit-config.show');
+    Route::patch('exhibit/config/{catalog}/{id}', [Api\ExhibitCatalogController::class, 'update'])
+        ->whereNumber('id')
+        ->name('api.exhibit-config.update');
+    Route::delete('exhibit/config/{catalog}/{id}', [Api\ExhibitCatalogController::class, 'destroy'])
+        ->whereNumber('id')
+        ->name('api.exhibit-config.destroy');
 
     /**
      * Labels API routes
@@ -1389,6 +1460,15 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.procurement.cadence');
     Route::put('procurement/lease-cadence', [Api\ProcurementConfigController::class, 'saveCadence'])
         ->name('api.procurement.cadence.save');
+
+    // Who may decide store orders — superuser only, as on the procurement page.
+    Route::get('procurement/approvers', [Api\StoreApproversController::class, 'index'])
+        ->name('api.procurement.approvers.index');
+    Route::post('procurement/approvers', [Api\StoreApproversController::class, 'store'])
+        ->name('api.procurement.approvers.store');
+    Route::delete('procurement/approvers/{user}', [Api\StoreApproversController::class, 'destroy'])
+        ->whereNumber('user')
+        ->name('api.procurement.approvers.destroy');
 
     // The mirror, and the pair open for ordering. They disagree by design
     // — see CsiSchedulesController — so both are reported together.
