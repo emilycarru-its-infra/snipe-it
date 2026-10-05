@@ -65,6 +65,7 @@ class LocationsController extends Controller
             'zip',
             'tag_color',
             'notes',
+            'storage_capacity',
         ];
 
         $locations = Location::with('parent', 'manager', 'children')->select([
@@ -89,6 +90,8 @@ class LocationsController extends Controller
             'locations.tag_color',
             'locations.tag_color',
             'locations.notes',
+            'locations.storage_capacity',
+            'locations.show_in_storage',
             'locations.created_by',
             'locations.deleted_at',
         ])
@@ -115,6 +118,14 @@ class LocationsController extends Controller
 
         if ($request->filled('name')) {
             $locations->where('locations.name', '=', $request->input('name'));
+        }
+
+        // storage_room=1 lists the rooms check-in offers; storage_room=0 the rest.
+        if ($request->filled('storage_room')) {
+            $request->boolean('storage_room')
+                ? $locations->storageRooms()
+                : $locations->where(fn ($q) => $q->where('locations.show_in_storage', false)
+                    ->whereNull('locations.storage_capacity'));
         }
 
         if ($request->filled('address')) {
