@@ -156,7 +156,8 @@ class PreferencesApiTest extends TestCase
 
         $this->actingAs($admin)->get(route('settings.preferences.index'))
             ->assertOk()
-            ->assertSee(trans('admin/settings/preferences.keys.fiscal.start_month.label'));
+            ->assertSee('Fiscal year starts in')
+            ->assertDontSee('admin/settings/preferences.keys');
 
         $this->actingAs($admin)->post(route('settings.preferences.save'), [
             'prefs' => [
@@ -226,5 +227,15 @@ class PreferencesApiTest extends TestCase
 
         $this->assertContains($onRetiring->id, $collected());
         $this->assertNotContains($onProcessing->id, $collected());
+    }
+
+    public function test_labels_are_translated_for_dotted_keys(): void
+    {
+        $rows = $this->actingAsForApi(User::factory()->superuser()->create())
+            ->getJson(route('api.settings.preferences.index'))
+            ->assertOk()
+            ->json('preferences');
+
+        $this->assertSame('Fiscal year starts in', $rows['fiscal.start_month']['label']);
     }
 }
