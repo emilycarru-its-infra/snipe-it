@@ -2,11 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Exhibit;
-use App\Models\ExhibitProject;
-use App\Models\ExhibitProjectType;
-use App\Models\ExhibitStatus;
 use App\Models\Order;
+use App\Services\Exhibits\ExhibitCatalogs;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -18,18 +15,9 @@ use Illuminate\Http\Request;
  */
 class ExhibitCatalogController extends Controller
 {
-    /** catalog key => [model class, project FK column, label key]. */
-    private const CATALOGS = [
-        'exhibits' => [Exhibit::class, 'exhibit_id', 'catalog_exhibits'],
-        'project-types' => [ExhibitProjectType::class, 'project_type_id', 'catalog_project_types'],
-        'statuses' => [ExhibitStatus::class, 'status_id', 'catalog_statuses'],
-    ];
-
     private function resolve(string $catalog): array
     {
-        abort_unless(isset(self::CATALOGS[$catalog]), 404);
-
-        return self::CATALOGS[$catalog];
+        return ExhibitCatalogs::resolve($catalog);
     }
 
     public function index(string $catalog)
@@ -62,7 +50,7 @@ class ExhibitCatalogController extends Controller
         [$class] = $this->resolve($catalog);
 
         $item = new $class;
-        $item->fill($this->input($request));
+        $item->fill(ExhibitCatalogs::attributes($request->all()));
 
         if (! $item->save()) {
             return redirect()->back()->withInput()->withErrors($item->getErrors());
@@ -90,7 +78,7 @@ class ExhibitCatalogController extends Controller
         [$class] = $this->resolve($catalog);
 
         $item = $class::findOrFail($id);
-        $item->fill($this->input($request));
+        $item->fill(ExhibitCatalogs::attributes($request->all()));
 
         if (! $item->save()) {
             return redirect()->back()->withInput()->withErrors($item->getErrors());
@@ -103,33 +91,17 @@ class ExhibitCatalogController extends Controller
     public function destroy(string $catalog, int $id): RedirectResponse
     {
         $this->authorize('update', Order::class);
-        [$class, $fk] = $this->resolve($catalog);
+        [$class] = $this->resolve($catalog);
 
         $item = $class::findOrFail($id);
 
-        // Don't orphan project rows — if the entry is in use, deactivate
-        // it (hides it from pickers/widgets) instead of deleting.
-        if (ExhibitProject::where($fk, $id)->exists()) {
-            $item->active = false;
-            $item->save();
-
+        // In use: deactivated rather than deleted, so no project is orphaned.
+        if (! ExhibitCatalogs::remove($catalog, $item)) {
             return redirect()->route('exhibit-config.index', $catalog)
                 ->with('warning', trans('admin/exhibit-projects/general.catalog_in_use_deactivated'));
         }
 
-        $item->delete();
-
         return redirect()->route('exhibit-config.index', $catalog)
             ->with('success', trans('admin/exhibit-projects/general.catalog_deleted'));
-    }
-
-    private function input(Request $request): array
-    {
-        return [
-            'name' => $request->input('name'),
-            'color' => $request->input('color'),
-            'sort_order' => (int) $request->input('sort_order', 0),
-            'active' => $request->boolean('active'),
-        ];
     }
 }

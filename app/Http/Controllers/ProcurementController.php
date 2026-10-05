@@ -9,10 +9,10 @@ use App\Models\RequisitionItem;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
-use App\Services\SupplierAccounts;
+use App\Services\StoreApprovers;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreVendorOrderDispatch;
-use App\Services\StoreOrderNotifier;
+use App\Services\SupplierAccounts;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -345,23 +345,14 @@ class ProcurementController extends Controller
      */
     public function saveApprovers(Request $request): RedirectResponse
     {
-        abort_unless(auth()->user()->isSuperUser(), 403);
+        abort_unless(StoreApprovers::canManage(auth()->user()), 403);
 
         $validated = $request->validate([
             'approvers' => 'nullable|array',
-            'approvers.*' => 'integer|exists:users,id',
+            'approvers.*' => StoreApprovers::USER_RULE,
         ]);
 
-        $wanted = collect($validated['approvers'] ?? [])->unique()->values();
-
-        StoreApprover::whereNotIn('user_id', $wanted)->delete();
-
-        foreach ($wanted as $userId) {
-            StoreApprover::firstOrCreate(
-                ['user_id' => $userId],
-                ['created_by' => auth()->id()]
-            );
-        }
+        StoreApprovers::sync($validated['approvers'] ?? [], auth()->id());
 
         return redirect()->route('procurement.index')
             ->with('success', trans('admin/store/general.approvers_saved'));

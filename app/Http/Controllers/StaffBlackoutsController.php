@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\StaffBlackout;
+use App\Services\Deployments\ManualBlackouts;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -32,7 +33,7 @@ class StaffBlackoutsController extends Controller
         $this->authorize('deployments.edit');
 
         return view('deployment-blackouts.form', [
-            'blackout' => new StaffBlackout(['source' => 'manual']),
+            'blackout' => new StaffBlackout(['source' => ManualBlackouts::SOURCE]),
         ]);
     }
 
@@ -41,8 +42,8 @@ class StaffBlackoutsController extends Controller
         $this->authorize('deployments.edit');
 
         $blackout = new StaffBlackout;
-        $blackout->fill($this->input($request));
-        $blackout->source = 'manual';
+        $blackout->fill(ManualBlackouts::attributes($request->all()));
+        $blackout->source = ManualBlackouts::SOURCE;
 
         if (! $blackout->save()) {
             return redirect()->back()->withInput()->withErrors($blackout->getErrors());
@@ -56,7 +57,7 @@ class StaffBlackoutsController extends Controller
     {
         $this->authorize('deployments.edit');
 
-        if ($blackout->source !== 'manual') {
+        if (! ManualBlackouts::isEditable($blackout)) {
             return redirect()->route('deployment-waves.index')
                 ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
         }
@@ -70,12 +71,12 @@ class StaffBlackoutsController extends Controller
     {
         $this->authorize('deployments.edit');
 
-        if ($blackout->source !== 'manual') {
+        if (! ManualBlackouts::isEditable($blackout)) {
             return redirect()->route('deployment-waves.index')
                 ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
         }
 
-        $blackout->fill($this->input($request));
+        $blackout->fill(ManualBlackouts::attributes($request->all()));
 
         if (! $blackout->save()) {
             return redirect()->back()->withInput()->withErrors($blackout->getErrors());
@@ -89,7 +90,7 @@ class StaffBlackoutsController extends Controller
     {
         $this->authorize('deployments.edit');
 
-        if ($blackout->source !== 'manual') {
+        if (! ManualBlackouts::isEditable($blackout)) {
             return redirect()->route('deployment-waves.index')
                 ->with('error', trans('admin/deployments/general.blackout_synced_readonly'));
         }
@@ -98,16 +99,5 @@ class StaffBlackoutsController extends Controller
 
         return redirect()->route('deployment-waves.index')
             ->with('success', trans('admin/deployments/general.blackout_deleted'));
-    }
-
-    /** Pull the editable fields off the request (validation runs on save via the model). */
-    private function input(Request $request): array
-    {
-        return [
-            'user_id' => $request->input('user_id'),
-            'start_date' => $request->input('start_date'),
-            'end_date' => $request->input('end_date'),
-            'reason' => $request->input('reason'),
-        ];
     }
 }
