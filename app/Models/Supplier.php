@@ -100,7 +100,7 @@ class Supplier extends SnipeModel
     /**
      * Extra addresses for lease correspondence with this lessor — the buyout
      * quote request is the one email that uses them. `email` holds the single
-     * account contact; a lessor fielding a second rep (CCA Financial does) puts
+     * account contact; a lessor fielding a second rep puts
      * the rest here, comma-separated. Scoped to the supplier on purpose: a
      * buyout request names the contract, asset tag and serial, so it may only
      * ever be addressed to the lessor that holds that lease.
