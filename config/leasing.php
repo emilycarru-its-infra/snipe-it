@@ -167,4 +167,16 @@ return [
     |
     */
     'internal_domains' => env('LEASING_INTERNAL_DOMAINS', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | The lessor behind the CSI mirror
+    |--------------------------------------------------------------------------
+    |
+    | The CSI reconciliation and schedule reports cover one lessor's leases:
+    | the Supplier with this name. Its contract prefixes (Suppliers → edit)
+    | decide which contracts those are. Unset, they cover none.
+    |
+    */
+    'csi_lessor' => env('LEASING_CSI_LESSOR', ''),
 ];

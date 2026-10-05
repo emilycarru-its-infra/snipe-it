@@ -4,6 +4,7 @@ return [
 
     'deleted' => 'Deleted supplier',
     'does_not_exist' => 'Supplier does not exist.',
+    'contract_prefix_claimed' => 'The contract prefix :prefix overlaps :theirs, which :supplier already claims.',
 
     'create' => [
         'error' => 'Supplier was not created, please try again.',

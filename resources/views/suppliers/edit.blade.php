@@ -63,6 +63,14 @@
         {!! $errors->first('pickup_emails', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
     </div>
 </div>
+<div class="form-group {{ $errors->has('contract_prefixes') ? ' has-error' : '' }}">
+    <label for="contract_prefixes" class="col-md-3 control-label">{{ trans('admin/suppliers/table.contract_prefixes') }}</label>
+    <div class="col-md-7">
+        <input class="form-control" name="contract_prefixes" type="text" id="contract_prefixes" value="{{ old('contract_prefixes', $item->contract_prefixes) }}" maxlength="191">
+        <p class="help-block">{{ trans('admin/suppliers/table.contract_prefixes_help') }}</p>
+        {!! $errors->first('contract_prefixes', '<span class="alert-msg" aria-hidden="true"><i class="fas fa-times" aria-hidden="true"></i> :message</span>') !!}
+    </div>
+</div>
 
 <div class="form-group {{ $errors->has('url') ? ' has-error' : '' }}">
     <label for="url" class="col-md-3 control-label">{{ trans('general.url') }}</label>

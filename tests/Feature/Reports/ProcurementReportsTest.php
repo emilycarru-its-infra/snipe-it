@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reports;
 
+use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
@@ -20,10 +21,19 @@ use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserAgreement;
+use Tests\Support\DeclaresLessors;
 use Tests\TestCase;
 
 class ProcurementReportsTest extends TestCase
 {
+    use DeclaresLessors;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->declareLessors();
+    }
+
     private function superuser(): User
     {
         return User::factory()->superuser()->create();
@@ -162,7 +172,7 @@ class ProcurementReportsTest extends TestCase
         // The asset factory recomputes asset_eol_date in an afterMaking hook,
         // so pin it directly to a date inside the forecast window.
         Asset::query()->whereKey($asset->id)
-            ->update(['asset_eol_date' => \App\Helpers\Helper::fiscalYearRange(\App\Helpers\Helper::currentFiscalYear())[1]->format('Y-m-d')]);
+            ->update(['asset_eol_date' => Helper::fiscalYearRange(Helper::currentFiscalYear())[1]->format('Y-m-d')]);
         $superuser = $this->superuser();
 
         // One forecast page now: the procurement address redirects into
@@ -254,21 +264,21 @@ class ProcurementReportsTest extends TestCase
             'asset_tag' => 'LEASE-OP-1',
             'status_id' => $active->id,
         ]);
-        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '100000-003']);
+        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '700100-003']);
 
         $superuser = $this->superuser();
 
         $this->actingAs($superuser)
             ->get(route('reports.procurement.leases-operational', ['fiscal_year' => 'all']))
             ->assertOk()
-            // CSI Leasing is the provider for any 100000-* schedule.
-            ->assertSee('100000-003')
-            ->assertSee('CSI Leasing');
+            // Lessor One is the provider for any 700100-* schedule.
+            ->assertSee('700100-003')
+            ->assertSee('Lessor One');
 
         $csv = $this->actingAs($superuser)
             ->get(route('reports.procurement.leases-operational', ['format' => 'csv']));
         $csv->assertOk();
-        $this->assertStringContainsString('100000-003', $csv->streamedContent());
+        $this->assertStringContainsString('700100-003', $csv->streamedContent());
     }
 
     public function test_csi_schedule_report_skips_non_csi_contracts()
@@ -276,18 +286,18 @@ class ProcurementReportsTest extends TestCase
         $active = Statuslabel::factory()->rtd()->create();
 
         $csi = Asset::factory()->create(['asset_tag' => 'CSI-1', 'status_id' => $active->id]);
-        Asset::query()->whereKey($csi->id)->update(['lease_contract_id' => '100000-004']);
+        Asset::query()->whereKey($csi->id)->update(['lease_contract_id' => '700100-004']);
 
-        $eci = Asset::factory()->create(['asset_tag' => 'ECI-1', 'status_id' => $active->id]);
-        Asset::query()->whereKey($eci->id)->update(['lease_contract_id' => 'ECI20220907']);
+        $eci = Asset::factory()->create(['asset_tag' => 'QQ-1', 'status_id' => $active->id]);
+        Asset::query()->whereKey($eci->id)->update(['lease_contract_id' => 'QQ-20220901']);
 
-        // The CSI Schedule report is scoped to 100000-* leases only —
-        // ECI contracts belong to the CCA Financial reconciliation.
+        // The CSI Schedule report is scoped to 700100-* leases only —
+        // QQ contracts belong to Lessor Two's reconciliation.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.csi-schedule'))
             ->assertOk()
-            ->assertSee('100000-004')
-            ->assertDontSee('ECI20220907');
+            ->assertSee('700100-004')
+            ->assertDontSee('QQ-20220901');
     }
 
     public function test_csi_schedule_warranty_falls_back_to_the_asset_column()
@@ -305,7 +315,7 @@ class ProcurementReportsTest extends TestCase
             'purchase_date' => '2025-06-01',
         ]);
         Asset::query()->whereKey($asset->id)->update([
-            'lease_contract_id' => '100000-003',
+            'lease_contract_id' => '700100-003',
             'warranty_soft_cost' => '232.50',
         ]);
 
@@ -323,7 +333,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.csi-schedule', ['fiscal_year' => 'FY2025-26']))
             ->assertOk()
-            ->assertSee('100000-003')
+            ->assertSee('700100-003')
             ->assertSee('$232.50')     // unit warranty, off the asset column
             ->assertSee('$2,685.50');  // line total = equipment + warranty
     }
@@ -332,7 +342,7 @@ class ProcurementReportsTest extends TestCase
     {
         $asset = Asset::factory()->create(['asset_tag' => 'LIGHTBOX-1']);
         Asset::query()->whereKey($asset->id)
-            ->update(['asset_eol_date' => \App\Helpers\Helper::fiscalYearRange(\App\Helpers\Helper::currentFiscalYear())[1]->format('Y-m-d')]);
+            ->update(['asset_eol_date' => Helper::fiscalYearRange(Helper::currentFiscalYear())[1]->format('Y-m-d')]);
         $superuser = $this->superuser();
 
         // The forecast table links the asset cells into the lightbox…
@@ -357,7 +367,7 @@ class ProcurementReportsTest extends TestCase
     {
         $active = Statuslabel::factory()->rtd()->create();
         $asset = Asset::factory()->create(['asset_tag' => 'LESSOR-COL-1', 'status_id' => $active->id]);
-        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '100000-004']);
+        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '700100-004']);
 
         $superuser = $this->superuser();
 
@@ -383,7 +393,7 @@ class ProcurementReportsTest extends TestCase
 
         $asset = Asset::factory()->create(['asset_tag' => 'CSI-LESSOR-1', 'status_id' => $active->id]);
         Asset::query()->whereKey($asset->id)
-            ->update(['lease_contract_id' => '100000-004', 'lessor_id' => $lessor->id]);
+            ->update(['lease_contract_id' => '700100-004', 'lessor_id' => $lessor->id]);
 
         $superuser = $this->superuser();
 
@@ -479,7 +489,7 @@ class ProcurementReportsTest extends TestCase
     public function test_lease_decisions_report_exposes_an_editable_note_pencil()
     {
         LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20230707',
+            'contract_reference' => 'QQ-20230701',
             'decision_type' => 'return',
             'notes' => 'Pickup booked.',
         ]);
@@ -496,7 +506,7 @@ class ProcurementReportsTest extends TestCase
     public function test_report_note_endpoint_updates_a_lease_decision_note()
     {
         $decision = LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20230707',
+            'contract_reference' => 'QQ-20230701',
             'decision_type' => 'return',
             'notes' => 'old',
         ]);
@@ -558,20 +568,20 @@ class ProcurementReportsTest extends TestCase
     {
         // Lapsed two months ago with the device still out — a live holdover.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20220207',
+            'Lease Contract ID' => 'QQ-20220201',
             'Lease End Date' => now()->subMonths(2)->format('Y-m-d'),
         ], ['asset_tag' => 'EXT-LAPSED', 'purchase_date' => '2022-02-01']);
 
         // Ends next month — needs a renew/return/buy decision now.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20220907',
+            'Lease Contract ID' => 'QQ-20220901',
             'Lease End Date' => now()->addMonth()->format('Y-m-d'),
         ], ['asset_tag' => 'EXT-ENDING', 'purchase_date' => '2022-09-01']);
 
         // Years of term left. Previously listed because a 48-month guess off
         // the purchase date had "elapsed", though the lease runs to 2031.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20250107',
+            'Lease Contract ID' => 'QQ-20250101',
             'Lease End Date' => '2031-01-01',
         ], ['asset_tag' => 'EXT-FUTURE', 'purchase_date' => '2025-01-01']);
 
@@ -579,28 +589,28 @@ class ProcurementReportsTest extends TestCase
         // Lease Data Health, not a lease still being negotiated — carrying it
         // here is what made the report unreadable.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20180107',
+            'Lease Contract ID' => 'QQ-20180101',
             'Lease End Date' => '2024-01-01',
         ], ['asset_tag' => 'EXT-ANCIENT', 'purchase_date' => '2018-01-01']);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.extension-watch'))
             ->assertOk()
-            ->assertSee('ECI20220207')
-            ->assertSee('ECI20220907')
-            ->assertDontSee('ECI20250107')
-            ->assertDontSee('ECI20180107');
+            ->assertSee('QQ-20220201')
+            ->assertSee('QQ-20220901')
+            ->assertDontSee('QQ-20250101')
+            ->assertDontSee('QQ-20180101');
     }
 
     public function test_extension_watch_drops_a_lease_whose_devices_all_went_back()
     {
         // A decommission date plus an archived return status completes the
-        // lease lifecycle. ECI20210607A was 23 of 23 in exactly this state and
+        // lease lifecycle. QQ-20210601A was 23 of 23 in exactly this state and
         // still rendered as the report's worst row, at 25 months extended.
         $returned = Statuslabel::factory()->archived()->create();
         $asset = Asset::factory()->create(['status_id' => $returned->id, 'purchase_date' => '2021-06-01']);
         Asset::query()->whereKey($asset->id)->update([
-            'lease_contract_id' => 'ECI20210607A',
+            'lease_contract_id' => 'QQ-20210601A',
             'lease_end_date' => now()->subMonths(2)->format('Y-m-d'),
             'decommission_date' => now()->subMonths(2)->format('Y-m-d'),
             'ownership_type' => 'Lease to Return',
@@ -609,14 +619,14 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.extension-watch'))
             ->assertOk()
-            ->assertDontSee('ECI20210607A');
+            ->assertDontSee('QQ-20210601A');
     }
 
     public function test_extension_watch_lists_the_devices_still_on_a_lease()
     {
         // The point of the report is knowing which units to chase.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20220207',
+            'Lease Contract ID' => 'QQ-20220201',
             'Lease End Date' => now()->subMonths(2)->format('Y-m-d'),
         ], ['asset_tag' => 'EXT-DETAIL-1', 'serial' => 'EXTDETAILSERIAL1', 'purchase_date' => '2022-02-01']);
 
@@ -643,12 +653,12 @@ class ProcurementReportsTest extends TestCase
         // buyout cost, and neither the decision amount nor the per-asset
         // Buyout Cost field may leak into the total.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20221207',
+            'Lease Contract ID' => 'QQ-20221201',
             'Ownership Type' => 'Lease to Own',
             'Buyout Cost' => '5000',
         ], ['asset_tag' => 'ARO-LTO']);
         LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20221207',
+            'contract_reference' => 'QQ-20221201',
             'decision_type' => 'buyout',
             'status' => 'approved',
             'amount' => 5000,
@@ -657,7 +667,7 @@ class ProcurementReportsTest extends TestCase
         // A normal returnable contract with a return decision — this one is a
         // real obligation and should show with its cost.
         LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20230707',
+            'contract_reference' => 'QQ-20230701',
             'decision_type' => 'return',
             'status' => 'approved',
             'amount' => 250,
@@ -666,8 +676,8 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.aro-register'))
             ->assertOk()
-            ->assertSee('ECI20230707')
-            ->assertSee('ECI20221207')
+            ->assertSee('QQ-20230701')
+            ->assertSee('QQ-20221201')
             ->assertSee(trans('admin/purchase-orders/general.aro_action_retained'))
             ->assertDontSee('$5,000.00');
     }
@@ -676,10 +686,10 @@ class ProcurementReportsTest extends TestCase
     {
         // A lease-to-own contract five years from term end has made no
         // decision yet — "kept at term end" is a prediction, not a fact, and
-        // 100000-008 (ending 2031) was reading as already settled. No logged
+        // 700100-008 (ending 2031) was reading as already settled. No logged
         // decision, term end far out: the register stays silent about it.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-FAR-OUT',
+            'Lease Contract ID' => 'QQ-FAR-OUT',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => now()->addYears(5)->format('Y-m-d'),
         ]);
@@ -687,7 +697,7 @@ class ProcurementReportsTest extends TestCase
         // The same shape at term end is exactly what the Retained row is
         // for, logged decision or not.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-AT-TERM',
+            'Lease Contract ID' => 'QQ-AT-TERM',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => now()->addMonth()->format('Y-m-d'),
         ]);
@@ -695,14 +705,14 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.aro-register'))
             ->assertOk()
-            ->assertSee('ECI-AT-TERM')
-            ->assertDontSee('ECI-FAR-OUT');
+            ->assertSee('QQ-AT-TERM')
+            ->assertDontSee('QQ-FAR-OUT');
     }
 
     public function test_aro_register_offers_edit_and_delete_on_logged_decisions()
     {
         $decision = LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20230707',
+            'contract_reference' => 'QQ-20230701',
             'decision_type' => 'return',
             'status' => 'approved',
             'amount' => 250,
@@ -729,7 +739,7 @@ class ProcurementReportsTest extends TestCase
     public function test_each_lease_has_a_page_of_its_own()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => '100000-007',
+            'Lease Contract ID' => '700100-007',
             'Lease Contract Name' => 'Devices Leases FY30-31 #4',
             'Ownership Type' => 'Lease to Return',
             'Lease Rent' => '72.03',
@@ -737,10 +747,10 @@ class ProcurementReportsTest extends TestCase
         ], ['serial' => 'TESTSN0004', 'purchase_date' => '2026-06-01', 'purchase_cost' => 3061.22]);
 
         $this->actingAs($this->superuser())
-            ->get('/procurement/leasing/100000-007')
+            ->get('/procurement/leasing/700100-007')
             ->assertOk()
             ->assertSee('Devices Leases FY30-31 #4')
-            ->assertSee('100000-007')
+            ->assertSee('700100-007')
             ->assertSee('TESTSN0004')
             ->assertSee('$3,061.22')
             ->assertSee(trans('admin/purchase-orders/general.lease_detail_schedule'));
@@ -754,7 +764,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.rent-costs', ['fiscal_year' => 'FY2026-27']))
             ->assertOk()
-            ->assertSee(route('reports.procurement.lease-detail', '100000-007'), false);
+            ->assertSee(route('reports.procurement.lease-detail', '700100-007'), false);
     }
 
     public function test_the_capital_request_is_one_link_for_finance()
@@ -763,7 +773,7 @@ class ProcurementReportsTest extends TestCase
         // live device: it appears as a refresh line priced at the
         // replacement estimate (original cost when no catalog mapping).
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-1',
+            'Lease Contract ID' => 'QQ-CAPREQ-1',
             'Lease Contract Name' => 'Devices Leases FY26-27 #8',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-10-01',
@@ -774,7 +784,7 @@ class ProcurementReportsTest extends TestCase
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.capital_request_title'))
-            ->assertSee('ECI-CAPREQ-1')
+            ->assertSee('QQ-CAPREQ-1')
             ->assertSee('$2,500.00')
             ->assertSee(trans('admin/purchase-orders/general.capital_pref_rental'));
 
@@ -782,13 +792,13 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2028-29')
             ->assertOk()
-            ->assertDontSee('ECI-CAPREQ-1');
+            ->assertDontSee('QQ-CAPREQ-1');
 
         // The CSV export ships the same rows for the finance workbook.
         $csv = $this->actingAs($this->superuser())
             ->get('/procurement/capital?fiscal_year=FY2026-27&format=csv');
         $csv->assertOk();
-        $this->assertStringContainsString('ECI-CAPREQ-1', $csv->streamedContent());
+        $this->assertStringContainsString('QQ-CAPREQ-1', $csv->streamedContent());
 
         // Capital Spend kept its report, one path over.
         $this->actingAs($this->superuser())
@@ -831,17 +841,17 @@ class ProcurementReportsTest extends TestCase
         // both — the kept contract contributes its budget while asking for
         // no devices, which is how that money gets redistributed.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-REF',
+            'Lease Contract ID' => 'QQ-CAPREQ-REF',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-10-01',
         ], ['purchase_cost' => 2500.00]);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-KEPT',
+            'Lease Contract ID' => 'QQ-CAPREQ-KEPT',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => '2026-12-31',
         ], ['purchase_cost' => 3200.00]);
         LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI-CAPREQ-KEPT',
+            'contract_reference' => 'QQ-CAPREQ-KEPT',
             'decision_type' => 'buyout',
             'status' => 'approved',
         ]);
@@ -856,8 +866,8 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.capital_envelope_title'))
             ->assertSee(trans('admin/purchase-orders/general.lease_end_retained'))
             ->getContent();
-        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-KEPT</a>'));
-        $this->assertSame(2, substr_count($content, '>ECI-CAPREQ-REF</a>'));
+        $this->assertSame(1, substr_count($content, '>QQ-CAPREQ-KEPT</a>'));
+        $this->assertSame(2, substr_count($content, '>QQ-CAPREQ-REF</a>'));
 
         // The draft carries only the refresh distribution.
         $this->actingAs($this->superuser())
@@ -873,7 +883,7 @@ class ProcurementReportsTest extends TestCase
         // a DIFFERENT replacement model: the wave's plan wins over the
         // like-for-like forecast, and the wave rides on the line.
         $asset = $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-WAVE',
+            'Lease Contract ID' => 'QQ-CAPREQ-WAVE',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-10-01',
         ], ['purchase_cost' => 2000.00]);
@@ -919,7 +929,7 @@ class ProcurementReportsTest extends TestCase
         // requested total, no per-device dollars. The capital money lives
         // at /capital and in the PO Builder.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-STRIP-1',
+            'Lease Contract ID' => 'QQ-STRIP-1',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-10-01',
         ], ['purchase_cost' => 2500.00]);
@@ -946,7 +956,7 @@ class ProcurementReportsTest extends TestCase
         $model->forceFill(['refresh_catalog_item_id' => $catalog->id])->save();
 
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-SELF',
+            'Lease Contract ID' => 'QQ-CAPREQ-SELF',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-10-01',
         ], ['model_id' => $model->id]);
@@ -1001,24 +1011,24 @@ class ProcurementReportsTest extends TestCase
     public function test_a_drafted_request_reads_exactly_as_its_requisition()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-MATCH',
+            'Lease Contract ID' => 'QQ-CAPREQ-MATCH',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-10-01',
         ], ['purchase_cost' => 1234.56]);
 
-        $requisition = \App\Models\Requisition::create([
+        $requisition = Requisition::create([
             'title' => 'Devices Capital Request FY2026-27',
             'status' => 'draft',
             'fiscal_year' => 'FY2026-27',
             'capital_request_fy' => 'FY2026-27',
         ]);
-        \App\Models\RequisitionItem::create([
+        RequisitionItem::create([
             'requisition_id' => $requisition->id,
             'description' => 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver',
             'quantity' => 32, 'unit_of_measure' => 'EA', 'unit_cost' => 2100,
             'pst_applicable' => false, 'sort_order' => 0,
         ]);
-        \App\Models\RequisitionItem::create([
+        RequisitionItem::create([
             'requisition_id' => $requisition->id,
             'description' => 'Mac mini | M4 Pro | 48GB | 2TB',
             'quantity' => 6, 'unit_of_measure' => 'EA', 'unit_cost' => 4500,
@@ -1040,13 +1050,13 @@ class ProcurementReportsTest extends TestCase
         // The derived device line is gone: the contract appears exactly
         // once — in the envelope table below, whose story is untouched by
         // how the ask is rendered.
-        $this->assertSame(1, substr_count($content, '>ECI-CAPREQ-MATCH</a>'));
+        $this->assertSame(1, substr_count($content, '>QQ-CAPREQ-MATCH</a>'));
 
         // Drafting again is refused — the paper already exists.
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27'])
             ->assertSessionHas('error');
-        $this->assertSame(1, \App\Models\Requisition::where('capital_request_fy', 'FY2026-27')->count());
+        $this->assertSame(1, Requisition::where('capital_request_fy', 'FY2026-27')->count());
     }
 
     public function test_a_devices_request_year_follows_the_decision_not_the_paper()
@@ -1056,7 +1066,7 @@ class ProcurementReportsTest extends TestCase
         // line belongs to FY2026-27's request — not the year the paper
         // expires.
         $waved = $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Lease Contract ID' => 'QQ-CAPREQ-EARLY',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => '2027-08-01',
         ], ['purchase_cost' => 2100.00]);
@@ -1069,7 +1079,7 @@ class ProcurementReportsTest extends TestCase
         // the lease end: the forecast's operative date wins. (Stamped after
         // create — the factory's afterMaking overwrites asset_eol_date.)
         $early = $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Lease Contract ID' => 'QQ-CAPREQ-EARLY',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => '2027-08-01',
         ], ['purchase_cost' => 1900.00]);
@@ -1082,7 +1092,7 @@ class ProcurementReportsTest extends TestCase
         // dragged this device into the earlier year. That is what made this
         // test fail intermittently in CI on unrelated branches.
         $undecided = $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-EARLY',
+            'Lease Contract ID' => 'QQ-CAPREQ-EARLY',
             'Ownership Type' => 'Lease to Own',
             'Lease End Date' => '2027-08-01',
         ], ['purchase_cost' => 1700.00]);
@@ -1143,12 +1153,12 @@ class ProcurementReportsTest extends TestCase
     {
         $model = AssetModel::factory()->create(['name' => 'MacBook Air 13']);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-2',
+            'Lease Contract ID' => 'QQ-CAPREQ-2',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-11-01',
         ], ['purchase_cost' => 1800.00, 'model_id' => $model->id]);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-CAPREQ-2',
+            'Lease Contract ID' => 'QQ-CAPREQ-2',
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-11-01',
         ], ['purchase_cost' => 1800.00, 'model_id' => $model->id]);
@@ -1450,30 +1460,30 @@ class ProcurementReportsTest extends TestCase
         // repeated the contract id down a column and never totalled it;
         // grouped, the contract is the row and its devices nest beneath.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240507',
+            'Lease Contract ID' => 'QQ-20240501',
             'Lease End Date' => '2028-05-01',
         ], ['asset_tag' => 'ALD-1', 'serial' => 'ALDSERIAL1', 'purchase_cost' => 1000]);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240507',
+            'Lease Contract ID' => 'QQ-20240501',
             'Lease End Date' => '2028-05-01',
         ], ['asset_tag' => 'ALD-2', 'serial' => 'ALDSERIAL2', 'purchase_cost' => 1500]);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240607',
+            'Lease Contract ID' => 'QQ-20240601',
             'Lease End Date' => '2028-06-01',
         ], ['asset_tag' => 'ALD-3', 'serial' => 'ALDSERIAL3', 'purchase_cost' => 700]);
 
         $content = $this->actingAs($this->superuser())
             ->get(route('reports.procurement.asset-lease-detail', ['fiscal_year' => 'all']))
             ->assertOk()
-            ->assertSee('ECI20240507')
-            ->assertSee('ECI20240607')
+            ->assertSee('QQ-20240501')
+            ->assertSee('QQ-20240601')
             // Devices still appear — in the nested table, not as top rows.
             ->assertSee('ALDSERIAL1')
             ->assertSee('ALDSERIAL2')
             ->getContent();
 
         // One parent row per contract, each carrying a child table.
-        $this->assertSame(1, substr_count($content, '>ECI20240507<'));
+        $this->assertSame(1, substr_count($content, '>QQ-20240501<'));
         $this->assertStringContainsString('rpt-child-table', $content);
 
         // The contract row totals its devices rather than making the reader
@@ -1487,13 +1497,13 @@ class ProcurementReportsTest extends TestCase
         // title passed. Logging it as a buyout put a cost on the register
         // that nobody owes.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20200407',
+            'Lease Contract ID' => 'QQ-20200401',
             'Lease End Date' => now()->addMonth()->format('Y-m-d'),
             'Ownership Type' => 'Purchased',
         ], ['asset_tag' => 'RETAIN-1', 'purchase_date' => '2020-04-01']);
 
         LeaseDecision::factory()->create([
-            'contract_reference' => 'ECI20200407',
+            'contract_reference' => 'QQ-20200401',
             'asset_id' => null,
             'decision_type' => 'retain',
             'status' => 'approved',
@@ -1504,7 +1514,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.aro-register', ['fiscal_year' => 'all']))
             ->assertOk()
-            ->assertSee('ECI20200407')
+            ->assertSee('QQ-20200401')
             ->assertSee(trans('admin/purchase-orders/general.aro_action_retained'))
             // The amount is neither shown nor totalled.
             ->assertDontSee('$4,200.00');
@@ -1525,7 +1535,7 @@ class ProcurementReportsTest extends TestCase
     public function test_disposition_grid_lists_serials_under_a_contract_dropdown()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20221207',
+            'Lease Contract ID' => 'QQ-20221201',
             'Lease End Date' => '2026-12-31',
         ], ['asset_tag' => 'DISP-1', 'serial' => 'SERIALDISP1']);
 
@@ -1535,10 +1545,10 @@ class ProcurementReportsTest extends TestCase
             ->assertSee(trans('admin/purchase-orders/general.report_disposition_grid'))
             // Contracts are selected via a dropdown now, not a tab strip.
             ->assertSee('disp-contract-select', false)
-            ->assertSee('ECI20221207')
+            ->assertSee('QQ-20221201')
             ->assertSee('SERIALDISP1')
             // Provider label reflects the CCA rename, not the retired Macquarie.
-            ->assertSee('CCA Financial')
+            ->assertSee('Lessor Two')
             ->assertDontSee('Macquarie');
 
         // Embed (dashboard inline) renders the same grid partial with the picker.
@@ -1558,7 +1568,7 @@ class ProcurementReportsTest extends TestCase
     public function test_disposition_grid_note_endpoint_saves_per_serial()
     {
         $asset = $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20221207',
+            'Lease Contract ID' => 'QQ-20221201',
             'Lease End Date' => '2026-12-31',
         ], ['asset_tag' => 'DISP-2', 'serial' => 'SERIALDISP2']);
 
@@ -1567,7 +1577,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.disposition-grid.note'), [
                 'asset_id' => $asset->id,
-                'contract_reference' => 'ECI20221207',
+                'contract_reference' => 'QQ-20221201',
                 'notes' => 'Bought out — kept for the loaner pool.',
             ])
             ->assertOk()
@@ -1575,7 +1585,7 @@ class ProcurementReportsTest extends TestCase
 
         $this->assertDatabaseHas('lease_decisions', [
             'asset_id' => $asset->id,
-            'contract_reference' => 'ECI20221207',
+            'contract_reference' => 'QQ-20221201',
             'decision_type' => null,
             'notes' => 'Bought out — kept for the loaner pool.',
         ]);
@@ -1584,12 +1594,12 @@ class ProcurementReportsTest extends TestCase
     public function test_disposition_grid_note_endpoint_clears_per_serial()
     {
         $asset = $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20221207',
+            'Lease Contract ID' => 'QQ-20221201',
         ], ['serial' => 'SERIALDISP3']);
 
         LeaseDecision::factory()->create([
             'asset_id' => $asset->id,
-            'contract_reference' => 'ECI20221207',
+            'contract_reference' => 'QQ-20221201',
             'decision_type' => null,
             'notes' => 'old note',
         ]);
@@ -1597,7 +1607,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.disposition-grid.note'), [
                 'asset_id' => $asset->id,
-                'contract_reference' => 'ECI20221207',
+                'contract_reference' => 'QQ-20221201',
                 'notes' => '',
             ])
             ->assertOk()
@@ -1613,21 +1623,21 @@ class ProcurementReportsTest extends TestCase
     {
         // An active lease (deployable status) shows…
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20990701',
+            'Lease Contract ID' => 'QQ-20990701',
         ], ['serial' => 'ACTIVELEASE1']);
 
         // …a fully-archived lease (all devices returned) drops off.
         $archived = Statuslabel::factory()->archived()->create();
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20880101',
+            'Lease Contract ID' => 'QQ-20880101',
         ], ['serial' => 'RETURNEDLEASE1', 'status_id' => $archived->id]);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.disposition-grid'))
             ->assertOk()
-            ->assertSee('ECI20990701')
+            ->assertSee('QQ-20990701')
             ->assertSee('ACTIVELEASE1')
-            ->assertDontSee('ECI20880101');
+            ->assertDontSee('QQ-20880101');
     }
 
     public function test_disposition_grid_relabels_usage_as_curriculum_and_admin()
@@ -1636,11 +1646,11 @@ class ProcurementReportsTest extends TestCase
         // ⇒ Shared, person-assigned ⇒ Assigned); finance reads them as the
         // workbook's Curriculum / Admin split.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240807-1',
+            'Lease Contract ID' => 'QQ-20240801-1',
             'Usage' => 'Shared',
         ], ['serial' => 'SHAREDSERIAL']);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240807-1',
+            'Lease Contract ID' => 'QQ-20240801-1',
             'Usage' => 'Assigned',
         ], ['serial' => 'ASSIGNEDSERIAL']);
 
@@ -1655,7 +1665,7 @@ class ProcurementReportsTest extends TestCase
     public function test_disposition_grid_csv_orders_buyout_after_decommissioned_and_relabels_use()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240807-2',
+            'Lease Contract ID' => 'QQ-20240801-2',
             'Usage' => 'Shared',
             'Buyout Cost' => '1234',
         ], ['serial' => 'CSVSERIAL']);
@@ -1683,7 +1693,7 @@ class ProcurementReportsTest extends TestCase
     public function test_disposition_grid_xlsx_downloads_a_workbook()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240807-3',
+            'Lease Contract ID' => 'QQ-20240801-3',
             'Usage' => 'Shared',
         ], ['serial' => 'XLSXSERIAL']);
 
@@ -1713,7 +1723,7 @@ class ProcurementReportsTest extends TestCase
             'order_id' => $order->id,
             'invoice_number' => 'INV-CREDIT-1',
             'invoice_type' => 'credit',
-            'contract_reference' => '100000-003',
+            'contract_reference' => '700100-003',
         ]);
 
         $this->actingAs($this->superuser())
@@ -1766,7 +1776,7 @@ class ProcurementReportsTest extends TestCase
         // One contract fully inside the selected year at $100/month of
         // complete per-device rent: twelve months, $1,200 for the year.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI-RENT-1',
+            'Lease Contract ID' => 'QQ-RENT-1',
             'Lease Contract Name' => 'Devices Leases FY26-27 #9',
             'Lease Rent' => '100',
             'Lease End Date' => now()->startOfYear()->addYears(3)->format('Y-m-d'),
@@ -1777,7 +1787,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.rent-costs', ['fiscal_year' => sprintf('FY%d-%02d', $fy, ($fy + 1) % 100)]))
             ->assertOk()
-            ->assertSee('ECI-RENT-1')
+            ->assertSee('QQ-RENT-1')
             ->assertSee('Devices Leases FY26-27 #9')
             ->assertSee('$1,200.00');
     }
@@ -1788,7 +1798,7 @@ class ProcurementReportsTest extends TestCase
         // and a "#10" that a plain string sort would file before "#9".
         foreach ([['#9', '100'], ['#10', '300'], ['#2', '200']] as [$suffix, $rent]) {
             $this->seedLeaseAsset([
-                'Lease Contract ID' => 'ECI-ORDER'.$suffix,
+                'Lease Contract ID' => 'QQ-ORDER'.$suffix,
                 'Lease Contract Name' => 'Devices Leases FY26-27 '.$suffix,
                 'Lease Rent' => $rent,
                 'Lease End Date' => now()->startOfYear()->addYears(3)->format('Y-m-d'),
@@ -1883,11 +1893,11 @@ class ProcurementReportsTest extends TestCase
     {
         $lessor = Supplier::factory()->create(['name' => 'Acme Leasing Co']);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20240807',
+            'Lease Contract ID' => 'QQ-20240801',
         ], ['serial' => 'LESSORFK1', 'lessor_id' => $lessor->id]);
 
         // The disposition grid reads the provider from the asset's lessor FK,
-        // not the ECI->CCA prefix fallback.
+        // not the QQ prefix fallback.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.disposition-grid'))
             ->assertOk()
@@ -1897,7 +1907,7 @@ class ProcurementReportsTest extends TestCase
     public function test_lessor_breakdown_uses_cca_financial_and_ignores_fy_scope()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20221207',
+            'Lease Contract ID' => 'QQ-20221201',
         ], ['asset_tag' => 'LESSOR-1', 'purchase_date' => '2022-12-01']);
 
         // The breakdown is a global snapshot: whatever FY scope the reader
@@ -1905,7 +1915,7 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.lessor-breakdown', ['fiscal_year' => 'FY2099-00']))
             ->assertOk()
-            ->assertSee('CCA Financial')
+            ->assertSee('Lessor Two')
             ->assertDontSee('Macquarie');
     }
 
@@ -1946,7 +1956,7 @@ class ProcurementReportsTest extends TestCase
             // report reads it from here, falling back to the linked order.
             'order_number' => 'PMCN-FIN-1',
         ]);
-        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '100000-003']);
+        Asset::query()->whereKey($asset->id)->update(['lease_contract_id' => '700100-003']);
 
         $order = Order::factory()->create(['order_number' => 'PMCN-FIN-1']);
         OrderItem::create([
@@ -2169,7 +2179,7 @@ class ProcurementReportsTest extends TestCase
         // A schedule ending inside FY2026-27 (Apr–Mar): its original value
         // is pre-approved and must join the approved budget automatically.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20220907',
+            'Lease Contract ID' => 'QQ-20220901',
             'Lease End Date' => '2026-09-01',
         ], ['serial' => 'PREAPPROVE1', 'purchase_cost' => 1500.50]);
 
@@ -2200,7 +2210,7 @@ class ProcurementReportsTest extends TestCase
         // envelope must stand down by the same amount instead of funding the
         // replacement a second time.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20220907',
+            'Lease Contract ID' => 'QQ-20220901',
             'Lease End Date' => '2026-09-01',
         ], ['serial' => 'CONSUMED1', 'purchase_cost' => 1500.50]);
 
@@ -2237,7 +2247,7 @@ class ProcurementReportsTest extends TestCase
         // A PO that overruns the envelope consumes all of it and no more —
         // the excess is spend beyond pre-approval, never negative budget.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20220907',
+            'Lease Contract ID' => 'QQ-20220901',
             'Lease End Date' => '2026-09-01',
         ], ['serial' => 'OVERRUN1', 'purchase_cost' => 1500.50]);
 
@@ -2295,7 +2305,7 @@ class ProcurementReportsTest extends TestCase
     public function test_lease_plan_note_creates_a_note_only_row_that_stays_out_of_decisions()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20230707',
+            'Lease Contract ID' => 'QQ-20230701',
             'Lease End Date' => '2027-06-30',
         ], ['serial' => 'PLANNOTE1']);
 
@@ -2303,14 +2313,14 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.note'), [
                 'model' => 'lease_plan_note',
-                'contract_reference' => 'ECI20230707',
+                'contract_reference' => 'QQ-20230701',
                 'notes' => 'Budget redirected to the Faculty Laptop program.',
             ])
             ->assertOk()
             ->assertJson(['status' => 'success']);
 
         $this->assertDatabaseHas('lease_decisions', [
-            'contract_reference' => 'ECI20230707',
+            'contract_reference' => 'QQ-20230701',
             'asset_id' => null,
             'decision_type' => null,
             'notes' => 'Budget redirected to the Faculty Laptop program.',
@@ -2320,11 +2330,11 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->post(route('reports.procurement.note'), [
                 'model' => 'lease_plan_note',
-                'contract_reference' => 'ECI20230707',
+                'contract_reference' => 'QQ-20230701',
                 'notes' => 'Revised plan.',
             ])
             ->assertOk();
-        $this->assertEquals(1, LeaseDecision::where('contract_reference', 'ECI20230707')->count());
+        $this->assertEquals(1, LeaseDecision::where('contract_reference', 'QQ-20230701')->count());
 
         // The note renders on the schedule row, but the note-only row never
         // shows up as a logged decision (the badge stays "Refresh").
@@ -2342,50 +2352,50 @@ class ProcurementReportsTest extends TestCase
 
     public function test_prefixed_cca_contract_ids_stay_recognised()
     {
-        // The 4130- lessor-account prefix (2026-08 rename) must keep CCA
+        // The 700200- lessor-account prefix (2026-08 rename) must keep the second lessor
         // schedules inside every lease rollup — the validity check once
-        // required a bare ECI prefix, which silently dropped them all.
+        // required a bare QQ prefix, which silently dropped them all.
         $this->seedLeaseAsset([
-            'Lease Contract ID' => '4130-ECI20240807-1',
+            'Lease Contract ID' => '700200-QQ-20240801-1',
             'Lease End Date' => '2028-08-01',
         ], ['serial' => 'PREFIXED1']);
 
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.disposition-grid'))
             ->assertOk()
-            ->assertSee('4130-ECI20240807-1')
+            ->assertSee('700200-QQ-20240801-1')
             ->assertSee('PREFIXED1');
     }
 
     public function test_disposition_grid_deep_links_a_contract_and_scopes_downloads()
     {
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20200107',
+            'Lease Contract ID' => 'QQ-20200101',
             'Lease End Date' => '2026-01-31',
         ], ['serial' => 'FIRSTLEASE1']);
         $this->seedLeaseAsset([
-            'Lease Contract ID' => 'ECI20300101',
+            'Lease Contract ID' => 'QQ-20300101',
             'Lease End Date' => '2027-01-31',
         ], ['serial' => 'SECONDLEASE1']);
 
         // ?contract= preselects that lease's pane (the first contract would
         // otherwise win) and stamps the scoped download links.
         $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.disposition-grid', ['contract' => 'ECI20300101']))
+            ->get(route('reports.procurement.disposition-grid', ['contract' => 'QQ-20300101']))
             ->assertOk()
-            ->assertSee('data-contract="ECI20300101" selected', false)
-            ->assertSee('contract=ECI20300101', false);
+            ->assertSee('data-contract="QQ-20300101" selected', false)
+            ->assertSee('contract=QQ-20300101', false);
 
         // A substring still resolves — links minted before a schedule id
-        // rename (e.g. the 4130- lessor prefix) keep working.
+        // rename (e.g. the 700200- lessor prefix) keep working.
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.disposition-grid', ['contract' => '20300101']))
             ->assertOk()
-            ->assertSee('data-contract="ECI20300101" selected', false);
+            ->assertSee('data-contract="QQ-20300101" selected', false);
 
         // The scoped CSV carries only the selected contract's serials.
         $csv = $this->actingAs($this->superuser())
-            ->get(route('reports.procurement.disposition-grid', ['format' => 'csv', 'contract' => 'ECI20300101']));
+            ->get(route('reports.procurement.disposition-grid', ['format' => 'csv', 'contract' => 'QQ-20300101']));
         $csv->assertOk();
         $this->assertStringContainsString('SECONDLEASE1', $csv->streamedContent());
         $this->assertStringNotContainsString('FIRSTLEASE1', $csv->streamedContent());
@@ -2399,9 +2409,9 @@ class ProcurementReportsTest extends TestCase
 
     public function test_disposition_grid_update_endpoint_bulk_edits_lifecycle_fields()
     {
-        $first = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221207'], ['serial' => 'BULKEDIT1']);
-        $second = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221207'], ['serial' => 'BULKEDIT2']);
-        $untouched = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221207'], ['serial' => 'BULKEDIT3']);
+        $first = $this->seedLeaseAsset(['Lease Contract ID' => 'QQ-20221201'], ['serial' => 'BULKEDIT1']);
+        $second = $this->seedLeaseAsset(['Lease Contract ID' => 'QQ-20221201'], ['serial' => 'BULKEDIT2']);
+        $untouched = $this->seedLeaseAsset(['Lease Contract ID' => 'QQ-20221201'], ['serial' => 'BULKEDIT3']);
         $archived = Statuslabel::factory()->archived()->create();
 
         $this->actingAs($this->superuser())
@@ -2441,7 +2451,7 @@ class ProcurementReportsTest extends TestCase
 
     public function test_disposition_grid_update_endpoint_requires_asset_update_permission()
     {
-        $asset = $this->seedLeaseAsset(['Lease Contract ID' => 'ECI20221207'], ['serial' => 'NOEDIT1']);
+        $asset = $this->seedLeaseAsset(['Lease Contract ID' => 'QQ-20221201'], ['serial' => 'TESTNOEDIT1']);
 
         $this->actingAs(User::factory()->create())
             ->post(route('reports.procurement.disposition-grid.update'), [

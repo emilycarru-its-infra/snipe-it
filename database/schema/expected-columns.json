@@ -1630,6 +1630,7 @@
         "city",
         "colleague_vendor_id",
         "contact",
+        "contract_prefixes",
         "country",
         "created_at",
         "created_by",

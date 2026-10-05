@@ -4,6 +4,7 @@ namespace Tests\Feature\Orders;
 
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\DeclaresLessors;
 use Tests\TestCase;
 
 /**
@@ -15,12 +16,20 @@ use Tests\TestCase;
  */
 class LeaseEndPreapprovalTest extends TestCase
 {
+    use DeclaresLessors;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->declareLessors();
+    }
+
     public function test_ending_leases_appear_in_the_pipeline_preapproval()
     {
         $this->actingAs(User::factory()->superuser()->create());
 
         Asset::factory()->create([
-            'lease_contract_id' => 'ECI20220207',
+            'lease_contract_id' => 'QQ-20220201',
             'lease_end_date' => '2026-04-01',
             'ownership_type' => 'Lease to Return',
             'purchase_cost' => 36969.34,
