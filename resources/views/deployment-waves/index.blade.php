@@ -14,8 +14,7 @@
 @section('content')
 
 @php
-    $nwStart = now()->month >= 4 ? now()->year : now()->year - 1;
-    $nwFy = sprintf('FY%d-%02d', $nwStart, ($nwStart + 1) % 100);
+    $nwFy = \App\Services\FiscalYear::current();
 @endphp
 {{-- Actions on the left, next to what they act on. --}}
 <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">

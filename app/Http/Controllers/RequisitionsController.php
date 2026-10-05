@@ -12,6 +12,7 @@ use App\Models\RequisitionItem;
 use App\Models\Supplier;
 use App\Services\RequisitionBasket;
 use App\Services\RequisitionPromotion;
+use App\Services\Settings\Preferences;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use League\Csv\EscapeFormula;
@@ -96,6 +97,8 @@ class RequisitionsController extends Controller
             'fiscalYears' => $fiscalYears,
             'selectedFiscalYear' => $selectedFiscalYear,
             'selectedSupplierId' => $supplierId,
+            'defaultGstRate' => (string) Preferences::get('tax.gst_rate'),
+            'defaultPstRate' => (string) Preferences::get('tax.pst_rate'),
         ]);
     }
 
@@ -320,8 +323,6 @@ class RequisitionsController extends Controller
         return redirect()->route('requisitions.show', $requisition->id)
             ->with('success', trans('admin/purchase-orders/general.requisition_updated'));
     }
-
-
 
     public function destroy(Requisition $requisition): RedirectResponse
     {

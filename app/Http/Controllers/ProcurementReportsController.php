@@ -24,13 +24,15 @@ use App\Models\StoreApprover;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserAgreement;
-use App\Services\Leasing\OkayToPay;
 use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
+use App\Services\FiscalYear;
 use App\Services\Leasing\LeaseClosure;
+use App\Services\Leasing\OkayToPay;
 use App\Services\LegacyFleet;
 use App\Services\ProcurementPipeline;
+use App\Services\Settings\Preferences;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -884,9 +886,7 @@ class ProcurementReportsController extends Controller
         // page is worked during a cycle. An explicit choice (including
         // "all") still wins and sticks like every other procurement page.
         if ($request->query('fiscal_year') === null) {
-            $now = now();
-            $sy = $now->month >= 4 ? $now->year : $now->year - 1;
-            $fy = sprintf('FY%d-%02d', $sy, ($sy + 1) % 100);
+            $fy = FiscalYear::current();
         } else {
             $fy = $this->resolveFiscalYear($request);
         }
@@ -1508,8 +1508,10 @@ class ProcurementReportsController extends Controller
             // The supplier the catalog lines belong to — one basket, one
             // vendor. Rows without a mapping ride along as free-form lines.
             'supplier_id' => $lines->pluck('supplier_id')->filter()->first(),
-            'gst_rate' => 0.05,
-            'pst_rate' => 0,
+            // Capital requests carry no PST unless the institution says
+            // its capital purchases are taxable.
+            'gst_rate' => Preferences::get('tax.gst_rate'),
+            'pst_rate' => Preferences::get('tax.pst_on_capital_requests') ? Preferences::get('tax.pst_rate') : 0,
             'shipping' => 0,
         ]);
 
@@ -1555,11 +1557,11 @@ class ProcurementReportsController extends Controller
     {
         // Same default rule as Rent Costs: no selection means the current
         // fiscal year — the request is always for a specific year.
-        $startYear = (int) (now()->month >= 4 ? now()->year : now()->year - 1);
+        $startYear = FiscalYear::currentStartYear();
         if ($fy && preg_match('/^FY(\d{4})-\d{2}$/', $this->normalizeFy($fy) ?? '', $m)) {
             $startYear = (int) $m[1];
         }
-        $fyLabel = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
+        $fyLabel = FiscalYear::label($startYear);
 
         $cols = $this->leaseFieldColumns();
         $decisions = $this->leaseDecisionsByContract();
@@ -1716,9 +1718,8 @@ class ProcurementReportsController extends Controller
                 }
                 // Disposed units carry budget, not bodies — same rule as
                 // the Lease End Schedules headcount.
-                $statusName = (string) $asset->status?->name;
                 if ($asset->status?->getStatuslabelType() === 'archived'
-                    || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
+                    || Preferences::statusMatches('status.off_lease', $asset->status?->name)) {
                     continue;
                 }
 
@@ -2552,51 +2553,23 @@ class ProcurementReportsController extends Controller
     }
 
     /**
-     * Convert a Lease End Date string to the ECU fiscal-year label in the
+     * Convert a Lease End Date string to the fiscal-year label in the
      * canonical four-digit-start `FY2025-26` shape, so lease-end data shares
      * an axis with order-driven committed/planned data (see normalizeFy).
      *
-     * Uses ECU's April-March fiscal boundary — the same one
-     * Helper::currentFiscalYear applies to orders — so a lease ending in,
-     * say, May 2026 lands in FY2026-27. An April-March end date belongs to
-     * FY{Y-1}-{Y}; April onward to FY{Y}-{Y+1}.
+     * Uses the same fiscal boundary Helper::currentFiscalYear applies to
+     * orders (App\Services\FiscalYear).
      */
     private function fiscalYearFromEndDate($endDateStr): ?string
     {
-        if (empty($endDateStr)) {
-            return null;
-        }
-
         // Native lease_end_date is a Carbon date since the F2 migration;
         // its string form carries a time (Y-m-d H:i:s) that fails every
-        // format below, which silently zeroed the lease-end pre-approval.
+        // string format, which silently zeroed the lease-end pre-approval.
         if ($endDateStr instanceof \DateTimeInterface) {
-            $month = (int) $endDateStr->format('m');
-            $year = (int) $endDateStr->format('Y');
-            $start = $month >= 4 ? $year : $year - 1;
-
-            return sprintf('FY%d-%02d', $start, ($start + 1) % 100);
+            return FiscalYear::fromDateString($endDateStr);
         }
 
-        $endDate = null;
-        foreach (['Y-m-d', 'm/d/Y', 'Y/m/d', 'd/m/Y'] as $format) {
-            $endDate = \DateTime::createFromFormat($format, trim((string) $endDateStr));
-            if ($endDate !== false) {
-                break;
-            }
-        }
-
-        if (! $endDate) {
-            return null;
-        }
-
-        $month = (int) $endDate->format('m');
-        $year = (int) $endDate->format('Y');
-
-        $start = $month >= 4 ? $year : $year - 1;
-        $end = $start + 1;
-
-        return sprintf('FY%d-%02d', $start, $end % 100);
+        return FiscalYear::fromDateString(trim((string) $endDateStr));
     }
 
     /**
@@ -2728,10 +2701,9 @@ class ProcurementReportsController extends Controller
             // actively coming off lease: a device already bought out, returned
             // or moved to a legacy/archived status is no longer part of the
             // refresh headcount (its budget stays, its body doesn't).
-            $statusName = (string) $asset->status?->name;
             $statusType = $asset->status?->getStatuslabelType();
             $disposed = $statusType === 'archived'
-                || in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true);
+                || Preferences::statusMatches('status.off_lease', $asset->status?->name);
             if ($disposed) {
                 continue;
             }
@@ -2913,7 +2885,7 @@ class ProcurementReportsController extends Controller
 
             if ($statusType === 'archived') {
                 $group['archived']++;
-            } elseif (in_array($statusName, ['Active (Buyouts)', 'Active (Legacy)'], true)) {
+            } elseif (Preferences::statusMatches('status.off_lease', $statusName)) {
                 $group['buyout']++;
             } else {
                 $group['active']++;
@@ -5280,13 +5252,7 @@ class ProcurementReportsController extends Controller
      */
     private function annualLeaseRentByFy(): array
     {
-        $currentStartYear = (int) (now()->month >= 4 ? now()->year : now()->year - 1);
-        $fyOf = function (\DateTimeInterface $date) {
-            $y = (int) $date->format('Y');
-            $startYear = (int) $date->format('n') >= 4 ? $y : $y - 1;
-
-            return sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
-        };
+        $currentStartYear = FiscalYear::currentStartYear();
 
         $byFy = [];
         foreach ($this->groupedLeaseAssets(null) as $group) {
@@ -5296,11 +5262,11 @@ class ProcurementReportsController extends Controller
             }
 
             for ($month = $basis['start']->copy()->startOfMonth(); $month->lessThan($basis['end']); $month->addMonth()) {
-                $startYear = (int) ($month->month >= 4 ? $month->year : $month->year - 1);
+                $startYear = FiscalYear::startYearFor($month);
                 if ($startYear < $currentStartYear - 6 || $startYear > $currentStartYear + 6) {
                     continue;
                 }
-                $fy = $fyOf($month);
+                $fy = FiscalYear::label($startYear);
                 $byFy[$fy] = ($byFy[$fy] ?? 0.0) + $basis['monthly'];
             }
         }
@@ -5387,12 +5353,12 @@ class ProcurementReportsController extends Controller
         // The question is "what does this year's leasing cost" — an
         // unscoped register answers a different one, so no selection means
         // the current fiscal year, never "all".
-        $startYear = (int) (now()->month >= 4 ? now()->year : now()->year - 1);
+        $startYear = FiscalYear::currentStartYear();
         if ($fy && preg_match('/^FY(\d{4})-\d{2}$/', $fy, $m)) {
             $startYear = (int) $m[1];
         }
-        $fyLabel = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
-        $fyStart = Carbon::create($startYear, 4, 1);
+        $fyLabel = FiscalYear::label($startYear);
+        $fyStart = FiscalYear::startDate($startYear);
         $fyEnd = $fyStart->copy()->addYear();
 
         $columns = [
@@ -5469,12 +5435,13 @@ class ProcurementReportsController extends Controller
      * PST Applicability. Curriculum-tagged assets are PST-exempt under
      * BC's school-supplies exemption; Admin-tagged assets are not. Per
      * contract: split the dollar value between exempt and taxable and
-     * compute the estimated PST exposure (7% of the taxable share).
+     * compute the estimated PST exposure (the tax.pst_rate preference
+     * applied to the taxable share).
      */
     private function pstApplicabilityReport(?string $fy = null): array
     {
         $cols = $this->leaseFieldColumns();
-        $pstRate = 0.07;
+        $pstRate = (float) Preferences::get('tax.pst_rate');
 
         $columns = [
             trans('admin/purchase-orders/general.lease_contract_id'),
@@ -5982,67 +5949,18 @@ class ProcurementReportsController extends Controller
      */
     private function normalizeFy(?string $fy): ?string
     {
-        if ($fy === null) {
-            return null;
-        }
-
-        $fy = trim($fy);
-        if ($fy === '' || strtolower($fy) === 'all') {
-            return null;
-        }
-
-        // Four-digit start: `FY2025-26` / `2025-26`.
-        if (preg_match('/(\d{4})\s*-\s*(\d{2})$/', $fy, $m)) {
-            return 'FY'.$m[1].'-'.$m[2];
-        }
-
-        // Two-digit start: `FY25-26` -> `FY2025-26`.
-        if (preg_match('/(\d{2})\s*-\s*(\d{2})$/', $fy, $m)) {
-            return 'FY20'.$m[1].'-'.$m[2];
-        }
-
-        // Bare start year: `2025` -> `FY2025-26`.
-        if (preg_match('/(\d{4})$/', $fy, $m)) {
-            $start = (int) $m[1];
-
-            return 'FY'.$start.'-'.substr((string) ($start + 1), -2);
-        }
-
-        return null;
+        return FiscalYear::normalize($fy);
     }
 
     /**
-     * The start calendar year of a canonical `FY2025-26` label (2025), or
-     * null if it can't be parsed. ECU fiscal years run April-March, so
-     * FY2025-26 spans 2025-04-01 to 2026-03-31.
-     */
-    private function fiscalYearStartYear(?string $fy): ?int
-    {
-        $fy = $this->normalizeFy($fy);
-        if ($fy === null) {
-            return null;
-        }
-
-        return (int) substr($fy, 2, 4);
-    }
-
-    /**
-     * The [start, end] Carbon bounds of a fiscal year (April 1 -> March 31),
-     * or null for an unparseable / "all" FY. Used to constrain reports that
+     * The [start, end] Carbon bounds of a fiscal year, or null for an
+     * unparseable / "all" FY. Used to constrain reports that
      * attribute by a date column (asset purchase / EOL, decision date,
      * schedule received) rather than by an order relation.
      */
     private function fiscalYearRange(?string $fy): ?array
     {
-        $startYear = $this->fiscalYearStartYear($fy);
-        if ($startYear === null) {
-            return null;
-        }
-
-        return [
-            Carbon::create($startYear, 4, 1)->startOfDay(),
-            Carbon::create($startYear + 1, 3, 31)->endOfDay(),
-        ];
+        return FiscalYear::range($fy);
     }
 
     /**

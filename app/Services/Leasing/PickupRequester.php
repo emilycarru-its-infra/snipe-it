@@ -11,6 +11,7 @@ use App\Models\LeasePickup;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Settings\Preferences;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -149,7 +150,7 @@ class PickupRequester
             foreach ($pickup->assets()->with('lessor')->get() as $asset) {
                 // A device pulled back out of the pile since the request is
                 // left alone: only what is still waiting went on the truck.
-                if ($asset->decommission_date || ! str_starts_with((string) $asset->status?->name, 'Processing')) {
+                if ($asset->decommission_date || ! Preferences::statusMatches('status.decommission_lane', $asset->status?->name)) {
                     continue;
                 }
                 if ($returned) {
@@ -195,7 +196,7 @@ class PickupRequester
     /** The archived status a returned device lands on, resolved by name. */
     private function returnedStatus(): ?Statuslabel
     {
-        return Statuslabel::where('name', config('leasing.pickup_completed_status'))
+        return Statuslabel::whereIn('id', Preferences::statusIds('leasing.pickup_completed_status') ?: [-1])
             ->where('archived', 1)
             ->first();
     }

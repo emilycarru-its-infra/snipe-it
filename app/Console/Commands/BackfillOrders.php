@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Asset;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\FiscalYear;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
@@ -152,16 +153,9 @@ class BackfillOrders extends Command
         return self::SUCCESS;
     }
 
-    /**
-     * ECU's fiscal year runs April 1 - March 31. A date in April or later
-     * belongs to the fiscal year starting that calendar year; January to
-     * March belongs to the fiscal year that started the previous April.
-     */
+    /** The fiscal year a date falls in; see App\Services\FiscalYear. */
     private function fiscalYear($date): string
     {
-        $date = $date instanceof Carbon ? $date : Carbon::parse($date);
-        $startYear = $date->month >= 4 ? $date->year : $date->year - 1;
-
-        return 'FY'.$startYear.'-'.substr((string) ($startYear + 1), -2);
+        return FiscalYear::labelFor($date instanceof Carbon ? $date : Carbon::parse($date));
     }
 }

@@ -9,6 +9,7 @@ use App\Models\AssetBuyout;
 use App\Models\AssetBuyoutQuote;
 use App\Models\Statuslabel;
 use App\Models\User;
+use App\Services\Settings\Preferences;
 
 /**
  * Moves a buyout along its lifecycle, and owns the two side effects that a
@@ -47,7 +48,7 @@ class BuyoutTracker
      */
     public function completedStatus(): ?Statuslabel
     {
-        return Statuslabel::where('name', config('leasing.buyout_completed_status', 'Purchased'))
+        return Statuslabel::whereIn('id', Preferences::statusIds('leasing.buyout_completed_status') ?: [-1])
             ->where('archived', 1)
             ->first();
     }
