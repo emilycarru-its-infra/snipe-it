@@ -334,13 +334,18 @@ class Preferences
      */
     public static function all(): array
     {
+        // Keys contain dots, which trans() would read as nesting, so the
+        // label table is fetched whole and indexed by the full key.
+        $text = trans('admin/settings/preferences.keys');
+        $text = is_array($text) ? $text : [];
+
         $out = [];
         foreach (self::definitions() as $key => $def) {
             $out[$key] = [
                 'key' => $key,
                 'group' => $def['group'],
-                'label' => trans('admin/settings/preferences.keys.'.$key.'.label'),
-                'help' => trans('admin/settings/preferences.keys.'.$key.'.help'),
+                'label' => $text[$key]['label'] ?? $key,
+                'help' => $text[$key]['help'] ?? '',
                 'type' => $def['type'],
                 'default' => self::defaultFor($key),
                 'value' => self::get($key),
