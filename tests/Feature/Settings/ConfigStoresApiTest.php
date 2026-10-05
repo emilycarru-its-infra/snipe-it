@@ -4,6 +4,7 @@ namespace Tests\Feature\Settings;
 
 use App\Models\CustomField;
 use App\Models\DeploymentStage;
+use App\Models\DeploymentType;
 use App\Models\ExhibitEmailTemplate;
 use App\Models\ExhibitProjectType;
 use App\Models\ExhibitStatus;
@@ -261,6 +262,49 @@ class ConfigStoresApiTest extends TestCase
         $this->assertSame('Locked', $stage->refresh()->name);
     }
 
+    public function test_deployment_types_round_trip(): void
+    {
+        $admin = User::factory()->superuser()->create();
+
+        $id = $this->actingAsForApi($admin)
+            ->postJson(route('api.deployments.types.store'), [
+                'name' => 'Lab Refresh',
+                'color' => '#2980b9',
+                'sort_order' => 40,
+                'active' => true,
+                'moves_devices' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->json('payload.id');
+
+        $this->actingAsForApi($admin)
+            ->patchJson(route('api.deployments.types.update', $id), ['name' => 'Lab Refresh Renamed'])
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
+
+        $this->actingAsForApi($admin)
+            ->getJson(route('api.deployments.types.show', $id))
+            ->assertOk()
+            ->assertJsonPath('payload.name', 'Lab Refresh Renamed')
+            ->assertJsonPath('payload.moves_devices', true)
+            ->assertJsonPath('payload.sort_order', 40);
+
+        $this->actingAsForApi($admin)
+            ->deleteJson(route('api.deployments.types.destroy', $id))
+            ->assertOk();
+        $this->assertNull(DeploymentType::find($id));
+    }
+
+    public function test_deployment_types_refuse_a_user_without_deployments_edit(): void
+    {
+        $this->actingAsForApi(User::factory()->create())
+            ->postJson(route('api.deployments.types.store'), ['name' => 'Nope'])
+            ->assertForbidden();
+
+        $this->assertFalse(DeploymentType::where('name', 'Nope')->exists());
+    }
+
     public function test_blackout_update_round_trip(): void
     {
         $admin = User::factory()->superuser()->create();
@@ -297,7 +341,7 @@ class ConfigStoresApiTest extends TestCase
         $this->assertNull($synced->refresh()->reason);
     }
 
-    public function test_blackout_update_refuses_a_user_without_deployments_edit(): void
+    public function test_blackout_update_refuses_a_user_without_orders_edit(): void
     {
         $blackout = StaffBlackout::create([
             'user_id' => User::factory()->create()->id,

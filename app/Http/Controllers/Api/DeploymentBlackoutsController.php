@@ -59,13 +59,14 @@ class DeploymentBlackoutsController extends Controller
     }
 
     /**
-     * Edit a hand-entered blackout, as the Waves page does: the same
-     * deployments gate, the same fields, and synced rows stay read-only
-     * because the calendar sync owns them. Only the fields sent change.
+     * Edit a hand-entered blackout with the Waves page's fields, under the
+     * same Order policy as this API's create and delete. Synced rows stay
+     * read-only because the calendar sync owns them. Only the fields sent
+     * change.
      */
     public function update(Request $request, StaffBlackout $blackout): JsonResponse
     {
-        $this->authorize('deployments.edit');
+        $this->authorize('update', Order::class);
 
         if (! ManualBlackouts::isEditable($blackout)) {
             return response()->json(

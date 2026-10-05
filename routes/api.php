@@ -221,14 +221,30 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         // the decommissioning lane — so planning can run agentically.
         Route::get('stages', [Api\DeploymentsController::class, 'stages'])
             ->name('api.deployments.stages');
-        Route::post('stages', [Api\DeploymentStagesController::class, 'store'])
+        Route::post('stages', [Api\DeploymentCatalogController::class, 'store'])
+            ->defaults('catalog', 'stages')
             ->name('api.deployments.stages.store');
-        Route::get('stages/{stage}', [Api\DeploymentStagesController::class, 'show'])
+        Route::get('stages/{id}', [Api\DeploymentCatalogController::class, 'show'])
+            ->defaults('catalog', 'stages')->whereNumber('id')
             ->name('api.deployments.stages.show');
-        Route::patch('stages/{stage}', [Api\DeploymentStagesController::class, 'update'])
+        Route::patch('stages/{id}', [Api\DeploymentCatalogController::class, 'update'])
+            ->defaults('catalog', 'stages')->whereNumber('id')
             ->name('api.deployments.stages.update');
-        Route::delete('stages/{stage}', [Api\DeploymentStagesController::class, 'destroy'])
+        Route::delete('stages/{id}', [Api\DeploymentCatalogController::class, 'destroy'])
+            ->defaults('catalog', 'stages')->whereNumber('id')
             ->name('api.deployments.stages.destroy');
+        Route::post('types', [Api\DeploymentCatalogController::class, 'store'])
+            ->defaults('catalog', 'types')
+            ->name('api.deployments.types.store');
+        Route::get('types/{id}', [Api\DeploymentCatalogController::class, 'show'])
+            ->defaults('catalog', 'types')->whereNumber('id')
+            ->name('api.deployments.types.show');
+        Route::patch('types/{id}', [Api\DeploymentCatalogController::class, 'update'])
+            ->defaults('catalog', 'types')->whereNumber('id')
+            ->name('api.deployments.types.update');
+        Route::delete('types/{id}', [Api\DeploymentCatalogController::class, 'destroy'])
+            ->defaults('catalog', 'types')->whereNumber('id')
+            ->name('api.deployments.types.destroy');
         Route::get('types', [Api\DeploymentsController::class, 'types'])
             ->name('api.deployments.types');
 
