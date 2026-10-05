@@ -10,6 +10,7 @@ use App\Http\Transformers\SettingsTransformer;
 use App\Models\Ldap;
 use App\Models\Setting;
 use App\Notifications\MailTest;
+use App\Services\Settings\Preferences;
 use App\Services\Settings\SettingsPages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -231,7 +232,11 @@ class SettingsController extends Controller
      */
     public function index(): JsonResponse
     {
-        return response()->json(['pages' => SettingsPages::index()]);
+        // Preferences are not a column page but sit beside them, at
+        // /settings/preferences, so a client finds them from the same index.
+        return response()->json(['pages' => SettingsPages::index() + [
+            'preferences' => ['keys' => Preferences::keys(), 'write_only' => [], 'locked_in_demo' => []],
+        ]]);
     }
 
     /** One settings page as stored now; credentials are reported as set or not, never returned. */

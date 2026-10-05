@@ -227,7 +227,7 @@
 
                 @if ($row['status'] === 'paid')
                     <form method="POST" action="{{ route('buyouts.transition', $rid) }}"
-                          onsubmit="return confirm(@js(trans('admin/deployments/general.buyout_complete_hint', ['status' => config('leasing.buyout_completed_status')])));">
+                          onsubmit="return confirm(@js(trans('admin/deployments/general.buyout_complete_hint', ['status' => \App\Services\Settings\Preferences::get('leasing.buyout_completed_status')])));">
                         @csrf
                         <input type="hidden" name="status" value="completed">
                         <button type="submit" class="btn btn-sm btn-success">{{ trans('admin/deployments/general.buyout_complete') }}</button>
@@ -247,7 +247,7 @@
 
             @if ($row['status'] === 'paid')
                 <p class="text-muted" style="font-size:11.5px; margin-top:6px;">
-                    {{ trans('admin/deployments/general.buyout_complete_hint', ['status' => config('leasing.buyout_completed_status')]) }}
+                    {{ trans('admin/deployments/general.buyout_complete_hint', ['status' => \App\Services\Settings\Preferences::get('leasing.buyout_completed_status')]) }}
                 </p>
             @endif
         </div>

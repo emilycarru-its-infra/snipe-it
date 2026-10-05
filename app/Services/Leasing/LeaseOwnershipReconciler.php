@@ -2,6 +2,7 @@
 
 namespace App\Services\Leasing;
 
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -27,7 +28,8 @@ use Illuminate\Support\Facades\DB;
 class LeaseOwnershipReconciler
 {
     /**
-     * The one status that asserts ECU bought the unit out of its lease.
+     * The statuses that assert the unit was bought out of its lease — the
+     * status.bought_out preference, "Active (Buyouts)" unless changed.
      *
      * Its own note is unambiguous — "Assets bought out of their leases that are
      * still in use and aging" — and it is only ever set after a lease ends and
@@ -45,8 +47,13 @@ class LeaseOwnershipReconciler
      *     buyout. The unit has left the lease, so the lease still closes (the
      *     status is archived and LeaseClosure handles it there), but ECU does
      *     not own it and claiming Purchased ownership would say we do.
+     *
+     * @return array<int, string>
      */
-    public const OFF_LEASE_STATUSES = ['Active (Buyouts)'];
+    private function offLeaseStatuses(): array
+    {
+        return Preferences::statusNames('status.bought_out');
+    }
 
     private const OWNERSHIP_PURCHASED = 'Purchased';
 
@@ -56,7 +63,7 @@ class LeaseOwnershipReconciler
     public function run(bool $write): array
     {
         $statuses = DB::table('status_labels')
-            ->whereIn('name', self::OFF_LEASE_STATUSES)
+            ->whereIn('name', $this->offLeaseStatuses() ?: [''])
             ->pluck('name', 'id');
 
         if ($statuses->isEmpty()) {

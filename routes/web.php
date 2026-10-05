@@ -5,8 +5,8 @@ use App\Forms\FormRegistry;
 use App\Http\Controllers\AccessAuditController;
 use App\Http\Controllers\Account;
 use App\Http\Controllers\ActionlogController;
+use App\Http\Controllers\Admin\ToolbarController;
 use App\Http\Controllers\AssetBuyoutsController;
-use App\Http\Controllers\LeasePickupsController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
@@ -34,12 +34,14 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\LabelsController;
 use App\Http\Controllers\LeaseDecisionsController;
 use App\Http\Controllers\LeaseDocumentsController;
+use App\Http\Controllers\LeasePickupsController;
 use App\Http\Controllers\LeaseSchedulesController;
 use App\Http\Controllers\LicenseModelsController;
 use App\Http\Controllers\ManufacturersController;
 use App\Http\Controllers\ModalController;
 use App\Http\Controllers\NotesController;
 use App\Http\Controllers\OrdersController;
+use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProcurementReportsController;
@@ -52,17 +54,18 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\StaffBlackoutsController;
 use App\Http\Controllers\StatuslabelsController;
-use App\Http\Controllers\TopSearchController;
 use App\Http\Controllers\StorageProxyController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\TonersController;
+use App\Http\Controllers\TopSearchController;
 use App\Http\Controllers\TransactionsReportsController;
 use App\Http\Controllers\UploadedFilesController;
 use App\Http\Controllers\UserAgreementsController;
 use App\Http\Controllers\ViewAssetsController;
 use App\Livewire\Importer;
 use App\Mail\CheckoutComponentMail;
+use App\Models\PurchaseOrder;
 use App\Models\ReportTemplate;
 use Illuminate\Support\Facades\Route;
 use Tabuna\Breadcrumbs\Trail;
@@ -703,9 +706,9 @@ Route::group(['middleware' => 'auth'], function () {
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser']], function () {
 
-    Route::get('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'edit'])
+    Route::get('toolbar', [ToolbarController::class, 'edit'])
         ->name('admin.toolbar.edit');
-    Route::post('toolbar', [\App\Http\Controllers\Admin\ToolbarController::class, 'update'])
+    Route::post('toolbar', [ToolbarController::class, 'update'])
         ->name('admin.toolbar.update');
 
     Route::get('settings', [SettingsController::class, 'getSettings'])
@@ -755,6 +758,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
 
     Route::post('agreements', [SettingsController::class, 'postAgreements'])
         ->name('settings.agreements.save');
+
+    Route::get('preferences', [PreferencesController::class, 'index'])
+        ->name('settings.preferences.index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('settings.index')
+            ->push(trans('admin/settings/preferences.title'), route('settings.preferences.index')));
+
+    Route::post('preferences', [PreferencesController::class, 'save'])
+        ->name('settings.preferences.save');
 
     Route::get('emails', [EmailsController::class, 'index'])
         ->name('settings.emails.index')
@@ -1081,8 +1092,8 @@ Route::group(['prefix' => 'account', 'middleware' => ['auth']], function () {
 | id rather than a model, keep working instead of 404ing.
 */
 Route::bind('purchase_order', function ($value) {
-    return \App\Models\PurchaseOrder::where('po_number', $value)->first()
-        ?? \App\Models\PurchaseOrder::findOrFail($value);
+    return PurchaseOrder::where('po_number', $value)->first()
+        ?? PurchaseOrder::findOrFail($value);
 });
 
 Route::group(['middleware' => ['auth']], function () {

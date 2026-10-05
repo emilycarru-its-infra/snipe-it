@@ -8,6 +8,7 @@ use App\Models\Statuslabel;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\UserAgreement;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -39,7 +40,10 @@ use Illuminate\Support\Facades\Log;
  */
 class StoreOrderAssetProvisioner
 {
-    /** Status a pre-created asset waits in until its serial arrives. */
+    /**
+     * The built-in default of the status.store_journey.ordered preference.
+     * Code reads the preference; this only seeds its default.
+     */
     public const ORDERED_STATUS = 'New (Ordered)';
 
     /** Suffix the outgoing machine carries once its replacement is ordered. */
@@ -106,7 +110,7 @@ class StoreOrderAssetProvisioner
             ->whereNull('assigned_to')
             ->where(fn ($q) => $q->whereNull('serial')->orWhere('serial', ''))
             ->get()
-            ->filter(fn (Asset $asset) => $asset->status?->name === self::ORDERED_STATUS);
+            ->filter(fn (Asset $asset) => Preferences::statusMatches('status.store_journey.ordered', $asset->status?->name));
 
         foreach ($releasable as $asset) {
             $asset->delete();
@@ -302,7 +306,7 @@ class StoreOrderAssetProvisioner
     private function orderedStatus(): Statuslabel
     {
         return Statuslabel::firstOrCreate(
-            ['name' => self::ORDERED_STATUS],
+            ['name' => Preferences::statusNames('status.store_journey.ordered')[0]],
             ['notes' => 'Ordered from the supplier; serial arrives with the shipment.', 'pending' => 1,
                 'archived' => 0, 'deployable' => 0]
         );

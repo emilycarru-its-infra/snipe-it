@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\Statuslabel;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Log;
  * one-off backfill command, a future nightly sweep).
  *
  * Skipped (with a log line, not an exception) when:
- *  - the asset's new status isn't in config('forms.purchase_auto_create.lease_end_status_labels')
+ *  - the asset's new status isn't in the forms.purchase_auto_create.lease_end_status_labels preference
  *  - the asset has no assigned user (assigned_type != User::class or assigned_to null)
  *  - an open purchase row already exists for this (user, asset) pair
  *
@@ -29,9 +30,7 @@ class PurchaseAutoCreator
 {
     private const OPEN_STAGES = ['eligible', 'quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment'];
 
-    public function __construct(private readonly CostResolver $costs)
-    {
-    }
+    public function __construct(private readonly CostResolver $costs) {}
 
     public function ensureFor(Asset $asset): ?UserAgreement
     {
@@ -49,9 +48,10 @@ class PurchaseAutoCreator
         $userId = $this->resolveUserId($asset);
         if (! $userId) {
             Log::info('purchase auto-create skipped: no assigned user', [
-                'asset_id'  => $asset->id,
+                'asset_id' => $asset->id,
                 'asset_tag' => $asset->asset_tag,
             ]);
+
             return null;
         }
 
@@ -67,9 +67,9 @@ class PurchaseAutoCreator
         }
 
         $agreement = UserAgreement::create([
-            'agreement_type'  => 'purchase',
-            'user_id'         => $userId,
-            'asset_id'        => $asset->id,
+            'agreement_type' => 'purchase',
+            'user_id' => $userId,
+            'asset_id' => $asset->id,
             // Eligible, not quoted. A status label changing is not somebody
             // asking to buy their laptop, and `quoted` says we put a price
             // in front of them, which nobody did. Every surface that reads
@@ -81,16 +81,16 @@ class PurchaseAutoCreator
             // what this actually is — a machine reaching lease end, and a
             // buyout nobody has decided on either way.
             'lifecycle_stage' => 'eligible',
-            'buyout_cost'     => $this->costs->buyoutCost($asset),
-            'old_asset_tag'   => $asset->asset_tag,
-            'old_serial'      => $asset->serial,
+            'buyout_cost' => $this->costs->buyoutCost($asset),
+            'old_asset_tag' => $asset->asset_tag,
+            'old_serial' => $asset->serial,
         ]);
 
         Log::info('purchase auto-create: row created', [
             'agreement_id' => $agreement->id,
-            'user_id'      => $userId,
-            'asset_id'     => $asset->id,
-            'buyout_cost'  => $agreement->buyout_cost,
+            'user_id' => $userId,
+            'asset_id' => $asset->id,
+            'buyout_cost' => $agreement->buyout_cost,
         ]);
 
         return $agreement;
@@ -98,7 +98,7 @@ class PurchaseAutoCreator
 
     private function isLeaseEndStatus(Asset $asset): bool
     {
-        $configured = (array) config('forms.purchase_auto_create.lease_end_status_labels', []);
+        $configured = Preferences::statusNames('forms.purchase_auto_create.lease_end_status_labels');
         if (empty($configured)) {
             return false;
         }
@@ -113,7 +113,7 @@ class PurchaseAutoCreator
             ? $asset->assetstatus
             : Statuslabel::find($statusId);
 
-        return $status && in_array($status->name, $configured, true);
+        return $status && Preferences::statusMatches('forms.purchase_auto_create.lease_end_status_labels', $status->name);
     }
 
     private function resolveUserId(Asset $asset): ?int

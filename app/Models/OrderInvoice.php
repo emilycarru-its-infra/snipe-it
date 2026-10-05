@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\Helper;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -117,28 +118,13 @@ class OrderInvoice extends Model
     }
 
     /**
-     * The [start, end] bounds of a fiscal year. ECU fiscal years run April to
-     * March, so FY2025-26 spans 2025-04-01 to 2026-03-31. Accepts both the
-     * four-digit `FY2025-26` and two-digit `FY25-26` forms.
+     * The [start, end] bounds of a fiscal year; see App\Services\FiscalYear.
      *
      * @return array{0: Carbon, 1: Carbon}|null
      */
     private static function fiscalYearRange(string $fy): ?array
     {
-        $fy = trim($fy);
-
-        if (preg_match('/(\d{4})\s*-\s*\d{2}$/', $fy, $m)) {
-            $start = (int) $m[1];
-        } elseif (preg_match('/(\d{2})\s*-\s*\d{2}$/', $fy, $m)) {
-            $start = 2000 + (int) $m[1];
-        } else {
-            return null;
-        }
-
-        return [
-            Carbon::create($start, 4, 1)->startOfDay(),
-            Carbon::create($start + 1, 3, 31)->endOfDay(),
-        ];
+        return Helper::fiscalYearRange($fy);
     }
 
     /**

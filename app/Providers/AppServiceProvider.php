@@ -25,9 +25,11 @@ use App\Observers\LocationObserver;
 use App\Observers\MaintenanceObserver;
 use App\Observers\SettingObserver;
 use App\Observers\UserObserver;
+use App\Services\Settings\Preferences;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Routing\UrlGenerator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -53,6 +55,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(UrlGenerator $url)
     {
+        // Preferences are cached for a request; a queue worker is one long
+        // process, so each job starts from what is saved now.
+        Queue::before(fn () => Preferences::flush());
+
         /**
          * This is a workaround for proxies/reverse proxies that don't always pass the proper headers.
          *

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\FiscalYear;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -26,7 +27,9 @@ class ConsumableTransaction extends Model
     protected $table = 'consumable_transactions';
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_POSTED = 'posted';
+
     public const STATUS_TRANSFERRED = 'transferred';
 
     protected $fillable = [
@@ -76,16 +79,10 @@ class ConsumableTransaction extends Model
         return $query->where('fiscal_year', $fiscalYear);
     }
 
-    /**
-     * ECU's fiscal year runs April -> March. April 2026 .. March 2027 is
-     * "FY2026-27". Format matches the orders module (see BackfillOrders).
-     */
+    /** The `FY2026-27` label a date falls in; see App\Services\FiscalYear. */
     public static function fiscalYearFor($date): string
     {
-        $date = $date instanceof Carbon ? $date : Carbon::parse($date);
-        $startYear = $date->month >= 4 ? $date->year : $date->year - 1;
-
-        return 'FY'.$startYear.'-'.substr((string) ($startYear + 1), -2);
+        return FiscalYear::labelFor($date instanceof Carbon ? $date : Carbon::parse($date));
     }
 
     /**

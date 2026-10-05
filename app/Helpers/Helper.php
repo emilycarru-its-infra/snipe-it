@@ -15,6 +15,7 @@ use App\Models\Location;
 use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Services\FiscalYear;
 use Carbon\Carbon;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\RedirectResponse;
@@ -1899,12 +1900,8 @@ class Helper
     }
 
     /**
-     * Current ECU fiscal year in the `FY2026-27` shape. April → March,
-     * matching ConsumableTransaction::fiscalYearFor() and BackfillOrders.
-     */
-    /**
-     * The [start, end] bounds of a fiscal year label. ECU fiscal years run
-     * April to March, so FY2025-26 spans 2025-04-01 to 2026-03-31. Accepts the
+     * The [start, end] bounds of a fiscal year label — see
+     * App\Services\FiscalYear for where the year starts. Accepts the
      * four-digit `FY2025-26` and two-digit `FY25-26` forms, and returns null
      * for anything that is not a fiscal year label (including "all").
      *
@@ -1922,18 +1919,13 @@ class Helper
             return null;
         }
 
-        return [
-            Carbon::create($start, 4, 1)->startOfDay(),
-            Carbon::create($start + 1, 3, 31)->endOfDay(),
-        ];
+        return FiscalYear::rangeForStartYear($start);
     }
 
+    /** Current fiscal year in the `FY2026-27` shape. */
     public static function currentFiscalYear(?Carbon $date = null): string
     {
-        $date = $date ?? Carbon::now();
-        $startYear = $date->month >= 4 ? $date->year : $date->year - 1;
-
-        return 'FY'.$startYear.'-'.substr((string) ($startYear + 1), -2);
+        return FiscalYear::current($date);
     }
 
     /**
@@ -1954,7 +1946,7 @@ class Helper
 
         $current = self::currentFiscalYear();
         $years[] = $current;
-        $years[] = 'FY'.((int) substr($current, 2, 4) + 1).'-'.substr((string) ((int) substr($current, 2, 4) + 2), -2);
+        $years[] = FiscalYear::label(FiscalYear::currentStartYear() + 1);
 
         $years = array_values(array_unique(array_filter($years)));
         rsort($years);
