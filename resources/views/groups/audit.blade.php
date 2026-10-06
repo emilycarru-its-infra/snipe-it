@@ -31,7 +31,7 @@
                     <table class="table table-striped table-hover" style="white-space: nowrap;">
                         <thead>
                             <tr>
-                                <th style="min-width: 200px; position: sticky; left: 0; background: #fff; z-index: 2;">
+                                <th style="min-width: 200px; position: sticky; left: 0; background: var(--box-bg, #fff); z-index: 2;">
                                     {{ trans('admin/groups/titles.group_name') }}
                                 </th>
                                 <th style="text-align: center;">{{ trans('general.users') }}</th>

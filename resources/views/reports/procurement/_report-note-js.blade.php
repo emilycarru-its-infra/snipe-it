@@ -40,7 +40,7 @@
         var row = cell.closest('tr');
         if (! row) { return; }
         row.style.transition = 'background-color .3s ease';
-        row.style.backgroundColor = ok ? '#dff0d8' : '#f2dede';
+        row.style.backgroundColor = ok ? 'rgba(76, 174, 76, .22)' : 'rgba(217, 83, 79, .22)';
         setTimeout(function () { row.style.backgroundColor = ''; }, 700);
     }
 

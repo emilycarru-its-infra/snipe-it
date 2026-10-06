@@ -130,6 +130,15 @@ class DeploymentsBoardTest extends TestCase
             ->assertOk()
             ->assertSee(trans('admin/deployments/general.decom_none'));
 
+        // Buyouts has a page of its own too, with the buyouts card and no
+        // collecting devices.
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.decommissioning.flow', 'buyouts'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.decom_buyouts_note'))
+            ->assertDontSee('FLOW-RET')
+            ->assertDontSee('FLOW-DON');
+
         // The all-flows page is unchanged.
         $this->actingAs($this->superuser())
             ->get(route('deployments.decommissioning'))

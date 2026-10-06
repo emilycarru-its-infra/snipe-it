@@ -15,18 +15,18 @@
 
 <style nonce="{{ csrf_token() }}">
     #lease-drop-zone {
-        border: 2px dashed #d2d6de;
+        border: 2px dashed var(--input-border-color, #d2d6de);
         border-radius: 4px;
         padding: 18px 20px;
         text-align: center;
-        color: #666;
+        color: var(--text-help, #666);
         cursor: pointer;
         transition: border-color 120ms ease, background-color 120ms ease;
     }
     #lease-drop-zone:hover, #lease-drop-zone:focus, #lease-drop-zone.lease-drop-over {
         border-color: #3c8dbc;
         background-color: rgba(60, 141, 188, 0.06);
-        color: #333;
+        color: var(--color-fg, #333);
     }
     #lease-drop-zone i { font-size: 22px; display: block; margin-bottom: 6px; }
     #lease-drop-zone p { margin: 4px 0 0; font-size: 12px; }

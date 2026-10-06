@@ -189,6 +189,12 @@
             --main-theme-hover: hsl(from var(--main-theme-color) h s calc(l - 10));
             --tab-bottom-border: 1px solid var(--box-header-top-border-color);
             --text-legend-help: #d6d6d6;
+            {{-- Pages reach for these with a light fallback; without a dark
+                 value the fallback paints white panels and bright lines. --}}
+            --body-bg: var(--color-bg);
+            --box-border-color: var(--box-header-top-border-color);
+            --text-muted: var(--text-help);
+            --color-fg-muted: var(--text-help);
 
         }
 
@@ -275,6 +281,10 @@
         .select2-selection--single,
         .select2-selection__rendered,
         input[type="date"],
+        input[type="time"],
+        input[type="datetime-local"],
+        input[type="month"],
+        input[type="week"],
         input[type="number"],
         input[type="text"],
         input[type="url"],
@@ -1769,6 +1779,64 @@
             width: auto;
         }
 
+        {{-- Pills: Bootstrap's inactive grey and white hover vanish on a
+             dark page. Inactive reads as muted text, hover as a neutral
+             chip, active keeps the theme colour. --}}
+        [data-theme="dark"] .nav-pills > li > a { color: var(--chrome-fg-muted); }
+        [data-theme="dark"] .nav-pills > li > a:hover,
+        [data-theme="dark"] .nav-pills > li > a:focus {
+            background-color: var(--btn-neutral-bg);
+            color: var(--chrome-fg) !important;
+        }
+
+        {{-- Native file inputs paint a white field and a light button. --}}
+        [data-theme="dark"] input[type="file"].form-control {
+            background-color: var(--box-bg);
+            color: var(--color-fg);
+            border-color: var(--btn-neutral-border);
+        }
+        [data-theme="dark"] input[type="file"]::file-selector-button {
+            background-color: var(--btn-neutral-bg);
+            color: var(--btn-neutral-fg);
+            border: 1px solid var(--btn-neutral-border);
+            border-radius: 4px;
+            padding: 2px 10px;
+            margin-right: 10px;
+        }
+        [data-theme="dark"] input[type="file"]::file-selector-button:hover { background-color: var(--btn-neutral-active-bg); }
+
+        {{-- Bootstrap and AdminLTE defaults that assume a white page. --}}
+        [data-theme="dark"] .table-hover > tbody > tr:hover { background-color: var(--chrome-hover-bg); }
+        [data-theme="dark"] .popover.top > .arrow:after { border-top-color: var(--box-bg); }
+        [data-theme="dark"] .popover.bottom > .arrow:after { border-bottom-color: var(--box-bg); }
+        [data-theme="dark"] .popover.left > .arrow:after { border-left-color: var(--box-bg); }
+        [data-theme="dark"] .popover.right > .arrow:after { border-right-color: var(--box-bg); }
+        [data-theme="dark"] .popover { border-color: var(--box-header-top-border-color); }
+        [data-theme="dark"] .popover-title { border-bottom-color: var(--box-header-top-border-color); }
+        [data-theme="dark"] .close { color: var(--color-fg); text-shadow: none; opacity: .6; }
+        [data-theme="dark"] .close:hover,
+        [data-theme="dark"] .close:focus { color: var(--color-fg); opacity: .9; }
+        [data-theme="dark"] .progress { background-color: var(--box-header-top-border-color); }
+        [data-theme="dark"] .nav > li > a:hover,
+        [data-theme="dark"] .nav > li > a:focus { background-color: var(--chrome-hover-bg); }
+        [data-theme="dark"] .nav-tabs { border-bottom-color: var(--box-header-top-border-color); }
+        [data-theme="dark"] .nav-tabs > li.active > a,
+        [data-theme="dark"] .nav-tabs > li.active > a:hover,
+        [data-theme="dark"] .nav-tabs > li.active > a:focus {
+            background-color: var(--box-bg);
+            color: var(--color-fg);
+            border-color: var(--box-header-top-border-color) var(--box-header-top-border-color) transparent;
+        }
+        [data-theme="dark"] code { color: #ff8fab; background-color: rgba(255, 143, 171, .12); }
+        [data-theme="dark"] pre { color: var(--color-fg); background-color: var(--chrome-bg); border-color: var(--box-header-top-border-color); }
+        [data-theme="dark"] hr { border-top-color: var(--box-header-top-border-color); }
+        [data-theme="dark"] .thumbnail { background-color: var(--box-bg); border-color: var(--box-header-top-border-color); }
+        [data-theme="dark"] .fixed-table-container .fixed-columns-right { background-color: var(--box-bg); }
+        [data-theme="dark"] .fixed-table-loading .loading-wrap .animation-dot,
+        [data-theme="dark"] .fixed-table-loading .loading-wrap .animation-wrap::before,
+        [data-theme="dark"] .fixed-table-loading .loading-wrap .animation-wrap::after { background: var(--color-fg); }
+        [data-theme="dark"] .fixed-table-loading .loading-wrap .loading-text { color: var(--color-fg); }
+
         {{-- Theme swap for the two wordmark files. The default (no
              data-theme stamped yet) follows the OS via the media query so
              the right file shows from the first paint; the stamped attribute
@@ -1783,11 +1851,11 @@
 
         .datepicker.dropdown-menu,
         .modal-content,
-        .popover.help-popover,
-        .popover.help-popover .popover-content,
-        .popover.help-popover .popover-body,
-        .popover.help-popover .popover-title,
-        .popover.help-popover .popover-header
+        .popover,
+        .popover .popover-content,
+        .popover .popover-body,
+        .popover .popover-title,
+        .popover .popover-header
         {
             background-color: var(--box-bg) !important;
             color: var(--color-fg) !important;
@@ -3755,6 +3823,36 @@
         <script src="{{ url('js/select2/i18n/'.Helper::mapBackToLegacyLocale(app()->getLocale()).'.js') }}"></script>
 
         {{-- Page level javascript --}}
+        {{-- Chart.js 2 defaults to dark-grey labels and faint black grid
+             lines, both lost on a dark page. Pages load Chart.js themselves,
+             after this layout's scripts, so once the page has loaded every
+             chart that kept those defaults is recoloured; a page that set
+             its own colours keeps them. --}}
+        <script nonce="{{ csrf_token() }}">
+            window.addEventListener('load', function () {
+                if (!window.Chart || !Chart.instances) { return; }
+                if (document.documentElement.getAttribute('data-theme') !== 'dark') { return; }
+                var font = '#cccccc', grid = 'rgba(255,255,255,0.1)', zero = 'rgba(255,255,255,0.25)';
+                var isDefaultFont = function (c) { return !c || c === '#666' || c === '#666666'; };
+                Chart.defaults.global.defaultFontColor = font;
+                Object.keys(Chart.instances).forEach(function (id) {
+                    var chart = Chart.instances[id], o = chart.options || {};
+                    if (o.legend && o.legend.labels && isDefaultFont(o.legend.labels.fontColor)) { o.legend.labels.fontColor = font; }
+                    if (o.title && isDefaultFont(o.title.fontColor)) { o.title.fontColor = font; }
+                    var scales = o.scales ? [].concat(o.scales.xAxes || [], o.scales.yAxes || []) : [];
+                    if (o.scale) { scales.push(o.scale); }
+                    scales.forEach(function (s) {
+                        if (s.ticks && isDefaultFont(s.ticks.fontColor)) { s.ticks.fontColor = font; }
+                        if (s.pointLabels && isDefaultFont(s.pointLabels.fontColor)) { s.pointLabels.fontColor = font; }
+                        if (s.gridLines && (!s.gridLines.color || s.gridLines.color === 'rgba(0, 0, 0, 0.1)')) {
+                            s.gridLines.color = grid;
+                            s.gridLines.zeroLineColor = zero;
+                        }
+                    });
+                    chart.update();
+                });
+            });
+        </script>
         @stack('js')
 
         @section('moar_scripts')

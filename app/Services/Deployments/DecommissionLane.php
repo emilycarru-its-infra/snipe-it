@@ -34,7 +34,7 @@ use Illuminate\Support\Str;
 class DecommissionLane
 {
     /** The collecting flows that each have their own page. */
-    public const FLOWS = ['returns', 'donations', 'recycling'];
+    public const FLOWS = ['buyouts', 'returns', 'donations', 'recycling'];
 
     /**
      * @param  string|null  $flow  one of FLOWS to scope every count, list and
@@ -274,6 +274,7 @@ class DecommissionLane
         $name = Str::lower($statusName);
 
         return match (true) {
+            str_contains($name, 'purchas'), str_contains($name, 'buyout') => ['key' => 'buyouts', 'label' => trans('admin/deployments/general.decom_bucket_buyouts')],
             str_contains($name, 'return') => ['key' => 'returns', 'label' => trans('admin/deployments/general.decom_bucket_returns')],
             str_contains($name, 'donat') => ['key' => 'donations', 'label' => trans('admin/deployments/general.decom_bucket_donations')],
             str_contains($name, 'recycl') => ['key' => 'recycling', 'label' => trans('admin/deployments/general.decom_bucket_recycling')],

@@ -420,6 +420,7 @@ Reply to this email if the device above is not the one you are using, or if ther
     'decom_none' => 'Nothing is in decommissioning right now.',
     'decom_open_disposition' => 'Disposition Grid',
     'decom_flow_all' => 'All',
+    'decom_bucket_buyouts' => 'Buyouts',
     'decom_bucket_returns' => 'Returns',
     'decom_bucket_donations' => 'Donations',
     'decom_bucket_recycling' => 'Recycling',

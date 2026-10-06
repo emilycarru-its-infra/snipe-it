@@ -534,8 +534,8 @@
                              else in a "More" overflow menu (each item icon + label). Keeps the
                              bar uncluttered while making each action obvious. --}}
                         <style>
-                            .asset-actions-more .asset-more-item { display:block; width:100%; text-align:left; padding:5px 20px; line-height:1.42857143; color:#333; background:none; border:0; white-space:nowrap; }
-                            .asset-actions-more .asset-more-item:hover, .asset-actions-more .asset-more-item:focus { background-color:#f5f5f5; color:#262626; text-decoration:none; }
+                            .asset-actions-more .asset-more-item { display:block; width:100%; text-align:left; padding:5px 20px; line-height:1.42857143; color:var(--color-fg, #333); background:none; border:0; white-space:nowrap; }
+                            .asset-actions-more .asset-more-item:hover, .asset-actions-more .asset-more-item:focus { background-color:var(--chrome-hover-bg, #f5f5f5); color:var(--color-fg, #262626); text-decoration:none; }
                             .asset-actions-more .dropdown-menu > li > a { padding:5px 20px; }
                         </style>
                         @php $assetDeleted = $asset->deleted_at != ''; @endphp
@@ -556,6 +556,13 @@
                                 <a href="{{ route('hardware.edit', $asset->id) }}" class="btn btn-sm btn-warning hidden-print js-asset-edit-mode" data-tooltip="true" data-placement="top" data-title="{{ trans('general.update') }}">
                                     <x-icon type="edit" class="fa-fw"/> {{ trans('general.update') }}
                                 </a>
+                                {{-- While editing, Update gives way to Cancel / Save in
+                                     the same spot, where the click that started it was. --}}
+                                <span id="asset-edit-bar" class="hidden-print" hidden>
+                                    <button type="button" class="btn btn-sm btn-default js-asset-edit-cancel">{{ trans('general.cancel') }}</button>
+                                    <button type="button" class="btn btn-sm btn-success js-asset-edit-save"><i class="fas fa-check" aria-hidden="true"></i> {{ trans('general.save_changes') }}</button>
+                                    <span class="js-asset-edit-status text-muted" role="status"></span>
+                                </span>
                             @endunless
                         @endcan
 
@@ -918,7 +925,7 @@
                         $form.closest('.asset-card-val').addClass('inline-editing');
                         $form.show();
                     });
-                    $bar.prop('hidden', false).find('.js-asset-edit-status').text(@js(trans('general.edit_mode_hint')));
+                    $bar.prop('hidden', false).find('.js-asset-edit-status').text('');
                 }
                 function leaveEditMode() {
                     $forms().each(function () {
@@ -1017,15 +1024,6 @@
             });
         </script>
 
-        @can('update', $asset)
-            <div id="asset-edit-bar" class="hidden-print" hidden>
-                <span class="js-asset-edit-status" role="status"></span>
-                <span class="asset-edit-bar-actions">
-                    <button type="button" class="btn btn-sm btn-default js-asset-edit-cancel">{{ trans('general.cancel') }}</button>
-                    <button type="button" class="btn btn-sm btn-success js-asset-edit-save"><i class="fas fa-check" aria-hidden="true"></i> {{ trans('general.save_changes') }}</button>
-                </span>
-            </div>
-        @endcan
     @endsection
 
     @push('css')
@@ -1055,17 +1053,10 @@
             /* Sidebar rows are label-left, value-right; an input needs the
                full width, so it drops under its label. */
             body.asset-edit-mode .asset-side-box .list-group-item .pull-right:has(.js-inline-edit-form) { float: none !important; display: block; margin-top: 4px; }
-            #asset-edit-bar {
-                position: fixed; right: 16px; top: calc(var(--header-h, 50px) + 10px); z-index: 1500;
-                display: flex; align-items: center; gap: 16px;
-                max-width: calc(100vw - 32px);
-                padding: 10px 12px 10px 18px; border-radius: 12px;
-                background: var(--box-bg, #fff); color: var(--color-fg, #333);
-                border: 1px solid var(--box-header-top-border-color, #d2d6de);
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            }
+            #asset-edit-bar { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
             #asset-edit-bar[hidden] { display: none; }
-            #asset-edit-bar .asset-edit-bar-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+            #asset-edit-bar .js-asset-edit-status { font-size: 12px; margin-left: 4px; }
+            body.asset-edit-mode .js-asset-edit-mode { display: none !important; }
 
             /* Identity header: name (primary), tag and serial in one left-aligned
                row — snug, not pushed to the far right. */
