@@ -37,6 +37,14 @@
 </style>
 
 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:15px;">
+    {{-- Every flow, or one of them: returns, donations and recycling are
+         worked by different people, so each has a link of its own. --}}
+    <ul class="nav nav-pills" style="margin:0;">
+        <li @class(['active' => ! $flow])><a href="{{ route('deployments.decommissioning', request()->only('fiscal_year')) }}">{{ trans('admin/deployments/general.decom_flow_all') }}</a></li>
+        @foreach (\App\Services\Deployments\DecommissionLane::FLOWS as $flowKey)
+            <li @class(['active' => $flow === $flowKey])><a href="{{ route('deployments.decommissioning.flow', ['flow' => $flowKey] + request()->only('fiscal_year')) }}">{{ trans('admin/deployments/general.decom_bucket_'.$flowKey) }}</a></li>
+        @endforeach
+    </ul>
     <form method="get" style="margin:0;">
         <select name="fiscal_year" class="form-control" style="width:auto; font-weight:700;" onchange="this.form.submit()">
             @foreach ($fiscalYears as $fyOption)
