@@ -36,7 +36,11 @@ class DecommissionLane
     /** The collecting flows that each have their own page. */
     public const FLOWS = ['returns', 'donations', 'recycling'];
 
-    public function build(?string $fy, bool $includeCollecting = true): array
+    /**
+     * @param  string|null  $flow  one of FLOWS to scope every count, list and
+     *                             holding room to that flow; null for all of them
+     */
+    public function build(?string $fy, bool $includeCollecting = true, ?string $flow = null): array
     {
         $range = RefreshForecast::fiscalYearRange($fy);
 
@@ -62,6 +66,14 @@ class DecommissionLane
             ->when($range, fn ($q) => $q->whereBetween('decommission_date', $range))
             ->with(['status', 'model', 'location', 'lessor'])
             ->get();
+
+        // A flow page counts only its own devices, so the rail, the holding
+        // rooms and the register agree with the one card it shows.
+        if ($flow) {
+            $inFlow = fn ($asset) => $this->kindOf($asset->status?->name ?: '')['key'] === $flow;
+            $collecting = $collecting->filter($inFlow)->values();
+            $decommissioned = $decommissioned->filter($inFlow)->values();
+        }
 
         $archivedCount = $decommissioned
             ->filter(fn ($asset) => (bool) $asset->status?->archived)
