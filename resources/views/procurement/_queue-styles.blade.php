@@ -43,10 +43,10 @@
 .pq-chip--link:hover { color: var(--color-fg, #222); text-decoration: none; }
 /* Only three chips earn ink: the two that mean "still yours to do" and the
    two that mean "something is off". */
-.pq-chip--pending { border-color: currentColor; color: #b06d00; }
-.pq-chip--approved { border-color: currentColor; color: #1f7a4d; }
-.pq-chip--ok { border-color: currentColor; color: #1f7a4d; }
-.pq-chip--warn { border-color: currentColor; color: #b06d00; }
+.pq-chip--pending { border-color: currentColor; color: light-dark(#b06d00, #f3a51f); }
+.pq-chip--approved { border-color: currentColor; color: light-dark(#1f7a4d, #4ced61); }
+.pq-chip--ok { border-color: currentColor; color: light-dark(#1f7a4d, #4ced61); }
+.pq-chip--warn { border-color: currentColor; color: light-dark(#b06d00, #f3a51f); }
 .pq-chip--declined, .pq-chip--cancelled { opacity: .75; }
 
 /* ── Card grid ─────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@
     border-color: var(--box-border-color, #d3d3d9);
 }
 .pq-btn--quiet:hover { background: color-mix(in srgb, var(--color-fg, #444) 7%, var(--box-bg, #fff)); }
-.pq-btn--danger { color: #a33224; border-color: color-mix(in srgb, #a33224 40%, transparent); background: transparent; }
+.pq-btn--danger { color: light-dark(#a33224, #fa5b48); border-color: color-mix(in srgb, #a33224 40%, transparent); background: transparent; }
 .pq-btn--danger:hover { background: color-mix(in srgb, #a33224 10%, transparent); }
 .pq-note-input { resize: vertical; }
 
