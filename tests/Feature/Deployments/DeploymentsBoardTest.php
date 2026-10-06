@@ -7,6 +7,7 @@ use App\Models\Component;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentWave;
+use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\StaffBlackout;
@@ -105,18 +106,23 @@ class DeploymentsBoardTest extends TestCase
         $return = Statuslabel::factory()->pending()->create(['name' => 'Processing Return']);
         $donate = Statuslabel::factory()->pending()->create(['name' => 'Processing Donation']);
         Asset::factory()->create(['asset_tag' => 'FLOW-RET', 'status_id' => $return->id]);
-        Asset::factory()->create(['asset_tag' => 'FLOW-DON', 'status_id' => $donate->id]);
+        $donRoom = Location::factory()->create(['name' => 'Donation Room Z']);
+        Asset::factory()->create(['asset_tag' => 'FLOW-DON', 'status_id' => $donate->id, 'location_id' => $donRoom->id, 'rtd_location_id' => $donRoom->id]);
 
         $this->actingAs($this->superuser())
             ->get('/deployments/decommissioning/returns')
             ->assertOk()
             ->assertSee('FLOW-RET')
-            ->assertDontSee('FLOW-DON');
+            ->assertDontSee('FLOW-DON')
+            // The rail and the holding rooms count this flow only.
+            ->assertDontSee('Donation Room Z <span class="decom-chip-n">', false)
+            ->assertDontSee(trans('admin/deployments/general.decom_buyouts_note'));
 
         $this->actingAs($this->superuser())
             ->get(route('deployments.decommissioning.flow', 'donations'))
             ->assertOk()
             ->assertSee('FLOW-DON')
+            ->assertSee('Donation Room Z <span class="decom-chip-n">', false)
             ->assertDontSee('FLOW-RET');
 
         $this->actingAs($this->superuser())

@@ -70,7 +70,7 @@
 {{-- The rollup: stage chevrons, and where the outgoing devices sit. --}}
 <div class="box box-default" id="decommissioning" style="scroll-margin-top:64px;">
     <div class="box-header with-border">
-        <h3 class="box-title">{{ trans('admin/deployments/general.decom_title') }}
+        <h3 class="box-title">{{ trans('admin/deployments/general.decom_title') }}@if ($flow ?? null) · {{ trans('admin/deployments/general.decom_bucket_'.$flow) }}@endif
             <a href="#decommissioning" class="text-muted" style="font-size:13px;" title="{{ trans('admin/deployments/general.decom_permalink') }}"><i class="fas fa-link"></i></a>
         </h3>
         <span class="text-muted" style="font-size:12px; margin-left:10px;">{{ trans('admin/deployments/general.decom_hint') }}</span>
@@ -85,7 +85,8 @@
             <div class="dp-rail" style="min-width:520px;">
                 @php($decomStages = array_values(array_filter([
                     $isPast ? null : ['label' => trans('admin/deployments/general.decom_collecting'), 'note' => trans('admin/deployments/general.decom_collecting_note'), 'count' => $decommission['collectingCount'], 'color' => '#1f9e8e'],
-                    ['label' => trans('admin/deployments/general.decom_buyouts'), 'note' => trans('admin/deployments/general.decom_buyouts_note'), 'count' => $decommission['buyouts']['openCount'], 'color' => '#4f6d7a'],
+                    ($flow ?? null) ? null : ['label' => trans('admin/deployments/general.decom_buyouts'), 'note' => trans('admin/deployments/general.decom_buyouts_note'), 'count' => $decommission['buyouts']['openCount'], 'color' => '#4f6d7a'],
+                    ($flow ?? null) === 'returns' ? ['label' => trans('admin/deployments/general.lease_pickups_title'), 'note' => trans('admin/deployments/general.lease_pickups_hint'), 'count' => collect($decommission['leasePickups'])->filter(fn ($p) => $p->isOpen())->count(), 'color' => '#4f6d7a'] : null,
                     ['label' => trans('admin/deployments/general.decom_decommissioned'), 'note' => trans('admin/deployments/general.decom_decommissioned_note'), 'count' => $decommission['decommissionedCount'], 'color' => '#c8860a'],
                 ])))
                 @foreach ($decomStages as $ds)
