@@ -888,7 +888,7 @@ class DeploymentsController extends Controller
             'fiscalYears' => $fiscalYears,
             'isPast' => $isPast,
             'flow' => $flow,
-            'decommission' => $isFuture ? null : (new DecommissionLane)->build($fy, ! $isPast),
+            'decommission' => $isFuture ? null : (new DecommissionLane)->build($fy, ! $isPast, $flow),
         ]);
     }
 
