@@ -1769,6 +1769,32 @@
             width: auto;
         }
 
+        {{-- Pills: Bootstrap's inactive grey and white hover vanish on a
+             dark page. Inactive reads as muted text, hover as a neutral
+             chip, active keeps the theme colour. --}}
+        [data-theme="dark"] .nav-pills > li > a { color: var(--chrome-fg-muted); }
+        [data-theme="dark"] .nav-pills > li > a:hover,
+        [data-theme="dark"] .nav-pills > li > a:focus {
+            background-color: var(--btn-neutral-bg);
+            color: var(--chrome-fg);
+        }
+
+        {{-- Native file inputs paint a white field and a light button. --}}
+        [data-theme="dark"] input[type="file"].form-control {
+            background-color: var(--box-bg);
+            color: var(--color-fg);
+            border-color: var(--btn-neutral-border);
+        }
+        [data-theme="dark"] input[type="file"]::file-selector-button {
+            background-color: var(--btn-neutral-bg);
+            color: var(--btn-neutral-fg);
+            border: 1px solid var(--btn-neutral-border);
+            border-radius: 4px;
+            padding: 2px 10px;
+            margin-right: 10px;
+        }
+        [data-theme="dark"] input[type="file"]::file-selector-button:hover { background-color: var(--btn-neutral-active-bg); }
+
         {{-- Theme swap for the two wordmark files. The default (no
              data-theme stamped yet) follows the OS via the media query so
              the right file shows from the first paint; the stamped attribute
