@@ -3,10 +3,16 @@
 namespace Tests\Feature\Deployments;
 
 use App\Models\Asset;
+use App\Models\Component;
 use App\Models\DeploymentItem;
+use App\Models\DeploymentStage;
 use App\Models\DeploymentWave;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\StaffBlackout;
 use App\Models\Statuslabel;
 use App\Models\User;
+use App\Services\Deployments\DeploymentTimeline;
 use Tests\TestCase;
 
 class DeploymentsBoardTest extends TestCase
@@ -92,6 +98,44 @@ class DeploymentsBoardTest extends TestCase
             ->assertSee('DECOM-1')
             ->assertSee('Processing (Return)')
             ->assertSee(trans('admin/deployments/general.decom_locations'));
+    }
+
+    public function test_each_flow_has_its_own_page_and_asset_tags_still_reach_buyouts()
+    {
+        $return = Statuslabel::factory()->pending()->create(['name' => 'Processing Return']);
+        $donate = Statuslabel::factory()->pending()->create(['name' => 'Processing Donation']);
+        Asset::factory()->create(['asset_tag' => 'FLOW-RET', 'status_id' => $return->id]);
+        Asset::factory()->create(['asset_tag' => 'FLOW-DON', 'status_id' => $donate->id]);
+
+        $this->actingAs($this->superuser())
+            ->get('/deployments/decommissioning/returns')
+            ->assertOk()
+            ->assertSee('FLOW-RET')
+            ->assertDontSee('FLOW-DON');
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.decommissioning.flow', 'donations'))
+            ->assertOk()
+            ->assertSee('FLOW-DON')
+            ->assertDontSee('FLOW-RET');
+
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.decommissioning.flow', 'recycling'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.decom_none'));
+
+        // The all-flows page is unchanged.
+        $this->actingAs($this->superuser())
+            ->get(route('deployments.decommissioning'))
+            ->assertOk()
+            ->assertSee('FLOW-RET')
+            ->assertSee('FLOW-DON');
+
+        // Anything that is not a flow name is still an asset tag for the buyout page.
+        $this->assertSame(
+            'buyouts.show',
+            app('router')->getRoutes()->match(request()->create('/deployments/decommissioning/FLOW-RET'))->getName()
+        );
     }
 
     public function test_decommissioned_devices_leave_collecting_and_count_as_archived()
@@ -203,13 +247,13 @@ class DeploymentsBoardTest extends TestCase
         $startYear = now()->month >= 4 ? now()->year : now()->year - 1;
         $currentFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
 
-        $order = \App\Models\Order::factory()->create([
+        $order = Order::factory()->create([
             'status' => 'ordered',
             'is_planned' => false,
             'fiscal_year' => $currentFy,
             'order_number' => 'PVTEST99',
         ]);
-        \App\Models\OrderItem::factory()->create([
+        OrderItem::factory()->create([
             'order_id' => $order->id,
             'description' => 'Latitude 5560 Refresh Line',
             'quantity' => 3,
@@ -238,38 +282,38 @@ class DeploymentsBoardTest extends TestCase
         $startYear = now()->month >= 4 ? now()->year : now()->year - 1;
         $currentFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
 
-        $order = \App\Models\Order::factory()->create([
+        $order = Order::factory()->create([
             'status' => 'received',
             'is_planned' => false,
             'fiscal_year' => $currentFy,
             'order_number' => 'PVTEST88',
         ]);
 
-        $asset = \App\Models\Asset::factory()->create(['name' => 'Facilities Tablet 01']);
+        $asset = Asset::factory()->create(['name' => 'Facilities Tablet 01']);
         // Pin the dates out of the refresh window: the factory's computed
         // EOL sometimes lands in the current FY, putting the device on the
         // candidates list too and making this count flap.
-        \App\Models\Asset::query()->whereKey($asset->id)->update([
+        Asset::query()->whereKey($asset->id)->update([
             'asset_eol_date' => null,
             'lease_end_date' => null,
         ]);
 
         // The device, and the AppleCare bought to cover it. Both lines point at
         // the same machine, because the warranty is keyed to what it covers.
-        \App\Models\OrderItem::factory()->create([
+        OrderItem::factory()->create([
             'order_id' => $order->id,
             'description' => 'APPLE IPAD AIR 11 WIFI 128GB SPG',
             'quantity' => 1,
             'unit_cost' => 796.37,
-            'item_type' => \App\Models\Asset::class,
+            'item_type' => Asset::class,
             'item_id' => $asset->id,
         ]);
-        \App\Models\OrderItem::factory()->create([
+        OrderItem::factory()->create([
             'order_id' => $order->id,
             'description' => 'APPLE 4YR AC+ SCHOOLS IPAD AIR 11 M2',
             'quantity' => 1,
             'unit_cost' => 0,
-            'item_type' => \App\Models\Asset::class,
+            'item_type' => Asset::class,
             'item_id' => $asset->id,
         ]);
 
@@ -291,7 +335,7 @@ class DeploymentsBoardTest extends TestCase
         $startYear = now()->month >= 4 ? now()->year : now()->year - 1;
         $currentFy = sprintf('FY%d-%02d', $startYear, ($startYear + 1) % 100);
 
-        $order = \App\Models\Order::factory()->create([
+        $order = Order::factory()->create([
             'status' => 'ordered',
             'is_planned' => false,
             'fiscal_year' => $currentFy,
@@ -300,10 +344,10 @@ class DeploymentsBoardTest extends TestCase
 
         // Nothing has been received, so no line carries an asset yet. Deduping
         // must not collapse these into one another.
-        \App\Models\OrderItem::factory()->create([
+        OrderItem::factory()->create([
             'order_id' => $order->id, 'description' => 'Dock Line', 'quantity' => 1, 'unit_cost' => 300,
         ]);
-        \App\Models\OrderItem::factory()->create([
+        OrderItem::factory()->create([
             'order_id' => $order->id, 'description' => 'Cable Line', 'quantity' => 1, 'unit_cost' => 20,
         ]);
 
@@ -418,11 +462,11 @@ class DeploymentsBoardTest extends TestCase
     public function test_bulk_stage_move_gates_planned_devices_without_an_order_line()
     {
         $wave = DeploymentWave::create(['name' => 'Gate Wave', 'fiscal_year' => 'FY2026-27']);
-        $planned = \App\Models\DeploymentStage::where('slug', 'planned')->first();
-        $ordered = \App\Models\DeploymentStage::where('slug', 'ordered')->first();
+        $planned = DeploymentStage::where('slug', 'planned')->first();
+        $ordered = DeploymentStage::where('slug', 'ordered')->first();
 
         $unlinked = DeploymentItem::create(['wave_id' => $wave->id, 'stage_id' => $planned->id]);
-        $orderItem = \App\Models\OrderItem::factory()->create();
+        $orderItem = OrderItem::factory()->create();
         $linked = DeploymentItem::create(['wave_id' => $wave->id, 'stage_id' => $planned->id, 'order_item_id' => $orderItem->id]);
 
         $this->actingAs($this->superuser())
@@ -442,8 +486,8 @@ class DeploymentsBoardTest extends TestCase
     public function test_bulk_stage_move_flips_the_asset_status_when_the_stage_maps_to_one()
     {
         $wave = DeploymentWave::create(['name' => 'Map Wave', 'fiscal_year' => 'FY2026-27']);
-        $arrived = \App\Models\DeploymentStage::where('slug', 'arrived')->first();
-        $inventoried = \App\Models\DeploymentStage::where('slug', 'inventoried')->first();
+        $arrived = DeploymentStage::where('slug', 'arrived')->first();
+        $inventoried = DeploymentStage::where('slug', 'inventoried')->first();
 
         $target = Statuslabel::factory()->pending()->create(['name' => 'New (Inventoried)']);
         $inventoried->update(['maps_to_status_id' => $target->id]);
@@ -490,7 +534,7 @@ class DeploymentsBoardTest extends TestCase
 
         $wave = DeploymentWave::create(['name' => 'Perm Wave', 'fiscal_year' => 'FY2026-27']);
         $item = DeploymentItem::create(['wave_id' => $wave->id]);
-        $ordered = \App\Models\DeploymentStage::where('slug', 'ordered')->first();
+        $ordered = DeploymentStage::where('slug', 'ordered')->first();
 
         $this->actingAs($viewer)
             ->post(route('deployment-items.bulk-stage'), [
@@ -586,15 +630,15 @@ class DeploymentsBoardTest extends TestCase
      */
     public function test_board_survives_an_order_line_for_a_non_asset()
     {
-        $order = \App\Models\Order::factory()->create([
+        $order = Order::factory()->create([
             'fiscal_year' => 'FY2026-27',
             'status' => 'ordered',
             'is_planned' => false,
         ]);
-        $component = \App\Models\Component::factory()->create(['name' => 'Odd Part']);
-        \App\Models\OrderItem::create([
+        $component = Component::factory()->create(['name' => 'Odd Part']);
+        OrderItem::create([
             'order_id' => $order->id,
-            'item_type' => \App\Models\Component::class,
+            'item_type' => Component::class,
             'item_id' => $component->id,
             'description' => 'Odd Part',
             'quantity' => 1,
@@ -608,7 +652,7 @@ class DeploymentsBoardTest extends TestCase
 
     public function test_waves_page_hosts_the_staffing_blackouts_table()
     {
-        \App\Models\StaffBlackout::create([
+        StaffBlackout::create([
             'user_id' => User::factory()->create()->id,
             'start_date' => '2026-09-01',
             'end_date' => '2026-09-05',
@@ -652,7 +696,7 @@ class DeploymentsBoardTest extends TestCase
             'target_end_date' => $deployEnd->toDateString(),
         ]);
 
-        $timeline = (new \App\Services\Deployments\DeploymentTimeline)->build(
+        $timeline = (new DeploymentTimeline)->build(
             DeploymentWave::whereKey($wave->id)->get()
         );
 
@@ -705,7 +749,7 @@ class DeploymentsBoardTest extends TestCase
             'target_end_date' => now()->addDays(20)->toDateString(),
         ]);
 
-        $timeline = (new \App\Services\Deployments\DeploymentTimeline)->build(
+        $timeline = (new DeploymentTimeline)->build(
             DeploymentWave::where('fiscal_year', 'FY2026-27')->orderBy('id')->get()
         );
 
@@ -736,13 +780,13 @@ class DeploymentsBoardTest extends TestCase
     public function test_blackouts_api_lists_and_deletes_stale_windows()
     {
         $staff = User::factory()->create();
-        $blackout = \App\Models\StaffBlackout::create([
+        $blackout = StaffBlackout::create([
             'user_id' => $staff->id,
             'start_date' => now()->subDays(10)->toDateString(),
             'end_date' => now()->addDays(10)->toDateString(),
             'source' => 'manual',
         ]);
-        \App\Models\StaffBlackout::create([
+        StaffBlackout::create([
             'user_id' => $staff->id,
             'start_date' => now()->subDays(60)->toDateString(),
             'end_date' => now()->subDays(50)->toDateString(),

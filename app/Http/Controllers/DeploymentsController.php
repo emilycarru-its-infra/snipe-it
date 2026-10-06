@@ -864,7 +864,7 @@ class DeploymentsController extends Controller
      * job today is the outgoing pile. Supports the same
      * ?format=csv&decom_pickup=Y-m-d export as the board.
      */
-    public function decommissioning(Request $request)
+    public function decommissioning(Request $request, ?string $flow = null)
     {
         $this->authorize('deployments.view');
 
@@ -887,6 +887,7 @@ class DeploymentsController extends Controller
             'fy' => $fy,
             'fiscalYears' => $fiscalYears,
             'isPast' => $isPast,
+            'flow' => $flow,
             'decommission' => $isFuture ? null : (new DecommissionLane)->build($fy, ! $isPast),
         ]);
     }
