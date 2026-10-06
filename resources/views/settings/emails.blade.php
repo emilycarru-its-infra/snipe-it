@@ -192,7 +192,7 @@
 
                     <iframe id="email-cms-preview-frame"
                             title="{{ trans('admin/settings/general.emails_preview') }}"
-                            style="width:100%;height:70vh;border:1px solid #ddd;border-radius:3px;background:#fff;">
+                            style="width:100%;height:70vh;border:1px solid var(--box-header-top-border-color, #ddd);border-radius:3px;background:#fff;">
                     </iframe>
                     <div id="email-cms-no-preview" class="alert alert-warning" style="display:none;">
                         {{ trans('admin/settings/general.emails_no_preview') }}

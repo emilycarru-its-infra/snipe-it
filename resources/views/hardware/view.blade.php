@@ -534,8 +534,8 @@
                              else in a "More" overflow menu (each item icon + label). Keeps the
                              bar uncluttered while making each action obvious. --}}
                         <style>
-                            .asset-actions-more .asset-more-item { display:block; width:100%; text-align:left; padding:5px 20px; line-height:1.42857143; color:#333; background:none; border:0; white-space:nowrap; }
-                            .asset-actions-more .asset-more-item:hover, .asset-actions-more .asset-more-item:focus { background-color:#f5f5f5; color:#262626; text-decoration:none; }
+                            .asset-actions-more .asset-more-item { display:block; width:100%; text-align:left; padding:5px 20px; line-height:1.42857143; color:var(--color-fg, #333); background:none; border:0; white-space:nowrap; }
+                            .asset-actions-more .asset-more-item:hover, .asset-actions-more .asset-more-item:focus { background-color:var(--chrome-hover-bg, #f5f5f5); color:var(--color-fg, #262626); text-decoration:none; }
                             .asset-actions-more .dropdown-menu > li > a { padding:5px 20px; }
                         </style>
                         @php $assetDeleted = $asset->deleted_at != ''; @endphp
