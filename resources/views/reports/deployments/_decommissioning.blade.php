@@ -84,8 +84,8 @@
         <div class="dp-rail-scroll">
             <div class="dp-rail" style="min-width:520px;">
                 @php($decomStages = array_values(array_filter([
-                    $isPast ? null : ['label' => trans('admin/deployments/general.decom_collecting'), 'note' => trans('admin/deployments/general.decom_collecting_note'), 'count' => $decommission['collectingCount'], 'color' => '#1f9e8e'],
-                    ($flow ?? null) ? null : ['label' => trans('admin/deployments/general.decom_buyouts'), 'note' => trans('admin/deployments/general.decom_buyouts_note'), 'count' => $decommission['buyouts']['openCount'], 'color' => '#4f6d7a'],
+                    ($isPast || ($flow ?? null) === 'buyouts') ? null : ['label' => trans('admin/deployments/general.decom_collecting'), 'note' => trans('admin/deployments/general.decom_collecting_note'), 'count' => $decommission['collectingCount'], 'color' => '#1f9e8e'],
+                    ! in_array($flow ?? null, [null, 'buyouts'], true) ? null : ['label' => trans('admin/deployments/general.decom_buyouts'), 'note' => trans('admin/deployments/general.decom_buyouts_note'), 'count' => $decommission['buyouts']['openCount'], 'color' => '#4f6d7a'],
                     ($flow ?? null) === 'returns' ? ['label' => trans('admin/deployments/general.lease_pickups_title'), 'note' => trans('admin/deployments/general.lease_pickups_hint'), 'count' => collect($decommission['leasePickups'])->filter(fn ($p) => $p->isOpen())->count(), 'color' => '#4f6d7a'] : null,
                     ['label' => trans('admin/deployments/general.decom_decommissioned'), 'note' => trans('admin/deployments/general.decom_decommissioned_note'), 'count' => $decommission['decommissionedCount'], 'color' => '#c8860a'],
                 ])))
@@ -107,7 +107,7 @@
         {{-- Only the holding rooms. The Processing-status counts that used to
              sit beside them are the same numbers the per-flow cards below
              already carry in their own headers, said twice. --}}
-        @unless ($isPast)
+        @unless ($isPast || ($flow ?? null) === 'buyouts')
             <div style="margin-top:12px;">
                 <h5 style="margin:0 0 6px; font-weight:700;">{{ trans('admin/deployments/general.decom_locations') }}</h5>
                 @forelse ($decommission['byLocation'] as $loc)
@@ -121,9 +121,9 @@
 </div>
 
 {{-- Buyouts: the devices leaving by purchase rather than by pickup. --}}
-@unless ($flow ?? null)
+@if (in_array($flow ?? null, [null, 'buyouts'], true))
 @include('reports.deployments._buyouts', ['buyouts' => $decommission['buyouts']])
-@endunless
+@endif
 
 {{-- One card per collecting flow — returns, donations, recycling are
      handled by different parties, so each reads as its own register. --}}
@@ -207,7 +207,7 @@
             </div>
         </div>
     @endforeach
-    @if ($decommission['collectingCount'] === 0 || (($flow ?? null) && ! collect($decommission['buckets'])->contains('key', $flow)))
+    @if (($flow ?? null) !== 'buyouts' && ($decommission['collectingCount'] === 0 || (($flow ?? null) && ! collect($decommission['buckets'])->contains('key', $flow))))
         <div class="box box-default decom-card">
             <div class="box-body"><p class="text-muted" style="margin:0;">{{ trans('admin/deployments/general.decom_none') }}</p></div>
         </div>
