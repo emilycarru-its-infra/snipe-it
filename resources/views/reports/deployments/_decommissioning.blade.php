@@ -120,12 +120,15 @@
 </div>
 
 {{-- Buyouts: the devices leaving by purchase rather than by pickup. --}}
+@unless ($flow ?? null)
 @include('reports.deployments._buyouts', ['buyouts' => $decommission['buyouts']])
+@endunless
 
 {{-- One card per collecting flow — returns, donations, recycling are
      handled by different parties, so each reads as its own register. --}}
 @unless ($isPast)
     @foreach ($decommission['buckets'] as $bucket)
+        @continue(($flow ?? null) && $bucket['key'] !== $flow)
         {{-- The bulk holding-location form lives outside the table so the
              row-level inline-edit forms never nest inside it; checkboxes
              reach it through the form attribute, queue-page style. --}}
@@ -203,7 +206,7 @@
             </div>
         </div>
     @endforeach
-    @if ($decommission['collectingCount'] === 0)
+    @if ($decommission['collectingCount'] === 0 || (($flow ?? null) && ! collect($decommission['buckets'])->contains('key', $flow)))
         <div class="box box-default decom-card">
             <div class="box-body"><p class="text-muted" style="margin:0;">{{ trans('admin/deployments/general.decom_none') }}</p></div>
         </div>
@@ -213,7 +216,7 @@
 {{-- Pickups requested: what each lessor has been asked to collect, and
      what they answered. One row per request; the answer is typed in here
      rather than left in the mail thread. --}}
-@if (count($decommission['leasePickups']) > 0)
+@if (count($decommission['leasePickups']) > 0 && in_array($flow ?? null, [null, 'returns'], true))
 <div class="box box-default decom-card">
     <div class="box-header with-border">
         <h3 class="box-title">{{ trans('admin/deployments/general.lease_pickups_title') }}

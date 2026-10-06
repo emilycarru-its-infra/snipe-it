@@ -33,6 +33,9 @@ use Illuminate\Support\Str;
  */
 class DecommissionLane
 {
+    /** The collecting flows that each have their own page. */
+    public const FLOWS = ['returns', 'donations', 'recycling'];
+
     public function build(?string $fy, bool $includeCollecting = true): array
     {
         $range = RefreshForecast::fiscalYearRange($fy);
