@@ -67,6 +67,7 @@ use App\Livewire\Importer;
 use App\Mail\CheckoutComponentMail;
 use App\Models\PurchaseOrder;
 use App\Models\ReportTemplate;
+use App\Services\Deployments\DecommissionLane;
 use Illuminate\Support\Facades\Route;
 use Tabuna\Breadcrumbs\Trail;
 
@@ -493,6 +494,15 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployments.decommissioning')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.decom_nav'), route('deployments.decommissioning')));
+    // One flow on its own: the link handed to whoever works returns,
+    // donations or recycling. Constrained so asset tags still reach the
+    // buyout page below.
+    Route::get('deployments/decommissioning/{flow}', [DeploymentsController::class, 'decommissioning'])
+        ->whereIn('flow', DecommissionLane::FLOWS)
+        ->name('deployments.decommissioning.flow')
+        ->breadcrumbs(fn (Trail $trail, $flow) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.decom_nav'), route('deployments.decommissioning'))
+            ->push(trans('admin/deployments/general.decom_bucket_'.$flow), route('deployments.decommissioning.flow', $flow)));
     Route::get('deployments/exhibits', [ExhibitProjectsController::class, 'report'])
         ->name('deployments.exhibits')
         ->middleware('can:view,App\Models\Order')
