@@ -116,6 +116,36 @@ class WaveAnnouncementApiTest extends TestCase
         $this->assertNull($wave->fresh()->announced_at);
     }
 
+    /**
+     * The reminder is the wording a not-applied chase goes out on, so it has
+     * to be reachable by key and render against the person's own device.
+     */
+    public function test_the_reminder_template_renders_against_the_recipients_device()
+    {
+        Mail::fake();
+
+        $wave = $this->wave();
+        $this->holder($wave, 'stalled@example.com');
+        $staff = User::factory()->superuser()->create();
+
+        $this->actingAsForApi($staff)
+            ->postJson(route('api.deployments.waves.announce', $wave), [
+                'template' => 'reminder',
+                'audience' => 'no_application',
+                'test' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('payload.recipients', [$staff->email]);
+
+        Mail::assertSent(DeploymentWaveMail::class, function ($mail) {
+            $html = $mail->render();
+
+            return str_contains($mail->envelope()->subject, 'Reminder')
+                && str_contains($html, 'not received your response')
+                && ! str_contains($html, '{{');
+        });
+    }
+
     public function test_nobody_to_chase_is_a_success_that_sends_nothing()
     {
         Mail::fake();
