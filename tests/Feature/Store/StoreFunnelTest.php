@@ -1092,4 +1092,51 @@ class StoreFunnelTest extends TestCase
         $this->assertSame('9094640', $item->vendor_sku);
         $this->assertSame('MGDT4LL/A', $item->mfr_part_number);
     }
+
+    public function test_an_order_with_a_department_po_skips_review()
+    {
+        $item = $this->shelfItem();
+
+        $this->actingAs($this->endUser())
+            ->post(route('store.orders.store'), [
+                'department_po_number' => ' PO-55012 ',
+                'gl_code' => '6-1234-5678',
+                'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            ])
+            ->assertRedirect(route('store.orders'));
+
+        $order = StoreOrder::first();
+
+        $this->assertSame('approved', $order->status);
+        $this->assertSame('PO-55012', $order->department_po_number);
+        $this->assertNotNull($order->decided_at);
+        $this->assertStringContainsString('PO-55012', (string) $order->decision_notes);
+    }
+
+    public function test_an_order_without_a_po_still_waits_for_review()
+    {
+        $item = $this->shelfItem();
+
+        $this->actingAs($this->endUser())
+            ->post(route('store.orders.store'), [
+                'department_po_number' => '   ',
+                'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            ]);
+
+        $order = StoreOrder::first();
+
+        $this->assertSame('pending', $order->status);
+        $this->assertNull($order->department_po_number);
+    }
+
+    public function test_the_order_form_says_what_a_department_order_needs()
+    {
+        $this->shelfItem();
+
+        $this->actingAs($this->endUser())
+            ->get(route('store.index'))
+            ->assertOk()
+            ->assertSee(trans('admin/store/general.prereqs_title'))
+            ->assertSee('name="department_po_number"', false);
+    }
 }
