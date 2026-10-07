@@ -45,12 +45,12 @@ class EmailSampleData
 {
     public function recipient(): User
     {
-        return $this->user('Jane', 'Doe', 'jdoe@ecuad.ca');
+        return $this->user('Jane', 'Doe', 'jdoe@example.org');
     }
 
     public function admin(): User
     {
-        return $this->user('Alex', 'Admin', 'assetsadmins@ecuad.ca');
+        return $this->user('Alex', 'Admin', 'assets@example.org');
     }
 
     public function user(string $first, string $last, string $email): User
@@ -328,7 +328,7 @@ class EmailSampleData
     public function firstAdminData(): array
     {
         return [
-            'email' => 'newadmin@ecuad.ca',
+            'email' => 'newadmin@example.org',
             'first_name' => 'New',
             'last_name' => 'Admin',
             'username' => 'nadmin',
@@ -350,7 +350,7 @@ class EmailSampleData
             'accepted_date' => 'Jun 02, 2026',
             'declined_date' => 'Jun 02, 2026',
             'assigned_to' => 'Jane Doe',
-            'company_name' => 'Emily Carr University',
+            'company_name' => 'Example University',
             'qty' => 1,
             'note' => 'Signed at pickup.',
             'custom_fields' => [],
@@ -504,7 +504,7 @@ class EmailSampleData
         $order->forceFill([
             'order_number' => 'ORD-SAMPLE-1',
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '100000-009',
         ]);
 
         $device = function (string $serial) {
