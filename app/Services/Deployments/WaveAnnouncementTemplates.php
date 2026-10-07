@@ -53,6 +53,13 @@ class WaveAnnouncementTemplates
                 'saved' => false,
             ],
             [
+                'key' => 'reminder',
+                'label' => trans('admin/deployments/general.announce_template_reminder'),
+                'subject' => trans('admin/deployments/general.announce_reminder_subject'),
+                'body' => trans('admin/deployments/general.announce_reminder_body'),
+                'saved' => false,
+            ],
+            [
                 'key' => 'blank',
                 'label' => trans('admin/deployments/general.announce_template_blank'),
                 'subject' => $wave ? $wave->name : '',

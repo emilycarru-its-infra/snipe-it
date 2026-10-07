@@ -155,21 +155,33 @@ class DeploymentsController extends Controller
     {
         $this->authorize('deployments.manage');
 
-        $audiences = collect(WaveAnnouncer::AUDIENCES)->mapWithKeys(function (string $audience) use ($wave, $announcer) {
-            $rows = $announcer->recipients($wave, $audience)->map(fn (array $row) => [
-                'user_id' => $row['user']->id,
-                'name' => $row['user']->present()->fullName,
-                'email' => $row['user']->email,
-                'devices' => $row['assets']->map(fn ($asset) => [
-                    'id' => $asset->id,
-                    'asset_tag' => $asset->asset_tag,
-                    'model' => $asset->model?->name,
-                    'lease_end_date' => $asset->lease_end_date ? (string) $asset->lease_end_date : null,
-                ])->values(),
-            ])->values();
+        $audiences = [];
 
-            return [$audience => ['count' => $rows->count(), 'recipients' => $rows]];
-        });
+        foreach (WaveAnnouncer::AUDIENCES as $audience) {
+            $rows = [];
+
+            foreach ($announcer->recipients($wave, $audience) as $row) {
+                $devices = [];
+
+                foreach ($row['assets'] as $asset) {
+                    $devices[] = [
+                        'id' => $asset->id,
+                        'asset_tag' => $asset->asset_tag,
+                        'model' => $asset->model?->name,
+                        'lease_end_date' => $asset->lease_end_date ? (string) $asset->lease_end_date : null,
+                    ];
+                }
+
+                $rows[] = [
+                    'user_id' => $row['user']->id,
+                    'name' => $row['user']->present()->fullName,
+                    'email' => $row['user']->email,
+                    'devices' => $devices,
+                ];
+            }
+
+            $audiences[$audience] = ['count' => count($rows), 'recipients' => $rows];
+        }
 
         return response()->json(Helper::formatStandardApiResponse('success', [
             'wave_id' => $wave->id,
