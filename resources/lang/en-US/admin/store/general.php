@@ -314,4 +314,18 @@ return [
     'tab_leases' => 'Lease Tracking',
     'tab_agreements' => 'Agreements',
     'tab_loading' => 'Loading…',
+
+    // The daily digest of what is waiting on procurement.
+    'actions_report_title' => 'Procurement — waiting on us',
+    'actions_col_action' => 'Needs',
+    'actions_col_reference' => 'Order',
+    'actions_col_for' => 'For',
+    'actions_col_gl' => 'GL',
+    'actions_col_total' => 'Total',
+    'actions_col_waiting' => 'Waiting',
+    'actions_review' => 'Review (approve or decline)',
+    'actions_send' => 'Approved — send to vendor',
+    'actions_quote' => 'Quote — confirm to order',
+    'actions_quote_expired' => 'Quote expired — re-quote',
+    'actions_vendor_changes' => 'Vendor changes — review',
 ];
