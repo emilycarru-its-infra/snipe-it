@@ -129,8 +129,8 @@ class IngestOrderTest extends TestCase
         $actor = $this->actingAsForApi($this->superuser());
 
         // CDW bills the hardware, then the AppleCare for the same serials on
-        // a separate invoice against the same order — TESTPV1 carries
-        // TESTAJ2 for 4 Mac minis and TESTAJ1 for their AppleCare.
+        // a separate invoice against the same order — one invoice for 4 Mac
+        // minis and a second for their AppleCare.
         $actor->postJson(route('api.orders.ingest'), [
             'order_number' => 'ORD-TWO-INV',
             'items' => [['asset_id' => $asset->id, 'unit_cost' => 4079.19, 'warranty_cost' => 0.85]],

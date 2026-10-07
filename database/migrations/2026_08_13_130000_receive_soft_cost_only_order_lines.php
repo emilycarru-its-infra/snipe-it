@@ -12,9 +12,9 @@ return new class extends Migration
      * A line carrying warranty cost and no equipment cost — AppleCare, onsite
      * support — bills against hardware invoiced elsewhere. Nothing arrives in
      * a box for it, so it could never be ticked off and its order could never
-     * complete. TESTPV1 read "4 of 8 received" with all four Mac minis in
-     * service since June; TESTPM2 sat at partially_received on 40 such lines
-     * against one genuine outstanding item.
+     * complete. An order of four Mac minis read "4 of 8 received" with every
+     * machine in service, and another sat at partially_received on 40 such
+     * lines against one genuine outstanding item.
      *
      * Only lines already billed on an invoice are stamped: an invoice is the
      * vendor confirming the cover was sold. Uninvoiced lines stay open, which

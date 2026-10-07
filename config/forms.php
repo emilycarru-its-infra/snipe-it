@@ -78,7 +78,7 @@ return [
     |
     | A real quote, once one exists, is stored per asset in `buyout_cost`
     | and outranks this. Replacing the factor with a proper depreciation
-    | model is .
+    | model is planned.
     |
     */
 

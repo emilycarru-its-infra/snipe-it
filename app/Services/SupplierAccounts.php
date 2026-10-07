@@ -38,10 +38,6 @@ use App\Models\SupplierAccount;
  * the return schedule, curriculum workstations the own schedule, and the two
  * cannot share an Exhibit A. So the account implies which of the open pair an
  * order belongs on and the form can pick it rather than asking.
- *
- * Source of truth for the numbers and the purposes:
- * https://handbook.its.example.edu/devices/procurement/cdw-ordering#supplier-accounts
- * https://handbook.its.example.edu/devices/procurement/csi-leasing#standard-quarterly-cadence
  */
 class SupplierAccounts
 {

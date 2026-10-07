@@ -24,7 +24,7 @@ use Tests\TestCase;
  */
 class LedgerMoneyAndCycleTest extends TestCase
 {
-    private function member(string $first = 'Peter', string $last = 'Member'): User
+    private function member(string $first = 'Pat', string $last = 'Member'): User
     {
         return User::factory()->create(['first_name' => $first, 'last_name' => $last]);
     }

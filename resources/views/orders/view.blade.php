@@ -171,7 +171,7 @@
                         <tr>
                             {{-- A warranty line points at the device it covers, so it is
                                  typed as an asset even though nothing shipped for it. Left
-                                 as "Asset" it reads as a second unit: order TESTPV1 has
+                                 as "Asset" it reads as a second unit: an order of
                                  four Mac minis and eight lines, and looked like eight
                                  machines. Name it for what it is and say which device it
                                  covers. --}}

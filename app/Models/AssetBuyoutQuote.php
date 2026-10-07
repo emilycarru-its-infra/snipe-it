@@ -9,9 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * One price a lessor put on one device.
  *
- * Kept as its own row because buyout quotes supersede: CCA Financial priced
- * L0900002 at $1,817.40 and re-priced the same device at $1,632.40 four days
- * later. Only the newest is live — it is mirrored onto the parent buyout —
+ * Kept as its own row because buyout quotes supersede: a lessor priced a
+ * device and re-priced the same device lower a few days later. Only the newest is live — it is mirrored onto the parent buyout —
  * but the earlier one has to stay readable, because in a mail thread the
  * stale figure is the one people keep quoting back.
  */

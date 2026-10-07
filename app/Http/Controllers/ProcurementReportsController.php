@@ -3940,7 +3940,7 @@ class ProcurementReportsController extends Controller
      * vs. budget and a suggested year-end disposition: close the PO,
      * roll the remaining commitment to the next fiscal year, or
      * reallocate the surplus to operating. Replaces the year-end
-     * walk-through Rod writes Mark by hand in Excel.
+     * walk-through otherwise written by hand in a spreadsheet.
      */
     private function poDispositionReport(?string $fy = null): array
     {
@@ -4013,7 +4013,7 @@ class ProcurementReportsController extends Controller
 
     /**
      * Suggest a year-end disposition for a purchase order. The suggestion
-     * is advisory — it's the answer Rod would write Mark on email, not
+     * is advisory — it's the answer someone would otherwise write by email, not
      * an automated action.
      */
     private function dispositionFor(PurchaseOrder $po, float $remaining, int $openOrders): string

@@ -446,7 +446,7 @@ class DashboardController extends Controller
      * The end-user home: a pizza-tracker for the laptop journey, and the
      * standing answer to "when does my lease end".
      *
-     * The seven steps are Rod's, verbatim: form → order → processing →
+     * The seven steps, verbatim: form → order → processing →
      * shipped → arrived → inventoried → ready for pick up. The first four
      * live on the store order; the last three are read off the provisioned
      * asset's status label, because after arrival the order stops changing

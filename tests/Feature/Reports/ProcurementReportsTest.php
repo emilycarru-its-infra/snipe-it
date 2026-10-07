@@ -2047,8 +2047,8 @@ class ProcurementReportsTest extends TestCase
         PurchaseOrder::factory()->create(['po_number' => 'PO-SEL-27', 'fiscal_year' => 'FY2026-27', 'budget' => 100.00]);
         PurchaseOrder::factory()->create(['po_number' => 'PO-SEL-26', 'fiscal_year' => 'FY2025-26', 'budget' => 200.00]);
 
-        // Two CDW-ingested orders with no PO link and no stamped fiscal_year
-        // (the TESTAJ3 pattern), billed by invoices dated in different FYs.
+        // Two CDW-ingested orders with no PO link and no stamped fiscal_year,
+        // billed by invoices dated in different FYs.
         // Each must surface via its own invoice_date, not vanish for want of
         // a PO, and must be scoped to the right year.
         foreach ([

@@ -87,7 +87,7 @@ class OrderItemsTest extends TestCase
 
     public function test_a_warranty_line_does_not_render_as_another_device()
     {
-        // TESTPV1: four Mac minis, eight lines, and it read as eight machines
+        // Four Mac minis, eight lines, and it read as eight machines
         // because the AppleCare lines point at the device they cover and so
         // are typed as assets.
         $order = Order::factory()->create();

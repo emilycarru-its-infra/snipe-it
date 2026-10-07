@@ -11,13 +11,14 @@ return [
     | asset's lessor (the Supplier record in the lessor role) asking for a
     | buyout quote. These addresses are CC'd / used as Reply-To so replies land
     | with the device team rather than the noreply from-address. The CC list is
-    | comma-separated; Reply-To must be a single address.
+    | comma-separated; Reply-To must be a single address. Both are set per
+    | environment and are empty by default.
     |
     */
 
-    'buyout_request_cc' => env('BUYOUT_REQUEST_CC', 'devicesadmins@example.edu,finance.lead@example.edu'),
+    'buyout_request_cc' => env('BUYOUT_REQUEST_CC', ''),
 
-    'buyout_request_reply_to' => env('BUYOUT_REQUEST_REPLY_TO', 'devicesadmins@example.edu'),
+    'buyout_request_reply_to' => env('BUYOUT_REQUEST_REPLY_TO', ''),
 
     /*
     |--------------------------------------------------------------------------
@@ -33,7 +34,7 @@ return [
 
     'buyout_payroll_to' => env('BUYOUT_PAYROLL_TO', ''),
 
-    'buyout_payroll_cc' => env('BUYOUT_PAYROLL_CC', env('BUYOUT_REQUEST_REPLY_TO', 'devicesadmins@example.edu')),
+    'buyout_payroll_cc' => env('BUYOUT_PAYROLL_CC', env('BUYOUT_REQUEST_REPLY_TO', '')),
 
     /*
     |--------------------------------------------------------------------------

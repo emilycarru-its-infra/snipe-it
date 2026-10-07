@@ -45,12 +45,12 @@ class EmailSampleData
 {
     public function recipient(): User
     {
-        return $this->user('Jane', 'Doe', 'jdoe@example.edu');
+        return $this->user('Jane', 'Doe', 'jdoe@example.org');
     }
 
     public function admin(): User
     {
-        return $this->user('Alex', 'Admin', 'assetsadmins@example.edu');
+        return $this->user('Alex', 'Admin', 'assets@example.org');
     }
 
     public function user(string $first, string $last, string $email): User
@@ -328,7 +328,7 @@ class EmailSampleData
     public function firstAdminData(): array
     {
         return [
-            'email' => 'newadmin@example.edu',
+            'email' => 'newadmin@example.org',
             'first_name' => 'New',
             'last_name' => 'Admin',
             'username' => 'nadmin',
@@ -350,7 +350,7 @@ class EmailSampleData
             'accepted_date' => 'Jun 02, 2026',
             'declined_date' => 'Jun 02, 2026',
             'assigned_to' => 'Jane Doe',
-            'company_name' => 'Emily Carr University',
+            'company_name' => 'Example University',
             'qty' => 1,
             'note' => 'Signed at pickup.',
             'custom_fields' => [],

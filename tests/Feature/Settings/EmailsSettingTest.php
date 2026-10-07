@@ -268,13 +268,14 @@ class EmailsSettingTest extends TestCase
         );
     }
 
-    public function test_cc_override_is_seeded_from_the_config_default(): void
+    public function test_cc_override_is_not_seeded_without_a_configured_list(): void
     {
         // The 2026_07_18 data migration promotes the env/config CC list into
-        // the override row, so the Settings → Emails GUI owns the live list.
+        // the override row. With no list configured it seeds nothing, so the
+        // caller's fallback stands until Settings → Emails sets one.
         $this->assertSame(
-            collect(explode(',', config('leasing.buyout_request_cc')))->map(fn ($e) => trim($e))->filter()->values()->all(),
-            EmailTemplate::ccFor('request.asset_buyout', 'fallback@example.edu'),
+            ['fallback@example.org'],
+            EmailTemplate::ccFor('request.asset_buyout', 'fallback@example.org'),
         );
     }
 
@@ -283,8 +284,8 @@ class EmailsSettingTest extends TestCase
         EmailTemplate::where('key', 'request.asset_buyout')->delete();
 
         $this->assertSame(
-            ['devicesadmins@example.edu', 'finance.lead@example.edu'],
-            EmailTemplate::ccFor('request.asset_buyout', 'devicesadmins@example.edu,finance.lead@example.edu'),
+            ['team@example.org', 'lead@example.org'],
+            EmailTemplate::ccFor('request.asset_buyout', 'team@example.org,lead@example.org'),
         );
     }
 

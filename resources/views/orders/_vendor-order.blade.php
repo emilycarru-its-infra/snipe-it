@@ -341,7 +341,7 @@
                     <input type="hidden" name="step" value="order_number">
                     <div class="form-group">
                         <label for="vendor-order-number">{{ trans('admin/purchase-orders/general.vendor_order_number') }}</label>
-                        <input type="text" name="vendor_order_number" id="vendor-order-number" class="form-control" placeholder="TESTPM4">
+                        <input type="text" name="vendor_order_number" id="vendor-order-number" class="form-control" placeholder="{{ trans('general.order_number') }}">
                         <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_order_number_help') }}</p>
                     </div>
                     <button type="submit" class="btn btn-success btn-block">

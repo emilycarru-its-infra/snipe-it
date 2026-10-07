@@ -23,7 +23,7 @@ class LedgerPdfAccessTest extends TestCase
         $model = AssetModel::factory()->create(['name' => 'MacBook Pro (14-inch, M5)']);
         $status = Statuslabel::factory()->rtd()->create();
         $asset = Asset::factory()->create(['model_id' => $model->id, 'status_id' => $status->id]);
-        $user = User::factory()->create(['first_name' => 'Peter', 'last_name' => 'Member']);
+        $user = User::factory()->create(['first_name' => 'Pat', 'last_name' => 'Member']);
 
         return UserAgreement::create(array_merge([
             'user_id' => $user->id,

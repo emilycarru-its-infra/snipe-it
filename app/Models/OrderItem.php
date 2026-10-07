@@ -61,8 +61,8 @@ class OrderItem extends Model
             // AppleCare or onsite-support line carrying warranty cost and no
             // equipment cost. There is nothing in the box to receive, so the
             // line can never be ticked off and the order never completes.
-            // Order TESTPV1 read "4 of 8 received" with all four Mac minis
-            // sitting on a desk since June, and TESTPM2 sat at
+            // One order read "4 of 8 received" with all four Mac minis
+            // sitting on a desk for months, and another sat at
             // partially_received on 40 AppleCare lines against a single
             // genuine outstanding item.
             if ($item->isSoftCostOnly()) {
@@ -169,7 +169,7 @@ class OrderItem extends Model
      * What this line is, for display. A warranty line points at the device it
      * covers, so its item_type is Asset even though nothing shipped for it —
      * labelling it "Asset" makes an order of four Mac minis read as eight
-     * machines, which is how TESTPV1 came to look duplicated.
+     * machines and look duplicated.
      */
     public function itemTypeLabel(): string
     {

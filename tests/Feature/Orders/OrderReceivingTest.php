@@ -273,7 +273,7 @@ class OrderReceivingTest extends TestCase
         // CDW bills the hardware, then the AppleCare for the same serials on
         // its own invoice a day later. Nothing arrives in a box for the
         // warranty line, so it must not sit as an outstanding receipt —
-        // TESTPV1 read "4 of 8 received" with every Mac mini already in use.
+        // an order read "4 of 8 received" with every Mac mini already in use.
         // Pin the status: OrderFactory picks one at random from Order::STATUSES,
         // and recalculateStatus() returns early on 'cancelled', so a factory
         // default made this assertion fail one run in five.

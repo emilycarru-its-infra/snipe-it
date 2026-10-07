@@ -42,7 +42,7 @@ class AssetBuyoutPayrollMail extends BaseMailable
     {
         return new Envelope(
             from: new Address(config('mail.from.address'), config('mail.from.name')),
-            replyTo: [new Address(config('leasing.buyout_request_reply_to'))],
+            replyTo: filled(config('leasing.buyout_request_reply_to')) ? [new Address(config('leasing.buyout_request_reply_to'))] : [],
             subject: $this->overriddenSubject('request.asset_buyout_payroll', trans('mail.asset_buyout_payroll_subject', [
                 'buyer' => $this->buyerName(),
                 'asset_tag' => $this->buyout->asset->asset_tag ?? '',

@@ -119,8 +119,8 @@ class AnnexureParser
             return false;
         }
 
-        // Block-list prefixes catch families we know are noise (CDW
-        // order numbers like TESTPM4, Snipe asset tags like P0025001).
+        // Block-list prefixes catch families we know are noise (vendor
+        // order numbers and purchase-order numbers).
         foreach (self::BLOCKLIST as $prefix) {
             if (str_starts_with($token, $prefix)) {
                 return false;

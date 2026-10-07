@@ -78,8 +78,8 @@ class AnnexureDiffTest extends TestCase
                 public function serialsFromPdf(string $relativePath): array
                 {
                     // TESTSN000001 is on the asset list (matched);
-                    // NEWXYZ1234 isn't in Snipe yet (missing-in-snipe).
-                    return ['TESTSN000001', 'NEWXYZ1234'];
+                    // TESTSN0005 isn't in Snipe yet (missing-in-snipe).
+                    return ['TESTSN000001', 'TESTSN0005'];
                 }
             };
         });
@@ -90,7 +90,7 @@ class AnnexureDiffTest extends TestCase
         $response->assertOk()
             ->assertSee('TESTSN000001')     // matched bucket
             ->assertSee('L0900010')          // matched bucket — asset tag
-            ->assertSee('NEWXYZ1234')       // missing-in-snipe bucket
+            ->assertSee('TESTSN0005')       // missing-in-snipe bucket
             ->assertSee('EXTRA987XYZ')      // missing-in-annexure bucket
             ->assertSee('L0900011');         // missing-in-annexure bucket — asset tag
     }

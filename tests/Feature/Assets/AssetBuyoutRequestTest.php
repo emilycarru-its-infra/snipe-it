@@ -73,6 +73,7 @@ class AssetBuyoutRequestTest extends TestCase
     public function test_sends_buyout_request_to_lessor_and_ccs_team_end_user_and_admin(): void
     {
         Mail::fake();
+        config(['leasing.buyout_request_cc' => 'team@example.org,lead@example.org']);
 
         $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
         $endUser = User::factory()->create(['email' => 'enduser@ecuad.example']);
@@ -93,7 +94,7 @@ class AssetBuyoutRequestTest extends TestCase
             }
 
             return $mail->hasTo($lessor->email)
-                && $mail->hasCc('finance.lead@example.edu')
+                && $mail->hasCc('lead@example.org')
                 && $mail->hasCc($endUser->email)
                 && $mail->hasCc($admin->email);
         });
