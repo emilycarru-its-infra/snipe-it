@@ -812,7 +812,10 @@ class DeploymentsBoardTest extends TestCase
             ->getJson(route('api.deployments.blackouts.index', ['current' => 1]))
             ->assertOk()
             ->assertJsonPath('payload.total', 1)
-            ->assertJsonPath('payload.rows.0.id', $blackout->id);
+            ->assertJsonPath('payload.rows.0.id', $blackout->id)
+            ->assertJsonPath('payload.rows.0.user.id', $staff->id)
+            ->assertJsonMissingPath('payload.rows.0.user.employee_num')
+            ->assertJsonMissingPath('payload.rows.0.user.phone');
 
         $this->actingAsForApi($this->superuser())
             ->deleteJson(route('api.deployments.blackouts.destroy', $blackout))
