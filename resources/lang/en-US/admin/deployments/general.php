@@ -315,6 +315,7 @@ return [
     'announce_template' => 'Start from',
     'announce_template_faculty' => 'Faculty Laptop Program - annual invitation',
     'announce_template_refresh' => 'Refresh notice - advance warning of a swap',
+    'announce_template_reminder' => 'Faculty Laptop Program - reminder to respond',
     'announce_template_blank' => 'Blank',
     'announce_subject' => 'Subject',
     'announce_body' => 'Message',
@@ -358,6 +359,19 @@ Two groups of regular faculty are eligible: those whose current faculty laptop i
 ### Ordering
 
 Ordering happens in our own store now — no external site and no separate sign-in. Complete the form first; the store link follows it, and your order goes through our approvals from there.
+
+If anything does not work as described, reply to this email and we will sort it out.',
+
+    'announce_reminder_subject' => 'Reminder — Faculty Laptop Program {{ year }}',
+    'announce_reminder_body' => 'Hello {{ first_name }},
+
+A quick reminder about this year\'s Faculty Laptop Program — we have not received your response yet.
+
+Our records show you hold {{ device }}, on a lease ending {{ lease_end }}.
+
+**Action required: please respond through [this form]({{ form_url }}) so your new laptop can be ordered.**
+
+The form asks whether you are returning your current laptop or would like to buy it at its residual value, and which configuration suits you. It only takes a few minutes.
 
 If anything does not work as described, reply to this email and we will sort it out.',
 
