@@ -642,6 +642,7 @@
                 @endif
             </div>
             <div data-pp-actions>
+                @can('procurement.edit')
                 <form method="post" action="{{ route('reports.procurement.invoice-approval.update', $card['id']) }}" style="display:inline;">
                     @csrf
                     @method('PATCH')
@@ -652,6 +653,7 @@
                         {{ trans('admin/purchase-orders/general.invoice_action_dispute') }}
                     </button>
                 </form>
+                @endcan
                 <a href="{{ route('reports.procurement.invoice-approval') }}" class="btn btn-default btn-sm">
                     {{ trans('admin/purchase-orders/general.pipeline_open_invoice_queue') }}
                 </a>

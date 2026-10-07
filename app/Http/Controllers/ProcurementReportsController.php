@@ -1007,7 +1007,7 @@ class ProcurementReportsController extends Controller
      */
     public function updateInvoiceApproval(Request $request, OrderInvoice $invoice): RedirectResponse
     {
-        $this->authorize('procurement.view');
+        $this->authorize('procurement.edit');
 
         $validated = $request->validate([
             'approval_status' => 'required|string|in:pending,approved,disputed',
