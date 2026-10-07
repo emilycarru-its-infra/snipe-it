@@ -9,6 +9,8 @@ use App\Models\DeploymentStage;
 use App\Models\DeploymentWave;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\PurchaseOrder;
+use App\Models\StoreOrder;
 use App\Models\User;
 use App\Services\Deployments\StageAutomation;
 use Tests\TestCase;
@@ -225,6 +227,90 @@ class StageAutomationTest extends TestCase
 
         $linked = $items->filter(fn ($item) => $item->fresh()->order_item_id !== null);
         $this->assertCount(1, $linked);
+    }
+
+    /**
+     * A faculty refresh ordered through the store: the store order names the
+     * laptop it replaces and provisions a placeholder, and the vendor order
+     * under the same purchase order buys the model in bulk. Neither names
+     * the other, and the wave row still reaches its device, line and owner.
+     */
+    public function test_store_order_replacing_a_device_claims_its_wave_item()
+    {
+        $stages = $this->stages();
+        $model = AssetModel::factory()->create();
+        $requester = User::factory()->create();
+        $old = Asset::factory()->create();
+        $purchaseOrder = PurchaseOrder::factory()->create();
+
+        $storeOrder = StoreOrder::create([
+            'user_id' => $requester->id,
+            'status' => 'ordered',
+            'program' => 'faculty',
+            'refresh_asset_id' => $old->id,
+            'purchase_order_id' => $purchaseOrder->id,
+        ]);
+        $placeholder = Asset::factory()->create([
+            'model_id' => $model->id,
+            'order_number' => $storeOrder->reference(),
+        ]);
+
+        $order = Order::factory()->create([
+            'status' => 'ordered',
+            'is_planned' => false,
+            'fiscal_year' => 'FY2026-27',
+            'order_number' => 'P9000003',
+            'purchase_order_id' => $purchaseOrder->id,
+        ]);
+        $line = OrderItem::factory()->create([
+            'order_id' => $order->id,
+            'item_type' => AssetModel::class,
+            'item_id' => $model->id,
+            'quantity' => 13,
+        ]);
+
+        $wave = DeploymentWave::create(['name' => 'Store Refresh Wave', 'fiscal_year' => 'FY2026-27']);
+        $item = DeploymentItem::create([
+            'wave_id' => $wave->id,
+            'replaces_asset_id' => $old->id,
+            'stage_id' => $stages['planned']->id,
+        ]);
+
+        (new StageAutomation)->sync('FY2026-27');
+
+        $item->refresh();
+        $this->assertEquals($placeholder->id, $item->asset_id);
+        $this->assertEquals($line->id, $item->order_item_id);
+        $this->assertEquals($requester->id, $item->assigned_user_id);
+        $this->assertEquals('ordered', $item->stage->slug);
+    }
+
+    /** A withdrawn store order bought nothing, so it claims nothing. */
+    public function test_cancelled_store_order_leaves_the_wave_item_alone()
+    {
+        $stages = $this->stages();
+        $old = Asset::factory()->create();
+        $storeOrder = StoreOrder::create([
+            'user_id' => User::factory()->create()->id,
+            'status' => 'cancelled',
+            'program' => 'faculty',
+            'refresh_asset_id' => $old->id,
+        ]);
+        Asset::factory()->create(['order_number' => $storeOrder->reference()]);
+
+        $wave = DeploymentWave::create(['name' => 'Withdrawn Wave', 'fiscal_year' => 'FY2026-27']);
+        $item = DeploymentItem::create([
+            'wave_id' => $wave->id,
+            'replaces_asset_id' => $old->id,
+            'stage_id' => $stages['planned']->id,
+        ]);
+
+        (new StageAutomation)->sync('FY2026-27');
+
+        $item->refresh();
+        $this->assertNull($item->asset_id);
+        $this->assertNull($item->assigned_user_id);
+        $this->assertEquals('planned', $item->stage->slug);
     }
 
     public function test_board_render_runs_the_automation()

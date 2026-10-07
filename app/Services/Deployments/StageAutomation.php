@@ -7,6 +7,8 @@ use App\Models\AssetModel;
 use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentWave;
+use App\Models\Order;
+use App\Models\StoreOrder;
 
 /**
  * Stages follow the facts; buttons are the fallback.
@@ -18,13 +20,16 @@ use App\Models\DeploymentWave;
  * facts and moves the stages, forward only — a manual move ahead of the
  * automation is respected, never undone.
  *
- * Linking is the prerequisite, and it uses the two joins that are
+ * Linking is the prerequisite, and it uses the joins that are
  * unambiguous rather than heuristics that misfire:
  *  - an order line that names the asset it replaces claims the wave item
  *    replacing that same asset;
  *  - a wave with a purchase order claims that PO's unassigned lines by
  *    matching the line's received asset model to the item's planned model;
- *  - a device that names its order claims that order's line for its model.
+ *  - a device that names its order claims that order's line for its model;
+ *  - a store order raised to replace a device claims the wave item replacing
+ *    it, with the placeholder that order provisioned and the vendor line
+ *    under the same purchase order that bought it.
  *
  * The third join is the requisition path's, and it is why it exists: an
  * order raised from a requisition buys models, not machines — one line
@@ -143,7 +148,135 @@ class StageAutomation
         // line without the wave being bridged to anything.
         $linked += $this->linkByOrderNumber($unlinked->filter(fn ($i) => ! $i->order_item_id));
 
+        // Join four: the store order raised to replace the device. A faculty
+        // refresh is ordered through the store, which records the laptop it
+        // replaces and provisions a placeholder carrying the store reference,
+        // while the vendor order it rides on buys models in bulk under the
+        // purchase order. Neither side names the other, so the wave built
+        // for those very people sat at Planned against a placed order.
+        $linked += $this->linkByStoreOrder($unlinked->filter(fn ($i) => ! $i->order_item_id));
+
         return $linked;
+    }
+
+    /**
+     * Claim the device and line for items whose replaced asset has a store
+     * order. The device is the placeholder that order provisioned; the line
+     * is the vendor order under the same purchase order that bought it — the
+     * line naming the device, or a model line with capacity left. The
+     * requester becomes the item's recipient when nobody is named yet.
+     *
+     * @param  \Illuminate\Support\Collection<int, DeploymentItem>  $items
+     */
+    private function linkByStoreOrder($items): int
+    {
+        $items = $items->filter(fn ($i) => $i->replaces_asset_id);
+        if ($items->isEmpty()) {
+            return 0;
+        }
+
+        // The newest live order per device: a resubmit cancels the old one,
+        // and a declined order bought nothing.
+        $storeOrders = StoreOrder::query()
+            ->whereIn('refresh_asset_id', $items->pluck('replaces_asset_id')->unique()->values()->all())
+            ->whereNotIn('status', ['cancelled', 'declined'])
+            ->orderByDesc('id')
+            ->get()
+            ->unique('refresh_asset_id')
+            ->keyBy('refresh_asset_id');
+
+        if ($storeOrders->isEmpty()) {
+            return 0;
+        }
+
+        $lines = Order::query()
+            ->whereIn('purchase_order_id', $storeOrders->pluck('purchase_order_id')->filter()->unique()->values()->all() ?: [0])
+            ->whereNotIn('status', ['cancelled', 'declined'])
+            ->with('items')
+            ->get()
+            ->groupBy('purchase_order_id')
+            ->map(fn ($orders) => $orders->flatMap(fn ($order) => $order->items));
+
+        $taken = $this->takenCounts($lines->flatten(1)->pluck('id')->all());
+        $linked = 0;
+
+        foreach ($items as $item) {
+            $storeOrder = $storeOrders->get($item->replaces_asset_id);
+            if (! $storeOrder) {
+                continue;
+            }
+
+            if (! $item->assigned_user_id) {
+                $item->assigned_user_id = $storeOrder->user_id;
+            }
+
+            // A device the wave already tracks on another row stays there;
+            // adopting it here would make the twin the unique key forbids.
+            if (! $item->asset_id) {
+                $asset = Asset::where('order_number', $storeOrder->reference())
+                    ->orderBy('id')
+                    ->get()
+                    ->first(fn (Asset $candidate) => ! $item->conflictsOnWave($candidate->id));
+                if ($asset) {
+                    $item->asset_id = $asset->id;
+                    $item->setRelation('asset', $asset);
+                }
+            }
+
+            $modelId = (int) ($item->asset?->model_id ?: $item->model_id);
+            $line = $item->asset_id && $modelId
+                ? $this->lineWithCapacity($lines->get($storeOrder->purchase_order_id, collect()), $item, $modelId, $taken)
+                : null;
+
+            if ($line) {
+                $item->order_item_id = $line->id;
+                $item->setRelation('orderItem', $line->load('order'));
+                $taken[$line->id] = ($taken[$line->id] ?? 0) + 1;
+            }
+
+            if ($item->isDirty()) {
+                $item->save();
+                $linked++;
+            }
+        }
+
+        return $linked;
+    }
+
+    /**
+     * How many wave items already hold each line, across the whole board.
+     *
+     * @param  array<int, int>  $lineIds
+     * @return array<int, int>
+     */
+    private function takenCounts(array $lineIds): array
+    {
+        return $lineIds
+            ? DeploymentItem::query()
+                ->whereIn('order_item_id', $lineIds)
+                ->groupBy('order_item_id')
+                ->selectRaw('order_item_id, count(*) as taken')
+                ->pluck('taken', 'order_item_id')
+                ->all()
+            : [];
+    }
+
+    /**
+     * The line that bought this device: one naming it, or a line for its
+     * model that has not yet been claimed as many times as it bought.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\OrderItem>  $lines
+     * @param  array<int, int>  $taken
+     */
+    private function lineWithCapacity($lines, DeploymentItem $item, int $modelId, array $taken): ?\App\Models\OrderItem
+    {
+        return $lines->first(function ($candidate) use ($item, $modelId, $taken) {
+            $matches = ($candidate->item_type === AssetModel::class && (int) $candidate->item_id === $modelId)
+                || ($candidate->item_type === Asset::class && (int) $candidate->item_id === (int) $item->asset_id);
+
+            return $matches
+                && ($taken[$candidate->id] ?? 0) < max(1, (int) $candidate->quantity);
+        });
     }
 
     /**
@@ -171,15 +304,7 @@ class StageAutomation
             return 0;
         }
 
-        $lineIds = $orders->flatMap(fn ($order) => $order->items->pluck('id'))->all();
-        $taken = $lineIds
-            ? DeploymentItem::query()
-                ->whereIn('order_item_id', $lineIds)
-                ->groupBy('order_item_id')
-                ->selectRaw('order_item_id, count(*) as taken')
-                ->pluck('taken', 'order_item_id')
-                ->all()
-            : [];
+        $taken = $this->takenCounts($orders->flatMap(fn ($order) => $order->items->pluck('id'))->all());
 
         $linked = 0;
 
@@ -190,13 +315,7 @@ class StageAutomation
                 continue;
             }
 
-            $line = $order->items->first(function ($candidate) use ($item, $modelId, $taken) {
-                $matches = ($candidate->item_type === AssetModel::class && (int) $candidate->item_id === $modelId)
-                    || ($candidate->item_type === Asset::class && (int) $candidate->item_id === (int) $item->asset_id);
-
-                return $matches
-                    && ($taken[$candidate->id] ?? 0) < max(1, (int) $candidate->quantity);
-            });
+            $line = $this->lineWithCapacity($order->items, $item, $modelId, $taken);
 
             if (! $line) {
                 continue;
