@@ -167,9 +167,9 @@ class OidcApiAuthTest extends TestCase
         // username_claim is preferred_username. A token that lacks it must NOT
         // authenticate by silently falling back to another claim (e.g. email),
         // even when that other claim matches a real username.
-        User::factory()->create(['username' => 'victim@ecuad.ca', 'activated' => 1]);
+        User::factory()->create(['username' => 'victim@example.edu', 'activated' => 1]);
 
-        $token = $this->token(['preferred_username' => null, 'email' => 'victim@ecuad.ca']);
+        $token = $this->token(['preferred_username' => null, 'email' => 'victim@example.edu']);
 
         $this->withHeaders($this->bearer($token))
             ->getJson('/_test/oidc-whoami')

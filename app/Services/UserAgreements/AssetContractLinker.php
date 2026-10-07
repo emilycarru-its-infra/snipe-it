@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Schema;
  * Contract entity via the `contract_asset` bridge.
  *
  * The Reconciler reads lease state from the bridge, so once this
- * runs the "L002916 has no contract" problem disappears and the
+ * runs the "leased asset has no contract" problem disappears and the
  * Reconciler does the right thing without learning about custom
  * fields. Idempotent — re-runs are safe.
  *

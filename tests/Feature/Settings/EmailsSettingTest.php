@@ -176,18 +176,18 @@ class EmailsSettingTest extends TestCase
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('settings.emails.save'), [
                 'key' => 'report.expiring_assets',
-                'recipients' => 'a@ecuad.ca, b@ecuad.ca',
+                'recipients' => 'a@example.edu, b@example.edu',
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('email_templates', [
             'key' => 'report.expiring_assets',
-            'recipients' => 'a@ecuad.ca,b@ecuad.ca',
+            'recipients' => 'a@example.edu,b@example.edu',
         ]);
 
         $this->assertSame(
-            ['a@ecuad.ca', 'b@ecuad.ca'],
-            EmailTemplate::recipientsFor('report.expiring_assets', 'fallback@ecuad.ca'),
+            ['a@example.edu', 'b@example.edu'],
+            EmailTemplate::recipientsFor('report.expiring_assets', 'fallback@example.edu'),
         );
     }
 
@@ -200,22 +200,22 @@ class EmailsSettingTest extends TestCase
             ->post(route('settings.emails.save'), [
                 'key' => 'request.asset_buyout',
                 'recipients' => 'rep@othersupplier.example',
-                'cc' => 'devicesadmins@ecuad.ca',
+                'cc' => 'devicesadmins@example.edu',
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('email_templates', [
             'key' => 'request.asset_buyout',
             'recipients' => null,
-            'cc' => 'devicesadmins@ecuad.ca',
+            'cc' => 'devicesadmins@example.edu',
         ]);
     }
 
     public function test_recipients_resolver_falls_back_to_global_list_when_unset(): void
     {
         $this->assertSame(
-            ['ops@ecuad.ca', 'team@ecuad.ca'],
-            EmailTemplate::recipientsFor('report.upcoming_audits', 'ops@ecuad.ca, team@ecuad.ca'),
+            ['ops@example.edu', 'team@example.edu'],
+            EmailTemplate::recipientsFor('report.upcoming_audits', 'ops@example.edu, team@example.edu'),
         );
     }
 
@@ -225,7 +225,7 @@ class EmailsSettingTest extends TestCase
             ->from(route('settings.emails.index'))
             ->post(route('settings.emails.save'), [
                 'key' => 'report.expiring_assets',
-                'recipients' => 'a@ecuad.ca, not-an-email',
+                'recipients' => 'a@example.edu, not-an-email',
             ])
             ->assertSessionHasErrors('recipients');
 
@@ -238,13 +238,13 @@ class EmailsSettingTest extends TestCase
             ->post(route('settings.emails.save'), [
                 'key' => 'report.expiring_assets',
                 // The multi-select posts an array; duplicates collapse.
-                'recipients' => ['a@ecuad.ca', 'b@ecuad.ca', 'a@ecuad.ca'],
+                'recipients' => ['a@example.edu', 'b@example.edu', 'a@example.edu'],
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(
-            ['a@ecuad.ca', 'b@ecuad.ca'],
-            EmailTemplate::recipientsFor('report.expiring_assets', 'fallback@ecuad.ca'),
+            ['a@example.edu', 'b@example.edu'],
+            EmailTemplate::recipientsFor('report.expiring_assets', 'fallback@example.edu'),
         );
     }
 
@@ -253,18 +253,18 @@ class EmailsSettingTest extends TestCase
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('settings.emails.save'), [
                 'key' => 'request.asset_buyout',
-                'cc' => 'hr@ecuad.ca, finance@ecuad.ca',
+                'cc' => 'hr@example.edu, finance@example.edu',
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('email_templates', [
             'key' => 'request.asset_buyout',
-            'cc' => 'hr@ecuad.ca,finance@ecuad.ca',
+            'cc' => 'hr@example.edu,finance@example.edu',
         ]);
 
         $this->assertSame(
-            ['hr@ecuad.ca', 'finance@ecuad.ca'],
-            EmailTemplate::ccFor('request.asset_buyout', 'fallback@ecuad.ca'),
+            ['hr@example.edu', 'finance@example.edu'],
+            EmailTemplate::ccFor('request.asset_buyout', 'fallback@example.edu'),
         );
     }
 
@@ -297,7 +297,7 @@ class EmailsSettingTest extends TestCase
             ->from(route('settings.emails.index'))
             ->post(route('settings.emails.save'), [
                 'key' => 'request.asset_buyout',
-                'cc' => 'hr@ecuad.ca, not-an-email',
+                'cc' => 'hr@example.edu, not-an-email',
             ])
             ->assertSessionHasErrors('cc');
 
@@ -306,7 +306,7 @@ class EmailsSettingTest extends TestCase
 
     public function test_blank_cc_clears_the_override(): void
     {
-        EmailTemplate::updateOrCreate(['key' => 'request.asset_buyout'], ['cc' => 'hr@ecuad.ca']);
+        EmailTemplate::updateOrCreate(['key' => 'request.asset_buyout'], ['cc' => 'hr@example.edu']);
 
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('settings.emails.save'), [
@@ -316,20 +316,20 @@ class EmailsSettingTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(
-            ['fallback@ecuad.ca'],
-            EmailTemplate::ccFor('request.asset_buyout', 'fallback@ecuad.ca'),
+            ['fallback@example.edu'],
+            EmailTemplate::ccFor('request.asset_buyout', 'fallback@example.edu'),
         );
     }
 
     public function test_recipient_options_endpoint_searches_users(): void
     {
         $admin = User::factory()->superuser()->create();
-        User::factory()->create(['first_name' => 'Zelda', 'last_name' => 'Fitzpatrick', 'email' => 'zelda@ecuad.ca']);
+        User::factory()->create(['first_name' => 'Zelda', 'last_name' => 'Fitzpatrick', 'email' => 'zelda@example.edu']);
 
         $this->actingAs($admin)
             ->getJson(route('settings.emails.recipient-options', ['search' => 'Zelda']))
             ->assertOk()
-            ->assertJsonFragment(['id' => 'zelda@ecuad.ca'])
+            ->assertJsonFragment(['id' => 'zelda@example.edu'])
             ->assertJsonPath('pagination.more', false);
     }
 
@@ -342,8 +342,8 @@ class EmailsSettingTest extends TestCase
 
     public function test_saved_recipients_are_exposed_as_labelled_picker_options(): void
     {
-        $user = User::factory()->create(['first_name' => 'Pat', 'last_name' => 'Quon', 'email' => 'pat@ecuad.ca']);
-        EmailTemplate::create(['key' => 'report.expiring_assets', 'recipients' => 'pat@ecuad.ca,list@ecuad.ca']);
+        $user = User::factory()->create(['first_name' => 'Pat', 'last_name' => 'Quon', 'email' => 'pat@example.edu']);
+        EmailTemplate::create(['key' => 'report.expiring_assets', 'recipients' => 'pat@example.edu,list@example.edu']);
 
         $content = $this->actingAs(User::factory()->superuser()->create())
             ->get(route('settings.emails.index'))
@@ -352,8 +352,8 @@ class EmailsSettingTest extends TestCase
 
         // The user address is labelled with their name; a non-user address shows
         // as itself. Both are emitted as picker options (data-recipients-json).
-        $this->assertStringContainsString('pat@ecuad.ca', $content);
-        $this->assertStringContainsString('list@ecuad.ca', $content);
+        $this->assertStringContainsString('pat@example.edu', $content);
+        $this->assertStringContainsString('list@example.edu', $content);
         $this->assertStringContainsString($user->display_name, $content);
     }
 
@@ -384,7 +384,7 @@ class EmailsSettingTest extends TestCase
 
     public function test_blank_recipients_clears_the_override(): void
     {
-        EmailTemplate::create(['key' => 'report.expiring_assets', 'recipients' => 'x@ecuad.ca']);
+        EmailTemplate::create(['key' => 'report.expiring_assets', 'recipients' => 'x@example.edu']);
 
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('settings.emails.save'), ['key' => 'report.expiring_assets', 'recipients' => '']);
@@ -408,7 +408,7 @@ class EmailsSettingTest extends TestCase
     public function test_test_send_emails_the_current_admin(): void
     {
         Mail::fake();
-        $admin = User::factory()->superuser()->create(['email' => 'me@ecuad.ca']);
+        $admin = User::factory()->superuser()->create(['email' => 'me@example.edu']);
 
         $this->actingAs($admin)
             ->post(route('settings.emails.test'), ['key' => 'checkout.asset'])
@@ -502,7 +502,7 @@ class EmailsSettingTest extends TestCase
     public function test_test_send_dispatches_a_notification(): void
     {
         Notification::fake();
-        $admin = User::factory()->superuser()->create(['email' => 'me@ecuad.ca']);
+        $admin = User::factory()->superuser()->create(['email' => 'me@example.edu']);
 
         $this->actingAs($admin)
             ->post(route('settings.emails.test'), ['key' => 'report.low_inventory'])
@@ -514,7 +514,7 @@ class EmailsSettingTest extends TestCase
 
     public function test_test_send_relay_failure_flashes_error_not_500(): void
     {
-        $admin = User::factory()->superuser()->create(['email' => 'me@ecuad.ca']);
+        $admin = User::factory()->superuser()->create(['email' => 'me@example.edu']);
 
         // Simulate the SMTP relay rejecting the message (e.g. an external
         // recipient the relay won't deliver to). The hub must stay usable.

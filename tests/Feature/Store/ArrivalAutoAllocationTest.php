@@ -25,7 +25,7 @@ use Tests\TestCase;
  */
 class ArrivalAutoAllocationTest extends TestCase
 {
-    private const VENDOR_ORDER = 'PZGK281';
+    private const VENDOR_ORDER = 'TESTPZ8';
 
     /**
      * The observer defers its allocation so that deleting the emptied
@@ -129,7 +129,7 @@ class ArrivalAutoAllocationTest extends TestCase
     }
 
     /**
-     * Rod's case: CDW ships more than was ordered through the store. The
+     * The case: CDW ships more than was ordered through the store. The
      * extras must stay unallocated rather than being forced onto somebody.
      */
     public function test_extras_on_a_batch_are_left_unallocated(): void

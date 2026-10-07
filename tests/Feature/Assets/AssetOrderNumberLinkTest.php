@@ -24,8 +24,8 @@ class AssetOrderNumberLinkTest extends TestCase
 
     public function test_the_order_number_links_to_the_order_it_names(): void
     {
-        $order = Order::factory()->create(['order_number' => 'PVXX158']);
-        $asset = $this->assetWithOrderNumber('PVXX158');
+        $order = Order::factory()->create(['order_number' => 'TESTPV1']);
+        $asset = $this->assetWithOrderNumber('TESTPV1');
 
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('hardware.show', $asset->id))
@@ -46,12 +46,12 @@ class AssetOrderNumberLinkTest extends TestCase
 
     public function test_the_lookup_is_memoised_for_one_render(): void
     {
-        Order::factory()->create(['order_number' => 'PVXX158']);
-        $asset = $this->assetWithOrderNumber('PVXX158');
+        Order::factory()->create(['order_number' => 'TESTPV1']);
+        $asset = $this->assetWithOrderNumber('TESTPV1');
 
         $first = $asset->linkedOrder();
 
-        DB::table('orders')->where('order_number', 'PVXX158')->delete();
+        DB::table('orders')->where('order_number', 'TESTPV1')->delete();
 
         $this->assertSame($first?->id, $asset->linkedOrder()?->id, 'the second call must not re-query');
     }

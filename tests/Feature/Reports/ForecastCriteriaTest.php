@@ -80,7 +80,7 @@ class ForecastCriteriaTest extends TestCase
 
     /**
      * Displays, printers and scanners carry lifecycle EOL dates for
-     * operations, but they are outside the device capital plan (AB#4473) —
+     * operations, but they are outside the device capital plan —
      * the forecast never surfaces them, on either the FY path or the
      * criteria path.
      */

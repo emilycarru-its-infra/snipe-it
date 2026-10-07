@@ -370,8 +370,8 @@ class OrdersController extends Controller
                 // The invoice belongs in the key, not just the payload. An
                 // order is commonly billed across several invoices, and CDW
                 // routinely bills equipment and its AppleCare separately
-                // against the same serials — order PVXX158 carries AJ7XC8E
-                // for 4 Mac minis and AJ7324Y for their AppleCare. Keyed on
+                // against the same serials — one invoice for four Mac minis and a
+                // second for their AppleCare, on one order. Keyed on
                 // order + asset alone, ingesting the second invoice moved the
                 // existing lines onto it instead of adding new ones, so the
                 // first invoice lost every line item and began reporting a

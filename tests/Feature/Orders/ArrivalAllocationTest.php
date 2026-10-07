@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 /**
- * Rod's eight-MacBooks case: CDW ships eight, five were ordered through
+ * The eight-MacBooks case: CDW ships eight, five were ordered through
  * the store, three are extras. The webhook claims the five automatically;
  * the extras land as stock. Allocation is the human pairing of an extra
  * with a request that appeared after the shipment — same end state as the

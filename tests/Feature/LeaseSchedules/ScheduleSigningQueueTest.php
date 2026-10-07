@@ -16,13 +16,13 @@ class ScheduleSigningQueueTest extends TestCase
     public function test_queue_defaults_to_open_stages()
     {
         LeaseSchedule::create([
-            'schedule_ref' => '301452-007',
+            'schedule_ref' => '100000-007',
             'lessor' => 'CSI Leasing',
             'lifecycle_stage' => 'awaiting_signature',
             'received_at' => now()->subDays(7)->format('Y-m-d'),
         ]);
         LeaseSchedule::create([
-            'schedule_ref' => '301452-005',
+            'schedule_ref' => '100000-005',
             'lessor' => 'CSI Leasing',
             'lifecycle_stage' => 'signed',
             'received_at' => now()->subDays(60)->format('Y-m-d'),
@@ -33,14 +33,14 @@ class ScheduleSigningQueueTest extends TestCase
             ->assertOk()
             // Open queue shows the awaiting_signature row and hides
             // schedules that have already been signed.
-            ->assertSee('301452-007')
-            ->assertDontSee('301452-005');
+            ->assertSee('100000-007')
+            ->assertDontSee('100000-005');
     }
 
     public function test_queue_with_stage_all_includes_signed()
     {
         LeaseSchedule::create([
-            'schedule_ref' => 'ECI20240801-1',
+            'schedule_ref' => 'ECI20240807-1',
             'lifecycle_stage' => 'signed',
             'received_at' => now()->subDays(30)->format('Y-m-d'),
         ]);
@@ -48,13 +48,13 @@ class ScheduleSigningQueueTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.schedule-signing', ['stage' => 'all']))
             ->assertOk()
-            ->assertSee('ECI20240801-1');
+            ->assertSee('ECI20240807-1');
     }
 
     public function test_vendor_on_hold_renders_danger_row()
     {
         LeaseSchedule::create([
-            'schedule_ref' => '301452-009',
+            'schedule_ref' => '100000-009',
             'lifecycle_stage' => 'awaiting_signature',
             'received_at' => now()->subDays(3)->format('Y-m-d'),
             'vendor_on_hold' => true,
@@ -63,7 +63,7 @@ class ScheduleSigningQueueTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.schedule-signing'))
             ->assertOk()
-            ->assertSee('301452-009')
+            ->assertSee('100000-009')
             // The danger class is what the chase view uses to flag Apple-
             // account-on-hold rows.
             ->assertSee('class="danger"', false);
@@ -72,7 +72,7 @@ class ScheduleSigningQueueTest extends TestCase
     public function test_mark_signed_stamps_signer_and_advances_stage()
     {
         $schedule = LeaseSchedule::create([
-            'schedule_ref' => '301452-010',
+            'schedule_ref' => '100000-010',
             'lifecycle_stage' => 'awaiting_signature',
         ]);
 
@@ -91,7 +91,7 @@ class ScheduleSigningQueueTest extends TestCase
     public function test_dashboard_shows_schedules_awaiting_signature_card()
     {
         LeaseSchedule::create([
-            'schedule_ref' => '301452-011',
+            'schedule_ref' => '100000-011',
             'lifecycle_stage' => 'draft',
         ]);
 
@@ -109,7 +109,7 @@ class ScheduleSigningQueueTest extends TestCase
 
         $this->actingAs($superuser)
             ->post(route('lease-schedules.store'), [
-                'schedule_ref' => '301452-012',
+                'schedule_ref' => '100000-012',
                 'lessor' => 'CSI Leasing',
                 'lease_type' => 'Lease to Return',
                 'term_months' => 48,
@@ -118,7 +118,7 @@ class ScheduleSigningQueueTest extends TestCase
             ])
             ->assertRedirect();
 
-        $schedule = LeaseSchedule::where('schedule_ref', '301452-012')->firstOrFail();
+        $schedule = LeaseSchedule::where('schedule_ref', '100000-012')->firstOrFail();
 
         $this->actingAs($superuser)
             ->patch(route('lease-schedules.update', $schedule), [

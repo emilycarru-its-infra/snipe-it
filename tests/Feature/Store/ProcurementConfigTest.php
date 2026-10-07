@@ -32,7 +32,7 @@ class ProcurementConfigTest extends TestCase
     {
         // The migration seeds the table, so the behaviour on the day it runs
         // is identical to the constant it replaced.
-        $this->assertSame('35007722', SupplierAccounts::number('lease_admin'));
+        $this->assertSame('1000003', SupplierAccounts::number('lease_admin'));
         $this->assertTrue(SupplierAccounts::needsSchedule('lease_admin'));
         $this->assertSame('return', SupplierAccounts::scheduleType('lease_admin'));
     }
@@ -81,13 +81,13 @@ class ProcurementConfigTest extends TestCase
     {
         Carbon::setTestNow('2026-08-24');
 
-        $this->assertSame('301452-009', CsiSchedule::openPair()['return']);
+        $this->assertSame('100000-009', CsiSchedule::openPair()['return']);
 
         // The vendor skips a quarter, or a pair opens early: move the anchor.
         ProcurementSetting::put('lease_anchor_number', '11');
 
-        $this->assertSame('301452-011', CsiSchedule::openPair()['return']);
-        $this->assertSame('301452-012', CsiSchedule::openPair()['own']);
+        $this->assertSame('100000-011', CsiSchedule::openPair()['return']);
+        $this->assertSame('100000-012', CsiSchedule::openPair()['own']);
     }
 
     public function test_the_cadence_endpoint_reports_what_it_resolves_to()
@@ -98,11 +98,11 @@ class ProcurementConfigTest extends TestCase
         $this->getJson(route('api.procurement.cadence'))
             ->assertOk()
             ->assertJsonPath('anchor_number', 9)
-            ->assertJsonPath('open_pair.return', '301452-009');
+            ->assertJsonPath('open_pair.return', '100000-009');
 
         $this->putJson(route('api.procurement.cadence'), ['anchor_number' => 13])
             ->assertOk()
-            ->assertJsonPath('payload.open_pair.return', '301452-013');
+            ->assertJsonPath('payload.open_pair.return', '100000-013');
     }
 
     public function test_accounts_belong_to_a_supplier_not_to_a_hardcoded_name()

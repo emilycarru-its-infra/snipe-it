@@ -21,7 +21,7 @@ class AssetViewProcurementCardTest extends TestCase
 
         $asset = Asset::factory()->create([
             'po_number' => 'P0025420',
-            'lease_contract_id' => 'ECI20221001',
+            'lease_contract_id' => 'ECI20221007',
             'ownership_type' => 'Lease to Return',
         ]);
 
@@ -29,6 +29,6 @@ class AssetViewProcurementCardTest extends TestCase
             ->assertOk()
             ->assertSee(trans('general.po_number'))
             ->assertSee('P0025420')
-            ->assertSee('ECI20221001');
+            ->assertSee('ECI20221007');
     }
 }

@@ -859,7 +859,7 @@ class StoreFunnelTest extends TestCase
         $order->update([
             'status' => 'approved',
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '100000-009',
         ]);
 
         $mail = new StoreVendorOrderMail(StoreOrder::where('id', $order->id)->get());
@@ -870,7 +870,7 @@ class StoreFunnelTest extends TestCase
         $this->assertStringContainsString('Z1N1-2310166117-2', $body);
         $this->assertStringContainsString('9219353', $body);
         $this->assertStringContainsString('3 years', $body);
-        $this->assertStringContainsString('301452-009', $body);
+        $this->assertStringContainsString('100000-009', $body);
 
         // And the part list CDW actually keys from.
         $csv = (new VendorOrderCsv(StoreOrder::where('id', $order->id)->get()))->contents();
@@ -879,9 +879,9 @@ class StoreFunnelTest extends TestCase
         $this->assertStringContainsString('CDW EDC #', $csv);
         $this->assertStringContainsString('Z1N1-2310166117-2', $csv);
         $this->assertStringContainsString('9219353', $csv);
-        $this->assertStringContainsString('301452-009', $csv);
+        $this->assertStringContainsString('100000-009', $csv);
         // CDW's own account number, not our internal label.
-        $this->assertStringContainsString('35007722', $csv);
+        $this->assertStringContainsString('1000003', $csv);
         $this->assertStringContainsString('3 years', $csv);
 
         // Our store reference and the requester's name are not the vendor's
@@ -926,7 +926,7 @@ class StoreFunnelTest extends TestCase
         Mail::assertNotSent(StoreVendorOrderMail::class);
 
         // Named schedule, and it goes.
-        $order->update(['lease_schedule' => '301452-010']);
+        $order->update(['lease_schedule' => '100000-010']);
         $this->actingAs($this->procurement())
             ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
             ->assertRedirect();

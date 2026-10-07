@@ -19,11 +19,11 @@ class StoreQueuePanelsTest extends TestCase
 {
     public function test_the_queue_offers_only_open_lease_schedules_and_gates_the_send()
     {
-        CsiSchedule::create(['schedule_name' => '301452-009', 'lease_number' => '301452',
+        CsiSchedule::create(['schedule_name' => '100000-009', 'lease_number' => '100000',
             'term_end_date' => now()->addYears(4)->toDateString()]);
-        CsiSchedule::create(['schedule_name' => '301452-010', 'lease_number' => '301452',
+        CsiSchedule::create(['schedule_name' => '100000-010', 'lease_number' => '100000',
             'term_end_date' => now()->addYears(5)->toDateString()]);
-        CsiSchedule::create(['schedule_name' => '301452-005', 'lease_number' => '301452',
+        CsiSchedule::create(['schedule_name' => '100000-005', 'lease_number' => '100000',
             'term_end_date' => now()->subYear()->toDateString()]);
 
         $supplier = Supplier::create(['name' => 'CDW Canada Inc', 'order_emails' => 'rep@cdw.ca']);
@@ -42,8 +42,8 @@ class StoreQueuePanelsTest extends TestCase
         // Pending: the account picker is on the decision form, open schedules
         // offered and the closed one withheld.
         $r = $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'pending']))->assertOk();
-        $r->assertSee('301452-009', false)->assertSee('301452-010', false)
-            ->assertDontSee('301452-005', false)
+        $r->assertSee('100000-009', false)->assertSee('100000-010', false)
+            ->assertDontSee('100000-005', false)
             ->assertSee('No account set', false)->assertSee('Lease', false);
 
         // Approved with no account: send is disabled and says why.
@@ -54,12 +54,12 @@ class StoreQueuePanelsTest extends TestCase
 
         // Sent: the quote panel and the not-received badge appear.
         StoreOrder::first()->update(['status' => 'ordered', 'vendor_sent_at' => now(),
-            'funding_account' => 'lease_admin', 'lease_schedule' => '301452-009']);
+            'funding_account' => 'lease_admin', 'lease_schedule' => '100000-009']);
         $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'ordered']))->assertOk()
             ->assertSee('CDW quote', false)
             ->assertSee('Confirm and place', false)
             ->assertSee('Not received', false)
-            ->assertSee('Lease · Admin · 301452-009', false);
+            ->assertSee('Lease · Admin · 100000-009', false);
 
         // Arrived: flips to Received.
         StoreOrder::first()->update(['arrived_at' => now(), 'confirmed_at' => now()]);
@@ -74,7 +74,7 @@ class StoreQueuePanelsTest extends TestCase
         // had always asked SupplierAccounts properly.
         StoreOrder::first()->update(['status' => 'approved', 'vendor_sent_at' => null,
             'arrived_at' => null, 'confirmed_at' => null,
-            'funding_account' => 'lease_admin', 'lease_schedule' => '301452-009']);
+            'funding_account' => 'lease_admin', 'lease_schedule' => '100000-009']);
         $html = $this->actingAs($staff)->get(route('procurement.approvals', ['status' => 'approved']))
             ->assertOk()->getContent();
 

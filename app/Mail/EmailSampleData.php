@@ -479,7 +479,7 @@ class EmailSampleData
             'status' => 'ordered',
             'fiscal_year' => 'FY2026-27',
             'funding_account' => 'purchase_curriculum',
-            'quote_number' => 'PZFD093',
+            'quote_number' => 'TESTPZ3',
             'quote_total' => 110202.15,
         ]);
         $order->setRelation('supplier', $purchaseOrder->supplier);
@@ -561,7 +561,7 @@ class EmailSampleData
             'first_name' => $recipient->first_name,
             'wave' => $wave->name,
             'fiscal_year' => $wave->fiscal_year,
-            'device' => 'MacBook Pro 14" (L003336)',
+            'device' => 'MacBook Pro 14" (L0900001)',
             'device_model' => 'MacBook Pro (14-inch, 2021)',
             'lease_end' => 'December 31, 2026',
             'lease_end_year' => '2026',

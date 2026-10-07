@@ -110,7 +110,7 @@ class RequisitionVendorOrderMail extends BaseMailable
         ];
     }
 
-    /** " — quote PZFD093" when there is one, nothing when there isn't. */
+    /** " — quote TESTPZ3" when there is one, nothing when there isn't. */
     private function quoteSuffix(): string
     {
         return filled($this->order->quote_number)

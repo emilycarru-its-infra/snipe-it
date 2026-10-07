@@ -24,8 +24,8 @@ use Illuminate\Support\Facades\Gate;
  * The old top search posted an asset tag at findbytag and dropped you into
  * the full asset list — one entity, one shape of answer, and a slow page
  * load to find out there was no match. This answers across every entity the
- * viewer is allowed to see, so "christiansen" finds the person and
- * "301452" finds the contract without you choosing a haystack first.
+ * viewer is allowed to see, so "smith" finds the person and
+ * "100000" finds the contract without you choosing a haystack first.
  */
 class TopSearchController extends Controller
 {
@@ -199,7 +199,7 @@ class TopSearchController extends Controller
         return $this->group('view', Contract::class, 'contracts', trans('admin/contracts/general.contracts'), 'contracts.index', function () use ($query) {
             // schedule_number is how a lease is named everywhere outside this
             // app — it is what the lessor puts on the quote and the invoice,
-            // and what gets typed in here ("301452-007").
+            // and what gets typed in here ("100000-007").
             $builder = $this->like(Contract::query(), ['name', 'contract_number', 'schedule_number'], $query);
             $count = (clone $builder)->count();
 

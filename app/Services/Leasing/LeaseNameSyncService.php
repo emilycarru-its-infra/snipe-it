@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
  *
  * The register is the naming source of truth: a contract is named for the
  * fiscal year it *commences* in, zero-padded and restarting at #01 each year
- * (`4130-ECI20221001` -> "Devices Leases FY22-23 #03"). The asset-side value is
+ * (`4130-ECI20221007` -> "Devices Leases FY22-23 #03"). The asset-side value is
  * only a mirror, but nothing derived it — it was written by one-off API sweeps
  * and by import — so it drifted completely: at the time this was written every
  * leased asset disagreed with the register, 1,051 of them carrying the

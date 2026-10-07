@@ -41,12 +41,12 @@ class CommittedFollowsThePoTest extends TestCase
 
     public function test_this_years_po_counts_in_this_year_whenever_it_was_dated()
     {
-        PurchaseOrder::factory()->create(['po_number' => 'P0026041', 'fiscal_year' => 'FY2026-27', 'budget' => 178640.00]);
+        PurchaseOrder::factory()->create(['po_number' => 'P0026000', 'fiscal_year' => 'FY2026-27', 'budget' => 178640.00]);
 
-        $this->assetOn('P0026041', '2026-04-17', 2100.00);
+        $this->assetOn('P0026000', '2026-04-17', 2100.00);
 
-        $this->assertEqualsWithDelta(2100.00, AssetCommitted::byPo('FY2026-27')['P0026041'] ?? 0.0, 0.01);
-        $this->assertArrayNotHasKey('P0026041', AssetCommitted::byPo('FY2025-26'));
+        $this->assertEqualsWithDelta(2100.00, AssetCommitted::byPo('FY2026-27')['P0026000'] ?? 0.0, 0.01);
+        $this->assertArrayNotHasKey('P0026000', AssetCommitted::byPo('FY2025-26'));
     }
 
     public function test_a_po_the_ledger_has_never_heard_of_falls_back_to_its_date()

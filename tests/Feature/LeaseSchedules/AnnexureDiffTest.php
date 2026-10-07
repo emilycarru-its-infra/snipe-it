@@ -20,7 +20,7 @@ class AnnexureDiffTest extends TestCase
     public function test_diff_route_returns_warning_when_no_upload_attached()
     {
         $schedule = LeaseSchedule::create([
-            'schedule_ref' => '301452-099',
+            'schedule_ref' => '100000-099',
             'lifecycle_stage' => 'draft',
         ]);
 
@@ -38,23 +38,23 @@ class AnnexureDiffTest extends TestCase
         $active = Statuslabel::factory()->rtd()->create();
 
         $matchedAsset = Asset::factory()->create([
-            'asset_tag' => 'L009001',
-            'serial' => 'C02C80E0M0XV',
+            'asset_tag' => 'L0900010',
+            'serial' => 'TESTSN000001',
             'status_id' => $active->id,
         ]);
-        Asset::query()->whereKey($matchedAsset->id)->update([$contractColumn => '301452-099']);
+        Asset::query()->whereKey($matchedAsset->id)->update([$contractColumn => '100000-099']);
 
         // Asset tagged to the schedule but not on the lessor's annexure
         // — should land in missing-in-annexure.
         $extraAsset = Asset::factory()->create([
-            'asset_tag' => 'L009002',
+            'asset_tag' => 'L0900011',
             'serial' => 'EXTRA987XYZ',
             'status_id' => $active->id,
         ]);
-        Asset::query()->whereKey($extraAsset->id)->update([$contractColumn => '301452-099']);
+        Asset::query()->whereKey($extraAsset->id)->update([$contractColumn => '100000-099']);
 
         $schedule = LeaseSchedule::create([
-            'schedule_ref' => '301452-099',
+            'schedule_ref' => '100000-099',
             'lifecycle_stage' => 'awaiting_signature',
         ]);
 
@@ -77,9 +77,9 @@ class AnnexureDiffTest extends TestCase
             {
                 public function serialsFromPdf(string $relativePath): array
                 {
-                    // C02C80E0M0XV is on the asset list (matched);
-                    // NEWXYZ1234 isn't in Snipe yet (missing-in-snipe).
-                    return ['C02C80E0M0XV', 'NEWXYZ1234'];
+                    // TESTSN000001 is on the asset list (matched);
+                    // TESTSN0005 isn't in Snipe yet (missing-in-snipe).
+                    return ['TESTSN000001', 'TESTSN0005'];
                 }
             };
         });
@@ -88,10 +88,10 @@ class AnnexureDiffTest extends TestCase
             ->get(route('lease-schedules.annexure-diff', $schedule));
 
         $response->assertOk()
-            ->assertSee('C02C80E0M0XV')     // matched bucket
-            ->assertSee('L009001')          // matched bucket — asset tag
-            ->assertSee('NEWXYZ1234')       // missing-in-snipe bucket
+            ->assertSee('TESTSN000001')     // matched bucket
+            ->assertSee('L0900010')          // matched bucket — asset tag
+            ->assertSee('TESTSN0005')       // missing-in-snipe bucket
             ->assertSee('EXTRA987XYZ')      // missing-in-annexure bucket
-            ->assertSee('L009002');         // missing-in-annexure bucket — asset tag
+            ->assertSee('L0900011');         // missing-in-annexure bucket — asset tag
     }
 }

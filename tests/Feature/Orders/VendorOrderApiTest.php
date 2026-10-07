@@ -41,15 +41,15 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         $response = $this->postJson(route('api.purchase-orders.orders.raise', $purchaseOrder->id), [
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '100000-009',
             'items' => [
                 ['catalog_item_id' => $catalogItem->id, 'quantity' => 2, 'unit_cost' => 2152.77],
                 ['description' => 'AppleCare+ for Schools - 4 Year - 13" MacBook Air', 'vendor_sku' => '8154132', 'mfr_part_number' => 'SLTC2Z/A', 'quantity' => 2, 'unit_cost' => 267.89],
                 ['description' => 'BC laptop recycling fee', 'vendor_sku' => '1215626', 'quantity' => 2, 'unit_cost' => 0.50],
             ],
         ])->assertOk()
-            ->assertJsonPath('payload.order_number', 'P0026041-2')
-            ->assertJsonPath('payload.purchase_order.po_number', 'P0026041')
+            ->assertJsonPath('payload.order_number', 'P0026000-2')
+            ->assertJsonPath('payload.purchase_order.po_number', 'P0026000')
             ->assertJsonPath('payload.vendor_stage', 'ready')
             ->assertJsonPath('payload.items_count', 3);
 
@@ -69,13 +69,13 @@ class VendorOrderApiTest extends VendorOrderTestCase
         // Two devices provisioned under the purchase order, none for the soft cost,
         // named for the interim order and the purchase order behind it.
         $this->assertSame(2, Asset::where('model_id', $model->id)->count());
-        $this->assertSame(2, Asset::where('order_number', 'P0026041-2')->where('po_number', 'P0026041')->count());
+        $this->assertSame(2, Asset::where('order_number', 'P0026000-2')->where('po_number', 'P0026000')->count());
         $this->assertSame(2, $purchaseOrder->orders()->count());
 
         // When the vendor places it, the devices follow their number.
         $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'sent'])->assertOk();
-        $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'order_number', 'vendor_order_number' => 'PZLL752'])->assertOk();
-        $this->assertSame(2, Asset::where('order_number', 'PZLL752')->where('po_number', 'P0026041')->count());
+        $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'order_number', 'vendor_order_number' => 'TESTPZ6'])->assertOk();
+        $this->assertSame(2, Asset::where('order_number', 'TESTPZ6')->where('po_number', 'P0026000')->count());
     }
 
     public function test_a_free_form_line_without_a_description_is_refused()
@@ -101,7 +101,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
         $this->postJson(route('api.orders.send-vendor', $order->id), ['test' => true])
             ->assertOk()
             ->assertJsonPath('payload.test', true)
-            ->assertJsonPath('payload.purchase_order', 'P0026041');
+            ->assertJsonPath('payload.purchase_order', 'P0026000');
 
         Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => $mail->test
             && $mail->hasTo($actor->email) && ! $mail->hasTo('rep1@cdw.ca'));
@@ -118,7 +118,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         $this->postJson(route('api.orders.send-vendor', $order->id), [
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '100000-009',
         ])
             ->assertOk()
             ->assertJsonPath('payload.test', false)
@@ -131,7 +131,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
         $order->refresh();
         $this->assertNotNull($order->vendor_sent_at);
         $this->assertSame('lease_admin', $order->funding_account);
-        $this->assertSame('301452-009', $order->lease_schedule);
+        $this->assertSame('100000-009', $order->lease_schedule);
     }
 
     public function test_the_api_refuses_a_lease_order_without_its_schedule()
@@ -162,14 +162,14 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         $this->postJson(route('api.orders.vendor-response', $order->id), [
             'step' => 'confirm',
-            'quote_number' => 'PZKT735',
+            'quote_number' => 'TESTPZ5',
             'quote_total' => 43866.08,
             'quote_expires_at' => '2026-11-23',
             'notify_vendor' => true,
         ])
             ->assertOk()
             ->assertJsonPath('payload.vendor_stage', 'confirmed')
-            ->assertJsonPath('payload.quote_number', 'PZKT735')
+            ->assertJsonPath('payload.quote_number', 'TESTPZ5')
             ->assertJsonPath('payload.recipients', ['rep1@cdw.ca', 'rep2@cdw.ca']);
 
         Mail::assertSent(PurchaseOrderQuoteAcceptanceMail::class, 1);
@@ -192,7 +192,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
     {
         $order = $this->vendorOrder([
             'vendor_sent_at' => now()->subDay(),
-            'quote_number' => 'PZKT735',
+            'quote_number' => 'TESTPZ5',
             'quote_total' => 27986.01,
         ], ['unit_cost' => 2152.77]);
 
@@ -200,22 +200,22 @@ class VendorOrderApiTest extends VendorOrderTestCase
         $mail = new PurchaseOrderQuoteAcceptanceMail($order);
         $rendered = $mail->render();
 
-        $this->assertStringContainsString('PZKT735', $rendered);
-        $this->assertStringContainsString('P0026041', $rendered);
+        $this->assertStringContainsString('TESTPZ5', $rendered);
+        $this->assertStringContainsString('P0026000', $rendered);
         $this->assertStringContainsString('MacBook Air | 13" | M5 | 16GB | 1TB | Silver', $rendered);
         $this->assertStringContainsString('MDH84LL/A', $rendered);
         $this->assertStringContainsString('9094662', $rendered);
         $this->assertStringContainsString('2,152.77', $rendered);
         $this->assertStringContainsString('27,986.01', $rendered);
-        $this->assertStringContainsString('35007722', $rendered);
-        $this->assertStringContainsString('301452-009', $rendered);
-        $this->assertStringContainsString(trans('mail.purchase_order_quote_accepted_footer', ['reference' => 'P0026041']), $rendered);
+        $this->assertStringContainsString('1000003', $rendered);
+        $this->assertStringContainsString('100000-009', $rendered);
+        $this->assertStringContainsString(trans('mail.purchase_order_quote_accepted_footer', ['reference' => 'P0026000']), $rendered);
         $this->assertStringNotContainsString(trans('mail.requisition_vendor_order_estimate_note'), $rendered);
-        $this->assertLessThan(strpos($rendered, 'P0026041'), strpos($rendered, 'PZKT735'));
+        $this->assertLessThan(strpos($rendered, 'P0026000'), strpos($rendered, 'TESTPZ5'));
 
         $subject = $mail->envelope()->subject;
-        $this->assertStringContainsString('PZKT735', $subject);
-        $this->assertStringContainsString('P0026041', $subject);
+        $this->assertStringContainsString('TESTPZ5', $subject);
+        $this->assertStringContainsString('P0026000', $subject);
         $this->assertStringContainsString('accepted', $subject);
 
         $this->assertNotEmpty($mail->attachments());
@@ -249,7 +249,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         $response = $this->postJson(route('api.orders.vendor-response', $order->id), [
             'step' => 'confirm',
-            'quote_number' => 'PZKT735',
+            'quote_number' => 'TESTPZ5',
             'quote_expires_at' => '2026-11-23',
         ])->assertOk();
 
@@ -261,7 +261,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
         $this->assertFalse($catalogItem->isEstimate());
         $this->assertSame(now()->toDateString(), $catalogItem->quoted_at->toDateString());
         $this->assertSame('2026-11-23', $catalogItem->expires_at->toDateString());
-        $this->assertStringContainsString('PZKT735', $catalogItem->source);
+        $this->assertStringContainsString('TESTPZ5', $catalogItem->source);
         $this->assertTrue($catalogItem->part_numbers_verified_at->isToday());
 
         $appleCare->refresh();
@@ -289,17 +289,17 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         $order = $this->vendorOrder(['vendor_sent_at' => now()->subDays(20)], ['unit_cost' => 2150.48]);
         $row = $order->items->first()->catalogItem;
-        $row->forceFill(['unit_cost' => 2152.77, 'price_type' => 'quoted', 'quoted_at' => now()->toDateString(), 'source' => 'CDW Canada Inc quote PZKT735'])->save();
+        $row->forceFill(['unit_cost' => 2152.77, 'price_type' => 'quoted', 'quoted_at' => now()->toDateString(), 'source' => 'CDW Canada Inc quote TESTPZ5'])->save();
 
         // Accepted sixteen days ago; recorded today.
-        $order->forceFill(['quote_number' => 'PZFD093', 'quote_confirmed_at' => now()->subDays(16)])->save();
+        $order->forceFill(['quote_number' => 'TESTPZ3', 'quote_confirmed_at' => now()->subDays(16)])->save();
         Passport::actingAs($this->procurement());
 
         $this->postJson(route('api.orders.vendor-response', $order->id), ['step' => 'confirm'])->assertOk();
 
         $row->refresh();
         $this->assertSame('2152.7700', (string) $row->unit_cost);
-        $this->assertStringContainsString('PZKT735', $row->source);
+        $this->assertStringContainsString('TESTPZ5', $row->source);
 
         // A quote newer than the row's does take it, dated by the quote.
         $order->forceFill(['quote_number' => 'PZNEW01', 'quote_confirmed_at' => null])->save();
@@ -325,8 +325,8 @@ class VendorOrderApiTest extends VendorOrderTestCase
             'provision' => false,
         ])->assertOk()->json('payload.order_number');
 
-        $this->assertSame('P0026041-2', $second);
-        $this->assertNotSame('P0026041', $first->order_number);
+        $this->assertSame('P0026000-2', $second);
+        $this->assertNotSame('P0026000', $first->order_number);
     }
 
     public function test_a_quiet_confirm_stamps_without_emailing()
@@ -377,7 +377,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
             'step' => 'sent',
             'vendor_sent_at' => '2026-08-25 16:55:00',
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '100000-009',
         ])->assertOk()->assertJsonPath('payload.vendor_stage', 'sent');
 
         $order->refresh();
@@ -387,7 +387,7 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         $this->postJson(route('api.orders.vendor-response', $order->id), [
             'step' => 'confirm',
-            'quote_number' => 'PZKT735',
+            'quote_number' => 'TESTPZ5',
             'quote_total' => 43866.08,
             'notify_vendor' => true,
         ])->assertOk()->assertJsonPath('payload.vendor_stage', 'confirmed');
@@ -431,16 +431,16 @@ class VendorOrderApiTest extends VendorOrderTestCase
 
         $this->postJson(route('api.orders.vendor-response', $order->id), [
             'step' => 'confirm',
-            'quote_number' => 'PZKT735',
+            'quote_number' => 'TESTPZ5',
             'notify_vendor' => true,
         ])->assertOk()->assertJsonPath('payload.vendor_stage', 'confirmed');
 
         $this->postJson(route('api.orders.vendor-response', $order->id), [
             'step' => 'order_number',
-            'vendor_order_number' => 'PMCN361',
-        ])->assertOk()->assertJsonPath('payload.vendor_stage', 'placed')->assertJsonPath('payload.order', 'PMCN361');
+            'vendor_order_number' => 'TESTPM4',
+        ])->assertOk()->assertJsonPath('payload.vendor_stage', 'placed')->assertJsonPath('payload.order', 'TESTPM4');
 
-        $this->assertSame('PMCN361', $order->fresh()->order_number);
+        $this->assertSame('TESTPM4', $order->fresh()->order_number);
         Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => ! $mail->accepted);
         Mail::assertSent(PurchaseOrderQuoteAcceptanceMail::class, 1);
     }
@@ -451,14 +451,14 @@ class VendorOrderApiTest extends VendorOrderTestCase
      */
     public function test_the_order_reports_its_vendor_loop()
     {
-        $order = $this->vendorOrder(['vendor_sent_at' => now()->subDay(), 'quote_number' => 'PZKT735']);
+        $order = $this->vendorOrder(['vendor_sent_at' => now()->subDay(), 'quote_number' => 'TESTPZ5']);
         Passport::actingAs($this->procurement());
 
         $this->getJson(route('api.orders.show', $order->id))
             ->assertOk()
             ->assertJsonPath('vendor_stage', 'sent')
-            ->assertJsonPath('quote_number', 'PZKT735')
-            ->assertJsonPath('purchase_order.po_number', 'P0026041')
+            ->assertJsonPath('quote_number', 'TESTPZ5')
+            ->assertJsonPath('purchase_order.po_number', 'P0026000')
             ->assertJsonPath('items.0.mfr_part_number', 'MDH84LL/A');
 
         $this->getJson(route('api.purchase-orders.show', $order->purchase_order_id))
