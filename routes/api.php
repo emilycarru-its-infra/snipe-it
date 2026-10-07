@@ -259,6 +259,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ->name('api.deployments.waves.update');
         Route::delete('waves/{wave}', [Api\DeploymentsController::class, 'wavesDestroy'])
             ->name('api.deployments.waves.destroy');
+        Route::get('waves/{wave}/announce', [Api\DeploymentsController::class, 'announceShow'])
+            ->name('api.deployments.waves.announce.show');
+        Route::post('waves/{wave}/announce', [Api\DeploymentsController::class, 'announceStore'])
+            ->name('api.deployments.waves.announce');
 
         Route::post('waves/{wave}/items', [Api\DeploymentsController::class, 'itemsStore'])
             ->name('api.deployments.items.store');

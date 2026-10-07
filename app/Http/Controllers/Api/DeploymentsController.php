@@ -9,9 +9,12 @@ use App\Models\DeploymentItem;
 use App\Models\DeploymentStage;
 use App\Models\DeploymentType;
 use App\Models\DeploymentWave;
+use App\Models\User;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\RefreshForecast;
 use App\Services\Deployments\StageAutomation;
+use App\Services\Deployments\WaveAnnouncementTemplates;
+use App\Services\Deployments\WaveAnnouncer;
 use Illuminate\Http\Request;
 
 /**
@@ -134,6 +137,112 @@ class DeploymentsController extends Controller
         $wave->delete();
 
         return response()->json(Helper::formatStandardApiResponse('success', null, trans('admin/deployments/general.deleted')));
+    }
+
+    /*
+    |----------------------------------------------------------------------
+    | Announcements (emailing the people in a wave)
+    |----------------------------------------------------------------------
+    */
+
+    /**
+     * What a send would do before it is done: the wordings on offer, the one
+     * the board would open on, and who each audience reaches. A chase is
+     * aimed by audience, so the useful preview is the names it would hit —
+     * the same list the board shows beside its buttons.
+     */
+    public function announceShow(DeploymentWave $wave, WaveAnnouncer $announcer)
+    {
+        $this->authorize('deployments.manage');
+
+        $audiences = collect(WaveAnnouncer::AUDIENCES)->mapWithKeys(function (string $audience) use ($wave, $announcer) {
+            $rows = $announcer->recipients($wave, $audience)->map(fn (array $row) => [
+                'user_id' => $row['user']->id,
+                'name' => $row['user']->present()->fullName,
+                'email' => $row['user']->email,
+                'devices' => $row['assets']->map(fn ($asset) => [
+                    'id' => $asset->id,
+                    'asset_tag' => $asset->asset_tag,
+                    'model' => $asset->model?->name,
+                    'lease_end_date' => $asset->lease_end_date ? (string) $asset->lease_end_date : null,
+                ])->values(),
+            ])->values();
+
+            return [$audience => ['count' => $rows->count(), 'recipients' => $rows]];
+        });
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'wave_id' => $wave->id,
+            'announced_at' => optional($wave->announced_at)->toIso8601String(),
+            'default_template' => WaveAnnouncementTemplates::defaultKeyFor($wave),
+            'templates' => collect(WaveAnnouncementTemplates::all($wave))
+                ->map(fn (array $t) => collect($t)->only(['key', 'label', 'subject', 'body'])->all())
+                ->values(),
+            'audiences' => $audiences,
+        ], null));
+    }
+
+    /**
+     * Send it — the board's Email the People in This Wave form, over a token.
+     * Same gate, same audiences, same outcome, because both go through
+     * WaveAnnouncer::announce(). A `template` key stands in for typing the
+     * wording out: it is how a chase goes out on the saved letter without the
+     * caller having to fetch and echo it back, and an explicit subject or body
+     * still overrides it.
+     */
+    public function announceStore(Request $request, DeploymentWave $wave, WaveAnnouncer $announcer)
+    {
+        $this->authorize('deployments.manage');
+
+        $templates = collect(WaveAnnouncementTemplates::all($wave))->keyBy('key');
+
+        $validated = $request->validate([
+            'template' => 'nullable|string|in:'.$templates->keys()->implode(','),
+            'subject' => 'required_without:template|nullable|string|max:191',
+            'body' => 'required_without:template|nullable|string|max:65535',
+            'cc' => 'nullable|array',
+            'cc.*' => 'integer|exists:users,id',
+            'test_recipients' => 'nullable|array',
+            'test_recipients.*' => 'integer|exists:users,id',
+            'test' => 'nullable|boolean',
+            'save_template' => 'nullable|boolean',
+            'audience' => 'nullable|string|in:'.implode(',', WaveAnnouncer::AUDIENCES),
+        ]);
+
+        $template = $templates->get($validated['template'] ?? '');
+        $subject = filled($validated['subject'] ?? null) ? $validated['subject'] : ($template['subject'] ?? '');
+        $body = filled($validated['body'] ?? null) ? $validated['body'] : ($template['body'] ?? '');
+
+        // The blank template is a valid key with nothing in it; sending
+        // nothing is never what was meant.
+        if (blank($subject) || blank($body)) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, [
+                'body' => [trans('validation.required', ['attribute' => blank($subject) ? 'subject' : 'body'])],
+            ]), 422);
+        }
+
+        if ($request->boolean('save_template')) {
+            WaveAnnouncementTemplates::save($subject, $body, auth()->id());
+
+            return response()->json(Helper::formatStandardApiResponse('success', null,
+                trans('admin/deployments/general.announce_template_saved_confirm')));
+        }
+
+        $outcome = $announcer->announce(
+            $wave,
+            $subject,
+            $body,
+            auth()->user(),
+            $request->boolean('test'),
+            User::whereIn('id', $validated['cc'] ?? [])->get(),
+            User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
+            $validated['audience'] ?? WaveAnnouncer::AUDIENCE_ALL,
+        );
+
+        return response()->json(
+            Helper::formatStandardApiResponse($outcome['status'], $outcome['result'], $outcome['message']),
+            $outcome['status'] === 'error' && $outcome['result'] === null ? 502 : 200
+        );
     }
 
     /*
