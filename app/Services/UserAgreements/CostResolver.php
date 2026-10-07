@@ -27,8 +27,7 @@ use App\Services\Settings\Preferences;
  *           negotiate is computed against the FULL acquisition cost,
  *           including AppleCare. Historical lease assets predate the
  *           Orders module, so they fall through to purchase_cost and
- *           need manual buyout entries (see L002916 / L002978 / L002979
- *           / L002974 for known cases as of 2026-06-01).
+ *           need manual buyout entries.
  *
  * All methods return nullable floats — `null` means "unknown, leave
  * blank on the row". Callers should never invent zero as a stand-in;

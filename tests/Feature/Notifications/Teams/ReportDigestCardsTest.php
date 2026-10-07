@@ -19,7 +19,7 @@ use Tests\TestCase;
 /**
  * The nightly digests, as cards carrying the whole listing.
  *
- * Rod's call, and the reason these are tables rather than a count and a link:
+ * The reason these are tables rather than a count and a link:
  * the count is what the heading already says, and the rows are the work.
  */
 #[Group('notifications')]

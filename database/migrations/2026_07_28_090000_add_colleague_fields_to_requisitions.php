@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Brings the requisition in line with what Colleague actually asks for when
- * a purchase order is keyed, taken from the issued POs (P0025395, P0025419)
+ * a purchase order is keyed, taken from the issued POs (P0025000, P0025001)
  * rather than guessed.
  *
  * Two comment fields, because Colleague distinguishes them and the

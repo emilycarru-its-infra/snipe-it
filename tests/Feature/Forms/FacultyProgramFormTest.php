@@ -743,7 +743,7 @@ class FacultyProgramFormTest extends TestCase
     }
 
     /**
-     * A year's rent, derived from capital cost. On the ECI20221001
+     * A year's rent, derived from capital cost. On the ECI20221007
      * schedule the lessor's own rent line is a flat 21.4% of acquisition
      * cost before tax and a shade over 24% with it, so multiplying
      * reproduces their figure rather than approximating it.

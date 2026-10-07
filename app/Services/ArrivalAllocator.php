@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
  *
  *   arrivals: assets the webhook created because nothing claimable
  *             matched. Real hardware, serial in hand, nobody's yet.
- *             (Rod's example: CDW ships eight MacBook Airs, five were
+ *             (Example: CDW ships eight MacBook Airs, five were
  *             ordered through the store, three are extras.)
  *
  *   waiting:  assets the store provisioned that no shipment has filled.

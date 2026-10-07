@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Data fix: every CCA Financial lease schedule id gains the lessor's 4130-
- * account prefix (ECI20220901 → 4130-ECI20220901), across all four tables
+ * account prefix (ECI20220907 → 4130-ECI20220907), across all four tables
  * that carry the reference. Idempotent — the ECI% guard matches nothing
  * once the prefix is on. The disposition grid's ?contract= deep link
  * resolves by substring, so pre-rename links keep working.

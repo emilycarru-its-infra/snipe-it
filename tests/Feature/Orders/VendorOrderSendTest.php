@@ -52,7 +52,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
 
         $this->actingAs($this->procurement())
             ->post(route('orders.send-vendor', $order), [
-                'quote_number' => 'PZKT735',
+                'quote_number' => 'TESTPZ5',
                 'quote_total' => '43866.08',
                 'quote_expires_at' => '2026-11-23',
             ])
@@ -64,7 +64,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
 
         $order->refresh();
         $this->assertNotNull($order->vendor_sent_at);
-        $this->assertSame('PZKT735', $order->quote_number);
+        $this->assertSame('TESTPZ5', $order->quote_number);
         $this->assertSame('43866.08', (string) $order->quote_total);
         $this->assertSame('2026-11-23', $order->quote_expires_at->format('Y-m-d'));
     }
@@ -184,13 +184,13 @@ class VendorOrderSendTest extends VendorOrderTestCase
         Mail::assertNotSent(RequisitionVendorOrderMail::class);
 
         $this->actingAs($staff)
-            ->post(route('orders.send-vendor', $order), ['lease_schedule' => '301452-012'])
+            ->post(route('orders.send-vendor', $order), ['lease_schedule' => '100000-012'])
             ->assertRedirect();
 
         Mail::assertSent(RequisitionVendorOrderMail::class);
         $order->refresh();
         $this->assertNotNull($order->vendor_sent_at);
-        $this->assertStringContainsString('301452-012', (new RequisitionVendorCsv($order))->contents());
+        $this->assertStringContainsString('100000-012', (new RequisitionVendorCsv($order))->contents());
     }
 
     /**
@@ -310,24 +310,24 @@ class VendorOrderSendTest extends VendorOrderTestCase
         $this->actingAs($staff)
             ->post(route('orders.vendor-response', $order), [
                 'step' => 'confirm',
-                'quote_number' => 'PZKT735',
+                'quote_number' => 'TESTPZ5',
                 'quote_total' => 43866.08,
             ])->assertRedirect();
 
         $order->refresh();
         $this->assertSame('confirmed', $order->vendorStage());
-        $this->assertSame('PZKT735', $order->quote_number);
+        $this->assertSame('TESTPZ5', $order->quote_number);
 
         $this->actingAs($staff)
             ->post(route('orders.vendor-response', $order), [
                 'step' => 'order_number',
-                'vendor_order_number' => 'PMCN361',
+                'vendor_order_number' => 'TESTPM4',
             ])->assertRedirect();
 
         $order->refresh();
         $this->assertSame('placed', $order->vendorStage());
-        $this->assertSame('PMCN361', $order->vendor_order_number);
-        $this->assertSame('PMCN361', $order->order_number);
+        $this->assertSame('TESTPM4', $order->vendor_order_number);
+        $this->assertSame('TESTPM4', $order->order_number);
     }
 
     public function test_new_vendor_changes_unconfirm_the_order()
@@ -356,7 +356,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
     {
         Mail::fake();
 
-        $order = $this->vendorOrder(['vendor_sent_at' => now()->subDay(), 'quote_number' => 'PZKT735']);
+        $order = $this->vendorOrder(['vendor_sent_at' => now()->subDay(), 'quote_number' => 'TESTPZ5']);
         $staff = $this->procurement();
 
         $this->actingAs($staff)
@@ -382,7 +382,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
         Mail::fake();
 
         $order = $this->vendorOrder();
-        $requester = User::factory()->create(['email' => 'faculty@ecuad.ca']);
+        $requester = User::factory()->create(['email' => 'faculty@example.edu']);
 
         StoreOrder::create([
             'user_id' => $requester->id,
@@ -392,16 +392,16 @@ class VendorOrderSendTest extends VendorOrderTestCase
 
         $this->actingAs($this->procurement())
             ->post(route('orders.send-vendor', $order), [
-                'order_cc' => 'dean@ecuad.ca, not-an-address, chair@ecuad.ca',
+                'order_cc' => 'dean@example.edu, not-an-address, chair@example.edu',
             ])
             ->assertRedirect();
 
-        Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => $mail->hasCc('faculty@ecuad.ca')
-            && $mail->hasCc('dean@ecuad.ca')
-            && $mail->hasCc('chair@ecuad.ca')
+        Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => $mail->hasCc('faculty@example.edu')
+            && $mail->hasCc('dean@example.edu')
+            && $mail->hasCc('chair@example.edu')
             && $mail->hasCc('devices@example.org'));
 
-        $this->assertStringContainsString('dean@ecuad.ca', $order->fresh()->order_cc);
+        $this->assertStringContainsString('dean@example.edu', $order->fresh()->order_cc);
         $this->assertNotContains('not-an-address', $order->fresh()->orderCcAddresses());
     }
 
@@ -412,7 +412,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
     public function test_the_email_and_part_list_carry_whole_lines()
     {
         $order = $this->vendorOrder([
-            'quote_number' => 'PZKT735',
+            'quote_number' => 'TESTPZ5',
             'quote_total' => 27986.01,
         ], ['unit_cost' => 2152.77]);
 
@@ -422,27 +422,27 @@ class VendorOrderSendTest extends VendorOrderTestCase
         $this->assertStringContainsString('MacBook Air | 13" | M5 | 16GB | 1TB | Silver', $rendered);
         $this->assertStringContainsString('MDH84LL/A', $rendered);
         $this->assertStringContainsString('9094662', $rendered);
-        $this->assertStringContainsString('P0026041', $rendered);
-        $this->assertStringContainsString('PZKT735', $rendered);
+        $this->assertStringContainsString('P0026000', $rendered);
+        $this->assertStringContainsString('TESTPZ5', $rendered);
         $this->assertStringContainsString('27,986.01', $rendered);
-        $this->assertStringContainsString('35007722', $rendered);
-        $this->assertStringContainsString('301452-009', $rendered);
+        $this->assertStringContainsString('1000003', $rendered);
+        $this->assertStringContainsString('100000-009', $rendered);
         $this->assertStringNotContainsString('Reply to all', $rendered);
-        $this->assertLessThan(strpos($rendered, '35007722'), strpos($rendered, 'PZKT735'));
+        $this->assertLessThan(strpos($rendered, '1000003'), strpos($rendered, 'TESTPZ5'));
 
         $csv = (new RequisitionVendorCsv($order))->contents();
         $lines = array_values(array_filter(explode("\n", str_replace("\r", '', $csv))));
         $this->assertCount(2, $lines);
 
         $row = str_getcsv($lines[1]);
-        $this->assertSame('P0026041', $row[0]);
+        $this->assertSame('P0026000', $row[0]);
         $this->assertSame('MDH84LL/A', $row[1]);
         $this->assertSame('9094662', $row[2]);
         $this->assertSame('13', $row[4]);
         $this->assertSame('2152.77', $row[6]);
         $this->assertSame('27986.01', $row[7]);
-        $this->assertStringContainsString('35007722', $row[8]);
-        $this->assertSame('301452-009', $row[9]);
+        $this->assertStringContainsString('1000003', $row[8]);
+        $this->assertSame('100000-009', $row[9]);
     }
 
     /**
@@ -464,7 +464,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
 
         $this->actingAsForApi($staff)
             ->postJson(route('api.files.store', ['object_type' => 'purchase-orders', 'id' => $order->purchaseOrder->id]), [
-                'file' => [\Illuminate\Http\UploadedFile::fake()->create('P0026041.pdf', 40, 'application/pdf')],
+                'file' => [\Illuminate\Http\UploadedFile::fake()->create('P0026000.pdf', 40, 'application/pdf')],
                 'notes' => 'Issued purchase order',
             ])->assertOk();
 
@@ -482,7 +482,7 @@ class VendorOrderSendTest extends VendorOrderTestCase
         Mail::fake();
 
         $order = $this->vendorOrder();
-        $dean = User::factory()->create(['email' => 'dean@ecuad.ca']);
+        $dean = User::factory()->create(['email' => 'dean@example.edu']);
 
         $this->actingAs($this->procurement())
             ->post(route('orders.send-vendor', $order), [
@@ -491,12 +491,12 @@ class VendorOrderSendTest extends VendorOrderTestCase
             ])
             ->assertRedirect();
 
-        Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => $mail->hasCc('dean@ecuad.ca')
+        Mail::assertSent(RequisitionVendorOrderMail::class, fn ($mail) => $mail->hasCc('dean@example.edu')
             && $mail->hasCc('rep@cdw.ca'));
 
         $order->refresh();
         $this->assertSame((string) $dean->id, $order->order_cc_users);
-        $this->assertContains('dean@ecuad.ca', $order->orderCcAddresses());
+        $this->assertContains('dean@example.edu', $order->orderCcAddresses());
     }
 
     /**
@@ -513,8 +513,8 @@ class VendorOrderSendTest extends VendorOrderTestCase
         $this->assertTrue(SupplierAccounts::needsSchedule('lease_admin'));
         $this->assertTrue(SupplierAccounts::needsSchedule('lease_curriculum'));
 
-        $this->assertSame('8817038', SupplierAccounts::number('purchase_admin'));
-        $this->assertSame('35007722', SupplierAccounts::number('lease_admin'));
+        $this->assertSame('1000001', SupplierAccounts::number('purchase_admin'));
+        $this->assertSame('1000003', SupplierAccounts::number('lease_admin'));
 
         $this->assertSame('purchase_admin', SupplierAccounts::canonical('purchase'));
         $this->assertSame('lease_curriculum', SupplierAccounts::canonical('curriculum'));

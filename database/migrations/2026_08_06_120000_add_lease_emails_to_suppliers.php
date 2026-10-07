@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /** The old global default, which was only ever CCA Financial's second rep. */
-    private const LEGACY_EXTRA_RECIPIENTS = 'aasghar@ccafinancial.com';
+    private const LEGACY_EXTRA_RECIPIENTS = 'leasing@lessor.example';
 
     public function up(): void
     {

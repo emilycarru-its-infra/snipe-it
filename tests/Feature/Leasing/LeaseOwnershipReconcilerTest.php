@@ -17,7 +17,7 @@ class LeaseOwnershipReconcilerTest extends TestCase
         $status = Statuslabel::factory()->rtd()->create(['name' => $statusName]);
         $asset = Asset::factory()->create(['status_id' => $status->id]);
         Asset::query()->whereKey($asset->id)->update([
-            'lease_contract_id' => '4130-ECI20220201',
+            'lease_contract_id' => '4130-ECI20220207',
             'ownership_type' => $ownership,
         ]);
 

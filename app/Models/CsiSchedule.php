@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Mirror of a CSI lease schedule (e.g. "301452-007"). Upserted from
+ * Mirror of a CSI lease schedule (e.g. "100000-007"). Upserted from
  * /api/v1/csi/snapshot keyed by schedule_name. Carries CSI's signed term
  * dates, rent and tax for reconciliation against Snipe lease data.
  */
@@ -39,7 +39,7 @@ class CsiSchedule extends Model
     ];
 
     /** The lease every ECU schedule hangs off, when nothing says otherwise. */
-    public const MASTER_CONTRACT = '301452';
+    public const MASTER_CONTRACT = '100000';
 
     /**
      * The cadence anchor: the odd (lease-to-return) schedule open for
@@ -108,7 +108,7 @@ class CsiSchedule extends Model
         return $kind ? (self::openPair()[$kind] ?? null) : null;
     }
 
-    /** "301452-009" from 9. */
+    /** "100000-009" from 9. */
     public static function name(int $number): string
     {
         $contract = ProcurementSetting::get('lease_master_contract') ?: self::MASTER_CONTRACT;

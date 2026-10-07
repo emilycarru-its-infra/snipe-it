@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Mirror of a CSI master lease (e.g. "301452"). Upserted from
+ * Mirror of a CSI master lease (e.g. "100000"). Upserted from
  * /api/v1/csi/snapshot keyed by lease_number.
  */
 class CsiLease extends Model

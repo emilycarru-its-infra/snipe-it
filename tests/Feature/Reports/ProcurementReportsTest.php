@@ -766,14 +766,14 @@ class ProcurementReportsTest extends TestCase
             'Ownership Type' => 'Lease to Return',
             'Lease Rent' => '72.03',
             'Lease End Date' => '2030-06-30',
-        ], ['serial' => 'HG9FC7K7DJ', 'purchase_date' => '2026-06-01', 'purchase_cost' => 3061.22]);
+        ], ['serial' => 'TESTSN0004', 'purchase_date' => '2026-06-01', 'purchase_cost' => 3061.22]);
 
         $this->actingAs($this->superuser())
             ->get('/procurement/leasing/700100-007')
             ->assertOk()
             ->assertSee('Devices Leases FY30-31 #4')
             ->assertSee('700100-007')
-            ->assertSee('HG9FC7K7DJ')
+            ->assertSee('TESTSN0004')
             ->assertSee('$3,061.22')
             ->assertSee(trans('admin/purchase-orders/general.lease_detail_schedule'));
 
@@ -2047,13 +2047,13 @@ class ProcurementReportsTest extends TestCase
         PurchaseOrder::factory()->create(['po_number' => 'PO-SEL-27', 'fiscal_year' => 'FY2026-27', 'budget' => 100.00]);
         PurchaseOrder::factory()->create(['po_number' => 'PO-SEL-26', 'fiscal_year' => 'FY2025-26', 'budget' => 200.00]);
 
-        // Two CDW-ingested orders with no PO link and no stamped fiscal_year
-        // (the AJ7FG1T pattern), billed by invoices dated in different FYs.
+        // Two CDW-ingested orders with no PO link and no stamped fiscal_year,
+        // billed by invoices dated in different FYs.
         // Each must surface via its own invoice_date, not vanish for want of
         // a PO, and must be scoped to the right year.
         foreach ([
-            ['CDW-FY27', 'AJ7FG1T', '2026-06-11', 14296.50],
-            ['CDW-FY26', 'AJ6XX99', '2025-06-11', 5555.55],
+            ['CDW-FY27', 'TESTAJ3', '2026-06-11', 14296.50],
+            ['CDW-FY26', 'TESTAJ4', '2025-06-11', 5555.55],
         ] as [$orderNo, $invNo, $invDate, $total]) {
             $order = Order::factory()->create([
                 'order_number' => $orderNo,

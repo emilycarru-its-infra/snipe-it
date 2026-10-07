@@ -68,7 +68,7 @@ return [
     | worth requesting for the people who actually want one, so the form
     | estimates: roughly a year's rent.
     |
-    | On the ECI20221001 schedule that is a flat proportion of the
+    | On the ECI20221007 schedule that is a flat proportion of the
     | acquisition cost — 21.4% before tax, a shade over 24% with it —
     | holding to within a fifth of a percentage point across all seven item
     | types, from a Mac mini at $1,313 to a 16-inch Pro at $3,929. A lease
@@ -78,7 +78,7 @@ return [
     |
     | A real quote, once one exists, is stored per asset in `buyout_cost`
     | and outranks this. Replacing the factor with a proper depreciation
-    | model is AB#4413.
+    | model is planned.
     |
     */
 

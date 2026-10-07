@@ -38,7 +38,7 @@ class AssetCommitted
         $warrantyColumn = 'warranty_soft_cost';
 
         // Only assets that carry a university PO (P00…) on their native PO
-        // Number column count toward committed; CSI-schedule values (301452-…)
+        // Number column count toward committed; CSI-schedule values (100000-…)
         // and blanks don't map to a purchase order.
         $query = Asset::query()->where($poColumn, 'like', 'P00%');
 

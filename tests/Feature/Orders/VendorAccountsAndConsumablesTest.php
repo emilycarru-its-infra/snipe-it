@@ -133,7 +133,7 @@ class VendorAccountsAndConsumablesTest extends TestCase
 
         $this->assertFalse($order->fundingResolved());
 
-        $order->lease_schedule = '301452-009';
+        $order->lease_schedule = '100000-009';
         $order->save();
 
         $this->assertTrue($order->fresh()->fundingResolved());

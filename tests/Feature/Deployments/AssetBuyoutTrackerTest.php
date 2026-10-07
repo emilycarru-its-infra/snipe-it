@@ -252,29 +252,6 @@ class AssetBuyoutTrackerTest extends TestCase
             ->assertSee(trans('admin/deployments/general.buyout_waiting_payment'));
     }
 
-    public function test_the_2026_backfill_lands_on_the_devices_it_names(): void
-    {
-        $buyer = User::factory()->create(['email' => 'dachjadi@ecuad.ca']);
-        $asset = $this->leasedAsset();
-        DB::table('assets')->where('id', $asset->id)->update(['asset_tag' => 'L003344', 'serial' => 'C32Q5N2KHH']);
-
-        $migration = require database_path('migrations/2026_08_13_141000_backfill_asset_buyouts_from_2026.php');
-        $migration->up();
-
-        $buyout = AssetBuyout::where('asset_id', $asset->id)->firstOrFail();
-
-        $this->assertSame('invoiced', $buyout->status);
-        $this->assertSame($buyer->id, $buyout->buyer_id);
-        $this->assertEquals(1317.25, (float) $buyout->quote_total);
-        $this->assertSame('2026-07-08', $buyout->requested_at->toDateString());
-
-        // Re-running reconciles rather than duplicating, quotes included.
-        $migration->up();
-
-        $this->assertSame(1, AssetBuyout::where('asset_id', $asset->id)->count());
-        $this->assertCount(1, $buyout->fresh()->quotes);
-    }
-
     public function test_a_buyout_with_no_asset_yet_still_tracks(): void
     {
         $buyer = User::factory()->create();
@@ -422,39 +399,6 @@ class AssetBuyoutTrackerTest extends TestCase
             ->assertJsonPath('payload.asset_id', null)
             ->assertJsonPath('payload.buyer_id', $buyer->id)
             ->assertJsonPath('payload.status', 'requested');
-    }
-
-    /**
-     * The Bishko record: transcribed from a thread that named neither the
-     * device nor the split, and corrected once the offboarding checkin
-     * identified it.
-     */
-    public function test_the_bishko_correction_links_the_device_and_the_split(): void
-    {
-        $buyer = User::factory()->create(['email' => 'lbishko@ecuad.ca']);
-        $asset = $this->leasedAsset();
-        DB::table('assets')->where('id', $asset->id)->update(['asset_tag' => 'L003565', 'serial' => 'MV64N0YJ4L']);
-
-        $buyout = AssetBuyout::create([
-            'asset_id' => null,
-            'buyer_id' => $buyer->id,
-            'status' => 'approved',
-            'requested_at' => '2026-04-24 16:38:00',
-            'quote_amount' => 899.00,
-            'remaining_rent' => 0.00,
-            'quote_total' => 899.00,
-            'buyer_amount' => 899.00,
-            'ecu_amount' => 0.00,
-        ]);
-
-        (require database_path('migrations/2026_08_14_120000_correct_the_bishko_buyout.php'))->up();
-
-        $buyout->refresh();
-
-        $this->assertSame($asset->id, $buyout->asset_id);
-        $this->assertEquals(899.99, (float) $buyout->buyer_amount);
-        $this->assertEquals(872.01, (float) $buyout->ecu_amount);
-        $this->assertEquals(1772.00, (float) $buyout->quote_total);
     }
 
     private function quotedBuyout(User $buyer, array $overrides = []): AssetBuyout

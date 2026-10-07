@@ -153,7 +153,7 @@
                          has already issued — which is exactly when the newest
                          one is the one an order needs. --}}
                     <input type="text" name="lease_schedule" id="lease-schedule" class="form-control"
-                           value="{{ old('lease_schedule', $order->lease_schedule) }}" placeholder="301452-000">
+                           value="{{ old('lease_schedule', $order->lease_schedule) }}" placeholder="100000-000">
                     <p class="help-block">{{ trans('admin/store/general.funding_schedule_none') }}</p>
                 @else
                     <select name="lease_schedule" id="lease-schedule" class="form-control">
@@ -341,7 +341,7 @@
                     <input type="hidden" name="step" value="order_number">
                     <div class="form-group">
                         <label for="vendor-order-number">{{ trans('admin/purchase-orders/general.vendor_order_number') }}</label>
-                        <input type="text" name="vendor_order_number" id="vendor-order-number" class="form-control" placeholder="PMCN361">
+                        <input type="text" name="vendor_order_number" id="vendor-order-number" class="form-control" placeholder="{{ trans('general.order_number') }}">
                         <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_order_number_help') }}</p>
                     </div>
                     <button type="submit" class="btn btn-success btn-block">

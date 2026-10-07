@@ -72,7 +72,7 @@ return new class extends Migration
         }
 
         foreach ([
-            'lease_master_contract' => '301452',
+            'lease_master_contract' => '100000',
             'lease_anchor_number' => '9',
             'lease_anchor_quarter_start' => '2026-07-01',
         ] as $key => $value) {
