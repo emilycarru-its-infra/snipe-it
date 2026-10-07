@@ -37,7 +37,7 @@ class DeploymentBlackoutsController extends Controller
         return response()->json(
             Helper::formatStandardApiResponse('success', [
                 'total' => $blackouts->count(),
-                'rows' => $blackouts,
+                'rows' => $blackouts->map(fn (StaffBlackout $blackout) => $this->present($blackout))->values(),
             ], null),
         );
     }
@@ -83,7 +83,7 @@ class DeploymentBlackoutsController extends Controller
         }
 
         return response()->json(
-            Helper::formatStandardApiResponse('success', $blackout->load('user'), trans('admin/deployments/general.blackout_saved')),
+            Helper::formatStandardApiResponse('success', $this->present($blackout->load('user')), trans('admin/deployments/general.blackout_saved')),
         );
     }
 
@@ -148,10 +148,29 @@ class DeploymentBlackoutsController extends Controller
         return response()->json(
             Helper::formatStandardApiResponse(
                 'success',
-                $blackout->load('user'),
+                $this->present($blackout->load('user')),
                 trans('admin/deployments/general.blackout_saved'),
             ),
         );
+    }
+
+    /**
+     * A blackout with only the person's id, name and email. Serialising the
+     * whole User would hand every caller with orders.view the staff member's
+     * employee number, phone and the rest of their profile, which nothing
+     * reading a time-off window needs.
+     */
+    private function present(StaffBlackout $blackout): array
+    {
+        $user = $blackout->user;
+
+        return array_merge($blackout->attributesToArray(), [
+            'user' => $user ? [
+                'id' => $user->id,
+                'name' => $user->display_name,
+                'email' => $user->email,
+            ] : null,
+        ]);
     }
 
     /** Resolve the target user by user_id, falling back to email (exact match). */

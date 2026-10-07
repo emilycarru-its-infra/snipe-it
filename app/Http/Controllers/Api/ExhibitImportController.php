@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exhibit;
+use App\Models\Order;
 use App\Services\Exhibits\ExhibitCsvImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,14 +14,17 @@ use Illuminate\Http\Request;
  * Grad Show CSV export. Reuses the header-driven ExhibitCsvImporter, so
  * the historical layouts import the same as the in-app upload — but this
  * one is callable with the Snipe API token (no SSO session needed), which
- * is how the multi-year backfill is driven. Guarded by the v1 API token
- * middleware; the uploaded file is read from its temp path and never
- * persisted.
+ * is how the multi-year backfill is driven. It takes the same orders.create
+ * gate as the in-app upload, so a token cannot import what its owner could
+ * not upload in the browser. The uploaded file is read from its temp path
+ * and never persisted.
  */
 class ExhibitImportController extends Controller
 {
     public function import(Request $request, ExhibitCsvImporter $importer): JsonResponse
     {
+        $this->authorize('create', Order::class);
+
         $request->validate([
             'exhibit_id' => 'required|exists:exhibits,id',
             'year' => 'required|integer|min:2000|max:2100',

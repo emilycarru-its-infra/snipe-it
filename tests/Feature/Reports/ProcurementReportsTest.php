@@ -453,6 +453,28 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('INV-AP-APPROVED');
     }
 
+    /**
+     * Approving an invoice can release the lessor's OK to pay, so reading
+     * procurement reports is not enough to do it.
+     */
+    public function test_invoice_approval_needs_procurement_edit()
+    {
+        $order = Order::factory()->create();
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id,
+            'approval_status' => 'pending',
+        ]);
+        $viewer = User::factory()->create(['permissions' => json_encode(['procurement.view' => '1'])]);
+
+        $this->actingAs($viewer)
+            ->patch(route('reports.procurement.invoice-approval.update', $invoice), [
+                'approval_status' => 'approved',
+            ])
+            ->assertForbidden();
+
+        $this->assertEquals('pending', $invoice->refresh()->approval_status);
+    }
+
     public function test_invoice_approval_patch_marks_invoice_approved()
     {
         $order = Order::factory()->create();
