@@ -1518,6 +1518,16 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('orders/{order_id}/vendor-response', [Api\OrdersController::class, 'vendorResponse'])
         ->name('api.orders.vendor-response');
 
+    // Asking the vendor where an order is — one order, or several at once,
+    // with a dry read of who it would reach. Bulk is registered first so
+    // "eta-request" never binds as an {order_id}.
+    Route::post('orders/eta-request', [Api\OrdersController::class, 'etaRequestBulk'])
+        ->name('api.orders.eta-request.bulk');
+    Route::get('orders/{order_id}/eta-request', [Api\OrdersController::class, 'etaRequestPreview'])
+        ->name('api.orders.eta-request.preview');
+    Route::post('orders/{order_id}/eta-request', [Api\OrdersController::class, 'etaRequest'])
+        ->name('api.orders.eta-request');
+
     // Removing a line the vendor webhook should not have written. The order
     // page can do this, but only from a browser; a bad unattended ingest
     // needs an unattended way back out.

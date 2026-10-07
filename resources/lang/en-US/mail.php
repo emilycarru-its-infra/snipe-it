@@ -298,6 +298,15 @@ return [
     'purchase_order_quote_accepted_intro' => 'Hello :supplier team, Emily Carr University of Art + Design accepts quote :quote as issued. Please place the following order at the quoted prices.',
     'purchase_order_quote_accepted_footer' => 'Please reference :reference on the order confirmation and invoice, and reply with your order number so our systems can match the shipment automatically. Thank you.',
 
+    // Asking the vendor where an order is.
+    'order_eta_request_subject' => 'What is the ETA for order :reference?',
+    'order_eta_request_intro' => 'Hello :supplier team, could you let us know the expected delivery date for order :reference? These lines have not arrived yet.',
+    'order_eta_request_field_vendor_order' => 'Your order #',
+    'order_eta_request_field_order' => 'Order',
+    'order_eta_request_field_ordered' => 'Ordered',
+    'order_eta_request_ask' => 'If any of these are back-ordered or will ship separately, please say which and when. Thank you.',
+    'order_eta_request_signoff' => 'Thanks,',
+
     // OK to pay, sent to the lessor as each lease invoice lands.
     'okay_to_pay_subject' => 'OK to pay — :supplier invoice :invoice',
     'okay_to_pay_greeting' => 'Hello,',

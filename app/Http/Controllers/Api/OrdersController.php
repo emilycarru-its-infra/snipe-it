@@ -26,6 +26,7 @@ use App\Models\CatalogItem;
 use App\Models\AssetModel;
 use App\Services\OrderAssetProvisioner;
 use App\Services\SupplierAccounts;
+use App\Services\OrderEtaRequest;
 use App\Services\VendorOrderDispatch;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -33,6 +34,17 @@ use Illuminate\Validation\ValidationException;
 
 class OrdersController extends Controller
 {
+    /** What an ETA request may carry, shared by the single and web paths. */
+    public const ETA_RULES = [
+        'to' => 'nullable|array',
+        'to.*' => 'email',
+        'cc_users' => 'nullable|array',
+        'cc_users.*' => 'integer|exists:users,id',
+        'subject' => 'nullable|string|max:191',
+        'note' => 'nullable|string|max:65535',
+        'test' => 'nullable|boolean',
+    ];
+
     /**
      * The line-item types the ingest endpoint accepts, mapped to their model.
      *
@@ -795,5 +807,95 @@ class OrdersController extends Controller
             'quote_confirmed_at' => $order->quote_confirmed_at?->toDateTimeString(),
             'vendor_order_number' => $order->vendor_order_number,
         ], $result['message']));
+    }
+
+    /**
+     * Who an ETA request would reach and what it would say, without sending —
+     * so a script or agent can check the addressing before it chases.
+     */
+    public function etaRequestPreview(Request $request, $orderId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $order = Order::findOrFail($orderId);
+
+        return response()->json(Helper::formatStandardApiResponse('success',
+            app(OrderEtaRequest::class)->preview($order, $request->user())));
+    }
+
+    /**
+     * Ask the vendor where an order is: "What is the ETA for order X?" to the
+     * supplier's reps, the team copied, replies to the caller. `to` replaces
+     * the reps, `cc_users` adds people, `subject` and `note` change the
+     * wording, `test` sends to the caller alone and records nothing.
+     */
+    public function etaRequest(Request $request, $orderId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate(self::ETA_RULES);
+        $order = Order::findOrFail($orderId);
+        $test = (bool) ($validated['test'] ?? false);
+
+        $result = app(OrderEtaRequest::class)->send($order, $request->user(), $validated, $test);
+
+        if (! $result['sent']) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        $order->refresh();
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'test' => $test,
+            'order' => $order->order_number,
+            'reference' => $order->etaReference(),
+            'to' => $result['to'],
+            'cc' => $result['cc'],
+            'last_eta_request_at' => Helper::getFormattedDateObject($order->eta_requested_at, 'datetime'),
+            'eta_request_count' => (int) $order->eta_request_count,
+        ], $test
+            ? trans('admin/orders/general.eta_request_test_sent', ['email' => $result['to'][0] ?? ''])
+            : trans('admin/orders/general.eta_request_sent', ['emails' => implode(', ', $result['to'])])));
+    }
+
+    /**
+     * The same ask for several orders at once — one email per order, each to
+     * its own supplier. An order that cannot go is reported, not fatal.
+     */
+    public function etaRequestBulk(Request $request): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:orders,id',
+            'cc_users' => 'nullable|array',
+            'cc_users.*' => 'integer|exists:users,id',
+            'note' => 'nullable|string|max:65535',
+            'test' => 'nullable|boolean',
+        ]);
+
+        $test = (bool) ($validated['test'] ?? false);
+        $service = app(OrderEtaRequest::class);
+        $results = [];
+
+        foreach (Order::whereIn('id', $validated['ids'])->get() as $order) {
+            $result = $service->send($order, $request->user(), $validated, $test);
+            $results[] = [
+                'id' => $order->id,
+                'order' => $order->order_number,
+                'sent' => $result['sent'],
+                'to' => $result['to'],
+                'cc' => $result['cc'],
+                'error' => $result['error'],
+            ];
+        }
+
+        $sent = collect($results)->where('sent', true)->count();
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'test' => $test,
+            'results' => $results,
+        ], trans('admin/orders/general.eta_request_bulk_result', ['sent' => $sent, 'failed' => count($results) - $sent])));
     }
 }

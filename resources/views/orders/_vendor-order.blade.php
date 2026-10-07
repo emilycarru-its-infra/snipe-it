@@ -279,6 +279,15 @@
                             <td><x-copy-field :value="$order->vendor_order_number" /></td>
                         </tr>
                     @endif
+                    @if ($order->eta_requested_at)
+                        <tr>
+                            <td>{{ trans('admin/orders/general.eta_request_button') }}</td>
+                            <td>{{ trans_choice('admin/orders/general.eta_request_last', $order->eta_request_count, [
+                                'date' => \App\Helpers\Helper::getFormattedDateObject($order->eta_requested_at, 'datetime', false),
+                                'count' => $order->eta_request_count,
+                            ]) }}</td>
+                        </tr>
+                    @endif
                 </tbody>
             </table>
 

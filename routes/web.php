@@ -139,6 +139,7 @@ Route::group(['middleware' => 'auth'], function () {
             ->push(trans('admin/orders/general.allocation_heading'), route('orders.unmatched')));
     Route::resource('procurement/orders', OrdersController::class);
     Route::post('procurement/orders/bulk/delete', [OrdersController::class, 'bulkDelete'])->name('orders.bulk.delete');
+    Route::post('procurement/orders/bulk/eta-request', [OrdersController::class, 'etaRequestBulk'])->name('orders.bulk.eta-request');
     Route::post('procurement/orders/allocate', [OrdersController::class, 'allocate'])->name('orders.allocate');
 
     // Type-ahead behind the toolbar lookup. No breadcrumb: it answers XHR,
@@ -187,6 +188,10 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('orders.send-vendor');
     Route::post('procurement/orders/{order}/vendor-response', [OrdersController::class, 'vendorResponse'])
         ->name('orders.vendor-response');
+    // Asking the vendor where an order is — from the order page, or for every
+    // ticked order on the list.
+    Route::post('procurement/orders/{order}/eta-request', [OrdersController::class, 'etaRequest'])
+        ->name('orders.eta-request');
 
     /*
     * The internal store — every authenticated user can browse and order.
