@@ -30,7 +30,6 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -787,54 +786,19 @@ class DeploymentsController extends Controller
                 ->with('success', trans('admin/deployments/general.announce_template_saved_confirm'));
         }
 
-        $test = $request->boolean('test');
-        $audience = $validated['audience'] ?? WaveAnnouncer::AUDIENCE_ALL;
+        $outcome = $announcer->announce(
+            $deploymentWave,
+            $validated['subject'],
+            $validated['body'],
+            auth()->user(),
+            $request->boolean('test'),
+            User::whereIn('id', $validated['cc'] ?? [])->get(),
+            User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
+            $validated['audience'] ?? WaveAnnouncer::AUDIENCE_ALL,
+        );
 
-        // "Nobody to chase" is a different answer from "this wave has no
-        // recipients", and it is the good one: it means everybody did the
-        // thing. Saying so plainly stops it reading as a failure.
-        if ($announcer->recipients($deploymentWave, $audience)->isEmpty()) {
-            return redirect()->route('deployment-waves.show', $deploymentWave)
-                ->with($audience === WaveAnnouncer::AUDIENCE_ALL ? 'error' : 'success', trans(
-                    $audience === WaveAnnouncer::AUDIENCE_ALL
-                        ? 'admin/deployments/general.announce_no_recipients'
-                        : 'admin/deployments/general.announce_nobody_to_chase_'.$audience
-                ));
-        }
-
-        try {
-            $result = $announcer->send(
-                $deploymentWave,
-                $validated['subject'],
-                $validated['body'],
-                auth()->user(),
-                $test,
-                [],
-                User::whereIn('id', $validated['cc'] ?? [])->get(),
-                User::whereIn('id', $validated['test_recipients'] ?? [])->get(),
-                $audience,
-            );
-        } catch (\Throwable $e) {
-            Log::warning('Wave announcement failed for wave '.$deploymentWave->id.': '.$e->getMessage());
-
-            return redirect()->route('deployment-waves.show', $deploymentWave)
-                ->with('error', trans('admin/deployments/general.announce_failed', ['error' => $e->getMessage()]));
-        }
-
-        if ($test) {
-            return redirect()->route('deployment-waves.show', $deploymentWave)
-                ->with('success', trans('admin/deployments/general.announce_test_sent', [
-                    'email' => implode(', ', $result['recipients']),
-                ]));
-        }
-
-        $message = trans('admin/deployments/general.announce_sent', ['count' => $result['sent']]);
-
-        if ($result['failed'] !== []) {
-            $message .= ' '.trans('admin/deployments/general.announce_partial', ['emails' => implode(', ', $result['failed'])]);
-        }
-
-        return redirect()->route('deployment-waves.show', $deploymentWave)->with('success', $message);
+        return redirect()->route('deployment-waves.show', $deploymentWave)
+            ->with($outcome['status'], $outcome['message']);
     }
 
     /**

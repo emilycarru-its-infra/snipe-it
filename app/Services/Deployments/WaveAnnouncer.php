@@ -175,6 +175,72 @@ class WaveAnnouncer
     }
 
     /**
+     * Send, and say what happened — the one place the outcome of an
+     * announcement is decided, so the board's form and the API cannot drift
+     * into telling the sender different things about the same send.
+     *
+     * "Nobody to chase" is a different answer from "this wave has no
+     * recipients", and it is the good one: it means everybody did the thing.
+     * Saying so plainly stops it reading as a failure.
+     *
+     * @param  Collection<int, User>|null  $cc
+     * @param  Collection<int, User>|null  $testRecipients
+     * @return array{status: string, message: string, result: array{sent: int, recipients: array<int, string>, failed: array<int, string>}|null}
+     */
+    public function announce(
+        DeploymentWave $wave,
+        string $subject,
+        string $body,
+        User $actor,
+        bool $test = false,
+        ?Collection $cc = null,
+        ?Collection $testRecipients = null,
+        ?string $audience = null,
+    ): array {
+        $audience ??= self::AUDIENCE_ALL;
+
+        if ($this->recipients($wave, $audience)->isEmpty()) {
+            return [
+                'status' => $audience === self::AUDIENCE_ALL ? 'error' : 'success',
+                'message' => trans($audience === self::AUDIENCE_ALL
+                    ? 'admin/deployments/general.announce_no_recipients'
+                    : 'admin/deployments/general.announce_nobody_to_chase_'.$audience),
+                'result' => ['sent' => 0, 'recipients' => [], 'failed' => []],
+            ];
+        }
+
+        try {
+            $result = $this->send($wave, $subject, $body, $actor, $test, [], $cc, $testRecipients, $audience);
+        } catch (\Throwable $e) {
+            Log::warning('Wave announcement failed for wave '.$wave->id.': '.$e->getMessage());
+
+            return [
+                'status' => 'error',
+                'message' => trans('admin/deployments/general.announce_failed', ['error' => $e->getMessage()]),
+                'result' => null,
+            ];
+        }
+
+        if ($test) {
+            return [
+                'status' => 'success',
+                'message' => trans('admin/deployments/general.announce_test_sent', [
+                    'email' => implode(', ', $result['recipients']),
+                ]),
+                'result' => $result,
+            ];
+        }
+
+        $message = trans('admin/deployments/general.announce_sent', ['count' => $result['sent']]);
+
+        if ($result['failed'] !== []) {
+            $message .= ' '.trans('admin/deployments/general.announce_partial', ['emails' => implode(', ', $result['failed'])]);
+        }
+
+        return ['status' => 'success', 'message' => $message, 'result' => $result];
+    }
+
+    /**
      * Send it.
      *
      * A test goes to whoever pressed the button, rendered against the first real
