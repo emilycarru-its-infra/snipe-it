@@ -59,6 +59,9 @@ class OrdersTransformer
             'vendor_changes_at' => Helper::getFormattedDateObject($order->vendor_changes_at, 'datetime'),
             'vendor_order_number' => $order->vendor_order_number,
             'vendor_stage' => $order->vendorStage(),
+            // When we last asked the vendor where it is, and how often.
+            'last_eta_request_at' => Helper::getFormattedDateObject($order->eta_requested_at, 'datetime'),
+            'eta_request_count' => (int) $order->eta_request_count,
             'items_count' => (int) ($order->items_count ?? $order->items->count()),
             'received_items_count' => $order->items->whereNotNull('received_at')->count(),
             'items' => $this->transformOrderItems($order->items),

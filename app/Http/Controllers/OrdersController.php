@@ -15,6 +15,8 @@ use App\Models\PurchaseOrder;
 use App\Models\CsiSchedule;
 use App\Services\ArrivalAllocator;
 use App\Services\SupplierAccounts;
+use App\Services\OrderEtaRequest;
+use Illuminate\Support\Facades\Gate;
 use App\Services\VendorOrderDispatch;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -68,6 +70,15 @@ class OrdersController extends Controller
             'selectedStatus' => $status,
             'needsAllocation' => $request->boolean('needs_allocation'),
             'unmatchedCount' => $arrivals->count(),
+            // What the "Ask for ETAs" sheet offers: orders with the vendor and
+            // something still to arrive, oldest first — the likeliest to chase.
+            'etaCandidates' => Gate::allows('update', Order::class)
+                ? Order::with('supplier')
+                    ->whereIn('status', ['ordered', 'shipped', 'partially_received'])
+                    ->whereHas('items', fn ($q) => $q->whereNull('received_at'))
+                    ->orderByRaw('COALESCE(vendor_sent_at, order_date, created_at)')
+                    ->get()
+                : collect(),
         ]);
     }
 
@@ -228,6 +239,68 @@ class OrdersController extends Controller
             ->with('success', $test
                 ? trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]])
                 : trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])]));
+    }
+
+    /**
+     * Ask the vendor where this order is, from the order page's dialog. The
+     * same send as the API's, so the two cannot disagree about who it reaches.
+     */
+    public function etaRequest(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        // The dialog posts the To list as one comma-separated field.
+        $request->merge(['to' => array_values(array_filter(array_map('trim',
+            explode(',', (string) $request->input('to_list', ''))))) ?: null]);
+
+        $validated = $request->validate(Api\OrdersController::ETA_RULES);
+        $test = $request->boolean('test');
+
+        $result = app(OrderEtaRequest::class)->send($order, auth()->user(), $validated, $test);
+
+        if (! $result['sent']) {
+            return redirect()->route('orders.show', $order->id)->with('error', $result['error']);
+        }
+
+        return redirect()->route('orders.show', $order->id)
+            ->with('success', $test
+                ? trans('admin/orders/general.eta_request_test_sent', ['email' => $result['to'][0] ?? ''])
+                : trans('admin/orders/general.eta_request_sent', ['emails' => implode(', ', $result['to'])]));
+    }
+
+    /**
+     * The same ask for every ticked order on the list: one email per order,
+     * each to its own supplier. Orders that cannot go are counted, not fatal.
+     */
+    public function etaRequestBulk(Request $request): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:orders,id',
+            'cc_users' => 'nullable|array',
+            'cc_users.*' => 'integer|exists:users,id',
+            'note' => 'nullable|string|max:65535',
+        ]);
+
+        $service = app(OrderEtaRequest::class);
+        $sent = 0;
+        $errors = [];
+
+        foreach (Order::whereIn('id', $validated['ids'])->get() as $order) {
+            $result = $service->send($order, auth()->user(), $validated);
+            if ($result['sent']) {
+                $sent++;
+            } else {
+                $errors[] = $order->order_number.': '.$result['error'];
+            }
+        }
+
+        $message = trans('admin/orders/general.eta_request_bulk_result', ['sent' => $sent, 'failed' => count($errors)]);
+
+        return redirect()->route('orders.index')
+            ->with($errors === [] ? 'success' : 'warning', $message.($errors === [] ? '' : ' '.implode(' · ', $errors)));
     }
 
     /**

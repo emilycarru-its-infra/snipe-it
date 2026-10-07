@@ -60,6 +60,9 @@
     <button type="button" class="btn btn-sm btn-default" onclick="document.querySelectorAll('details.ord-card').forEach(d => d.open = false)">
         {{ trans('admin/orders/general.collapse_all') }}
     </button>
+    @can('update', \App\Models\Order::class)
+        @include('orders._eta-request-bulk')
+    @endcan
     @can('create', \App\Models\Order::class)
         <a href="{{ route('orders.create') }}" class="btn btn-sm btn-primary">{{ trans('general.create') }}</a>
     @endcan
@@ -138,5 +141,9 @@
 @endif
 
 {{ $orders->links() }}
+
+@can('update', \App\Models\Order::class)
+    @include('orders._eta-sheet')
+@endcan
 
 @stop

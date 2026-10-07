@@ -432,6 +432,16 @@ class EmailRegistry
                 'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'lines' => 'The lines being ordered, at the quoted prices', 'reference' => 'The purchase order number', 'supplier' => 'The vendor'],
                 'factory' => fn (EmailSampleData $s) => new PurchaseOrderQuoteAcceptanceMail($s->vendorOrder()),
             ],
+            [
+                'key' => 'procurement.eta_request',
+                'category' => 'store',
+                'label' => 'ETA request (to reps)',
+                'description' => 'Asks the vendor\'s reps when an order\'s outstanding lines will arrive, from the order page or the API. Lists only the lines not yet received. Recipients default to the supplier\'s order email list; CC defaults to the device team contact list, plus the sender, who also gets the replies. The subject may use {{reference}} (the vendor\'s order number, else ours).',
+                'merge_vars' => ['order' => 'The order', 'reference' => 'The vendor\'s order number, else ours', 'purchase_order' => 'The purchase order number', 'lines' => 'Lines still to arrive', 'note' => 'What the sender added', 'sender' => 'Who sent it', 'supplier' => 'The vendor'],
+                'factory' => fn (EmailSampleData $s) => new OrderEtaRequestMail($s->vendorOrder()),
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+            ],
 
             [
                 'key' => 'procurement.okay_to_pay',
@@ -676,6 +686,7 @@ class EmailRegistry
             'store.vendor_order',
             'procurement.vendor_order',
             'procurement.quote_accepted',
+            'procurement.eta_request',
             'procurement.okay_to_pay',
         ], ['audience' => 'external']);
     }
