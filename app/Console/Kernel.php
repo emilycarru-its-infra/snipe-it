@@ -29,6 +29,10 @@ class Kernel extends ConsoleKernel
             $schedule->command('snipeit:user-agreement-signature-reminders')->dailyAt(self::at('schedule.signature_reminders'));
             $schedule->command('snipeit:user-agreements-reconcile')->dailyAt(self::at('schedule.user_agreements_reconcile'));
         }
+        // Weekdays, and outside the alerts_enabled gate: this is the list of
+        // what procurement still has to do, not an optional alert.
+        $schedule->command('snipeit:procurement-actions')->weekdays()->dailyAt(self::at('schedule.procurement_actions'));
+
         $schedule->command('snipeit:backup')->weekly();
         $schedule->command('backup:clean')->daily();
         $schedule->command('auth:clear-resets')->everyFifteenMinutes();
