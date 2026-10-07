@@ -156,7 +156,7 @@ class SendProcurementActionsReport extends Command
      */
     private function purchaseOrderRows(): Collection
     {
-        return PurchaseOrder::with('supplier')
+        return PurchaseOrder::query()
             ->whereIn('status', ['open', 'amended'])
             ->whereNotNull('vendor_sent_at')
             ->whereNull('quote_confirmed_at')
