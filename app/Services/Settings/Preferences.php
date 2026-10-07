@@ -201,6 +201,7 @@ class Preferences
             'catalog.apple_store_pages' => ['group' => 'links', 'type' => 'list', 'default' => AppleStoreSync::DEFAULT_PAGES],
 
             'schedule.contract_renewals' => ['group' => 'schedule', 'type' => 'time', 'default' => '07:30'],
+            'schedule.procurement_actions' => ['group' => 'schedule', 'type' => 'time', 'default' => '08:30'],
             'schedule.user_pregen_pdfs' => ['group' => 'schedule', 'type' => 'time', 'default' => '05:00'],
             'schedule.signature_reminders' => ['group' => 'schedule', 'type' => 'time', 'default' => '06:00'],
             'schedule.user_agreements_reconcile' => ['group' => 'schedule', 'type' => 'time', 'default' => '04:30'],

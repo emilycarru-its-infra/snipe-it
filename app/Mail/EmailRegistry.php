@@ -225,6 +225,13 @@ class EmailRegistry
                 'configurable_recipients' => true,
                 'factory' => fn (EmailSampleData $s) => new ContractRenewalAlertMail($s->contracts(), '30d'),
             ],
+            [
+                'key' => 'report.procurement_actions',
+                'category' => 'reports',
+                'label' => 'Procurement — waiting on us',
+                'description' => 'Weekday-morning list of store orders waiting for review, approved orders not yet sent to the vendor, quotes not yet confirmed, and vendor changes to answer. Repeats every open item until it moves. Teams only — it has no email form.',
+                'merge_vars' => [],
+            ],
             // Notification-channel reports — recipient-configurable + previewable.
             // They render through the notification path (no subject/body editing).
             [
@@ -657,6 +664,18 @@ class EmailRegistry
                 fn ($i) => [$i['name'] ?? null, ucfirst((string) ($i['type'] ?? '')), $i['remaining'] ?? null, $i['min_amt'] ?? null],
                 [],
                 route('reports.index'),
+            )),
+
+            'report.procurement_actions' => $procurement('admin', fn (EmailSampleData $s) => ReportCard::make(
+                trans('admin/store/general.actions_report_title'), 'attention',
+                [trans('admin/store/general.actions_col_action'), trans('admin/store/general.actions_col_reference'), trans('admin/store/general.actions_col_for'), trans('admin/store/general.actions_col_gl'), trans('admin/store/general.actions_col_total'), trans('admin/store/general.actions_col_waiting')],
+                [
+                    [trans('admin/store/general.actions_review'), $s->storeOrder()->reference(), 'Sample Requester', '6-1234-5678', '$2,398.00', '3 days ago'],
+                    [trans('admin/store/general.actions_quote'), $s->storeOrder('ordered', 482)->reference(), 'Sample Requester', null, '$1,899.00', '1 week ago'],
+                ],
+                fn (array $row) => $row,
+                [],
+                route('procurement.approvals'),
             )),
 
             'request.asset' => $requests(fn (EmailSampleData $s) => self::sampleRequestCard($s, 'Asset requested', 'accent')),
