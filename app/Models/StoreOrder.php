@@ -75,6 +75,7 @@ class StoreOrder extends Model
         'funding_account',
         'lease_schedule',
         'gl_code',
+        'department_po_number',
         'notes',
         'decision_notes',
         'decided_by',
