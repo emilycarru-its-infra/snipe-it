@@ -1183,6 +1183,8 @@
         "created_at",
         "created_by",
         "deleted_at",
+        "eta_request_count",
+        "eta_requested_at",
         "expected_date",
         "fiscal_year",
         "funding_account",
