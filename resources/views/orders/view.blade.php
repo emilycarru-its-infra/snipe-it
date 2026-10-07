@@ -37,6 +37,11 @@
                             </form>
                         @endif
                     @endcan
+                    @can('update', \App\Models\Order::class)
+                        @unless (in_array($order->status, ['cancelled', 'received'], true))
+                            @include('orders._eta-request')
+                        @endunless
+                    @endcan
                     <a href="{{ route('orders.export', $order->id) }}" class="btn btn-sm btn-default">
                         <x-icon type="download" /> {{ trans('admin/orders/general.export') }}
                     </a>
@@ -640,4 +645,7 @@
         syncPicker();
     })();
 </script>
+@can('update', \App\Models\Order::class)
+    @include('orders._eta-sheet')
+@endcan
 @stop
