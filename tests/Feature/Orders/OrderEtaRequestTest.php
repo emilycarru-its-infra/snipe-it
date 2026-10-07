@@ -157,6 +157,32 @@ class OrderEtaRequestTest extends VendorOrderTestCase
         Mail::assertNothingSent();
     }
 
+    public function test_a_subdomain_of_another_lessor_stops_the_send()
+    {
+        Mail::fake();
+        $order = $this->placedOrder();
+        Supplier::create(['name' => 'Other Lessor', 'email' => 'leases@lessor-b.example', 'contract_prefixes' => 'ZZ99']);
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.orders.eta-request', $order->id), ['to' => ['ops@mail.lessor-b.example']])
+            ->assertStatus(422);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_lessor_copied_on_the_team_list_stops_the_send()
+    {
+        Mail::fake();
+        $order = $this->placedOrder();
+        Supplier::create(['name' => 'Other Lessor', 'email' => 'leases@lessor-b.example', 'contract_prefixes' => 'ZZ99']);
+        \App\Models\EmailTemplate::updateOrCreate(['key' => 'procurement.eta_request'], ['cc' => 'Rep <ops@lessor-b.example>']);
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.orders.eta-request', $order->id))->assertStatus(422);
+
+        Mail::assertNothingSent();
+    }
+
     public function test_bulk_sends_one_email_per_order_and_reports_the_ones_that_cannot_go()
     {
         Mail::fake();

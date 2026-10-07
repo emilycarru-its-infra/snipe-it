@@ -127,6 +127,7 @@ return [
     'eta_request_nothing_outstanding' => 'Every line on this order has been received.',
     'eta_request_no_recipients' => 'This supplier has no order email list, and no address was given.',
     'eta_request_lessor_recipient' => 'Not sent: :emails belongs to a lessor other than this order\'s supplier.',
+    'eta_request_invalid_recipient' => 'Not sent: :emails is not a valid email address.',
     'eta_request_bulk_button' => 'Ask for ETAs',
     'eta_request_bulk_title' => 'Ask vendors for ETAs on outstanding orders',
     'eta_request_bulk_help' => 'One email per ticked order, to that order\'s supplier, with the team copied.',

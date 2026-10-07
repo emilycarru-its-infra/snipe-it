@@ -204,8 +204,26 @@ class OrderEtaRequest
             ->unique()
             ->all();
 
+        // Every address must be a bare, valid mailbox before its domain is
+        // read: a display name or stray bracket ("Rep <x@lessor.example>")
+        // would otherwise yield a domain that matches nothing and slip past.
+        $invalid = collect(array_merge($to, $cc))
+            ->reject(fn ($email) => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)
+            ->values()
+            ->all();
+
+        if ($invalid !== []) {
+            return trans('admin/orders/general.eta_request_invalid_recipient', ['emails' => implode(', ', $invalid)]);
+        }
+
+        // A subdomain of a lessor's domain is still that lessor.
         $crossing = collect(array_merge($to, $cc))
-            ->filter(fn ($email) => in_array(substr((string) strrchr($email, '@'), 1), $foreign, true))
+            ->filter(function ($email) use ($foreign) {
+                $domain = strtolower(substr((string) strrchr($email, '@'), 1));
+
+                return collect($foreign)->contains(fn ($lessorDomain) => $domain === $lessorDomain
+                    || str_ends_with($domain, '.'.$lessorDomain));
+            })
             ->values()
             ->all();
 
