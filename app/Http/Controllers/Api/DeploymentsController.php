@@ -364,7 +364,8 @@ class DeploymentsController extends Controller
         $this->authorize('deployments.view');
 
         $fy = RefreshForecast::normalizeFy($request->query('fiscal_year'));
-        $candidates = (new RefreshForecast)->forFiscalYear($fy)->map(fn ($asset) => [
+        $forecast = new RefreshForecast;
+        $candidates = $forecast->forFiscalYear($fy)->map(fn ($asset) => [
             'id' => $asset->id,
             'asset_tag' => $asset->asset_tag,
             'name' => $asset->name,
@@ -377,9 +378,15 @@ class DeploymentsController extends Controller
             'lease_contract_id' => $asset->lease_contract_id,
             'lease_decision' => $asset->lease_decision_label,
             'lease_decision_note' => $asset->lease_decision_note,
+            'replacement_estimate' => $asset->replacement_estimate,
+            'estimate_basis' => $asset->estimate_basis,
         ]);
 
-        return response()->json(Helper::formatStandardApiResponse('success', ['fiscal_year' => $fy, 'candidates' => $candidates], null));
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'fiscal_year' => $fy,
+            'price_assumption' => $fy ? $forecast->priceAssumption($fy) : null,
+            'candidates' => $candidates,
+        ], null));
     }
 
     public function decommission(Request $request)
