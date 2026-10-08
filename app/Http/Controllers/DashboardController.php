@@ -11,6 +11,7 @@ use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\License;
 use App\Models\Maintenance;
+use App\Models\OrderInvoice;
 use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
@@ -388,8 +389,10 @@ class DashboardController extends Controller
                 ->whereNull('deleted_at')->count()
             : 0;
 
+        // Invoices that could carry a purchase order and do not. Lease-financed
+        // invoices never have one, so they are left out rather than counted.
         $unmatchedInvoices = Schema::hasTable('order_invoices')
-            ? DB::table('order_invoices')->whereNull('purchase_order_id')->count()
+            ? OrderInvoice::whereNull('purchase_order_id')->excludingLeaseFinanced()->count()
             : 0;
 
         return [
