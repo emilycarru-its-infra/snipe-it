@@ -148,7 +148,9 @@ class ProductIdentitiesController extends Controller
 
     /**
      * The alias and license rows off the form, with blank rows dropped and
-     * duplicates collapsed.
+     * duplicates collapsed. Error messages echo what was typed, and the form
+     * prints them unescaped inside its error markup, so the input is escaped
+     * here.
      *
      * @return array{0: array<int, array>, 1: array<int, array>, 2: MessageBag}
      */
@@ -172,7 +174,7 @@ class ProductIdentitiesController extends Controller
                 continue;
             }
             if (! ProductIdentityAlias::patternIsValid($matchType, $pattern)) {
-                $errors->add("aliases.{$i}.pattern", trans('admin/productidentities/message.bad_regex', ['pattern' => $pattern]));
+                $errors->add("aliases.{$i}.pattern", trans('admin/productidentities/message.bad_regex', ['pattern' => e($pattern)]));
 
                 continue;
             }
@@ -198,7 +200,7 @@ class ProductIdentitiesController extends Controller
             $rawFy = trim((string) ($row['fiscal_year'] ?? ''));
             $fy = $rawFy === '' ? null : FiscalYear::normalize($rawFy);
             if ($rawFy !== '' && $fy === null) {
-                $errors->add("license_links.{$i}.fiscal_year", trans('admin/productidentities/message.bad_fiscal_year', ['fy' => $rawFy]));
+                $errors->add("license_links.{$i}.fiscal_year", trans('admin/productidentities/message.bad_fiscal_year', ['fy' => e($rawFy)]));
 
                 continue;
             }

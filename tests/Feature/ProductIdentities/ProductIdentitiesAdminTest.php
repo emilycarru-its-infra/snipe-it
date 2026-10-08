@@ -116,6 +116,24 @@ class ProductIdentitiesAdminTest extends TestCase
         $this->assertDatabaseMissing('product_identities', ['name' => 'Broken']);
     }
 
+    public function test_rejected_input_is_escaped_when_the_form_shows_it_back()
+    {
+        $license = License::factory()->create();
+
+        $this->actingAs($this->admin())
+            ->from(route('product-identities.create'))
+            ->followingRedirects()
+            ->post(route('product-identities.store'), [
+                'name'          => 'Escaped',
+                'aliases'       => [['platform' => 'any', 'match_type' => 'regex', 'pattern' => '<b id="pi-xss">(']],
+                'license_links' => [['license_id' => $license->id, 'fiscal_year' => '<i id="pi-fy">']],
+            ])
+            ->assertOk()
+            ->assertDontSee('<b id="pi-xss">', false)
+            ->assertDontSee('<i id="pi-fy">', false)
+            ->assertSee('&lt;b id=&quot;pi-xss&quot;&gt;(', false);
+    }
+
     public function test_edit_and_show_render()
     {
         $product = ProductIdentity::factory()->withAliases([['windows', 'prefix', 'Houdini']])->create();
