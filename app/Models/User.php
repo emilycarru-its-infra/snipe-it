@@ -308,6 +308,8 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
      * This overrides the SnipeModel displayName accessor to return the full name if display_name is not set
      *
      * @see SnipeModel::displayName()
+     *
+     * @return Attribute<string, string|null>
      */
     protected function displayName(): Attribute
     {
