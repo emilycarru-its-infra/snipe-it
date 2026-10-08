@@ -109,4 +109,21 @@ class ProcurementActionsReportTest extends TestCase
         $this->assertStringContainsString($po->po_number, $text);
         $this->assertStringNotContainsString($accepted->po_number, $text);
     }
+
+    public function test_calls_out_a_department_po_that_is_not_one_of_ours(): void
+    {
+        $this->fakeRelay();
+
+        PurchaseOrder::factory()->create(['po_number' => 'P0012345', 'status' => 'open']);
+        $ours = $this->order(['status' => 'approved', 'decided_at' => now(), 'department_po_number' => 'p0012345']);
+        $theirs = $this->order(['status' => 'approved', 'decided_at' => now(), 'department_po_number' => 'DEPT-77']);
+
+        Artisan::call('snipeit:procurement-actions');
+
+        $text = $this->cardText($this->lastPostedCard());
+        $this->assertStringContainsString($ours->reference(), $text);
+        $this->assertStringContainsString(trans('admin/store/general.actions_send'), $text);
+        $this->assertStringContainsString(trans('admin/store/general.actions_po_check', ['po' => 'DEPT-77']), $text);
+        $this->assertStringNotContainsString(trans('admin/store/general.actions_po_check', ['po' => 'p0012345']), $text);
+    }
 }

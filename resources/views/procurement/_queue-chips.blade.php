@@ -26,6 +26,10 @@
         <span class="pq-chip">{{ $order->fundingLabel() }}</span>
     @endif
 
+    @if ($order->department_po_number)
+        <span class="pq-chip">{{ trans('admin/store/general.queue_department_po', ['po' => $order->department_po_number]) }}</span>
+    @endif
+
     @if ($order->gl_code)
         <span class="pq-chip">{{ trans('admin/store/general.queue_gl_code', ['code' => $order->gl_code]) }}</span>
     @endif

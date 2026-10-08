@@ -138,8 +138,22 @@ class SendProcurementActionsReport extends Command
         $pending = $orders->where('status', 'pending')
             ->map(fn (StoreOrder $o) => $row($o, trans('admin/store/general.actions_review'), $o->created_at));
 
+        // A PO typed in at order time skips review on trust. One that matches
+        // a purchase order we hold is ours; anything else is the requester's
+        // own number, so it is called out for a look before it goes out.
+        $ourPos = $this->knownPurchaseOrders($orders->pluck('department_po_number')->filter()->all());
+
         $approved = $orders->where('status', 'approved')
-            ->map(fn (StoreOrder $o) => $row($o, trans('admin/store/general.actions_send'), $o->decided_at ?? $o->updated_at));
+            ->map(function (StoreOrder $o) use ($row, $ourPos) {
+                // Requester-typed: keep only what a PO number is made of, so
+                // nothing in it renders as markup in the card.
+                $po = trim(preg_replace('/[^A-Za-z0-9 .\/_-]/', '', (string) $o->department_po_number));
+                $action = $po !== '' && ! in_array(mb_strtolower($po), $ourPos, true)
+                    ? trans('admin/store/general.actions_po_check', ['po' => $po])
+                    : trans('admin/store/general.actions_send');
+
+                return $row($o, $action, $o->decided_at ?? $o->updated_at);
+            });
 
         $quoted = $orders->where('status', 'ordered')
             ->filter(fn (StoreOrder $o) => $o->displayStatus() === 'quoted')
@@ -148,6 +162,27 @@ class SendProcurementActionsReport extends Command
                 : 'admin/store/general.actions_quote'), $o->quote_received_at));
 
         return $pending->concat($approved)->concat($quoted);
+    }
+
+    /**
+     * Which of these PO numbers are purchase orders we hold, lower-cased.
+     *
+     * @param  array<int, string>  $numbers
+     * @return array<int, string>
+     */
+    private function knownPurchaseOrders(array $numbers): array
+    {
+        $numbers = array_values(array_unique(array_map(fn ($n) => trim((string) $n), $numbers)));
+
+        if ($numbers === []) {
+            return [];
+        }
+
+        return PurchaseOrder::query()
+            ->whereIn('po_number', $numbers)
+            ->pluck('po_number')
+            ->map(fn ($n) => mb_strtolower(trim((string) $n)))
+            ->all();
     }
 
     /**

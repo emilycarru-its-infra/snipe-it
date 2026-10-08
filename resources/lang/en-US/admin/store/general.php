@@ -315,6 +315,13 @@ return [
     'tab_agreements' => 'Agreements',
     'tab_loading' => 'Loading…',
 
+    // What a department-funded order needs before it is placed.
+    'prereqs_title' => 'Paying from your department budget?',
+    'prereqs_body' => 'Raise a requisition (REQM) in Colleague first and wait for finance to turn it into a purchase order. Then enter the PO number and GL code below. An order with a PO number goes straight to ordering; without one, procurement reviews it first and may come back to you for these.',
+    'department_po_label' => 'Purchase order number',
+    'department_po_placeholder' => 'PO number from Colleague',
+    'preapproved_by_po' => 'Approved by department purchase order :po.',
+    'queue_department_po' => 'PO :po',
     // The daily digest of what is waiting on procurement.
     'actions_report_title' => 'Procurement — waiting on us',
     'actions_col_action' => 'Needs',
@@ -328,4 +335,5 @@ return [
     'actions_quote' => 'Quote — confirm to order',
     'actions_quote_expired' => 'Quote expired — re-quote',
     'actions_vendor_changes' => 'Vendor changes — review',
+    'actions_po_check' => 'Check PO :po — not one of ours',
 ];
