@@ -148,7 +148,9 @@ class SendProcurementActionsReport extends Command
             // missing its account or its send failed; say which. A PO that is
             // not one of ours is called out first.
             ->map(function (StoreOrder $o) use ($row, $ourPos) {
-                $po = trim((string) $o->department_po_number);
+                // Requester-typed: keep only what a PO number is made of, so
+                // nothing in it renders as markup in the card.
+                $po = trim(preg_replace('/[^A-Za-z0-9 .\/_-]/', '', (string) $o->department_po_number));
                 $action = $po !== '' && ! in_array(mb_strtolower($po), $ourPos, true)
                     ? trans('admin/store/general.actions_po_check', ['po' => $po])
                     : trans($o->readyForVendor()

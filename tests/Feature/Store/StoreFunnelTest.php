@@ -1093,6 +1093,20 @@ class StoreFunnelTest extends TestCase
         $this->assertSame('MGDT4LL/A', $item->mfr_part_number);
     }
 
+    public function test_a_department_po_with_markup_is_refused()
+    {
+        $item = $this->shelfItem();
+
+        $this->actingAs($this->endUser())
+            ->post(route('store.orders.store'), [
+                'department_po_number' => '[PO](https://example.com)',
+                'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            ])
+            ->assertSessionHasErrors('department_po_number');
+
+        $this->assertSame(0, StoreOrder::count());
+    }
+
     public function test_an_order_with_a_department_po_skips_review()
     {
         $item = $this->shelfItem();
