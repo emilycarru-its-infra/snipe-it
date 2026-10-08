@@ -256,6 +256,13 @@ class AssetModelsController extends Controller
         }
 
         if ($assetmodel->save()) {
+            // The same EOL propagation as the model form, so changing a
+            // model's EOL policy over the API moves its assets' derived EOL
+            // dates instead of leaving them on the old policy.
+            if ($assetmodel instanceof AssetModel && $assetmodel->wasChanged('eol')) {
+                $assetmodel->syncDerivedAssetEolDates();
+            }
+
             return response()->json(Helper::formatStandardApiResponse('success', (new AssetModelsTransformer)->transformAssetModel($assetmodel), trans('admin/models/message.update.success')));
         }
 

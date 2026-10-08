@@ -61,6 +61,7 @@ class RequisitionsTransformer
                 'po_number' => e($requisition->purchaseOrder->po_number),
             ] : null,
             'fiscal_year' => $requisition->fiscal_year ? e($requisition->fiscal_year) : null,
+            'capital_request_fy' => $requisition->capital_request_fy ? e($requisition->capital_request_fy) : null,
             'cost_center' => $requisition->cost_center ? e($requisition->cost_center) : null,
             // Which CDW account, and so which blanket purchase order and who
             // is invoiced. A lease also carries the CSI schedule.

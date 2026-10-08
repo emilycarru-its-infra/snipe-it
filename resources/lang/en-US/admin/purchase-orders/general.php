@@ -294,6 +294,8 @@ return [
     'capital_envelope_gap' => 'Left in the envelope',
     'capital_draft_confirm' => 'Create a draft requisition in the PO Builder with every :fy refresh line?',
     'capital_draft_created' => 'Draft created from the :fy capital request — refine the lines here, then submit for a REQM.',
+    'capital_line_saved' => 'Capital request line saved.',
+    'capital_line_deleted' => 'Capital request line deleted.',
     'lease_detail_terms' => 'Terms',
     'lease_detail_schedule' => 'Device Schedule',
     'lease_detail_funding' => 'Funding',
