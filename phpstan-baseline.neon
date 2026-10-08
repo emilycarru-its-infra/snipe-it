@@ -13,12 +13,6 @@ parameters:
 			path: app/Services/Deployments/StageAutomation.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Breadcrumbs/BuildAcceptanceBreadcrumbs.php
-
-		-
 			message: '#^Method App\\Actions\\CheckoutRequests\\CreateCheckoutRequestAction\:\:run\(\) should return string but returns true\.$#'
 			identifier: return.type
 			count: 1
@@ -176,12 +170,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Setting\:\:\$ldap_base_dn\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Console/Commands/LdapSync.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Console/Commands/LdapSync.php
@@ -1055,12 +1043,6 @@ parameters:
 			identifier: deadCode.unreachable
 			count: 1
 			path: app/Http/Controllers/Accessories/AccessoryCheckoutController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Account/AcceptanceController.php
 
 		-
 			message: '#^Static method Illuminate\\Contracts\\Filesystem\\Filesystem\:\:makeDirectory\(\) invoked with 2 parameters, 1 required\.$#'
@@ -2035,12 +2017,6 @@ parameters:
 			path: app/Http/Controllers/Api/UsersController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/UsersController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\User\:\:\$use_image\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2360,12 +2336,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\SnipeModel\:\:\$asset_tag\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Assets/AssetsController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
 			identifier: property.notFound
 			count: 2
 			path: app/Http/Controllers/Assets/AssetsController.php
@@ -3179,12 +3149,6 @@ parameters:
 			identifier: parameter.notFound
 			count: 3
 			path: app/Http/Controllers/DepreciationsController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/EmailsController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$display_name\.$#'
@@ -4261,12 +4225,6 @@ parameters:
 			path: app/Http/Controllers/Users/UsersController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Users/UsersController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\User\:\:\$manages_locations_count\.$#'
 			identifier: property.notFound
 			count: 1
@@ -4313,12 +4271,6 @@ parameters:
 			identifier: assign.propertyType
 			count: 1
 			path: app/Http/Controllers/Users/UsersController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ViewAssetsController.php
 
 		-
 			message: '#^PHPDoc tag @param references unknown parameter\: \$assetId$#'
@@ -4897,12 +4849,6 @@ parameters:
 			path: app/Http/Transformers/UserAgreementsTransformer.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Transformers/UsersTransformer.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\User\:\:\$manages_locations_count\.$#'
 			identifier: property.notFound
 			count: 1
@@ -4994,12 +4940,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Importer\\Importer\:\:\$send_welcome\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Importer/Importer.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Importer/Importer.php
@@ -5737,12 +5677,6 @@ parameters:
 			path: app/Mail/CheckoutAccessoryMail.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Mail/CheckoutAccessoryMail.php
-
-		-
 			message: '#^Access to an undefined property App\\Mail\\CheckoutAssetMail\:\:\$acceptance\.$#'
 			identifier: property.notFound
 			count: 3
@@ -5792,12 +5726,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Asset\:\:\$last_checkout\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Mail/CheckoutAssetMail.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Mail/CheckoutAssetMail.php
@@ -5942,12 +5870,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Asset\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Mail/CheckoutLicenseMail.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Mail/CheckoutLicenseMail.php
@@ -12086,12 +12008,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Supplier\:\:\$display_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Providers/BreadcrumbsServiceProvider.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$display_name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Providers/BreadcrumbsServiceProvider.php
