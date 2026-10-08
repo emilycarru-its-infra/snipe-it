@@ -1184,6 +1184,9 @@ class ProcurementReportsTest extends TestCase
             'Ownership Type' => 'Lease to Return',
             'Lease End Date' => '2026-11-01',
         ], ['purchase_cost' => 1800.00, 'model_id' => $model->id]);
+        // The factory sometimes draws an EOL before the lease end, which
+        // moves that device into an earlier fiscal year and halves the line.
+        Asset::query()->update(['asset_eol_date' => null]);
 
         $response = $this->actingAs($this->superuser())
             ->post(route('reports.procurement.capital-request.draft'), ['fiscal_year' => 'FY2026-27']);
