@@ -17,10 +17,10 @@ use Illuminate\Support\Collection;
  * matches the page its column links to.
  *
  * Devices due follow the decision chain: a device planned onto a wave
- * counts in that wave's year; one on no wave counts where the forecast puts
- * it (the earlier of End of Life and lease end, or a deferral's target).
- * RefreshForecast already leaves wave-tracked devices out, so the two
- * halves never overlap.
+ * counts in that wave's year; one on no wave counts in the first year the
+ * forecast puts it (the earlier of End of Life and lease end, or a
+ * deferral's target). RefreshForecast already leaves wave-tracked devices
+ * out, so the two halves never overlap.
  */
 class PlanningHorizon
 {
@@ -50,8 +50,26 @@ class PlanningHorizon
         $forecast = new RefreshForecast;
         $capital = app(ProcurementReportsController::class);
 
-        return array_map(function (string $fy) use ($forecast, $capital) {
-            $candidates = $forecast->forFiscalYear($fy);
+        $fiscalYears = $fiscalYears ?? self::fiscalYears();
+        usort($fiscalYears, fn (string $a, string $b) => FiscalYear::startYearOf($a) <=> FiscalYear::startYearOf($b));
+
+        // The forecast lists a device in every year either of its dates
+        // falls in, so one whose End of Life and lease end land in
+        // different years sits on both lists. The decision chain takes the
+        // earlier date — the capital request does — so a device counts only
+        // in the first year it is due, and one already due this year never
+        // reappears further out.
+        $seen = $fiscalYears !== [] && FiscalYear::startYearOf($fiscalYears[0]) > FiscalYear::currentStartYear()
+            ? array_flip($forecast->forFiscalYear(FiscalYear::current())->pluck('id')->all())
+            : [];
+
+        return array_map(function (string $fy) use ($forecast, $capital, &$seen) {
+            $candidates = $forecast->forFiscalYear($fy)
+                ->reject(fn (Asset $asset) => isset($seen[$asset->id]))
+                ->values();
+            foreach ($candidates as $asset) {
+                $seen[$asset->id] = true;
+            }
             $forecastCost = (float) $candidates->sum(
                 fn (Asset $asset) => $asset->replacementCostEstimate() ?? (float) ($asset->purchase_cost ?? 0)
             );
@@ -85,6 +103,6 @@ class PlanningHorizon
                 'gap' => (float) $summary['envelope'] - $cost,
                 'waves' => $waves,
             ];
-        }, $fiscalYears ?? self::fiscalYears());
+        }, $fiscalYears);
     }
 }

@@ -25,7 +25,7 @@ return [
     // Forecast (auto-collect)
     'forecast_title' => 'Planning',
     'horizon_title' => 'Planning Horizon',
-    'horizon_help' => 'The next fiscal years side by side. Devices on a wave count in that wave\'s year; the rest count where their End of Life or lease end puts them. Each column opens that year\'s planning page and capital request.',
+    'horizon_help' => 'The next fiscal years side by side. Devices on a wave count in that wave\'s year; the rest count in the year of the earlier of their End of Life and lease end. Each column opens that year\'s planning page and capital request.',
     'horizon_devices' => 'Devices due',
     'horizon_devices_detail' => ':forecast unplanned · :waves on waves',
     'horizon_cost' => 'Projected replacement cost',

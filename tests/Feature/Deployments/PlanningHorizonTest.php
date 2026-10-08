@@ -123,6 +123,25 @@ class PlanningHorizonTest extends TestCase
         $this->assertSame(0, $columns['FY2029-30']['devices']);
     }
 
+    public function test_a_device_counts_only_in_the_first_year_it_is_due()
+    {
+        // Lease ends in FY2027-28, End of Life in FY2029-30: both years'
+        // forecasts list it, but it is due at the earlier date.
+        $this->asset(['lease_end_date' => '2027-09-01', 'asset_eol_date' => '2029-06-01'], ['purchase_cost' => 1000]);
+
+        // Lease ends this year, End of Life in FY2028-29: already this
+        // year's refresh, so it never shows on the horizon.
+        $this->asset(['lease_end_date' => '2027-01-15', 'asset_eol_date' => '2028-06-01'], ['purchase_cost' => 700]);
+
+        $columns = collect((new PlanningHorizon)->columns())->keyBy('fy');
+
+        $this->assertSame(1, $columns['FY2027-28']['forecast_devices']);
+        $this->assertEqualsWithDelta(1000.0, $columns['FY2027-28']['cost'], 0.001);
+        $this->assertSame(0, $columns['FY2028-29']['devices']);
+        $this->assertSame(0, $columns['FY2029-30']['devices']);
+        $this->assertSame(1, collect($columns)->sum('devices'));
+    }
+
     public function test_the_page_renders_columns_money_and_links()
     {
         $wave = $this->seedNextYear();
