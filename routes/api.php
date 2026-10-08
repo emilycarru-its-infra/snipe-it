@@ -1073,6 +1073,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     );
 
     /**
+     * Product identity API routes
+     */
+    Route::get('product-identities', [Api\ProductIdentitiesController::class, 'index'])
+        ->name('api.productidentities.index');
+    Route::post('product-identities/resolve', [Api\ProductIdentitiesController::class, 'resolve'])
+        ->name('api.productidentities.resolve');
+
+    /**
      * Locations API routes
      */
     Route::group(['prefix' => 'locations'], function () {
