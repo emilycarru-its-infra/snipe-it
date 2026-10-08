@@ -22,7 +22,7 @@ class OrderReceivingTest extends TestCase
 
     public function test_receiving_one_line_item_marks_the_order_partially_received()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $items = OrderItem::factory()->count(2)->create(['order_id' => $order->id]);
 
         $this->actingAs($this->superuser())
@@ -35,7 +35,7 @@ class OrderReceivingTest extends TestCase
 
     public function test_receiving_all_line_items_marks_the_order_received()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $items = OrderItem::factory()->count(2)->create(['order_id' => $order->id]);
 
         $superuser = $this->superuser();
@@ -49,7 +49,7 @@ class OrderReceivingTest extends TestCase
 
     public function test_unreceiving_a_line_item_reverts_the_order_status()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $items = OrderItem::factory()->count(2)->create([
             'order_id' => $order->id,
             'received_at' => now(),
@@ -71,7 +71,7 @@ class OrderReceivingTest extends TestCase
         $deployable = Statuslabel::factory()->rtd()->create();
         $asset = Asset::factory()->create(['status_id' => $undeployable->id]);
 
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $item = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => Asset::class,
@@ -88,7 +88,7 @@ class OrderReceivingTest extends TestCase
 
     public function test_a_shipment_can_be_added_to_an_order()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
 
         $this->actingAs($this->superuser())
             ->post(route('orders.shipments.store', $order->id), [
@@ -105,7 +105,7 @@ class OrderReceivingTest extends TestCase
 
     public function test_receiving_a_shipment_receives_its_line_items()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $shipment = OrderShipment::factory()->create(['order_id' => $order->id]);
         $items = OrderItem::factory()->count(2)->create([
             'order_id' => $order->id,
@@ -128,7 +128,7 @@ class OrderReceivingTest extends TestCase
         $deployable = Statuslabel::factory()->rtd()->create();
         $asset = Asset::factory()->create(['status_id' => $deployable->id]);
 
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $item = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => Asset::class,
@@ -148,7 +148,7 @@ class OrderReceivingTest extends TestCase
     public function test_receiving_a_consumable_line_bumps_its_stock_and_logs_a_checkin()
     {
         $consumable = Consumable::factory()->create(['qty' => 1]);
-        $order = Order::factory()->create(['status' => 'ordered', 'order_number' => 'PO-RX-1']);
+        $order = Order::factory()->create(['order_number' => 'PO-RX-1']);
         $item = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => Consumable::class,
@@ -183,7 +183,7 @@ class OrderReceivingTest extends TestCase
     public function test_receiving_a_consumable_line_is_idempotent()
     {
         $consumable = Consumable::factory()->create(['qty' => 0]);
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $item = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => Consumable::class,
@@ -202,7 +202,7 @@ class OrderReceivingTest extends TestCase
     public function test_unreceiving_a_consumable_line_reverses_the_stock()
     {
         $consumable = Consumable::factory()->create(['qty' => 5]);
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $item = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => Consumable::class,
@@ -222,7 +222,7 @@ class OrderReceivingTest extends TestCase
     public function test_receiving_a_shipment_bumps_linked_consumable_stock()
     {
         $consumable = Consumable::factory()->create(['qty' => 0]);
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $shipment = OrderShipment::factory()->create(['order_id' => $order->id]);
         OrderItem::factory()->create([
             'order_id' => $order->id,
@@ -241,7 +241,7 @@ class OrderReceivingTest extends TestCase
 
     public function test_an_order_can_be_cancelled_and_reopened()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         OrderItem::factory()->create(['order_id' => $order->id]);
         $superuser = $this->superuser();
 
@@ -258,7 +258,7 @@ class OrderReceivingTest extends TestCase
 
     public function test_order_export_streams_a_csv()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         OrderItem::factory()->count(2)->create(['order_id' => $order->id]);
 
         $response = $this->actingAs($this->superuser())
@@ -277,7 +277,7 @@ class OrderReceivingTest extends TestCase
         // Pin the status: OrderFactory picks one at random from Order::STATUSES,
         // and recalculateStatus() returns early on 'cancelled', so a factory
         // default made this assertion fail one run in five.
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $invoice = OrderInvoice::factory()->create(['order_id' => $order->id]);
         $asset = Asset::factory()->create();
 

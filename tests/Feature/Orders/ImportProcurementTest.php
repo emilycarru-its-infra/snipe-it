@@ -66,7 +66,7 @@ class ImportProcurementTest extends TestCase
 
     public function test_links_existing_order_to_its_primary_purchase_order()
     {
-        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        $order = Order::factory()->create(['order_number' => 'ORD-A']);
 
         $this->artisan('procurement:import', ['--reconciliation' => $this->reconciliationCsv()])
             ->assertExitCode(0);
@@ -94,7 +94,7 @@ class ImportProcurementTest extends TestCase
 
     public function test_links_line_items_to_their_purchase_order()
     {
-        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        $order = Order::factory()->create(['order_number' => 'ORD-A']);
         $item = OrderItem::factory()->create(['order_id' => $order->id]);
 
         $this->artisan('procurement:import', ['--reconciliation' => $this->reconciliationCsv()])
@@ -106,7 +106,7 @@ class ImportProcurementTest extends TestCase
 
     public function test_creates_one_invoice_per_cdw_invoice_number()
     {
-        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        $order = Order::factory()->create(['order_number' => 'ORD-A']);
 
         $this->artisan('procurement:import', ['--invoices' => $this->invoicesCsv()])
             ->assertExitCode(0);
@@ -126,7 +126,7 @@ class ImportProcurementTest extends TestCase
 
     public function test_a_gst_only_invoice_records_no_pst()
     {
-        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        $order = Order::factory()->create(['order_number' => 'ORD-A']);
 
         // The CSI curriculum lease invoices are PST-exempt outright — CDW
         // bills them "CURRICULUM (NON PST)" and the single Sales Tax column
@@ -158,7 +158,7 @@ class ImportProcurementTest extends TestCase
 
     public function test_invoices_are_attributed_to_a_purchase_order()
     {
-        Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        Order::factory()->create(['order_number' => 'ORD-A']);
 
         $recon = $this->csv(<<<CSV
         PO,PO Budget,Schedule,Qty,Item Description,CDW Order,CDW Invoice,Subtotal,GST 5%,PST 7%,Status
@@ -180,7 +180,7 @@ class ImportProcurementTest extends TestCase
 
     public function test_links_line_items_to_invoices_by_serial()
     {
-        $order = Order::factory()->create(['order_number' => 'ORD-A', 'status' => 'received']);
+        $order = Order::factory()->create(['order_number' => 'ORD-A']);
         $asset = Asset::factory()->create(['serial' => 'SERIAL-XYZ']);
         $item = OrderItem::factory()->create([
             'order_id' => $order->id,

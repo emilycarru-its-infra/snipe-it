@@ -31,7 +31,7 @@ class AbsorbPlannedLineOnIngestTest extends TestCase
     public function test_an_arriving_asset_comes_off_the_planning_line()
     {
         $model = AssetModel::factory()->create();
-        $order = Order::factory()->create(['order_number' => 'ORD-4471', 'status' => 'ordered']);
+        $order = Order::factory()->create(['order_number' => 'ORD-4471']);
         $planned = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => AssetModel::class,
@@ -61,7 +61,7 @@ class AbsorbPlannedLineOnIngestTest extends TestCase
     public function test_the_planning_line_goes_when_every_unit_has_arrived()
     {
         $model = AssetModel::factory()->create();
-        $order = Order::factory()->create(['order_number' => 'ORD-4471', 'status' => 'ordered']);
+        $order = Order::factory()->create(['order_number' => 'ORD-4471']);
         $planned = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => AssetModel::class,
@@ -96,7 +96,7 @@ class AbsorbPlannedLineOnIngestTest extends TestCase
     public function test_a_re_posted_invoice_does_not_absorb_twice()
     {
         $model = AssetModel::factory()->create();
-        $order = Order::factory()->create(['order_number' => 'ORD-4471', 'status' => 'ordered']);
+        $order = Order::factory()->create(['order_number' => 'ORD-4471']);
         $planned = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => AssetModel::class,
@@ -125,7 +125,7 @@ class AbsorbPlannedLineOnIngestTest extends TestCase
     {
         $planningModel = AssetModel::factory()->create();
         $otherModel = AssetModel::factory()->create();
-        $order = Order::factory()->create(['order_number' => 'ORD-4471', 'status' => 'ordered']);
+        $order = Order::factory()->create(['order_number' => 'ORD-4471']);
         $planned = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => AssetModel::class,
@@ -151,7 +151,7 @@ class AbsorbPlannedLineOnIngestTest extends TestCase
     public function test_a_non_asset_line_does_not_touch_the_plan()
     {
         $model = AssetModel::factory()->create();
-        $order = Order::factory()->create(['order_number' => 'ORD-4471', 'status' => 'ordered']);
+        $order = Order::factory()->create(['order_number' => 'ORD-4471']);
         $planned = OrderItem::factory()->create([
             'order_id' => $order->id,
             'item_type' => AssetModel::class,

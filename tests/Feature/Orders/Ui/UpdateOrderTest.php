@@ -17,7 +17,7 @@ class UpdateOrderTest extends TestCase
 
     public function test_order_can_be_updated()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
 
         $this->actingAs(User::factory()->superuser()->create())
             ->put(route('orders.update', $order->id), [

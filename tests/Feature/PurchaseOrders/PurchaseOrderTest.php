@@ -81,7 +81,7 @@ class PurchaseOrderTest extends TestCase
     public function test_an_order_can_be_linked_to_a_purchase_order()
     {
         $po = PurchaseOrder::factory()->create();
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
 
         $this->actingAs($this->superuser())
             ->put(route('orders.update', $order->id), [
@@ -96,7 +96,7 @@ class PurchaseOrderTest extends TestCase
     public function test_committed_total_sums_line_items_charged_to_the_po()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
         OrderItem::factory()->create([
             'order_id' => $order->id,
             'purchase_order_id' => $po->id,
@@ -114,7 +114,7 @@ class PurchaseOrderTest extends TestCase
     public function test_invoiced_total_sums_invoice_subtotals_charged_to_the_po()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
 
         OrderInvoice::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $po->id, 'subtotal' => 4000]);
         OrderInvoice::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $po->id, 'subtotal' => 2000]);
@@ -127,7 +127,7 @@ class PurchaseOrderTest extends TestCase
     public function test_a_purchase_order_over_budget_is_flagged()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
         OrderItem::factory()->create([
             'order_id' => $order->id, 'purchase_order_id' => $po->id,
             'quantity' => 1, 'unit_cost' => 11000, 'warranty_cost' => 0,
@@ -140,7 +140,7 @@ class PurchaseOrderTest extends TestCase
     public function test_a_credit_hands_budget_room_back()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
         OrderItem::factory()->create([
             'order_id' => $order->id, 'purchase_order_id' => $po->id,
             'quantity' => 1, 'unit_cost' => 9000, 'warranty_cost' => 0,
@@ -165,7 +165,7 @@ class PurchaseOrderTest extends TestCase
     public function test_a_credit_keyed_negative_still_subtracts_once()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
 
         OrderInvoice::factory()->create([
             'order_id' => $order->id, 'purchase_order_id' => $po->id,
@@ -178,7 +178,7 @@ class PurchaseOrderTest extends TestCase
     public function test_a_buyout_commits_against_the_po_without_a_line_item()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
 
         // Nothing is delivered by a buyout — we already hold the equipment —
         // so there is no line item to carry the cost.
@@ -197,7 +197,7 @@ class PurchaseOrderTest extends TestCase
     public function test_a_regular_invoice_without_line_items_is_not_committed_twice()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
 
         OrderItem::factory()->create([
             'order_id' => $order->id, 'purchase_order_id' => $po->id,
@@ -214,7 +214,7 @@ class PurchaseOrderTest extends TestCase
     public function test_an_adjustment_lands_in_the_fiscal_year_of_its_invoice_date()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
 
         OrderInvoice::factory()->create([
             'order_id' => $order->id, 'purchase_order_id' => $po->id,
@@ -233,7 +233,7 @@ class PurchaseOrderTest extends TestCase
     public function test_a_dateless_adjustment_leaves_the_budget_alone()
     {
         $po = PurchaseOrder::factory()->create(['budget' => 10000]);
-        $order = Order::factory()->create(['status' => 'ordered', 'purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
 
         OrderInvoice::factory()->create([
             'order_id' => $order->id, 'purchase_order_id' => $po->id,
