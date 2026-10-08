@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\HistoricalFlow;
+use App\Services\Deployments\PlanningHorizon;
 use App\Services\Deployments\RefreshForecast;
 use App\Services\Deployments\StageAutomation;
 use App\Services\Deployments\WaveAnnouncementTemplates;
@@ -1099,6 +1100,20 @@ class DeploymentsController extends Controller
             'filterValues' => $forecast->filterValues(),
             'activeCriteria' => $criteria,
             'earlyRenewalMode' => $criteria !== [],
+        ]);
+    }
+
+    /**
+     * The next fiscal years side by side: devices due, what replacing them
+     * costs, the envelope and the gap, one column per year, each linking
+     * into that year's planning page and capital request.
+     */
+    public function horizon()
+    {
+        $this->authorize('deployments.view');
+
+        return view('reports.deployments.horizon', [
+            'columns' => (new PlanningHorizon)->columns(),
         ]);
     }
 
