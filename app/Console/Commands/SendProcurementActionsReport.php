@@ -145,7 +145,9 @@ class SendProcurementActionsReport extends Command
 
         $approved = $orders->where('status', 'approved')
             ->map(function (StoreOrder $o) use ($row, $ourPos) {
-                $po = trim((string) $o->department_po_number);
+                // Requester-typed: keep only what a PO number is made of, so
+                // nothing in it renders as markup in the card.
+                $po = trim(preg_replace('/[^A-Za-z0-9 .\/_-]/', '', (string) $o->department_po_number));
                 $action = $po !== '' && ! in_array(mb_strtolower($po), $ourPos, true)
                     ? trans('admin/store/general.actions_po_check', ['po' => $po])
                     : trans('admin/store/general.actions_send');

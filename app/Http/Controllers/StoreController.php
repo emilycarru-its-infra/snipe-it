@@ -221,7 +221,10 @@ class StoreController extends Controller
             'notes' => 'nullable|string|max:65535',
             'refresh_asset_id' => 'nullable|integer',
             'gl_code' => 'nullable|string|max:64',
-            'department_po_number' => 'nullable|string|max:64',
+            // A PO number is letters, digits and simple separators. Anything
+            // else has no business in one, and this value is echoed into the
+            // procurement Teams digest, where markup would render.
+            'department_po_number' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9 .\/_-]*$/'],
             'order_usage' => 'nullable|string|in:assigned,shared',
             // Required only for a cart that will actually be shared. Posting
             // order_usage=shared without the standing to place one is not an
