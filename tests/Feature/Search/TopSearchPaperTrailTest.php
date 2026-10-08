@@ -42,12 +42,12 @@ class TopSearchPaperTrailTest extends TestCase
 
     public function test_an_order_number_finds_its_order(): void
     {
-        $order = Order::factory()->create(['order_number' => 'PMZP706']);
+        $order = Order::factory()->create(['order_number' => 'TESTPM2']);
 
-        $group = $this->group($this->suggest('PMZP706'), 'orders');
+        $group = $this->group($this->suggest('TESTPM2'), 'orders');
 
         $this->assertNotNull($group, 'orders must be a search group');
-        $this->assertSame('PMZP706', $group['items'][0]['title']);
+        $this->assertSame('TESTPM2', $group['items'][0]['title']);
         $this->assertSame(route('orders.show', $order->id), $group['items'][0]['url']);
     }
 
@@ -63,16 +63,16 @@ class TopSearchPaperTrailTest extends TestCase
 
     public function test_an_invoice_number_opens_the_order_that_carries_it(): void
     {
-        $order = Order::factory()->create(['order_number' => 'PMZP706']);
+        $order = Order::factory()->create(['order_number' => 'TESTPM2']);
         OrderInvoice::create([
             'order_id' => $order->id,
-            'invoice_number' => 'AJ7XC8E',
+            'invoice_number' => 'TESTAJ2',
         ]);
 
-        $group = $this->group($this->suggest('AJ7XC8E'), 'invoices');
+        $group = $this->group($this->suggest('TESTAJ2'), 'invoices');
 
         $this->assertNotNull($group, 'invoices must be a search group');
-        $this->assertSame('AJ7XC8E', $group['items'][0]['title']);
+        $this->assertSame('TESTAJ2', $group['items'][0]['title']);
         // Invoices have no page of their own, so the hit opens its parent.
         $this->assertSame(route('orders.show', $order->id), $group['items'][0]['url']);
     }
@@ -80,21 +80,21 @@ class TopSearchPaperTrailTest extends TestCase
     public function test_a_lease_schedule_number_finds_its_contract(): void
     {
         $contract = Contract::factory()->create(['name' => 'Devices Leases FY30-31 #3']);
-        DB::table('contracts')->where('id', $contract->id)->update(['schedule_number' => '301452-007']);
+        DB::table('contracts')->where('id', $contract->id)->update(['schedule_number' => '100000-007']);
 
-        $group = $this->group($this->suggest('301452-007'), 'contracts');
+        $group = $this->group($this->suggest('100000-007'), 'contracts');
 
         $this->assertNotNull($group);
         $this->assertSame(route('contracts.show', $contract->id), $group['items'][0]['url']);
-        $this->assertStringContainsString('301452-007', $group['items'][0]['subtitle']);
+        $this->assertStringContainsString('100000-007', $group['items'][0]['subtitle']);
     }
 
     public function test_a_viewer_without_the_orders_grant_sees_none_of_the_paper_trail(): void
     {
-        Order::factory()->create(['order_number' => 'PMZP706']);
+        Order::factory()->create(['order_number' => 'TESTPM2']);
 
         $payload = $this->actingAs(User::factory()->create())
-            ->getJson(route('search.suggest', ['q' => 'PMZP706']))
+            ->getJson(route('search.suggest', ['q' => 'TESTPM2']))
             ->assertOk()
             ->json();
 

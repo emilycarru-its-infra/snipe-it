@@ -230,7 +230,7 @@ class UserAgreementsApiTest extends TestCase
 
     public function test_send_for_signature_transitions_stage(): void
     {
-        $user      = User::factory()->create(['first_name' => 'Eugenia']);
+        $user      = User::factory()->create(['first_name' => 'Jordan']);
         $asset     = $this->newAsset();
         $agreement = UserAgreement::create([
             'agreement_type'  => 'pickup',
@@ -250,7 +250,7 @@ class UserAgreementsApiTest extends TestCase
 
     public function test_pdf_download_returns_pdf_bytes(): void
     {
-        $user      = User::factory()->create(['first_name' => 'Eugenia']);
+        $user      = User::factory()->create(['first_name' => 'Jordan']);
         $asset     = $this->newAsset();
         $agreement = UserAgreement::create([
             'agreement_type'  => 'pickup',

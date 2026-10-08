@@ -41,7 +41,7 @@ abstract class VendorOrderTestCase extends TestCase
         unset($orderOverrides['order_emails']);
 
         $purchaseOrder = PurchaseOrder::factory()->create(array_merge([
-            'po_number' => 'P0026041',
+            'po_number' => 'P0026000',
             'title' => 'Devices Capital Request FY2026-27 - lease-to-lease refresh',
             'supplier_id' => $supplier->id,
             'status' => 'open',
@@ -78,14 +78,14 @@ abstract class VendorOrderTestCase extends TestCase
         ]);
 
         $order = Order::factory()->create(array_merge([
-            'order_number' => 'P0026041-1',
+            'order_number' => 'P0026000-1',
             'status' => 'ordered',
             'is_planned' => false,
             'purchase_order_id' => $purchaseOrder->id,
             'supplier_id' => $supplier->id,
             'fiscal_year' => 'FY2026-27',
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '100000-009',
         ], $orderOverrides));
 
         OrderItem::create([

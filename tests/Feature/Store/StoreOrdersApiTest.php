@@ -122,14 +122,14 @@ class StoreOrdersApiTest extends TestCase
         $this->postJson(route('api.store-orders.decide', $order->id), [
             'decision' => 'approved',
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-007',
+            'lease_schedule' => '100000-007',
         ])->assertOk();
 
         // The stored accounts are lease_admin and lease_curriculum, so the
         // old comparison against the bare string 'lease' dropped the
         // schedule and left every lease order unable to reach the vendor.
         $fresh = $order->fresh();
-        $this->assertSame('301452-007', $fresh->lease_schedule);
+        $this->assertSame('100000-007', $fresh->lease_schedule);
         $this->assertTrue($fresh->readyForVendor());
     }
 
@@ -144,7 +144,7 @@ class StoreOrdersApiTest extends TestCase
         $this->postJson(route('api.store-orders.decide', $order->id), [
             'decision' => 'approved',
             'funding_account' => 'purchase_admin',
-            'lease_schedule' => '301452-007',
+            'lease_schedule' => '100000-007',
         ])->assertOk();
 
         $this->assertNull($order->fresh()->lease_schedule);
@@ -225,12 +225,12 @@ class StoreOrdersApiTest extends TestCase
         // schedule rolls over between the decision and the batch.
         $this->postJson(route('api.store-orders.funding', $order->id), [
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-007',
+            'lease_schedule' => '100000-007',
         ])->assertOk();
 
         $fresh = $order->fresh();
         $this->assertSame('lease_admin', $fresh->funding_account);
-        $this->assertSame('301452-007', $fresh->lease_schedule);
+        $this->assertSame('100000-007', $fresh->lease_schedule);
         $this->assertTrue($fresh->readyForVendor());
     }
 
@@ -249,7 +249,7 @@ class StoreOrdersApiTest extends TestCase
             'funding_account' => 'lease_admin',
         ])->assertOk();
 
-        $this->assertSame('301452-009', $order->fresh()->lease_schedule);
+        $this->assertSame('100000-009', $order->fresh()->lease_schedule);
         $this->assertTrue($order->fresh()->readyForVendor());
     }
 
@@ -265,10 +265,10 @@ class StoreOrdersApiTest extends TestCase
         // A correction onto an earlier schedule must remain possible.
         $this->postJson(route('api.store-orders.funding', $order->id), [
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-007',
+            'lease_schedule' => '100000-007',
         ])->assertOk();
 
-        $this->assertSame('301452-007', $order->fresh()->lease_schedule);
+        $this->assertSame('100000-007', $order->fresh()->lease_schedule);
     }
 
     public function test_a_csi_account_never_lands_without_a_schedule()
@@ -286,7 +286,7 @@ class StoreOrdersApiTest extends TestCase
             'funding_account' => 'lease_curriculum',
         ])->assertOk();
 
-        $this->assertSame('301452-010', $order->fresh()->lease_schedule);
+        $this->assertSame('100000-010', $order->fresh()->lease_schedule);
     }
 
     public function test_a_test_send_reaches_only_the_caller_and_changes_nothing()

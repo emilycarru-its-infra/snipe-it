@@ -11,7 +11,7 @@ use App\Models\SupplierAccount;
  * order depending on the answer and cannot infer it, and because the account
  * decides who is invoiced: the purchase accounts bill ECU directly, the lease
  * accounts bill CSI Leasing, who finance the purchase under master contract
- * 301452. Getting it wrong is not a reporting problem — it is an invoice
+ * 100000. Getting it wrong is not a reporting problem — it is an invoice
  * arriving at the wrong organisation.
  *
  * The grid is deliberate: two ways to pay (purchase or lease) times two
@@ -27,10 +27,10 @@ use App\Models\SupplierAccount;
  * four because that is who we buy devices from today, not because the shape
  * is fixed at four.
  *
- *   purchase_admin       8817038   ECU Purchase – Admin
- *   purchase_curriculum  35007945  ECU Purchase – Curriculum (non-PST)
- *   lease_admin          35007722  CSI ECU Lease – Admin
- *   lease_curriculum     35007919  CSI ECU Lease – Curriculum
+ *   purchase_admin       1000001   ECU Purchase – Admin
+ *   purchase_curriculum  1000002  ECU Purchase – Curriculum (non-PST)
+ *   lease_admin          1000003  CSI ECU Lease – Admin
+ *   lease_curriculum     1000004  CSI ECU Lease – Curriculum
  *
  * The schedule column is the other half of the CSI cadence. Two schedules open
  * each quarter — an odd-numbered 48-month lease to return and an even-numbered
@@ -38,16 +38,12 @@ use App\Models\SupplierAccount;
  * the return schedule, curriculum workstations the own schedule, and the two
  * cannot share an Exhibit A. So the account implies which of the open pair an
  * order belongs on and the form can pick it rather than asking.
- *
- * Source of truth for the numbers and the purposes:
- * https://handbook.its.ecuad.ca/devices/procurement/cdw-ordering#supplier-accounts
- * https://handbook.its.ecuad.ca/devices/procurement/csi-leasing#standard-quarterly-cadence
  */
 class SupplierAccounts
 {
     public const SEED_ACCOUNTS = [
         'purchase_admin' => [
-            'number' => '8817038',
+            'number' => '1000001',
             'kind' => 'purchase',
             'scope' => 'admin',
             'purpose' => 'ECU Purchase – Admin',
@@ -55,7 +51,7 @@ class SupplierAccounts
             'schedule' => null,
         ],
         'purchase_curriculum' => [
-            'number' => '35007945',
+            'number' => '1000002',
             'kind' => 'purchase',
             'scope' => 'curriculum',
             'purpose' => 'ECU Purchase – Curriculum (non-PST)',
@@ -63,7 +59,7 @@ class SupplierAccounts
             'schedule' => null,
         ],
         'lease_admin' => [
-            'number' => '35007722',
+            'number' => '1000003',
             'kind' => 'lease',
             'scope' => 'admin',
             'purpose' => 'CSI ECU Lease – Admin',
@@ -71,7 +67,7 @@ class SupplierAccounts
             'schedule' => 'return',
         ],
         'lease_curriculum' => [
-            'number' => '35007919',
+            'number' => '1000004',
             'kind' => 'lease',
             'scope' => 'curriculum',
             'purpose' => 'CSI ECU Lease – Curriculum',

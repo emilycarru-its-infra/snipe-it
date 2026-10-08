@@ -43,14 +43,14 @@ class LeaseDataHealthTest extends TestCase
         Contract::create([
             'contract_number' => 'DEV-LEASE-2526-01',
             'name' => 'Devices Leases FY25-26 #01',
-            'schedule_number' => 'ECI20250801',
+            'schedule_number' => 'ECI20250807',
         ]);
         $lessor = Supplier::factory()->create(['email' => 'leasing@lessor.example']);
 
         // Clean: linked contract, end date, lessor with email.
         $clean = $this->leased([
             'asset_tag' => 'CLEAN-1',
-            'lease_contract_id' => 'ECI20250801',
+            'lease_contract_id' => 'ECI20250807',
             'lease_end_date' => now()->addYear()->format('Y-m-d'),
             'lessor_id' => $lessor->id,
         ]);
@@ -66,7 +66,7 @@ class LeaseDataHealthTest extends TestCase
         // record that has no email to send a buyout request to.
         $mute = $this->leased([
             'asset_tag' => 'GAP-MUTE',
-            'lease_contract_id' => 'ECI20250801',
+            'lease_contract_id' => 'ECI20250807',
             'lease_end_date' => now()->addYear()->format('Y-m-d'),
             'lessor_id' => Supplier::factory()->create(['email' => null])->id,
         ]);
@@ -75,7 +75,7 @@ class LeaseDataHealthTest extends TestCase
         // Lease over, not decommissioned, buyout figure still printing.
         $stale = $this->leased([
             'asset_tag' => 'GAP-STALE',
-            'lease_contract_id' => 'ECI20250801',
+            'lease_contract_id' => 'ECI20250807',
             'lease_end_date' => now()->subMonths(3)->format('Y-m-d'),
             'lessor_id' => $lessor->id,
             'buyout_cost' => 123.45,

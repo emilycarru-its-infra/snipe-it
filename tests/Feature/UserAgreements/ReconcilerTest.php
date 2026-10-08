@@ -170,7 +170,7 @@ class ReconcilerTest extends TestCase
 
     public function test_purchase_row_created_when_lease_already_ended(): void
     {
-        // L002916 shape: faculty still holding a laptop whose linked
+        // Faculty still holding a laptop whose linked
         // contract end_date is months in the past.
         $user  = $this->facultyUser();
         $asset = $this->assetFor($user, $this->rtdStatus(), 2523.85);

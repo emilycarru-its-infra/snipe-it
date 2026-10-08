@@ -94,7 +94,7 @@ class RequisitionBasket
             // The capital lineage: a basket carrying this IS the FY's
             // Devices Capital Request, and the capital page renders it as
             // such. Settable here so agent sessions drive planning over the
-            // API without touching the database (AB#4490). Absent key
+            // API without touching the database. Absent key
             // leaves an existing stamp alone.
             'capital_request_fy' => array_key_exists('capital_request_fy', $validated)
                 ? ($validated['capital_request_fy'] ?: null)

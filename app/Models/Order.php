@@ -96,6 +96,8 @@ class Order extends SnipeModel
         'vendor_changes_at',
         'vendor_changes_notes',
         'vendor_order_number',
+        'eta_requested_at',
+        'eta_request_count',
         'order_cc',
         'order_cc_users',
     ];
@@ -109,6 +111,8 @@ class Order extends SnipeModel
         'quote_confirmed_at' => 'datetime',
         'vendor_sent_at' => 'datetime',
         'vendor_changes_at' => 'datetime',
+        'eta_requested_at' => 'datetime',
+        'eta_request_count' => 'integer',
     ];
 
     /**
@@ -141,6 +145,25 @@ class Order extends SnipeModel
         }
 
         return $this->exists ? $this->items()->with('catalogItem')->orderBy('id')->get()->values() : collect();
+    }
+
+    /**
+     * The lines still to arrive — what an ETA request asks about. Through the
+     * loaded relation when there is one, for the same reason as
+     * vendorOrderLines(): the email previewer renders against an unsaved order.
+     */
+    public function outstandingLines()
+    {
+        return $this->vendorOrderLines()->filter(fn ($line) => is_null($line->received_at))->values();
+    }
+
+    /**
+     * The number the vendor knows this order by: theirs once they issued it,
+     * otherwise ours. Their desk searches on their own number first.
+     */
+    public function etaReference(): string
+    {
+        return (string) ($this->vendor_order_number ?: $this->order_number);
     }
 
     /**

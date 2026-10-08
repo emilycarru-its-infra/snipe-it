@@ -11,14 +11,14 @@ class AnnexureParserTest extends TestCase
     {
         $parser = new AnnexureParser;
 
-        $text = "Annexure A — Schedule 301452-007\n".
+        $text = "Annexure A — Schedule 100000-007\n".
             "Serial         Model           Asset Tag\n".
-            "C02C80E0M0XV   iMac Pro        L002497\n".
-            "C02C80P3M0XV   iMac Pro        L002495\n".
-            "JX5J71KQ9W     iPad Pro        L003120\n";
+            "TESTSN000001   iMac Pro        TESTL01\n".
+            "TESTSN000002   iMac Pro        TESTL02\n".
+            "TESTSN0003     iPad Pro        TESTL03\n";
 
         $this->assertEquals(
-            ['C02C80E0M0XV', 'C02C80P3M0XV', 'JX5J71KQ9W'],
+            ['TESTSN000001', 'TESTSN000002', 'TESTSN0003'],
             $parser->extractSerials($text)
         );
     }
@@ -28,10 +28,10 @@ class AnnexureParserTest extends TestCase
         $parser = new AnnexureParser;
 
         $text = 'ANNEXURE INVOICE LESSOR '.
-            'P0025395 PMCN361 ECI20240801 CSI '.
-            'C02C80E0M0XV';
+            'P0025000 TESTPM4 ECI20240807 CSI '.
+            'TESTSN000001';
 
-        $this->assertEquals(['C02C80E0M0XV'], $parser->extractSerials($text));
+        $this->assertEquals(['TESTSN000001'], $parser->extractSerials($text));
     }
 
     public function test_skips_pure_word_or_pure_numeric_tokens()
@@ -49,9 +49,9 @@ class AnnexureParserTest extends TestCase
     {
         $parser = new AnnexureParser;
 
-        $text = 'C02C80E0M0XV JX5J71KQ9W C02C80E0M0XV JX5J71KQ9W';
+        $text = 'TESTSN000001 TESTSN0003 TESTSN000001 TESTSN0003';
 
-        $this->assertEquals(['C02C80E0M0XV', 'JX5J71KQ9W'], $parser->extractSerials($text));
+        $this->assertEquals(['TESTSN000001', 'TESTSN0003'], $parser->extractSerials($text));
     }
 
     public function test_returns_empty_array_for_missing_pdf_file()

@@ -33,7 +33,7 @@
              schedule CSI has already issued, and that is exactly when the
              newest one is what an order needs to go against. --}}
         <input type="text" name="lease_schedule" id="{{ $formId }}-schedule-input" form="{{ $formId }}"
-               class="form-control input-sm" value="{{ $order->lease_schedule }}" placeholder="301452-000">
+               class="form-control input-sm" value="{{ $order->lease_schedule }}" placeholder="100000-000">
         <span class="help-block" style="margin:2px 0 0; font-size:11px;">{{ trans('admin/store/general.funding_schedule_none') }}</span>
     @else
         <select name="lease_schedule" id="{{ $formId }}-schedule-input" form="{{ $formId }}" class="form-control input-sm">

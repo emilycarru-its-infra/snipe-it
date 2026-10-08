@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Auto-collection of devices due for refresh in a fiscal year — the
- * headline E1 feature behind /reports/deployments/planning. Replaces Rod
+ * headline E1 feature behind /reports/deployments/planning. Replaces
  * manually flipping devices to a stopgap "Active (Lease End)" status: it
  * sweeps assets whose native EOL date OR (if present) "Lease End Date"
  * custom field lands inside a fiscal year, and lets a tech bulk-add them to
@@ -130,7 +130,7 @@ class RefreshForecast
      */
     /**
      * Categories outside the device capital plan (displays, printers,
-     * scanners — see config/ecu.php and AB#4473) never enter the forecast,
+     * scanners — see config/ecu.php) never enter the forecast,
      * even though they carry lifecycle EOL dates for operations. Assets
      * with no category at all pass through: unclassified is not excluded.
      *

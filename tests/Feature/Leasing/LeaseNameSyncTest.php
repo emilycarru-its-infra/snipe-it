@@ -37,8 +37,8 @@ class LeaseNameSyncTest extends TestCase
     {
         // The drift this exists for: assets carried the superseded lease-end-FY
         // form, un-padded, while the register holds the commencement-FY name.
-        $this->contract('4130-ECI20221001', 'Devices Leases FY22-23 #03');
-        $asset = $this->leasedAsset('4130-ECI20221001', 'Devices Leases FY27-28 #1');
+        $this->contract('4130-ECI20221007', 'Devices Leases FY22-23 #03');
+        $asset = $this->leasedAsset('4130-ECI20221007', 'Devices Leases FY27-28 #1');
 
         $report = app(LeaseNameSyncService::class)->run(true);
 
@@ -48,8 +48,8 @@ class LeaseNameSyncTest extends TestCase
 
     public function test_a_missing_name_is_filled_in()
     {
-        $this->contract('4130-ECI20200915', 'Devices Leases FY20-21 #03');
-        $asset = $this->leasedAsset('4130-ECI20200915', null);
+        $this->contract('4130-ECI20200907', 'Devices Leases FY20-21 #03');
+        $asset = $this->leasedAsset('4130-ECI20200907', null);
 
         app(LeaseNameSyncService::class)->run(true);
 
@@ -58,8 +58,8 @@ class LeaseNameSyncTest extends TestCase
 
     public function test_preview_reports_without_writing()
     {
-        $this->contract('4130-ECI20221001', 'Devices Leases FY22-23 #03');
-        $asset = $this->leasedAsset('4130-ECI20221001', 'Devices Leases FY27-28 #1');
+        $this->contract('4130-ECI20221007', 'Devices Leases FY22-23 #03');
+        $asset = $this->leasedAsset('4130-ECI20221007', 'Devices Leases FY27-28 #1');
 
         $report = app(LeaseNameSyncService::class)->run(false);
 
@@ -69,8 +69,8 @@ class LeaseNameSyncTest extends TestCase
 
     public function test_running_twice_changes_nothing_the_second_time()
     {
-        $this->contract('4130-ECI20221001', 'Devices Leases FY22-23 #03');
-        $this->leasedAsset('4130-ECI20221001', 'Devices Leases FY27-28 #1');
+        $this->contract('4130-ECI20221007', 'Devices Leases FY22-23 #03');
+        $this->leasedAsset('4130-ECI20221007', 'Devices Leases FY27-28 #1');
 
         $service = app(LeaseNameSyncService::class);
         $service->run(true);
@@ -100,7 +100,7 @@ class LeaseNameSyncTest extends TestCase
             'schedule_number' => null,
             'type' => 'lease',
         ]);
-        $asset = $this->leasedAsset('4130-ECI20221001', 'Devices Leases FY27-28 #1');
+        $asset = $this->leasedAsset('4130-ECI20221007', 'Devices Leases FY27-28 #1');
 
         $report = app(LeaseNameSyncService::class)->run(true);
 

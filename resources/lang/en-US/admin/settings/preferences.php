@@ -355,6 +355,10 @@ return [
             'label' => 'Contract renewal alerts',
             'help' => 'Daily time (HH:MM, 24-hour) the contract renewal alerts run.',
         ],
+        'schedule.procurement_actions' => [
+            'label' => 'Procurement actions digest',
+            'help' => 'Weekday time (HH:MM, 24-hour) the list of orders and quotes waiting on procurement posts to Teams.',
+        ],
         'schedule.user_pregen_pdfs' => [
             'label' => 'Agreement PDF pre-generation',
             'help' => 'Daily time (HH:MM) user agreement PDFs are pre-generated.',

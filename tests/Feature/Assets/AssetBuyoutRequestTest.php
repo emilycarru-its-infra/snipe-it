@@ -23,7 +23,7 @@ class AssetBuyoutRequestTest extends TestCase
     {
         parent::setUp();
 
-        config(['leasing.internal_domains' => 'ecuad.example,ecuad.ca,example.com,example.org,example.net']);
+        config(['leasing.internal_domains' => 'ecuad.example,example.edu,example.com,example.org,example.net']);
 
         $ownership = CustomField::factory()->create(['name' => 'Ownership Type', 'format' => 'ANY']);
         $end = CustomField::factory()->create(['name' => 'Lease End Date', 'format' => 'DATE']);
@@ -73,6 +73,7 @@ class AssetBuyoutRequestTest extends TestCase
     public function test_sends_buyout_request_to_lessor_and_ccs_team_end_user_and_admin(): void
     {
         Mail::fake();
+        config(['leasing.buyout_request_cc' => 'team@example.org,lead@example.org']);
 
         $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
         $endUser = User::factory()->create(['email' => 'enduser@ecuad.example']);
@@ -93,7 +94,7 @@ class AssetBuyoutRequestTest extends TestCase
             }
 
             return $mail->hasTo($lessor->email)
-                && $mail->hasCc('rdatta@ecuad.ca')
+                && $mail->hasCc('lead@example.org')
                 && $mail->hasCc($endUser->email)
                 && $mail->hasCc($admin->email);
         });
@@ -129,8 +130,8 @@ class AssetBuyoutRequestTest extends TestCase
                 && $mail->hasCc('hrteam@ecuad.example')
                 && $mail->hasCc('finance@ecuad.example')
                 && $mail->hasCc($admin->email)
-                && ! $mail->hasCc('devicesadmins@ecuad.ca')
-                && ! $mail->hasCc('rdatta@ecuad.ca');
+                && ! $mail->hasCc('devicesadmins@example.edu')
+                && ! $mail->hasCc('finance.lead@example.edu');
         });
     }
 
@@ -199,7 +200,7 @@ class AssetBuyoutRequestTest extends TestCase
         $csi->update(['lease_emails' => 'csirep2@csileasing.example']);
 
         $cca = Supplier::firstWhere('name', 'CCA Financial') ?? Supplier::factory()->create(['name' => 'CCA Financial']);
-        $cca->update(['email' => 'rep@ccafinancial.example', 'lease_emails' => 'aasghar@ccafinancial.example']);
+        $cca->update(['email' => 'rep@ccafinancial.example', 'lease_emails' => 'lease.contact@ccafinancial.example']);
 
         $admin = User::factory()->superuser()->create(['email' => 'admin@ecuad.example']);
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $csi);
@@ -212,9 +213,9 @@ class AssetBuyoutRequestTest extends TestCase
             return $mail->hasTo($csi->email)
                 && $mail->hasTo('csirep2@csileasing.example')
                 && ! $mail->hasTo('rep@ccafinancial.example')
-                && ! $mail->hasTo('aasghar@ccafinancial.example')
+                && ! $mail->hasTo('lease.contact@ccafinancial.example')
                 && ! $mail->hasCc('rep@ccafinancial.example')
-                && ! $mail->hasCc('aasghar@ccafinancial.example');
+                && ! $mail->hasCc('lease.contact@ccafinancial.example');
         });
     }
 

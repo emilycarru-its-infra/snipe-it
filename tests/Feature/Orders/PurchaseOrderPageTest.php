@@ -39,13 +39,13 @@ class PurchaseOrderPageTest extends VendorOrderTestCase
     {
         $purchaseOrder = $this->vendorOrder()->purchaseOrder;
 
-        $this->assertSame('/procurement/purchase-orders/P0026041', route('purchase-orders.show', $purchaseOrder, false));
+        $this->assertSame('/procurement/purchase-orders/P0026000', route('purchase-orders.show', $purchaseOrder, false));
 
         $staff = $this->procurement();
-        $this->actingAs($staff)->get('/procurement/purchase-orders/P0026041')->assertOk();
+        $this->actingAs($staff)->get('/procurement/purchase-orders/P0026000')->assertOk();
         $this->actingAs($staff)->get('/procurement/purchase-orders/'.$purchaseOrder->id)->assertOk();
 
-        $this->actingAs($staff)->get('/purchase-orders/P0026041')->assertRedirect('/procurement/purchase-orders/P0026041');
+        $this->actingAs($staff)->get('/purchase-orders/P0026000')->assertRedirect('/procurement/purchase-orders/P0026000');
         $this->actingAs($staff)->get('/requisitions')->assertRedirect('/procurement/requisitions');
         $this->actingAs($staff)->get('/reports/lessor-breakdown')->assertRedirect('/procurement/leasing');
 
@@ -91,14 +91,14 @@ class PurchaseOrderPageTest extends VendorOrderTestCase
      */
     public function test_the_order_page_carries_the_send()
     {
-        $order = $this->vendorOrder(['quote_number' => 'PZKT735']);
+        $order = $this->vendorOrder(['quote_number' => 'TESTPZ5']);
 
         $this->actingAs($this->procurement())
             ->get(route('orders.show', $order))
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.vendor_send_title'))
             ->assertSee('9094662')
-            ->assertSee('35007722')
-            ->assertSee('PZKT735');
+            ->assertSee('1000003')
+            ->assertSee('TESTPZ5');
     }
 }

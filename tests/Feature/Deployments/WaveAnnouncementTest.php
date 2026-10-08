@@ -53,7 +53,7 @@ class WaveAnnouncementTest extends TestCase
     public function test_recipients_come_from_the_devices_not_a_list()
     {
         $wave = $this->wave();
-        $faculty = User::factory()->create(['email' => 'faculty@ecuad.ca']);
+        $faculty = User::factory()->create(['email' => 'faculty@example.edu']);
 
         // Two devices, one person: one email, carrying both.
         $this->deviceFor($wave, $faculty);
@@ -68,7 +68,7 @@ class WaveAnnouncementTest extends TestCase
         $recipients = (new WaveAnnouncer)->recipients($wave->fresh());
 
         $this->assertCount(1, $recipients);
-        $this->assertSame('faculty@ecuad.ca', $recipients->first()['user']->email);
+        $this->assertSame('faculty@example.edu', $recipients->first()['user']->email);
         $this->assertCount(2, $recipients->first()['assets']);
     }
 
@@ -80,7 +80,7 @@ class WaveAnnouncementTest extends TestCase
     public function test_a_planned_replacement_still_finds_the_person_on_the_old_device()
     {
         $wave = $this->wave();
-        $faculty = User::factory()->create(['email' => 'faculty@ecuad.ca']);
+        $faculty = User::factory()->create(['email' => 'faculty@example.edu']);
 
         $old = Asset::factory()->create(['lease_end_date' => '2026-12-31']);
         $old->forceFill(['assigned_to' => $faculty->id, 'assigned_type' => User::class])->saveQuietly();
@@ -92,7 +92,7 @@ class WaveAnnouncementTest extends TestCase
         $recipients = (new WaveAnnouncer)->recipients($wave->fresh());
 
         $this->assertCount(1, $recipients);
-        $this->assertSame('faculty@ecuad.ca', $recipients->first()['user']->email);
+        $this->assertSame('faculty@example.edu', $recipients->first()['user']->email);
         $this->assertSame($old->id, $recipients->first()['assets']->first()->id);
     }
 
@@ -101,7 +101,7 @@ class WaveAnnouncementTest extends TestCase
         Mail::fake();
 
         $wave = $this->wave();
-        $this->deviceFor($wave, User::factory()->create(['email' => 'faculty@ecuad.ca']));
+        $this->deviceFor($wave, User::factory()->create(['email' => 'faculty@example.edu']));
         $staff = User::factory()->superuser()->create();
 
         $this->actingAs($staff)
@@ -113,7 +113,7 @@ class WaveAnnouncementTest extends TestCase
             ->assertRedirect(route('deployment-waves.show', $wave));
 
         Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->test && $mail->hasTo($staff->email));
-        Mail::assertNotSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasTo('faculty@ecuad.ca'));
+        Mail::assertNotSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasTo('faculty@example.edu'));
 
         $wave->refresh();
         $this->assertNull($wave->announced_at);
@@ -129,8 +129,8 @@ class WaveAnnouncementTest extends TestCase
         Mail::fake();
 
         $wave = $this->wave();
-        $this->deviceFor($wave, User::factory()->create(['email' => 'one@ecuad.ca']));
-        $this->deviceFor($wave, User::factory()->create(['email' => 'two@ecuad.ca']));
+        $this->deviceFor($wave, User::factory()->create(['email' => 'one@example.edu']));
+        $this->deviceFor($wave, User::factory()->create(['email' => 'two@example.edu']));
 
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('deployment-waves.announce', $wave), [
@@ -140,8 +140,8 @@ class WaveAnnouncementTest extends TestCase
             ->assertRedirect();
 
         Mail::assertSent(DeploymentWaveMail::class, 2);
-        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasTo('one@ecuad.ca'));
-        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasTo('two@ecuad.ca'));
+        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasTo('one@example.edu'));
+        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasTo('two@example.edu'));
 
         $wave->refresh();
         $this->assertNotNull($wave->announced_at);
@@ -152,7 +152,7 @@ class WaveAnnouncementTest extends TestCase
     public function test_the_body_is_rendered_against_each_persons_own_device()
     {
         $wave = $this->wave();
-        $faculty = User::factory()->create(['first_name' => 'Ada', 'email' => 'ada@ecuad.ca']);
+        $faculty = User::factory()->create(['first_name' => 'Ada', 'email' => 'ada@example.edu']);
         $asset = $this->deviceFor($wave, $faculty);
 
         $announcer = new WaveAnnouncer;
@@ -253,10 +253,10 @@ class WaveAnnouncementTest extends TestCase
         Mail::fake();
 
         $wave = $this->wave();
-        $this->deviceFor($wave, User::factory()->create(['email' => 'faculty@ecuad.ca']));
+        $this->deviceFor($wave, User::factory()->create(['email' => 'faculty@example.edu']));
 
-        $one = User::factory()->create(['email' => 'reviewer1@ecuad.ca']);
-        $two = User::factory()->create(['email' => 'reviewer2@ecuad.ca']);
+        $one = User::factory()->create(['email' => 'reviewer1@example.edu']);
+        $two = User::factory()->create(['email' => 'reviewer2@example.edu']);
 
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('deployment-waves.announce', $wave), [
@@ -266,8 +266,8 @@ class WaveAnnouncementTest extends TestCase
             ->assertRedirect();
 
         Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->test
-            && $mail->hasTo('reviewer1@ecuad.ca') && $mail->hasTo('reviewer2@ecuad.ca')
-            && ! $mail->hasTo('faculty@ecuad.ca'));
+            && $mail->hasTo('reviewer1@example.edu') && $mail->hasTo('reviewer2@example.edu')
+            && ! $mail->hasTo('faculty@example.edu'));
 
         $this->assertNull($wave->fresh()->announced_at);
     }
@@ -278,9 +278,9 @@ class WaveAnnouncementTest extends TestCase
         Mail::fake();
 
         $wave = $this->wave();
-        $this->deviceFor($wave, User::factory()->create(['email' => 'one@ecuad.ca']));
-        $this->deviceFor($wave, User::factory()->create(['email' => 'two@ecuad.ca']));
-        $dean = User::factory()->create(['email' => 'dean@ecuad.ca']);
+        $this->deviceFor($wave, User::factory()->create(['email' => 'one@example.edu']));
+        $this->deviceFor($wave, User::factory()->create(['email' => 'two@example.edu']));
+        $dean = User::factory()->create(['email' => 'dean@example.edu']);
 
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('deployment-waves.announce', $wave), [
@@ -289,7 +289,7 @@ class WaveAnnouncementTest extends TestCase
             ->assertRedirect();
 
         Mail::assertSent(DeploymentWaveMail::class, 2);
-        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasCc('dean@ecuad.ca'));
+        Mail::assertSent(DeploymentWaveMail::class, fn ($mail) => $mail->hasCc('dean@example.edu'));
     }
 
     public function test_a_wave_with_nobody_holding_a_device_cannot_be_announced()
@@ -325,14 +325,14 @@ class WaveAnnouncementTest extends TestCase
     public function test_the_wave_page_offers_the_faculty_template_and_names_the_recipients()
     {
         $wave = $this->wave();
-        $this->deviceFor($wave, User::factory()->create(['email' => 'faculty@ecuad.ca']));
+        $this->deviceFor($wave, User::factory()->create(['email' => 'faculty@example.edu']));
 
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('deployment-waves.show', $wave))
             ->assertOk()
             ->assertSee(trans('admin/deployments/general.announce_title'))
             ->assertSee('Faculty Laptop Program', false)
-            ->assertSee('faculty@ecuad.ca')
+            ->assertSee('faculty@example.edu')
             // The merged table is person-first for an assigned wave.
             ->assertSee(trans('admin/deployments/general.roster_person'));
     }
@@ -368,15 +368,15 @@ class WaveAnnouncementTest extends TestCase
     public function test_the_not_applied_audience_skips_everyone_who_applied()
     {
         $wave = $this->wave();
-        $done = User::factory()->create(['email' => 'done@ecuad.ca']);
-        $stalled = User::factory()->create(['email' => 'stalled@ecuad.ca']);
+        $done = User::factory()->create(['email' => 'done@example.edu']);
+        $stalled = User::factory()->create(['email' => 'stalled@example.edu']);
         $this->deviceFor($wave, $done);
         $this->deviceFor($wave, $stalled);
         $this->applied($done);
 
         $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_APPLICATION);
 
-        $this->assertSame(['stalled@ecuad.ca'], $chase->pluck('user.email')->all());
+        $this->assertSame(['stalled@example.edu'], $chase->pluck('user.email')->all());
         // And the unfiltered send still reaches both.
         $this->assertCount(2, (new WaveAnnouncer)->recipients($wave));
     }
@@ -389,7 +389,7 @@ class WaveAnnouncementTest extends TestCase
     public function test_an_auto_created_pickup_does_not_count_as_applying()
     {
         $wave = $this->wave();
-        $user = User::factory()->create(['email' => 'auto@ecuad.ca']);
+        $user = User::factory()->create(['email' => 'auto@example.edu']);
         $this->deviceFor($wave, $user);
 
         UserAgreement::create([
@@ -400,7 +400,7 @@ class WaveAnnouncementTest extends TestCase
 
         $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_APPLICATION);
 
-        $this->assertSame(['auto@ecuad.ca'], $chase->pluck('user.email')->all());
+        $this->assertSame(['auto@example.edu'], $chase->pluck('user.email')->all());
     }
 
     /**
@@ -411,9 +411,9 @@ class WaveAnnouncementTest extends TestCase
     public function test_the_not_ordered_audience_is_applicants_who_have_not_ordered()
     {
         $wave = $this->wave();
-        $ordered = User::factory()->create(['email' => 'ordered@ecuad.ca']);
-        $applied = User::factory()->create(['email' => 'applied@ecuad.ca']);
-        $neverApplied = User::factory()->create(['email' => 'never@ecuad.ca']);
+        $ordered = User::factory()->create(['email' => 'ordered@example.edu']);
+        $applied = User::factory()->create(['email' => 'applied@example.edu']);
+        $neverApplied = User::factory()->create(['email' => 'never@example.edu']);
         $this->deviceFor($wave, $ordered);
         $this->deviceFor($wave, $applied);
         $this->deviceFor($wave, $neverApplied);
@@ -424,20 +424,20 @@ class WaveAnnouncementTest extends TestCase
 
         $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_ORDER);
 
-        $this->assertSame(['applied@ecuad.ca'], $chase->pluck('user.email')->all());
+        $this->assertSame(['applied@example.edu'], $chase->pluck('user.email')->all());
     }
 
     /** A withdrawn order is not an order, so they are chased again. */
     public function test_a_cancelled_order_does_not_count_as_ordering()
     {
         $wave = $this->wave();
-        $user = User::factory()->create(['email' => 'withdrew@ecuad.ca']);
+        $user = User::factory()->create(['email' => 'withdrew@example.edu']);
         $this->deviceFor($wave, $user);
         $this->applied($user);
         StoreOrder::create(['user_id' => $user->id, 'status' => 'cancelled']);
 
         $chase = (new WaveAnnouncer)->recipients($wave, WaveAnnouncer::AUDIENCE_NO_ORDER);
 
-        $this->assertSame(['withdrew@ecuad.ca'], $chase->pluck('user.email')->all());
+        $this->assertSame(['withdrew@example.edu'], $chase->pluck('user.email')->all());
     }
 }

@@ -225,6 +225,13 @@ class EmailRegistry
                 'configurable_recipients' => true,
                 'factory' => fn (EmailSampleData $s) => new ContractRenewalAlertMail($s->contracts(), '30d'),
             ],
+            [
+                'key' => 'report.procurement_actions',
+                'category' => 'reports',
+                'label' => 'Procurement — waiting on us',
+                'description' => 'Weekday-morning list of store orders waiting for review, approved orders not yet sent to the vendor, quotes not yet confirmed, and vendor changes to answer. Repeats every open item until it moves. Teams only — it has no email form.',
+                'merge_vars' => [],
+            ],
             // Notification-channel reports — recipient-configurable + previewable.
             // They render through the notification path (no subject/body editing).
             [
@@ -431,6 +438,16 @@ class EmailRegistry
                 'description' => 'Our acceptance of the vendor\'s final quote — the order email again, lines at the quoted prices, CSV and purchase order attached, asking them to place it. Goes to the same reps and copies as the order itself.',
                 'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'lines' => 'The lines being ordered, at the quoted prices', 'reference' => 'The purchase order number', 'supplier' => 'The vendor'],
                 'factory' => fn (EmailSampleData $s) => new PurchaseOrderQuoteAcceptanceMail($s->vendorOrder()),
+            ],
+            [
+                'key' => 'procurement.eta_request',
+                'category' => 'store',
+                'label' => 'ETA request (to reps)',
+                'description' => 'Asks the vendor\'s reps when an order\'s outstanding lines will arrive, from the order page or the API. Lists only the lines not yet received. Recipients default to the supplier\'s order email list; CC defaults to the device team contact list, plus the sender, who also gets the replies. The subject may use {{reference}} (the vendor\'s order number, else ours).',
+                'merge_vars' => ['order' => 'The order', 'reference' => 'The vendor\'s order number, else ours', 'purchase_order' => 'The purchase order number', 'lines' => 'Lines still to arrive', 'note' => 'What the sender added', 'sender' => 'Who sent it', 'supplier' => 'The vendor'],
+                'factory' => fn (EmailSampleData $s) => new OrderEtaRequestMail($s->vendorOrder()),
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
             ],
 
             [
@@ -659,6 +676,18 @@ class EmailRegistry
                 route('reports.index'),
             )),
 
+            'report.procurement_actions' => $procurement('admin', fn (EmailSampleData $s) => ReportCard::make(
+                trans('admin/store/general.actions_report_title'), 'attention',
+                [trans('admin/store/general.actions_col_action'), trans('admin/store/general.actions_col_reference'), trans('admin/store/general.actions_col_for'), trans('admin/store/general.actions_col_gl'), trans('admin/store/general.actions_col_total'), trans('admin/store/general.actions_col_waiting')],
+                [
+                    [trans('admin/store/general.actions_review'), $s->storeOrder()->reference(), 'Sample Requester', '6-1234-5678', '$2,398.00', '3 days ago'],
+                    [trans('admin/store/general.actions_quote'), $s->storeOrder('ordered', 482)->reference(), 'Sample Requester', null, '$1,899.00', '1 week ago'],
+                ],
+                fn (array $row) => $row,
+                [],
+                route('procurement.approvals'),
+            )),
+
             'request.asset' => $requests(fn (EmailSampleData $s) => self::sampleRequestCard($s, 'Asset requested', 'accent')),
             'request.cancel' => $requests(fn (EmailSampleData $s) => self::sampleRequestCard($s, 'Asset request canceled', 'warning')),
 
@@ -676,6 +705,7 @@ class EmailRegistry
             'store.vendor_order',
             'procurement.vendor_order',
             'procurement.quote_accepted',
+            'procurement.eta_request',
             'procurement.okay_to_pay',
         ], ['audience' => 'external']);
     }

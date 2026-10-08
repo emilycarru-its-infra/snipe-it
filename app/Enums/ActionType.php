@@ -23,6 +23,7 @@ enum ActionType: string
     case BuyoutRequested = 'buyout requested';
     case PickupRequested = 'pickup requested';
     case EarlyRefreshRequested = 'early refresh requested';
+    case EtaRequested = 'eta requested';
 
     // Users
     case TwoFactorReset = '2FA reset';

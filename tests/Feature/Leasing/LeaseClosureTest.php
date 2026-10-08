@@ -16,7 +16,7 @@ class LeaseClosureTest extends TestCase
     {
         $asset = Asset::factory()->create(['status_id' => $status->id]);
         Asset::query()->whereKey($asset->id)->update([
-            'lease_contract_id' => '4130-ECI20210601A',
+            'lease_contract_id' => '4130-ECI20210607A',
             'decommission_date' => $decommission,
             'ownership_type' => $ownership,
         ]);
@@ -26,9 +26,9 @@ class LeaseClosureTest extends TestCase
 
     public function test_returned_devices_close_the_lease()
     {
-        // Rod's rule: a decommission date plus an archived return status is a
-        // completed lease lifecycle. ECI20210601A is 23 of 23 in this state and
-        // was still the worst row on the Extension Watch.
+        // A decommission date plus an archived return status is a completed
+        // lease lifecycle. A schedule with every unit in this state was still
+        // the worst row on the Extension Watch.
         $archived = Statuslabel::factory()->archived()->create();
         $assets = [
             $this->asset($archived, '2025-08-01'),

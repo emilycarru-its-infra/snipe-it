@@ -20,7 +20,7 @@ use App\Models\Asset;
  * a first-party column that no business logic read, `contracts.is_active` is
  * derived from term dates alone, and `workflow_status` is unset on every lease.
  * So a schedule returned in full two years ago still reported months of
- * "extension" — ECI20210601A, 23 of 23 returned with decommission dates, was
+ * "extension" — one schedule, every unit returned with decommission dates, was
  * the worst row on the Extension Watch.
  *
  * A unit that is archived but carries no decommission date counts as gone (the

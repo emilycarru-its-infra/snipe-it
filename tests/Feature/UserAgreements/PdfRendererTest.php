@@ -17,15 +17,15 @@ class PdfRendererTest extends TestCase
         $model = AssetModel::factory()->create(['name' => 'MacBook Pro (14-inch, M5)']);
         $status = Statuslabel::factory()->rtd()->create();
         $asset = Asset::factory()->create([
-            'asset_tag' => 'A005341',
-            'serial'    => 'HG9FC7K7DJ',
+            'asset_tag' => 'A0900012',
+            'serial'    => 'TESTSN0004',
             'model_id'  => $model->id,
             'status_id' => $status->id,
         ]);
         $user = User::factory()->create([
-            'first_name' => 'Eugenia',
-            'last_name'  => 'Bertulis',
-            'email'      => 'ebertulis@ecuad.ca',
+            'first_name' => 'Jordan',
+            'last_name'  => 'Example',
+            'email'      => 'staff.member@example.edu',
         ]);
 
         return UserAgreement::create(array_merge([

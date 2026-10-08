@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 /**
  * The fields Colleague asks for when a purchase order is keyed, taken from
- * the issued POs (P0025395, P0025419) rather than guessed.
+ * the issued POs (P0025000, P0025001) rather than guessed.
  */
 class RequisitionColleagueFieldsTest extends TestCase
 {
@@ -30,7 +30,7 @@ class RequisitionColleagueFieldsTest extends TestCase
         ]);
     }
 
-    /** A basket shaped like the real P0025395. */
+    /** A basket shaped like the real P0025000. */
     private function basket(array $overrides = []): array
     {
         $item = $this->catalogItem();
@@ -38,7 +38,7 @@ class RequisitionColleagueFieldsTest extends TestCase
         return array_merge([
             'title' => 'CSI lease refresh',
             'default_gl_number' => '31-00-350010-8236',
-            'printer_comments' => "LEASE - PO will be ordered in online eStore. Do not email PO.\nCopy PO to Rod Christiansen.",
+            'printer_comments' => "LEASE - PO will be ordered in online eStore. Do not email PO.\nCopy PO to the devices lead.",
             'internal_comments' => 'Waiting on Joshua to confirm the lease schedule number.',
             'items' => [
                 [

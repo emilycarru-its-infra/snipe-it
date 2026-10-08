@@ -340,7 +340,7 @@ class FacultyProgramForm extends FormDefinition
      *
      * A real quote only makes sense for the people who actually want one,
      * so the form estimates instead: roughly a year's rent, which on the
-     * ECI20221001 schedule is a flat factor of the capital cost — 21.4%
+     * ECI20221007 schedule is a flat factor of the capital cost — 21.4%
      * before tax and a shade over 24% with it, holding to within a fifth
      * of a percentage point across all seven item types on the schedule,
      * from a Mac mini to a 16-inch Pro. So it is a lease factor, not a

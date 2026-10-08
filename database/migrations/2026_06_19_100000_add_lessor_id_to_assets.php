@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * so it already carries name + contact info + its own UI.
  *
  * This also seeds the lessor Supplier records and backfills lessor_id from the
- * current contract-ID-prefix mapping ONE TIME (301452-* → CSI Leasing, ECI* /
+ * current contract-ID-prefix mapping ONE TIME (100000-* → CSI Leasing, ECI* /
  * 4130-* → CCA Financial). This is the last place those vendor names appear in
  * code; afterwards everything reads the lessor_id FK and the lease-ingest
  * functions keep it populated.
@@ -42,7 +42,7 @@ class AddLessorIdToAssets extends Migration
         // by name so it works whatever the db_column happens to be per env.
         $col = DB::table('custom_fields')->where('name', 'Lease Contract ID')->value('db_column');
         if ($col && Schema::hasColumn('assets', $col)) {
-            DB::table('assets')->where($col, 'like', '301452-%')->update(['lessor_id' => $csiId]);
+            DB::table('assets')->where($col, 'like', '100000-%')->update(['lessor_id' => $csiId]);
             DB::table('assets')->where(function ($q) use ($col) {
                 $q->where($col, 'like', 'ECI%')->orWhere($col, 'like', '4130%');
             })->update(['lessor_id' => $ccaId]);

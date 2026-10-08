@@ -47,7 +47,7 @@ class VendorOrderBundlingTest extends TestCase
             'status' => 'approved',
             'program' => 'faculty',
             'funding_account' => 'lease_admin',
-            'lease_schedule' => '301452-009',
+            'lease_schedule' => '100000-009',
         ]);
         $order->purchase_order_id = $po->id;
         $order->save();
@@ -67,7 +67,7 @@ class VendorOrderBundlingTest extends TestCase
 
     public function test_the_same_model_across_many_orders_is_one_line()
     {
-        $po = PurchaseOrder::factory()->create(['po_number' => 'P0026041', 'fiscal_year' => 'FY2026-27']);
+        $po = PurchaseOrder::factory()->create(['po_number' => 'P0026000', 'fiscal_year' => 'FY2026-27']);
         $air = $this->shelfItem('MacBook Air | 13" | M5 | 16GB | 1TB | Silver', '9094662', 2100.00);
         $pro = $this->shelfItem('MacBook Pro | 14" | M5 Pro | 24GB | 2TB | Black', '8544413', 4000.00);
 
@@ -86,13 +86,13 @@ class VendorOrderBundlingTest extends TestCase
         $this->assertSame(1, substr_count($body, 'MacBook Air | 13" | M5 | 16GB | 1TB | Silver'));
 
         // The facts the desk needs, once — and the account is CDW's own
-        // number, not our "Lease · Admin · 301452-009" shorthand, which
+        // number, not our "Lease · Admin · 100000-009" shorthand, which
         // names an account that does not exist on their side.
-        $this->assertStringContainsString('P0026041', $body);
-        $this->assertStringContainsString('35007722', $body);
+        $this->assertStringContainsString('P0026000', $body);
+        $this->assertStringContainsString('1000003', $body);
         $this->assertStringContainsString('CSI ECU Lease', $body);
-        $this->assertStringContainsString('301452-009', $body);
-        $this->assertStringNotContainsString('Lease · Admin · 301452-009', $body);
+        $this->assertStringContainsString('100000-009', $body);
+        $this->assertStringNotContainsString('Lease · Admin · 100000-009', $body);
 
         // Our paperwork stays on our side.
         $this->assertStringNotContainsString('ECU-STORE-', $body);
@@ -100,7 +100,7 @@ class VendorOrderBundlingTest extends TestCase
 
     public function test_the_csv_carries_one_row_per_part()
     {
-        $po = PurchaseOrder::factory()->create(['po_number' => 'P0026041', 'fiscal_year' => 'FY2026-27']);
+        $po = PurchaseOrder::factory()->create(['po_number' => 'P0026000', 'fiscal_year' => 'FY2026-27']);
         $air = $this->shelfItem('MacBook Air | 13" | M5 | 16GB | 1TB | Silver', '9094662', 2100.00);
         $pro = $this->shelfItem('MacBook Pro | 14" | M5 Pro | 24GB | 2TB | Black', '8544413', 4000.00);
 

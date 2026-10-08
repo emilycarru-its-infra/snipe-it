@@ -22,7 +22,7 @@ class OrderInvoicesTest extends TestCase
 
         $this->actingAs($this->superuser())
             ->post(route('orders.invoices.store', $order->id), [
-                'invoice_number' => 'AF5MF8A',
+                'invoice_number' => 'TESTAF5',
                 'invoice_date' => '2026-03-01',
                 'subtotal' => 1000,
                 'tax_gst' => 50,
@@ -33,7 +33,7 @@ class OrderInvoicesTest extends TestCase
 
         $this->assertDatabaseHas('order_invoices', [
             'order_id' => $order->id,
-            'invoice_number' => 'AF5MF8A',
+            'invoice_number' => 'TESTAF5',
             'total' => 1120,
         ]);
     }

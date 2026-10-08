@@ -67,7 +67,7 @@ return [
     'forecast_planned_created' => 'Planned order created with :count replacement line item(s).',
     'forecast_none_selected' => 'Select at least one device without an existing planned replacement.',
     'forecast_criteria_title' => 'Early renewal / forecast criteria',
-    'forecast_criteria_help' => 'Leave empty to forecast End of Life devices for the selected fiscal year. Add criteria to slot in an early renewal — every condition is combined with AND, so you can target any mix (e.g. Category: Laptop + Ownership Type: Lease to Own + Lease Contract ID: ECI20221001). Matching devices ignore the End of Life window so a subset of an active lease can be refreshed early.',
+    'forecast_criteria_help' => 'Leave empty to forecast End of Life devices for the selected fiscal year. Add criteria to slot in an early renewal — every condition is combined with AND, so you can target any mix (e.g. Category: Laptop + Ownership Type: Lease to Own + Lease Contract ID: ECI20221007). Matching devices ignore the End of Life window so a subset of an active lease can be refreshed early.',
     'forecast_criteria_field' => '— choose field —',
     'forecast_criteria_value' => 'value',
     'forecast_criteria_add' => 'Add criterion',

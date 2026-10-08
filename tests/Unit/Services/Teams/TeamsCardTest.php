@@ -143,7 +143,7 @@ class TeamsCardTest extends TestCase
 
     public function test_a_long_report_splits_into_numbered_cards_that_keep_every_row()
     {
-        // Rod asked for the whole inventory in the card, and Teams caps a card
+        // The card carries the whole inventory, and Teams caps a card
         // at about 28 KB — so a long report has to split, never truncate.
         $rows = array_map(
             fn ($i) => ['A'.str_pad((string) $i, 6, '0', STR_PAD_LEFT), 'Device '.$i, 'MacBook Pro 14-inch (M4 Pro)', 'Person '.$i],
