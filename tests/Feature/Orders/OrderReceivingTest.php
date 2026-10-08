@@ -274,9 +274,6 @@ class OrderReceivingTest extends TestCase
         // its own invoice a day later. Nothing arrives in a box for the
         // warranty line, so it must not sit as an outstanding receipt —
         // an order read "4 of 8 received" with every Mac mini already in use.
-        // Pin the status: OrderFactory picks one at random from Order::STATUSES,
-        // and recalculateStatus() returns early on 'cancelled', so a factory
-        // default made this assertion fail one run in five.
         $order = Order::factory()->create();
         $invoice = OrderInvoice::factory()->create(['order_id' => $order->id]);
         $asset = Asset::factory()->create();
