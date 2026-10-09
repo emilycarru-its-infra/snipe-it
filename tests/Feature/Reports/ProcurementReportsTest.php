@@ -3,6 +3,7 @@
 namespace Tests\Feature\Reports;
 
 use App\Helpers\Helper;
+use App\Http\Controllers\ProcurementReportsController;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
@@ -21,6 +22,7 @@ use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\Settings\Preferences;
 use Tests\Support\DeclaresLessors;
 use Tests\TestCase;
 
@@ -943,6 +945,108 @@ class ProcurementReportsTest extends TestCase
             ->get('/procurement/capital?fiscal_year=FY2026-27')
             ->assertOk()
             ->assertSee('P0026150');
+    }
+
+    public function test_the_capital_summary_projects_an_envelope_from_unsigned_leases()
+    {
+        // Terms differ by lease kind: lease-to-return comes back after three
+        // years, lease-to-own after four. FY2029-30 therefore reads the
+        // FY2026-27 lease-to-return refresh and the FY2025-26 lease-to-own one.
+        Preferences::update([
+            'leasing.term_months.lease_to_return' => 36,
+            'leasing.term_months.lease_to_own' => 48,
+        ]);
+
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'QQ-PROJ-LTR',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 2500.00, 'asset_eol_date' => null]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'QQ-PROJ-LTO',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2025-10-01',
+        ], ['purchase_cost' => 3200.00, 'asset_eol_date' => null]);
+
+        // Lease-to-own refreshed in FY2026-27 lands a year later, in FY2030-31.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'QQ-PROJ-LTO-LATER',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2026-11-01',
+        ], ['purchase_cost' => 999.00, 'asset_eol_date' => null]);
+
+        // A kept contract and a purchased device go back on no lease.
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'QQ-PROJ-KEPT',
+            'Ownership Type' => 'Lease to Own',
+            'Lease End Date' => '2025-11-01',
+        ], ['purchase_cost' => 4100.00, 'asset_eol_date' => null]);
+        LeaseDecision::factory()->create([
+            'contract_reference' => 'QQ-PROJ-KEPT',
+            'decision_type' => 'buyout',
+            'status' => 'approved',
+        ]);
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'QQ-PROJ-OWNED',
+            'Ownership Type' => 'Purchased',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 700.00, 'asset_eol_date' => null]);
+
+        // A requisition already backing the source year does not hide the
+        // devices it refreshes from the projection.
+        Requisition::create([
+            'title' => 'Capital Request FY2026-27',
+            'status' => 'draft',
+            'fiscal_year' => 'FY2026-27',
+            'capital_request_fy' => 'FY2026-27',
+        ]);
+
+        $summary = app(ProcurementReportsController::class)->capitalSummary('FY2029-30');
+
+        // No schedule ends in FY2029-30, so the contracted envelope stays $0:
+        // the projection sits beside it and never feeds it.
+        $this->assertSame('FY2029-30', $summary['fy']);
+        $this->assertSame(0.0, $summary['envelope']);
+        $this->assertSame(0.0, $summary['remaining']);
+        $this->assertSame(5700.0, $summary['projected']['total']);
+        $this->assertSame(2, $summary['projected']['devices']);
+
+        $basis = collect($summary['projected']['basis'])->keyBy('kind');
+        $this->assertSame('FY2026-27', $basis['lease_to_return']['source_fy']);
+        $this->assertSame(3, $basis['lease_to_return']['term_years']);
+        $this->assertSame(2500.0, $basis['lease_to_return']['value']);
+        $this->assertSame('FY2025-26', $basis['lease_to_own']['source_fy']);
+        $this->assertSame(48, $basis['lease_to_own']['term_months']);
+        $this->assertSame(3200.0, $basis['lease_to_own']['value']);
+
+        $later = app(ProcurementReportsController::class)->capitalSummary('FY2030-31');
+        $this->assertSame(999.0, $later['projected']['total']);
+    }
+
+    public function test_the_po_builder_shows_the_projection_apart_from_the_envelope()
+    {
+        Preferences::update(['leasing.term_months.lease_to_return' => 36]);
+
+        $this->seedLeaseAsset([
+            'Lease Contract ID' => 'QQ-PROJ-POB',
+            'Ownership Type' => 'Lease to Return',
+            'Lease End Date' => '2026-10-01',
+        ], ['purchase_cost' => 2500.00, 'asset_eol_date' => null]);
+
+        $requisition = Requisition::create([
+            'title' => 'Capital Request FY2029-30',
+            'status' => 'draft',
+            'fiscal_year' => 'FY2029-30',
+            'capital_request_fy' => 'FY2029-30',
+        ]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('purchase-orders.builder', ['requisition' => $requisition->id]))
+            ->assertOk()
+            ->assertSee('data-envelope="0"', false)
+            ->assertSee(trans('admin/purchase-orders/general.capital_envelope_projected_row'))
+            ->assertSee('data-projected="2500"', false)
+            ->assertSee('$2,500.00');
     }
 
     public function test_the_forecast_carries_no_capital_money()

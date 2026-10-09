@@ -1565,9 +1565,14 @@ class ProcurementReportsController extends Controller
     }
 
     /**
+     * $fromDevices reads the year's refresh from the devices even once a
+     * requisition backs it: the paper carries no lease kind per line, and
+     * the envelope projection needs to know which devices go back on which
+     * kind of lease.
+     *
      * @return array<string, mixed>
      */
-    private function capitalRequestData(?string $fy): array
+    private function capitalRequestData(?string $fy, bool $fromDevices = false): array
     {
         // Same default rule as Rent Costs: no selection means the current
         // fiscal year — the request is always for a specific year.
@@ -1659,7 +1664,7 @@ class ProcurementReportsController extends Controller
         // table against the PO, so from the moment lineage exists the
         // table must read exactly as the requisition — same lines, same
         // quantities, same total, nothing extra.
-        $requisitionBacked = $fyRequisitions->isNotEmpty();
+        $requisitionBacked = ! $fromDevices && $fyRequisitions->isNotEmpty();
 
         if ($requisitionBacked) {
             foreach ($fyRequisitions as $req) {
@@ -1679,6 +1684,7 @@ class ProcurementReportsController extends Controller
                         'estimated' => $catalog === null || $catalog->isEstimate(),
                         'cost' => $qty * $unit,
                         'preference' => '—',
+                        'ownership' => '',
                         'waves' => [],
                         'requisition_id' => $req->id,
                         'reqm' => $req->requisition_number ? 'REQM '.$req->requisition_number : $req->title,
@@ -1774,6 +1780,9 @@ class ProcurementReportsController extends Controller
                         'estimated' => $catalog === null || $catalog->isEstimate(),
                         'cost' => 0.0,
                         'preference' => $preference ?: '—',
+                        // The raw ownership type, so the envelope projection
+                        // can tell which lease term the refresh goes back on.
+                        'ownership' => $ownership,
                         'waves' => [],
                         'requisition_id' => null,
                         'reqm' => null,
@@ -1952,7 +1961,12 @@ class ProcurementReportsController extends Controller
      * reason lessorBreakdownData once was: another controller assembles a
      * page around it.
      *
-     * @return array{fy: string, envelope: float, requested: float, remaining: float}
+     * `envelope`, `requested` and `remaining` are the contracted figures:
+     * schedules already in the register. `projected` sits beside them and
+     * never feeds them — it is what the year should receive from leases
+     * that are not signed yet (see projectedEnvelope()).
+     *
+     * @return array{fy: string, envelope: float, requested: float, remaining: float, projected: array{total: float, devices: int, basis: list<array<string, mixed>>}}
      */
     public function capitalSummary(?string $fy): array
     {
@@ -1963,6 +1977,64 @@ class ProcurementReportsController extends Controller
             'envelope' => (float) $data['envelope'],
             'requested' => (float) $data['refreshTotal'] + (float) $data['newAskTotal'],
             'remaining' => (float) $data['remaining'],
+            'projected' => $this->projectedEnvelope($data['fy']),
+        ];
+    }
+
+    /**
+     * The envelope a fiscal year should receive from leases nobody has
+     * signed yet. A device refreshed on lease in FY N comes back as budget
+     * when that lease ends, at FY N + term — so the year's projection is
+     * the refresh of the year one term earlier, split by the kind of lease
+     * the device goes back on. Lease-to-own and lease-to-return terms come
+     * from the leasing settings and can differ, so each kind reads its own
+     * source year. Purchased devices and contracts kept at term (bought out
+     * or retained) go back on no lease and project nothing.
+     *
+     * This is an assumption, not a contract: it is returned on its own and
+     * never added to the contracted envelope. Once the new lease is signed
+     * and in the register its value shows up as contracted in the year it
+     * ends.
+     *
+     * @return array{total: float, devices: int, basis: list<array{kind: string, term_months: int, term_years: int, source_fy: string, devices: int, value: float}>}
+     */
+    private function projectedEnvelope(string $fyLabel): array
+    {
+        $startYear = FiscalYear::startYearOf($fyLabel);
+        if ($startYear === null) {
+            return ['total' => 0.0, 'devices' => 0, 'basis' => []];
+        }
+
+        $kinds = [
+            'lease_to_own' => ['ownership' => 'Lease to Own', 'months' => self::defaultTermMonths(true)],
+            'lease_to_return' => ['ownership' => 'Lease to Return', 'months' => self::defaultTermMonths(false)],
+        ];
+
+        $refreshBySourceFy = [];
+        $basis = [];
+        foreach ($kinds as $kind => $spec) {
+            // A lease ends whole fiscal years after it starts; a term that
+            // is not a multiple of twelve rounds to the nearest year.
+            $termYears = max(1, (int) round($spec['months'] / 12));
+            $sourceFy = FiscalYear::label($startYear - $termYears);
+
+            $refreshBySourceFy[$sourceFy] ??= $this->capitalRequestData($sourceFy, true)['refresh'];
+            $lines = $refreshBySourceFy[$sourceFy]->where('ownership', $spec['ownership']);
+
+            $basis[] = [
+                'kind' => $kind,
+                'term_months' => $spec['months'],
+                'term_years' => $termYears,
+                'source_fy' => $sourceFy,
+                'devices' => (int) $lines->sum('qty'),
+                'value' => (float) $lines->sum('cost'),
+            ];
+        }
+
+        return [
+            'total' => (float) array_sum(array_column($basis, 'value')),
+            'devices' => (int) array_sum(array_column($basis, 'devices')),
+            'basis' => $basis,
         ];
     }
 
