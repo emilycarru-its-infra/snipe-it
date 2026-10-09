@@ -624,6 +624,11 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
      */
     Route::group(['prefix' => 'hardware'], function () {
 
+        // Purchase and EOL dates for many assets at once, for back-filling
+        // what the planning forecast needs. See AssetDatesController.
+        Route::post('dates', [Api\AssetDatesController::class, 'update'])
+            ->name('api.assets.dates');
+
         Route::get('selectlist',
             [
                 Api\AssetsController::class,
@@ -1578,11 +1583,36 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         Api\LeaseDecisionsController::class,
         ['names' => [
             'index' => 'api.lease-decisions.index',
+            'show' => 'api.lease-decisions.show',
+            'store' => 'api.lease-decisions.store',
+            'update' => 'api.lease-decisions.update',
+            'destroy' => 'api.lease-decisions.destroy',
         ],
-            'only' => ['index'],
+            'except' => ['create', 'edit'],
             'parameters' => ['lease-decisions' => 'lease_decision_id'],
         ]
     ); // end lease decisions API routes
+
+    /**
+     * The capital request — the year's envelope, lines and paper as data,
+     * and the New Ask lines that shape it, so planning runs without the
+     * page or the database. Same gates as /procurement/capital.
+     */
+    Route::get('procurement/capital', [Api\CapitalRequestController::class, 'show'])
+        ->name('api.procurement.capital');
+    Route::get('procurement/capital/lines', [Api\CapitalRequestController::class, 'linesIndex'])
+        ->name('api.procurement.capital.lines.index');
+    Route::post('procurement/capital/lines', [Api\CapitalRequestController::class, 'linesStore'])
+        ->name('api.procurement.capital.lines.store');
+    Route::get('procurement/capital/lines/{line}', [Api\CapitalRequestController::class, 'linesShow'])
+        ->whereNumber('line')
+        ->name('api.procurement.capital.lines.show');
+    Route::match(['put', 'patch'], 'procurement/capital/lines/{line}', [Api\CapitalRequestController::class, 'linesUpdate'])
+        ->whereNumber('line')
+        ->name('api.procurement.capital.lines.update');
+    Route::delete('procurement/capital/lines/{line}', [Api\CapitalRequestController::class, 'linesDestroy'])
+        ->whereNumber('line')
+        ->name('api.procurement.capital.lines.destroy');
 
     /**
      * User Agreements API routes
