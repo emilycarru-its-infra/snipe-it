@@ -72,34 +72,7 @@ $style = [
                     <tr>
                         <td style="{{ $style['email-masthead'] }}">
 
-                            @if (($snipeSettings->show_images_in_email=='1' ) && ($snipeSettings::setupCompleted()))
-                                @php
-                                    $logo = '';
-                                    if ($snipeSettings->logo != ''){
-                                        $logo = $snipeSettings->logo;
-                                    }
-
-                                    if ($snipeSettings->email_logo != ''){
-                                        $logo = $snipeSettings->email_logo;
-                                    }
-                                @endphp
-
-                                @if ($snipeSettings->brand == '3')
-                                    @if ($logo!='')
-                                        <img class="navbar-brand-img logo" style="max-width: 50px;" src="{{ Storage::disk('public')->url($logo) }}">
-                                    @endif
-                                    {{ $snipeSettings->site_name }}
-
-                                @elseif ($snipeSettings->brand == '2')
-                                    @if ($logo!='')
-                                        <img class="navbar-brand-img logo" style="max-width: 50px;" src="{{ Storage::disk('public')->url($logo) }}">
-                                    @endif
-                                @else
-                                    {{ $snipeSettings->site_name }}
-                                @endif
-                            @else
-                                Snipe-IT
-                            @endif
+                            @include('vendor.mail.partials.wordmark')
                         </td>
                     </tr>
 
