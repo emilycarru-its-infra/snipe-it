@@ -266,6 +266,21 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email masthead
+    |--------------------------------------------------------------------------
+    |
+    | The text set at the top of every email in place of a logo image. The
+    | name falls back to the site name; the tagline is optional.
+    |
+    */
+
+    'wordmark' => [
+        'name' => env('MAIL_WORDMARK'),
+        'tagline' => env('MAIL_WORDMARK_TAGLINE'),
+    ],
+
     'markdown' => [
         'theme' => 'default',
 

@@ -21,7 +21,7 @@
     <td> {{ ($asset->location) ? $asset->location->name : '' }} </td>
     @if (($snipeSettings->show_images_in_email =='1') && $asset->getImageUrl())
     <td>
-        <img src="{{ asset($asset->getImageUrl()) }}" alt="Asset" style="max-width: 64px;">
+        <img src="{{ asset($asset->getImageUrl()) }}" alt="Asset" width="64" style="width: 64px; max-width: 64px; height: auto;">
     </td>
     @endif
 </tr>
@@ -39,7 +39,7 @@
     <td>{{ $accessory->name }}</td>
     @if (($snipeSettings->show_images_in_email =='1') && $accessory->getImageUrl())
     <td>
-        <img src="{{ asset($accessory->getImageUrl()) }}" alt="Accessory" style="max-width: 64px;">
+        <img src="{{ asset($accessory->getImageUrl()) }}" alt="Accessory" width="64" style="width: 64px; max-width: 64px; height: auto;">
     </td>
     @endif
 </tr>

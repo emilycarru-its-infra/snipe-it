@@ -26,27 +26,7 @@
         @component('mail::header', ['url' => ''])
     @endif
 
-    {{-- Show images in email!  --}}
-    @if (($snipeSettings->show_images_in_email=='1') && ($snipeSettings->email_logo!='') && ($snipeSettings->brand != '1'))
-
-        {{-- $snipeSettings->brand = 1 = Text  --}}
-        {{-- $snipeSettings->brand = 2 = Logo  --}}
-        {{-- $snipeSettings->brand = 3 = Logo + Text  --}}
-        @if ($snipeSettings->brand == '3')
-
-            <img style="max-height: 100px; vertical-align:middle;" src="{{ \Storage::disk('public')->url(e($snipeSettings->email_logo)) }}">
-            <br><br>
-            {{ $snipeSettings->site_name }}
-            <br><br>
-
-        {{-- else if branding type is just logo --}}
-        @elseif ($snipeSettings->brand == '2')
-           <img style="max-height: 100px; vertical-align:middle;" src="{{ \Storage::disk('public')->url(e($snipeSettings->email_logo)) }}">
-        @endif
-
-    @else
-        {{ $snipeSettings->site_name ?? config('app.name') }}
-    @endif
+    @include('vendor.mail.partials.wordmark')
 
 @endif
 @endcomponent
