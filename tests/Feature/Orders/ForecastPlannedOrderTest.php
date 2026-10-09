@@ -77,7 +77,7 @@ class ForecastPlannedOrderTest extends TestCase
         $planned = $this->eolAsset('EOL-PLANNED');
         $open = $this->eolAsset('EOL-OPEN');
 
-        $order = Order::factory()->create(['is_planned' => true, 'status' => 'ordered']);
+        $order = Order::factory()->create(['is_planned' => true]);
         OrderItem::factory()->create([
             'order_id' => $order->id,
             'replaces_asset_id' => $planned->id,
