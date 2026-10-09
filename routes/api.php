@@ -1477,6 +1477,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::put('procurement/lease-cadence', [Api\ProcurementConfigController::class, 'saveCadence'])
         ->name('api.procurement.cadence.save');
 
+    // Post the procurement digest now instead of at its weekday time.
+    Route::post('procurement/actions-digest', [Api\ProcurementDigestController::class, 'run'])
+        ->name('api.procurement.actions-digest');
+
     // Who may decide store orders — superuser only, as on the procurement page.
     Route::get('procurement/approvers', [Api\StoreApproversController::class, 'index'])
         ->name('api.procurement.approvers.index');
