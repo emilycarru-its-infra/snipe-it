@@ -436,10 +436,27 @@ class License extends Depreciable
      *
      * @see LicenseModel
      * @see License::effectiveLicenseModel()
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<LicenseModel, $this>
      */
-    public function licenseModel()
+    public function licenseModel(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(LicenseModel::class, 'license_model_id');
+    }
+
+    /**
+     * The products this license covers, as endpoints observe them. A link
+     * carries an optional fiscal year; one without applies to every year.
+     *
+     * @see ProductIdentity
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<ProductIdentity, $this>
+     */
+    public function productIdentities(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(ProductIdentity::class, 'license_product_identity')
+            ->withPivot('id', 'fiscal_year')
+            ->withTimestamps();
     }
 
     /**
