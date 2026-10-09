@@ -22,7 +22,7 @@
     </td>
     <td>
         @forelse ($row['waves'] as $waveId => $waveName)
-            <a class="js-lightbox" href="{{ route('deployment-waves.show', $waveId) }}">{{ $waveName }}</a>@if (! $loop->last), @endif
+            @if ($row['wave_shares'][$waveId] ?? '')<span class="text-muted">{{ $row['wave_shares'][$waveId] }}</span> @endif<a class="js-lightbox" href="{{ route('deployment-waves.show', $waveId) }}">{{ $waveName }}</a>@if (! $loop->last), @endif
         @empty
             <span class="text-muted">&mdash;</span>
         @endforelse
