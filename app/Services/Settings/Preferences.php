@@ -153,6 +153,8 @@ class Preferences
             'deployments.lease_end_window_months' => ['group' => 'deployments', 'type' => 'int', 'default' => 12, 'rules' => $months],
             'deployments.pickup_history_days' => ['group' => 'deployments', 'type' => 'int', 'default' => 90, 'rules' => $days],
             'deployments.forecast_excluded_categories' => ['group' => 'deployments', 'type' => 'list', 'default' => [], 'config' => 'ecu.forecast_excluded_categories'],
+            'deployments.forecast_annual_inflation' => ['group' => 'deployments', 'type' => 'decimal', 'default' => 0.0, 'rules' => ['min:0', 'max:1']],
+            'deployments.forecast_priced_through_fy' => ['group' => 'deployments', 'type' => 'string', 'default' => '', 'nullable' => true, 'rules' => ['regex:/^FY\d{4}-\d{2}$/']],
 
             'dashboard.renewal_prompt_days' => ['group' => 'reports', 'type' => 'int', 'default' => 240, 'rules' => $days],
             'dashboard.stuck_processing_days' => ['group' => 'reports', 'type' => 'int', 'default' => 14, 'rules' => $days],

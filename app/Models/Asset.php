@@ -39,6 +39,9 @@ use Watson\Validating\ValidatingTrait;
  * @property string|null $source_date transient — set by RefreshForecast
  * @property string|null $lease_decision_label transient — set by RefreshForecast
  * @property string|null $lease_decision_note transient — set by RefreshForecast
+ * @property float|null $replacement_estimate transient — set by RefreshForecast
+ * @property string|null $estimate_basis transient — set by RefreshForecast (catalog|assumed|original)
+ * @property int|null $estimate_years_assumed transient — set by RefreshForecast
  * @property string|null $asset_eol_date
  * @property string|null $lease_contract_id
  * @property string|null $lease_contract_name
