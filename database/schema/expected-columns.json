@@ -523,6 +523,27 @@
         "serial",
         "updated_at"
     ],
+    "csi_invoice_assets": [
+        "created_at",
+        "csi_asset_id",
+        "csi_invoice_number",
+        "currency",
+        "id",
+        "last_seen_at",
+        "lease_number",
+        "period_end_date",
+        "period_rent",
+        "period_start_date",
+        "raw",
+        "rent",
+        "schedule_name",
+        "serial",
+        "tax_gst",
+        "tax_other",
+        "tax_pst",
+        "tax_rate",
+        "updated_at"
+    ],
     "csi_invoices": [
         "amount",
         "created_at",
