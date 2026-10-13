@@ -11,6 +11,7 @@ use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Services\StoreApprovers;
 use App\Services\StoreOrderDecision;
+use App\Services\StoreOrderQuote;
 use App\Services\StoreVendorOrderDispatch;
 use App\Services\SupplierAccounts;
 use Illuminate\Http\RedirectResponse;
@@ -259,37 +260,15 @@ class ProcurementController extends Controller
             'confirm' => 'nullable|boolean',
         ]);
 
-        // Nothing to quote against until the request has actually gone out.
-        if ($order->vendor_sent_at === null) {
-            return $this->toQueue(['status' => 'ordered'])
-                ->with('error', trans('admin/store/general.quote_wrong_state'));
+        $result = app(StoreOrderQuote::class)->record($order, $validated, $request->boolean('confirm'));
+
+        if ($result['error'] !== null) {
+            return $this->toQueue(['status' => 'ordered'])->with('error', $result['error']);
         }
 
-        $updates = [];
-
-        foreach (['quote_number', 'quote_total', 'quote_expires_at'] as $field) {
-            if ($request->filled($field)) {
-                $updates[$field] = $validated[$field];
-            }
-        }
-
-        if ($updates !== [] && $order->quote_received_at === null) {
-            $updates['quote_received_at'] = now();
-        }
-
-        if ($request->boolean('confirm')) {
-            // Confirming without a quote on file is legitimate — some
-            // orders CDW simply places — so this stamps the arrival too
-            // rather than refusing.
-            $updates['quote_received_at'] = $order->quote_received_at ?? now();
-            $updates['confirmed_at'] = $order->confirmed_at ?? now();
-        }
-
-        if ($updates === []) {
+        if (! $result['recorded']) {
             return $this->toQueue(['status' => 'ordered']);
         }
-
-        $order->update($updates);
 
         return $this->toQueue(['status' => 'ordered'])
             ->with('success', trans($request->boolean('confirm')
