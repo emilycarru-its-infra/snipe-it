@@ -5,7 +5,8 @@
     @parent
 @stop
 
-{{-- Every order on one page, walkable without clicking into each: native
+{{-- The list view of the orders page (the board is orders/board): every
+     order on one page, walkable without clicking into each: native
      <details> accordions, so expand/collapse costs no JavaScript and the
      browser's find-in-page still works across collapsed content.
 
@@ -36,6 +37,16 @@
 </style>
 
 <div class="ord-filters">
+    <div class="btn-group btn-group-sm" role="group">
+        <a href="{{ route('orders.index') }}" class="btn btn-default">{{ trans('admin/orders/general.board_view_board') }}</a>
+        <a href="{{ route('orders.index', ['view' => 'list']) }}" class="btn btn-primary" aria-current="page">{{ trans('admin/orders/general.board_view_list') }}</a>
+    </div>
+    <form method="GET" action="{{ route('orders.index') }}" class="form-inline" role="search">
+        <input type="hidden" name="view" value="list">
+        @if ($selectedStatus !== 'all')<input type="hidden" name="status" value="{{ $selectedStatus }}">@endif
+        <input type="search" name="q" value="{{ $search }}" class="form-control input-sm" style="width:220px;"
+               placeholder="{{ trans('admin/orders/general.list_search') }}" aria-label="{{ trans('admin/orders/general.list_search') }}">
+    </form>
     @if ($unmatchedCount > 0)
         <a href="{{ route('orders.unmatched') }}" class="btn btn-sm btn-warning">
             <i class="fas fa-inbox" aria-hidden="true"></i>
@@ -44,12 +55,12 @@
         </a>
     @endif
     @foreach (array_merge(['all'], \App\Models\Order::STATUSES) as $status)
-        <a href="{{ route('orders.index', array_filter(['status' => $status === 'all' ? null : $status, 'needs_allocation' => $needsAllocation ?: null])) }}"
+        <a href="{{ route('orders.index', array_filter(['view' => 'list', 'status' => $status === 'all' ? null : $status, 'needs_allocation' => $needsAllocation ?: null, 'q' => $search ?: null])) }}"
            class="btn btn-sm {{ $selectedStatus === $status ? 'btn-primary' : 'btn-default' }}">
             {{ $status === 'all' ? trans('admin/orders/general.filter_all') : trans('admin/orders/general.status_'.$status) }}
         </a>
     @endforeach
-    <a href="{{ route('orders.index', array_filter(['status' => $selectedStatus === 'all' ? null : $selectedStatus, 'needs_allocation' => $needsAllocation ? null : 1])) }}"
+    <a href="{{ route('orders.index', array_filter(['view' => 'list', 'status' => $selectedStatus === 'all' ? null : $selectedStatus, 'needs_allocation' => $needsAllocation ? null : 1, 'q' => $search ?: null])) }}"
        class="btn btn-sm {{ $needsAllocation ? 'btn-warning' : 'btn-default' }}">
         {{ trans('admin/orders/general.filter_needs_allocation') }}
     </a>

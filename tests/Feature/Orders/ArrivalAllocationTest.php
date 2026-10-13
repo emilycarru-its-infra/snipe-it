@@ -133,10 +133,16 @@ class ArrivalAllocationTest extends TestCase
         $waiting = $this->waitingAsset($model, $storeOrder->id, 'Lorand Example');
         $arrival = $this->arrivalAsset($model, 'C02EXTRA1');
 
-        // The panel lives on its own page now; the orders list carries a
-        // doorway button with the count.
+        // The board's Allocate column lists the arrival and opens the
+        // workbench; the list view carries only a doorway with the count.
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('orders.index'))
+            ->assertOk()
+            ->assertSee(route('orders.unmatched', [], false), false)
+            ->assertSee('C02EXTRA1', false);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get(route('orders.index', ['view' => 'list']))
             ->assertOk()
             ->assertSee(route('orders.unmatched', [], false), false)
             ->assertDontSee('C02EXTRA1', false);

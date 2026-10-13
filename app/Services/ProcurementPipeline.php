@@ -105,20 +105,7 @@ class ProcurementPipeline
             // order vanishes off the board for the weeks between sending it
             // and its first shipment, which is exactly when somebody asks
             // where it is.
-            'sentRequisitionCards' => Requisition::query()
-                ->whereNotNull('vendor_sent_at')
-                ->whereNotNull('purchase_order_id')
-                ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
-                // Once the vendor's order lands against the same purchase
-                // order, that Order card is the truth and this one would
-                // double-count it.
-                ->whereNotExists(fn ($q) => $q->selectRaw('1')
-                    ->from('orders')
-                    ->whereColumn('orders.purchase_order_id', 'requisitions.purchase_order_id')
-                    ->whereNull('orders.deleted_at'))
-                ->with('items', 'purchaseOrder', 'supplier')
-                ->orderBy('vendor_sent_at')
-                ->get()
+            'sentRequisitionCards' => self::sentRequisitions($fy)
                 ->map(fn ($requisition) => [
                     'id' => $requisition->id,
                     'number' => $requisition->display_name,
@@ -145,13 +132,7 @@ class ProcurementPipeline
             // order emailed to the vendor is "ordered" but has no Order row
             // until the vendor's own order comes back against its purchase
             // order. Until then this card is the only place it shows.
-            'storeQueue' => StoreOrder::query()
-                ->where(fn ($q) => $q->whereIn('status', ['pending', 'approved'])
-                    ->orWhere(fn ($w) => $w->where('status', 'ordered')->whereNull('arrived_at')))
-                ->with(['user', 'items', 'requisition'])
-                ->orderBy('created_at')
-                ->get()
-                ->reject(fn (StoreOrder $order) => $order->status === 'ordered' && self::vendorOrderLanded($order))
+            'storeQueue' => self::storeOrdersInFlight()
                 ->map(fn ($order) => [
                     'id' => $order->id,
                     'number' => $order->reference(),
@@ -169,12 +150,55 @@ class ProcurementPipeline
     }
 
     /**
+     * Requisitions emailed to the vendor whose Order has not come back yet.
+     * Past budgeting, before any Order row: without these an order vanishes
+     * for the weeks between sending it and its first shipment.
+     *
+     * @return Collection<int, Requisition>
+     */
+    public static function sentRequisitions(?string $fy = null): Collection
+    {
+        return Requisition::query()
+            ->whereNotNull('vendor_sent_at')
+            ->whereNotNull('purchase_order_id')
+            ->when($fy, fn ($q) => $q->where(fn ($w) => $w->where('fiscal_year', $fy)->orWhereNull('fiscal_year')))
+            // Once the vendor's order lands against the same purchase
+            // order, that Order card is the truth and this one would
+            // double-count it.
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')
+                ->from('orders')
+                ->whereColumn('orders.purchase_order_id', 'requisitions.purchase_order_id')
+                ->whereNull('orders.deleted_at'))
+            ->with('items', 'purchaseOrder', 'supplier')
+            ->orderBy('vendor_sent_at')
+            ->get();
+    }
+
+    /**
+     * Store orders not yet carried by an Order: awaiting review, approved,
+     * or sent to the vendor and not yet answered with the vendor's order.
+     *
+     * @return Collection<int, StoreOrder>
+     */
+    public static function storeOrdersInFlight(): Collection
+    {
+        return StoreOrder::query()
+            ->where(fn ($q) => $q->whereIn('status', ['pending', 'approved'])
+                ->orWhere(fn ($w) => $w->where('status', 'ordered')->whereNull('arrived_at')))
+            ->with(['user.department', 'items.catalogItem.supplier', 'requisition.purchaseOrder', 'refreshAsset', 'decidedBy'])
+            ->orderBy('created_at')
+            ->get()
+            ->reject(fn (StoreOrder $order) => $order->status === 'ordered' && self::vendorOrderLanded($order))
+            ->values();
+    }
+
+    /**
      * Whether the vendor's own order has come back for a sent store order,
      * at which point that Order card carries it and this one would count it
      * twice. The purchase order is the join: on the store order itself, or
      * on the requisition it was pulled into.
      */
-    private static function vendorOrderLanded(StoreOrder $order): bool
+    public static function vendorOrderLanded(StoreOrder $order): bool
     {
         $poId = $order->purchase_order_id ?: $order->requisition?->purchase_order_id;
 

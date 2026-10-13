@@ -159,7 +159,7 @@ class ProcurementController extends Controller
         StoreOrderItem::whereIn('store_order_id', $ids)->delete();
         StoreOrder::whereIn('id', $ids)->delete();
 
-        return redirect()->route('procurement.approvals')
+        return $this->toQueue()
             ->with('success', trans('admin/store/general.queue_cleared', ['count' => $ids->count()]));
     }
 
@@ -182,14 +182,14 @@ class ProcurementController extends Controller
         ]);
 
         if ($order->status !== 'pending') {
-            return redirect()->route('procurement.approvals')
+            return $this->toQueue()
                 ->with('error', trans('admin/store/general.queue_already_decided'));
         }
 
         $vendor = app(StoreOrderDecision::class)->decide($order, $validated);
         $outcome = StoreOrderDecision::outcome($validated['decision'], $vendor);
 
-        return redirect()->route('procurement.approvals')
+        return $this->toQueue()
             ->with($outcome['level'], $outcome['message']);
     }
 
@@ -223,16 +223,16 @@ class ProcurementController extends Controller
         $result = app(StoreVendorOrderDispatch::class)->send($orders, auth()->user(), $test);
 
         if (! $result['sent']) {
-            return redirect()->route('procurement.approvals', ['status' => 'approved'])
+            return $this->toQueue(['status' => 'approved'])
                 ->with('error', $result['error']);
         }
 
         if ($test) {
-            return redirect()->route('procurement.approvals', ['status' => 'approved'])
+            return $this->toQueue(['status' => 'approved'])
                 ->with('success', trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]]));
         }
 
-        return redirect()->route('procurement.approvals', ['status' => 'approved'])
+        return $this->toQueue(['status' => 'approved'])
             ->with('success', trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])]));
     }
 
@@ -261,7 +261,7 @@ class ProcurementController extends Controller
 
         // Nothing to quote against until the request has actually gone out.
         if ($order->vendor_sent_at === null) {
-            return redirect()->route('procurement.approvals', ['status' => 'ordered'])
+            return $this->toQueue(['status' => 'ordered'])
                 ->with('error', trans('admin/store/general.quote_wrong_state'));
         }
 
@@ -286,12 +286,12 @@ class ProcurementController extends Controller
         }
 
         if ($updates === []) {
-            return redirect()->route('procurement.approvals', ['status' => 'ordered']);
+            return $this->toQueue(['status' => 'ordered']);
         }
 
         $order->update($updates);
 
-        return redirect()->route('procurement.approvals', ['status' => 'ordered'])
+        return $this->toQueue(['status' => 'ordered'])
             ->with('success', trans($request->boolean('confirm')
                 ? 'admin/store/general.quote_confirmed'
                 : 'admin/store/general.quote_recorded'));
@@ -329,7 +329,7 @@ class ProcurementController extends Controller
         // schedule was nulled on save, so no lease order could ever reach
         // readyForVendor() and none could be sent to CDW.
         if (SupplierAccounts::needsSchedule($account) && empty($schedule)) {
-            return redirect()->route('procurement.approvals', ['status' => $order->status])
+            return $this->toQueue(['status' => $order->status])
                 ->with('error', trans('admin/store/general.funding_lease_needs_schedule'));
         }
 
@@ -342,7 +342,7 @@ class ProcurementController extends Controller
         $vendor = app(StoreOrderDecision::class)->sendIfReady($order, auth()->user());
         $outcome = StoreOrderDecision::outcome('approved', $vendor, 'funding_saved_');
 
-        return redirect()->route('procurement.approvals', ['status' => $order->fresh()->status])
+        return $this->toQueue(['status' => $order->fresh()->status])
             ->with($outcome['level'], $outcome['message']);
     }
 
@@ -388,7 +388,7 @@ class ProcurementController extends Controller
             ->get();
 
         if ($orders->isEmpty()) {
-            return redirect()->route('procurement.approvals', ['status' => 'approved'])
+            return $this->toQueue(['status' => 'approved'])
                 ->with('error', trans('admin/store/general.queue_nothing_approved'));
         }
 
@@ -493,5 +493,21 @@ class ProcurementController extends Controller
 
         return redirect()->route('procurement.store-admin')
             ->with('success', trans('admin/store/general.store_item_updated'));
+    }
+
+    /**
+     * Back to wherever the action was taken from. The queue is the default;
+     * the orders board posts the same forms with return_to=orders so a
+     * decision made there lands back on the board, not on another page.
+     *
+     * @param  array<string, mixed>  $params
+     */
+    private function toQueue(array $params = []): RedirectResponse
+    {
+        if (request()->input('return_to') === 'orders') {
+            return redirect()->route('orders.index');
+        }
+
+        return redirect()->route('procurement.approvals', $params);
     }
 }
