@@ -173,4 +173,15 @@ class OrdersBoardTest extends TestCase
             ->assertSee('CANCELLED-ONE')
             ->assertDontSee('HISTORY-MATCH');
     }
+
+    public function test_the_eta_sheet_opens_with_nothing_ticked()
+    {
+        $ordered = $this->order('ordered', [false]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('orders.index'))
+            ->assertOk()
+            ->assertSee('id="eta-bulk-'.$ordered->id.'"', false)
+            ->assertDontSee('id="eta-bulk-'.$ordered->id.'" checked', false);
+    }
 }

@@ -1,6 +1,6 @@
 {{-- "Ask for ETAs" on the order list: every order with the vendor and
-     something still to arrive, ticked by default except those chased in the
-     last week, one email each to its own supplier. Needs $etaCandidates. --}}
+     something still to arrive, all unticked so nothing is chased by accident,
+     one email each to its own supplier. Needs $etaCandidates. --}}
 <button type="button" class="btn btn-sm btn-default" data-eta-open="eta-sheet-bulk">
     <i class="fas fa-truck-fast" aria-hidden="true"></i>
     {{ trans('admin/orders/general.eta_request_bulk_button') }}
@@ -24,9 +24,8 @@
                 <table class="eta-lines">
                     <tbody>
                     @foreach ($etaCandidates as $candidate)
-                        @php $recent = $candidate->eta_requested_at && $candidate->eta_requested_at->gt(now()->subWeek()); @endphp
                         <tr>
-                            <td><input type="checkbox" name="ids[]" value="{{ $candidate->id }}" id="eta-bulk-{{ $candidate->id }}" @checked(! $recent)></td>
+                            <td><input type="checkbox" name="ids[]" value="{{ $candidate->id }}" id="eta-bulk-{{ $candidate->id }}"></td>
                             <td><label for="eta-bulk-{{ $candidate->id }}" style="font-weight:600; margin:0;">{{ $candidate->etaReference() }}</label></td>
                             <td>{{ $candidate->supplier->name ?? '—' }}</td>
                             <td>{{ trans('admin/orders/general.status_'.$candidate->status) }}</td>
