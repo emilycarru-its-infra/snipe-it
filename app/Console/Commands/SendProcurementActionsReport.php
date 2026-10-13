@@ -139,7 +139,11 @@ class SendProcurementActionsReport extends Command
             ->map(fn (StoreOrder $o) => $row($o, trans('admin/store/general.actions_review'), $o->created_at));
 
         $approved = $orders->where('status', 'approved')
-            ->map(fn (StoreOrder $o) => $row($o, trans('admin/store/general.actions_send'), $o->decided_at ?? $o->updated_at));
+            // Approval sends a ready order itself, so one still here is either
+            // missing its account or its send failed; say which.
+            ->map(fn (StoreOrder $o) => $row($o, trans($o->readyForVendor()
+                ? 'admin/store/general.actions_send'
+                : 'admin/store/general.actions_needs_account'), $o->decided_at ?? $o->updated_at));
 
         $quoted = $orders->where('status', 'ordered')
             ->filter(fn (StoreOrder $o) => $o->displayStatus() === 'quoted')

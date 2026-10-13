@@ -52,7 +52,7 @@ class ProcurementActionsReportTest extends TestCase
         $this->assertStringContainsString($quote->reference(), $text);
         $this->assertStringContainsString(trans('admin/store/general.actions_review'), $text);
         $this->assertStringContainsString('6-1234-5678', $text);
-        $this->assertStringContainsString(trans('admin/store/general.actions_send'), $text);
+        $this->assertStringContainsString(trans('admin/store/general.actions_needs_account'), $text);
         $this->assertStringContainsString(trans('admin/store/general.actions_quote'), $text);
     }
 

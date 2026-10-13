@@ -43,3 +43,13 @@
         </select>
     @endif
 </div>
+
+{{-- The GL the order is charged to. The requester may have given one; a
+     value here replaces it, and a blank keeps it. --}}
+<div class="form-group" style="margin-bottom:8px;">
+    <label for="{{ $formId }}-gl" class="text-muted" style="font-weight:400; font-size:12px;">
+        {{ trans('admin/store/general.funding_gl_label') }}
+    </label>
+    <input type="text" name="gl_code" id="{{ $formId }}-gl" form="{{ $formId }}" maxlength="64"
+           class="form-control input-sm" value="{{ $order->gl_code }}">
+</div>

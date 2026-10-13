@@ -178,6 +178,7 @@ class ProcurementController extends Controller
             'decision_notes' => 'nullable|string|max:65535',
             'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
+            'gl_code' => 'nullable|string|max:64',
         ]);
 
         if ($order->status !== 'pending') {
@@ -185,10 +186,11 @@ class ProcurementController extends Controller
                 ->with('error', trans('admin/store/general.queue_already_decided'));
         }
 
-        app(StoreOrderDecision::class)->decide($order, $validated);
+        $vendor = app(StoreOrderDecision::class)->decide($order, $validated);
+        $outcome = StoreOrderDecision::outcome($validated['decision'], $vendor);
 
         return redirect()->route('procurement.approvals')
-            ->with('success', trans('admin/store/general.queue_decided_'.$validated['decision']));
+            ->with($outcome['level'], $outcome['message']);
     }
 
     /**
@@ -307,6 +309,7 @@ class ProcurementController extends Controller
         $validated = $request->validate([
             'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
+            'gl_code' => 'nullable|string|max:64',
         ]);
 
         $account = $validated['funding_account'] ?? null;
@@ -333,10 +336,14 @@ class ProcurementController extends Controller
         $order->update([
             'funding_account' => $account,
             'lease_schedule' => SupplierAccounts::needsSchedule($account) ? $schedule : null,
-        ]);
+        ] + (filled($validated['gl_code'] ?? null) ? ['gl_code' => trim($validated['gl_code'])] : []));
 
-        return redirect()->route('procurement.approvals', ['status' => $order->status])
-            ->with('success', trans('admin/store/general.funding_saved'));
+        // An approved order was only waiting on this; it goes now.
+        $vendor = app(StoreOrderDecision::class)->sendIfReady($order, auth()->user());
+        $outcome = StoreOrderDecision::outcome('approved', $vendor, 'funding_saved_');
+
+        return redirect()->route('procurement.approvals', ['status' => $order->fresh()->status])
+            ->with($outcome['level'], $outcome['message']);
     }
 
     /**
