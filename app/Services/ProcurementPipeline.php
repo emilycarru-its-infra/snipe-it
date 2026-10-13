@@ -140,16 +140,24 @@ class ProcurementPipeline
             // it has been pulled into a requisition and given a PO. An
             // approved order had nowhere to live in between, so somebody
             // approving one then went looking for it and found nothing.
+            //
+            // Sent ones too, for the same reason one stage later: a store
+            // order emailed to the vendor is "ordered" but has no Order row
+            // until the vendor's own order comes back against its purchase
+            // order. Until then this card is the only place it shows.
             'storeQueue' => StoreOrder::query()
-                ->whereIn('status', ['pending', 'approved'])
-                ->with(['user', 'items'])
+                ->where(fn ($q) => $q->whereIn('status', ['pending', 'approved'])
+                    ->orWhere(fn ($w) => $w->where('status', 'ordered')->whereNull('arrived_at')))
+                ->with(['user', 'items', 'requisition'])
                 ->orderBy('created_at')
                 ->get()
+                ->reject(fn (StoreOrder $order) => $order->status === 'ordered' && self::vendorOrderLanded($order))
                 ->map(fn ($order) => [
                     'id' => $order->id,
                     'number' => $order->reference(),
                     'requester' => $order->user?->present()->fullName ?? '',
                     'status' => $order->status,
+                    'stage' => $order->displayStatus(),
                     'total' => (float) $order->items->sum(fn ($item) => (float) $item->unit_cost * (int) $item->quantity),
                     'items' => $order->items->map(fn ($line) => [
                         'description' => $line->description,
@@ -158,6 +166,19 @@ class ProcurementPipeline
                     ])->all(),
                 ])->values()->all(),
         ];
+    }
+
+    /**
+     * Whether the vendor's own order has come back for a sent store order,
+     * at which point that Order card carries it and this one would count it
+     * twice. The purchase order is the join: on the store order itself, or
+     * on the requisition it was pulled into.
+     */
+    private static function vendorOrderLanded(StoreOrder $order): bool
+    {
+        $poId = $order->purchase_order_id ?: $order->requisition?->purchase_order_id;
+
+        return $poId !== null && Order::where('purchase_order_id', $poId)->exists();
     }
 
     /**

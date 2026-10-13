@@ -5,6 +5,7 @@ namespace Tests\Feature\Reports;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\PurchaseOrder;
+use App\Models\StoreOrder;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -222,5 +223,25 @@ class ProcurementPipelineTest extends TestCase
         $fresh = $order->fresh();
         $this->assertFalse((bool) $fresh->is_planned);
         $this->assertSame($po->id, (int) $fresh->purchase_order_id);
+    }
+
+    public function test_a_store_order_sent_to_the_vendor_stays_on_the_board_until_its_order_lands()
+    {
+        $requester = User::factory()->create();
+        $sent = StoreOrder::create(['user_id' => $requester->id, 'status' => 'ordered', 'program' => 'faculty', 'vendor_sent_at' => now()]);
+
+        $po = PurchaseOrder::factory()->create(['po_number' => 'PO-LANDED']);
+        $landed = StoreOrder::create(['user_id' => $requester->id, 'status' => 'ordered', 'program' => 'faculty', 'vendor_sent_at' => now(), 'purchase_order_id' => $po->id]);
+        Order::factory()->create(['order_number' => 'ORD-LANDED', 'status' => 'ordered', 'is_planned' => false, 'purchase_order_id' => $po->id]);
+
+        $arrived = StoreOrder::create(['user_id' => $requester->id, 'status' => 'ordered', 'program' => 'faculty', 'vendor_sent_at' => now(), 'arrived_at' => now()]);
+
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement', ['fiscal_year' => 'all']))
+            ->assertOk()
+            ->assertSee('storeq-'.$sent->id, false)
+            ->assertSee(trans('admin/store/general.order_status_with_vendor'))
+            ->assertDontSee('storeq-'.$landed->id, false)
+            ->assertDontSee('storeq-'.$arrived->id, false);
     }
 }
