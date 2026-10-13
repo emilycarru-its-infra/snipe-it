@@ -138,6 +138,8 @@ return [
     // Orders board: every order in flight, one stage each.
     'board_view_board' => 'Board',
     'board_view_list' => 'List',
+    'board_show_done' => 'Show done (:count)',
+    'board_hide_done' => 'Hide done',
     'board_filter' => 'Filter the board',
     'board_filter_clear' => 'Show all stages',
     'board_stage_approvals' => 'Approvals',

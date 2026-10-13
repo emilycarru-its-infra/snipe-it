@@ -23,6 +23,7 @@
 
 <style>
     .ord-board { --pp-cols: 6; }
+    .ord-board.ord-board--no-done { --pp-cols: 5; }
     .ord-board .pp-col-foot { font-size: 11.5px; padding: 2px 2px 10px; }
     .ord-board .pp-col-foot a { color: var(--pp-c); font-weight: 600; }
     #ppModal .ord-modal-actions { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--pp-line); }
@@ -94,11 +95,15 @@
                 : [],
         ],
     ];
+
+    if (! $showDone) {
+        unset($stages['done']);
+    }
 @endphp
 
 <div class="row">
     <div class="col-md-12">
-        <div class="box box-default proc-pipe ord-board">
+        <div class="box box-default proc-pipe ord-board {{ $showDone ? '' : 'ord-board--no-done' }}">
             <div class="box-header with-border" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                 <input type="search" id="pp-board-filter" class="form-control input-sm" style="width: 220px;"
                        placeholder="{{ $t('board_filter') }}" aria-label="{{ $t('board_filter') }}">
@@ -107,6 +112,9 @@
                     <a href="{{ route('orders.index', ['view' => 'list']) }}" class="btn btn-default">{{ $t('board_view_list') }}</a>
                 </div>
                 <a href="#" id="pp-filter-clear-top" class="btn btn-default btn-sm">{{ $t('board_filter_clear') }}</a>
+                <a href="{{ route('orders.index', $showDone ? [] : ['done' => 1]) }}" class="btn btn-default btn-sm" aria-pressed="{{ $showDone ? 'true' : 'false' }}">
+                    {{ $showDone ? $t('board_hide_done') : $t('board_show_done', ['count' => $board['doneCount']]) }}
+                </a>
                 <span style="margin-left:auto;"></span>
                 @if ($canUpdate)
                     @include('orders._eta-request-bulk')
@@ -241,7 +249,8 @@
                             @endif
                         </div>
 
-                        {{-- Done --}}
+                        {{-- Done, only when asked for --}}
+                        @if ($showDone)
                         <div class="pp-col" data-pp-stage="done" style="--pp-c: {{ $stages['done']['color'] }}">
                             <div class="pp-col-cards">
                                 @foreach ($board['done'] as $order)
@@ -256,6 +265,7 @@
                                 <div class="pp-col-foot"><a href="{{ route('orders.index', ['view' => 'list', 'status' => 'received']) }}">{{ $t('board_open_history') }} →</a></div>
                             @endif
                         </div>
+                        @endif
 
                     </div>
                 </div>
@@ -373,7 +383,7 @@
         </div>
     @endforeach
 
-    @foreach ($board['done'] as $order)
+    @foreach ($showDone ? $board['done'] : [] as $order)
         <div data-pp-content="done-{{ $order->id }}" data-pp-color="{{ $stages['done']['color'] }}" data-pp-title="{{ $order->order_number }}" data-pp-url="{{ route('orders.show', $order->id) }}"></div>
     @endforeach
 
