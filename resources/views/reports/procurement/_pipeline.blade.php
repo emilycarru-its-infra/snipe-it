@@ -360,7 +360,9 @@
                                                  sitting here is waiting on a PO, not on a
                                                  decision, and the card should not ask for
                                                  one twice. --}}
-                                            @if (($queueCard['status'] ?? 'pending') === 'approved')
+                                            @if (($queueCard['status'] ?? 'pending') === 'ordered')
+                                                <span class="pp-chip pp-chip-wait">{{ trans('admin/store/general.order_status_'.$queueCard['stage']) }}</span>
+                                            @elseif (($queueCard['status'] ?? 'pending') === 'approved')
                                                 <span class="pp-chip pp-chip-done">{{ trans('admin/purchase-orders/general.pipeline_chip_approved') }}</span>
                                             @else
                                                 <span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.pipeline_chip_awaiting') }}</span>
