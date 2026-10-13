@@ -62,6 +62,9 @@ class OrdersController extends Controller
                 'leaseSchedules' => CsiSchedule::openScheduleNames(),
                 'canApprove' => StoreApprover::allows($request->user()),
                 'canUpdate' => $canUpdate,
+                // Finished orders are history, not work, so their column
+                // stays folded away until asked for.
+                'showDone' => $request->boolean('done'),
             ]);
         }
 

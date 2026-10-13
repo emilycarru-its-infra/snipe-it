@@ -94,7 +94,15 @@ class OrdersBoardTest extends TestCase
         $this->assertStringContainsString('order-'.$ordered->id.'"', $this->column($html, 'ordered'));
         $this->assertStringContainsString('order-'.$arriving->id.'"', $this->column($html, 'arriving'));
         $this->assertStringNotContainsString('order-'.$arriving->id.'"', $this->column($html, 'ordered'));
-        $this->assertStringContainsString('done-'.$done->id.'"', $this->column($html, 'done'));
+        // Finished orders are folded away until asked for.
+        $this->assertStringNotContainsString('data-pp-stage="done"', $html);
+
+        $shown = $this->actingAs($this->superuser())
+            ->get(route('orders.index', ['done' => 1]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('done-'.$done->id.'"', $this->column($shown, 'done'));
     }
 
     public function test_a_store_order_whose_vendor_order_landed_is_not_shown_twice()
@@ -126,7 +134,7 @@ class OrdersBoardTest extends TestCase
         OrderItem::create(['order_id' => $order->id, 'item_type' => Asset::class, 'item_id' => $arrival->id, 'quantity' => 1, 'unit_cost' => 100, 'received_at' => now()]);
 
         $html = $this->actingAs($this->superuser())
-            ->get(route('orders.index'))
+            ->get(route('orders.index', ['done' => 1]))
             ->assertOk()
             ->assertSee('board-serial-one')
             ->getContent();
