@@ -6,6 +6,7 @@ use App\Mail\StoreVendorOrderMail;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
+use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\Supplier;
@@ -147,6 +148,24 @@ class StoreOrdersApiTest extends TestCase
         ])->assertOk();
 
         $this->assertSame('requester-gl', $order->fresh()->gl_code);
+    }
+
+    public function test_an_approver_who_cannot_place_orders_leaves_the_send()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+        $approver = User::factory()->create();
+        StoreApprover::create(['user_id' => $approver->id]);
+
+        Passport::actingAs($approver);
+
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'purchase_admin',
+        ])->assertOk()->assertJsonPath('payload.status', 'approved');
+
+        Mail::assertNotSent(StoreVendorOrderMail::class);
     }
 
     public function test_an_approval_without_an_account_waits_for_one()

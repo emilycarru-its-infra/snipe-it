@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Requisition;
 use App\Models\StoreOrder;
 use App\Models\User;
 use App\Services\SupplierAccounts;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Approving or declining a store order, in one place.
@@ -78,22 +80,30 @@ class StoreOrderDecision
      */
     public function sendIfReady(StoreOrder $order, ?User $actor = null): ?array
     {
-        $order->refresh();
-
-        if ($order->status !== 'approved' || $order->vendor_sent_at !== null || ! $order->readyForVendor()) {
-            return null;
-        }
-
         $actor ??= auth()->user();
 
-        if (! $actor) {
+        // Approving and sending are separate rights: an approver who may
+        // not place orders leaves a ready order for someone who can, rather
+        // than the approval quietly carrying the send with it.
+        if (! $actor || ! $actor->can('update', Requisition::class)) {
             return null;
         }
 
-        $order->load('items.catalogItem.supplier', 'user');
-        $result = app(StoreVendorOrderDispatch::class)->send(collect([$order]), $actor);
+        // Row-locked so two clicks, or an approval racing an account save,
+        // cannot both see "not sent yet" and email the vendor twice.
+        return DB::transaction(function () use ($order, $actor) {
+            $locked = StoreOrder::whereKey($order->getKey())->lockForUpdate()->first();
 
-        return ['sent' => $result['sent'], 'error' => $result['error'], 'recipients' => $result['recipients']];
+            if (! $locked || $locked->status !== 'approved' || $locked->vendor_sent_at !== null || ! $locked->readyForVendor()) {
+                return null;
+            }
+
+            $locked->load('items.catalogItem.supplier', 'user');
+            $result = app(StoreVendorOrderDispatch::class)->send(collect([$locked]), $actor);
+            $order->refresh();
+
+            return ['sent' => $result['sent'], 'error' => $result['error'], 'recipients' => $result['recipients']];
+        });
     }
 
     /**
