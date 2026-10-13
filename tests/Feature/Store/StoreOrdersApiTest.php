@@ -6,6 +6,7 @@ use App\Mail\StoreVendorOrderMail;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
+use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\Supplier;
@@ -104,11 +105,84 @@ class StoreOrdersApiTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('status', 'success')
-            ->assertJsonPath('payload.status', 'approved');
+            // With an account there is nothing left to wait for, so approval
+            // is also the send.
+            ->assertJsonPath('payload.status', 'ordered')
+            ->assertJsonPath('payload.vendor_send.sent', true);
 
-        $this->assertSame('approved', $order->fresh()->status);
         $this->assertSame('purchase_admin', $order->fresh()->funding_account);
         $this->assertNotNull($order->fresh()->decided_at);
+        $this->assertNotNull($order->fresh()->vendor_sent_at);
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->hasTo('rep1@cdw.ca'));
+    }
+
+    public function test_approval_records_the_gl_it_was_given()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['gl_code' => 'requester-gl']);
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'purchase_admin',
+            'gl_code' => ' 10-00-000000-0000 Service desk ',
+        ])->assertOk()->assertJsonPath('payload.gl_code', '10-00-000000-0000 Service desk');
+    }
+
+    public function test_a_blank_gl_keeps_the_requesters()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['gl_code' => 'requester-gl']);
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'purchase_admin',
+            'gl_code' => '',
+        ])->assertOk();
+
+        $this->assertSame('requester-gl', $order->fresh()->gl_code);
+    }
+
+    public function test_an_approver_who_cannot_place_orders_leaves_the_send()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+        $approver = User::factory()->create();
+        StoreApprover::create(['user_id' => $approver->id]);
+
+        Passport::actingAs($approver);
+
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'purchase_admin',
+        ])->assertOk()->assertJsonPath('payload.status', 'approved');
+
+        Mail::assertNotSent(StoreVendorOrderMail::class);
+    }
+
+    public function test_an_approval_without_an_account_waits_for_one()
+    {
+        Mail::fake();
+
+        $order = $this->orderFor(User::factory()->create());
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.decide', $order->id), ['decision' => 'approved'])
+            ->assertOk()
+            ->assertJsonPath('payload.status', 'approved')
+            ->assertJsonPath('payload.vendor_send', null);
+
+        Mail::assertNotSent(StoreVendorOrderMail::class);
+        $this->assertNull($order->fresh()->vendor_sent_at);
     }
 
     public function test_a_lease_account_keeps_the_schedule_it_was_decided_with()
@@ -231,7 +305,10 @@ class StoreOrdersApiTest extends TestCase
         $fresh = $order->fresh();
         $this->assertSame('lease_admin', $fresh->funding_account);
         $this->assertSame('100000-007', $fresh->lease_schedule);
-        $this->assertTrue($fresh->readyForVendor());
+        // The account was all it was waiting on, so it went.
+        $this->assertSame('ordered', $fresh->status);
+        $this->assertNotNull($fresh->vendor_sent_at);
+        Mail::assertSent(StoreVendorOrderMail::class, 1);
     }
 
     public function test_the_schedule_defaults_from_the_account()

@@ -71,6 +71,7 @@ class StoreOrdersController extends Controller
             'decision_notes' => 'nullable|string|max:65535',
             'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
+            'gl_code' => 'nullable|string|max:64',
         ]);
 
         if ($order->status !== 'pending') {
@@ -80,12 +81,13 @@ class StoreOrdersController extends Controller
             );
         }
 
-        app(StoreOrderDecision::class)->decide($order, $validated);
+        $vendor = app(StoreOrderDecision::class)->decide($order, $validated);
+        $outcome = StoreOrderDecision::outcome($validated['decision'], $vendor);
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
-            $this->row($order->fresh(['user', 'items', 'purchaseOrder'])),
-            trans('admin/store/general.queue_decided_'.$validated['decision'])
+            $this->row($order->fresh(['user', 'items', 'purchaseOrder'])) + ['vendor_send' => $vendor],
+            $outcome['message']
         ));
     }
 
@@ -105,6 +107,7 @@ class StoreOrdersController extends Controller
         $validated = $request->validate([
             'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
+            'gl_code' => 'nullable|string|max:64',
         ]);
 
         $account = $validated['funding_account'] ?? null;
@@ -131,12 +134,16 @@ class StoreOrdersController extends Controller
         $order->update([
             'funding_account' => $account,
             'lease_schedule' => SupplierAccounts::needsSchedule($account) ? $schedule : null,
-        ]);
+        ] + (filled($validated['gl_code'] ?? null) ? ['gl_code' => trim($validated['gl_code'])] : []));
+
+        // An approved order was only waiting on this; it goes now.
+        $vendor = app(StoreOrderDecision::class)->sendIfReady($order, $request->user());
+        $outcome = StoreOrderDecision::outcome('approved', $vendor, 'funding_saved_');
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
-            $this->row($order->fresh(['user', 'items', 'purchaseOrder'])),
-            trans('admin/store/general.funding_saved')
+            $this->row($order->fresh(['user', 'items', 'purchaseOrder'])) + ['vendor_send' => $vendor],
+            $outcome['message']
         ));
     }
 
@@ -258,6 +265,7 @@ class StoreOrdersController extends Controller
             'funding_account' => $order->funding_account,
             'lease_schedule' => $order->lease_schedule,
             'ready_for_vendor' => $order->readyForVendor(),
+            'gl_code' => $order->gl_code,
             'notes' => $order->notes,
             'decision_notes' => $order->decision_notes,
             'purchase_order' => $order->purchaseOrder?->po_number,
