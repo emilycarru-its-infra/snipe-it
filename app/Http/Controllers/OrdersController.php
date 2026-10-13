@@ -13,7 +13,10 @@ use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
 use App\Models\CsiSchedule;
+use App\Models\StoreApprover;
+use App\Models\StoreOrder;
 use App\Services\ArrivalAllocator;
+use App\Services\OrdersBoard;
 use App\Services\SupplierAccounts;
 use App\Services\OrderEtaRequest;
 use Illuminate\Support\Facades\Gate;
@@ -34,7 +37,35 @@ class OrdersController extends Controller
     {
         $this->authorize('view', Order::class);
 
-        // The page is a walk through every order without clicking into
+        $canUpdate = Gate::allows('update', Order::class);
+        // What the "Ask for ETAs" sheet offers: orders with the vendor and
+        // something still to arrive, oldest first — the likeliest to chase.
+        $etaCandidates = $canUpdate
+            ? Order::with('supplier')
+                ->whereIn('status', ['ordered', 'shipped', 'partially_received'])
+                ->whereHas('items', fn ($q) => $q->whereNull('received_at'))
+                ->orderByRaw('COALESCE(vendor_sent_at, order_date, created_at)')
+                ->get()
+            : collect();
+
+        // The board by default: everything in flight, one stage each. The
+        // list is the history — every order, filterable and paged — and
+        // any filter in the URL means the list was what was asked for.
+        $wantsList = $request->query('view') === 'list'
+            || $request->hasAny(['status', 'needs_allocation', 'q', 'page']);
+
+        if (! $wantsList) {
+            return view('orders/board', [
+                'board' => OrdersBoard::build(),
+                'etaCandidates' => $etaCandidates,
+                'fundingAccounts' => StoreOrder::fundingAccounts(),
+                'leaseSchedules' => CsiSchedule::openScheduleNames(),
+                'canApprove' => StoreApprover::allows($request->user()),
+                'canUpdate' => $canUpdate,
+            ]);
+        }
+
+        // The list is a walk through every order without clicking into
         // each: collapsed rows that expand in place. Filters narrow by
         // lifecycle, and "needs allocation" surfaces the orders holding
         // hardware that arrived without a request waiting for it.
@@ -43,11 +74,17 @@ class OrdersController extends Controller
             $status = 'all';
         }
 
+        $search = trim((string) $request->query('q', ''));
+
         $orders = Order::with([
             'supplier', 'company', 'shipments', 'invoices',
             'items.item' => fn ($q) => $q->withTrashed(),
         ])
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
+            ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('order_number', 'like', '%'.$search.'%')
+                ->orWhereHas('purchaseOrder', fn ($p) => $p->where('po_number', 'like', '%'.$search.'%'))
+                ->orWhereHas('supplier', fn ($p) => $p->where('name', 'like', '%'.$search.'%'))))
             ->orderBy('created_at', 'desc')
             ->paginate(50)
             ->withQueryString();
@@ -68,17 +105,10 @@ class OrdersController extends Controller
         return view('orders/index', [
             'orders' => $orders,
             'selectedStatus' => $status,
+            'search' => $search,
             'needsAllocation' => $request->boolean('needs_allocation'),
             'unmatchedCount' => $arrivals->count(),
-            // What the "Ask for ETAs" sheet offers: orders with the vendor and
-            // something still to arrive, oldest first — the likeliest to chase.
-            'etaCandidates' => Gate::allows('update', Order::class)
-                ? Order::with('supplier')
-                    ->whereIn('status', ['ordered', 'shipped', 'partially_received'])
-                    ->whereHas('items', fn ($q) => $q->whereNull('received_at'))
-                    ->orderByRaw('COALESCE(vendor_sent_at, order_date, created_at)')
-                    ->get()
-                : collect(),
+            'etaCandidates' => $etaCandidates,
         ]);
     }
 
@@ -258,11 +288,16 @@ class OrdersController extends Controller
 
         $result = app(OrderEtaRequest::class)->send($order, auth()->user(), $validated, $test);
 
+        // Asked from the orders board, the answer belongs back on the board.
+        $back = $request->input('return_to') === 'orders'
+            ? redirect()->route('orders.index')
+            : redirect()->route('orders.show', $order->id);
+
         if (! $result['sent']) {
-            return redirect()->route('orders.show', $order->id)->with('error', $result['error']);
+            return $back->with('error', $result['error']);
         }
 
-        return redirect()->route('orders.show', $order->id)
+        return $back
             ->with('success', $test
                 ? trans('admin/orders/general.eta_request_test_sent', ['email' => $result['to'][0] ?? ''])
                 : trans('admin/orders/general.eta_request_sent', ['emails' => implode(', ', $result['to'])]));
