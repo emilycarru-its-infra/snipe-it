@@ -444,4 +444,39 @@ class StoreOrdersApiTest extends TestCase
 
         $this->getJson(route('api.store-orders.index'))->assertForbidden();
     }
+
+    public function test_a_quote_can_be_recorded_and_confirmed_over_the_api()
+    {
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'ordered', 'vendor_sent_at' => now()]);
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.quote', $order->id), ['quote_number' => 'Q-1', 'quote_total' => 279.78])
+            ->assertOk()
+            ->assertJsonPath('payload.quote_number', 'Q-1')
+            ->assertJsonPath('payload.display_status', 'quoted');
+
+        $this->assertNotNull($order->fresh()->quote_received_at);
+        $this->assertNull($order->fresh()->confirmed_at);
+
+        $this->postJson(route('api.store-orders.quote', $order->id), ['confirm' => true])
+            ->assertOk()
+            ->assertJsonPath('payload.display_status', 'ordered');
+
+        $this->assertNotNull($order->fresh()->confirmed_at);
+    }
+
+    public function test_no_quote_before_the_request_has_gone_out()
+    {
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'approved']);
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.quote', $order->id), ['quote_number' => 'Q-1'])
+            ->assertStatus(422);
+
+        $this->assertNull($order->fresh()->quote_number);
+    }
 }

@@ -13,6 +13,7 @@ use App\Services\SupplierAccounts;
 use App\Services\StoreVendorOrderDispatch;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
+use App\Services\StoreOrderQuote;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -246,6 +247,35 @@ class StoreOrdersController extends Controller
     }
 
     /**
+     * Record the vendor's quote for a store order that has gone out, and
+     * optionally confirm it — the same two moves as the queue page, for an
+     * agent reading the reps' replies rather than someone typing them in.
+     */
+    public function quote(Request $request, StoreOrder $order): JsonResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'quote_number' => 'nullable|string|max:191',
+            'quote_total' => 'nullable|numeric|min:0',
+            'quote_expires_at' => 'nullable|date',
+            'confirm' => 'nullable|boolean',
+        ]);
+
+        $result = app(StoreOrderQuote::class)->record($order, $validated, $request->boolean('confirm'));
+
+        if ($result['error'] !== null) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            $this->row($order->fresh(['user', 'items', 'purchaseOrder'])),
+            trans($request->boolean('confirm') ? 'admin/store/general.quote_confirmed' : 'admin/store/general.quote_recorded')
+        ));
+    }
+
+    /**
      * One order as every reader of this API wants it: who asked, what for,
      * what it costs, and whether it can move.
      *
@@ -272,6 +302,11 @@ class StoreOrdersController extends Controller
             'total' => $order->total(),
             'created_at' => $order->created_at?->toDateTimeString(),
             'vendor_sent_at' => $order->vendor_sent_at?->toDateTimeString(),
+            'display_status' => $order->displayStatus(),
+            'quote_number' => $order->quote_number,
+            'quote_total' => $order->quote_total !== null ? (float) $order->quote_total : null,
+            'quote_expires_at' => $order->quote_expires_at?->format('Y-m-d'),
+            'confirmed_at' => $order->confirmed_at?->format('Y-m-d H:i:s'),
             'items' => $order->items->map(fn ($line) => [
                 'description' => $line->description,
                 'quantity' => (int) $line->quantity,
