@@ -215,6 +215,14 @@ return [
             'label' => 'Categories outside the refresh forecast',
             'help' => 'Asset categories the refresh forecast never counts. Defaults to the configuration list.',
         ],
+        'deployments.forecast_annual_inflation' => [
+            'label' => 'Forecast price inflation (per year)',
+            'help' => 'For a fiscal year past the last loaded price list, the refresh forecast carries each catalog price forward by this much a year, as a fraction (0.03 is 3%), and marks the price as an assumption. 0 carries prices forward unchanged.',
+        ],
+        'deployments.forecast_priced_through_fy' => [
+            'label' => 'Price lists cover through',
+            'help' => 'The last fiscal year the loaded price lists price, as FY2026-27. Leave blank to take it from the newest quote or expiry date in the catalog.',
+        ],
         'dashboard.renewal_prompt_days' => [
             'label' => 'Renewal prompt (days before lease end)',
             'help' => 'A person\'s dashboard starts the renewal journey this many days before their laptop lease ends.',

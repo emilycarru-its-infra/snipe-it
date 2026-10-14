@@ -1046,13 +1046,15 @@ class DeploymentsController extends Controller
             : ($fy ? $forecast->forFiscalYear($fy) : collect());
 
         // The money column: each candidate priced at its comparable current
-        // model's live catalog price, the old cost only as a fallback.
-        $totalEstimate = (float) $candidates->sum(
-            fn (Asset $asset) => $asset->replacementCostEstimate() ?? (float) ($asset->purchase_cost ?? 0)
-        );
+        // model's live catalog price, the old cost only as a fallback. A year
+        // past the last price list carries the catalog price forward at the
+        // inflation assumption, which the service stamps on each row.
+        $totalEstimate = (float) $candidates->sum(fn (Asset $asset) => (float) $asset->replacement_estimate);
 
         if ($request->query('format') === 'csv') {
-            return $this->streamForecastCsv($candidates, $fy, $totalEstimate);
+            $priceAssumption = $criteria === [] && $fy ? $forecast->priceAssumption($fy) : null;
+
+            return $this->streamForecastCsv($candidates, $fy, $totalEstimate, $priceAssumption);
         }
 
         // Devices already carrying a planned replacement line, so the page
@@ -1107,10 +1109,11 @@ class DeploymentsController extends Controller
      * retired procurement forecast report exported.
      *
      * @param  Collection<int, Asset>  $candidates
+     * @param  array{priced_through_fy: string, annual_inflation: float, years_assumed: int, factor: float}|null  $priceAssumption
      */
-    private function streamForecastCsv($candidates, ?string $fy, float $totalEstimate): StreamedResponse
+    private function streamForecastCsv($candidates, ?string $fy, float $totalEstimate, ?array $priceAssumption = null): StreamedResponse
     {
-        return new StreamedResponse(function () use ($candidates, $totalEstimate) {
+        return new StreamedResponse(function () use ($candidates, $totalEstimate, $priceAssumption) {
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
 
@@ -1129,7 +1132,16 @@ class DeploymentsController extends Controller
 
             foreach ($candidates as $asset) {
                 $catalog = $asset->model?->refreshCatalogItem;
-                $estimate = $asset->replacementCostEstimate() ?? (float) ($asset->purchase_cost ?? 0);
+                $estimate = (float) $asset->replacement_estimate;
+                $basis = match (true) {
+                    $catalog === null => trans('admin/purchase-orders/general.forecast_basis_original'),
+                    $asset->estimate_basis === RefreshForecast::BASIS_ASSUMED => trans('admin/purchase-orders/general.forecast_basis_assumed', [
+                        'name' => $catalog->name,
+                        'rate' => RefreshForecast::formatRate((float) ($priceAssumption['annual_inflation'] ?? 0)),
+                        'fy' => $priceAssumption['priced_through_fy'] ?? '',
+                    ]),
+                    default => trans('admin/purchase-orders/general.forecast_basis_catalog', ['name' => $catalog->name]),
+                };
                 fputcsv($handle, [
                     (string) $asset->asset_tag,
                     (string) $asset->name,
@@ -1138,9 +1150,7 @@ class DeploymentsController extends Controller
                     $asset->purchase_date ? Carbon::parse($asset->purchase_date)->toDateString() : '',
                     (string) $asset->source_date,
                     number_format($estimate, 2, '.', ''),
-                    $catalog
-                        ? trans('admin/purchase-orders/general.forecast_basis_catalog', ['name' => $catalog->name])
-                        : trans('admin/purchase-orders/general.forecast_basis_original'),
+                    $basis,
                     (string) $asset->status?->name,
                     (string) $asset->supplier?->name,
                 ]);
