@@ -926,6 +926,14 @@
         "type_code",
         "updated_at"
     ],
+    "license_product_identity": [
+        "created_at",
+        "fiscal_year",
+        "id",
+        "license_id",
+        "product_identity_id",
+        "updated_at"
+    ],
     "license_seats": [
         "asset_id",
         "assigned_to",
@@ -1233,6 +1241,26 @@
         "key",
         "updated_at",
         "value"
+    ],
+    "product_identities": [
+        "created_at",
+        "created_by",
+        "deleted_at",
+        "id",
+        "name",
+        "notes",
+        "procurement_name",
+        "publisher",
+        "updated_at"
+    ],
+    "product_identity_aliases": [
+        "created_at",
+        "id",
+        "match_type",
+        "pattern",
+        "platform",
+        "product_identity_id",
+        "updated_at"
     ],
     "purchase_orders": [
         "budget",
