@@ -25,6 +25,7 @@ class LeaseDecisionsTransformer
         $array = [
             'id' => (int) $decision->id,
             'contract_reference' => e($decision->contract_reference),
+            'asset_id' => $decision->asset_id ? (int) $decision->asset_id : null,
             'decision_type' => $decision->decision_type,
             'decision_date' => Helper::getFormattedDateObject($decision->decision_date, 'date'),
             'deferred_to_fy' => $decision->deferred_to_fy,

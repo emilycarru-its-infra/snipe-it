@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Watson\Validating\ValidatingTrait;
@@ -150,6 +151,26 @@ class AssetModel extends SnipeModel
     public function assets()
     {
         return $this->hasMany(Asset::class, 'model_id');
+    }
+
+    /**
+     * Re-derive the EOL date on this model's assets after its EOL months
+     * change. Only derived dates move: an asset whose EOL was set by hand
+     * (eol_explicit) keeps it, and one with no purchase date has nothing to
+     * derive from. Shared by the model form and the API so changing the
+     * EOL policy has the same effect from either.
+     *
+     * @return int the number of assets whose EOL date was rewritten
+     */
+    public function syncDerivedAssetEolDates(): int
+    {
+        $assets = $this->assets()->whereNotNull('purchase_date')->where('eol_explicit', false);
+
+        if ((int) $this->eol > 0) {
+            return $assets->update(['asset_eol_date' => DB::raw('DATE_ADD(purchase_date, INTERVAL '.(int) $this->eol.' MONTH)')]);
+        }
+
+        return $assets->update(['asset_eol_date' => null]);
     }
 
     /**

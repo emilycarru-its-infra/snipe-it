@@ -14,7 +14,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\MessageBag;
@@ -181,15 +180,8 @@ class AssetModelsController extends Controller
                 }
             }
 
-            if ($model->wasChanged('eol')) {
-                if ($model->eol > 0) {
-                    $newEol = $model->eol;
-                    $model->assets()->whereNotNull('purchase_date')->where('eol_explicit', false)
-                        ->update(['asset_eol_date' => DB::raw('DATE_ADD(purchase_date, INTERVAL '.$newEol.' MONTH)')]);
-                } elseif ($model->eol == 0) {
-                    $model->assets()->whereNotNull('purchase_date')->where('eol_explicit', false)
-                        ->update(['asset_eol_date' => DB::raw('null')]);
-                }
+            if ($model instanceof AssetModel && $model->wasChanged('eol')) {
+                $model->syncDerivedAssetEolDates();
             }
 
             return redirect()->route('models.index')->with('success', trans('admin/models/message.update.success'));
