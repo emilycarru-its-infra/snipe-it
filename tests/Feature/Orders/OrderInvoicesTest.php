@@ -18,7 +18,7 @@ class OrderInvoicesTest extends TestCase
 
     public function test_an_invoice_can_be_added_to_an_order()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
 
         $this->actingAs($this->superuser())
             ->post(route('orders.invoices.store', $order->id), [
@@ -40,7 +40,7 @@ class OrderInvoicesTest extends TestCase
 
     public function test_an_invoice_can_be_deleted()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $invoice = OrderInvoice::factory()->create(['order_id' => $order->id]);
 
         $this->actingAs($this->superuser())
@@ -52,7 +52,7 @@ class OrderInvoicesTest extends TestCase
 
     public function test_deleting_an_invoice_releases_its_line_items()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $invoice = OrderInvoice::factory()->create(['order_id' => $order->id]);
         $item = OrderItem::factory()->create([
             'order_id' => $order->id,
@@ -67,7 +67,7 @@ class OrderInvoicesTest extends TestCase
 
     public function test_a_line_item_can_be_billed_to_an_invoice()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $invoice = OrderInvoice::factory()->create(['order_id' => $order->id]);
         $asset = Asset::factory()->create();
 
