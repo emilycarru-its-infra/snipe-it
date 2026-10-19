@@ -74,6 +74,11 @@ return [
     'total' => 'Total',
     'equipment_cost' => 'Equipment Cost',
     'warranty_cost' => 'Warranty / Soft Cost',
+    'part_numbers' => 'Part #',
+    'qty' => 'Qty',
+    'shipment_invoice' => 'Shipment / Invoice',
+    'mfr_short' => 'MFR',
+    'edc_short' => 'EDC',
     'unassigned_invoice' => 'No invoice',
 
     // Allocation: pairing an arrival that has no request with the request
