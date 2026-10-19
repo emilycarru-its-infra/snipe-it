@@ -334,6 +334,7 @@ return [
     'actions_quote' => 'Quote — confirm to order',
     'actions_quote_expired' => 'Quote expired — re-quote',
     'actions_vendor_changes' => 'Vendor changes — review',
+    'actions_po_check' => 'Check PO :po — not one of ours',
 
     // What a department-funded order needs before it is placed.
     'prereqs_title' => 'Paying from your department budget?',

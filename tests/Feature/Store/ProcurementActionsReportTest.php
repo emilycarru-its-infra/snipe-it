@@ -122,7 +122,7 @@ class ProcurementActionsReportTest extends TestCase
 
         $text = $this->cardText($this->lastPostedCard());
         $this->assertStringContainsString($ours->reference(), $text);
-        $this->assertStringContainsString(trans('admin/store/general.actions_send'), $text);
+        $this->assertStringContainsString(trans('admin/store/general.actions_needs_account'), $text);
         $this->assertStringContainsString(trans('admin/store/general.actions_po_check', ['po' => 'DEPT-77']), $text);
         $this->assertStringNotContainsString(trans('admin/store/general.actions_po_check', ['po' => 'p0012345']), $text);
     }
