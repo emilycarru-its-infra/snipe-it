@@ -876,6 +876,8 @@
         "notes",
         "picked_up_at",
         "preferred_dates",
+        "receiving_notified_at",
+        "receiving_notified_for",
         "requested_at",
         "requested_by",
         "scheduled_date",

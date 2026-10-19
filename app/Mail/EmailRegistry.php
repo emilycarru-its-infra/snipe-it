@@ -342,6 +342,16 @@ class EmailRegistry
                 'factory' => fn (EmailSampleData $s) => new LeasePickupRequestMail($s->leasePickup()),
             ],
             [
+                'key' => 'request.lease_pickup_receiving',
+                'category' => 'requests',
+                'label' => 'Lease return pickup — heads-up to Receiving',
+                'description' => 'Sent to Receiving when a lessor\'s booking (date, window, load number) is recorded on a pickup, and again if the booking changes. It lists the devices and where they wait, attaches the list as a CSV, and asks for the signed pickup document back. Recipients default to LEASING_PICKUP_RECEIVING_TO; with none set, nothing is sent. CC defaults to the pickup request team list, and whoever recorded the booking is always CC\'d.',
+                'merge_vars' => ['pickup' => 'The pickup (pickup.id, pickup.load_number, pickup.scheduled_date, pickup.scheduled_window)', 'assets' => 'The devices (asset_tag, serial, lease_contract_id)', 'when' => 'Date and window, written out', 'locations' => 'Device count per holding room', 'lessor' => 'The lessor (lessor.name)', 'updated' => 'True when this replaces an earlier notice'],
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+                'factory' => fn (EmailSampleData $s) => new LeasePickupReceivingMail($s->leasePickup(true)),
+            ],
+            [
                 'key' => 'request.asset_buyout_payroll',
                 'category' => 'requests',
                 'label' => 'Lease buyout payroll deduction',

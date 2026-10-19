@@ -84,7 +84,10 @@ class LeasePickupsController extends Controller
         ])));
     }
 
-    /** Record the lessor's load number and booked window. */
+    /**
+     * Record the lessor's load number and booked window. Once there is a
+     * date, Receiving gets a heads-up; `notify_receiving: false` skips it.
+     */
     public function schedule(Request $request, LeasePickup $pickup, PickupRequester $requester): JsonResponse
     {
         $this->authorize('deployments.edit');
@@ -93,9 +96,10 @@ class LeasePickupsController extends Controller
             'load_number' => 'nullable|string|max:64',
             'scheduled_date' => 'nullable|date',
             'scheduled_window' => 'nullable|string|max:64',
+            'notify_receiving' => 'sometimes|boolean',
         ]);
 
-        $requester->schedule($pickup, $request->input('load_number'), $request->input('scheduled_date'), $request->input('scheduled_window'));
+        $requester->schedule($pickup, $request->input('load_number'), $request->input('scheduled_date'), $request->input('scheduled_window'), $request->user(), $request->boolean('notify_receiving', true));
 
         return response()->json(Helper::formatStandardApiResponse('success', $this->json($pickup->fresh(['assets', 'lessor', 'requester'])), trans('admin/deployments/general.pickup_updated')));
     }
@@ -142,6 +146,7 @@ class LeasePickupsController extends Controller
             'load_number' => $pickup->load_number,
             'scheduled_date' => $pickup->scheduled_date?->toDateString(),
             'scheduled_window' => $pickup->scheduled_window,
+            'receiving_notified_at' => $pickup->receiving_notified_at?->toDateTimeString(),
             'picked_up_at' => $pickup->picked_up_at?->toDateString(),
             'schedules' => $pickup->scheduleCounts(),
             'assets' => $pickup->assets->map(fn (Asset $asset) => [

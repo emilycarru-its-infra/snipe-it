@@ -138,7 +138,7 @@ class EmailSampleData
     }
 
     /** Two devices bundled for return, for the pickup request preview. */
-    public function leasePickup(): LeasePickup
+    public function leasePickup(bool $scheduled = false): LeasePickup
     {
         $asset = $this->asset();
         $asset->lease_contract_id = 'LEASE-2023-0901-1';
@@ -148,6 +148,9 @@ class EmailSampleData
             'status' => 'requested',
             'preferred_dates' => 'Tuesday or Wednesday next week',
         ]);
+        if ($scheduled) {
+            $pickup->fill(['status' => 'scheduled', 'load_number' => '800123', 'scheduled_date' => now()->addWeek()->toDateString(), 'scheduled_window' => '10:00-15:00']);
+        }
         $pickup->id = 0;
         $pickup->setRelation('assets', new \Illuminate\Database\Eloquent\Collection([$asset]));
         $pickup->setRelation('lessor', new Supplier(['name' => 'Example Leasing']));
