@@ -5,16 +5,15 @@ namespace App\Mail;
 use App\Models\LeasePickup;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
-use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
  * Sent to Receiving once a lessor books a pickup, so the dock knows the day,
- * the window, the load number the driver will quote and what is going. It
- * replaces the forward of the lessor's confirmation that used to be sent by
- * hand, and asks for the signed pickup document back.
+ * the window, the load number the driver will quote and how many of each
+ * model are going. It replaces the forward of the lessor's confirmation that
+ * used to be sent by hand, and asks for the signed pickup document back.
  */
 class LeasePickupReceivingMail extends BaseMailable
 {
@@ -61,17 +60,8 @@ class LeasePickupReceivingMail extends BaseMailable
             'when' => trim(($this->pickup->scheduled_date?->format('l, F j, Y') ?? '').', '.($this->pickup->scheduled_window ?: trans('mail.lease_pickup_receiving_tbc')), ', '),
             // Where the pile waits: each holding room once, with its count.
             'locations' => $assets->groupBy(fn ($asset) => $asset->location?->name ?: '—')->map->count()->sortKeys()->all(),
+            // Receiving counts boxes, not serials: one line per model.
+            'models' => $assets->groupBy(fn ($asset) => trim(($asset->model?->manufacturer?->name ?? '').' '.($asset->model?->name ?? '')) ?: '—')->map->count()->sortKeys()->all(),
         ]);
-    }
-
-    /**
-     * @return array<int, mixed>
-     */
-    public function attachments(): array
-    {
-        return [
-            Attachment::fromData(fn () => (new LeasePickupRequestMail($this->pickup))->csv(), 'lease-return-pickup-'.$this->pickup->id.'.csv')
-                ->withMime('text/csv'),
-        ];
     }
 }
