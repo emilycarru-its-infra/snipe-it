@@ -115,6 +115,20 @@
                      Faculty read an optional field as a required one and stop
                      to ask, which is exactly what happened on wave 2. --}}
                 @if ($showGlCode)
+                    {{-- What a department-funded order needs, said before it
+                         is placed. Without it a requester finds out only when
+                         the order sits in review waiting for a PO nobody
+                         told them to raise. --}}
+                    <div class="st-prereqs" style="margin-top:12px;">
+                        <p class="st-field-label" style="margin-bottom:4px;">{{ trans('admin/store/general.prereqs_title') }}</p>
+                        <p class="text-muted" style="margin:0;">{{ trans('admin/store/general.prereqs_body') }}</p>
+                    </div>
+                    <div class="form-group" style="margin-top:12px;">
+                        <label for="st-department-po">{{ trans('admin/store/general.department_po_label') }}</label>
+                        <input type="text" name="department_po_number" id="st-department-po" class="form-control" maxlength="64"
+                               value="{{ old('department_po_number') }}"
+                               placeholder="{{ trans('admin/store/general.department_po_placeholder') }}">
+                    </div>
                     <div class="form-group" style="margin-top:12px;">
                         <label for="st-gl-code">{{ trans('admin/store/general.gl_code_label') }}</label>
                         <input type="text" name="gl_code" id="st-gl-code" class="form-control" maxlength="64"

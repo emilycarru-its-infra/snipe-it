@@ -1588,6 +1588,7 @@
         "decided_at",
         "decided_by",
         "decision_notes",
+        "department_po_number",
         "deployment_wave_id",
         "funding_account",
         "gl_code",
