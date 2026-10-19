@@ -19,11 +19,12 @@
 
 <x-mail::table>
 
-| {{ trans('general.asset_tag') }} | {{ trans('admin/hardware/form.serial') }} | {{ trans('general.asset_model') }} | {{ trans('mail.lease_pickup_request_col_schedule') }} |
-| :- | :- | :- | :- |
-@foreach ($assets as $asset)
-| {{ $asset->asset_tag }} | {{ $asset->serial ?: '—' }} | {{ trim(($asset->model?->manufacturer?->name ?? '').' '.($asset->model?->name ?? '')) ?: '—' }} | {{ $asset->lease_contract_id ?: '—' }} |
+| {{ trans('general.asset_model') }} | {{ trans('mail.lease_pickup_receiving_col_qty') }} |
+| :- | -: |
+@foreach ($models as $model => $count)
+| {{ $model }} | {{ $count }} |
 @endforeach
+| **{{ trans('mail.lease_pickup_receiving_total') }}** | **{{ $assets->count() }}** |
 
 </x-mail::table>
 

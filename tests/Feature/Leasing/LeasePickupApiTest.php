@@ -142,6 +142,13 @@ class LeasePickupApiTest extends TestCase
         });
         $this->assertNotNull($pickup->fresh()->receiving_notified_at);
 
+        // Receiving gets model totals only, no per-device rows.
+        $asset = $pickup->assets()->firstOrFail();
+        $notice = new LeasePickupReceivingMail($pickup->fresh());
+        $notice->assertSeeInHtml(trans('mail.lease_pickup_receiving_col_qty'));
+        $notice->assertSeeInHtml($asset->model->name);
+        $notice->assertDontSeeInHtml($asset->asset_tag);
+
         // Saving the same booking again sends nothing.
         $this->actingAsForApi($admin)->postJson(route('api.lease-pickups.schedule', $pickup), $booking)->assertOk();
         Mail::assertSent(LeasePickupReceivingMail::class, 1);
