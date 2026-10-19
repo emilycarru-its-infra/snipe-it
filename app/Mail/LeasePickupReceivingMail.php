@@ -61,7 +61,7 @@ class LeasePickupReceivingMail extends BaseMailable
             // Where the pile waits: each holding room once, with its count.
             'locations' => $assets->groupBy(fn ($asset) => $asset->location?->name ?: '—')->map->count()->sortKeys()->all(),
             // Receiving counts boxes, not serials: one line per model.
-            'models' => $assets->groupBy(fn ($asset) => trim(($asset->model?->manufacturer?->name ?? '').' '.($asset->model?->name ?? '')) ?: '—')->map->count()->sortKeys()->all(),
+            'models' => $assets->groupBy(fn ($asset) => trim(($asset->model->manufacturer->name ?? '').' '.($asset->model->name ?? '')) ?: '—')->map->count()->sortKeys()->all(),
         ]);
     }
 }
