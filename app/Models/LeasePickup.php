@@ -33,6 +33,8 @@ class LeasePickup extends Model
         'load_number',
         'scheduled_date',
         'scheduled_window',
+        'receiving_notified_at',
+        'receiving_notified_for',
         'picked_up_at',
         'notes',
     ];
@@ -40,6 +42,7 @@ class LeasePickup extends Model
     protected $casts = [
         'requested_at' => 'datetime',
         'scheduled_date' => 'date:Y-m-d',
+        'receiving_notified_at' => 'datetime',
         'picked_up_at' => 'date:Y-m-d',
     ];
 
@@ -92,5 +95,18 @@ class LeasePickup extends Model
             ->map->count()
             ->sortKeys()
             ->all();
+    }
+
+    /**
+     * The booking Receiving needs to hear about: date, window and load
+     * number. A change to any of them is a new heads-up.
+     */
+    public function receivingBooking(): ?string
+    {
+        if (! $this->scheduled_date) {
+            return null;
+        }
+
+        return implode('|', [$this->scheduled_date->toDateString(), (string) $this->scheduled_window, (string) $this->load_number]);
     }
 }

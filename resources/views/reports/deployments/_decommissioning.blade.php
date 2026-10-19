@@ -267,7 +267,14 @@
                                     <input type="text" name="load_number" value="{{ $leasePickup->load_number }}" class="form-control input-sm" style="width:90px;" placeholder="{{ trans('admin/deployments/general.lease_pickups_col_load') }}">
                                     <input type="date" name="scheduled_date" value="{{ $leasePickup->scheduled_date?->toDateString() }}" class="form-control input-sm">
                                     <input type="text" name="scheduled_window" value="{{ $leasePickup->scheduled_window }}" class="form-control input-sm" style="width:100px;" placeholder="{{ trans('admin/deployments/general.lease_pickups_window_placeholder') }}">
+                                    <input type="hidden" name="notify_receiving" value="0">
+                                    <label class="text-muted" style="font-weight:normal;font-size:11.5px;" title="{{ trans('admin/deployments/general.lease_pickups_notify_receiving_hint') }}">
+                                        <input type="checkbox" name="notify_receiving" value="1" checked> {{ trans('admin/deployments/general.lease_pickups_notify_receiving') }}
+                                    </label>
                                     <button type="submit" class="btn btn-xs btn-default">{{ trans('admin/deployments/general.lease_pickups_save') }}</button>
+                                    @if ($leasePickup->receiving_notified_at)
+                                        <div class="text-muted" style="font-size:11.5px;">{{ trans('admin/deployments/general.lease_pickups_receiving_told', ['when' => $leasePickup->receiving_notified_at->toDateString()]) }}</div>
+                                    @endif
                                 </form>
                             @else
                                 {{ $leasePickup->load_number ?: '—' }}

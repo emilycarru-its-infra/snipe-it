@@ -66,13 +66,16 @@ class LeasePickupsController extends Controller
             'load_number' => 'nullable|string|max:64',
             'scheduled_date' => 'nullable|date',
             'scheduled_window' => 'nullable|string|max:64',
+            'notify_receiving' => 'sometimes|boolean',
         ]);
 
         $requester->schedule(
             $pickup,
             $request->input('load_number'),
             $request->input('scheduled_date'),
-            $request->input('scheduled_window')
+            $request->input('scheduled_window'),
+            $request->user(),
+            $request->boolean('notify_receiving', true)
         );
 
         return redirect()->back()->with('success', trans('admin/deployments/general.pickup_updated'));

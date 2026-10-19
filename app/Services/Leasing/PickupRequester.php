@@ -3,6 +3,7 @@
 namespace App\Services\Leasing;
 
 use App\Enums\ActionType;
+use App\Mail\LeasePickupReceivingMail;
 use App\Mail\LeasePickupRequestMail;
 use App\Models\Actionlog;
 use App\Models\Asset;
@@ -121,8 +122,13 @@ class PickupRequester
         return ['pickups' => $pickups, 'skipped' => $skipped];
     }
 
-    /** Record the lessor's answer: their load number and the window they booked. */
-    public function schedule(LeasePickup $pickup, ?string $loadNumber, ?string $date, ?string $window): LeasePickup
+    /**
+     * Record the lessor's answer: their load number and the window they
+     * booked. Once there is a date, Receiving is told — again only when the
+     * date, window or load number changes, so re-saving the same booking
+     * sends nothing.
+     */
+    public function schedule(LeasePickup $pickup, ?string $loadNumber, ?string $date, ?string $window, ?User $actor = null, bool $notifyReceiving = true): LeasePickup
     {
         $pickup->fill([
             'load_number' => $loadNumber ?: $pickup->load_number,
@@ -134,7 +140,46 @@ class PickupRequester
         }
         $pickup->save();
 
+        if ($notifyReceiving) {
+            $this->notifyReceiving($pickup, $actor);
+        }
+
         return $pickup;
+    }
+
+    /**
+     * Tell Receiving what is being collected and when. Skipped for a closed
+     * pickup, one with no date yet, a booking Receiving already has, or when
+     * no Receiving address is set.
+     */
+    public function notifyReceiving(LeasePickup $pickup, ?User $actor): bool
+    {
+        $booking = $pickup->receivingBooking();
+        if (! $pickup->isOpen() || $booking === null || $booking === $pickup->receiving_notified_for) {
+            return false;
+        }
+
+        $to = EmailTemplate::recipientsFor(LeasePickupReceivingMail::KEY, config('leasing.pickup_receiving_to'));
+        if ($to === []) {
+            return false;
+        }
+        $cc = EmailTemplate::ccFor(LeasePickupReceivingMail::KEY, config('leasing.pickup_request_cc'));
+        if ($actor && filled($actor->email)) {
+            $cc[] = $actor->email;
+        }
+        $cc = array_values(array_diff(array_unique(array_filter($cc)), $to));
+
+        // Receiving is internal: nobody outside the university, the lessor
+        // included, is on this one.
+        if (app(LessorGuard::class)->foreignRecipients(new Supplier, array_merge($to, $cc))) {
+            return false;
+        }
+
+        Mail::to($to)->cc($cc)->send(new LeasePickupReceivingMail($pickup, $pickup->receiving_notified_for !== null));
+
+        $pickup->forceFill(['receiving_notified_at' => now(), 'receiving_notified_for' => $booking])->save();
+
+        return true;
     }
 
     /**

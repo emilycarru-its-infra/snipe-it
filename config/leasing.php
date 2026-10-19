@@ -80,6 +80,11 @@ return [
 
     'pickup_site_details' => env('LEASING_PICKUP_SITE_DETAILS', ''),
 
+    // Who takes the truck at the dock. Recording a lessor's booking on a
+    // pickup sends them a heads-up with the date, window, load number and
+    // device list. Empty sends nothing (a Settings → Emails override wins).
+    'pickup_receiving_to' => env('LEASING_PICKUP_RECEIVING_TO', ''),
+
     'pickup_completed_status' => env('LEASING_PICKUP_COMPLETED_STATUS', 'Returned Lease End'),
 
     /*
