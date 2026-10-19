@@ -177,7 +177,14 @@ class OrderItem extends Model
             return trans('admin/orders/general.type_warranty');
         }
 
-        return $this->item_type ? class_basename($this->item_type) : trans('general.na');
+        if (! $this->item_type) {
+            return trans('general.na');
+        }
+
+        // "AssetModel" is a class name, not a word anyone uses.
+        $key = 'general.'.\Illuminate\Support\Str::snake(class_basename($this->item_type));
+
+        return \Illuminate\Support\Facades\Lang::has($key) ? trans($key) : class_basename($this->item_type);
     }
 
     public function isSoftCostOnly(): bool
