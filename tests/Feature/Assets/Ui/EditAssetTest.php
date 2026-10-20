@@ -94,7 +94,7 @@ class EditAssetTest extends TestCase
                 'model_id' => AssetModel::factory()->create()->id,
             ])
             ->assertStatus(302)
-            ->assertRedirect(route('hardware.show', $asset));
+            ->assertRedirect(route('hardware.show', $asset->fresh()));
 
         $this->assertDatabaseHas('assets', ['asset_tag' => 'New Asset Tag']);
     }

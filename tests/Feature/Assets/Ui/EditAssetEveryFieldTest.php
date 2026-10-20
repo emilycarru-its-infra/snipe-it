@@ -72,7 +72,7 @@ class EditAssetEveryFieldTest extends TestCase
             ->from(route('hardware.edit', $asset))
             ->put(route('hardware.update', $asset), $changes + ['redirect_option' => 'item'])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('hardware.show', $asset));
+            ->assertRedirect(route('hardware.show', $asset->fresh()));
 
         $saved = Asset::find($asset->id);
         $expected = [

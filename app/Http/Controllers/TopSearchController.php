@@ -245,7 +245,7 @@ class TopSearchController extends Controller
                 ->map(fn (PurchaseOrder $po) => [
                     'title' => $po->po_number,
                     'subtitle' => trim(collect([$po->title, $po->supplier?->name])->filter()->implode(' · ')),
-                    'url' => route('purchase-orders.show', $po->id),
+                    'url' => route('purchase-orders.show', $po),
                 ])->all();
 
             return [$rows, $count];
@@ -268,7 +268,7 @@ class TopSearchController extends Controller
                 ->map(function (OrderInvoice $invoice) {
                     $parent = $invoice->order
                         ? route('orders.show', $invoice->order)
-                        : ($invoice->purchaseOrder ? route('purchase-orders.show', $invoice->purchaseOrder->id) : null);
+                        : ($invoice->purchaseOrder ? route('purchase-orders.show', $invoice->purchaseOrder) : null);
 
                     return [
                         'title' => $invoice->invoice_number,

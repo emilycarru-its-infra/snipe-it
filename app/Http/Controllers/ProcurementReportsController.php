@@ -3847,9 +3847,9 @@ class ProcurementReportsController extends Controller
                 'links' => array_filter([
                     0 => route('user-agreements.show', $first),
                     1 => $first->user ? route('users.show', $first->user) : null,
-                    2 => $asset ? route('hardware.show', $asset->id) : null,
-                    3 => $asset ? route('hardware.show', $asset->id) : null,
-                    $newSerialCol => $newAsset ? route('hardware.show', $newAsset->id) : null,
+                    2 => $asset ? route('hardware.show', $asset) : null,
+                    3 => $asset ? route('hardware.show', $asset) : null,
+                    $newSerialCol => $newAsset ? route('hardware.show', $newAsset) : null,
                 ], fn ($link) => $link !== null),
                 'pills' => [0 => $stagePills],
                 'docs' => $docs,

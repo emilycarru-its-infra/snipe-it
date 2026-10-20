@@ -31,7 +31,7 @@ class UpdateUserTest extends TestCase
 
         $this->actingAs(User::factory()->superuser()->create())
             ->get(route('users.edit', $user))
-            ->assertRedirectToRoute('users.show', $user->id);
+            ->assertRedirect(route('users.show', $user));
     }
 
     public function test_users_can_be_activated_with_number()
@@ -241,7 +241,7 @@ class UpdateUserTest extends TestCase
         $asset->checkOut($user, $superUser);
 
         // asset assigned, therefore error
-        $response = $this->actingAs($superUser)->patchJson(route('users.update', $user), [
+        $response = $this->actingAs($superUser)->patchJson(route('users.update', $user->fresh()), [
             'first_name' => 'test',
             'username' => 'test',
             'company_id' => $companyA->id,
