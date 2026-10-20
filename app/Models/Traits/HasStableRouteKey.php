@@ -4,6 +4,7 @@ namespace App\Models\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -35,7 +36,7 @@ trait HasStableRouteKey
     {
         foreach ($this->stableRouteKeyColumns() as $column) {
             $value = trim((string) $this->getAttribute($column));
-            if (static::usableRouteKey($value) && ! static::sharedRouteKey($column, $value)) {
+            if (static::usableRouteKey($value) && ! static::sharedRouteKey($value)) {
                 return $value;
             }
         }
@@ -71,45 +72,58 @@ trait HasStableRouteKey
             return $query->whereKey($value)->first();
         }
 
-        foreach ($this->stableRouteKeyColumns() as $column) {
-            $matches = (clone $query)->where($column, $value)->limit(2)->get();
-            if ($matches->count() === 1) {
-                return $matches->first();
+        // One match across every key column, or none: a serial that equals
+        // another device's asset tag must not open either of them.
+        $matches = (clone $query)->where(function (Builder $where) use ($value) {
+            foreach ($this->stableRouteKeyColumns() as $column) {
+                $where->orWhere($column, $value);
             }
-        }
+        })->limit(2)->get();
 
-        return null;
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     /**
-     * Safe in a path, not all digits, and not a fixed path segment.
+     * Safe in a path, not all digits, and not a fixed path segment. An `@` is
+     * refused so an email-style username never ends up in a URL or a log.
      */
     public static function usableRouteKey(string $value): bool
     {
         return $value !== ''
             && strlen($value) <= 191
             && ! ctype_digit($value)
-            && preg_match('/^[A-Za-z0-9][A-Za-z0-9._@+-]*$/', $value) === 1
+            && preg_match('/^[A-Za-z0-9][A-Za-z0-9._+-]*$/', $value) === 1
             && ! isset(static::fixedPathSegments()[strtolower($value)]);
     }
 
     /**
-     * Whether another record, deleted ones included, has the same value. One
-     * query per column per request finds every shared value at once.
+     * Whether the value appears more than once across all the key columns,
+     * deleted records included, so it could not name one record. One query
+     * per request finds every such value at once.
      */
-    protected static function sharedRouteKey(string $column, string $value): bool
+    protected static function sharedRouteKey(string $value): bool
     {
         $request = app('request');
-        $cacheKey = 'stable-route-keys.'.static::class.'.'.$column;
+        $cacheKey = 'stable-route-keys.'.static::class;
         $shared = $request->attributes->get($cacheKey);
 
         if ($shared === null) {
-            $shared = array_flip(array_map('strval', static::query()->withoutGlobalScopes()
-                ->whereNotNull($column)
-                ->where($column, '!=', '')
-                ->groupBy($column)
+            $model = new static;
+            $values = null;
+            foreach ($model->stableRouteKeyColumns() as $column) {
+                $select = static::query()->withoutGlobalScopes()->toBase()
+                    ->select($column.' as route_key_value')
+                    ->whereNotNull($column)
+                    ->where($column, '!=', '');
+                $values = $values === null ? $select : $values->unionAll($select);
+            }
+
+            $shared = array_flip(array_map('strval', DB::connection($model->getConnectionName())
+                ->query()
+                ->fromSub($values, 'route_keys')
+                ->groupBy('route_key_value')
                 ->havingRaw('COUNT(*) > 1')
-                ->pluck($column)
+                ->pluck('route_key_value')
                 ->all()));
             $request->attributes->set($cacheKey, $shared);
         }

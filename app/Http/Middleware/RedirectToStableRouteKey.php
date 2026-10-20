@@ -6,12 +6,15 @@ use App\Models\PurchaseOrder;
 use App\Models\Traits\HasStableRouteKey;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Forwards a page opened by its database id — an old bookmark, an email already
  * sent, a table that builds links from row ids — to the same page under the
  * record's stable identifier, so the address bar always shows the link worth
  * copying. Reads only: a form posted to an id URL is handled where it lands.
+ * Only someone allowed to view the record is forwarded, so the redirect never
+ * reveals a serial or username to anyone the page itself would refuse.
  */
 class RedirectToStableRouteKey
 {
@@ -31,7 +34,8 @@ class RedirectToStableRouteKey
                 default => null,
             };
 
-            if ($canonical !== null && (string) $route->originalParameter($name) !== $canonical) {
+            if ($canonical !== null && (string) $route->originalParameter($name) !== $canonical
+                && Gate::allows('view', $value)) {
                 $url = route($route->getName(), $route->parameters());
                 $query = $request->getQueryString();
 

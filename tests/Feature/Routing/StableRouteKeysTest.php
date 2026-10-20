@@ -53,6 +53,18 @@ class StableRouteKeysTest extends TestCase
         $this->actingAs($admin)->get(route('hardware.show', $twin))->assertOk();
     }
 
+    public function test_a_serial_that_is_another_devices_asset_tag_opens_neither(): void
+    {
+        $bySerial = Asset::factory()->create(['serial' => 'TEST-CROSSED-VALUE']);
+        $byTag = Asset::factory()->create(['serial' => 'TEST-SERIAL-OTHER', 'asset_tag' => 'TEST-CROSSED-VALUE']);
+
+        $this->assertStringEndsWith('/hardware/'.$bySerial->getKey(), route('hardware.show', $bySerial));
+        $this->assertStringEndsWith('/hardware/TEST-SERIAL-OTHER', route('hardware.show', $byTag));
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get('/hardware/TEST-CROSSED-VALUE')
+            ->assertRedirect(route('hardware.index'));
+    }
+
     public function test_a_user_is_addressed_by_username(): void
     {
         $user = User::factory()->create(['username' => 'test.person']);
@@ -61,6 +73,22 @@ class StableRouteKeysTest extends TestCase
         $this->actingAs(User::factory()->superuser()->create())
             ->get('/users/'.$user->getKey())
             ->assertRedirect(route('users.show', $user));
+    }
+
+    public function test_an_email_style_username_stays_out_of_the_url(): void
+    {
+        $user = User::factory()->create(['username' => 'test.person@example.test']);
+
+        $this->assertStringEndsWith('/users/'.$user->getKey(), route('users.show', $user));
+    }
+
+    public function test_someone_who_cannot_view_the_record_is_not_forwarded(): void
+    {
+        $asset = Asset::factory()->create(['serial' => 'TEST-SERIAL-HIDDEN']);
+
+        $response = $this->actingAs(User::factory()->create())->get('/hardware/'.$asset->getKey());
+
+        $this->assertStringNotContainsString('TEST-SERIAL-HIDDEN', (string) $response->headers->get('Location'));
     }
 
     public function test_api_routes_and_forms_keep_working_with_ids(): void
