@@ -13,7 +13,7 @@
 | {{ trans('admin/contracts/general.contract_number') }} | {{ trans('general.name') }} | {{ trans('admin/contracts/general.end_date') }} | {{ trans('admin/contracts/general.total_cost') }} | {{ trans('general.supplier') }} |
 | :- | :- | :- | :- | :- |
 @foreach ($contracts as $contract)
-| {{ $contract->contract_number }} | <a href="{{ route('contracts.show', $contract->id) }}">{{ $contract->name }}</a> | {{ optional($contract->end_date)->toDateString() }} | {{ $contract->total_cost ? '$'.\App\Helpers\Helper::formatCurrencyOutput($contract->total_cost).' '.$contract->currency : '—' }} | {{ $contract->supplier->name ?? '—' }} |
+| {{ $contract->contract_number }} | <a href="{{ route('contracts.show', $contract) }}">{{ $contract->name }}</a> | {{ optional($contract->end_date)->toDateString() }} | {{ $contract->total_cost ? '$'.\App\Helpers\Helper::formatCurrencyOutput($contract->total_cost).' '.$contract->currency : '—' }} | {{ $contract->supplier->name ?? '—' }} |
 @endforeach
 </x-mail::table>
 

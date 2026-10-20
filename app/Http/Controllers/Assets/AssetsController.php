@@ -595,7 +595,7 @@ class AssetsController extends Controller
     {
         $this->authorize('requestBuyout', $asset);
 
-        $back = redirect()->route('hardware.show', $asset->id);
+        $back = redirect()->route('hardware.show', $asset);
 
         if ($error = app(AssetBuyoutRequester::class)->send($asset, auth()->user())) {
             return $back->with('error', trans($error));
@@ -612,7 +612,7 @@ class AssetsController extends Controller
         $value = $request->input('value');
 
         if ($problem = $this->coreFieldProblem($column, $value)) {
-            return redirect()->route('hardware.show', $asset->id)
+            return redirect()->route('hardware.show', $asset)
                 ->with('error', $problem)
                 ->withErrors(['value' => $problem]);
         }
@@ -632,11 +632,11 @@ class AssetsController extends Controller
                     ->with('success', trans('admin/hardware/message.update.success'));
             }
 
-            return redirect()->route('hardware.show', $asset->id)
+            return redirect()->route('hardware.show', $asset)
                 ->with('success', trans('admin/hardware/message.update.success'));
         }
 
-        return redirect()->route('hardware.show', $asset->id)
+        return redirect()->route('hardware.show', $asset)
             ->withErrors($asset->getErrors());
     }
 
@@ -886,7 +886,7 @@ class AssetsController extends Controller
         }
         $this->authorize('view', $asset);
 
-        return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+        return redirect()->route('hardware.show', $asset)->with('topsearch', $topsearch);
     }
 
     /**
@@ -907,7 +907,7 @@ class AssetsController extends Controller
             $asset = $assets->first();
             $this->authorize('view', $asset);
 
-            return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+            return redirect()->route('hardware.show', $asset)->with('topsearch', $topsearch);
         }
 
         // 2. Exact serial match. Users frequently scan a barcode that
@@ -919,7 +919,7 @@ class AssetsController extends Controller
                 $asset = $bySerial->first();
                 $this->authorize('view', $asset);
 
-                return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+                return redirect()->route('hardware.show', $asset)->with('topsearch', $topsearch);
             }
         }
 
@@ -944,7 +944,7 @@ class AssetsController extends Controller
                 ->orWhere('contract_number', '=', $tag)
                 ->first();
             if ($contract) {
-                return redirect()->route('contracts.show', $contract->id)
+                return redirect()->route('contracts.show', $contract)
                     ->with('topsearch', $topsearch);
             }
         }
@@ -958,7 +958,7 @@ class AssetsController extends Controller
                 $asset = $byTracking->first();
                 $this->authorize('view', $asset);
 
-                return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+                return redirect()->route('hardware.show', $asset)->with('topsearch', $topsearch);
             }
         }
 
@@ -972,7 +972,7 @@ class AssetsController extends Controller
                 $asset = $byName->first();
                 $this->authorize('view', $asset);
 
-                return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+                return redirect()->route('hardware.show', $asset)->with('topsearch', $topsearch);
             }
         }
 
@@ -996,7 +996,7 @@ class AssetsController extends Controller
                     $asset = $byCustom->first();
                     $this->authorize('view', $asset);
 
-                    return redirect()->route('hardware.show', $asset->id)->with('topsearch', $topsearch);
+                    return redirect()->route('hardware.show', $asset)->with('topsearch', $topsearch);
                 }
             }
         }
@@ -1035,7 +1035,7 @@ class AssetsController extends Controller
                         return response()->file($qr_file, $header);
                     } else {
                         $barcode = new Barcode;
-                        $barcode_obj = $barcode->getBarcodeObj($settings->label2_2d_type, route('hardware.show', $asset->id), $size['height'], $size['width'], 'black', [-2, -2, -2, -2]);
+                        $barcode_obj = $barcode->getBarcodeObj($settings->label2_2d_type, route('hardware.show', $asset), $size['height'], $size['width'], 'black', [-2, -2, -2, -2]);
                         file_put_contents($qr_file, $barcode_obj->getPngData());
 
                         return response($barcode_obj->getPngData())->header('Content-type', 'image/png');

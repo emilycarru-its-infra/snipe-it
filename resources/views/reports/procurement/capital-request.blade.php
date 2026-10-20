@@ -55,7 +55,7 @@
         <ul class="list-unstyled" style="margin:0;">
             @foreach ($openRequisitions as $requisition)
                 <li style="margin-bottom:4px;">
-                    <a href="{{ route('requisitions.show', $requisition->id) }}">
+                    <a href="{{ route('requisitions.show', $requisition) }}">
                         {{ $requisition->requisition_number ? 'REQM '.$requisition->requisition_number : $requisition->title }}
                     </a>
                     @if ($requisition->requisition_number && $requisition->title)<span class="text-muted">· {{ $requisition->title }}</span>@endif
@@ -223,7 +223,7 @@
                 @if ($requisitionBacked)
                     {{-- The request became paper; the button is the paper. --}}
                     @foreach ($capitalRequisitions as $capReq)
-                        <a href="{{ route('requisitions.show', $capReq->id) }}" class="btn btn-sm btn-primary">
+                        <a href="{{ route('requisitions.show', $capReq) }}" class="btn btn-sm btn-primary">
                             <i class="fas fa-file-invoice" aria-hidden="true"></i>
                             {{ $capReq->requisition_number ? 'REQM '.$capReq->requisition_number : trans('admin/purchase-orders/general.capital_view_requisition') }}
                         </a>

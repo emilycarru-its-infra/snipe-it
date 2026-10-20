@@ -26,6 +26,10 @@ class RouteServiceProvider extends ServiceProvider
 
             require base_path('routes/scim.php');
         });
+
+        // Runs once every route is registered: pages bound to a model with a
+        // stable identifier are addressed by it rather than the database id.
+        $this->app->booted(fn () => \App\Routing\StableRouteKeys::apply($this->app['router']->getRoutes()));
     }
 
     /**

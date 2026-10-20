@@ -67,7 +67,7 @@
                     <td>{{ $item->asset?->model?->name ?: $item->model?->name ?: '—' }}</td>
                     <td>
                         @if ($item->orderItem?->order)
-                            <a class="js-lightbox" href="{{ route('orders.show', $item->orderItem->order_id) }}">{{ $item->orderItem->order->order_number }}</a>
+                            <a class="js-lightbox" href="{{ route('orders.show', $item->orderItem->order) }}">{{ $item->orderItem->order->order_number }}</a>
                         @else — @endif
                     </td>
                     <td>@if ($item->wave)<a class="js-lightbox" href="{{ route('deployment-waves.show', $item->wave) }}">{{ $item->wave->name }}</a>@else — @endif</td>
@@ -170,7 +170,7 @@
                                         <td class="st-handle" style="width:24px;" title="{{ trans('admin/deployments/general.storage_drag_hint') }}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></td>
                                         <td style="width:110px;">
                                             @if ($stagedItem->asset)
-                                                <a href="{{ route('hardware.show', $stagedItem->asset->id) }}" class="js-lightbox">{{ $stagedItem->asset->asset_tag }}</a>
+                                                <a href="{{ route('hardware.show', $stagedItem->asset) }}" class="js-lightbox">{{ $stagedItem->asset->asset_tag }}</a>
                                             @else — @endif
                                         </td>
                                         <td>{{ $stagedItem->asset?->name ?: '' }}</td>
@@ -185,7 +185,7 @@
                                 @forelse ($shelfAssets as $shelfAsset)
                                     <tr data-asset-id="{{ $shelfAsset->id }}">
                                         <td class="st-handle" style="width:24px;" title="{{ trans('admin/deployments/general.storage_drag_hint') }}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></td>
-                                        <td style="width:110px;"><a href="{{ route('hardware.show', $shelfAsset->id) }}" class="js-lightbox">{{ $shelfAsset->asset_tag }}</a></td>
+                                        <td style="width:110px;"><a href="{{ route('hardware.show', $shelfAsset) }}" class="js-lightbox">{{ $shelfAsset->asset_tag }}</a></td>
                                         <td>{{ $shelfAsset->name ?: '' }}</td>
                                         <td class="text-muted" style="font-size:12px;">{{ $shelfAsset->model?->name }}</td>
                                     </tr>

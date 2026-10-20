@@ -83,6 +83,7 @@ class Kernel extends HttpKernel
             CheckColorSettings::class,
             AuthenticateSession::class,
             SubstituteBindings::class,
+            \App\Http\Middleware\RedirectToStableRouteKey::class,
         ],
 
         'api' => [

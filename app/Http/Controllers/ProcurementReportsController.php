@@ -501,7 +501,7 @@ class ProcurementReportsController extends Controller
             ]);
         }
 
-        return redirect()->route('orders.show', $order->id)
+        return redirect()->route('orders.show', $order)
             ->with('success', trans('admin/purchase-orders/general.forecast_planned_created', ['count' => $assets->count()]));
     }
 
@@ -2130,7 +2130,7 @@ class ProcurementReportsController extends Controller
                 'links' => array_filter([
                     0 => $invoice->order?->purchaseOrder
                         ? route('purchase-orders.show', $invoice->order->purchaseOrder) : null,
-                    1 => $invoice->order ? route('orders.show', $invoice->order->id) : null,
+                    1 => $invoice->order ? route('orders.show', $invoice->order) : null,
                 ]),
                 'cells' => [
                     (string) $invoice->order?->purchaseOrder?->po_number,
@@ -2190,7 +2190,7 @@ class ProcurementReportsController extends Controller
                 'class' => '',
                 'links' => array_filter([
                     0 => $order->purchaseOrder ? route('purchase-orders.show', $order->purchaseOrder) : null,
-                    1 => route('orders.show', $order->id),
+                    1 => route('orders.show', $order),
                 ]),
                 'cells' => [
                     (string) $order->purchaseOrder?->po_number,
@@ -3846,10 +3846,10 @@ class ProcurementReportsController extends Controller
                 'class' => '',
                 'links' => array_filter([
                     0 => route('user-agreements.show', $first),
-                    1 => $first->user ? route('users.show', $first->user->id) : null,
-                    2 => $asset ? route('hardware.show', $asset->id) : null,
-                    3 => $asset ? route('hardware.show', $asset->id) : null,
-                    $newSerialCol => $newAsset ? route('hardware.show', $newAsset->id) : null,
+                    1 => $first->user ? route('users.show', $first->user) : null,
+                    2 => $asset ? route('hardware.show', $asset) : null,
+                    3 => $asset ? route('hardware.show', $asset) : null,
+                    $newSerialCol => $newAsset ? route('hardware.show', $newAsset) : null,
                 ], fn ($link) => $link !== null),
                 'pills' => [0 => $stagePills],
                 'docs' => $docs,
@@ -4184,7 +4184,7 @@ class ProcurementReportsController extends Controller
                         $asset->status?->name,
                         trim((string) $asset->ownership_type),
                     ],
-                    'links' => [0 => route('hardware.show', $asset->id)],
+                    'links' => [0 => route('hardware.show', $asset)],
                 ];
             }
 
@@ -4571,8 +4571,8 @@ class ProcurementReportsController extends Controller
             $groups[$contractId]['rows'][] = [
                 'class' => $isReturned ? 'text-muted' : '',
                 'links' => array_filter([
-                    0 => route('hardware.show', $asset->id),
-                    1 => route('hardware.show', $asset->id),
+                    0 => route('hardware.show', $asset),
+                    1 => route('hardware.show', $asset),
                     6 => $this->assignedTarget($asset) instanceof User
                         ? route('users.show', $this->assignedTarget($asset)->id) : null,
                 ]),
@@ -4692,7 +4692,7 @@ class ProcurementReportsController extends Controller
             $hasUninvoiced = false;
 
             foreach ($orders as $order) {
-                $orderLink = route('orders.show', $order->id);
+                $orderLink = route('orders.show', $order);
 
                 if ($order->invoices->isEmpty()) {
                     $expectedFromItems = (float) $order->items->sum->lineTotal();
@@ -4891,8 +4891,8 @@ class ProcurementReportsController extends Controller
                     default => '',
                 },
                 'assigned_url' => match (true) {
-                    $assignedTo instanceof User => route('users.show', $assignedTo->id),
-                    $assignedTo instanceof Asset => route('hardware.show', $assignedTo->id),
+                    $assignedTo instanceof User => route('users.show', $assignedTo),
+                    $assignedTo instanceof Asset => route('hardware.show', $assignedTo),
                     $assignedTo instanceof Location => route('locations.show', $assignedTo->id),
                     default => '',
                 },

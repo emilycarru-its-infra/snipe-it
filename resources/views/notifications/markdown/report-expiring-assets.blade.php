@@ -5,7 +5,7 @@
 <x-mail::table>
 |        |        |
 | ------------- | ------------- |
-| **{{ trans('mail.name') }}** | <a href="{{ route('hardware.show', $asset->id) }}">{{ $asset->display_name }}</a> |
+| **{{ trans('mail.name') }}** | <a href="{{ route('hardware.show', $asset) }}">{{ $asset->display_name }}</a> |
 @if ($asset->serial)
 | **{{ trans('general.serial_number') }}** | {{ $asset->serial }} |
 @endif

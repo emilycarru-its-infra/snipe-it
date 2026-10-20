@@ -122,7 +122,7 @@
             @foreach ($devices as $device)
                 @php($asset = $device['asset'])
                 <tr>
-                    <td><a class="js-lightbox" href="{{ route('hardware.show', $asset->id) }}" class="js-lightbox">{{ $asset->serial ?: '—' }}</a></td>
+                    <td><a class="js-lightbox" href="{{ route('hardware.show', $asset) }}" class="js-lightbox">{{ $asset->serial ?: '—' }}</a></td>
                     <td>{{ $asset->asset_tag }}</td>
                     <td>{{ $asset->model?->name ?: '—' }}</td>
                     <td>

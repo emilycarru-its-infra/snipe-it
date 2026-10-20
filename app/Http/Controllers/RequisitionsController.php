@@ -178,7 +178,7 @@ class RequisitionsController extends Controller
                 ->with('success', trans('admin/purchase-orders/general.requisition_saved'));
         }
 
-        return redirect()->route('requisitions.show', $requisition->id)
+        return redirect()->route('requisitions.show', $requisition)
             ->with('success', trans('admin/purchase-orders/general.requisition_saved'));
     }
 
@@ -320,7 +320,7 @@ class RequisitionsController extends Controller
             return redirect()->back()->withInput()->withErrors($requisition->getErrors());
         }
 
-        return redirect()->route('requisitions.show', $requisition->id)
+        return redirect()->route('requisitions.show', $requisition)
             ->with('success', trans('admin/purchase-orders/general.requisition_updated'));
     }
 
@@ -329,7 +329,7 @@ class RequisitionsController extends Controller
         $this->authorize('delete', Requisition::class);
 
         if ($requisition->status === 'ordered') {
-            return redirect()->route('requisitions.show', $requisition->id)
+            return redirect()->route('requisitions.show', $requisition)
                 ->with('error', trans('admin/purchase-orders/general.requisition_locked'));
         }
 

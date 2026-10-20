@@ -169,7 +169,7 @@ class TopSearchController extends Controller
                     return [
                         'title' => $title,
                         'subtitle' => trim(collect($fields)->reject(fn ($value) => $value === $title)->unique()->implode(' · ')),
-                        'url' => route('hardware.show', $asset->id),
+                        'url' => route('hardware.show', $asset),
                     ];
                 })->all();
 
@@ -187,7 +187,7 @@ class TopSearchController extends Controller
                 ->map(fn (User $user) => [
                     'title' => $user->present()->fullName,
                     'subtitle' => trim(collect([$user->username, $user->email])->filter()->implode(' · ')),
-                    'url' => route('users.show', $user->id),
+                    'url' => route('users.show', $user),
                 ])->all();
 
             return [$rows, $count];
@@ -208,7 +208,7 @@ class TopSearchController extends Controller
                     'title' => $contract->name ?: ($contract->contract_number ?: $contract->schedule_number),
                     'subtitle' => trim(collect([$contract->contract_number, $contract->schedule_number])
                         ->filter()->unique()->implode(' · ')),
-                    'url' => route('contracts.show', $contract->id),
+                    'url' => route('contracts.show', $contract),
                 ])->all();
 
             return [$rows, $count];
@@ -228,7 +228,7 @@ class TopSearchController extends Controller
                         $order->supplier?->name,
                         $order->status ? trans('admin/orders/general.status_'.$order->status) : null,
                     ])->filter()->implode(' · ')),
-                    'url' => route('orders.show', $order->id),
+                    'url' => route('orders.show', $order),
                 ])->all();
 
             return [$rows, $count];
@@ -267,7 +267,7 @@ class TopSearchController extends Controller
             $rows = $builder->orderByDesc('id')->limit(self::PER_GROUP)->get()
                 ->map(function (OrderInvoice $invoice) {
                     $parent = $invoice->order
-                        ? route('orders.show', $invoice->order->id)
+                        ? route('orders.show', $invoice->order)
                         : ($invoice->purchaseOrder ? route('purchase-orders.show', $invoice->purchaseOrder->id) : null);
 
                     return [

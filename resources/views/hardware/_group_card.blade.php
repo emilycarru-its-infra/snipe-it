@@ -184,7 +184,7 @@
                 <div class="asset-card-lbl">{{ trans('general.order_number') }}</div>
                 <div class="asset-card-val">
                     <x-inline-core-field :asset="$asset" column="order_number" copy_what="order_number_grp"
-                        :link="$linkedOrder ? route('orders.show', $linkedOrder->id) : null"
+                        :link="$linkedOrder ? route('orders.show', $linkedOrder) : null"
                         :link_title="$linkedOrder ? trans('admin/orders/general.view_order') : null"/>
                 </div>
             </div>

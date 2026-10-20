@@ -185,7 +185,7 @@ class CheckoutConsumableNotification extends Notification
                                 $target->display_name ?: '',
                                 trans('admin/consumables/general.remaining').': '.$item->numRemaining(),
                             )
-                                ->onClick(route('users.show', $target->id))
+                                ->onClick(route('users.show', $target))
                         )
                     )
             );

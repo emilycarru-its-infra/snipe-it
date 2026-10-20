@@ -213,7 +213,7 @@ class UsersController extends Controller
         if ($user) {
 
             if ($user->trashed()) {
-                return redirect()->route('users.show', $user->id);
+                return redirect()->route('users.show', $user);
             }
 
             $permissions = config('permissions');

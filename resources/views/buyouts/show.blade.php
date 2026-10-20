@@ -10,7 +10,7 @@
 
 @section('header_right')
     <a href="{{ route('deployments.decommissioning') }}" class="btn btn-sm btn-default">{{ trans('admin/deployments/general.decom_nav') }}</a>
-    <a href="{{ route('hardware.show', $asset->id) }}" class="btn btn-sm btn-default js-lightbox">{{ trans('admin/deployments/general.buyout_view_device') }}</a>
+    <a href="{{ route('hardware.show', $asset) }}" class="btn btn-sm btn-default js-lightbox">{{ trans('admin/deployments/general.buyout_view_device') }}</a>
 @stop
 
 @section('content')

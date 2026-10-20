@@ -73,7 +73,7 @@ class ConsumableOrderController extends Controller
             return $order;
         });
 
-        return redirect()->route('orders.show', $order->id)
+        return redirect()->route('orders.show', $order)
             ->with('success', trans('admin/consumables/general.order_added_success', [
                 'consumable' => $consumable->name,
                 'order' => $order->order_number,
