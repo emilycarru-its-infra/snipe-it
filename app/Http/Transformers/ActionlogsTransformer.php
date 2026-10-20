@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Enums\ActionType;
 use App\Helpers\Helper;
 use App\Helpers\StorageHelper;
@@ -152,6 +153,7 @@ class ActionlogsTransformer
 
             'item' => ($actionlog->item) ? [
                 'id' => (int) $actionlog->item->id,
+                'route_key' => StableRouteKeys::keyOf($actionlog->item),
                 'name' => e($actionlog->item->display_name) ?? null,
                 'type' => e($actionlog->itemType()),
                 'serial' => e($actionlog->item->serial) ? e($actionlog->item->serial) : null,
@@ -180,6 +182,7 @@ class ActionlogsTransformer
             ] : null,
             'target' => ($actionlog->target) ? [
                 'id' => (int) $actionlog->target->id,
+                'route_key' => StableRouteKeys::keyOf($actionlog->target),
                 'name' => e($actionlog->target->display_name) ?? null,
                 'type' => e($actionlog->targetType()),
             ] : null,

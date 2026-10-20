@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\Asset;
 use App\Models\Maintenance;
@@ -27,6 +28,7 @@ class MaintenancesTransformer
             'id' => (int) $assetmaintenance->id,
             'asset' => ($assetmaintenance->asset) ? [
                 'id' => (int) $assetmaintenance->asset->id,
+                'route_key' => StableRouteKeys::keyOf($assetmaintenance->asset),
                 'name' => ($assetmaintenance->asset->name) ? e($assetmaintenance->asset->name) : null,
                 'asset_tag' => e($assetmaintenance->asset->asset_tag),
                 'serial' => e($assetmaintenance->asset->serial),

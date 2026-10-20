@@ -45,7 +45,7 @@
                                 } else {
                                     table_html += "<td></td> ";
                                 }
-                                table_html += '<td><a href="{{ config('app.url') }}/hardware/' + asset.id + '">';
+                                table_html += '<td><a href="{{ config('app.url') }}/hardware/' + ((asset.route_key) ? encodeURIComponent(asset.route_key) : asset.id) + '">';
 
                                 if ((asset.name == '') && (asset.name != null)) {
                                     table_html += " " + asset.model.name;

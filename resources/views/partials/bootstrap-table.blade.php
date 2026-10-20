@@ -1473,6 +1473,12 @@
 
 
 
+    // The path segment for a record's page: its order number, serial or
+    // username when the API sends one (route_key), otherwise its id.
+    function recordKey(record) {
+        return (record && record.route_key) ? encodeURIComponent(record.route_key) : record.id;
+    }
+
     // This only works for model index pages because it uses the row's model ID
     function genericRowLinkFormatter(destination) {
         return function (value,row) {
@@ -1484,7 +1490,7 @@
             }
 
             if (value) {
-                return '<span style="white-space:nowrap;">' + tag_icon + '<a href="{{ config('app.url') }}/' + destination + '/' + row.id + '">' + value + '</a></span>';
+                return '<span style="white-space:nowrap;">' + tag_icon + '<a href="{{ config('app.url') }}/' + destination + '/' + recordKey(row) + '">' + value + '</a></span>';
             }
         };
     }
@@ -1497,7 +1503,7 @@
     function contractsLightboxFormatter(value, row) {
         if (! value) { return ''; }
 
-        return '<a href="{{ config('app.url') }}/contracts/' + row.id + '" class="js-lightbox">' + value + '</a>';
+        return '<a href="{{ config('app.url') }}/contracts/' + recordKey(row) + '" class="js-lightbox">' + value + '</a>';
     }
 
     // This is a special formatter that will indicate whether a user is an admin or superadmin
@@ -1506,13 +1512,13 @@
             if ((value) && (row)) {
 
                 if (row.role === 'superadmin') {
-                    return '<span style="white-space: nowrap" data-tooltip="true" title="{{ trans('general.superuser_tooltip') }}"><x-icon type="superadmin" title="{{ trans('general.superuser') }}"  class="text-danger" /> <a href="{{ config('app.url') }}/users/' + row.id + '">' + value + '</a></span>';
+                    return '<span style="white-space: nowrap" data-tooltip="true" title="{{ trans('general.superuser_tooltip') }}"><x-icon type="superadmin" title="{{ trans('general.superuser') }}"  class="text-danger" /> <a href="{{ config('app.url') }}/users/' + recordKey(row) + '">' + value + '</a></span>';
                 } else if (row.role === 'admin') {
-                    return '<span style="white-space: nowrap" data-tooltip="true" title="{{ trans('general.admin_tooltip') }}"><x-icon type="superadmin" title="{{ trans('general.admin_user') }}" class="text-warning" /> <a href="{{ config('app.url') }}/users/' + row.id + '">' + value + '</a></span>';
+                    return '<span style="white-space: nowrap" data-tooltip="true" title="{{ trans('general.admin_tooltip') }}"><x-icon type="superadmin" title="{{ trans('general.admin_user') }}" class="text-warning" /> <a href="{{ config('app.url') }}/users/' + recordKey(row) + '">' + value + '</a></span>';
                 }
 
                 // Regular user
-                return '<a href="{{ config('app.url') }}/users/' + row.id + '">' + value + '</a>';
+                return '<a href="{{ config('app.url') }}/users/' + recordKey(row) + '">' + value + '</a>';
             }
 
     }
@@ -1570,7 +1576,7 @@
                         text_help = '';
                 }
 
-                return '<nobr><a href="{{ config('app.url') }}/' + destination + '/' + value.id + '" data-tooltip="true" title="'+ status_meta[value.status_meta] + '"> <i class="fa ' + icon_style + ' text-' + text_color + '"></i> ' + value.name + ' ' + text_help + ' </a> </nobr>';
+                return '<nobr><a href="{{ config('app.url') }}/' + destination + '/' + recordKey(value) + '" data-tooltip="true" title="'+ status_meta[value.status_meta] + '"> <i class="fa ' + icon_style + ' text-' + text_color + '"></i> ' + value.name + ' ' + text_help + ' </a> </nobr>';
             } else if ((value) && (value.name)) {
 
                 // Add some overrides for any funny urls we have
@@ -1591,7 +1597,7 @@
                     var tag_icon = '';
                 }
 
-                return '<nobr>'+ tag_icon + ' <a href="{{ config('app.url') }}/' + polymorphicItemFormatterDest + dest + '/' + value.id + '">' + value.name + '</a></span>';
+                return '<nobr>'+ tag_icon + ' <a href="{{ config('app.url') }}/' + polymorphicItemFormatterDest + dest + '/' + recordKey(value) + '">' + value.name + '</a></span>';
             }
         };
     }
@@ -1757,7 +1763,7 @@
                 return '<nobr><span class="text-muted" data-tooltip="true" title="{{ trans('general.deleted') }} ' + value.type + '"><del><i class="' + item_icon + ' fa-fw"></i> ' + value.name + '</del></span></nobr>';
             }
 
-            return '<nobr><a href="{{ config('app.url') }}/' + item_destination +'/' + value.id + '" data-tooltip="true" title="' + value.type + '"><i class="' + item_icon + ' fa-fw"></i> ' + value.name + '</a></nobr>';
+            return '<nobr><a href="{{ config('app.url') }}/' + item_destination +'/' + recordKey(value) + '" data-tooltip="true" title="' + value.type + '"><i class="' + item_icon + ' fa-fw"></i> ' + value.name + '</a></nobr>';
 
         } else {
             return '';
@@ -2103,9 +2109,9 @@
     function assetTagLinkFormatter(value, row) {
         if ((row.asset) && (row.asset.id)) {
             if (row.asset.deleted_at) {
-                return '<span style="white-space: nowrap;"><x-icon type="x" class="text-danger" /><span class="sr-only">{{ trans('admin/hardware/general.deleted') }}</span> <del><a href="{{ config('app.url') }}/hardware/' + row.asset.id + '" data-tooltip="true" title="{{ trans('admin/hardware/general.deleted') }}">' + row.asset.asset_tag + '</a></del></span>';
+                return '<span style="white-space: nowrap;"><x-icon type="x" class="text-danger" /><span class="sr-only">{{ trans('admin/hardware/general.deleted') }}</span> <del><a href="{{ config('app.url') }}/hardware/' + recordKey(row.asset) + '" data-tooltip="true" title="{{ trans('admin/hardware/general.deleted') }}">' + row.asset.asset_tag + '</a></del></span>';
             }
-            return '<a href="{{ config('app.url') }}/hardware/' + row.asset.id + '">' + row.asset.asset_tag + '</a>';
+            return '<a href="{{ config('app.url') }}/hardware/' + recordKey(row.asset) + '">' + row.asset.asset_tag + '</a>';
         }
         return '';
 
@@ -2120,7 +2126,7 @@
 
     function assetNameLinkFormatter(value, row) {
         if ((row.asset) && (row.asset.name)) {
-            return '<a href="{{ config('app.url') }}/hardware/' + row.asset.id + '">' + row.asset.name + '</a>';
+            return '<a href="{{ config('app.url') }}/hardware/' + recordKey(row.asset) + '">' + row.asset.name + '</a>';
         }
     }
 
@@ -2128,9 +2134,9 @@
 
         if ((row.asset) && (row.asset.serial)) {
             if (row.asset.deleted_at) {
-                return '<span style="white-space: nowrap;"><x-icon type="x" class="text-danger" /><span class="sr-only">deleted</span> <del><a href="{{ config('app.url') }}/hardware/' + row.asset.id + '" data-tooltip="true" title="{{ trans('admin/hardware/general.deleted') }}">' + row.asset.serial + '</a></del></span>';
+                return '<span style="white-space: nowrap;"><x-icon type="x" class="text-danger" /><span class="sr-only">deleted</span> <del><a href="{{ config('app.url') }}/hardware/' + recordKey(row.asset) + '" data-tooltip="true" title="{{ trans('admin/hardware/general.deleted') }}">' + row.asset.serial + '</a></del></span>';
             }
-            return '<a href="{{ config('app.url') }}/hardware/' + row.asset.id + '">' + row.asset.serial + '</a>';
+            return '<a href="{{ config('app.url') }}/hardware/' + recordKey(row.asset) + '">' + row.asset.serial + '</a>';
         }
         return '';
     }
@@ -2198,13 +2204,13 @@
     function employeeNumFormatter(value, row) {
 
         if ((row) && (row.assigned_to) && ((row.assigned_to.employee_number))) {
-            return '<a href="{{ config('app.url') }}/users/' + row.assigned_to.id + '">' + row.assigned_to.employee_number + '</a>';
+            return '<a href="{{ config('app.url') }}/users/' + recordKey(row.assigned_to) + '">' + row.assigned_to.employee_number + '</a>';
         }
     }
 
     function jobtitleFormatter(value, row) {
         if ((row) && (row.assigned_to) && ((row.assigned_to.jobtitle))) {
-            return '<a href="{{ config('app.url') }}/users/' + row.assigned_to.id + '">' + row.assigned_to.jobtitle + '</a>';
+            return '<a href="{{ config('app.url') }}/users/' + recordKey(row.assigned_to) + '">' + row.assigned_to.jobtitle + '</a>';
         }
     }
 
@@ -2409,27 +2415,27 @@
     }
 
     function linkNumberToUserAssetsFormatter(value, row) {
-        return linkToUserSectionBasedOnCount(value, row.id, 'asset');
+        return linkToUserSectionBasedOnCount(value, recordKey(row), 'asset');
     }
 
     function linkNumberToUserLicensesFormatter(value, row) {
-        return linkToUserSectionBasedOnCount(value, row.id, 'licenses');
+        return linkToUserSectionBasedOnCount(value, recordKey(row), 'licenses');
     }
 
     function linkNumberToUserConsumablesFormatter(value, row) {
-        return linkToUserSectionBasedOnCount(value, row.id, 'consumables');
+        return linkToUserSectionBasedOnCount(value, recordKey(row), 'consumables');
     }
 
     function linkNumberToUserAccessoriesFormatter(value, row) {
-        return linkToUserSectionBasedOnCount(value, row.id, 'accessories');
+        return linkToUserSectionBasedOnCount(value, recordKey(row), 'accessories');
     }
 
     function linkNumberToUserManagedUsersFormatter(value, row) {
-        return linkToUserSectionBasedOnCount(value, row.id, 'managed-users');
+        return linkToUserSectionBasedOnCount(value, recordKey(row), 'managed-users');
     }
 
     function linkNumberToUserManagedLocationsFormatter(value, row) {
-        return linkToUserSectionBasedOnCount(value, row.id, 'managed-locations');
+        return linkToUserSectionBasedOnCount(value, recordKey(row), 'managed-locations');
     }
 
     function labelPerPageFormatter(value, row, index, field) {

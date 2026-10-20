@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -24,6 +25,7 @@ class OrdersTransformer
     {
         $array = [
             'id' => (int) $order->id,
+            'route_key' => StableRouteKeys::keyOf($order),
             'order_number' => e($order->order_number),
             'url' => route('orders.show', $order),
             'status' => $order->status,

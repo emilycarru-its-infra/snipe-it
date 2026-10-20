@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
@@ -44,6 +45,7 @@ class RequisitionsTransformer
                 'send_vendor' => Gate::allows('update', Requisition::class) && $requisition->readyForVendor(),
             ],
             'id' => (int) $requisition->id,
+            'route_key' => StableRouteKeys::keyOf($requisition),
             'display_name' => $requisition->display_name,
             'title' => e($requisition->title),
             'status' => $requisition->status,
