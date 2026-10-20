@@ -67,7 +67,7 @@
                     <td>{{ $item->asset?->model?->name ?: $item->model?->name ?: '—' }}</td>
                     <td>
                         @if ($item->orderItem?->order)
-                            <a class="js-lightbox" href="{{ route('orders.show', $item->orderItem->order_id) }}">{{ $item->orderItem->order->order_number }}</a>
+                            <a class="js-lightbox" href="{{ route('orders.show', $item->orderItem->order) }}">{{ $item->orderItem->order->order_number }}</a>
                         @else — @endif
                     </td>
                     <td>@if ($item->wave)<a class="js-lightbox" href="{{ route('deployment-waves.show', $item->wave) }}">{{ $item->wave->name }}</a>@else — @endif</td>

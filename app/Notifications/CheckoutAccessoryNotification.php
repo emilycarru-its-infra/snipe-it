@@ -218,7 +218,7 @@ class CheckoutAccessoryNotification extends Notification
                                 $target->present()->name ?: '',
                                 trans('admin/consumables/general.remaining').': '.$item->numRemaining(),
                             )
-                                ->onClick(route('users.show', $target->id))
+                                ->onClick(route('users.show', $target))
                         )
                     )
             );

@@ -463,7 +463,7 @@
                                     @else
                                         <x-icon type="asset" />
                                     @endif
-                                    <a class="js-lightbox" href="{{ route('hardware.show', $li->id) }}">{{ $itemName }}</a>
+                                    <a class="js-lightbox" href="{{ route('hardware.show', $li) }}">{{ $itemName }}</a>
                                 @elseif ($li)
                                     {!! $li->present()->nameUrl() !!}
                                 @else

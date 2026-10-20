@@ -16,12 +16,12 @@ class OrderItemsTest extends TestCase
         $asset = Asset::factory()->create();
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->post(route('orders.items.store', $order->id), [
+            ->post(route('orders.items.store', $order), [
                 'item_type' => 'asset',
                 'item_id_asset' => $asset->id,
                 'quantity' => 2,
             ])
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertDatabaseHas('order_items', [
             'order_id' => $order->id,
@@ -44,7 +44,7 @@ class OrderItemsTest extends TestCase
 
         $this->actingAs(User::factory()->superuser()->create())
             ->delete(route('orders.items.destroy', ['order' => $order->id, 'item' => $item->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertDatabaseMissing('order_items', ['id' => $item->id]);
     }
@@ -61,7 +61,7 @@ class OrderItemsTest extends TestCase
         ]);
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('orders.show', $order->id))
+            ->get(route('orders.show', $order))
             ->assertOk();
     }
 

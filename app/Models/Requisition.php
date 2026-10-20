@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStableRouteKey;
 use App\Models\Traits\PlacesVendorOrders;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -41,6 +42,7 @@ use Watson\Validating\ValidatingTrait;
  */
 class Requisition extends SnipeModel
 {
+    use HasStableRouteKey;
     use HasFactory;
     use PlacesVendorOrders;
     use SoftDeletes;
@@ -304,5 +306,15 @@ class Requisition extends SnipeModel
     public function scopeOpen($query)
     {
         return $query->whereIn('status', ['draft', 'submitted', 'requisitioned']);
+    }
+
+    /**
+     * Its pages are addressed by this rather than the database id; see HasStableRouteKey.
+     *
+     * @return array<int, string>
+     */
+    public function stableRouteKeyColumns(): array
+    {
+        return ['requisition_number'];
     }
 }

@@ -27,7 +27,7 @@ class OrderReceivingTest extends TestCase
 
         $this->actingAs($this->superuser())
             ->post(route('orders.items.receive', ['order' => $order->id, 'item' => $items[0]->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertNotNull($items[0]->fresh()->received_at);
         $this->assertEquals('partially_received', $order->fresh()->status);
@@ -59,7 +59,7 @@ class OrderReceivingTest extends TestCase
 
         $this->actingAs($this->superuser())
             ->post(route('orders.items.unreceive', ['order' => $order->id, 'item' => $items[0]->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertNull($items[0]->fresh()->received_at);
         $this->assertEquals('partially_received', $order->fresh()->status);
@@ -91,11 +91,11 @@ class OrderReceivingTest extends TestCase
         $order = Order::factory()->create(['status' => 'ordered']);
 
         $this->actingAs($this->superuser())
-            ->post(route('orders.shipments.store', $order->id), [
+            ->post(route('orders.shipments.store', $order), [
                 'tracking_number' => '1Z-RECEIVE-TEST',
                 'tracking_carrier' => 'UPS',
             ])
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertDatabaseHas('order_shipments', [
             'order_id' => $order->id,
@@ -114,7 +114,7 @@ class OrderReceivingTest extends TestCase
 
         $this->actingAs($this->superuser())
             ->post(route('orders.shipments.receive', ['order' => $order->id, 'shipment' => $shipment->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         foreach ($items as $item) {
             $this->assertNotNull($item->fresh()->received_at);
@@ -158,7 +158,7 @@ class OrderReceivingTest extends TestCase
 
         $this->actingAs($this->superuser())
             ->post(route('orders.items.receive', ['order' => $order->id, 'item' => $item->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         // Stock arrives: 1 + 3 = 4, and the receipt is a 'checkin from' tied
         // to the order (not a bare qty field edit).
@@ -214,7 +214,7 @@ class OrderReceivingTest extends TestCase
 
         $this->actingAs($superuser)
             ->post(route('orders.items.unreceive', ['order' => $order->id, 'item' => $item->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertEquals(2, $consumable->fresh()->qty);
     }
@@ -234,7 +234,7 @@ class OrderReceivingTest extends TestCase
 
         $this->actingAs($this->superuser())
             ->post(route('orders.shipments.receive', ['order' => $order->id, 'shipment' => $shipment->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertEquals(4, $consumable->fresh()->qty);
     }
@@ -246,13 +246,13 @@ class OrderReceivingTest extends TestCase
         $superuser = $this->superuser();
 
         $this->actingAs($superuser)
-            ->post(route('orders.cancel', $order->id))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->post(route('orders.cancel', $order))
+            ->assertRedirect(route('orders.show', $order));
         $this->assertEquals('cancelled', $order->fresh()->status);
 
         $this->actingAs($superuser)
-            ->post(route('orders.reopen', $order->id))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->post(route('orders.reopen', $order))
+            ->assertRedirect(route('orders.show', $order));
         $this->assertEquals('ordered', $order->fresh()->status);
     }
 
@@ -262,7 +262,7 @@ class OrderReceivingTest extends TestCase
         OrderItem::factory()->count(2)->create(['order_id' => $order->id]);
 
         $response = $this->actingAs($this->superuser())
-            ->get(route('orders.export', $order->id));
+            ->get(route('orders.export', $order));
 
         $response->assertOk();
         $this->assertStringContainsString('Item Type', $response->streamedContent());

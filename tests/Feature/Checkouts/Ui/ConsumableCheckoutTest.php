@@ -24,7 +24,7 @@ class ConsumableCheckoutTest extends TestCase
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('consumables.checkout.show', Consumable::factory()->create()->id))
+            ->get(route('consumables.checkout.show', Consumable::factory()->create()))
             ->assertOk();
     }
 

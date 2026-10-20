@@ -184,7 +184,7 @@ class CheckoutLicenseSeatNotification extends Notification
                                 $target->present()->name ?: '',
                                 trans('admin/consumables/general.remaining').': '.$item->availCount()->count(),
                             )
-                                ->onClick(route('users.show', $target->id))
+                                ->onClick(route('users.show', $target))
                         )
                     )
             );

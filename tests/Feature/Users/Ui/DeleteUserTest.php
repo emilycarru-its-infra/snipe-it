@@ -38,7 +38,7 @@ class DeleteUserTest extends TestCase
     {
         $user = User::factory()->deletedUser()->viewUsers()->create();
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->delete(route('users.destroy', $user->id))
+            ->delete(route('users.destroy', $user))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 
@@ -49,7 +49,7 @@ class DeleteUserTest extends TestCase
     {
         $user = User::factory()->deletedUser()->viewUsers()->create();
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->get(route('users.show', $user->id))
+            ->get(route('users.show', $user))
             ->assertStatus(200);
     }
 
@@ -100,7 +100,7 @@ class DeleteUserTest extends TestCase
         $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertFalse($manager->isDeletable());
 
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->delete(route('users.destroy', $manager->id))
+            ->delete(route('users.destroy', $manager))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 
@@ -115,7 +115,7 @@ class DeleteUserTest extends TestCase
         $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertFalse($manager->isDeletable());
 
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->delete(route('users.destroy', $manager->id))
+            ->delete(route('users.destroy', $manager))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 
@@ -130,7 +130,7 @@ class DeleteUserTest extends TestCase
         $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertFalse($user->isDeletable());
 
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->delete(route('users.destroy', $user->id))
+            ->delete(route('users.destroy', $user))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 
@@ -145,7 +145,7 @@ class DeleteUserTest extends TestCase
         $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertFalse($user->isDeletable());
 
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->delete(route('users.destroy', $user->id))
+            ->delete(route('users.destroy', $user))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 
@@ -158,7 +158,7 @@ class DeleteUserTest extends TestCase
         $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertTrue($manager->isDeletable());
 
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->delete(route('users.destroy', $manager->id))
+            ->delete(route('users.destroy', $manager))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 
@@ -179,7 +179,7 @@ class DeleteUserTest extends TestCase
         $asset = Asset::factory()->create();
 
         $this->actingAs(User::factory()->checkoutAssets()->create())
-            ->post(route('hardware.checkout.store', $asset->id), [
+            ->post(route('hardware.checkout.store', $asset), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => $user->id,
                 'name' => 'Changed Name',
@@ -188,7 +188,7 @@ class DeleteUserTest extends TestCase
         $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertFalse($user->isDeletable());
 
         $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
-            ->delete(route('users.destroy', $user->id))
+            ->delete(route('users.destroy', $user))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 
@@ -201,7 +201,7 @@ class DeleteUserTest extends TestCase
         $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertTrue($manager->isDeletable());
 
         $response = $this->actingAs($manager)
-            ->delete(route('users.destroy', $manager->id))
+            ->delete(route('users.destroy', $manager))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));
 

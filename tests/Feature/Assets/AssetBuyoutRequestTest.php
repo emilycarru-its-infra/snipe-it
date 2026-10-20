@@ -81,8 +81,8 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor, $endUser);
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
-            ->assertRedirect(route('hardware.show', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
+            ->assertRedirect(route('hardware.show', $asset))
             ->assertSessionHas('success');
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor, $endUser, $admin) {
@@ -122,7 +122,7 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
             ->assertSessionHas('success');
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor, $admin) {
@@ -144,8 +144,8 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
 
         $this->actingAs($hrUser)
-            ->post(route('asset.buyout.request', $asset->id))
-            ->assertRedirect(route('hardware.show', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
+            ->assertRedirect(route('hardware.show', $asset))
             ->assertSessionHas('success');
 
         Mail::assertSent(AssetBuyoutRequestMail::class);
@@ -160,7 +160,7 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
 
         $this->actingAs($viewer)
-            ->post(route('asset.buyout.request', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
             ->assertForbidden();
 
         Mail::assertNothingSent();
@@ -179,7 +179,7 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
             ->assertSessionHas('success');
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor) {
@@ -206,7 +206,7 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $csi);
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
             ->assertSessionHas('success');
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($csi) {
@@ -235,7 +235,7 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
             ->assertSessionHas('success');
 
         Mail::assertSent(AssetBuyoutRequestMail::class, function ($mail) use ($lessor) {
@@ -253,8 +253,8 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Purchase', null, $this->lessorWithEmail());
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
-            ->assertRedirect(route('hardware.show', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
+            ->assertRedirect(route('hardware.show', $asset))
             ->assertSessionHas('error');
 
         Mail::assertNothingSent();
@@ -268,7 +268,7 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->subDay()->toDateString(), $this->lessorWithEmail());
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
             ->assertSessionHas('error');
 
         Mail::assertNothingSent();
@@ -283,7 +283,7 @@ class AssetBuyoutRequestTest extends TestCase
         $asset = $this->makeAsset('Lease', now()->addYear()->toDateString(), $lessor);
 
         $this->actingAs($admin)
-            ->post(route('asset.buyout.request', $asset->id))
+            ->post(route('asset.buyout.request', $asset))
             ->assertSessionHas('error');
 
         Mail::assertNothingSent();

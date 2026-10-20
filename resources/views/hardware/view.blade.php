@@ -491,7 +491,7 @@
                                 <tbody>
                                 @forelse ($assetOrders as $assetOrder)
                                     <tr>
-                                        <td><a class="js-lightbox" href="{{ route('orders.show', $assetOrder->id) }}">{{ $assetOrder->order_number }}</a></td>
+                                        <td><a class="js-lightbox" href="{{ route('orders.show', $assetOrder) }}">{{ $assetOrder->order_number }}</a></td>
                                         <td>{{ trans('admin/orders/general.status_'.$assetOrder->status) }}</td>
                                         <td>{{ $assetOrder->supplier?->name }}</td>
                                         <td>{{ $assetOrder->order_date ? $assetOrder->order_date->format('Y-m-d') : '' }}</td>

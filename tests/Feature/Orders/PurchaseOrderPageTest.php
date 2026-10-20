@@ -43,7 +43,7 @@ class PurchaseOrderPageTest extends VendorOrderTestCase
 
         $staff = $this->procurement();
         $this->actingAs($staff)->get('/procurement/purchase-orders/P0026000')->assertOk();
-        $this->actingAs($staff)->get('/procurement/purchase-orders/'.$purchaseOrder->id)->assertOk();
+        $this->actingAs($staff)->get('/procurement/purchase-orders/'.$purchaseOrder->id)->assertRedirect(route('purchase-orders.show', $purchaseOrder));
 
         $this->actingAs($staff)->get('/purchase-orders/P0026000')->assertRedirect('/procurement/purchase-orders/P0026000');
         $this->actingAs($staff)->get('/requisitions')->assertRedirect('/procurement/requisitions');

@@ -540,7 +540,7 @@ class AssetPresenter extends Presenter
     public function nameUrl()
     {
         if (auth()->user()->can('view', ['\App\Models\Asset', $this])) {
-            return '<a href="'.route('hardware.show', $this->id).'">'.e($this->display_name).'</a>';
+            return '<a href="'.route('hardware.show', $this->model).'">'.e($this->display_name).'</a>';
         } else {
             return e($this->display_name);
         }
@@ -765,7 +765,7 @@ class AssetPresenter extends Presenter
      */
     public function viewUrl()
     {
-        return route('hardware.show', $this->id);
+        return route('hardware.show', $this->model);
     }
 
     public function glyph()

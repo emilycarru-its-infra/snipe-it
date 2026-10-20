@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStableRouteKey;
 use App\Http\Traits\UniqueUndeletedTrait;
 use App\Models\Traits\CompanyableTrait;
 use App\Models\Traits\HasUploads;
@@ -34,6 +35,7 @@ use Watson\Validating\ValidatingTrait;
 
 class User extends SnipeModel implements AuthenticatableContract, AuthorizableContract, CanResetPasswordContract, HasLocalePreference
 {
+    use HasStableRouteKey;
     use CompanyableTrait;
     use HasFactory;
     use HasUploads;
@@ -1650,5 +1652,15 @@ class User extends SnipeModel implements AuthenticatableContract, AuthorizableCo
         }
 
         return false;
+    }
+
+    /**
+     * Its pages are addressed by this rather than the database id; see HasStableRouteKey.
+     *
+     * @return array<int, string>
+     */
+    public function stableRouteKeyColumns(): array
+    {
+        return ['username'];
     }
 }

@@ -42,7 +42,7 @@ class TeamsCardUponAuditTest extends TestCase
         $this->assertSame('TEST-0002', $facts['Asset Tag']);
         $this->assertSame('TESTSERIAL2', $facts['Serial']);
         $this->assertSame('Sample Studio', $facts['Location']);
-        $this->assertContains(route('hardware.show', $asset->id), array_column($card['actions'], 'url'));
+        $this->assertContains(route('hardware.show', $asset), array_column($card['actions'], 'url'));
 
         $footer = end($card['body']);
         $this->assertStringContainsString('Sample Auditor', $footer['text']);

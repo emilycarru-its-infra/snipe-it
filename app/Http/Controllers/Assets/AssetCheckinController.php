@@ -41,7 +41,7 @@ class AssetCheckinController extends Controller
         }
 
         if (! $asset->model) {
-            return redirect()->route('hardware.show', $asset->id)->with('error', trans('admin/hardware/general.model_invalid_fix'));
+            return redirect()->route('hardware.show', $asset)->with('error', trans('admin/hardware/general.model_invalid_fix'));
         }
 
         // Invoke the validation to see if the audit will complete successfully
@@ -94,7 +94,7 @@ class AssetCheckinController extends Controller
         }
 
         if (! $asset->model) {
-            return redirect()->route('hardware.show', $asset->id)->with('error', trans('admin/hardware/general.model_invalid_fix'));
+            return redirect()->route('hardware.show', $asset)->with('error', trans('admin/hardware/general.model_invalid_fix'));
         }
 
         $this->authorize('checkin', $asset);
@@ -211,7 +211,7 @@ class AssetCheckinController extends Controller
         $this->authorize('checkin', $asset);
 
         if (! $asset->hasOrphanedAssignment()) {
-            return redirect()->route('hardware.show', $asset->id)
+            return redirect()->route('hardware.show', $asset)
                 ->with('error', trans('admin/hardware/message.checkin.force_checkin_not_orphaned'));
         }
 
@@ -221,11 +221,11 @@ class AssetCheckinController extends Controller
         if ($asset->save()) {
             $asset->logForceCheckin();
 
-            return redirect()->route('hardware.show', $asset->id)
+            return redirect()->route('hardware.show', $asset)
                 ->with('success', trans('admin/hardware/message.checkin.force_checkin_orphaned_success'));
         }
 
-        return redirect()->route('hardware.show', $asset->id)
+        return redirect()->route('hardware.show', $asset)
             ->with('error', trans('admin/hardware/message.checkin.force_checkin_error'));
     }
 }

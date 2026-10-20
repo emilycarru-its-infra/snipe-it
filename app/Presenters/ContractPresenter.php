@@ -120,7 +120,7 @@ class ContractPresenter extends Presenter
 
     public function nameUrl()
     {
-        return '<a href="' . route('contracts.show', $this->id) . '">' . e($this->name) . '</a>';
+        return '<a href="' . route('contracts.show', $this->model) . '">' . e($this->name) . '</a>';
     }
 
     public function name()

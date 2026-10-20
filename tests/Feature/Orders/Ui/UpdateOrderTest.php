@@ -11,7 +11,7 @@ class UpdateOrderTest extends TestCase
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('orders.edit', Order::factory()->create()->id))
+            ->get(route('orders.edit', Order::factory()->create()))
             ->assertOk();
     }
 
@@ -20,7 +20,7 @@ class UpdateOrderTest extends TestCase
         $order = Order::factory()->create(['status' => 'ordered']);
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->put(route('orders.update', $order->id), [
+            ->put(route('orders.update', $order), [
                 'order_number' => 'PO-UPDATED',
             ])
             ->assertRedirect(route('orders.index'));

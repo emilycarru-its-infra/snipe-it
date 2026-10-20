@@ -193,7 +193,7 @@ class CheckinAssetNotification extends Notification
                                 ($item->location) ? $item->location->name : '',
                                 trans('admin/hardware/form.status').': '.$item->status?->name,
                             )
-                                ->onClick(route('hardware.show', $item->id))
+                                ->onClick(route('hardware.show', $item))
                         )
                     )
             );

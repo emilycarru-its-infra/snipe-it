@@ -526,7 +526,7 @@ class UserPresenter extends Presenter
     public function nameUrl()
     {
         if (auth()->user()->can('view', ['\App\Models\User', $this])) {
-            return '<a href="'.route('users.show', $this->id).'">'.e($this->display_name).'</a>';
+            return '<a href="'.route('users.show', $this->model).'">'.e($this->display_name).'</a>';
         } else {
             return e($this->display_name);
         }
@@ -540,7 +540,7 @@ class UserPresenter extends Presenter
      */
     public function viewUrl()
     {
-        return route('users.show', $this->id);
+        return route('users.show', $this->model);
     }
 
     public function glyph()

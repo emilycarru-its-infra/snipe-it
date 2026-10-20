@@ -58,7 +58,7 @@ class FacultyProgramNotifier
                 trans('admin/hardware/form.model') => $asset?->model?->getAttribute('name'),
                 'Buyout requested' => $buyout !== null,
             ])
-            ->action(trans('general.teams_view_user'), $applicant ? route('users.show', $applicant->id) : null)
-            ->action(trans('general.teams_view_asset'), $asset ? route('hardware.show', $asset->id) : null);
+            ->action(trans('general.teams_view_user'), $applicant ? route('users.show', $applicant) : null)
+            ->action(trans('general.teams_view_asset'), $asset ? route('hardware.show', $asset) : null);
     }
 }

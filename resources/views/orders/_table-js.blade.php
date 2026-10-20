@@ -13,7 +13,7 @@
         }
 
         window.ordersLinkFormatter = function (value, row) {
-            return '<a href="' + ordersBaseUrl + '/' + row.id + '">' + esc(value) + '</a>';
+            return '<a href="' + esc(row.url || (ordersBaseUrl + '/' + row.id)) + '">' + esc(value) + '</a>';
         };
 
         window.ordersObjNameFormatter = function (value) {

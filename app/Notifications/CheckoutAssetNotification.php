@@ -212,7 +212,7 @@ class CheckoutAssetNotification extends Notification
                                 $target->present()->name ?: '',
                                 $note ?: '',
                             )
-                                ->onClick(route('users.show', $target->id))
+                                ->onClick(route('users.show', $target))
                         )
                     )
             );

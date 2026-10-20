@@ -336,7 +336,7 @@
             </div>
             @include('orders._board-lines', ['lines' => $order->items, 'withReceived' => true])
             <div class="ord-modal-actions">
-                <a class="btn btn-primary btn-sm js-lightbox" href="{{ route('orders.show', $order->id) }}">{{ trans('admin/orders/general.open_order') }}</a>
+                <a class="btn btn-primary btn-sm js-lightbox" href="{{ route('orders.show', $order) }}">{{ trans('admin/orders/general.open_order') }}</a>
                 @if ($canUpdate && $order->items->contains(fn ($line) => ! $line->isReceived()))
                     <form method="POST" action="{{ route('orders.eta-request', $order) }}" style="display:inline;">
                         {{ csrf_field() }}
@@ -384,7 +384,7 @@
     @endforeach
 
     @foreach ($showDone ? $board['done'] : [] as $order)
-        <div data-pp-content="done-{{ $order->id }}" data-pp-color="{{ $stages['done']['color'] }}" data-pp-title="{{ $order->order_number }}" data-pp-url="{{ route('orders.show', $order->id) }}"></div>
+        <div data-pp-content="done-{{ $order->id }}" data-pp-color="{{ $stages['done']['color'] }}" data-pp-title="{{ $order->order_number }}" data-pp-url="{{ route('orders.show', $order) }}"></div>
     @endforeach
 
     {{-- The forms the lightbox buttons submit through form="…". --}}

@@ -76,8 +76,8 @@ class TeamsCardsUponCheckoutAndCheckinTest extends TestCase
         $this->assertContains('Loaned for the term', $this->texts());
 
         $urls = array_column($this->postedCards()[0]['actions'], 'url');
-        $this->assertContains(route('hardware.show', $asset->id), $urls);
-        $this->assertContains(route('users.show', $user->id), $urls);
+        $this->assertContains(route('hardware.show', $asset), $urls);
+        $this->assertContains(route('users.show', $user), $urls);
     }
 
     /** The heading band: the first body block, holding the title. */

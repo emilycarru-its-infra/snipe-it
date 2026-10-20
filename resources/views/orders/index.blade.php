@@ -139,7 +139,7 @@
             @endif
 
             <p style="margin:10px 0 0;">
-                <a class="js-lightbox" href="{{ route('orders.show', $order->id) }}" class="btn btn-xs btn-default">{{ trans('admin/orders/general.open_order') }}</a>
+                <a class="js-lightbox" href="{{ route('orders.show', $order) }}" class="btn btn-xs btn-default">{{ trans('admin/orders/general.open_order') }}</a>
             </p>
         </div>
     </details>

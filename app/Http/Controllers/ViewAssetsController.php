@@ -94,7 +94,7 @@ class ViewAssetsController extends Controller
         $data['target'] = auth()->user();
 
         if ($fullItemType == Asset::class) {
-            $data['item_url'] = route('hardware.show', $item->id);
+            $data['item_url'] = route('hardware.show', $item);
         } else {
             $data['item_url'] = route("view/{$itemType}", $item->id);
         }

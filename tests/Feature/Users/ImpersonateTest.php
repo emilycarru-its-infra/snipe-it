@@ -37,7 +37,7 @@ class ImpersonateTest extends TestCase
         $target = $this->faculty();
 
         $this->actingAs($admin)
-            ->post(route('users.impersonate', $target->id))
+            ->post(route('users.impersonate', $target))
             ->assertRedirect(route('home'));
 
         // The session is now genuinely the target — not the admin with a flag.
@@ -57,7 +57,7 @@ class ImpersonateTest extends TestCase
         $admin = User::factory()->superuser()->create();
         $target = $this->faculty();
 
-        $this->actingAs($admin)->post(route('users.impersonate', $target->id));
+        $this->actingAs($admin)->post(route('users.impersonate', $target));
         $this->post(route('impersonate.stop'));
 
         foreach (['impersonate start', 'impersonate stop'] as $action) {
@@ -74,7 +74,7 @@ class ImpersonateTest extends TestCase
         $target = $this->faculty();
 
         $this->actingAs($plain)
-            ->post(route('users.impersonate', $target->id))
+            ->post(route('users.impersonate', $target))
             ->assertForbidden();
 
         $this->assertSame($plain->id, auth()->id());
@@ -86,7 +86,7 @@ class ImpersonateTest extends TestCase
         $target = $this->faculty();
 
         $this->actingAs($helper)
-            ->post(route('users.impersonate', $target->id))
+            ->post(route('users.impersonate', $target))
             ->assertRedirect(route('home'));
 
         $this->assertSame($target->id, auth()->id());
@@ -100,9 +100,9 @@ class ImpersonateTest extends TestCase
         $powerful = User::factory()->admin()->create(['activated' => 1]);
 
         $this->actingAs($helper)
-            ->from(route('users.show', $powerful->id))
-            ->post(route('users.impersonate', $powerful->id))
-            ->assertRedirect(route('users.show', $powerful->id))
+            ->from(route('users.show', $powerful))
+            ->post(route('users.impersonate', $powerful))
+            ->assertRedirect(route('users.show', $powerful))
             ->assertSessionHas('error');
 
         $this->assertSame($helper->id, auth()->id());
@@ -116,9 +116,9 @@ class ImpersonateTest extends TestCase
         // Otherwise a compromised superuser could act as a different one and
         // the audit trail would name the wrong person for it.
         $this->actingAs($admin)
-            ->from(route('users.show', $other->id))
-            ->post(route('users.impersonate', $other->id))
-            ->assertRedirect(route('users.show', $other->id))
+            ->from(route('users.show', $other))
+            ->post(route('users.impersonate', $other))
+            ->assertRedirect(route('users.show', $other))
             ->assertSessionHas('error');
 
         $this->assertSame($admin->id, auth()->id());
@@ -131,7 +131,7 @@ class ImpersonateTest extends TestCase
 
         $this->actingAs($admin)
             ->from(route('users.index'))
-            ->post(route('users.impersonate', $inactive->id))
+            ->post(route('users.impersonate', $inactive))
             ->assertSessionHas('error');
 
         $this->assertSame($admin->id, auth()->id());
@@ -143,13 +143,13 @@ class ImpersonateTest extends TestCase
         $first = $this->faculty();
         $second = $this->faculty();
 
-        $this->actingAs($admin)->post(route('users.impersonate', $first->id));
+        $this->actingAs($admin)->post(route('users.impersonate', $first));
 
         // Nesting would overwrite the stored id and lose the way back. The
         // second attempt is refused by the target's own lack of permission
         // anyway, but the guard states the reason rather than 403-ing.
         $this->from(route('home'))
-            ->post(route('users.impersonate', $second->id))
+            ->post(route('users.impersonate', $second))
             ->assertSessionHas('error');
 
         $this->assertSame($first->id, auth()->id());
@@ -161,7 +161,7 @@ class ImpersonateTest extends TestCase
         $admin = User::factory()->superuser()->create();
         $target = $this->faculty();
 
-        $this->actingAs($admin)->post(route('users.impersonate', $target->id));
+        $this->actingAs($admin)->post(route('users.impersonate', $target));
 
         // The borrowed identity has almost no permissions — the exit must not
         // depend on any of them, or the session would be stranded.
@@ -185,18 +185,18 @@ class ImpersonateTest extends TestCase
         $otherAdmin = User::factory()->superuser()->create();
 
         // Offered for a regular user…
-        $this->actingAs($admin)->get(route('users.show', $target->id))->assertOk()
+        $this->actingAs($admin)->get(route('users.show', $target))->assertOk()
             ->assertSee('View as this user', false);
 
         // …withheld for another superuser.
-        $this->actingAs($admin)->get(route('users.show', $otherAdmin->id))->assertOk()
+        $this->actingAs($admin)->get(route('users.show', $otherAdmin))->assertOk()
             ->assertDontSee('View as this user', false);
 
         // While borrowed, the badge and its exit ride every page. Checked on
         // the store rather than the dashboard, because a faculty user is
         // redirected away from the dashboard — which is the sort of thing
         // view-as exists to reveal.
-        $this->actingAs($admin)->post(route('users.impersonate', $target->id));
+        $this->actingAs($admin)->post(route('users.impersonate', $target));
         $this->get(route('store.index'))->assertOk()
             ->assertSee('Viewing as', false)
             ->assertSee('Stop viewing as', false);
@@ -211,7 +211,7 @@ class ImpersonateTest extends TestCase
         $admin = User::factory()->superuser()->create();
         $target = $this->faculty();
 
-        $this->actingAs($admin)->post(route('users.impersonate', $target->id));
+        $this->actingAs($admin)->post(route('users.impersonate', $target));
 
         foreach (['store.index', 'store.orders', 'store.index'] as $route) {
             $this->get(route($route))->assertOk();

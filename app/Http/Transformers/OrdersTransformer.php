@@ -25,6 +25,7 @@ class OrdersTransformer
         $array = [
             'id' => (int) $order->id,
             'order_number' => e($order->order_number),
+            'url' => route('orders.show', $order),
             'status' => $order->status,
             'is_planned' => (bool) $order->is_planned,
             'fiscal_year' => ($order->fiscal_year) ? e($order->fiscal_year) : null,

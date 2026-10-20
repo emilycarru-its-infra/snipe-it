@@ -114,7 +114,7 @@ class AssetCheckoutTest extends TestCase
                 'checkout_to_type' => 'user',
                 'assigned_user' => $user->id,
             ])
-            ->assertRedirect(route('hardware.checkout.store', $asset));
+            ->assertRedirect(route('hardware.checkout.create', $asset));
 
         Event::assertNotDispatched(CheckoutableCheckedOut::class);
     }

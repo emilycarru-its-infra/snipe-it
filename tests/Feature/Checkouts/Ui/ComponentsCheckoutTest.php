@@ -24,7 +24,7 @@ class ComponentsCheckoutTest extends TestCase
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('components.checkout.show', Component::factory()->create()->id))
+            ->get(route('components.checkout.show', Component::factory()->create()))
             ->assertOk();
     }
 

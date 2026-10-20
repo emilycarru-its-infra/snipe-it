@@ -75,7 +75,7 @@ class OauthSettingsTest extends TestCase
             ->assertSee(trans('admin/settings/general.oauth_personal_access_tokens'))
             ->assertSee('Personal Token One')
             ->assertSee('Token Owner Display')
-            ->assertSee(route('users.show', $tokenOwner))
+            ->assertSee(route('users.show', $tokenOwner->id))
             ->assertSee(Helper::getFormattedDateObject($createdAt, 'datetime', false))
             ->assertSee(Helper::getFormattedDateObject($expiresAt, 'datetime', false))
             ->assertDontSee('Non Personal Token');
@@ -185,7 +185,7 @@ class OauthSettingsTest extends TestCase
             ->get(route('settings.oauth.index'))
             ->assertOk()
             ->assertSee('<del>Deleted Token User</del>', false)
-            ->assertSee(route('users.show', $tokenOwner));
+            ->assertSee(route('users.show', $tokenOwner->id));
     }
 
     public function test_authorized_applications_show_and_link_client_creator_with_soft_deleted_strikethrough(): void
@@ -278,9 +278,9 @@ class OauthSettingsTest extends TestCase
             ->get(route('settings.oauth.index'))
             ->assertOk()
             ->assertSee('Active Client Creator')
-            ->assertSee(route('users.show', $activeCreator))
+            ->assertSee(route('users.show', $activeCreator->id))
             ->assertSee('<del>Deleted Client Creator</del>', false)
-            ->assertSee(route('users.show', $softDeletedCreator))
+            ->assertSee(route('users.show', $softDeletedCreator->id))
             ->assertDontSee('Authorized Active Token')
             ->assertDontSee('Authorized Active Token Two')
             ->assertDontSee('Authorized Deleted Token')

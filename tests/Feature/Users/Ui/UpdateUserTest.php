@@ -14,14 +14,14 @@ class UpdateUserTest extends TestCase
     public function test_requires_permission()
     {
         $this->actingAs(User::factory()->create())
-            ->get(route('users.edit', User::factory()->create()->id))
+            ->get(route('users.edit', User::factory()->create()))
             ->assertForbidden();
     }
 
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->editUsers()->create())
-            ->get(route('users.edit', User::factory()->create()->id))
+            ->get(route('users.edit', User::factory()->create()))
             ->assertOk();
     }
 
@@ -30,8 +30,8 @@ class UpdateUserTest extends TestCase
         $user = User::factory()->trashed()->create();
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('users.edit', $user->id))
-            ->assertRedirectToRoute('users.show', $user->id);
+            ->get(route('users.edit', $user))
+            ->assertRedirect(route('users.show', $user));
     }
 
     public function test_users_can_be_activated_with_number()
@@ -241,7 +241,7 @@ class UpdateUserTest extends TestCase
         $asset->checkOut($user, $superUser);
 
         // asset assigned, therefore error
-        $response = $this->actingAs($superUser)->patchJson(route('users.update', $user), [
+        $response = $this->actingAs($superUser)->patchJson(route('users.update', $user->fresh()), [
             'first_name' => 'test',
             'username' => 'test',
             'company_id' => $companyA->id,

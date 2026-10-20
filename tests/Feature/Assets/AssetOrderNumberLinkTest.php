@@ -28,9 +28,9 @@ class AssetOrderNumberLinkTest extends TestCase
         $asset = $this->assetWithOrderNumber('TESTPV1');
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('hardware.show', $asset->id))
+            ->get(route('hardware.show', $asset))
             ->assertOk()
-            ->assertSee(route('orders.show', $order->id));
+            ->assertSee(route('orders.show', $order));
     }
 
     public function test_an_order_number_with_no_order_stays_plain_text(): void
@@ -38,7 +38,7 @@ class AssetOrderNumberLinkTest extends TestCase
         $asset = $this->assetWithOrderNumber('NEVER-KEYED-IN');
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('hardware.show', $asset->id))
+            ->get(route('hardware.show', $asset))
             ->assertOk()
             ->assertSee('NEVER-KEYED-IN')
             ->assertDontSee(route('orders.show', 1));

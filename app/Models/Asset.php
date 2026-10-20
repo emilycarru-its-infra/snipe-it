@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStableRouteKey;
 use App\Events\CheckoutableCheckedOut;
 use App\Exceptions\CheckoutNotAllowed;
 use App\Helpers\Helper;
@@ -59,6 +60,7 @@ use Watson\Validating\ValidatingTrait;
  */
 class Asset extends Depreciable
 {
+    use HasStableRouteKey;
     protected $presenter = AssetPresenter::class;
 
     protected $with = ['model', 'adminuser', 'location', 'company'];
@@ -2733,5 +2735,15 @@ class Asset extends Depreciable
     {
         return ($this->assigned_to && ! $this->assigned_type)
             || ($this->assigned_to && $this->assigned_type && ! $this->assignedTo);
+    }
+
+    /**
+     * Its pages are addressed by this rather than the database id; see HasStableRouteKey.
+     *
+     * @return array<int, string>
+     */
+    public function stableRouteKeyColumns(): array
+    {
+        return ['serial', 'asset_tag'];
     }
 }

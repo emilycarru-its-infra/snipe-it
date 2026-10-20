@@ -456,7 +456,7 @@ class OkayToPay
 
         return $card
             ->action(trans('admin/purchase-orders/general.okp_action_queue'), route('reports.procurement.invoice-approval', ['status' => 'all']))
-            ->action(trans('admin/purchase-orders/general.okp_action_order'), route('orders.show', $order->id));
+            ->action(trans('admin/purchase-orders/general.okp_action_order'), route('orders.show', $order));
     }
 
     public static function money($value): string

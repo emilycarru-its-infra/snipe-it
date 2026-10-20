@@ -178,7 +178,7 @@ class DeploymentsController extends Controller
                 'wave_id' => $item->wave_id,
                 'asset_id' => null,
                 'device' => $device,
-                'device_url' => $subject ? route('hardware.show', $subject->id) : null,
+                'device_url' => $subject ? route('hardware.show', $subject) : null,
                 // Once the machine exists it names itself. Until then the row
                 // is a plan, and the plan is the catalog item the incumbent's
                 // model refreshes to — never the incumbent's own model, which
@@ -291,10 +291,10 @@ class DeploymentsController extends Controller
                     'asset_id' => null,
                     'order_item_id' => $line->id,
                     'device' => $device,
-                    'device_url' => $asset ? route('hardware.show', $asset->id) : route('orders.show', $order->id),
+                    'device_url' => $asset ? route('hardware.show', $asset) : route('orders.show', $order),
                     'model' => $asset?->model?->name ?: ($line->description ?: '—'),
                     'wave' => $order->order_number,
-                    'wave_url' => route('orders.show', $order->id),
+                    'wave_url' => route('orders.show', $order),
                     'wave_color' => '#605ca8',
                     'type' => trans('admin/deployments/general.flow_order_chip'),
                     'group' => $order->order_number,

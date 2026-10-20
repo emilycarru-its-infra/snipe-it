@@ -265,10 +265,10 @@ class OrdersController extends Controller
         $result = app(VendorOrderDispatch::class)->send($order, auth()->user(), $validated, $test);
 
         if (! $result['sent']) {
-            return redirect()->route('orders.show', $order->id)->with('error', $result['error']);
+            return redirect()->route('orders.show', $order)->with('error', $result['error']);
         }
 
-        return redirect()->route('orders.show', $order->id)
+        return redirect()->route('orders.show', $order)
             ->with('success', $test
                 ? trans('admin/store/general.vendor_send_test_sent', ['email' => $result['recipients'][0]])
                 : trans('admin/store/general.vendor_send_sent', ['emails' => implode(', ', $result['recipients'])]));
@@ -294,7 +294,7 @@ class OrdersController extends Controller
         // Asked from the orders board, the answer belongs back on the board.
         $back = $request->input('return_to') === 'orders'
             ? redirect()->route('orders.index')
-            : redirect()->route('orders.show', $order->id);
+            : redirect()->route('orders.show', $order);
 
         if (! $result['sent']) {
             return $back->with('error', $result['error']);
@@ -371,10 +371,10 @@ class OrdersController extends Controller
         );
 
         if (! $result['ok']) {
-            return redirect()->route('orders.show', $order->id)->with('error', $result['error']);
+            return redirect()->route('orders.show', $order)->with('error', $result['error']);
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', $result['message']);
+        return redirect()->route('orders.show', $order)->with('success', $result['message']);
     }
 
     public function destroy(Order $order): RedirectResponse
@@ -405,13 +405,13 @@ class OrdersController extends Controller
         $typeKey = $request->input('item_type');
 
         if (! array_key_exists($typeKey, self::ITEM_TYPES)) {
-            return redirect()->route('orders.show', $order->id)->with('error', trans('admin/orders/message.item.type_invalid'));
+            return redirect()->route('orders.show', $order)->with('error', trans('admin/orders/message.item.type_invalid'));
         }
 
         $itemClass = self::ITEM_TYPES[$typeKey];
 
         if (is_null($item = $itemClass::find($request->input('item_id_'.$typeKey)))) {
-            return redirect()->route('orders.show', $order->id)->with('error', trans('admin/orders/message.item.not_found'));
+            return redirect()->route('orders.show', $order)->with('error', trans('admin/orders/message.item.not_found'));
         }
 
         $quantity = (int) $request->input('quantity', 1);
@@ -440,7 +440,7 @@ class OrdersController extends Controller
         $orderItem->warranty_cost = $request->input('warranty_cost') ?: null;
         $orderItem->save();
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.add_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.item.add_success'));
     }
 
     public function destroyItem(Order $order, OrderItem $item): RedirectResponse
@@ -452,7 +452,7 @@ class OrdersController extends Controller
             $item->delete();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.delete_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.item.delete_success'));
     }
 
     /**
@@ -466,7 +466,7 @@ class OrdersController extends Controller
             $item->markReceived();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.receive_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.item.receive_success'));
     }
 
     /**
@@ -480,7 +480,7 @@ class OrdersController extends Controller
             $item->markUnreceived();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.item.unreceive_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.item.unreceive_success'));
     }
 
     public function storeShipment(Request $request, Order $order): RedirectResponse
@@ -494,7 +494,7 @@ class OrdersController extends Controller
 
         $order->recalculateStatus();
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.shipment.add_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.shipment.add_success'));
     }
 
     public function updateShipment(Request $request, Order $order, OrderShipment $shipment): RedirectResponse
@@ -507,7 +507,7 @@ class OrdersController extends Controller
             $order->recalculateStatus();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.shipment.update_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.shipment.update_success'));
     }
 
     public function destroyShipment(Order $order, OrderShipment $shipment): RedirectResponse
@@ -521,7 +521,7 @@ class OrdersController extends Controller
             $order->recalculateStatus();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.shipment.delete_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.shipment.delete_success'));
     }
 
     /**
@@ -535,7 +535,7 @@ class OrdersController extends Controller
             $shipment->receive();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.shipment.receive_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.shipment.receive_success'));
     }
 
     public function storeInvoice(Request $request, Order $order): RedirectResponse
@@ -547,7 +547,7 @@ class OrdersController extends Controller
         $this->fillInvoiceFromRequest($invoice, $request);
         $invoice->save();
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.invoice.add_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.invoice.add_success'));
     }
 
     public function updateInvoice(Request $request, Order $order, OrderInvoice $invoice): RedirectResponse
@@ -559,7 +559,7 @@ class OrdersController extends Controller
             $invoice->save();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.invoice.update_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.invoice.update_success'));
     }
 
     public function destroyInvoice(Order $order, OrderInvoice $invoice): RedirectResponse
@@ -572,7 +572,7 @@ class OrdersController extends Controller
             $invoice->delete();
         }
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.invoice.delete_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.invoice.delete_success'));
     }
 
     /**
@@ -585,7 +585,7 @@ class OrdersController extends Controller
         $order->status = 'cancelled';
         $order->save();
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.cancel_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.cancel_success'));
     }
 
     /**
@@ -600,7 +600,7 @@ class OrdersController extends Controller
         $order->save();
         $order->recalculateStatus();
 
-        return redirect()->route('orders.show', $order->id)->with('success', trans('admin/orders/message.reopen_success'));
+        return redirect()->route('orders.show', $order)->with('success', trans('admin/orders/message.reopen_success'));
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStableRouteKey;
 use App\Models\Traits\HasUploads;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\Searchable;
@@ -16,6 +17,7 @@ use Watson\Validating\ValidatingTrait;
 
 class Contract extends Model
 {
+    use HasStableRouteKey;
     use HasFactory;
     use HasUploads;
     use Loggable;
@@ -274,5 +276,15 @@ class Contract extends Model
     public function scopeByFiscalYear($query, ?string $fy)
     {
         return $fy ? $query->where('fiscal_year', $fy) : $query;
+    }
+
+    /**
+     * Its pages are addressed by this rather than the database id; see HasStableRouteKey.
+     *
+     * @return array<int, string>
+     */
+    public function stableRouteKeyColumns(): array
+    {
+        return ['contract_number'];
     }
 }

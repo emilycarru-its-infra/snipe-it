@@ -217,16 +217,16 @@ class OrderEtaRequestTest extends VendorOrderTestCase
         $sender = $this->procurement();
 
         $this->actingAs($sender)
-            ->get(route('orders.show', $order->id))
+            ->get(route('orders.show', $order))
             ->assertOk()
             ->assertSee(trans('admin/orders/general.eta_request_button'));
 
         $this->actingAs($sender)
-            ->post(route('orders.eta-request', $order->id), [
+            ->post(route('orders.eta-request', $order), [
                 'to_list' => 'rep1@cdw.ca, am@vendor.example',
                 'note' => 'Please confirm the ship date.',
             ])
-            ->assertRedirect(route('orders.show', $order->id))
+            ->assertRedirect(route('orders.show', $order))
             ->assertSessionHas('success');
 
         Mail::assertSent(OrderEtaRequestMail::class, fn ($mail) => $mail->hasTo('rep1@cdw.ca') && $mail->hasTo('am@vendor.example'));
@@ -257,7 +257,7 @@ class OrderEtaRequestTest extends VendorOrderTestCase
         $order = $this->placedOrder();
 
         $this->actingAs(User::factory()->create())
-            ->post(route('orders.eta-request', $order->id))
+            ->post(route('orders.eta-request', $order))
             ->assertForbidden();
 
         Mail::assertNothingSent();

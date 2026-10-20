@@ -411,7 +411,7 @@ class DepreciationReportPresenter extends Presenter
      */
     public function viewUrl()
     {
-        return route('hardware.show', $this->id);
+        return route('hardware.show', $this->model);
     }
 
     public function glyph()
