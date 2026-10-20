@@ -350,7 +350,7 @@ class ProcurementReportsTest extends TestCase
             ->get(route('deployments.planning'))
             ->assertOk()
             ->assertSee('js-lightbox')
-            ->assertSee(route('hardware.show', $asset->id), false)
+            ->assertSee(route('hardware.show', $asset), false)
             // …and the layout carries the lightbox host + framed hook.
             ->assertSee('id="app-lightbox"', false)
             ->assertSee('html.framed', false);
@@ -743,8 +743,8 @@ class ProcurementReportsTest extends TestCase
         $this->actingAs($this->superuser())
             ->get(route('reports.procurement.aro-register'))
             ->assertOk()
-            ->assertSee(route('lease-decisions.edit', $decision->id), false)
-            ->assertSee(route('lease-decisions.destroy', $decision->id), false);
+            ->assertSee(route('lease-decisions.edit', $decision), false)
+            ->assertSee(route('lease-decisions.destroy', $decision), false);
     }
 
     public function test_agreements_hub_lives_at_procurement_agreements()
@@ -843,7 +843,7 @@ class ProcurementReportsTest extends TestCase
             ->assertOk()
             ->assertSee(trans('admin/purchase-orders/general.capital_reqs_title'))
             ->assertSee('REQM 0017859')
-            ->assertSee(route('requisitions.show', $requisition->id), false);
+            ->assertSee(route('requisitions.show', $requisition), false);
 
         // Once a PO exists it moves to the issued list and leaves this one.
         $po = PurchaseOrder::factory()->create(['po_number' => 'P0026099', 'fiscal_year' => 'FY2026-27']);
@@ -1066,7 +1066,7 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('$94,200.00')
             // The draft button is gone; the requisition it made replaces it.
             ->assertDontSee(trans('admin/purchase-orders/general.capital_draft_button'))
-            ->assertSee(route('requisitions.show', $requisition->id), false)
+            ->assertSee(route('requisitions.show', $requisition), false)
             ->getContent();
 
         // The derived device line is gone: the contract appears exactly

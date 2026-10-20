@@ -366,7 +366,7 @@
                     <tbody>
                         @foreach ($group['assets'] as $asset)
                             <tr>
-                                <td><a class="js-lightbox" href="{{ route('hardware.show', $asset) }}">{{ $asset->asset_tag }}</a></td>
+                                <td><a class="js-lightbox" href="{{ route('hardware.show', $asset->id) }}">{{ $asset->asset_tag }}</a></td>
                                 <td>{{ $asset->model?->name ?? '—' }}</td>
                                 <td>{{ $asset->serial }}</td>
                             </tr>
@@ -377,7 +377,7 @@
             <div class="ord-modal-actions">
                 <a class="btn btn-primary btn-sm" href="{{ route('orders.unmatched') }}">{{ $t('board_open_workbench') }}</a>
                 @if ($group['order'])
-                    <a class="btn btn-default btn-sm js-lightbox" href="{{ route('orders.show', $group['order']) }}">{{ trans('admin/orders/general.open_order') }}</a>
+                    <a class="btn btn-default btn-sm js-lightbox" href="{{ route('orders.show', $group['order']->id) }}">{{ trans('admin/orders/general.open_order') }}</a>
                 @endif
             </div>
         </div>

@@ -3847,9 +3847,9 @@ class ProcurementReportsController extends Controller
                 'links' => array_filter([
                     0 => route('user-agreements.show', $first),
                     1 => $first->user ? route('users.show', $first->user) : null,
-                    2 => $asset ? route('hardware.show', $asset) : null,
-                    3 => $asset ? route('hardware.show', $asset) : null,
-                    $newSerialCol => $newAsset ? route('hardware.show', $newAsset) : null,
+                    2 => $asset ? route('hardware.show', $asset->id) : null,
+                    3 => $asset ? route('hardware.show', $asset->id) : null,
+                    $newSerialCol => $newAsset ? route('hardware.show', $newAsset->id) : null,
                 ], fn ($link) => $link !== null),
                 'pills' => [0 => $stagePills],
                 'docs' => $docs,
@@ -4184,7 +4184,7 @@ class ProcurementReportsController extends Controller
                         $asset->status?->name,
                         trim((string) $asset->ownership_type),
                     ],
-                    'links' => [0 => route('hardware.show', $asset)],
+                    'links' => [0 => route('hardware.show', $asset->id)],
                 ];
             }
 
@@ -4571,8 +4571,8 @@ class ProcurementReportsController extends Controller
             $groups[$contractId]['rows'][] = [
                 'class' => $isReturned ? 'text-muted' : '',
                 'links' => array_filter([
-                    0 => route('hardware.show', $asset),
-                    1 => route('hardware.show', $asset),
+                    0 => route('hardware.show', $asset->id),
+                    1 => route('hardware.show', $asset->id),
                     6 => $this->assignedTarget($asset) instanceof User
                         ? route('users.show', $this->assignedTarget($asset)->id) : null,
                 ]),

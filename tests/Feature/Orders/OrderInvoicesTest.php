@@ -21,7 +21,7 @@ class OrderInvoicesTest extends TestCase
         $order = Order::factory()->create(['status' => 'ordered']);
 
         $this->actingAs($this->superuser())
-            ->post(route('orders.invoices.store', $order->id), [
+            ->post(route('orders.invoices.store', $order), [
                 'invoice_number' => 'TESTAF5',
                 'invoice_date' => '2026-03-01',
                 'subtotal' => 1000,
@@ -29,7 +29,7 @@ class OrderInvoicesTest extends TestCase
                 'tax_pst' => 70,
                 'total' => 1120,
             ])
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertDatabaseHas('order_invoices', [
             'order_id' => $order->id,
@@ -45,7 +45,7 @@ class OrderInvoicesTest extends TestCase
 
         $this->actingAs($this->superuser())
             ->delete(route('orders.invoices.destroy', ['order' => $order->id, 'invoice' => $invoice->id]))
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertDatabaseMissing('order_invoices', ['id' => $invoice->id]);
     }
@@ -72,7 +72,7 @@ class OrderInvoicesTest extends TestCase
         $asset = Asset::factory()->create();
 
         $this->actingAs($this->superuser())
-            ->post(route('orders.items.store', $order->id), [
+            ->post(route('orders.items.store', $order), [
                 'item_type' => 'asset',
                 'item_id_asset' => $asset->id,
                 'quantity' => 1,
@@ -80,7 +80,7 @@ class OrderInvoicesTest extends TestCase
                 'warranty_cost' => 250,
                 'invoice_id' => $invoice->id,
             ])
-            ->assertRedirect(route('orders.show', $order->id));
+            ->assertRedirect(route('orders.show', $order));
 
         $this->assertDatabaseHas('order_items', [
             'order_id' => $order->id,

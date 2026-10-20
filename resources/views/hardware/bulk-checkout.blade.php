@@ -37,7 +37,7 @@
                         <ul>
                             @foreach($removed_assets as $removed_asset)
                                 <li>
-                                    <a href="{{ route('hardware.show', $removed_asset) }}">
+                                    <a href="{{ route('hardware.show', $removed_asset->id) }}">
                                         {{ $removed_asset->present()->fullName }}
                                     </a>
                                 </li>

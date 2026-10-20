@@ -109,7 +109,7 @@
                             @foreach ($usersWithoutGroup as $user)
                                 <tr>
                                     <td>
-                                        <a class="js-lightbox" href="{{ route('users.show', $user) }}">{{ $user->display_name }}</a>
+                                        <a class="js-lightbox" href="{{ route('users.show', $user->id) }}">{{ $user->display_name }}</a>
                                     </td>
                                     <td>{{ $user->username }}</td>
                                     <td>{{ $user->email }}</td>

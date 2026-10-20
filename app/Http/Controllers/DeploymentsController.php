@@ -341,7 +341,7 @@ class DeploymentsController extends Controller
                     'item_id' => null,
                     'asset_id' => null,
                     'device' => $asset->name ?: $asset->asset_tag ?: ('#'.$asset->id),
-                    'device_url' => route('hardware.show', $asset),
+                    'device_url' => route('hardware.show', $asset->id),
                     'model' => $asset->model?->name ?: '—',
                     'wave' => null,
                     'wave_url' => null,

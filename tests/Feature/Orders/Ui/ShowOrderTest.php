@@ -11,14 +11,14 @@ class ShowOrderTest extends TestCase
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('orders.show', Order::factory()->create()->id))
+            ->get(route('orders.show', Order::factory()->create()))
             ->assertOk();
     }
 
     public function test_page_shows_collapsible_add_buttons_for_each_section()
     {
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('orders.show', Order::factory()->create()->id))
+            ->get(route('orders.show', Order::factory()->create()))
             ->assertOk()
             ->assertSee('js-order-add-toggle')
             ->assertSee('js-order-add-cancel')

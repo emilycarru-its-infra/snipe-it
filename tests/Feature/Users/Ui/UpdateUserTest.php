@@ -14,14 +14,14 @@ class UpdateUserTest extends TestCase
     public function test_requires_permission()
     {
         $this->actingAs(User::factory()->create())
-            ->get(route('users.edit', User::factory()->create()->id))
+            ->get(route('users.edit', User::factory()->create()))
             ->assertForbidden();
     }
 
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->editUsers()->create())
-            ->get(route('users.edit', User::factory()->create()->id))
+            ->get(route('users.edit', User::factory()->create()))
             ->assertOk();
     }
 
@@ -30,7 +30,7 @@ class UpdateUserTest extends TestCase
         $user = User::factory()->trashed()->create();
 
         $this->actingAs(User::factory()->superuser()->create())
-            ->get(route('users.edit', $user->id))
+            ->get(route('users.edit', $user))
             ->assertRedirectToRoute('users.show', $user->id);
     }
 

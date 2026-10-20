@@ -171,7 +171,7 @@ class AuditNotification extends Notification
                                 trans('general.audited_by'),
                                 $admin_user?->display_name ?? '',
                                 $note ?? ''
-                            )->onClick(route('hardware.show', $item))
+                            )->onClick(route('hardware.show', $item->id))
                         )
                     )
             );

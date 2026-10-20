@@ -28,7 +28,7 @@ class PurchaseOrderTest extends TestCase
         $po = PurchaseOrder::factory()->create();
 
         $this->actingAs($this->superuser())
-            ->get(route('purchase-orders.show', ['purchase_order' => $po->id]))
+            ->get(route('purchase-orders.show', $po))
             ->assertOk();
     }
 
@@ -84,7 +84,7 @@ class PurchaseOrderTest extends TestCase
         $order = Order::factory()->create(['status' => 'ordered']);
 
         $this->actingAs($this->superuser())
-            ->put(route('orders.update', $order->id), [
+            ->put(route('orders.update', $order), [
                 'order_number' => $order->order_number,
                 'purchase_order_id' => $po->id,
             ])

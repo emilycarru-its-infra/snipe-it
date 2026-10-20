@@ -108,7 +108,7 @@ trait HasStableRouteKey
         $shared = $request->attributes->get($cacheKey);
 
         if ($shared === null) {
-            $model = new static;
+            $model = static::query()->getModel();
             $values = null;
             foreach ($model->stableRouteKeyColumns() as $column) {
                 $select = static::query()->withoutGlobalScopes()->toBase()

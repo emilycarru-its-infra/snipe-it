@@ -212,7 +212,7 @@ class LedgerMoneyAndCycleTest extends TestCase
 
         // The new device's serial appears, linked to its record.
         $this->assertStringContainsString('NEWSERIAL7', $content);
-        $this->assertStringContainsString(route('hardware.show', $newDevice->id), $content);
+        $this->assertStringContainsString(route('hardware.show', $newDevice), $content);
 
         // Header order: Stage before Member, Purchase before New Serial.
         $stagePos = strpos($content, '<th>'.trans('admin/purchase-orders/general.user_agreement_stage').'</th>');

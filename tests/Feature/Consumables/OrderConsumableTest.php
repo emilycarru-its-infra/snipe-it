@@ -54,7 +54,7 @@ class OrderConsumableTest extends TestCase
                 'unit_cost' => 5.50,
             ])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('orders.show', $planned->id));
+            ->assertRedirect(route('orders.show', $planned));
 
         $item = OrderItem::where('order_id', $planned->id)->first();
         $this->assertNotNull($item);

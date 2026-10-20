@@ -1658,11 +1658,15 @@ class Helper
             };
         }
 
+        // Devices and people are addressed by serial and username, so look the
+        // record up to redirect straight to that page rather than via its id.
+        $record = fn (string $class, $key) => is_numeric($key) ? ($class::find($key) ?? $key) : $key;
+
         // return to thing being assigned
         if ($redirect_option == 'item') {
             return match ($table) {
-                'Assets' => redirect()->route('hardware.show', $id ?? $item_id),
-                'Users' => redirect()->route('users.show', $id ?? $item_id),
+                'Assets' => redirect()->route('hardware.show', $record(\App\Models\Asset::class, $id ?? $item_id)),
+                'Users' => redirect()->route('users.show', $record(\App\Models\User::class, $id ?? $item_id)),
                 'Licenses' => redirect()->route('licenses.show', $id ?? $item_id),
                 'Accessories' => redirect()->route('accessories.show', $id ?? $item_id),
                 'Components' => redirect()->route('components.show', $id ?? $item_id),
@@ -1678,13 +1682,13 @@ class Helper
 
             return match ($checkout_to_type) {
                 'user' => $userId
-                    ? redirect()->route('users.show', $userId)
+                    ? redirect()->route('users.show', $record(\App\Models\User::class, $userId))
                     : redirect()->route('users.index'),
                 'location' => $locationId
                     ? redirect()->route('locations.show', $locationId)
                     : redirect()->route('locations.index'),
                 'asset' => $assetId
-                    ? redirect()->route('hardware.show', $assetId)
+                    ? redirect()->route('hardware.show', $record(\App\Models\Asset::class, $assetId))
                     : redirect()->route('hardware.index'),
             };
         }

@@ -756,7 +756,7 @@ class EmailRegistry
                 trans('admin/hardware/form.serial') => $asset->serial,
             ])
             ->note('Sample acceptance note.')
-            ->action(trans('general.teams_view_asset'), route('hardware.show', $asset))
+            ->action(trans('general.teams_view_asset'), route('hardware.show', $asset->id))
             ->action(trans('general.teams_view_user'), route('users.show', $s->recipient()->id));
     }
 
@@ -771,7 +771,7 @@ class EmailRegistry
                 'Requested by' => $s->recipient()->getAttribute('display_name'),
                 trans('general.asset_tag') => $asset->asset_tag,
             ])
-            ->action(trans('general.teams_view_asset'), route('hardware.show', $asset))
+            ->action(trans('general.teams_view_asset'), route('hardware.show', $asset->id))
             ->action(trans('general.teams_view_user'), route('users.show', $s->recipient()->id));
     }
 

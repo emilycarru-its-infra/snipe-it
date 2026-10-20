@@ -48,7 +48,7 @@ class TopSearchPaperTrailTest extends TestCase
 
         $this->assertNotNull($group, 'orders must be a search group');
         $this->assertSame('TESTPM2', $group['items'][0]['title']);
-        $this->assertSame(route('orders.show', $order->id), $group['items'][0]['url']);
+        $this->assertSame(route('orders.show', $order), $group['items'][0]['url']);
     }
 
     public function test_a_po_number_finds_its_purchase_order(): void
@@ -58,7 +58,7 @@ class TopSearchPaperTrailTest extends TestCase
         $group = $this->group($this->suggest('P0025420'), 'purchase_orders');
 
         $this->assertNotNull($group);
-        $this->assertSame(route('purchase-orders.show', $po->id), $group['items'][0]['url']);
+        $this->assertSame(route('purchase-orders.show', $po), $group['items'][0]['url']);
     }
 
     public function test_an_invoice_number_opens_the_order_that_carries_it(): void
@@ -74,7 +74,7 @@ class TopSearchPaperTrailTest extends TestCase
         $this->assertNotNull($group, 'invoices must be a search group');
         $this->assertSame('TESTAJ2', $group['items'][0]['title']);
         // Invoices have no page of their own, so the hit opens its parent.
-        $this->assertSame(route('orders.show', $order->id), $group['items'][0]['url']);
+        $this->assertSame(route('orders.show', $order), $group['items'][0]['url']);
     }
 
     public function test_a_lease_schedule_number_finds_its_contract(): void
@@ -85,7 +85,7 @@ class TopSearchPaperTrailTest extends TestCase
         $group = $this->group($this->suggest('100000-007'), 'contracts');
 
         $this->assertNotNull($group);
-        $this->assertSame(route('contracts.show', $contract->id), $group['items'][0]['url']);
+        $this->assertSame(route('contracts.show', $contract), $group['items'][0]['url']);
         $this->assertStringContainsString('100000-007', $group['items'][0]['subtitle']);
     }
 
