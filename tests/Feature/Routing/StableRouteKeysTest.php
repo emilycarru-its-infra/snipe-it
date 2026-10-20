@@ -102,4 +102,20 @@ class StableRouteKeysTest extends TestCase
             ->post('/procurement/orders/'.$order->getKey().'/cancel')
             ->assertRedirect();
     }
+
+    public function test_list_tables_get_the_stable_key_from_the_api(): void
+    {
+        $user = User::factory()->create(['username' => 'test.table.user']);
+        $asset = Asset::factory()->assignedToUser($user)->create(['serial' => 'TEST-TABLE-SERIAL']);
+        $order = Order::factory()->create(['order_number' => 'TEST-TABLE-ORDER']);
+        $admin = User::factory()->superuser()->create();
+
+        $assets = $this->actingAsForApi($admin)->getJson(route('api.assets.index', ['search' => 'TEST-TABLE-SERIAL']))->assertOk();
+        $this->assertSame('TEST-TABLE-SERIAL', $assets->json('rows.0.route_key'));
+        $this->assertSame('test.table.user', $assets->json('rows.0.assigned_to.route_key'));
+
+        $this->actingAsForApi($admin)->getJson('/api/v1/orders/'.$order->getKey())
+            ->assertOk()
+            ->assertJsonPath('route_key', 'TEST-TABLE-ORDER');
+    }
 }

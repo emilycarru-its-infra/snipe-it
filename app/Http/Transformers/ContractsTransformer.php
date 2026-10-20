@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\Contract;
 use Illuminate\Database\Eloquent\Collection;
@@ -23,6 +24,7 @@ class ContractsTransformer
     {
         $array = [
             'id'                  => (int) $contract->id,
+            'route_key' => StableRouteKeys::keyOf($contract),
             'tdx_id'              => $contract->tdx_id ? (int) $contract->tdx_id : null,
             'is_synthesized'      => (bool) $contract->is_synthesized,
             'name'                => e($contract->name),

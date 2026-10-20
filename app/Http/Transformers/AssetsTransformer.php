@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\Accessory;
 use App\Models\AccessoryCheckout;
@@ -34,6 +35,7 @@ class AssetsTransformer
 
         $array = [
             'id' => (int) $asset->id,
+            'route_key' => StableRouteKeys::keyOf($asset),
             'name' => e($asset->name),
             'asset_tag' => e($asset->asset_tag),
             'serial' => e($asset->serial),
@@ -250,6 +252,7 @@ class AssetsTransformer
         if ($asset->checkedOutToUser()) {
             return $asset->assigned ? [
                 'id' => (int) $asset->assigned->id,
+                'route_key' => StableRouteKeys::keyOf($asset->assigned),
                 'username' => e($asset->assigned->username),
                 'name' => e($asset->assigned->display_name),
                 'first_name' => e($asset->assigned->first_name),
@@ -263,6 +266,7 @@ class AssetsTransformer
 
         return $asset->assigned ? [
             'id' => $asset->assigned->id,
+            'route_key' => StableRouteKeys::keyOf($asset->assigned),
             'name' => e($asset->assigned->display_name),
             'type' => $asset->assignedType(),
         ] : null;
@@ -282,6 +286,7 @@ class AssetsTransformer
     {
         $array = [
             'id' => (int) $asset->id,
+            'route_key' => StableRouteKeys::keyOf($asset),
             'name' => e($asset->name),
             'asset_tag' => e($asset->asset_tag),
             'serial' => e($asset->serial),
@@ -330,6 +335,7 @@ class AssetsTransformer
     {
         $array = [
             'id' => (int) $asset->id,
+            'route_key' => StableRouteKeys::keyOf($asset),
             'image' => ($asset->getImageUrl()) ? $asset->getImageUrl() : null,
             'type' => 'asset',
             'name' => e($asset->display_name),

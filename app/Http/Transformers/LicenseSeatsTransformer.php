@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\License;
 use App\Models\LicenseSeat;
@@ -29,6 +30,7 @@ class LicenseSeatsTransformer
             'updated_at' => Helper::getFormattedDateObject($seat->updated_at, 'datetime'), // we use updated_at here because the record gets updated when it's checked in or out
             'assigned_user' => ($seat->user) ? [
                 'id' => (int) $seat->user->id,
+                'route_key' => StableRouteKeys::keyOf($seat->user),
                 'name' => e($seat->user->present()->fullName),
                 'email' => e($seat->user->email),
                 'department' => ($seat->user->department) ?
@@ -49,6 +51,7 @@ class LicenseSeatsTransformer
             ] : null,
             'assigned_asset' => ($seat->asset) ? [
                 'id' => (int) $seat->asset->id,
+                'route_key' => StableRouteKeys::keyOf($seat->asset),
                 'name' => e($seat->asset->present()->fullName),
                 'created_at' => Helper::getFormattedDateObject($seat->created_at, 'datetime'),
             ] : null,

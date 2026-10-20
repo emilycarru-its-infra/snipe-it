@@ -2,6 +2,7 @@
 
 namespace App\Http\Transformers;
 
+use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,6 +31,7 @@ class UsersTransformer
         }
         $array = [
             'id' => (int) $user->id,
+            'route_key' => StableRouteKeys::keyOf($user),
             'avatar' => e($user->present()->gravatar) ?? null,
             'name' => e($user->getFullNameAttribute()) ?? null,
             'first_name' => e($user->first_name) ?? null,
@@ -139,6 +141,7 @@ class UsersTransformer
 
         $array = [
             'id' => (int) $user->id,
+            'route_key' => StableRouteKeys::keyOf($user),
             'image' => e($user->present()->gravatar) ?? null,
             'type' => 'user',
             'name' => e($user->display_name),

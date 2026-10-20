@@ -13,7 +13,7 @@
         }
 
         window.requisitionsLinkFormatter = function (value, row) {
-            return '<a href="' + baseUrl + '/' + row.id + '">' + esc(value) + '</a>';
+            return '<a href="' + baseUrl + '/' + (row.route_key ? encodeURIComponent(row.route_key) : row.id) + '">' + esc(value) + '</a>';
         };
 
         window.requisitionsObjNameFormatter = function (value) {

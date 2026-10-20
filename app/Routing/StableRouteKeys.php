@@ -47,4 +47,17 @@ class StableRouteKeys
             }
         }
     }
+
+    /**
+     * The identifier a record's page uses, for list tables that build links in
+     * the browser. Null for records that only have an id, so the table keeps it.
+     */
+    public static function keyOf(mixed $model): ?string
+    {
+        if (! is_object($model) || ! in_array(HasStableRouteKey::class, class_uses_recursive($model), true)) {
+            return null;
+        }
+
+        return $model->route_key;
+    }
 }
