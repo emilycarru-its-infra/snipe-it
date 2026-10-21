@@ -44,12 +44,12 @@ trait HasStableRouteKey
         return (string) $this->getKey();
     }
 
-    public function resolveRouteBinding($value, $field = null)
+    public function resolveRouteBinding($value, $field = null): ?static
     {
         return $this->resolveStableRouteBinding($this->newQuery(), $value, $field);
     }
 
-    public function resolveSoftDeletableRouteBinding($value, $field = null)
+    public function resolveSoftDeletableRouteBinding($value, $field = null): ?static
     {
         $query = in_array(SoftDeletes::class, class_uses_recursive(static::class), true)
             ? $this->newQuery()->withTrashed()
@@ -58,7 +58,10 @@ trait HasStableRouteKey
         return $this->resolveStableRouteBinding($query, $value, $field);
     }
 
-    protected function resolveStableRouteBinding(Builder $query, $value, $field)
+    /**
+     * @param  Builder<static>  $query
+     */
+    protected function resolveStableRouteBinding(Builder $query, $value, $field): ?static
     {
         if ($field !== null && $field !== 'route_key') {
             return $query->where($field, $value)->first();
