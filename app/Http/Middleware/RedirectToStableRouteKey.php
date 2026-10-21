@@ -26,7 +26,9 @@ class RedirectToStableRouteKey
             return $next($request);
         }
 
-        foreach ($route->parameters() as $name => $value) {
+        $parameters = array_intersect_key($route->parameters(), array_flip($route->parameterNames()));
+
+        foreach ($parameters as $name => $value) {
             $canonical = match (true) {
                 $value instanceof PurchaseOrder => (string) ($value->po_number ?: $value->getKey()),
                 is_object($value) && $route->bindingFieldFor($name) === 'route_key'
@@ -36,7 +38,7 @@ class RedirectToStableRouteKey
 
             if ($canonical !== null && (string) $route->originalParameter($name) !== $canonical
                 && Gate::allows('view', $value)) {
-                $url = route($route->getName(), $route->parameters());
+                $url = route($route->getName(), $parameters);
                 $query = $request->getQueryString();
 
                 return redirect()->to($query ? $url.'?'.$query : $url, 302);

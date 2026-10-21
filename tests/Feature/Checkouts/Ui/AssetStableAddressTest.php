@@ -92,6 +92,15 @@ class AssetStableAddressTest extends TestCase
         Event::assertDispatched(CheckoutableCheckedIn::class);
     }
 
+    public function test_checkout_redirect_keeps_query_parameters_without_serializing_breadcrumbs(): void
+    {
+        $asset = $this->assetWithAddress('serial');
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->get('/hardware/'.$asset->id.'/checkout?tab=details')
+            ->assertRedirect(route('hardware.checkout.create', $asset).'?tab=details');
+    }
+
     public function test_ambiguous_identifiers_cannot_checkout_either_record(): void
     {
         $first = Asset::factory()->create(['serial' => 'TEST-CHECKOUT-COLLISION']);
