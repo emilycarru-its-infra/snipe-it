@@ -25,6 +25,7 @@ use App\Models\License;
 use App\Models\User;
 use App\Notifications\CurrentInventory;
 use App\Notifications\WelcomeNotification;
+use App\Services\AssetChangeNotifier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -585,8 +586,12 @@ class UsersController extends Controller
 
         if ($request->has('location_id')) {
             // Update the location of any assets checked out to this user
-            Asset::where('assigned_type', User::class)
-                ->where('assigned_to', $user->id)->update(['location_id' => $request->input('location_id', null)]);
+            $relocation = ['location_id' => $request->input('location_id', null)];
+            $cascade = Asset::where('assigned_type', User::class)
+                ->where('assigned_to', $user->id);
+            $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+            $cascade->update($relocation);
+            AssetChangeNotifier::announceMany($moved, 'user location', ['location_id']);
         }
 
         app('App\Http\Requests\ImageUploadRequest')->handleImages($user, 600, 'avatar', 'avatars', 'avatar');

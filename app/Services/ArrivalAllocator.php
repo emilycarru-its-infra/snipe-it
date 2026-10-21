@@ -212,6 +212,7 @@ class ArrivalAllocator
                     'order' => $arrival->order_number ?: '—',
                 ]));
             $waiting->saveQuietly();
+            AssetChangeNotifier::announce($waiting, 'updated', array_keys($waiting->getChanges()));
 
             // The CDW order's line item now points at the record that kept
             // the person's name and A-number, so the order page shows the

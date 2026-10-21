@@ -16,6 +16,7 @@ use App\Models\StaffBlackout;
 use App\Models\Statuslabel;
 use App\Models\StoreOrder;
 use App\Models\User;
+use App\Services\AssetChangeNotifier;
 use App\Services\Deployments\DecommissionLane;
 use App\Services\Deployments\DeploymentTimeline;
 use App\Services\Deployments\HistoricalFlow;
@@ -436,6 +437,7 @@ class DeploymentsController extends Controller
             'rtd_location_id' => (int) $request->input('location_id'),
             'location_id' => (int) $request->input('location_id'),
         ]);
+        AssetChangeNotifier::announceMany([$asset->id], 'storage move', ['rtd_location_id', 'location_id']);
 
         if ($request->expectsJson()) {
             return response()->json(['ok' => true]);
@@ -461,9 +463,11 @@ class DeploymentsController extends Controller
             'location_id' => 'required|integer|exists:locations,id',
         ]);
 
-        $count = Asset::query()
-            ->whereIn('id', $request->input('asset_ids'))
-            ->update(['location_id' => (int) $request->input('location_id')]);
+        $holding = Asset::query()->whereIn('id', $request->input('asset_ids'));
+        $values = ['location_id' => (int) $request->input('location_id')];
+        $moved = AssetChangeNotifier::idsChangedBy($holding, $values);
+        $count = $holding->update($values);
+        AssetChangeNotifier::announceMany($moved, 'holding location', ['location_id']);
 
         return redirect()->back()->with('success', trans('admin/deployments/general.holding_location_set', [
             'count' => $count,

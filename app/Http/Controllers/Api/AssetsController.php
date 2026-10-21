@@ -28,6 +28,7 @@ use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Observers\AssetObserver;
+use App\Services\AssetChangeNotifier;
 use App\View\Label;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -877,8 +878,11 @@ class AssetsController extends Controller
                 }
 
                 if ($request->filled('assigned_asset')) {
-                    Asset::where('assigned_type', Asset::class)->where('assigned_to', $asset->id)
-                        ->update(['location_id' => $target->location_id]);
+                    $relocation = ['location_id' => $target->location_id];
+                    $cascade = Asset::where('assigned_type', Asset::class)->where('assigned_to', $asset->id);
+                    $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+                    $cascade->update($relocation);
+                    AssetChangeNotifier::announceMany($moved, 'child asset location', ['location_id']);
                 }
             }
 
@@ -1194,9 +1198,12 @@ class AssetsController extends Controller
         if ($asset->save()) {
 
             // Update the location of any child assets
-            Asset::where('assigned_type', Asset::class)
-                ->where('assigned_to', $asset->id)
-                ->update(['location_id' => $asset->location_id]);
+            $relocation = ['location_id' => $asset->location_id];
+            $cascade = Asset::where('assigned_type', Asset::class)
+                ->where('assigned_to', $asset->id);
+            $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+            $cascade->update($relocation);
+            AssetChangeNotifier::announceMany($moved, 'child asset location', ['location_id']);
 
             event(new CheckoutableCheckedIn($asset, $target, auth()->user(), $request->input('note'), $checkin_at, $originalValues));
 
@@ -1363,6 +1370,7 @@ class AssetsController extends Controller
              */
             if ($asset->isValid() && $asset->save()) {
                 $asset->logAudit(request('note'), request('location_id'), null, $originalValues);
+                AssetChangeNotifier::announce($asset, 'audited', array_keys($asset->getChanges()));
 
                 return response()->json(Helper::formatStandardApiResponse('success', $payload, trans('admin/hardware/message.audit.success')));
             }
