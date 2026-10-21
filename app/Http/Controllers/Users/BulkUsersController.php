@@ -15,6 +15,7 @@ use App\Models\LicenseSeat;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\CurrentInventory;
+use App\Services\AssetChangeNotifier;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -230,9 +231,12 @@ class BulkUsersController extends Controller
             ->where('id', '!=', auth()->id())->update($this->update_array);
 
         if (array_key_exists('location_id', $this->update_array)) {
-            Asset::where('assigned_type', User::class)
-                ->whereIn('assigned_to', $user_raw_array)
-                ->update(['location_id' => $this->update_array['location_id']]);
+            $relocation = ['location_id' => $this->update_array['location_id']];
+            $cascade = Asset::where('assigned_type', User::class)
+                ->whereIn('assigned_to', $user_raw_array);
+            $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+            $cascade->update($relocation);
+            AssetChangeNotifier::announceMany($moved, 'user location', ['location_id']);
         }
 
         // Only sync groups if groups were selected
@@ -320,6 +324,7 @@ class BulkUsersController extends Controller
             'assigned_type' => null,
             'expected_checkin' => null,
         ]);
+        AssetChangeNotifier::announceMany($assets->pluck('id'), 'bulk user check-in', ['status_id', 'assigned_to', 'assigned_type']);
 
         LicenseSeat::whereIn('id', $licenses->pluck('id'))->update(['assigned_to' => null]);
         ConsumableAssignment::whereIn('id', $consumableUserRows->pluck('id'))->delete();

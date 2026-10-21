@@ -22,6 +22,7 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use App\Observers\AssetObserver;
 use App\Services\AssetBuyoutRequester;
+use App\Services\AssetChangeNotifier;
 use App\Services\CsiReconciliation;
 use App\Services\Transactions\PrinterUsageService;
 use App\View\Label;
@@ -1495,6 +1496,7 @@ class AssetsController extends Controller
             }
 
             $asset->logAudit($request->input('note'), $request->input('location_id'), $file_name, $originalValues);
+            AssetChangeNotifier::announce($asset, 'audited', array_keys($asset->getChanges()));
 
             return Helper::getRedirectOption($request, $asset->id, 'Assets')->with('success', trans('admin/hardware/message.audit.success'));
         }

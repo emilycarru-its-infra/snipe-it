@@ -13,6 +13,7 @@ use App\Models\Company;
 use App\Models\CustomField;
 use App\Models\Setting;
 use App\Models\Statuslabel;
+use App\Services\AssetChangeNotifier;
 use App\View\Label;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
@@ -716,6 +717,7 @@ class BulkAssetsController extends Controller
                         $asset::withoutEvents(function () use ($asset) {
                             $asset->save();
                         });
+                        AssetChangeNotifier::announce($asset, 'updated', ['location_id']);
                     }
 
                     if (! $checkout_success) {

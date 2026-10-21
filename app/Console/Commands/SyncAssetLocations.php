@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Asset;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\AssetChangeNotifier;
 use Illuminate\Console\Command;
 
 class SyncAssetLocations extends Command
@@ -43,6 +44,9 @@ class SyncAssetLocations extends Command
         $output['info'] = [];
         $output['warn'] = [];
         $output['error'] = [];
+        // Saves below run without model events, so the moves are announced
+        // together once the command has finished.
+        $relocated = [];
 
         $total_assets = Asset::whereNull('deleted_at')->get();
         $bar = $this->output->createProgressBar(count($total_assets));
@@ -54,6 +58,9 @@ class SyncAssetLocations extends Command
         foreach ($rtd_assets as $rtd_asset) {
             $output['info'][] = 'Setting Unassigned Asset '.$rtd_asset->id.' ('.$rtd_asset->asset_tag.') to  location: '.$rtd_asset->rtd_location_id.' because their default location is: '.$rtd_asset->rtd_location_id;
             $rtd_asset->location_id = $rtd_asset->rtd_location_id;
+            if ($rtd_asset->isDirty('location_id')) {
+                $relocated[] = $rtd_asset->id;
+            }
             $rtd_asset->unsetEventDispatcher();
             $rtd_asset->save();
             $bar->advance();
@@ -70,6 +77,9 @@ class SyncAssetLocations extends Command
                 $new_location = $assigned_user_asset->rtd_location_id;
             }
             $assigned_user_asset->location_id = $new_location;
+            if ($assigned_user_asset->isDirty('location_id')) {
+                $relocated[] = $assigned_user_asset->id;
+            }
             $assigned_user_asset->unsetEventDispatcher();
             $assigned_user_asset->save();
             $bar->advance();
@@ -83,6 +93,9 @@ class SyncAssetLocations extends Command
             if ($assigned_location_asset->assignedTo) {
                 $assigned_location_asset->location_id = $assigned_location_asset->assignedTo->id;
                 $output['info'][] = 'Setting Location Assigned  asset '.$assigned_location_asset->id.' ('.$assigned_location_asset->asset_tag.') that is checked out to '.$assigned_location_asset->assignedTo->name.' (#'.$assigned_location_asset->assignedTo->id.') to location: '.$assigned_location_asset->assetLoc()->id;
+                if ($assigned_location_asset->isDirty('location_id')) {
+                    $relocated[] = $assigned_location_asset->id;
+                }
                 $assigned_location_asset->unsetEventDispatcher();
                 $assigned_location_asset->save();
             } else {
@@ -102,6 +115,9 @@ class SyncAssetLocations extends Command
             if ($assigned_asset_asset->assetLoc()) {
                 $assigned_asset_asset->location_id = $assigned_asset_asset->assetLoc()->id;
                 $output['info'][] = 'Setting Asset Assigned asset '.$assigned_asset_asset->assetLoc()->id.' ('.$assigned_asset_asset->asset_tag.') location to: '.$assigned_asset_asset->assetLoc()->id;
+                if ($assigned_asset_asset->isDirty('location_id')) {
+                    $relocated[] = $assigned_asset_asset->id;
+                }
                 $assigned_asset_asset->unsetEventDispatcher();
                 $assigned_asset_asset->save();
             } else {
@@ -117,6 +133,8 @@ class SyncAssetLocations extends Command
             $output['warn'][] = 'Asset: '.$unlocated_asset->id.' still has no location. ';
             $bar->advance();
         }
+
+        AssetChangeNotifier::announceMany($relocated, 'location sync', ['location_id']);
 
         $bar->finish();
         $this->info("\n");

@@ -19,6 +19,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\CurrentInventory;
 use App\Notifications\WelcomeNotification;
+use App\Services\AssetChangeNotifier;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -299,9 +300,12 @@ class UsersController extends Controller
         $user->activated = $request->input('activated', auth()->user()->is($user) ? 1 : $user->activated);
 
         // Update the location of any assets checked out to this user
-        Asset::where('assigned_type', User::class)
-            ->where('assigned_to', $user->id)
-            ->update(['location_id' => $request->input('location_id', null)]);
+        $relocation = ['location_id' => $request->input('location_id', null)];
+        $cascade = Asset::where('assigned_type', User::class)
+            ->where('assigned_to', $user->id);
+        $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+        $cascade->update($relocation);
+        AssetChangeNotifier::announceMany($moved, 'user location', ['location_id']);
 
         // check for permissions related fields and only set them if the user has permission to edit them
         if (auth()->user()->can('canEditAuthFields', $user) && auth()->user()->can('editableOnDemo')) {
@@ -329,9 +333,12 @@ class UsersController extends Controller
         }
 
         // Update the location of any assets checked out to this user
-        Asset::where('assigned_type', User::class)
-            ->where('assigned_to', $user->id)
-            ->update(['location_id' => $user->location_id]);
+        $relocation = ['location_id' => $user->location_id];
+        $cascade = Asset::where('assigned_type', User::class)
+            ->where('assigned_to', $user->id);
+        $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+        $cascade->update($relocation);
+        AssetChangeNotifier::announceMany($moved, 'user location', ['location_id']);
 
         // Handle uploaded avatar
         app(ImageUploadRequest::class)->handleImages($user, 600, 'avatar', 'avatars', 'avatar');

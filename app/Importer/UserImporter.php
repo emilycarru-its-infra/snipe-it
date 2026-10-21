@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\WelcomeNotification;
+use App\Services\AssetChangeNotifier;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -117,9 +118,12 @@ class UserImporter extends ItemImporter
             $user->save();
 
             // Update the location of any assets checked out to this user
-            Asset::where('assigned_type', User::class)
-                ->where('assigned_to', $user->id)
-                ->update(['location_id' => $user->location_id]);
+            $relocation = ['location_id' => $user->location_id];
+            $cascade = Asset::where('assigned_type', User::class)
+                ->where('assigned_to', $user->id);
+            $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+            $cascade->update($relocation);
+            AssetChangeNotifier::announceMany($moved, 'user location', ['location_id']);
 
             // Log::debug('UserImporter.php Updated User ' . print_r($user, true));
             return;

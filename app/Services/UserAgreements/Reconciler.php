@@ -8,6 +8,7 @@ use App\Models\FormEligibility;
 use App\Models\Statuslabel;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\AssetChangeNotifier;
 use App\Services\Settings\Preferences;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -216,6 +217,7 @@ class Reconciler
 
         $asset->status_id = $target->id;
         $asset->saveQuietly();
+        AssetChangeNotifier::announce($asset, 'updated', ['status_id']);
         $report->statusFlipped++;
     }
 

@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\Location;
 use App\Models\SnipeModel;
 use App\Models\User;
+use App\Services\AssetChangeNotifier;
 
 trait CheckInOutTrait
 {
@@ -39,8 +40,11 @@ trait CheckInOutTrait
         switch (request('checkout_to_type')) {
             case 'location':
                 $asset->location_id = $target->id;
-                Asset::where('assigned_type', 'App\Models\Asset')->where('assigned_to', $asset->id)
-                    ->update(['location_id' => $asset->location_id]);
+                $relocation = ['location_id' => $asset->location_id];
+                $cascade = Asset::where('assigned_type', 'App\Models\Asset')->where('assigned_to', $asset->id);
+                $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+                $cascade->update($relocation);
+                AssetChangeNotifier::announceMany($moved, 'child asset location', ['location_id']);
                 break;
             case 'asset':
                 $asset->location_id = $target->rtd_location_id;

@@ -11,6 +11,7 @@ use App\Models\Asset;
 use App\Models\CheckoutAcceptance;
 use App\Models\LicenseSeat;
 use App\Models\Statuslabel;
+use App\Services\AssetChangeNotifier;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -185,9 +186,12 @@ class AssetCheckinController extends Controller
 
         if ($asset->save()) {
             // Update the location of any child assets
-            Asset::where('assigned_type', Asset::class)
-                ->where('assigned_to', $asset->id)
-                ->update(['location_id' => $asset->location_id]);
+            $relocation = ['location_id' => $asset->location_id];
+            $cascade = Asset::where('assigned_type', Asset::class)
+                ->where('assigned_to', $asset->id);
+            $moved = AssetChangeNotifier::idsChangedBy($cascade, $relocation);
+            $cascade->update($relocation);
+            AssetChangeNotifier::announceMany($moved, 'child asset location', ['location_id']);
 
             event(new CheckoutableCheckedIn($asset, $target, auth()->user(), $request->input('note'), $checkin_at, $originalValues));
 

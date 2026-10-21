@@ -277,6 +277,7 @@ class StoreOrderAssetProvisioner
 
         $outgoing->name = trim((string) $outgoing->name).' '.self::LEASE_END_SUFFIX;
         $outgoing->saveQuietly();
+        AssetChangeNotifier::announce($outgoing, 'updated', ['name']);
     }
 
     /**
