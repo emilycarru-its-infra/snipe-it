@@ -4,6 +4,8 @@ LABEL maintainer="Brady Wetherington <bwetherington@grokability.com>"
 ARG GIT_SHA=""
 ENV ECU_BUILD_SHA=$GIT_SHA
 
+ARG PHP_MIN_VERSION=8.3.6-0ubuntu0.24.04.13
+
 # No need to add `apt-get clean` here, reference:
 # - https://github.com/grokability/snipe-it/pull/9201
 # - https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#apt-get
@@ -47,6 +49,13 @@ php8.3-dev \
 ca-certificates \
 unzip \
 dnsutils \
+&& dpkg-query -W -f='${binary:Package}\t${source:Package}\t${Version}\n' \
+    | awk '$2 == "php8.3" {print $1, $3}' > /tmp/php-packages \
+&& test -s /tmp/php-packages \
+&& while read -r package version; do \
+    echo "$package $version (minimum $PHP_MIN_VERSION)"; \
+    dpkg --compare-versions "$version" ge "$PHP_MIN_VERSION" || exit 1; \
+   done < /tmp/php-packages \
 && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 
