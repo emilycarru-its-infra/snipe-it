@@ -71,7 +71,7 @@ class AssetCheckoutController extends Controller
 
         try {
             // Check if the asset exists
-            if (! $asset = Asset::find($assetId)) {
+            if (! $asset = (new Asset)->resolveRouteBinding($assetId)) {
                 return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.does_not_exist'));
             } elseif (! $asset->availableForCheckout()) {
                 return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.checkout.not_available'));

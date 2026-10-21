@@ -20,7 +20,7 @@
         <!-- left column -->
         <div class="col-md-7">
             <div class="box box-default">
-                <form class="form-horizontal" method="post" action="" autocomplete="off">
+                <form class="form-horizontal" method="post" action="{{ route('hardware.checkout.store', ['assetId' => $asset->id]) }}" autocomplete="off">
                     <div class="box-header with-border">
                         <h2 class="box-title"> {{ trans('admin/hardware/form.tag') }} {{ $asset->asset_tag }}</h2>
                     </div>
