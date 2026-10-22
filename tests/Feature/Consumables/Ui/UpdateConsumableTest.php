@@ -342,7 +342,7 @@ class UpdateConsumableTest extends TestCase
     public function test_restock_orders_lists_noncancelled_orders()
     {
         $open = Order::factory()->create(['status' => 'ordered']);
-        $cancelled = Order::factory()->create(['status' => 'cancelled']);
+        $cancelled = Order::factory()->cancelled()->create();
         $consumable = Consumable::factory()->create();
 
         $resp = $this->actingAs(User::factory()->editConsumables()->create())
