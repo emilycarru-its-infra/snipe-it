@@ -280,6 +280,7 @@ return [
     'capital_col_type' => 'Type',
     'capital_col_ending_contract' => 'Ending Contract',
     'capital_col_wave' => 'Wave',
+    'capital_wave_share' => ':count of :qty on',
     'capital_col_reqm' => 'REQM',
     'capital_col_po' => 'PO',
     'capital_group_lines' => 'lines',
