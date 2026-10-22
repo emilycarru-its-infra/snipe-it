@@ -164,7 +164,7 @@
 
     @if (Gate::allows('view', \App\Models\Contract::class) || Gate::allows('view', \App\Models\License::class))
         @if (\App\Helpers\ToolbarConfig::visible('contracts'))
-    <li style="order: {{ \App\Helpers\ToolbarConfig::order('contracts') }}" class="dropdown topnav-item topnav-contracts{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? ' active' : '') !!}">
+    <li style="order: {{ \App\Helpers\ToolbarConfig::order('contracts') }}" class="dropdown topnav-item topnav-contracts{!! ((request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*') || request()->is('admin/product-identities*')) ? ' active' : '') !!}">
             <a href="{{ route('contracts.index') }}" {{ $snipeSettings->shortcuts_enabled == 1 ? 'accesskey=2' : '' }}>
                 <x-icon type="contracts" class="fa-fw" />
                 <span class="topbar-nav-label">{{ trans('admin/contracts/general.contracts') }}</span>
@@ -180,6 +180,11 @@
                 @can('view', \App\Models\LicenseModel::class)
                     <li{!! (request()->is('admin/license-models*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('license-models.index') }}">{{ trans('admin/licensemodels/general.sidebar_label') }}</a>
+                    </li>
+                @endcan
+                @can('view', \App\Models\ProductIdentity::class)
+                    <li{!! (request()->is('admin/product-identities*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('product-identities.index') }}">{{ trans('admin/productidentities/general.sidebar_label') }}</a>
                     </li>
                 @endcan
             </ul>
