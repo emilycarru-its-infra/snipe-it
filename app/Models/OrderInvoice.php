@@ -118,6 +118,25 @@ class OrderInvoice extends Model
     }
 
     /**
+     * Leave out invoices that are lease-financed rather than bought.
+     *
+     * A lessor pays the vendor for leased equipment and bills the institution
+     * rent, so no purchase order of ours stands behind those invoices and none
+     * ever will. Two signals mark one: a lease contract reference on the
+     * invoice, or GST charged with no PST, which is how PST-exempt lease
+     * billing arrives. Counting them as "unmatched" left the dashboard figure
+     * permanently red for invoices nobody could ever attach to a PO.
+     */
+    public function scopeExcludingLeaseFinanced($query)
+    {
+        return $query
+            ->where(fn ($q) => $q->whereNull('contract_reference')->orWhere('contract_reference', ''))
+            ->whereNot(fn ($q) => $q
+                ->whereRaw('COALESCE(tax_gst, 0) > 0')
+                ->whereRaw('COALESCE(tax_pst, 0) = 0'));
+    }
+
+    /**
      * The [start, end] bounds of a fiscal year; see App\Services\FiscalYear.
      *
      * @return array{0: Carbon, 1: Carbon}|null

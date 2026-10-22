@@ -7,6 +7,8 @@ use App\Models\Asset;
 use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\License;
+use App\Models\OrderInvoice;
+use App\Models\PurchaseOrder;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -64,5 +66,25 @@ class DashboardTest extends TestCase
 
                 return true;
             });
+    }
+
+    public function test_unmatched_invoices_leave_out_lease_financed_invoices()
+    {
+        // Counted: bought outright, fully taxed, no PO yet.
+        OrderInvoice::factory()->create(['purchase_order_id' => null]);
+        OrderInvoice::factory()->create(['purchase_order_id' => null, 'tax_pst' => null, 'tax_gst' => null]);
+
+        // Not counted: already charged to a purchase order.
+        OrderInvoice::factory()->create(['purchase_order_id' => PurchaseOrder::factory()->create()->id]);
+
+        // Not counted: lease-financed, by contract reference or GST-only billing.
+        OrderInvoice::factory()->create(['purchase_order_id' => null, 'contract_reference' => 'LEASE-001']);
+        OrderInvoice::factory()->create(['purchase_order_id' => null, 'tax_gst' => 50, 'tax_pst' => 0]);
+        OrderInvoice::factory()->create(['purchase_order_id' => null, 'tax_gst' => 50, 'tax_pst' => null]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('home'))
+            ->assertViewIs('dashboard')
+            ->assertViewHas('procurement', fn ($value) => $value['unmatched_invoices'] === 2);
     }
 }
