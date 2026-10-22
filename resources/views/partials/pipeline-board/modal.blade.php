@@ -16,6 +16,10 @@
 </div>
 
 <script nonce="{{ csrf_token() }}">
+// This partial renders inside the page content, before the layout loads
+// jQuery at the foot of the body, so wait for the document before wiring
+// the lightbox to Bootstrap's modal.
+document.addEventListener('DOMContentLoaded', function () {
     // Board filter: hide cards whose text doesn't match; columns keep
     // their headers so the stage rail stays readable while filtering.
     (function () {
@@ -152,5 +156,6 @@
             }
         });
     })();
+});
 </script>
 
