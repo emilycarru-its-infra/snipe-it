@@ -11,6 +11,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
+use App\Services\FiscalYear;
 use App\Services\RequisitionBasket;
 use App\Services\RequisitionPromotion;
 use App\Services\Settings\Preferences;
@@ -83,7 +84,7 @@ class RequisitionsController extends Controller
                     'cost_center', 'budget', 'order_date', 'notes', 'document', 'document_notes'],
                 'update' => ['requisition_number', 'status', 'notes', 'internal_comments',
                     'printer_comments', 'quote_number', 'quote_total', 'quote_expires_at',
-                    'funding_account', 'lease_schedule'],
+                    'funding_account', 'lease_schedule', 'capital_request_fy'],
             ],
             'rules' => RequisitionBasket::rules(),
         ], null));
@@ -245,7 +246,26 @@ class RequisitionsController extends Controller
             'quote_expires_at' => 'sometimes|nullable|date',
             'funding_account' => 'sometimes|nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'sometimes|nullable|string|max:191',
+            // The capital lineage: stamping a requisition with a fiscal year
+            // makes it that year's capital request paper, which is how the
+            // capital page reads it back. Null unstamps it.
+            'capital_request_fy' => 'sometimes|nullable|string|max:16',
         ]);
+
+        if ($request->has('capital_request_fy')) {
+            $capitalFy = $validated['capital_request_fy'] ?? null;
+            $normalized = FiscalYear::normalize($capitalFy);
+
+            if ($capitalFy !== null && trim($capitalFy) !== '' && $normalized === null) {
+                return response()->json(Helper::formatStandardApiResponse(
+                    'error',
+                    null,
+                    ['capital_request_fy' => [trans('validation.regex', ['attribute' => 'capital_request_fy'])]]
+                ), 422);
+            }
+
+            $requisition->capital_request_fy = $normalized;
+        }
 
         $hadRequisitionNumber = (bool) $requisition->requisition_number;
 

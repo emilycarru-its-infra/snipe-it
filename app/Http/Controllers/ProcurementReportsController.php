@@ -1918,16 +1918,10 @@ class ProcurementReportsController extends Controller
     {
         $this->authorize('create', Requisition::class);
 
-        $validated = $request->validate([
-            'fiscal_year' => 'required|string|max:16',
-            'area' => 'nullable|string|max:191',
-            'need' => 'required|string|max:191',
-            'type' => 'nullable|string|max:191',
-            'description' => 'required|string|max:191',
-            'quantity' => 'required|integer|min:1',
-            'unit_cost' => 'required|numeric|min:0',
-            'preference' => 'nullable|string|max:191',
-        ]);
+        $validated = $request->validate(CapitalRequestLine::rules());
+        if (($validated['sort_order'] ?? null) === null) {
+            unset($validated['sort_order']);
+        }
 
         $validated['fiscal_year'] = $this->normalizeFy($validated['fiscal_year']) ?? $validated['fiscal_year'];
         CapitalRequestLine::create($validated);
@@ -1963,6 +1957,112 @@ class ProcurementReportsController extends Controller
             'envelope' => (float) $data['envelope'],
             'requested' => (float) $data['refreshTotal'] + (float) $data['newAskTotal'],
             'remaining' => (float) $data['remaining'],
+        ];
+    }
+
+    /**
+     * The whole capital request as data — envelope, the schedules behind
+     * it, every line, and the paper it became — computed by the same
+     * capitalRequestData() the page renders, so an agent reading the API
+     * and a person reading the page see one answer and nobody reimplements
+     * the math.
+     *
+     * @return array<string, mixed>
+     */
+    public function capitalRequestPayload(?string $fy): array
+    {
+        $data = $this->capitalRequestData($fy);
+        $money = fn ($value) => round((float) $value, 2);
+
+        return [
+            'fiscal_year' => $data['fy'],
+            'envelope' => $money($data['envelope']),
+            'requested' => $money($data['refreshTotal'] + $data['newAskTotal']),
+            'remaining' => $money($data['remaining']),
+            'refresh_total' => $money($data['refreshTotal']),
+            'refresh_devices' => (int) $data['refreshDevices'],
+            'new_ask_total' => $money($data['newAskTotal']),
+            'requisition_backed' => (bool) $data['requisitionBacked'],
+            'ending_schedules' => $data['endingSchedules']->map(fn (array $schedule) => [
+                'contract_id' => $schedule['contract_id'],
+                'provider' => $schedule['provider'],
+                'lease_end_date' => $schedule['lease_end_date'],
+                'cost' => $money($schedule['cost']),
+                'devices' => (int) $schedule['count'],
+                'is_lease_to_own' => (bool) $schedule['is_lease_to_own'],
+                'refresh_planned' => (bool) $schedule['refresh_planned'],
+                'decision' => $schedule['decision'] ? [
+                    'id' => (int) $schedule['decision']->id,
+                    'decision_type' => $schedule['decision']->decision_type,
+                    'status' => $schedule['decision']->status,
+                ] : null,
+            ])->values()->all(),
+            'refresh' => $data['refresh']->map(fn (array $row) => [
+                'contract_id' => $row['contract_id'],
+                'area' => $row['area'],
+                'preference' => $row['preference'],
+                'type' => $row['type'],
+                'model' => $row['model'],
+                'quantity' => (int) $row['qty'],
+                'unit_cost' => $money($row['unit']),
+                'cost' => $money($row['cost']),
+                'estimated' => (bool) $row['estimated'],
+                'catalog_item_id' => $row['catalog_item_id'] ? (int) $row['catalog_item_id'] : null,
+                'waves' => collect($row['waves'])->map(fn ($name, $id) => ['id' => (int) $id, 'name' => $name])->values()->all(),
+                'requisition_id' => $row['requisition_id'] ? (int) $row['requisition_id'] : null,
+                'reqm' => $row['reqm'],
+                'po' => $row['po'],
+            ])->values()->all(),
+            'new_asks' => $data['newAskLines']->map(fn (CapitalRequestLine $line) => array_merge(
+                $this->capitalRequestLineArray($line),
+                [
+                    'requisition_id' => $data['newAskPaper'][$line->id]['requisition_id'] ?? null,
+                    'reqm' => $data['newAskPaper'][$line->id]['reqm'] ?? null,
+                    'po' => $data['newAskPaper'][$line->id]['po'] ?? null,
+                ]
+            ))->values()->all(),
+            'requisitions' => $data['capitalRequisitions']->map(fn (Requisition $req) => [
+                'id' => (int) $req->id,
+                'title' => $req->title,
+                'requisition_number' => $req->requisition_number,
+                'status' => $req->status,
+                'purchase_order' => $req->purchaseOrder?->po_number,
+            ])->values()->all(),
+            'purchase_orders' => $data['purchaseOrders']->map(fn (PurchaseOrder $po) => [
+                'id' => (int) $po->id,
+                'po_number' => $po->po_number,
+                'title' => $po->title,
+                'budget' => $po->budget !== null ? $money($po->budget) : null,
+            ])->values()->all(),
+            'open_requisitions' => $data['openRequisitions']->map(fn (Requisition $req) => [
+                'id' => (int) $req->id,
+                'title' => $req->title,
+                'requisition_number' => $req->requisition_number,
+                'status' => $req->status,
+                'total' => $money($req->total()),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * One New Ask line as the API returns it.
+     *
+     * @return array<string, mixed>
+     */
+    public function capitalRequestLineArray(CapitalRequestLine $line): array
+    {
+        return [
+            'id' => (int) $line->id,
+            'fiscal_year' => $line->fiscal_year,
+            'area' => $line->area,
+            'need' => $line->need,
+            'type' => $line->type,
+            'description' => $line->description,
+            'quantity' => (int) $line->quantity,
+            'unit_cost' => round((float) $line->unit_cost, 2),
+            'line_total' => round($line->lineTotal(), 2),
+            'preference' => $line->preference,
+            'sort_order' => (int) $line->sort_order,
         ];
     }
 
