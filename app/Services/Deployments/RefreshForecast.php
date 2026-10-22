@@ -3,6 +3,7 @@
 namespace App\Services\Deployments;
 
 use App\Models\Asset;
+use App\Models\CatalogItem;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\CustomField;
@@ -33,9 +34,25 @@ use Illuminate\Support\Facades\Schema;
  * Devices on a "funded replacement" status (the status.funded_replacement
  * preference) are a funded decision, not a prediction: they join the current
  * fiscal year's forecast regardless of their dates.
+ *
+ * Each candidate is priced at its comparable current model's catalog price.
+ * The loaded price lists only reach so far forward; a year past the last one
+ * is priced by carrying the catalog price forward at the annual inflation
+ * assumption (the deployments.forecast_annual_inflation preference), and the
+ * row says so, so an assumed number never reads as a quoted one.
  */
 class RefreshForecast
 {
+    /** Estimate bases a candidate can carry: quoted list, list plus assumption, the old purchase price. */
+    public const BASIS_CATALOG = 'catalog';
+
+    public const BASIS_ASSUMED = 'assumed';
+
+    public const BASIS_ORIGINAL = 'original';
+
+    /** The priced-through FY, worked out once per instance. */
+    private ?string $pricedThrough = null;
+
     /**
      * Canonicalize a fiscal-year string to `FY2025-26`, or null for an
      * empty / "all" / unparseable input.
@@ -74,6 +91,102 @@ class RefreshForecast
     public static function leaseEndColumn(): ?string
     {
         return Schema::hasColumn('assets', 'lease_end_date') ? 'lease_end_date' : null;
+    }
+
+    /**
+     * The last fiscal year the loaded price lists cover. A pinned
+     * deployments.forecast_priced_through_fy wins; otherwise it is the
+     * latest year any active catalog row was quoted in or runs until, and
+     * with no dated rows at all, the current fiscal year.
+     */
+    public static function pricedThroughFy(): string
+    {
+        $pinned = FiscalYear::normalize(Preferences::get('deployments.forecast_priced_through_fy'));
+        if ($pinned !== null) {
+            return $pinned;
+        }
+
+        $active = CatalogItem::query()->active();
+
+        $labels = array_filter([
+            FiscalYear::fromDateString($active->clone()->max('quoted_at')),
+            FiscalYear::fromDateString($active->clone()->max('expires_at')),
+        ]);
+
+        return $labels === [] ? FiscalYear::current() : max($labels);
+    }
+
+    /** Whole fiscal years $fy lies past the price lists; 0 inside them or for no FY. */
+    public static function yearsPastPriceList(?string $fy, ?string $pricedThrough = null): int
+    {
+        $target = FiscalYear::startYearOf($fy);
+        if ($target === null) {
+            return 0;
+        }
+
+        $through = FiscalYear::startYearOf($pricedThrough ?? self::pricedThroughFy());
+
+        return $through === null ? 0 : max(0, $target - $through);
+    }
+
+    /** The multiplier the inflation assumption puts on a catalog price for $fy. */
+    public static function inflationFactor(?string $fy, ?string $pricedThrough = null): float
+    {
+        $years = self::yearsPastPriceList($fy, $pricedThrough);
+        $rate = (float) Preferences::get('deployments.forecast_annual_inflation');
+
+        return $years === 0 ? 1.0 : (1 + $rate) ** $years;
+    }
+
+    /** A fractional rate as a reader sees it: 0.03 as "3%", 0.025 as "2.5%". */
+    public static function formatRate(float $rate): string
+    {
+        return rtrim(rtrim(number_format($rate * 100, 2, '.', ''), '0'), '.').'%';
+    }
+
+    /**
+     * The price assumption a fiscal year's forecast is read under, for a
+     * page or API client to state beside the numbers.
+     *
+     * @return array{priced_through_fy: string, annual_inflation: float, years_assumed: int, factor: float}
+     */
+    public function priceAssumption(?string $fy): array
+    {
+        $through = $this->pricedThrough ??= self::pricedThroughFy();
+
+        return [
+            'priced_through_fy' => $through,
+            'annual_inflation' => (float) Preferences::get('deployments.forecast_annual_inflation'),
+            'years_assumed' => self::yearsPastPriceList($fy, $through),
+            'factor' => round(self::inflationFactor($fy, $through), 6),
+        ];
+    }
+
+    /**
+     * Stamp a candidate with what replacing it in $fy is expected to cost:
+     * replacement_estimate, estimate_basis (one of the BASIS_ constants) and
+     * estimate_years_assumed. Only a catalog price is carried forward; the
+     * old purchase price of an unmapped model is already a stand-in and is
+     * left as it is.
+     */
+    private function priceCandidate(Asset $asset, ?string $fy): void
+    {
+        $catalog = $asset->model?->refreshCatalogItem;
+
+        if ($catalog === null) {
+            $asset->replacement_estimate = (float) ($asset->purchase_cost ?? 0);
+            $asset->estimate_basis = self::BASIS_ORIGINAL;
+            $asset->estimate_years_assumed = 0;
+
+            return;
+        }
+
+        $through = $this->pricedThrough ??= self::pricedThroughFy();
+        $years = self::yearsPastPriceList($fy, $through);
+
+        $asset->replacement_estimate = round($catalog->effectiveCost() * self::inflationFactor($fy, $through), 2);
+        $asset->estimate_basis = $years > 0 ? self::BASIS_ASSUMED : self::BASIS_CATALOG;
+        $asset->estimate_years_assumed = $years;
     }
 
     /**
@@ -288,7 +401,7 @@ class RefreshForecast
         $decisionByAsset = $decisions->whereNotNull('asset_id')->keyBy('asset_id');
         $decisionByContract = $decisions->whereNull('asset_id')->keyBy('contract_reference');
 
-        return $assets->map(function (Asset $asset) use ($start, $end, $leaseCol, $startStr, $endStr, $decisionByAsset, $decisionByContract) {
+        return $assets->map(function (Asset $asset) use ($fy, $start, $end, $leaseCol, $startStr, $endStr, $decisionByAsset, $decisionByContract) {
             $eolIn = false;
             if ($asset->asset_eol_date) {
                 $eol = Carbon::parse($asset->asset_eol_date);
@@ -327,6 +440,8 @@ class RefreshForecast
                 ? trim(ucfirst((string) ($decision->decision_type ?: 'decision')).' — '.($decision->status ?: 'pending'))
                 : null;
             $asset->lease_decision_note = $decision?->notes;
+
+            $this->priceCandidate($asset, $fy);
 
             return $asset;
         })->each(function (Asset $asset) use ($deferrals, $fy) {
@@ -372,6 +487,9 @@ class RefreshForecast
                     : (string) ($asset->lease_end_date ?? '');
                 $asset->lease_decision_label = null;
                 $asset->lease_decision_note = null;
+
+                // An early renewal happens now, at today's list prices.
+                $this->priceCandidate($asset, null);
 
                 return $asset;
             });
