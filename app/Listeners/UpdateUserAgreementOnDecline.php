@@ -16,7 +16,7 @@ class UpdateUserAgreementOnDecline
     public function handle(CheckoutDeclined $event): void
     {
         $acceptance = $event->acceptance;
-        if (! $acceptance || ! $acceptance->id) {
+        if (! $acceptance->id) {
             return;
         }
 
