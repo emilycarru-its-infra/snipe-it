@@ -311,6 +311,25 @@ class AcceptanceController extends Controller
         }
 
         if ($isSignInPlaceAdminFlow) {
+            // Another request waiting on the same item for the same person (a pickup's
+            // upgrade) opens next, so both are signed in one visit.
+            $next = $request->input('asset_acceptance') === 'accepted'
+                ? CheckoutAcceptance::where('checkoutable_type', $acceptance->checkoutable_type)
+                    ->where('checkoutable_id', $acceptance->checkoutable_id)
+                    ->where('assigned_to_id', $acceptance->assigned_to_id)
+                    ->where('id', '!=', $acceptance->id)
+                    ->pending()
+                    ->oldest('id')
+                    ->first()
+                : null;
+
+            if ($next) {
+                session(['sign_in_place_acceptance_id' => $next->id]);
+
+                return redirect()->route('account.accept.item', $next->id)
+                    ->with('success', $return_msg);
+            }
+
             $request->request->add(['assigned_user' => $assignedUser?->id]);
 
             $redirect = Helper::getRedirectOption(

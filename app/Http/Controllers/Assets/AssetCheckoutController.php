@@ -144,7 +144,8 @@ class AssetCheckoutController extends Controller
                         ->where('checkoutable_id', $asset->id)
                         ->where('assigned_to_id', $target->id)
                         ->pending()
-                        ->latest()
+                        // Oldest first: a pickup and its upgrade are signed in the order they were sent.
+                        ->oldest('id')
                         ->first();
 
                     // If requireAcceptance() is false the listener won't have created one; create it now.

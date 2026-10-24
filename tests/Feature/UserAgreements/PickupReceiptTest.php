@@ -196,6 +196,46 @@ class PickupReceiptTest extends TestCase
         Mail::assertSent(\App\Mail\UserAgreementSignatureRequestMail::class, 2);
     }
 
+    public function test_signing_in_place_opens_the_pickup_then_the_upgrade(): void
+    {
+        $user = $this->facultyUser();
+        $this->application($user, $this->oldLaptop($user), 'payroll_deduction');
+        $active = $this->activeStatus();
+        $new = Asset::factory()->create([
+            'model_id' => $this->programModel()->id,
+            'status_id' => Statuslabel::factory()->rtd()->create()->id,
+            'purchase_cost' => 4000.00,
+        ]);
+        $admin = User::factory()->admin()->create();
+
+        $checkout = $this->actingAs($admin)
+            ->post(route('hardware.checkout.store', $new), [
+                'checkout_to_type' => 'user',
+                'assigned_user' => $user->id,
+                'status_id' => $active->id,
+                'redirect_option' => 'target',
+                'sign_in_place' => 1,
+            ]);
+
+        $sent = UserAgreement::where('asset_id', $new->id)->get()->keyBy('agreement_type');
+        $pickup = $sent['pickup']->checkout_acceptance_id;
+        $upgrade = $sent['upgrade']->checkout_acceptance_id;
+        $this->assertNotNull($pickup);
+        $this->assertNotNull($upgrade);
+
+        $checkout->assertRedirect(route('account.accept.item', $pickup));
+
+        $this->post(route('account.store-acceptance', $pickup), ['asset_acceptance' => 'accepted'])
+            ->assertRedirect(route('account.accept.item', $upgrade));
+        $this->assertSame((int) $upgrade, (int) session('sign_in_place_acceptance_id'));
+
+        $this->post(route('account.store-acceptance', $upgrade), ['asset_acceptance' => 'accepted'])
+            ->assertRedirect(route('users.show', $user));
+
+        $this->assertNotNull(CheckoutAcceptance::find($pickup)->accepted_at);
+        $this->assertNotNull(CheckoutAcceptance::find($upgrade)->accepted_at);
+    }
+
     public function test_setting_active_after_checkout_is_what_sends(): void
     {
         $user = $this->facultyUser();
