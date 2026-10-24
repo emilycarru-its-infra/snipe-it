@@ -167,31 +167,36 @@ class FacultyProgramFormTest extends TestCase
         $this->assertSame(['cancelled', 'quoted'], $purchases->pluck('lifecycle_stage')->sort()->values()->all());
     }
 
-    public function test_editing_regenerates_a_prerendered_pdf(): void
+    public function test_editing_regenerates_the_buyout_pdf_and_never_renders_the_application(): void
     {
         $user = $this->facultyUser();
 
         // The PDF renderer needs an asset on the agreement, so this
-        // faculty member has a machine and keeps it out of the buyout.
+        // faculty member has a machine, which they choose to buy out.
         $category = Category::factory()->create(['name' => 'Laptop']);
         $model = AssetModel::factory()->create(['category_id' => $category->id]);
         Asset::factory()->create([
             'model_id' => $model->id, 'assigned_to' => $user->id,
-            'assigned_type' => User::class, 'asset_tag' => 'A00PDF',
+            'assigned_type' => User::class, 'asset_tag' => 'T00PDF',
         ]);
 
         $payload = [
             'acknowledge_top_up' => '1',
             'payment_method' => 'pay_in_full',
-            'buyout_decision' => 'no',
+            'buyout_decision' => 'yes',
+            'buyout_asset_tag' => 'T00PDF',
             'accept_terms' => '1',
         ];
         $this->actingAs($user)->post(route('forms.submit', 'faculty-program'), $payload);
 
-        $pickup = UserAgreement::where('user_id', $user->id)->first();
-        $path = $pickup->storeUnsignedPdf();
-        $this->assertNotNull($path);
-        $before = $pickup->fresh()->pdf_generated_at;
+        $pickup = UserAgreement::where('user_id', $user->id)->where('agreement_type', 'pickup')->first();
+        $buyout = UserAgreement::where('user_id', $user->id)->where('agreement_type', 'purchase')->first();
+
+        // The application names the laptop being handed back, so it is a
+        // record, not a receipt: no PDF is rendered for it.
+        $this->assertNull($pickup->pdf_path);
+        $this->assertNotNull($buyout->pdf_path);
+        $before = $buyout->fresh()->pdf_generated_at;
 
         $this->travel(1)->minutes();
 
@@ -199,8 +204,9 @@ class FacultyProgramFormTest extends TestCase
             'payment_method' => 'payroll_deduction',
         ]));
 
-        $after = $pickup->fresh()->pdf_generated_at;
-        $this->assertTrue($after->gt($before), 'expected the unsigned PDF to be re-rendered after the edit');
+        $after = $buyout->fresh()->pdf_generated_at;
+        $this->assertTrue($after->gt($before), 'expected the buyout PDF to be re-rendered after the edit');
+        $this->assertNull($pickup->fresh()->pdf_path);
     }
 
     public function test_processing_applications_can_no_longer_be_edited(): void

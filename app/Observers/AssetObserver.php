@@ -171,8 +171,20 @@ class AssetObserver
             $this->notifyStoreOrderProgress($asset);
         }
 
-        if ($this->wasJustCheckedOutToUser($asset)) {
+        $justCheckedOut = $this->wasJustCheckedOutToUser($asset);
+
+        if ($justCheckedOut) {
             $this->autoCreatePickupOnCheckout($asset);
+        }
+
+        // Handover: the checkout or the status change that completes it,
+        // whichever comes last, sends the pickup and any upgrade to sign.
+        if ($justCheckedOut || $asset->wasChanged('status_id')) {
+            try {
+                app(PickupUpgradeAutoCreator::class)->sendOnHandover($asset);
+            } catch (\Throwable $e) {
+                Log::error('agreement handover send failed', ['asset_id' => $asset->id, 'exception' => $e]);
+            }
         }
 
         $this->announceChange($asset, 'updated', array_keys($asset->getChanges()));

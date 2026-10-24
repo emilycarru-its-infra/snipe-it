@@ -63,7 +63,7 @@
                         </button>
                     </form>
                 @endif
-                @if (! $agreement->checkout_acceptance_id && $agreement->asset_id && $agreement->user_id)
+                @if ($agreement->canBeSent())
                     <form method="POST" action="{{ route('user-agreements.send-for-signature', $agreement) }}" class="pull-right" style="display:inline-block;">
                         {{ csrf_field() }}
                         <button type="submit" class="btn btn-primary">

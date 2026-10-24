@@ -64,7 +64,18 @@ class PickupUpgradeAutoCreator
             return $none;
         }
 
-        if (! $this->hasOtherAssetNearingLeaseEnd($user, $newAsset)) {
+        // A form application is the strongest signal there is: they asked
+        // for this laptop. The lease window is only the fallback for people
+        // who never applied, and on its own it missed a whole refresh wave
+        // whose old leases end later than the window looks.
+        $application = UserAgreement::query()
+            ->applications()
+            ->where('user_id', $user->id)
+            ->where(fn ($q) => $q->whereNull('asset_id')->orWhere('asset_id', '!=', $newAsset->id))
+            ->latest('terms_accepted_at')
+            ->first();
+
+        if (! $application && ! $this->hasOtherAssetNearingLeaseEnd($user, $newAsset)) {
             return $none;
         }
 
@@ -72,10 +83,22 @@ class PickupUpgradeAutoCreator
         $device = $this->costs->deviceCost($newAsset) ?? 0.0;
         $topUp = $this->costs->topUpAmount($newAsset, $device, $base) ?? 0.0;
 
-        $pickup = $this->ensurePickup($user, $newAsset, $base, $device);
+        $pickup = $this->ensurePickup($user, $newAsset, $base, $device, $application);
         $upgrade = $topUp > 0
-            ? $this->ensureUpgrade($user, $newAsset, $base, $device, $topUp)
+            ? $this->ensureUpgrade($user, $newAsset, $base, $device, $topUp, $application)
             : null;
+
+        // Rendered now so the signature email carries the document. Waiting
+        // for the nightly pre-render sent the first emails without it.
+        foreach ([$pickup, $upgrade] as $agreement) {
+            if ($agreement && ! $agreement->pdf_path) {
+                try {
+                    $agreement->storeUnsignedPdf();
+                } catch (\Throwable $e) {
+                    Log::warning('pickup/upgrade PDF render failed for agreement '.$agreement->id.': '.$e->getMessage());
+                }
+            }
+        }
 
         Log::info('pickup/upgrade auto-create complete', [
             'user_id' => $user->id,
@@ -88,6 +111,68 @@ class PickupUpgradeAutoCreator
         ]);
 
         return ['pickup' => $pickup, 'upgrade' => $upgrade];
+    }
+
+    /**
+     * Send the pickup and any upgrade for signature once the laptop is in
+     * its person's hands: checked out to them, in an Agreement handover
+     * status, recently. Rows already sent, cancelled or the form's own
+     * application are left alone, and each send is idempotent.
+     *
+     * @return array<int, UserAgreement> the agreements sent
+     */
+    public function sendOnHandover(Asset $asset): array
+    {
+        if (! (bool) Preferences::get('forms.pickup_auto_create.send_on_handover')) {
+            return [];
+        }
+
+        $userId = $this->resolveUserId($asset);
+        if (! $userId || ! UserAgreement::programCovers($asset)) {
+            return [];
+        }
+
+        // Read fresh: a relation loaded before this save names the old status.
+        $status = \App\Models\Statuslabel::find($asset->status_id);
+        if (! Preferences::statusMatches('status.agreement_handover', $status?->name)) {
+            return [];
+        }
+
+        $days = (int) Preferences::get('forms.pickup_auto_create.send_within_days');
+        $checkedOut = $asset->last_checkout ? Carbon::parse($asset->last_checkout) : null;
+        if (! $checkedOut || $checkedOut->lt(Carbon::now()->subDays($days))) {
+            return [];
+        }
+
+        $sent = [];
+        $agreements = UserAgreement::query()
+            ->where('user_id', $userId)
+            ->where('asset_id', $asset->id)
+            ->whereIn('agreement_type', ['pickup', 'upgrade'])
+            ->whereIn('lifecycle_stage', ['eligible', 'quoted'])
+            ->get();
+
+        foreach ($agreements as $agreement) {
+            if (! $agreement->canBeSent()) {
+                continue;
+            }
+            if (! $agreement->pdf_path) {
+                $agreement->storeUnsignedPdf();
+            }
+            if ($agreement->sendForSignature()) {
+                $sent[] = $agreement;
+            }
+        }
+
+        if ($sent) {
+            Log::info('agreements sent at handover', [
+                'asset_id' => $asset->id,
+                'user_id' => $userId,
+                'agreement_ids' => array_map(fn ($a) => $a->id, $sent),
+            ]);
+        }
+
+        return $sent;
     }
 
     private function resolveUserId(Asset $asset): ?int
@@ -146,7 +231,7 @@ class PickupUpgradeAutoCreator
             ->exists();
     }
 
-    private function ensurePickup(User $user, Asset $asset, float $base, float $device): UserAgreement
+    private function ensurePickup(User $user, Asset $asset, float $base, float $device, ?UserAgreement $application = null): UserAgreement
     {
         $existing = UserAgreement::query()
             ->where('user_id', $user->id)
@@ -166,10 +251,13 @@ class PickupUpgradeAutoCreator
             'lifecycle_stage' => 'quoted',
             'base_program_price' => $base ?: null,
             'device_cost' => $device ?: null,
+            'payment_method' => $application?->payment_method,
+            'old_asset_tag' => $application?->asset?->asset_tag,
+            'old_serial' => $application?->asset?->serial,
         ]);
     }
 
-    private function ensureUpgrade(User $user, Asset $asset, float $base, float $device, float $topUp): UserAgreement
+    private function ensureUpgrade(User $user, Asset $asset, float $base, float $device, float $topUp, ?UserAgreement $application = null): UserAgreement
     {
         $existing = UserAgreement::query()
             ->where('user_id', $user->id)
@@ -190,6 +278,9 @@ class PickupUpgradeAutoCreator
             'base_program_price' => $base ?: null,
             'device_cost' => $device ?: null,
             'top_up_amount' => $topUp,
+            // What they chose on the form. Without it the upgrade PDF fell
+            // back to payroll deduction for someone who chose to pay in full.
+            'payment_method' => $application?->payment_method,
         ]);
     }
 }

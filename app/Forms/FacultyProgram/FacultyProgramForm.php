@@ -206,10 +206,11 @@ class FacultyProgramForm extends FormDefinition
         // asking the question in a form is that the answer produces the thing
         // it implies. Re-rendered on a resubmission too: a payment-method flip
         // alters the repayment section.
-        foreach ([$pickup, $buyout] as $agreement) {
-            if ($agreement) {
-                $agreement->storeUnsignedPdf();
-            }
+        // Only the buyout: the pickup row is the application, and the receipt
+        // it would render names the laptop being handed back. The receipt is
+        // rendered when the new laptop is checked out (PickupUpgradeAutoCreator).
+        if ($buyout) {
+            $buyout->storeUnsignedPdf();
         }
 
         // Somebody is told. Until this, a submission was recorded and
@@ -312,8 +313,10 @@ class FacultyProgramForm extends FormDefinition
 
     private function existingPickup(User $user): ?UserAgreement
     {
+        // The application, never the receipt checkout opens on the new laptop.
         return UserAgreement::where('user_id', $user->id)
             ->where('agreement_type', 'pickup')
+            ->whereNotNull('terms_accepted_at')
             ->whereIn('lifecycle_stage', ['quoted', 'agreement_sent', 'agreement_signed', 'deployed', 'in_repayment'])
             ->latest('created_at')
             ->first();

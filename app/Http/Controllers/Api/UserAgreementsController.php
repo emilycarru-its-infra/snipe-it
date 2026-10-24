@@ -194,6 +194,14 @@ class UserAgreementsController extends Controller
             ), 422);
         }
 
+        if ($userAgreement->isApplication()) {
+            return response()->json(Helper::formatStandardApiResponse(
+                'error',
+                null,
+                trans('admin/user-agreements/message.application_not_sendable')
+            ), 422);
+        }
+
         $acceptance = $userAgreement->sendForSignature();
 
         if (! $acceptance) {

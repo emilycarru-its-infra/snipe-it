@@ -164,7 +164,10 @@ class Reconciler
             'agreement_type' => 'purchase',
             'user_id' => $user->id,
             'asset_id' => $asset->id,
-            'lifecycle_stage' => 'quoted',
+            // Eligible, as PurchaseAutoCreator writes it: the lease ending
+            // makes the machine buyable, it is not anyone deciding to buy it.
+            // Quoted is the form's "yes", and showed up as a buyout nobody chose.
+            'lifecycle_stage' => 'eligible',
             'buyout_cost' => $this->costs->buyoutCost($asset),
             'old_asset_tag' => $asset->asset_tag,
             'old_serial' => $asset->serial,

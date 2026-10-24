@@ -12,6 +12,7 @@ return [
     'intent_actual_disposed' => 'disposed',
     'intent_actual_gone' => 'no device on record',
     'intent_mismatch_generic' => 'The answer and the device do not agree.',
+    'declined_note' => 'Declined the signing request on :date: :note',
     'intent_mismatch_return_still_held' => 'Said they would return it, still checked out to them.',
     'intent_mismatch_buyout_returned' => 'Said they would buy it, but it is no longer theirs.',
     'intent_mismatch_buyout_still_held' => 'Buyout agreed but the paperwork has not been signed.',

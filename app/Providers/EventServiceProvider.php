@@ -30,6 +30,10 @@ class EventServiceProvider extends ServiceProvider
         CheckoutAccepted::class => [
             UpdateUserAgreementOnAccept::class,
         ],
+
+        \App\Events\CheckoutDeclined::class => [
+            \App\Listeners\UpdateUserAgreementOnDecline::class,
+        ],
     ];
 
     /**

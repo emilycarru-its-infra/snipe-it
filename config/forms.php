@@ -145,6 +145,14 @@ return [
         // null = no filter (legacy behaviour, reconcile everything).
         'reconcile_from' => env('USER_AGREEMENT_PICKUP_RECONCILE_FROM'),
 
+        // Handover: once a program laptop is checked out to its person in
+        // an Agreement handover status (Active by default), their pickup and
+        // any upgrade go out for signature without anyone pressing Send.
+        // Only for a checkout inside the window, so re-saving an older
+        // laptop never mails last year's paperwork.
+        'send_on_handover' => env('USER_AGREEMENT_SEND_ON_HANDOVER', true),
+        'send_within_days' => (int) env('USER_AGREEMENT_SEND_WITHIN_DAYS', 14),
+
         // Custom field that carries the asset's purpose-built buyout
         // cost (separate from purchase_cost so it can be filled in by
         // the lease admin without overwriting historical PO data).
