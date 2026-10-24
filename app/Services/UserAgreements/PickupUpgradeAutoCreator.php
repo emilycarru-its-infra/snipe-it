@@ -150,6 +150,9 @@ class PickupUpgradeAutoCreator
             ->where('asset_id', $asset->id)
             ->whereIn('agreement_type', ['pickup', 'upgrade'])
             ->whereIn('lifecycle_stage', ['eligible', 'quoted'])
+            // Pickup first, so its signing request is the one opened first.
+            ->orderByRaw("agreement_type = 'upgrade'")
+            ->orderBy('id')
             ->get();
 
         foreach ($agreements as $agreement) {
