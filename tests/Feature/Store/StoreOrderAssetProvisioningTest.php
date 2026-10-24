@@ -104,6 +104,42 @@ class StoreOrderAssetProvisioningTest extends TestCase
         $this->assertEqualsWithDelta(2658.77, (float) $asset->purchase_cost, 0.01);
     }
 
+    public function test_order_emails_name_each_device_by_its_asset_tag()
+    {
+        $this->enableAutoTags();
+        $laptop = $this->shelfItem();
+        $tablet = $this->shelfItem(['name' => 'iPad Air', 'family' => 'iPad Air']);
+
+        $this->actingAs($this->requester())->post(route('store.orders.store'), [
+            'items' => [
+                ['catalog_item_id' => $laptop->id, 'quantity' => 1],
+                ['catalog_item_id' => $tablet->id, 'quantity' => 2],
+            ],
+        ]);
+
+        $order = StoreOrder::with('items')->first();
+        $created = Asset::where('order_number', $order->reference())->orderBy('id')->get();
+        $byLine = app(StoreOrderAssetProvisioner::class)->assetsByLine($order);
+        $laptopLine = $order->items->firstWhere('catalog_item_id', $laptop->id);
+        $tabletLine = $order->items->firstWhere('catalog_item_id', $tablet->id);
+
+        // Each line gets the assets of its own model, as many as it ordered.
+        $this->assertCount(1, $byLine[$laptopLine->id]);
+        $this->assertCount(2, $byLine[$tabletLine->id]);
+        $this->assertSame($laptop->model_id, (int) $byLine[$laptopLine->id]->first()->model_id);
+        $byLine[$tabletLine->id]->each(fn (Asset $a) => $this->assertSame($tablet->model_id, (int) $a->model_id));
+
+        $first = $byLine[$laptopLine->id]->first();
+        $first->update(['serial' => 'SERIAL-UNDER-TEST']);
+
+        $html = (new \App\Mail\StoreOrderStatusMail($order->fresh(), 'requested'))->render();
+
+        foreach ($created as $asset) {
+            $this->assertStringContainsString($asset->asset_tag, $html);
+        }
+        $this->assertStringContainsString('SERIAL-UNDER-TEST', $html);
+    }
+
     public function test_multi_unit_lines_get_one_asset_each_and_no_personal_name()
     {
         $this->enableAutoTags();

@@ -232,6 +232,8 @@ return [
     'store_order_col_qty' => 'Qty',
     'store_order_tracking' => 'Tracking number: :tracking',
     'store_order_serials' => 'Serial number(s):',
+    'store_order_asset_tag' => 'Asset tag',
+    'store_order_serial' => 'Serial',
     'store_order_button' => 'Track your order',
     'store_order_footer' => 'Questions? Reply to this email and we will pick it up.',
 
