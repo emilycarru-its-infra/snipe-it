@@ -10,6 +10,8 @@ class CheckoutDeclined
 {
     use Dispatchable, SerializesModels;
 
+    public CheckoutAcceptance $acceptance;
+
     /**
      * Create a new event instance.
      *

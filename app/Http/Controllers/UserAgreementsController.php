@@ -221,6 +221,11 @@ class UserAgreementsController extends Controller
                 ->with('error', trans('admin/user-agreements/message.missing_asset_or_user'));
         }
 
+        if ($userAgreement->isApplication()) {
+            return redirect()->route('user-agreements.show', $userAgreement)
+                ->with('error', trans('admin/user-agreements/message.application_not_sendable'));
+        }
+
         $acceptance = $userAgreement->sendForSignature();
 
         if (! $acceptance) {

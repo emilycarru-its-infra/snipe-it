@@ -319,10 +319,14 @@ class StoreOrderAssetProvisioner
      */
     public function outgoingMachine(StoreOrder $order): ?Asset
     {
+        // The application first: once the new laptop is checked out, a
+        // receipt pickup exists on it too, and it is never the outgoing one.
         $picked = UserAgreement::where('user_id', $order->user_id)
             ->where('agreement_type', 'pickup')
             ->whereIn('lifecycle_stage', UserAgreement::OPEN_LIFECYCLE_STAGES)
             ->whereNotNull('asset_id')
+            ->whereDoesntHave('asset', fn ($q) => $q->where('order_number', $order->reference()))
+            ->orderByRaw('terms_accepted_at IS NULL')
             ->latest('created_at')
             ->first()?->asset;
 

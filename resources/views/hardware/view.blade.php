@@ -438,7 +438,7 @@
                                                             </button>
                                                         </form>
                                                     @endif
-                                                    @if (! $agreement->checkout_acceptance_id && $agreement->user_id)
+                                                    @if ($agreement->canBeSent())
                                                         <form method="POST" action="{{ route('user-agreements.send-for-signature', $agreement) }}" style="display:inline-block; margin:0;">
                                                             {{ csrf_field() }}
                                                             <button type="submit" class="btn btn-primary btn-sm" title="{{ trans('admin/user-agreements/general.send_for_signature') }}">

@@ -3759,7 +3759,9 @@ class ProcurementReportsController extends Controller
                 foreach ($ofType as $agreement) {
                     // The paperwork rides beside the amount it was generated
                     // for; only agreements with a PDF actually on file link.
-                    if ($agreement->pdf_path || $agreement->signed_pdf_path) {
+                    // An application's PDF is a receipt for the laptop being
+                    // returned, so it is never offered as the pickup document.
+                    if (($agreement->pdf_path || $agreement->signed_pdf_path) && ! $agreement->isApplication()) {
                         $url = route('user-agreements.pdf', $agreement->id);
                         $docs[$col][] = [
                             'url' => $url,
@@ -3779,7 +3781,7 @@ class ProcurementReportsController extends Controller
                         continue;
                     }
                     $typeLabel = trans('admin/purchase-orders/general.user_agreement_type_value_'.$type);
-                    if (! $agreement->checkout_acceptance_id && $agreement->asset_id && $agreement->user_id) {
+                    if ($agreement->canBeSent()) {
                         $cellActions[$col][] = [
                             'url' => route('user-agreements.send-for-signature', $agreement),
                             'icon' => 'paper-plane',

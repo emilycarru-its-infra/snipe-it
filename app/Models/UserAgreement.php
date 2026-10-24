@@ -396,6 +396,38 @@ class UserAgreement extends SnipeModel
         return in_array($this->lifecycle_stage, ['quoted', 'agreement_sent'], true);
     }
 
+    /**
+     * The pickup row the intake form writes is the application, not the
+     * receipt. It points at the machine being returned or bought out, so
+     * its keep-or-return answer can be checked later, and terms_accepted_at
+     * is the stamp only a real submission carries. The receipt is a
+     * separate pickup on the new laptop, opened when that laptop is checked
+     * out. Sending the application would have someone sign for receipt of
+     * the laptop they are handing back.
+     */
+    public function isApplication(): bool
+    {
+        return $this->agreement_type === 'pickup' && $this->terms_accepted_at !== null;
+    }
+
+    /** Whether Send for Signature can act on this row right now. */
+    public function canBeSent(): bool
+    {
+        return ! $this->checkout_acceptance_id
+            && $this->asset_id
+            && $this->user_id
+            && $this->lifecycle_stage !== 'cancelled'
+            && ! $this->isApplication();
+    }
+
+    /** Scope: open form applications (pickup rows the form wrote). */
+    public function scopeApplications($query)
+    {
+        return $query->where('agreement_type', 'pickup')
+            ->whereNotNull('terms_accepted_at')
+            ->whereIn('lifecycle_stage', self::OPEN_LIFECYCLE_STAGES);
+    }
+
     protected static function booted(): void
     {
         // Flipping the stage to agreement_sent (either via the explicit
@@ -408,6 +440,7 @@ class UserAgreement extends SnipeModel
                 $agreement->lifecycle_stage === 'agreement_sent'
                 && empty($agreement->checkout_acceptance_id)
                 && $agreement->asset_id
+                && ! $agreement->isApplication()
             ) {
                 $agreement->sendForSignature();
             }
@@ -529,7 +562,7 @@ class UserAgreement extends SnipeModel
      */
     public function sendForSignature(): ?CheckoutAcceptance
     {
-        if (! $this->asset || ! $this->user) {
+        if (! $this->asset || ! $this->user || $this->isApplication()) {
             return null;
         }
 

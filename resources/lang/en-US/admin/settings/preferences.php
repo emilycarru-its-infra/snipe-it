@@ -67,6 +67,10 @@ return [
             'label' => 'Needs attention',
             'help' => 'Statuses the dashboard counts in its damaged/missing tile.',
         ],
+        'status.agreement_handover' => [
+            'label' => 'Agreement handover',
+            'help' => 'A program laptop checked out to its person in one of these statuses sends their pickup and any upgrade agreement for signature.',
+        ],
         'status.store_journey.ordered' => [
             'label' => 'Store journey: ordered',
             'help' => 'Status a pre-created asset waits on until its serial arrives. The first one is created if it does not exist.',
@@ -290,6 +294,14 @@ return [
         'forms.pickup_auto_create.asset_manufacturer' => [
             'label' => 'Program device manufacturer',
             'help' => 'Only devices from this manufacturer get program agreements. Blank allows any.',
+        ],
+        'forms.pickup_auto_create.send_on_handover' => [
+            'label' => 'Send agreements at handover',
+            'help' => 'Email the pickup and any upgrade agreement for signature as soon as a program laptop is checked out to its person in an Agreement handover status.',
+        ],
+        'forms.pickup_auto_create.send_within_days' => [
+            'label' => 'Handover window (days)',
+            'help' => 'Only a laptop checked out within this many days sends at handover, so a status change on an older laptop never sends old paperwork.',
         ],
         'forms.pickup_auto_create.reconcile_from' => [
             'label' => 'Reconcile checkouts from',

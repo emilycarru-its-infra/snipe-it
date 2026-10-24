@@ -72,8 +72,7 @@ class UserAgreementsTransformer
             'delete'             => Gate::allows('delete', Order::class),
             'send_for_signature' => Gate::allows('update', Order::class)
                 && $agreement->isAwaitingSignature()
-                && $agreement->asset_id
-                && $agreement->user_id,
+                && $agreement->canBeSent(),
         ];
 
         return $array;

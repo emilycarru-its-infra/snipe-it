@@ -101,6 +101,7 @@ class Preferences
             'status.store_journey.arrived' => ['group' => 'status', 'type' => 'status_labels', 'default' => ['New (Arrived)']],
             'status.store_journey.inventoried' => ['group' => 'status', 'type' => 'status_labels', 'default' => ['New (Inventoried)']],
             'status.store_journey.provisioned' => ['group' => 'status', 'type' => 'status_labels', 'default' => ['New (Provisioned)']],
+            'status.agreement_handover' => ['group' => 'status', 'type' => 'status_labels', 'default' => ['Active']],
             'status.off_lease' => ['group' => 'status', 'type' => 'status_labels', 'default' => ['Active (Buyouts)', 'Active (Legacy)']],
             'status.bought_out' => ['group' => 'status', 'type' => 'status_labels', 'default' => ['Active (Buyouts)']],
             'status.legacy' => ['group' => 'status', 'type' => 'status_labels', 'default' => [], 'resolve' => $prefixed('Active (Legacy)%')],
@@ -175,6 +176,8 @@ class Preferences
             'forms.pickup_auto_create.asset_category' => ['group' => 'agreements', 'type' => 'string', 'default' => 'Laptop', 'config' => 'forms.pickup_auto_create.asset_category'],
             'forms.pickup_auto_create.asset_manufacturer' => ['group' => 'agreements', 'type' => 'string', 'default' => 'Apple', 'config' => 'forms.pickup_auto_create.asset_manufacturer', 'nullable' => true],
             'forms.pickup_auto_create.reconcile_from' => ['group' => 'agreements', 'type' => 'date', 'default' => null, 'config' => 'forms.pickup_auto_create.reconcile_from', 'nullable' => true],
+            'forms.pickup_auto_create.send_on_handover' => ['group' => 'agreements', 'type' => 'bool', 'default' => true, 'config' => 'forms.pickup_auto_create.send_on_handover'],
+            'forms.pickup_auto_create.send_within_days' => ['group' => 'agreements', 'type' => 'int', 'default' => 14, 'config' => 'forms.pickup_auto_create.send_within_days', 'rules' => ['min:1', 'max:365']],
 
             'contacts.device_team' => ['group' => 'contacts', 'type' => 'email_list', 'default' => [], 'config' => 'ecu.device_team_emails'],
             'teams.channels' => ['group' => 'contacts', 'type' => 'map', 'default' => TeamsChannels::defaults(), 'rules' => ['min:1']],

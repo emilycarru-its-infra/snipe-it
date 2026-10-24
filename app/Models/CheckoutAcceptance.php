@@ -149,6 +149,13 @@ class CheckoutAcceptance extends Model
         $this->signature_filename = $signature_filename;
         $this->save();
 
+        // Declining a programme agreement is a refusal of the paperwork,
+        // not of the laptop in their hands, so the checkout stands and the
+        // agreement goes back for staff to follow up (UpdateUserAgreementOnDecline).
+        if (\App\Models\UserAgreement::where('checkout_acceptance_id', $this->id)->exists()) {
+            return;
+        }
+
         /**
          * Update state for the checked out item
          */

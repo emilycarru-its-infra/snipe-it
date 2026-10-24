@@ -40,7 +40,9 @@ class PregenUserAgreementPdfs extends Command
         $query = UserAgreement::query()
             ->whereIn('lifecycle_stage', $stages)
             ->whereNotNull('user_id')
-            ->whereNotNull('asset_id');
+            ->whereNotNull('asset_id')
+            // Applications are records, not documents to sign.
+            ->where(fn ($q) => $q->where('agreement_type', '!=', 'pickup')->orWhereNull('terms_accepted_at'));
 
         if (! $this->option('force')) {
             $query->whereNull('pdf_path');
