@@ -34,6 +34,9 @@
 @if ($line->mfr_part_number || $line->vendor_sku)
 <div style="font-size: 11px; letter-spacing: .04em; opacity: .6; font-family: ui-monospace, Menlo, monospace;">{{ $line->mfr_part_number ?: $line->vendor_sku }}</div>
 @endif
+@foreach (($lineAssets[$line->id] ?? []) as $asset)
+<div style="margin-top: 6px; font-size: 13px;">{{ trans('mail.store_order_asset_tag') }} <strong style="font-family: ui-monospace, Menlo, monospace;">{{ $asset->asset_tag }}</strong>@if ($asset->serial)<span style="opacity: .7;"> · {{ trans('mail.store_order_serial') }} <span style="font-family: ui-monospace, Menlo, monospace;">{{ $asset->serial }}</span></span>@endif</div>
+@endforeach
 </td>
 </tr>
 </table>

@@ -99,6 +99,36 @@ class StoreOrderAssetProvisioner
     }
 
     /**
+     * The order's assets, dealt out to the lines that created them.
+     *
+     * Assets carry the order reference and their model, not the line, so a
+     * line takes the assets of its model in creation order, as many as its
+     * quantity. Two lines of the same model split them in line order, which
+     * is the order provision() created them in.
+     *
+     * @return array<int, Collection<int, Asset>> keyed by store order item id
+     */
+    public function assetsByLine(StoreOrder $order): array
+    {
+        $order->loadMissing('items.catalogItem');
+        $pool = $this->assetsFor($order)->groupBy('model_id');
+        $byLine = [];
+
+        foreach ($order->items as $line) {
+            $modelId = $line->catalogItem?->model_id;
+            $available = $modelId ? ($pool->get($modelId) ?? collect()) : collect();
+            $take = $available->take(max(0, (int) $line->quantity))->values();
+            $byLine[$line->id] = $take;
+
+            if ($modelId) {
+                $pool->put($modelId, $available->slice($take->count())->values());
+            }
+        }
+
+        return $byLine;
+    }
+
+    /**
      * Release the assets of an order that will never arrive. Only records
      * the webhook has not touched are deleted: no serial, still in the
      * ordered status, never assigned. Anything past that point is real

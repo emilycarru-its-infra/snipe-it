@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\StoreOrder;
+use App\Services\StoreOrderAssetProvisioner;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
@@ -47,6 +48,12 @@ class StoreOrderStatusMail extends BaseMailable
         return $this->bodyContent($this->key(), 'notifications.markdown.store-order-status', [
             'order' => $this->order,
             'event' => $this->event,
+            // The asset tag exists from the moment the order is sent, long
+            // before a serial does, so every email in the journey can name
+            // the machine the person and the desk will both look it up by.
+            'lineAssets' => $lineAssets = app(StoreOrderAssetProvisioner::class)->assetsByLine($this->order),
+            // Flat copy for wording overridden in Settings → Emails.
+            'asset_tags' => collect($lineAssets)->flatten()->pluck('asset_tag')->filter()->implode(', '),
             'target' => $this->order->user,
             'tracking' => $this->extra['tracking'] ?? $this->order->tracking_number,
             'serials' => $this->extra['serials'] ?? [],
