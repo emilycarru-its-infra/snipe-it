@@ -46,7 +46,7 @@ class WorkflowObservationsController extends Controller
         return $this->page($request, $query, fn (ConsumableTransaction $row) => [
             'id' => (string) $row->id,
             'consumable_id' => (string) $row->consumable_id,
-            'asset_id' => $row->asset_id === null ? null : (string) $row->asset_id,
+            'asset_id' => (string) $row->asset_id,
             'gl_code' => $row->gl_code,
             'quantity' => $row->quantity,
             'unit_cost' => $row->unit_cost,

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\FiscalYear;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -54,7 +55,7 @@ class ConsumableTransaction extends Model
         'total_cost' => 'decimal:4',
     ];
 
-    public function consumable()
+    public function consumable(): BelongsTo
     {
         return $this->belongsTo(Consumable::class, 'consumable_id')->withTrashed();
     }
