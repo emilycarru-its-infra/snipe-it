@@ -935,6 +935,11 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('store-orders/{order}/shipment', [Api\StoreOrdersController::class, 'shipment'])
         ->name('api.store-orders.shipment');
 
+    Route::get('workflow-observations/exhibit-projects', [Api\WorkflowObservationsController::class, 'exhibitProjects'])
+        ->name('api.workflow-observations.exhibit-projects');
+    Route::get('workflow-observations/consumable-transactions', [Api\WorkflowObservationsController::class, 'consumableTransactions'])
+        ->name('api.workflow-observations.consumable-transactions');
+
     // Exhibit project CSV backfill — token-authed, drives the multi-year
     // historical import without an SSO session.
     Route::post('exhibit/import', [Api\ExhibitImportController::class, 'import'])
