@@ -184,7 +184,12 @@
 
 
 
-                        @if ($asset->requireAcceptance() || (string) $snipeSettings->require_accept_signature === '1' || $asset->getEula() || ($snipeSettings->webhook_endpoint!=''))
+                        @php
+                            $offersSignInPlace = $asset->requireAcceptance()
+                                || (string) $snipeSettings->require_accept_signature === '1'
+                                || \App\Models\UserAgreement::programCovers($asset);
+                        @endphp
+                        @if ($offersSignInPlace || $asset->getEula() || ($snipeSettings->webhook_endpoint!=''))
                             <div class="form-group notification-callout" style="display:none;">
                                 <div class="col-md-8 col-md-offset-3">
                                     <div class="callout callout-info">
@@ -221,7 +226,7 @@
                                 </div>
 
                                 <!-- Sign in place checkbox -->
-                                @if ($asset->requireAcceptance() || (string) $snipeSettings->require_accept_signature === '1')
+                                @if ($offersSignInPlace)
                                 <div id="sign_in_place_div" class="col-md-7 col-md-offset-3">
                                     <label class="form-control">
                                         <input type="checkbox" value="1" name="sign_in_place" @checked(old('sign_in_place', session('sign_in_place', false))) aria-label="sign_in_place">

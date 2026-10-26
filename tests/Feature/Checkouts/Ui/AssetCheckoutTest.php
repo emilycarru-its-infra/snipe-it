@@ -25,6 +25,42 @@ class AssetCheckoutTest extends TestCase
         Event::fake([CheckoutableCheckedOut::class]);
     }
 
+    #[DataProvider('programSigningCases')]
+    public function test_program_signing_option_does_not_require_category_acceptance(string $categoryName, string $manufacturerName, bool $expected): void
+    {
+        $settings = \App\Models\Setting::getSettings();
+        $settings->forceFill(['require_accept_signature' => '0', 'webhook_endpoint' => ''])->save();
+        \App\Models\Setting::$_cache = null;
+
+        $category = \App\Models\Category::factory()->forAssets()->doesNotRequireAcceptance()
+            ->create(['name' => $categoryName, 'eula_text' => null, 'use_default_eula' => 0]);
+        $manufacturer = \App\Models\Manufacturer::factory()->create(['name' => $manufacturerName]);
+        $model = \App\Models\AssetModel::factory()->create([
+            'category_id' => $category->id,
+            'manufacturer_id' => $manufacturer->id,
+        ]);
+        $asset = Asset::factory()->create(['model_id' => $model->id]);
+
+        $response = $this->actingAs(User::factory()->checkoutAssets()->create())
+            ->get(route('hardware.checkout.create', $asset))
+            ->assertOk();
+
+        if ($expected) {
+            $response->assertSee('name="sign_in_place"', false);
+        } else {
+            $response->assertDontSee('name="sign_in_place"', false);
+        }
+    }
+
+    public static function programSigningCases(): array
+    {
+        return [
+            'program laptop' => ['Laptop', 'Apple', true],
+            'other category' => ['Monitor', 'Apple', false],
+            'other manufacturer' => ['Laptop', 'Other Manufacturer', false],
+        ];
+    }
+
     public function test_checking_out_asset_requires_correct_permission()
     {
         $this->actingAs(User::factory()->create())
