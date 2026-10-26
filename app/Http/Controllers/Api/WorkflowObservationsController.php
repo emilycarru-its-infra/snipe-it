@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Transformers\AgreementObservationsTransformer;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\ExhibitProject;
 use App\Models\Order;
+use App\Models\UserAgreement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,6 +33,18 @@ class WorkflowObservationsController extends Controller
 
             return $facts;
         });
+    }
+
+    public function userAgreements(Request $request): JsonResponse
+    {
+        $this->authorize('view', Order::class);
+
+        $query = UserAgreement::query()->select([
+            ...AgreementObservationsTransformer::FIELDS, 'pdf_path', 'signed_pdf_path',
+        ]);
+        $transformer = new AgreementObservationsTransformer;
+
+        return $this->page($request, $query, fn (UserAgreement $row) => $transformer->transform($row));
     }
 
     public function consumableTransactions(Request $request): JsonResponse
