@@ -5,13 +5,19 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Transformers\AgreementObservationsTransformer;
 use App\Http\Transformers\LeaseObservationsTransformer;
+use App\Http\Transformers\ProcurementObservationsTransformer;
 use App\Models\Asset;
+use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\ExhibitProject;
 use App\Models\Order;
+use App\Models\OrderInvoice;
+use App\Models\OrderItem;
+use App\Models\PurchaseOrder;
 use App\Models\UserAgreement;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -19,6 +25,74 @@ use Illuminate\Support\Facades\Validator;
 /** Read-only source facts; no recipient lookup, financial policy or workflow transition. */
 class WorkflowObservationsController extends Controller
 {
+    public function purchaseOrders(Request $request): JsonResponse
+    {
+        $this->authorize('view', Order::class);
+
+        return $this->procurementPage($request, Company::scopeCompanyables(PurchaseOrder::query()), 'purchase-orders');
+    }
+
+    public function orders(Request $request): JsonResponse
+    {
+        $this->authorize('view', Order::class);
+
+        return $this->procurementPage($request, $this->visibleOrders(Order::query()), 'orders');
+    }
+
+    public function orderInvoices(Request $request): JsonResponse
+    {
+        $this->authorize('view', Order::class);
+
+        return $this->procurementPage($request, $this->visibleInvoices(OrderInvoice::query()), 'order-invoices');
+    }
+
+    public function orderLines(Request $request): JsonResponse
+    {
+        $this->authorize('view', Order::class);
+
+        $query = $this->visiblePurchaseOrderLink(OrderItem::query())
+            ->whereHas('order', fn (Builder $parent) => $this->visibleOrders($parent))
+            ->where(function (Builder $links) {
+                $links->whereNull('invoice_id')->orWhereHas('invoice', function (Builder $invoice) {
+                    $this->visibleInvoices($invoice)->whereColumn('order_invoices.order_id', 'order_items.order_id');
+                });
+            });
+
+        return $this->procurementPage($request, $query, 'order-lines');
+    }
+
+    /** Split booking links need a visible live PO; null remains a genuine unlinked source fact. */
+    private function visiblePurchaseOrderLink(Builder $query): Builder
+    {
+        return $query->where(function (Builder $links) {
+            $links->whereNull('purchase_order_id')->orWhereHas('purchaseOrder', fn (Builder $parent) => Company::scopeCompanyables($parent));
+        });
+    }
+
+    private function visibleOrders(Builder $query): Builder
+    {
+        return $this->visiblePurchaseOrderLink(Company::scopeCompanyables($query));
+    }
+
+    private function visibleInvoices(Builder $query): Builder
+    {
+        return $this->visiblePurchaseOrderLink($query)
+            ->whereHas('order', fn (Builder $parent) => $this->visibleOrders($parent));
+    }
+
+    private function procurementPage(Request $request, Builder $query, string $family): JsonResponse
+    {
+        $transformer = new ProcurementObservationsTransformer;
+        $query->select(array_diff(ProcurementObservationsTransformer::FIELDS[$family], ['observed_line_count', 'observed_invoice_count']));
+        if ($family === 'orders') {
+            // Count all children on this visible parent, even when a child link is outside
+            // the exported scope. Readers must not silently migrate a partial order.
+            $query->withCount(['items as observed_line_count', 'invoices as observed_invoice_count']);
+        }
+
+        return $this->page($request, $query, fn (Model $row) => $transformer->transform($row, $family), maxOffset: 50000);
+    }
+
     public function leases(Request $request): JsonResponse
     {
         $this->authorize('view', Asset::class);

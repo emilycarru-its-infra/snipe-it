@@ -935,6 +935,14 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('store-orders/{order}/shipment', [Api\StoreOrdersController::class, 'shipment'])
         ->name('api.store-orders.shipment');
 
+    Route::get('workflow-observations/purchase-orders', [Api\WorkflowObservationsController::class, 'purchaseOrders'])
+        ->name('api.workflow-observations.purchase-orders');
+    Route::get('workflow-observations/orders', [Api\WorkflowObservationsController::class, 'orders'])
+        ->name('api.workflow-observations.orders');
+    Route::get('workflow-observations/order-lines', [Api\WorkflowObservationsController::class, 'orderLines'])
+        ->name('api.workflow-observations.order-lines');
+    Route::get('workflow-observations/order-invoices', [Api\WorkflowObservationsController::class, 'orderInvoices'])
+        ->name('api.workflow-observations.order-invoices');
     Route::get('workflow-observations/leases', [Api\WorkflowObservationsController::class, 'leases'])
         ->name('api.workflow-observations.leases');
     Route::get('workflow-observations/user-agreements', [Api\WorkflowObservationsController::class, 'userAgreements'])
