@@ -160,7 +160,7 @@ class WorkflowObservationsTest extends TestCase
         $response = $this->actingAsForApi($reader)->getJson('/api/v1/workflow-observations/user-agreements')->assertOk();
         $this->assertTrue($response->headers->hasCacheControlDirective('no-store'));
         $row = $response->json('rows.0');
-        $this->assertEqualsCanonicalizing(['id', 'agreement_type', 'lifecycle_stage', 'user_id', 'asset_id',
+        $this->assertEqualsCanonicalizing(['id', 'agreement_type', 'lifecycle_stage', 'user_id', 'asset_id', 'stated_intent', 'intent_reconciled_at', 'is_application',
             'base_program_price', 'device_cost', 'top_up_amount', 'buyout_cost', 'payment_method',
             'installment_count', 'installment_amount', 'balance_paid', 'balance_remaining',
             'terms_accepted_at', 'signed_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
@@ -181,6 +181,31 @@ class WorkflowObservationsTest extends TestCase
             $this->assertStringNotContainsString($excluded, $response->getContent());
         }
         $this->assertSame($before, $agreement->fresh()->getRawOriginal());
+        Mail::assertNothingSent();
+    }
+
+    public function test_application_intent_and_literal_stamps_do_not_become_receipts_or_new_actions(): void
+    {
+        Mail::fake();
+        $application = UserAgreement::create(['agreement_type' => 'pickup', 'lifecycle_stage' => 'eligible',
+            'stated_intent' => 'return', 'terms_accepted_at' => '2026-10-01 12:34:56',
+            'intent_reconciled_at' => '2026-10-02 13:45:57']);
+        $receipt = UserAgreement::create(['agreement_type' => 'pickup', 'lifecycle_stage' => 'eligible']);
+        $buyout = UserAgreement::create(['agreement_type' => 'purchase', 'lifecycle_stage' => 'eligible',
+            'stated_intent' => 'buyout', 'terms_accepted_at' => '2026-10-03 14:56:58']);
+        $before = [$application->fresh()->getRawOriginal(), $receipt->fresh()->getRawOriginal(), $buyout->fresh()->getRawOriginal()];
+        $acceptances = \App\Models\CheckoutAcceptance::count();
+        $this->actingAsForApi(User::factory()->create(['permissions' => '{"orders.view":"1"}']));
+        $response = $this->getJson('/api/v1/workflow-observations/user-agreements')->assertOk()->assertJsonPath('total', 3);
+        $response->assertJsonPath('rows.0.stated_intent', 'return')->assertJsonPath('rows.0.is_application', true)
+            ->assertJsonPath('rows.0.intent_reconciled_at', '2026-10-02 13:45:57')
+            ->assertJsonPath('rows.0.terms_accepted_at', '2026-10-01 12:34:56')
+            ->assertJsonPath('rows.1.stated_intent', null)->assertJsonPath('rows.1.is_application', false)
+            ->assertJsonPath('rows.1.intent_reconciled_at', null)
+            ->assertJsonPath('rows.2.stated_intent', 'buyout')->assertJsonPath('rows.2.is_application', false);
+        $this->assertSame($before, [$application->fresh()->getRawOriginal(), $receipt->fresh()->getRawOriginal(), $buyout->fresh()->getRawOriginal()]);
+        $this->assertSame($acceptances, \App\Models\CheckoutAcceptance::count());
+        $this->assertSame(3, UserAgreement::count());
         Mail::assertNothingSent();
     }
 
