@@ -8,7 +8,7 @@ use App\Models\UserAgreement;
 class AgreementObservationsTransformer
 {
     public const FIELDS = [
-        'id', 'agreement_type', 'lifecycle_stage', 'user_id', 'asset_id',
+        'id', 'agreement_type', 'lifecycle_stage', 'user_id', 'asset_id', 'stated_intent', 'intent_reconciled_at',
         'base_program_price', 'device_cost', 'top_up_amount', 'buyout_cost', 'payment_method',
         'installment_count', 'installment_amount', 'balance_paid', 'balance_remaining',
         'terms_accepted_at', 'signed_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
@@ -24,6 +24,7 @@ class AgreementObservationsTransformer
             $value = $row->getRawOriginal($field);
             $facts[$field] = $value === null ? null : (string) $value;
         }
+        $facts['is_application'] = $row->isApplication();
         $facts['installment_count'] = $row->installment_count === null ? null : (int) $row->installment_count;
         foreach (['pdf', 'signed_pdf'] as $kind) {
             $path = $row->getRawOriginal($kind.'_path');
