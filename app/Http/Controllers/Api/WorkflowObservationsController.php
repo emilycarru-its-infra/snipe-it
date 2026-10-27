@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Transformers\AgreementObservationsTransformer;
+use App\Http\Transformers\LeaseObservationsTransformer;
+use App\Models\Asset;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\ExhibitProject;
@@ -17,6 +19,28 @@ use Illuminate\Support\Facades\Validator;
 /** Read-only source facts; no recipient lookup, financial policy or workflow transition. */
 class WorkflowObservationsController extends Controller
 {
+    public function leases(Request $request): JsonResponse
+    {
+        $this->authorize('view', Asset::class);
+
+        // Asset's company and soft-delete scopes remain in force. Presence of stored facts
+        // does not assert that a lease is currently open or that a decommission was a return.
+        $query = Asset::query()->where(function (Builder $query) {
+            $query->whereNotNull('lessor_id')
+                ->orWhereRaw('LOWER(ownership_type) LIKE ?', ['%lease%'])
+                ->orWhere(function (Builder $contracts) {
+                    $contracts->whereNotNull('lease_contract_id')->where('lease_contract_id', '!=', '');
+                })
+                ->orWhere(function (Builder $contracts) {
+                    $contracts->whereNotNull('lease_contract_name')->where('lease_contract_name', '!=', '');
+                })
+                ->orWhereNotNull('lease_end_date')->orWhereNotNull('lease_rent')->orWhereNotNull('buyout_cost');
+        })->select(LeaseObservationsTransformer::FIELDS);
+        $transformer = new LeaseObservationsTransformer;
+
+        return $this->page($request, $query, fn (Asset $row) => $transformer->transform($row), maxOffset: 20000);
+    }
+
     public function exhibitProjects(Request $request): JsonResponse
     {
         $this->authorize('view', Order::class);
@@ -73,11 +97,11 @@ class WorkflowObservationsController extends Controller
     }
 
     /** Each page is a fresh observation; no cross-page transactional snapshot is asserted. */
-    private function page(Request $request, Builder $query, callable $project): JsonResponse
+    private function page(Request $request, Builder $query, callable $project, int $maxOffset = 10000): JsonResponse
     {
         $validation = Validator::make($request->query(), [
             'limit' => 'sometimes|integer|min:1|max:100',
-            'offset' => 'sometimes|integer|min:0|max:10000',
+            'offset' => 'sometimes|integer|min:0|max:'.$maxOffset,
         ]);
         if ($validation->fails()) {
             return response()->json(['message' => 'Invalid observation paging.'], 422, ['Cache-Control' => 'private, no-store']);
