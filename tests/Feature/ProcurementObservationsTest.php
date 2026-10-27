@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
+use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\User;
@@ -15,7 +16,7 @@ use Tests\TestCase;
 
 class ProcurementObservationsTest extends TestCase
 {
-    private const FAMILIES = ['purchase-orders', 'orders', 'order-lines', 'order-invoices'];
+    private const FAMILIES = ['purchase-orders', 'orders', 'order-lines', 'order-invoices', 'order-shipments'];
 
     private function url(string $family): string
     {
@@ -53,13 +54,14 @@ class ProcurementObservationsTest extends TestCase
         $order = Order::factory()->create(['purchase_order_id' => $po->id, 'supplier_id' => $supplier->id, 'created_by' => $person->id, 'order_cost' => '12345.6789', 'notes' => 'Excluded order note', 'is_planned' => false]);
         $invoice = OrderInvoice::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $split->id, 'subtotal' => '12345.6789', 'tax_gst' => null, 'approval_status' => 'approved', 'approved_by' => $person->id, 'approved_at' => '2026-10-01 12:34:56', 'notes' => 'Excluded invoice note']);
         $line = OrderItem::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $split->id, 'invoice_id' => $invoice->id, 'description' => 'Example & retained line', 'unit_cost' => '41.2051', 'warranty_cost' => null, 'quantity' => 3]);
+        $shipment = OrderShipment::factory()->create(['order_id' => $order->id, 'notes' => 'Excluded shipment note']);
         $before = [$po->fresh()->getRawOriginal(), $order->fresh()->getRawOriginal(), $invoice->fresh()->getRawOriginal(), $line->fresh()->getRawOriginal()];
         $this->actingAsForApi($this->reader());
         $responses = [];
         foreach (self::FAMILIES as $family) {
             $responses[$family] = $this->getJson($this->url($family))->assertOk();
             $this->assertTrue($responses[$family]->headers->hasCacheControlDirective('no-store'));
-            foreach (['excluded-person@example.test', 'excluded-supplier@example.test', 'Excluded supplier label', 'Excluded PO note', 'Excluded order note', 'Excluded invoice note'] as $excluded) {
+            foreach (['excluded-person@example.test', 'excluded-supplier@example.test', 'Excluded supplier label', 'Excluded PO note', 'Excluded order note', 'Excluded invoice note', 'Excluded shipment note'] as $excluded) {
                 $this->assertStringNotContainsString($excluded, $responses[$family]->getContent());
             }
             $this->assertArrayNotHasKey('currency', $responses[$family]->json('rows.0'));
@@ -122,6 +124,61 @@ class ProcurementObservationsTest extends TestCase
         $this->getJson($this->url('orders'))->assertOk()->assertJsonPath('rows.0.observed_line_count', '2')->assertJsonPath('rows.0.observed_invoice_count', '2');
         $this->getJson($this->url('order-lines'))->assertOk()->assertJsonPath('total', 1);
         $this->getJson($this->url('order-invoices'))->assertOk()->assertJsonPath('total', 1);
+    }
+
+    public function test_shipments_retain_stored_dates_and_links_without_receiving_items(): void
+    {
+        Mail::fake();
+        $order = Order::factory()->create();
+        $shipment = OrderShipment::factory()->create(['order_id' => $order->id,
+            'tracking_number' => 'EXAMPLE-TRACK', 'tracking_carrier' => 'Example carrier',
+            'shipped_date' => '2026-09-01', 'received_date' => null, 'notes' => 'Excluded shipment note']);
+        $line = OrderItem::factory()->create(['order_id' => $order->id, 'shipment_id' => $shipment->id, 'received_at' => null]);
+        $before = [$shipment->fresh()->getRawOriginal(), $line->fresh()->getRawOriginal()];
+        $this->actingAsForApi($this->reader());
+        $response = $this->getJson($this->url('order-shipments'))->assertOk()->assertExactJson(['total' => 1, 'rows' => [[
+            'id' => (string) $shipment->id, 'order_id' => (string) $order->id,
+            'tracking_number' => 'EXAMPLE-TRACK', 'tracking_carrier' => 'Example carrier',
+            'shipped_date' => '2026-09-01', 'received_date' => null,
+        ]]]);
+        $this->assertTrue($response->headers->hasCacheControlDirective('no-store'));
+        $this->getJson($this->url('orders'))->assertOk()->assertJsonPath('rows.0.observed_shipment_count', '1');
+        $this->getJson($this->url('order-lines'))->assertOk()->assertJsonPath('rows.0.shipment_id', (string) $shipment->id)->assertJsonPath('rows.0.received_at', null);
+        $this->assertSame($before, [$shipment->fresh()->getRawOriginal(), $line->fresh()->getRawOriginal()]);
+        Mail::assertNothingSent();
+    }
+
+    public function test_shipment_visibility_and_same_order_links_hold_incomplete_orders(): void
+    {
+        $this->settings->enableMultipleFullCompanySupport();
+        $own = Company::factory()->create();
+        $other = Company::factory()->create();
+        $order = Order::factory()->create(['company_id' => $own->id]);
+        $foreign = Order::factory()->create(['company_id' => $other->id]);
+        $gone = Order::factory()->create(['company_id' => $own->id]);
+        $gone->delete();
+        $hiddenPo = PurchaseOrder::factory()->create(['company_id' => $other->id]);
+        $badBooking = Order::factory()->create(['company_id' => $own->id, 'purchase_order_id' => $hiddenPo->id]);
+        $shipment = OrderShipment::factory()->create(['order_id' => $order->id]);
+        $hidden = OrderShipment::factory()->create(['order_id' => $foreign->id]);
+        foreach ([$gone, $badBooking] as $parent) {
+            OrderShipment::factory()->create(['order_id' => $parent->id]);
+        }
+        DB::table('order_shipments')->insert(['order_id' => 999999, 'tracking_number' => 'Excluded orphan']);
+        $unlinked = OrderItem::factory()->create(['order_id' => $order->id, 'shipment_id' => null]);
+        $linked = OrderItem::factory()->create(['order_id' => $order->id, 'shipment_id' => $shipment->id]);
+        OrderItem::factory()->create(['order_id' => $order->id, 'shipment_id' => $hidden->id]);
+        OrderItem::factory()->create(['order_id' => $order->id, 'shipment_id' => 999999]);
+        $otherVisible = Order::factory()->create(['company_id' => $own->id]);
+        $crossOrder = OrderShipment::factory()->create(['order_id' => $otherVisible->id]);
+        OrderItem::factory()->create(['order_id' => $order->id, 'shipment_id' => $crossOrder->id]);
+        $this->actingAsForApi($this->reader(['company_id' => $own->id]));
+        $this->getJson($this->url('order-shipments'))->assertOk()->assertJsonPath('total', 2)
+            ->assertJsonPath('rows.0.id', (string) $shipment->id)->assertJsonPath('rows.1.id', (string) $crossOrder->id);
+        $rows = $this->getJson($this->url('order-lines'))->assertOk()->assertJsonPath('total', 2)->json('rows');
+        $this->assertSame([(string) $unlinked->id, (string) $linked->id], array_column($rows, 'id'));
+        $this->getJson($this->url('orders'))->assertOk()->assertJsonPath('rows.0.observed_line_count', '5')
+            ->assertJsonPath('rows.0.observed_shipment_count', '1');
     }
 
     public function test_fixed_paging_is_bounded_and_collections_are_read_only(): void

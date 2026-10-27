@@ -14,6 +14,7 @@ use App\Models\ExhibitProject;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
+use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
 use App\Models\UserAgreement;
 use Illuminate\Database\Eloquent\Builder;
@@ -46,6 +47,13 @@ class WorkflowObservationsController extends Controller
         return $this->procurementPage($request, $this->visibleInvoices(OrderInvoice::query()), 'order-invoices');
     }
 
+    public function orderShipments(Request $request): JsonResponse
+    {
+        $this->authorize('view', Order::class);
+
+        return $this->procurementPage($request, $this->visibleShipments(OrderShipment::query()), 'order-shipments');
+    }
+
     public function orderLines(Request $request): JsonResponse
     {
         $this->authorize('view', Order::class);
@@ -55,6 +63,11 @@ class WorkflowObservationsController extends Controller
             ->where(function (Builder $links) {
                 $links->whereNull('invoice_id')->orWhereHas('invoice', function (Builder $invoice) {
                     $this->visibleInvoices($invoice)->whereColumn('order_invoices.order_id', 'order_items.order_id');
+                });
+            })
+            ->where(function (Builder $links) {
+                $links->whereNull('shipment_id')->orWhereHas('shipment', function (Builder $shipment) {
+                    $this->visibleShipments($shipment)->whereColumn('order_shipments.order_id', 'order_items.order_id');
                 });
             });
 
@@ -80,14 +93,19 @@ class WorkflowObservationsController extends Controller
             ->whereHas('order', fn (Builder $parent) => $this->visibleOrders($parent));
     }
 
+    private function visibleShipments(Builder $query): Builder
+    {
+        return $query->whereHas('order', fn (Builder $parent) => $this->visibleOrders($parent));
+    }
+
     private function procurementPage(Request $request, Builder $query, string $family): JsonResponse
     {
         $transformer = new ProcurementObservationsTransformer;
-        $query->select(array_diff(ProcurementObservationsTransformer::FIELDS[$family], ['observed_line_count', 'observed_invoice_count']));
+        $query->select(array_diff(ProcurementObservationsTransformer::FIELDS[$family], ['observed_line_count', 'observed_invoice_count', 'observed_shipment_count']));
         if ($family === 'orders') {
             // Count all children on this visible parent, even when a child link is outside
             // the exported scope. Readers must not silently migrate a partial order.
-            $query->withCount(['items as observed_line_count', 'invoices as observed_invoice_count']);
+            $query->withCount(['items as observed_line_count', 'invoices as observed_invoice_count', 'shipments as observed_shipment_count']);
         }
 
         return $this->page($request, $query, fn (Model $row) => $transformer->transform($row, $family), maxOffset: 50000);
