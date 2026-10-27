@@ -67,7 +67,7 @@ class ProcurementObservationsTest extends TestCase
             $this->assertArrayNotHasKey('approved_by', $responses[$family]->json('rows.0'));
         }
         $responses['purchase-orders']->assertJsonPath('rows.0.budget', '123456789.1234')->assertJsonPath('rows.0.title', 'Example & retained budget');
-        $responses['orders']->assertJsonPath('rows.0.order_cost', '12345.6789')->assertJsonPath('rows.0.purchase_order_id', (string) $po->id)->assertJsonPath('rows.0.supplier_id', (string) $supplier->id)->assertJsonPath('rows.0.is_planned', '0');
+        $responses['orders']->assertJsonPath('rows.0.observed_line_count', '1')->assertJsonPath('rows.0.observed_invoice_count', '1')->assertJsonPath('rows.0.order_cost', '12345.6789')->assertJsonPath('rows.0.purchase_order_id', (string) $po->id)->assertJsonPath('rows.0.supplier_id', (string) $supplier->id)->assertJsonPath('rows.0.is_planned', '0');
         $responses['order-lines']->assertJsonPath('rows.0.purchase_order_id', (string) $split->id)->assertJsonPath('rows.0.invoice_id', (string) $invoice->id)->assertJsonPath('rows.0.unit_cost', '41.2051')->assertJsonPath('rows.0.warranty_cost', null)->assertJsonPath('rows.0.description', 'Example & retained line');
         $responses['order-invoices']->assertJsonPath('rows.0.subtotal', '12345.6789')->assertJsonPath('rows.0.tax_gst', null)->assertJsonPath('rows.0.approval_status', 'approved')->assertJsonPath('rows.0.approved_at', '2026-10-01 12:34:56');
         $this->assertSame($before, [$po->fresh()->getRawOriginal(), $order->fresh()->getRawOriginal(), $invoice->fresh()->getRawOriginal(), $line->fresh()->getRawOriginal()]);
@@ -105,6 +105,23 @@ class ProcurementObservationsTest extends TestCase
         foreach (['purchase-orders' => $po, 'orders' => $order, 'order-lines' => $line, 'order-invoices' => $invoice] as $family => $kept) {
             $this->getJson($this->url($family))->assertOk()->assertJsonPath('total', 1)->assertJsonPath('rows.0.id', (string) $kept->id);
         }
+    }
+
+    public function test_order_coverage_counts_expose_filtered_child_gaps_without_child_details(): void
+    {
+        $this->settings->enableMultipleFullCompanySupport();
+        $own = Company::factory()->create();
+        $other = Company::factory()->create();
+        $order = Order::factory()->create(['company_id' => $own->id]);
+        $foreign = PurchaseOrder::factory()->create(['company_id' => $other->id]);
+        OrderItem::factory()->create(['order_id' => $order->id]);
+        OrderItem::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $foreign->id]);
+        OrderInvoice::factory()->create(['order_id' => $order->id]);
+        OrderInvoice::factory()->create(['order_id' => $order->id, 'purchase_order_id' => $foreign->id]);
+        $this->actingAsForApi($this->reader(['company_id' => $own->id]));
+        $this->getJson($this->url('orders'))->assertOk()->assertJsonPath('rows.0.observed_line_count', '2')->assertJsonPath('rows.0.observed_invoice_count', '2');
+        $this->getJson($this->url('order-lines'))->assertOk()->assertJsonPath('total', 1);
+        $this->getJson($this->url('order-invoices'))->assertOk()->assertJsonPath('total', 1);
     }
 
     public function test_fixed_paging_is_bounded_and_collections_are_read_only(): void

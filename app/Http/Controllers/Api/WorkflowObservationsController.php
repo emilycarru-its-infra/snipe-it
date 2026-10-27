@@ -83,7 +83,12 @@ class WorkflowObservationsController extends Controller
     private function procurementPage(Request $request, Builder $query, string $family): JsonResponse
     {
         $transformer = new ProcurementObservationsTransformer;
-        $query->select(ProcurementObservationsTransformer::FIELDS[$family]);
+        $query->select(array_diff(ProcurementObservationsTransformer::FIELDS[$family], ['observed_line_count', 'observed_invoice_count']));
+        if ($family === 'orders') {
+            // Count all children on this visible parent, even when a child link is outside
+            // the exported scope. Readers must not silently migrate a partial order.
+            $query->withCount(['items as observed_line_count', 'invoices as observed_invoice_count']);
+        }
 
         return $this->page($request, $query, fn (Model $row) => $transformer->transform($row, $family), maxOffset: 50000);
     }

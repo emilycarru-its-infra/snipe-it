@@ -4,7 +4,7 @@ namespace App\Http\Transformers;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** Stored facts, including split purchase-order links, without contacts or approval actors. */
+/** Stored facts and child coverage counts, without contacts or approval actors. */
 class ProcurementObservationsTransformer
 {
     public const FIELDS = [
@@ -13,7 +13,7 @@ class ProcurementObservationsTransformer
         'orders' => ['id', 'order_number', 'purchase_order_id', 'supplier_id', 'status', 'is_planned',
             'fiscal_year', 'order_date', 'expected_date', 'received_date', 'order_cost',
             'funding_account', 'lease_schedule', 'quote_number', 'quote_total', 'quote_expires_at',
-            'quote_confirmed_at', 'vendor_sent_at', 'vendor_order_number'],
+            'quote_confirmed_at', 'vendor_sent_at', 'vendor_order_number', 'observed_line_count', 'observed_invoice_count'],
         'order-lines' => ['id', 'order_id', 'purchase_order_id', 'invoice_id', 'catalog_item_id',
             'item_type', 'item_id', 'description', 'vendor_sku', 'mfr_part_number', 'quantity',
             'unit_of_measure', 'unit_cost', 'warranty_cost', 'received_at'],
