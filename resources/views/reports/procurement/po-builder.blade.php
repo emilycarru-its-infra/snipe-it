@@ -221,6 +221,18 @@
                                     <td>{{ trans('admin/purchase-orders/general.capital_envelope_gap') }}</td>
                                     <td class="pob-num" id="pob-envelope-gap">—</td>
                                 </tr>
+                                {{-- The projection is an assumption about leases
+                                     not signed yet: shown on its own row and
+                                     never folded into the envelope or the gap. --}}
+                                @if (($capital['projected']['total'] ?? 0) > 0)
+                                    <tr class="text-muted" id="pob-envelope-projected-row">
+                                        <td>
+                                            {{ trans('admin/purchase-orders/general.capital_envelope_projected_row') }}
+                                            <br><small>{{ trans('admin/purchase-orders/general.capital_envelope_projected_hint', ['devices' => number_format($capital['projected']['devices'])]) }}</small>
+                                        </td>
+                                        <td class="pob-num" id="pob-envelope-projected" data-projected="{{ $capital['projected']['total'] }}">${{ number_format($capital['projected']['total'], 2) }}</td>
+                                    </tr>
+                                @endif
                             @endif
                             <tr>
                                 <td>{{ trans('admin/purchase-orders/general.builder_subtotal') }}</td>
