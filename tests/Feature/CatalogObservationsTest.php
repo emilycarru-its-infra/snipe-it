@@ -52,7 +52,7 @@ class CatalogObservationsTest extends TestCase
         $row = $response->json('rows.0');
         $this->assertEqualsCanonicalizing(['id', 'name', 'category', 'supplier_id', 'manufacturer_id', 'model_id',
             'vendor_sku', 'mfr_part_number', 'unit_cost', 'estimated_cost', 'currency', 'price_type',
-            'is_active', 'show_in_store', 'self_serve', 'store_sort'], array_keys($row));
+            'product_type', 'quoted_at', 'expires_at', 'is_active', 'show_in_store', 'self_serve', 'store_sort'], array_keys($row));
         $this->assertSame((string) $item->id, $row['id']);
         $this->assertSame((string) $supplier->id, $row['supplier_id']);
         $this->assertSame((string) $maker->id, $row['manufacturer_id']);
@@ -71,12 +71,23 @@ class CatalogObservationsTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_quote_validity_dates_and_configuration_type_remain_source_facts(): void
+    {
+        $this->item(['product_type' => 'cto', 'quoted_at' => '2026-10-01', 'expires_at' => '2026-11-01']);
+        $this->actingAsForApi(User::factory()->create(['permissions' => '{"orders.view":"1"}']))
+            ->getJson(self::URL)->assertOk()->assertJsonPath('rows.0.product_type', 'cto')
+            ->assertJsonPath('rows.0.quoted_at', '2026-10-01')->assertJsonPath('rows.0.expires_at', '2026-11-01');
+    }
+
     public function test_unknown_prices_and_references_are_not_defaulted(): void
     {
         $this->item(['unit_cost' => null, 'estimated_cost' => null, 'currency' => 'ZZZ']);
         $row = $this->actingAsForApi(User::factory()->create(['permissions' => '{"orders.view":"1"}']))
             ->getJson(self::URL)->assertOk()->json('rows.0');
         $this->assertSame('ZZZ', $row['currency']);
+        $this->assertSame('standard', $row['product_type']);
+        $this->assertNull($row['quoted_at']);
+        $this->assertNull($row['expires_at']);
         foreach (['unit_cost', 'estimated_cost', 'supplier_id', 'manufacturer_id', 'model_id'] as $field) {
             $this->assertNull($row[$field]);
         }

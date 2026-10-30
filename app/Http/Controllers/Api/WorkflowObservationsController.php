@@ -33,10 +33,14 @@ class WorkflowObservationsController extends Controller
 
         $fields = ['id', 'name', 'category', 'supplier_id', 'manufacturer_id', 'model_id',
             'vendor_sku', 'mfr_part_number', 'unit_cost', 'estimated_cost', 'currency',
-            'price_type', 'is_active', 'show_in_store', 'self_serve', 'store_sort'];
+            'price_type', 'product_type', 'quoted_at', 'expires_at',
+            'is_active', 'show_in_store', 'self_serve', 'store_sort'];
 
         return $this->page($request, CatalogItem::query()->active()->select($fields), function (CatalogItem $row) use ($fields) {
             $facts = $row->only($fields);
+            foreach (['quoted_at', 'expires_at'] as $key) {
+                $facts[$key] = $row->{$key}?->format('Y-m-d');
+            }
             foreach (['id', 'supplier_id', 'manufacturer_id', 'model_id'] as $key) {
                 $facts[$key] = $facts[$key] === null ? null : (string) $facts[$key];
             }
