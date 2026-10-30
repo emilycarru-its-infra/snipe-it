@@ -7,6 +7,7 @@ use App\Http\Transformers\AgreementObservationsTransformer;
 use App\Http\Transformers\LeaseObservationsTransformer;
 use App\Http\Transformers\ProcurementObservationsTransformer;
 use App\Models\Asset;
+use App\Models\CatalogItem;
 use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
@@ -26,6 +27,24 @@ use Illuminate\Support\Facades\Validator;
 /** Read-only source facts; no recipient lookup, financial policy or workflow transition. */
 class WorkflowObservationsController extends Controller
 {
+    public function catalogItems(Request $request): JsonResponse
+    {
+        $this->authorize('view', CatalogItem::class);
+
+        $fields = ['id', 'name', 'category', 'supplier_id', 'manufacturer_id', 'model_id',
+            'vendor_sku', 'mfr_part_number', 'unit_cost', 'estimated_cost', 'currency',
+            'price_type', 'is_active', 'show_in_store', 'self_serve', 'store_sort'];
+
+        return $this->page($request, CatalogItem::query()->active()->select($fields), function (CatalogItem $row) use ($fields) {
+            $facts = $row->only($fields);
+            foreach (['id', 'supplier_id', 'manufacturer_id', 'model_id'] as $key) {
+                $facts[$key] = $facts[$key] === null ? null : (string) $facts[$key];
+            }
+
+            return $facts;
+        });
+    }
+
     public function purchaseOrders(Request $request): JsonResponse
     {
         $this->authorize('view', Order::class);

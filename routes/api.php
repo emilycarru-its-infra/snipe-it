@@ -935,6 +935,8 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('store-orders/{order}/shipment', [Api\StoreOrdersController::class, 'shipment'])
         ->name('api.store-orders.shipment');
 
+    Route::get('workflow-observations/catalog-items', [Api\WorkflowObservationsController::class, 'catalogItems'])
+        ->name('api.workflow-observations.catalog-items');
     Route::get('workflow-observations/purchase-orders', [Api\WorkflowObservationsController::class, 'purchaseOrders'])
         ->name('api.workflow-observations.purchase-orders');
     Route::get('workflow-observations/orders', [Api\WorkflowObservationsController::class, 'orders'])
