@@ -45,6 +45,7 @@ use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\PrintingReportsController;
 use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProcurementReportsController;
+use App\Http\Controllers\ProductIdentitiesController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrdersController;
 use App\Http\Controllers\ReportsController;
@@ -942,6 +943,10 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
             'destroy' => 'license-models.destroy',
         ],
         'parameters' => ['license-models' => 'licenseModel'],
+    ]);
+
+    Route::resource('product-identities', ProductIdentitiesController::class, [
+        'parameters' => ['product-identities' => 'productIdentity'],
     ]);
 
     /**
