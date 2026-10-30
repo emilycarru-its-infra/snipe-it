@@ -945,6 +945,52 @@ class ProcurementReportsTest extends TestCase
             ->assertSee('P0026150');
     }
 
+    public function test_a_line_partly_on_a_wave_says_how_much_of_it_is()
+    {
+        // Three devices aggregate into one line (same contract, model and
+        // area), but only one is planned into the wave. The wave must not
+        // label the whole line: it reads "1 of 3 on" the wave.
+        $model = AssetModel::factory()->create(['name' => 'Mixed Wave Laptop']);
+        $assets = collect(range(1, 3))->map(function () use ($model) {
+            $asset = $this->seedLeaseAsset([
+                'Lease Contract ID' => 'QQ-CAPREQ-MIXED',
+                'Ownership Type' => 'Lease to Return',
+                'Lease End Date' => '2026-10-01',
+            ], ['purchase_cost' => 1500.00, 'model_id' => $model->id]);
+            Asset::query()->whereKey($asset->id)->update(['asset_eol_date' => null]);
+
+            return $asset;
+        });
+
+        $wave = DeploymentWave::create([
+            'name' => 'Mixed Membership Wave', 'slug' => 'mixed-wave-'.uniqid(), 'fiscal_year' => 'FY2026-27',
+        ]);
+        DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $assets->first()->id]);
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSeeInOrder(['Mixed Wave Laptop', '1 of 3 on', 'Mixed Membership Wave'], false);
+
+        $csv = $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27&format=csv')
+            ->assertOk()
+            ->streamedContent();
+        $this->assertStringContainsString('1 of 3 on Mixed Membership Wave', $csv);
+
+        // Once every device on the line is on the wave, the plain name is
+        // the honest label again.
+        foreach ($assets->slice(1) as $asset) {
+            DeploymentItem::create(['wave_id' => $wave->id, 'replaces_asset_id' => $asset->id]);
+        }
+
+        $this->actingAs($this->superuser())
+            ->get('/procurement/capital?fiscal_year=FY2026-27')
+            ->assertOk()
+            ->assertSee('Mixed Membership Wave')
+            ->assertDontSee('of 3 on');
+    }
+
     public function test_the_forecast_carries_no_capital_money()
     {
         // The forecast is the device-planning surface: no envelope, no
