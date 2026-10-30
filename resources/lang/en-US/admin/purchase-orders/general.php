@@ -56,6 +56,7 @@ return [
     'forecast_estimate_basis' => 'Estimate Basis',
     'forecast_basis_catalog' => 'Catalog: :name',
     'forecast_basis_original' => 'Original cost (no catalog mapping)',
+    'forecast_basis_assumed' => 'Catalog: :name, assumed :rate a year past :fy prices',
     'price_estimate' => 'estimate',
     'forecast_status' => 'Status',
     'forecast_select' => 'Select',
