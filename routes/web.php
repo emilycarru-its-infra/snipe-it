@@ -435,6 +435,11 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('deployments.planning')
         ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
             ->push(trans('admin/deployments/general.forecast'), route('deployments.planning')));
+    Route::get('deployments/planning/horizon', [DeploymentsController::class, 'horizon'])
+        ->name('deployments.planning.horizon')
+        ->breadcrumbs(fn (Trail $trail) => ($deploymentCrumb)($trail)
+            ->push(trans('admin/deployments/general.forecast'), route('deployments.planning'))
+            ->push(trans('admin/deployments/general.horizon_title'), route('deployments.planning.horizon')));
     Route::post('deployments/planning/add', [DeploymentsController::class, 'addFromForecast'])
         ->name('deployments.planning.add');
     Route::post('deployments/planning/defer', [DeploymentsController::class, 'deferFromPlanning'])
