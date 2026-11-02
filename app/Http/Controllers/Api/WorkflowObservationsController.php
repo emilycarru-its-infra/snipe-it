@@ -11,17 +11,25 @@ use App\Models\CatalogItem;
 use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
+use App\Models\Contract;
+use App\Models\ContractAttribute;
+use App\Models\ContractSerial;
 use App\Models\ExhibitProject;
+use App\Models\License;
+use App\Models\LicenseSeat;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
+use App\Models\Requisition;
 use App\Models\UserAgreement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /** Read-only source facts; no recipient lookup, financial policy or workflow transition. */
@@ -211,8 +219,288 @@ class WorkflowObservationsController extends Controller
         ]);
     }
 
+    /**
+     * Each asset a live contract covers, with the dates and notes of that coverage. A link to a
+     * soft-deleted asset is kept and marked, since the coverage was recorded; an asset outside
+     * the caller's companies is left out.
+     */
+    public function contractAssets(Request $request): JsonResponse
+    {
+        $this->authorize('view', Contract::class);
+
+        $assets = Asset::withTrashed()->select('id');
+        $query = DB::table('contract_asset')
+            ->join('contracts', 'contracts.id', '=', 'contract_asset.contract_id')
+            ->leftJoin('assets', 'assets.id', '=', 'contract_asset.asset_id')
+            ->whereNull('contracts.deleted_at')
+            ->whereIn('contract_asset.asset_id', $assets)
+            ->select(['contract_asset.id', 'contract_asset.contract_id', 'contract_asset.asset_id',
+                'contract_asset.valid_from', 'contract_asset.valid_to', 'contract_asset.notes',
+                'assets.deleted_at as asset_deleted_at']);
+
+        return $this->page($request, $query, fn (object $row) => [
+            'id' => (string) $row->id,
+            'contract_id' => (string) $row->contract_id,
+            'asset_id' => (string) $row->asset_id,
+            'valid_from' => $row->valid_from === null ? null : substr((string) $row->valid_from, 0, 10),
+            'valid_to' => $row->valid_to === null ? null : substr((string) $row->valid_to, 0, 10),
+            'notes' => $row->notes,
+            'asset_deleted' => $row->asset_deleted_at !== null,
+        ], maxOffset: 50000, order: 'contract_asset.id');
+    }
+
+    /** Each serial number a live contract names, with where it was read. */
+    public function contractSerials(Request $request): JsonResponse
+    {
+        $this->authorize('view', Contract::class);
+
+        $query = ContractSerial::query()->whereHas('contract')
+            ->select(['id', 'contract_id', 'serial', 'source', 'notes']);
+
+        return $this->page($request, $query, fn (ContractSerial $row) => [
+            'id' => (string) $row->id,
+            'contract_id' => (string) $row->contract_id,
+            'serial' => $row->serial,
+            'source' => $row->source,
+            'notes' => $row->notes,
+        ], maxOffset: 50000);
+    }
+
+    /** Each stored attribute of a live contract, as its name and value. */
+    public function contractAttributes(Request $request): JsonResponse
+    {
+        $this->authorize('view', Contract::class);
+
+        $query = ContractAttribute::query()->whereHas('contract')
+            ->select(['id', 'contract_id', 'name', 'value']);
+
+        return $this->page($request, $query, fn (ContractAttribute $row) => [
+            'id' => (string) $row->id,
+            'contract_id' => (string) $row->contract_id,
+            'name' => $row->name,
+            'value' => $row->value,
+        ], maxOffset: 50000);
+    }
+
+    /**
+     * Each seat of a live licence in stable id order: who or what holds it, as the holder's id
+     * only, whether it was retired at checkin, its notes and when it last changed (the checkout
+     * time the seat list shows). No person field beyond the id leaves.
+     */
+    public function licenseSeats(Request $request): JsonResponse
+    {
+        $this->authorize('view', License::class);
+
+        $query = LicenseSeat::query()->whereHas('license')
+            ->select(['id', 'license_id', 'assigned_to', 'asset_id', 'unreassignable_seat', 'notes', 'updated_at']);
+
+        return $this->page($request, $query, fn (LicenseSeat $row) => [
+            'id' => (string) $row->id,
+            'license_id' => (string) $row->license_id,
+            'assigned_to' => $row->assigned_to === null ? null : (string) $row->assigned_to,
+            'asset_id' => $row->asset_id === null ? null : (string) $row->asset_id,
+            'unreassignable' => (bool) $row->unreassignable_seat,
+            'notes' => $row->notes,
+            'updated_at' => $row->updated_at?->format('Y-m-d H:i:s'),
+        ], maxOffset: 100000);
+    }
+
+    /**
+     * The stored-record families, one row per table row in stable id order. Each family names its
+     * table, the read ability that already shows that data in the app, and the explicit allow-list
+     * of columns with their wire type; no other column is ever selected. `soft` marks a table with
+     * soft deletes: its deleted rows stay in the observation, with their deleted_at, so history
+     * keeps them. `asset` keeps only rows whose asset (deleted or not) the reader's company scope
+     * can see, and `parent` keeps only rows whose parent row passes its own family's visibility
+     * (see scope()) and adds parent_deleted.
+     */
+    private const RECORDS = [
+        'budget-allocations' => ['table' => 'budget_allocations', 'can' => ['procurement.view'], 'soft' => true,
+            'columns' => ['fiscal_year' => 'text', 'area' => 'text', 'amount' => 'decimal', 'source' => 'text', 'description' => 'text', 'effective_date' => 'date', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'capital-request-lines' => ['table' => 'capital_request_lines', 'can' => ['procurement.view'],
+            'columns' => ['fiscal_year' => 'text', 'area' => 'text', 'need' => 'text', 'type' => 'text', 'description' => 'text', 'quantity' => 'int', 'unit_cost' => 'decimal', 'preference' => 'text', 'sort_order' => 'int', 'created_at' => 'time']],
+        'store-orders' => ['table' => 'store_orders', 'can' => ['view', Requisition::class],
+            'columns' => ['user_id' => 'id', 'status' => 'text', 'program' => 'text', 'order_usage' => 'text', 'location_id' => 'id', 'refresh_asset_id' => 'id', 'funding_account' => 'text', 'lease_schedule' => 'text', 'gl_code' => 'text', 'department_po_number' => 'text', 'notes' => 'text', 'decision_notes' => 'text', 'decided_by' => 'id', 'decided_at' => 'time', 'requisition_id' => 'id', 'purchase_order_id' => 'id', 'deployment_wave_id' => 'id', 'vendor_sent_at' => 'time', 'quote_number' => 'text', 'quote_total' => 'decimal', 'quote_expires_at' => 'date', 'quote_received_at' => 'time', 'confirmed_at' => 'time', 'tracking_number' => 'text', 'shipped_at' => 'time', 'arrived_at' => 'time', 'created_at' => 'time']],
+        'store-order-items' => ['table' => 'store_order_items', 'can' => ['view', Requisition::class], 'parent' => ['store_order_id', 'store_orders'],
+            'columns' => ['store_order_id' => 'id', 'catalog_item_id' => 'id', 'description' => 'text', 'vendor_sku' => 'text', 'mfr_part_number' => 'text', 'quantity' => 'int', 'unit_cost' => 'decimal', 'created_at' => 'time']],
+        'deployment-types' => ['table' => 'deployment_types', 'can' => ['deployments.view'],
+            'columns' => ['name' => 'text', 'slug' => 'text', 'color' => 'text', 'moves_devices' => 'bool', 'sort_order' => 'int', 'active' => 'bool', 'created_at' => 'time']],
+        'deployment-stages' => ['table' => 'deployment_stages', 'can' => ['deployments.view'],
+            'columns' => ['name' => 'text', 'slug' => 'text', 'color' => 'text', 'sort_order' => 'int', 'is_terminal' => 'bool', 'is_on_hand' => 'bool', 'maps_to_status_id' => 'id', 'active' => 'bool', 'created_at' => 'time']],
+        'deployment-waves' => ['table' => 'deployment_waves', 'can' => ['deployments.view'], 'soft' => true,
+            'columns' => ['name' => 'text', 'slug' => 'text', 'fiscal_year' => 'text', 'deployment_type_id' => 'id', 'wave_state' => 'text', 'announced_at' => 'time', 'arrival_window_start' => 'date', 'arrival_window_end' => 'date', 'target_start_date' => 'date', 'target_end_date' => 'date', 'location_id' => 'id', 'storage_location_id' => 'id', 'owner_id' => 'id', 'purchase_order_id' => 'id', 'form_key' => 'text', 'color' => 'text', 'sort_order' => 'int', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'deployment-items' => ['table' => 'deployment_items', 'can' => ['deployments.view'], 'parent' => ['wave_id', 'deployment_waves'], 'asset' => 'asset_id',
+            'columns' => ['wave_id' => 'id', 'asset_id' => 'id', 'replaces_asset_id' => 'id', 'order_item_id' => 'id', 'model_id' => 'id', 'stage_id' => 'id', 'group_label' => 'text', 'assigned_user_id' => 'id', 'assigned_tech_id' => 'id', 'storage_location_id' => 'id', 'target_deploy_date' => 'date', 'deployed_at' => 'time', 'notes' => 'text', 'created_at' => 'time']],
+        'staff-blackouts' => ['table' => 'staff_blackouts', 'can' => ['deployments.view'],
+            'columns' => ['user_id' => 'id', 'source' => 'text', 'start_date' => 'date', 'end_date' => 'date', 'reason' => 'text', 'external_id' => 'text', 'synced_at' => 'time', 'created_at' => 'time']],
+        'lease-schedules' => ['table' => 'lease_schedules', 'can' => ['view', Order::class], 'soft' => true,
+            'columns' => ['schedule_ref' => 'text', 'lessor' => 'text', 'lease_type' => 'text', 'term_months' => 'int', 'received_at' => 'date', 'expected_acquisition_cost' => 'decimal', 'expected_asset_count' => 'int', 'usage_tag' => 'text', 'lifecycle_stage' => 'text', 'signed_at' => 'time', 'signed_by' => 'id', 'vendor_on_hold' => 'bool', 'contract_id' => 'id', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'asset-buyouts' => ['table' => 'asset_buyouts', 'can' => ['deployments.view'], 'soft' => true, 'asset' => 'asset_id',
+            'columns' => ['asset_id' => 'id', 'lessor_id' => 'id', 'buyer_id' => 'id', 'requested_by' => 'id', 'status' => 'text', 'requested_at' => 'time', 'quote_amount' => 'decimal', 'remaining_rent' => 'decimal', 'quote_total' => 'decimal', 'quoted_at' => 'date', 'buyer_amount' => 'decimal', 'ecu_amount' => 'decimal', 'approved_at' => 'time', 'approved_by' => 'id', 'declined_at' => 'time', 'decline_reason' => 'text', 'invoice_number' => 'text', 'invoice_date' => 'date', 'invoice_due_date' => 'date', 'paid_at' => 'time', 'payment_method' => 'text', 'payment_reference' => 'text', 'completed_at' => 'time', 'notes' => 'text', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'asset-buyout-quotes' => ['table' => 'asset_buyout_quotes', 'can' => ['deployments.view'], 'parent' => ['asset_buyout_id', 'asset_buyouts'],
+            'columns' => ['asset_buyout_id' => 'id', 'quote_amount' => 'decimal', 'remaining_rent' => 'decimal', 'quote_total' => 'decimal', 'quoted_at' => 'date', 'reference' => 'text', 'notes' => 'text', 'recorded_by' => 'id', 'created_at' => 'time']],
+        'lease-pickups' => ['table' => 'lease_pickups', 'can' => ['deployments.view'], 'soft' => true,
+            'columns' => ['lessor_id' => 'id', 'requested_by' => 'id', 'status' => 'text', 'requested_at' => 'time', 'preferred_dates' => 'text', 'load_number' => 'text', 'scheduled_date' => 'date', 'scheduled_window' => 'text', 'receiving_notified_at' => 'time', 'receiving_notified_for' => 'text', 'picked_up_at' => 'date', 'notes' => 'text', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'lease-pickup-assets' => ['table' => 'lease_pickup_assets', 'can' => ['deployments.view'], 'parent' => ['lease_pickup_id', 'lease_pickups'], 'asset' => 'asset_id',
+            'columns' => ['lease_pickup_id' => 'id', 'asset_id' => 'id', 'created_at' => 'time']],
+        'lease-decisions' => ['table' => 'lease_decisions', 'can' => ['view', Order::class], 'soft' => true, 'asset' => 'asset_id',
+            'columns' => ['contract_reference' => 'text', 'asset_id' => 'id', 'decision_type' => 'text', 'decision_date' => 'date', 'deferred_to_fy' => 'text', 'amount' => 'decimal', 'status' => 'text', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'exhibit-email-templates' => ['table' => 'exhibit_email_templates', 'can' => ['view', Order::class],
+            'columns' => ['key' => 'text', 'name' => 'text', 'subject' => 'text', 'body' => 'text', 'enabled' => 'bool', 'created_at' => 'time']],
+        'maintenances' => ['table' => 'maintenances', 'can' => ['view', Asset::class], 'soft' => true, 'asset' => 'asset_id',
+            'columns' => ['asset_id' => 'id', 'supplier_id' => 'id', 'asset_maintenance_type' => 'text', 'name' => 'text', 'url' => 'text', 'is_warranty' => 'bool', 'start_date' => 'date', 'completion_date' => 'date', 'asset_maintenance_time' => 'int', 'notes' => 'text', 'cost' => 'decimal', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'permission-groups' => ['table' => 'permission_groups', 'can' => ['superadmin'],
+            'columns' => ['name' => 'text', 'permissions' => 'text', 'notes' => 'text', 'created_at' => 'time']],
+        'form-eligibility' => ['table' => 'form_eligibility', 'can' => ['superadmin'],
+            'columns' => ['form_slug' => 'text', 'group_id' => 'id', 'created_at' => 'time']],
+        'action-logs' => ['table' => 'action_logs', 'can' => ['superadmin'], 'soft' => true, 'maxOffset' => 1000000,
+            'columns' => ['created_by' => 'id', 'action_type' => 'text', 'target_id' => 'id', 'target_type' => 'text', 'location_id' => 'id', 'note' => 'text', 'item_type' => 'text', 'item_id' => 'id', 'expected_checkin' => 'date', 'quantity' => 'int', 'log_meta' => 'text', 'action_date' => 'time', 'action_source' => 'text', 'created_at' => 'time', 'deleted_at' => 'time']],
+    ];
+
+    /** Every family the records route serves; the route constraint and the lookup both use it. */
+    public static function recordFamilies(): array
+    {
+        return [...array_keys(self::RECORDS), 'user-access'];
+    }
+
+    /** One stored-record family, exactly its allow-listed columns, typed for the wire. */
+    public function records(Request $request, string $family): JsonResponse
+    {
+        if ($family === 'user-access') {
+            return $this->userAccess($request);
+        }
+        $spec = self::RECORDS[$family] ?? abort(404);
+        $this->authorize(...$spec['can']);
+
+        $table = $spec['table'];
+        $columns = $spec['columns'];
+        $query = DB::table($table)->select(array_map(fn (string $column) => $table.'.'.$column, ['id', ...array_keys($columns)]));
+        self::scope($query, $spec);
+        $child = isset($spec['parent']);
+        if ($child) {
+            $query->selectSub(self::parentDeleted($spec), 'parent_deleted');
+        }
+
+        return $this->page($request, $query, function (object $row) use ($columns, $child) {
+            $out = ['id' => self::typed('id', $row->id)];
+            foreach ($columns as $column => $type) {
+                $out[$column] = self::typed($type, $row->{$column});
+            }
+            if ($child) {
+                $out['parent_deleted'] = (bool) $row->parent_deleted;
+            }
+
+            return $out;
+        }, maxOffset: $spec['maxOffset'] ?? 100000, order: $table.'.id');
+    }
+
+    /**
+     * The family's visibility, applied to rows of its table: an asset the reader's company scope
+     * can see (deleted or not), and, for a child family, a parent row that exists and itself
+     * passes its own family's visibility. A child therefore inherits every filter of the chain
+     * above it, so a reader never sees a child of a parent they cannot see. Soft-deleted rows stay
+     * visible; deletion is reported, not filtered.
+     */
+    private static function scope(QueryBuilder $query, array $spec): void
+    {
+        $table = $spec['table'];
+        if (isset($spec['asset'])) {
+            $column = $table.'.'.$spec['asset'];
+            $query->where(fn (QueryBuilder $visible) => $visible->whereNull($column)
+                ->orWhereIn($column, Asset::withTrashed()->select('id')));
+        }
+        if (isset($spec['parent'])) {
+            [$column] = $spec['parent'];
+            $parent = self::parentSpec($spec);
+            $query->whereExists(function (QueryBuilder $visible) use ($table, $column, $parent) {
+                $visible->from($parent['table'])->whereColumn($parent['table'].'.id', $table.'.'.$column);
+                self::scope($visible, $parent);
+            });
+        }
+    }
+
+    /** The child's parent spec: the parent family's entry, or just its table. */
+    private static function parentSpec(array $spec): array
+    {
+        return collect(self::RECORDS)->firstWhere('table', $spec['parent'][1]) ?? ['table' => $spec['parent'][1]];
+    }
+
+    /**
+     * Whether the child row's parent, or any ancestor above it, is soft-deleted: a correlated
+     * subquery on the child table that yields 1, or null when the whole chain is live.
+     */
+    private static function parentDeleted(array $spec): QueryBuilder
+    {
+        return DB::query()->selectRaw('1')->where(fn (QueryBuilder $chain) => self::deletedAbove($chain, $spec));
+    }
+
+    /** Adds "the row's parent or an ancestor is soft-deleted" for rows of the child's table. */
+    private static function deletedAbove(QueryBuilder $query, array $spec): void
+    {
+        $parent = self::parentSpec($spec);
+        $query->whereExists(function (QueryBuilder $deleted) use ($parent, $spec) {
+            $deleted->from($parent['table'])->whereColumn($parent['table'].'.id', $spec['table'].'.'.$spec['parent'][0])
+                ->where(function (QueryBuilder $any) use ($parent) {
+                    $any->whereRaw('0 = 1');
+                    if ($parent['soft'] ?? false) {
+                        $any->orWhereNotNull($parent['table'].'.deleted_at');
+                    }
+                    if (isset($parent['parent'])) {
+                        $any->orWhere(fn (QueryBuilder $higher) => self::deletedAbove($higher, $parent));
+                    }
+                });
+        });
+    }
+
+    /**
+     * Each live user's access as stored: the permission groups they belong to, as ascending group
+     * ids, and their own permissions JSON text. No other user field is read.
+     */
+    private function userAccess(Request $request): JsonResponse
+    {
+        $this->authorize('superadmin');
+
+        $query = DB::table('users')->whereNull('deleted_at')->select(['id', 'permissions']);
+        $response = $this->page($request, $query, fn (object $row) => $row, maxOffset: 100000);
+        if ($response->getStatusCode() !== 200) {
+            return $response;
+        }
+        $payload = $response->getData(true);
+        $groups = DB::table('users_groups')->whereIn('user_id', array_column($payload['rows'], 'id'))
+            ->orderBy('group_id')->get(['user_id', 'group_id'])->groupBy('user_id');
+        $payload['rows'] = array_map(function (array $row) use ($groups) {
+            $ids = $groups->get($row['id'])?->pluck('group_id')->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+
+            return [
+                'id' => self::typed('id', $row['id']),
+                'group_ids' => $ids ? implode(',', $ids) : null,
+                'permissions' => $row['permissions'],
+            ];
+        }, $payload['rows']);
+
+        return response()->json($payload, 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    /** A stored value on the wire: ids as positive-integer strings, decimals as their stored text. */
+    private static function typed(string $type, mixed $value): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return match ($type) {
+            'id' => (int) $value > 0 ? (string) (int) $value : null,
+            'int' => (int) $value,
+            'bool' => (bool) $value,
+            'decimal' => (string) $value,
+            'date' => substr((string) $value, 0, 10),
+            'time' => substr((string) $value, 0, 19),
+            default => (string) $value,
+        };
+    }
+
     /** Each page is a fresh observation; no cross-page transactional snapshot is asserted. */
-    private function page(Request $request, Builder $query, callable $project, int $maxOffset = 10000): JsonResponse
+    private function page(Request $request, Builder|QueryBuilder $query, callable $project, int $maxOffset = 10000, string $order = 'id'): JsonResponse
     {
         $validation = Validator::make($request->query(), [
             'limit' => 'sometimes|integer|min:1|max:100',
@@ -223,7 +511,7 @@ class WorkflowObservationsController extends Controller
         }
         $params = $validation->validated();
         $total = (clone $query)->count();
-        $rows = $query->orderBy('id')->offset($params['offset'] ?? 0)->limit($params['limit'] ?? 100)
+        $rows = $query->orderBy($order)->offset($params['offset'] ?? 0)->limit($params['limit'] ?? 100)
             ->get()->map($project)->values();
 
         return response()->json(['total' => $total, 'rows' => $rows], 200, ['Cache-Control' => 'private, no-store']);

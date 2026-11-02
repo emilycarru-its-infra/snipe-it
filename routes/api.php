@@ -955,6 +955,17 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.workflow-observations.exhibit-projects');
     Route::get('workflow-observations/consumable-transactions', [Api\WorkflowObservationsController::class, 'consumableTransactions'])
         ->name('api.workflow-observations.consumable-transactions');
+    Route::get('workflow-observations/contract-assets', [Api\WorkflowObservationsController::class, 'contractAssets'])
+        ->name('api.workflow-observations.contract-assets');
+    Route::get('workflow-observations/contract-serials', [Api\WorkflowObservationsController::class, 'contractSerials'])
+        ->name('api.workflow-observations.contract-serials');
+    Route::get('workflow-observations/contract-attributes', [Api\WorkflowObservationsController::class, 'contractAttributes'])
+        ->name('api.workflow-observations.contract-attributes');
+    Route::get('workflow-observations/license-seats', [Api\WorkflowObservationsController::class, 'licenseSeats'])
+        ->name('api.workflow-observations.license-seats');
+    Route::get('workflow-observations/{family}', [Api\WorkflowObservationsController::class, 'records'])
+        ->whereIn('family', Api\WorkflowObservationsController::recordFamilies())
+        ->name('api.workflow-observations.records');
 
     // Exhibit project CSV backfill — token-authed, drives the multi-year
     // historical import without an SSO session.
