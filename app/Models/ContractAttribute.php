@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ContractAttribute extends Model
 {
@@ -13,7 +14,8 @@ class ContractAttribute extends Model
 
     protected $fillable = ['contract_id', 'name', 'value'];
 
-    public function contract()
+    /** @return BelongsTo<Contract, $this> */
+    public function contract(): BelongsTo
     {
         return $this->belongsTo(Contract::class);
     }

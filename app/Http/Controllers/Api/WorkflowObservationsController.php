@@ -11,6 +11,9 @@ use App\Models\CatalogItem;
 use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
+use App\Models\Contract;
+use App\Models\ContractAttribute;
+use App\Models\ContractSerial;
 use App\Models\ExhibitProject;
 use App\Models\Order;
 use App\Models\OrderInvoice;
@@ -20,8 +23,10 @@ use App\Models\PurchaseOrder;
 use App\Models\UserAgreement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /** Read-only source facts; no recipient lookup, financial policy or workflow transition. */
@@ -211,8 +216,71 @@ class WorkflowObservationsController extends Controller
         ]);
     }
 
+    /**
+     * Each asset a live contract covers, with the dates and notes of that coverage. A link to a
+     * soft-deleted asset is kept and marked, since the coverage was recorded; an asset outside
+     * the caller's companies is left out.
+     */
+    public function contractAssets(Request $request): JsonResponse
+    {
+        $this->authorize('view', Contract::class);
+
+        $assets = Asset::withTrashed()->select('id');
+        $query = DB::table('contract_asset')
+            ->join('contracts', 'contracts.id', '=', 'contract_asset.contract_id')
+            ->leftJoin('assets', 'assets.id', '=', 'contract_asset.asset_id')
+            ->whereNull('contracts.deleted_at')
+            ->whereIn('contract_asset.asset_id', $assets)
+            ->select(['contract_asset.id', 'contract_asset.contract_id', 'contract_asset.asset_id',
+                'contract_asset.valid_from', 'contract_asset.valid_to', 'contract_asset.notes',
+                'assets.deleted_at as asset_deleted_at']);
+
+        return $this->page($request, $query, fn (object $row) => [
+            'id' => (string) $row->id,
+            'contract_id' => (string) $row->contract_id,
+            'asset_id' => (string) $row->asset_id,
+            'valid_from' => $row->valid_from === null ? null : substr((string) $row->valid_from, 0, 10),
+            'valid_to' => $row->valid_to === null ? null : substr((string) $row->valid_to, 0, 10),
+            'notes' => $row->notes,
+            'asset_deleted' => $row->asset_deleted_at !== null,
+        ], maxOffset: 50000, order: 'contract_asset.id');
+    }
+
+    /** Each serial number a live contract names, with where it was read. */
+    public function contractSerials(Request $request): JsonResponse
+    {
+        $this->authorize('view', Contract::class);
+
+        $query = ContractSerial::query()->whereHas('contract')
+            ->select(['id', 'contract_id', 'serial', 'source', 'notes']);
+
+        return $this->page($request, $query, fn (ContractSerial $row) => [
+            'id' => (string) $row->id,
+            'contract_id' => (string) $row->contract_id,
+            'serial' => $row->serial,
+            'source' => $row->source,
+            'notes' => $row->notes,
+        ], maxOffset: 50000);
+    }
+
+    /** Each stored attribute of a live contract, as its name and value. */
+    public function contractAttributes(Request $request): JsonResponse
+    {
+        $this->authorize('view', Contract::class);
+
+        $query = ContractAttribute::query()->whereHas('contract')
+            ->select(['id', 'contract_id', 'name', 'value']);
+
+        return $this->page($request, $query, fn (ContractAttribute $row) => [
+            'id' => (string) $row->id,
+            'contract_id' => (string) $row->contract_id,
+            'name' => $row->name,
+            'value' => $row->value,
+        ], maxOffset: 50000);
+    }
+
     /** Each page is a fresh observation; no cross-page transactional snapshot is asserted. */
-    private function page(Request $request, Builder $query, callable $project, int $maxOffset = 10000): JsonResponse
+    private function page(Request $request, Builder|QueryBuilder $query, callable $project, int $maxOffset = 10000, string $order = 'id'): JsonResponse
     {
         $validation = Validator::make($request->query(), [
             'limit' => 'sometimes|integer|min:1|max:100',
@@ -223,7 +291,7 @@ class WorkflowObservationsController extends Controller
         }
         $params = $validation->validated();
         $total = (clone $query)->count();
-        $rows = $query->orderBy('id')->offset($params['offset'] ?? 0)->limit($params['limit'] ?? 100)
+        $rows = $query->orderBy($order)->offset($params['offset'] ?? 0)->limit($params['limit'] ?? 100)
             ->get()->map($project)->values();
 
         return response()->json(['total' => $total, 'rows' => $rows], 200, ['Cache-Control' => 'private, no-store']);
