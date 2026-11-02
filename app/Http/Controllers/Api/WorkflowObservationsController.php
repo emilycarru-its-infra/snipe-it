@@ -8,12 +8,14 @@ use App\Http\Transformers\LeaseObservationsTransformer;
 use App\Http\Transformers\ProcurementObservationsTransformer;
 use App\Models\Asset;
 use App\Models\CatalogItem;
+use App\Models\Category;
 use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
 use App\Models\Contract;
 use App\Models\ContractAttribute;
 use App\Models\ContractSerial;
+use App\Models\Department;
 use App\Models\ExhibitProject;
 use App\Models\License;
 use App\Models\LicenseSeat;
@@ -23,6 +25,8 @@ use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
+use App\Models\Statuslabel;
+use App\Models\Supplier;
 use App\Models\UserAgreement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -311,8 +315,10 @@ class WorkflowObservationsController extends Controller
      * of columns with their wire type; no other column is ever selected. `soft` marks a table with
      * soft deletes: its deleted rows stay in the observation, with their deleted_at, so history
      * keeps them. `asset` keeps only rows whose asset (deleted or not) the reader's company scope
-     * can see, and `parent` keeps only rows whose parent row passes its own family's visibility
-     * (see scope()) and adds parent_deleted.
+     * can see, `model` keeps only rows that model's own scopes show, its company scope included,
+     * deleted or not, `where` keeps only rows whose listed columns hold the listed values, and
+     * `parent` keeps only rows whose parent row passes its own family's visibility (see scope())
+     * and adds parent_deleted.
      */
     private const RECORDS = [
         'budget-allocations' => ['table' => 'budget_allocations', 'can' => ['procurement.view'], 'soft' => true,
@@ -355,6 +361,22 @@ class WorkflowObservationsController extends Controller
             'columns' => ['form_slug' => 'text', 'group_id' => 'id', 'created_at' => 'time']],
         'action-logs' => ['table' => 'action_logs', 'can' => ['superadmin'], 'soft' => true, 'maxOffset' => 1000000,
             'columns' => ['created_by' => 'id', 'action_type' => 'text', 'target_id' => 'id', 'target_type' => 'text', 'location_id' => 'id', 'note' => 'text', 'item_type' => 'text', 'item_id' => 'id', 'expected_checkin' => 'date', 'quantity' => 'int', 'log_meta' => 'text', 'action_date' => 'time', 'action_source' => 'text', 'created_at' => 'time', 'deleted_at' => 'time']],
+        // An upload's metadata only. Deleting an upload removes its file, so a deleted row names a
+        // file that no longer exists; no file content is ever read or served here.
+        'uploads' => ['table' => 'action_logs', 'can' => ['superadmin'], 'soft' => true, 'where' => ['action_type' => 'uploaded'],
+            'columns' => ['item_type' => 'text', 'item_id' => 'id', 'filename' => 'text', 'note' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'suppliers' => ['table' => 'suppliers', 'can' => ['view', Supplier::class], 'soft' => true,
+            'columns' => ['name' => 'text', 'address' => 'text', 'address2' => 'text', 'city' => 'text', 'state' => 'text', 'country' => 'text', 'zip' => 'text', 'contact' => 'text', 'phone' => 'text', 'fax' => 'text', 'email' => 'text', 'url' => 'text', 'notes' => 'text', 'image' => 'text', 'tag_color' => 'text', 'order_emails' => 'text', 'lease_emails' => 'text', 'pickup_emails' => 'text', 'contract_prefixes' => 'text', 'colleague_vendor_id' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'status-labels' => ['table' => 'status_labels', 'can' => ['view', Statuslabel::class], 'soft' => true,
+            'columns' => ['name' => 'text', 'deployable' => 'bool', 'pending' => 'bool', 'archived' => 'bool', 'notes' => 'text', 'color' => 'text', 'show_in_nav' => 'bool', 'default_label' => 'bool', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'categories' => ['table' => 'categories', 'can' => ['view', Category::class], 'soft' => true,
+            'columns' => ['name' => 'text', 'category_type' => 'text', 'require_acceptance' => 'bool', 'checkin_email' => 'bool', 'use_default_eula' => 'bool', 'alert_on_response' => 'bool', 'eula_text' => 'text', 'notes' => 'text', 'image' => 'text', 'tag_color' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        'departments' => ['table' => 'departments', 'can' => ['view', Department::class], 'soft' => true, 'model' => Department::class,
+            'columns' => ['name' => 'text', 'company_id' => 'id', 'location_id' => 'id', 'manager_id' => 'id', 'phone' => 'text', 'fax' => 'text', 'notes' => 'text', 'procurement_access' => 'bool', 'image' => 'text', 'tag_color' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        // Each asset's stored status label id, live or deleted, even when that label is itself
+        // soft-deleted; the asset API's status relation leaves such a label out.
+        'asset-statuses' => ['table' => 'assets', 'can' => ['view', Asset::class], 'soft' => true, 'model' => Asset::class,
+            'columns' => ['status_id' => 'id', 'deleted_at' => 'time']],
     ];
 
     /** Every family the records route serves; the route constraint and the lookup both use it. */
@@ -397,13 +419,24 @@ class WorkflowObservationsController extends Controller
     /**
      * The family's visibility, applied to rows of its table: an asset the reader's company scope
      * can see (deleted or not), and, for a child family, a parent row that exists and itself
-     * passes its own family's visibility. A child therefore inherits every filter of the chain
+     * passes its own family's visibility. A `model` family keeps the rows its model's scopes show,
+     * company scope included, deleted or not. A child therefore inherits every filter of the chain
      * above it, so a reader never sees a child of a parent they cannot see. Soft-deleted rows stay
      * visible; deletion is reported, not filtered.
      */
     private static function scope(QueryBuilder $query, array $spec): void
     {
         $table = $spec['table'];
+        foreach ($spec['where'] ?? [] as $column => $value) {
+            $query->where($table.'.'.$column, $value);
+        }
+        if (isset($spec['model'])) {
+            $query->whereIn($table.'.id', match ($spec['model']) {
+                Asset::class => Asset::withTrashed()->select('assets.id'),
+                Department::class => Department::withTrashed()->select('departments.id'),
+                default => throw new \LogicException('No visibility scope for '.$table.'.'),
+            });
+        }
         if (isset($spec['asset'])) {
             $column = $table.'.'.$spec['asset'];
             $query->where(fn (QueryBuilder $visible) => $visible->whereNull($column)
