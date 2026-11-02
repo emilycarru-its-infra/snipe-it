@@ -3,6 +3,7 @@
 namespace App\Services\Leasing;
 
 use App\Models\Asset;
+use App\Models\Company;
 use App\Models\EmailTemplate;
 use App\Models\OkayToPayAcceptance as Acceptance;
 use App\Models\OkayToPayDelivery;
@@ -42,7 +43,7 @@ class OkayToPayAcceptance
                 $invoice->invoice_number, $invoice->invoice_date?->toDateString(),
                 $invoice->invoice_type, $invoice->subtotal, $invoice->tax_gst,
                 $invoice->tax_pst, $invoice->shipping, $invoice->total],
-            'order' => [$order?->id, $order?->supplier_id, $order?->purchase_order_id,
+            'order' => [$order?->id, $order?->company_id, $order?->supplier_id, $order?->purchase_order_id,
                 $order?->order_number, $order?->status, $order?->lease_schedule,
                 $order?->funding_account, $order?->quote_total, $order?->quote_number, $order?->quote_confirmed_at?->toISOString()],
             'lines' => $lines,
@@ -107,6 +108,11 @@ class OkayToPayAcceptance
             Order::whereKey($invoice->order_id)->lockForUpdate()->first();
             $invoice = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
             $this->lockFacts($invoice);
+            abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
+            OkayToPayHistory::protect($invoice);
+            if ($data['decision'] === 'accept' && OkayToPayHistory::blocked($invoice)) {
+                throw ValidationException::withMessages(['decision' => trans('admin/purchase-orders/general.okp_reason_historical_settlement')]);
+            }
             if ($invoice->approval_status === 'disputed' && $data['decision'] === 'accept') {
                 throw ValidationException::withMessages(['decision' => trans('admin/purchase-orders/general.okp_reason_disputed')]);
             }

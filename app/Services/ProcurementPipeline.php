@@ -10,6 +10,7 @@ use App\Models\Requisition;
 use App\Models\StoreOrder;
 use App\Models\UserAgreement;
 use App\Services\Leasing\OkayToPay;
+use App\Services\Leasing\OkayToPayHistory;
 use App\Services\Settings\Preferences;
 use Illuminate\Support\Collection;
 
@@ -328,15 +329,20 @@ class ProcurementPipeline
             ->orderBy('invoice_date')
             ->get();
 
-        return self::cap($invoices->map(fn (OrderInvoice $invoice) => [
-            'id' => $invoice->id,
-            'invoice_number' => $invoice->invoice_number,
-            'okp_unresolved' => $invoice->okayToPayDelivery !== null || in_array($invoice->okp_status, [OkayToPay::SENDING, OkayToPay::UNCERTAIN], true),
-            'order_number' => $invoice->order?->order_number,
-            'invoice_date' => $invoice->invoice_date?->format('Y-m-d'),
-            'subtotal' => (float) $invoice->subtotal,
-            'total' => (float) $invoice->total,
-        ]));
+        return self::cap($invoices->map(function (OrderInvoice $invoice) {
+            $historical = OkayToPayHistory::blocked($invoice);
+
+            return [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'okp_historical' => $historical,
+                'okp_unresolved' => $historical || $invoice->okayToPayDelivery !== null || in_array($invoice->okp_status, [OkayToPay::SENDING, OkayToPay::UNCERTAIN], true),
+                'order_number' => $invoice->order?->order_number,
+                'invoice_date' => $invoice->invoice_date?->format('Y-m-d'),
+                'subtotal' => (float) $invoice->subtotal,
+                'total' => (float) $invoice->total,
+            ];
+        }));
     }
 
     /**

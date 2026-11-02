@@ -710,6 +710,8 @@ return [
     'okp_status_queued' => 'Queued · sends :date',
     'okp_status_held' => 'Held',
     'okp_status_sent' => 'Sent :date',
+    'okp_historical_hold' => 'Prior settlement needs reconciliation',
+    'okp_reason_historical_settlement' => 'Payment held: this invoice or its original vendor identity has a retained historical approval or delivery. Reconcile prior settlement; receipt evidence cannot authorize it again.',
     'okp_delivery_unresolved' => 'Delivery unresolved',
     'okp_reason_no_recipient' => 'Payment held: no recipient is configured.',
     'okp_reason_asset_withdrawn' => 'Payment held: billed equipment is archived or decommissioned.',

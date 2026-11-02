@@ -91,6 +91,7 @@ class OkayToPay
      */
     public function consider(OrderInvoice $invoice, bool $defer = true): void
     {
+        OkayToPayHistory::protect($invoice);
         if ($this->mode() === 'off' || ! $this->applies($invoice) || $invoice->okp_status === self::SENT || OkayToPayDelivery::where('invoice_id', $invoice->id)->exists()) {
             return;
         }
@@ -98,6 +99,12 @@ class OkayToPay
         // Settled before this existed, or by hand: someone already attested
         // it, so re-sending the vendor's invoice must not re-send ours.
         if ($invoice->okp_status === null && $invoice->approval_status === 'approved') {
+            return;
+        }
+
+        if (OkayToPayHistory::blocked($invoice)) {
+            $this->hold($invoice, [trans('admin/purchase-orders/general.okp_reason_historical_settlement')]);
+
             return;
         }
 
@@ -171,6 +178,9 @@ class OkayToPay
         $invoice->refresh()->load(['order', 'items.item']);
         $reasons = $requireAcceptance ? app(OkayToPayAcceptance::class)->reasons($invoice) : [];
         $order = $invoice->order;
+        if (OkayToPayHistory::blocked($invoice)) {
+            $reasons[] = trans('admin/purchase-orders/general.okp_reason_historical_settlement');
+        }
         if ($invoice->approval_status === 'disputed') {
             $reasons[] = trans('admin/purchase-orders/general.okp_reason_disputed');
         }

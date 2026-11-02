@@ -16,6 +16,10 @@
     "unknown_delivery",
     "quote_unconfirmed",
     "duplicate_supplier_invoice",
-    "null_amount"
+    "null_amount",
+    "terminal_asset",
+    "closed_lease",
+    "historical_reopen",
+    "historical_identity_repost"
   ]
 }

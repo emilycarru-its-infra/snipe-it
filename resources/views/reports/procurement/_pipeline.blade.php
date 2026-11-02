@@ -298,7 +298,7 @@
                                             @if ($card['order_number']){{ $card['order_number'] }} · @endif
                                             <span class="pp-money">{{ $fmt($card['total']) }}</span>
                                         </div>
-                                        <div class="pp-chips"><span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.'.($card['okp_unresolved'] ? 'okp_delivery_unresolved' : 'invoice_approval_pending')) }}</span></div>
+                                        <div class="pp-chips"><span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.'.($card['okp_historical'] ? 'okp_historical_hold' : ($card['okp_unresolved'] ? 'okp_delivery_unresolved' : 'invoice_approval_pending'))) }}</span></div>
                                     </div>
                                 @endforeach
                             </div>

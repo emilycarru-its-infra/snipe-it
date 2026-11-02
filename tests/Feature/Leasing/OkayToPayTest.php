@@ -6,20 +6,29 @@ use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
 use App\Mail\OkayToPayMail;
 use App\Models\Asset;
+use App\Models\Company;
 use App\Models\EmailTemplate;
 use App\Models\OkayToPayDelivery;
+use App\Models\OkayToPayLegacySettlement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Leasing\OkayToPay;
 use App\Services\Leasing\OkayToPayAcceptance;
+use App\Services\Leasing\OkayToPayHistory;
+use App\Services\ProcurementPipeline;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Mail\MailManager;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Tests\TestCase;
 
@@ -98,7 +107,7 @@ class OkayToPayTest extends TestCase
                     'warranty_cost' => $soft,
                 ], $assets),
             ])->assertOk();
-        $record = $this->invoice($invoice);
+        $record = $this->invoice(trim($invoice));
         if ($accepted && ! ($record->okp_status === null && $record->approval_status === 'approved')
             && app(OkayToPay::class)->mode() !== 'off' && app(OkayToPay::class)->applies($record)
             && ! app(OkayToPay::class)->mismatches($record, requireAcceptance: false)) {
@@ -604,6 +613,20 @@ class OkayToPayTest extends TestCase
         $invoice = $this->invoice('INV-POLICY');
         $service = app(OkayToPayAcceptance::class);
         $actor = User::factory()->superuser()->create();
+        $historical = in_array($scenario, ['historical_reopen', 'historical_identity_repost'], true);
+        if ($historical) {
+            $supplierId = $order->supplier_id;
+            $invoice->forceFill(['approval_status' => 'approved', 'okp_status' => null])->save();
+            $invoice->update(['approval_status' => 'pending']);
+            if ($scenario === 'historical_identity_repost') {
+                $invoice->update(['invoice_number' => 'INV-RETIRED-REFERENCE']);
+                $order->update(['supplier_id' => Supplier::factory()->create()->id]);
+                $invoice->delete();
+                $order = $this->leaseOrder(['order_number' => 'ORD-HISTORY-REPOST', 'supplier_id' => $supplierId]);
+            }
+            $this->ingest($order->order_number, 'INV-POLICY', [$asset], accepted: false);
+            $invoice = $this->invoice('INV-POLICY');
+        }
         $data = [
             'decision' => 'accept', 'fingerprint' => $service->fingerprint($invoice),
             'received_in_full' => true, 'satisfactory' => true,
@@ -616,6 +639,13 @@ class OkayToPayTest extends TestCase
                 $this->fail('Receipt without satisfactory acceptance must be refused');
             } catch (ValidationException $e) {
                 $this->assertArrayHasKey('satisfactory', $e->errors());
+            }
+        } elseif ($historical) {
+            try {
+                $service->record($invoice, $actor, $data);
+                $this->fail('Historical settlement cannot gain a fresh payment acceptance');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('decision', $e->errors());
             }
         } elseif ($scenario !== 'missing') {
             $service->record($invoice, $actor, $data);
@@ -667,6 +697,12 @@ class OkayToPayTest extends TestCase
                     $this->assertArrayHasKey('decision', $e->errors());
                 }
                 break;
+            case 'terminal_asset':
+                $asset->update(['status_id' => Statuslabel::factory()->create(['name' => 'Withdrawn', 'archived' => 1, 'deployable' => 0, 'pending' => 0])->id]);
+                break;
+            case 'closed_lease':
+                $asset->update(['decommission_date' => now()->toDateString()]);
+                break;
             case 'quote_unconfirmed':
                 $order->update(['quote_confirmed_at' => null]);
                 break;
@@ -693,6 +729,17 @@ class OkayToPayTest extends TestCase
                 $this->assertSame(OkayToPay::UNCERTAIN, $invoice->refresh()->okp_status);
                 Mail::fake();
                 break;
+        }
+        if (in_array($scenario, ['terminal_asset', 'closed_lease'], true)) {
+            try {
+                $service->record($invoice, $actor, array_merge($data, [
+                    'fingerprint' => $service->fingerprint($invoice),
+                    'expected_acceptance_id' => $service->latest($invoice)->id,
+                ]));
+                $this->fail('Withdrawn equipment cannot be accepted for payment');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('decision', $e->errors());
+            }
         }
         $invoice->update(['approval_status' => $scenario === 'disputed' ? 'disputed' : 'approved']);
         $this->assertSame($scenario === 'current', app(OkayToPay::class)->send($invoice));
@@ -792,7 +839,7 @@ class OkayToPayTest extends TestCase
             $delivery = OkayToPayDelivery::where('invoice_id', $invoice->id)->firstOrFail();
             $this->assertSame('blocked', $delivery->status);
             $this->assertSame('pending', $invoice->refresh()->approval_status);
-            $card = \App\Services\ProcurementPipeline::build(null)['pendingInvoices']->firstWhere('id', $invoice->id);
+            $card = ProcurementPipeline::build(null)['pendingInvoices']->firstWhere('id', $invoice->id);
             $this->assertTrue($card['okp_unresolved']);
             $this->assertStringContainsString('outside', $delivery->error);
             $this->assertFalse(app(OkayToPay::class)->send($invoice));
@@ -850,6 +897,155 @@ class OkayToPayTest extends TestCase
         $this->assertSame('approved', $invoice->refresh()->approval_status);
         $this->assertNull($invoice->okp_status);
         $this->assertFalse(app(OkayToPay::class)->send($invoice));
+        Mail::assertNothingSent();
+    }
+
+    public function test_historical_approval_cannot_be_reopened_reingested_and_sent_again(): void
+    {
+        $order = $this->leaseOrder();
+        $actor = User::factory()->superuser()->create();
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'invoice_number' => 'INV-LEGACY',
+            'approval_status' => 'approved', 'okp_status' => null,
+        ]);
+        $this->assertTrue(OkayToPayHistory::blocked($invoice));
+        $this->actingAs($actor, 'web')->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'pending'])
+            ->assertSessionHasNoErrors();
+        $this->ingest($order->order_number, 'INV-LEGACY', [Asset::factory()->create()], accepted: false);
+        $invoice->refresh();
+        $this->assertSame(OkayToPay::HELD, $invoice->okp_status);
+        $service = app(OkayToPayAcceptance::class);
+        $this->actingAs($actor, 'web')->post(route('reports.procurement.invoice-acceptance.store', $invoice), [
+            'decision' => 'accept', 'fingerprint' => $service->fingerprint($invoice),
+            'received_in_full' => true, 'satisfactory' => true,
+            'receipt_reference' => 'Receiving evidence', 'acceptance_reference' => 'Inspection evidence',
+        ])->assertSessionHasErrors('decision');
+        $this->assertNull($service->latest($invoice));
+        $this->get(route('reports.procurement.invoice-acceptance', $invoice))->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.okp_reason_historical_settlement'))
+            ->assertDontSee('name="decision" value="accept"', false);
+        $card = ProcurementPipeline::build(null)['pendingInvoices']->firstWhere('id', $invoice->id);
+        $this->assertTrue($card['okp_historical']);
+        $this->assertTrue($card['okp_unresolved']);
+        $invoice->update(['approval_status' => 'approved']);
+        $this->assertFalse(app(OkayToPay::class)->send($invoice));
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        Mail::assertNothingSent();
+    }
+
+    public function test_historical_identity_survives_invoice_vendor_edits_and_deletion(): void
+    {
+        $order = $this->leaseOrder();
+        $supplierId = $order->supplier_id;
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'invoice_number' => 'INV-ORIGINAL', 'approval_status' => 'approved', 'okp_status' => null,
+        ]);
+        $key = OkayToPayHistory::identityKey($supplierId, 'INV-ORIGINAL');
+        $invoice->update(['approval_status' => 'pending', 'invoice_number' => 'INV-EDITED']);
+        $order->update(['supplier_id' => Supplier::factory()->create()->id]);
+        $invoice->delete();
+        $retained = OkayToPayLegacySettlement::where('invoice_key', $key)->firstOrFail();
+        $this->assertSame('INV-ORIGINAL', $retained->invoice_number);
+        $newOrder = $this->leaseOrder(['order_number' => 'ORD-REPOST', 'supplier_id' => $supplierId]);
+        $this->ingest($newOrder->order_number, ' inv-original ', [Asset::factory()->create()], accepted: false);
+        $repost = $this->invoice('inv-original');
+        $this->assertTrue(OkayToPayHistory::blocked($repost));
+        $this->assertNotEmpty(app(OkayToPay::class)->mismatches($repost, requireAcceptance: false));
+        $repost->update(['approval_status' => 'approved']);
+        $this->assertFalse(app(OkayToPay::class)->send($repost));
+        $this->assertSame(0, OkayToPayDelivery::count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_company_move_is_rechecked_under_the_acceptance_lock_and_changes_the_fingerprint(): void
+    {
+        $this->settings->enableMultipleFullCompanySupport();
+        $company = Company::factory()->create();
+        $other = Company::factory()->create();
+        $order = $this->leaseOrder(['company_id' => $company->id]);
+        $this->ingest($order->order_number, 'INV-MOVE', [Asset::factory()->create()], accepted: false);
+        $invoice = $this->invoice('INV-MOVE');
+        $service = app(OkayToPayAcceptance::class);
+        $before = $service->fingerprint($invoice);
+        $order->update(['company_id' => $other->id]);
+        $this->assertNotSame($before, $service->fingerprint($invoice));
+        $actor = User::factory()->create([
+            'company_id' => $company->id,
+            'permissions' => json_encode(['procurement.view' => '1', 'procurement.edit' => '1']),
+        ]);
+        $this->actingAs($actor, 'web');
+        try {
+            $service->record($invoice, $actor, [
+                'decision' => 'accept', 'fingerprint' => $before,
+                'received_in_full' => true, 'satisfactory' => true,
+                'receipt_reference' => 'Receiving evidence', 'acceptance_reference' => 'Inspection evidence',
+            ]);
+            $this->fail('Moved company must not be attested by the former company editor');
+        } catch (HttpException $e) {
+            $this->assertSame(404, $e->getStatusCode());
+        }
+        $this->assertNull($service->latest($invoice));
+        Mail::assertNothingSent();
+    }
+
+    public function test_protective_migration_retains_duplicate_settlements_and_unknown_old_delivery_states_without_acceptance(): void
+    {
+        $default = DB::getDefaultConnection();
+        config(['database.connections.okp_migration' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
+        DB::setDefaultConnection('okp_migration');
+        try {
+            Schema::create('orders', function ($table) {
+                $table->id();
+                $table->unsignedBigInteger('supplier_id')->nullable();
+            });
+            Schema::create('order_invoices', function ($table) {
+                $table->id();
+                $table->unsignedBigInteger('order_id');
+                $table->string('invoice_number');
+                $table->string('approval_status')->nullable();
+                $table->string('okp_status')->nullable();
+                $table->timestamp('okp_sent_at')->nullable();
+            });
+            DB::table('orders')->insert(['id' => 1, 'supplier_id' => 7]);
+            foreach ([['approved', null], ['approved', null], ['pending', 'queued'], ['pending', 'held'], ['approved', 'sent'], ['pending', null]] as $i => [$approval, $status]) {
+                DB::table('order_invoices')->insert([
+                    'id' => $i + 1, 'order_id' => 1, 'invoice_number' => $i < 2 ? 'INV-DUPLICATE' : 'INV-'.$i,
+                    'approval_status' => $approval, 'okp_status' => $status,
+                ]);
+            }
+            $migration = require database_path('migrations/2026_11_02_120000_create_okay_to_pay_evidence.php');
+            $migration->up();
+            $this->assertSame(5, DB::table('okay_to_pay_legacy_settlements')->count());
+            $this->assertSame(2, DB::table('okay_to_pay_legacy_settlements')->where('invoice_number', 'INV-DUPLICATE')->count());
+            $this->assertSame(2, DB::table('okay_to_pay_legacy_settlements')->where('reason', 'legacy_delivery_unknown')->count());
+            $this->assertSame(0, DB::table('okay_to_pay_acceptances')->count());
+            $this->assertSame(0, DB::table('okay_to_pay_deliveries')->count());
+        } finally {
+            DB::setDefaultConnection($default);
+            DB::purge('okp_migration');
+        }
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_failed_settlement_barrier_write_rolls_back_the_accounting_change(): void
+    {
+        $order = $this->leaseOrder();
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'invoice_number' => 'INV-ATOMIC', 'approval_status' => 'pending', 'okp_status' => null,
+        ]);
+        OkayToPayLegacySettlement::creating(fn () => throw new \RuntimeException('Audit storage unavailable'));
+        try {
+            try {
+                $invoice->update(['approval_status' => 'approved', 'invoice_number' => 'INV-CHANGED']);
+                $this->fail('Accounting changes must roll back when their settlement barrier cannot be retained');
+            } catch (\RuntimeException $e) {
+                $this->assertSame('Audit storage unavailable', $e->getMessage());
+            }
+            $this->assertSame('pending', $invoice->refresh()->approval_status);
+            $this->assertSame('INV-ATOMIC', $invoice->invoice_number);
+        } finally {
+            Event::forget('eloquent.creating: '.OkayToPayLegacySettlement::class);
+        }
         Mail::assertNothingSent();
     }
 }

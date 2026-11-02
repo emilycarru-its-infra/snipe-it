@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Helpers\Helper;
+use App\Services\Leasing\OkayToPayHistory;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property-read OkayToPayDelivery|null $okayToPayDelivery
@@ -82,8 +85,25 @@ class OrderInvoice extends Model
         'okp_sent_at' => 'datetime',
     ];
 
-    /** @return \Illuminate\Database\Eloquent\Relations\HasOne<OkayToPayDelivery, $this> */
-    public function okayToPayDelivery(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function save(array $options = [])
+    {
+        return DB::transaction(fn () => parent::save($options));
+    }
+
+    public function delete()
+    {
+        return DB::transaction(fn () => parent::delete());
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(fn (OrderInvoice $invoice) => OkayToPayHistory::protect($invoice, original: true));
+        static::deleting(fn (OrderInvoice $invoice) => OkayToPayHistory::protect($invoice, original: true));
+        static::saved(fn (OrderInvoice $invoice) => OkayToPayHistory::protect($invoice));
+    }
+
+    /** @return HasOne<OkayToPayDelivery, $this> */
+    public function okayToPayDelivery(): HasOne
     {
         return $this->hasOne(OkayToPayDelivery::class, 'invoice_id');
     }

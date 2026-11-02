@@ -34,6 +34,7 @@ use App\Services\Leasing\LeaseClosure;
 use App\Services\Leasing\LessorGuard;
 use App\Services\Leasing\OkayToPay;
 use App\Services\Leasing\OkayToPayAcceptance;
+use App\Services\Leasing\OkayToPayHistory;
 use App\Services\LegacyFleet;
 use App\Services\ProcurementPipeline;
 use App\Services\Settings\Preferences;
@@ -1082,6 +1083,7 @@ class ProcurementReportsController extends Controller
         return DB::transaction(function () use ($invoice) {
             Order::whereKey($invoice->order_id)->lockForUpdate()->first();
             $invoice = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
             $service = app(OkayToPayAcceptance::class);
             $service->lockFacts($invoice);
             $fingerprint = $service->fingerprint($invoice);
@@ -1093,6 +1095,7 @@ class ProcurementReportsController extends Controller
                 'history' => \App\Models\OkayToPayAcceptance::where('invoice_id', $invoice->id)->latest('id')->get(),
                 'reasons' => app(OkayToPay::class)->mismatches($invoice),
                 'delivery' => OkayToPayDelivery::where('invoice_id', $invoice->id)->first(),
+                'historical' => OkayToPayHistory::blocked($invoice),
             ])->render());
         });
     }
@@ -3673,6 +3676,9 @@ class ProcurementReportsController extends Controller
      */
     private function okayToPayCell(OrderInvoice $invoice): string
     {
+        if ($invoice->okp_status !== OkayToPay::SENT && OkayToPayHistory::blocked($invoice)) {
+            return trans('admin/purchase-orders/general.okp_reason_historical_settlement');
+        }
         $when = fn ($date) => $date ? $date->timezone(config('app.timezone'))->format('M j, g:i A') : '';
 
         return match ($invoice->okp_status) {

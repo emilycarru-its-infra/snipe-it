@@ -16,6 +16,8 @@
         </table></div>
         @if ($delivery)
             <p class="alert alert-info">{{ trans('admin/purchase-orders/general.okp_delivery_record', ['status' => $delivery->status, 'time' => $delivery->claimed_at]) }}</p>
+        @elseif ($historical)
+            <p class="alert alert-warning">{{ trans('admin/purchase-orders/general.okp_reason_historical_settlement') }}</p>
         @elseif ($invoice->okp_status !== \App\Services\Leasing\OkayToPay::SENT)
             <form method="post" action="{{ route('reports.procurement.invoice-acceptance.store', $invoice) }}">
                 @csrf
