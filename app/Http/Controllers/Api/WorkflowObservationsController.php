@@ -15,6 +15,8 @@ use App\Models\Contract;
 use App\Models\ContractAttribute;
 use App\Models\ContractSerial;
 use App\Models\ExhibitProject;
+use App\Models\License;
+use App\Models\LicenseSeat;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -277,6 +279,29 @@ class WorkflowObservationsController extends Controller
             'name' => $row->name,
             'value' => $row->value,
         ], maxOffset: 50000);
+    }
+
+    /**
+     * Each seat of a live licence in stable id order: who or what holds it, as the holder's id
+     * only, whether it was retired at checkin, its notes and when it last changed (the checkout
+     * time the seat list shows). No person field beyond the id leaves.
+     */
+    public function licenseSeats(Request $request): JsonResponse
+    {
+        $this->authorize('view', License::class);
+
+        $query = LicenseSeat::query()->whereHas('license')
+            ->select(['id', 'license_id', 'assigned_to', 'asset_id', 'unreassignable_seat', 'notes', 'updated_at']);
+
+        return $this->page($request, $query, fn (LicenseSeat $row) => [
+            'id' => (string) $row->id,
+            'license_id' => (string) $row->license_id,
+            'assigned_to' => $row->assigned_to === null ? null : (string) $row->assigned_to,
+            'asset_id' => $row->asset_id === null ? null : (string) $row->asset_id,
+            'unreassignable' => (bool) $row->unreassignable_seat,
+            'notes' => $row->notes,
+            'updated_at' => $row->updated_at?->format('Y-m-d H:i:s'),
+        ], maxOffset: 100000);
     }
 
     /** Each page is a fresh observation; no cross-page transactional snapshot is asserted. */

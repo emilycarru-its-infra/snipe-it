@@ -6,6 +6,8 @@ use App\Models\Asset;
 use App\Models\Contract;
 use App\Models\ContractAttribute;
 use App\Models\ContractSerial;
+use App\Models\License;
+use App\Models\LicenseSeat;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -86,5 +88,31 @@ class ContractObservationsTest extends TestCase
             'name' => 'lease_rate_factor', 'value' => '0.25471']], $attributes);
 
         $this->actingAsForApi($reader)->getJson(self::BASE.'contract-serials?limit=101')->assertStatus(422);
+    }
+
+    public function test_license_seats_carry_their_holder_by_id_only(): void
+    {
+        $person = User::factory()->create(['first_name' => 'Excluded', 'email' => 'excluded@example.test']);
+        $asset = Asset::factory()->create();
+        $license = License::factory()->create(['seats' => 3]);
+        $seats = LicenseSeat::where('license_id', $license->id)->orderBy('id')->get();
+        $seats[0]->update(['assigned_to' => $person->id, 'notes' => 'Example seat note']);
+        $seats[1]->update(['asset_id' => $asset->id]);
+        $retired = License::factory()->create(['seats' => 1]);
+        $retired->delete();
+
+        $this->actingAsForApi(User::factory()->create(['permissions' => '{"contracts.view":"1"}']))
+            ->getJson(self::BASE.'license-seats')->assertForbidden();
+        $rows = $this->actingAsForApi(User::factory()->create(['permissions' => '{"licenses.view":"1"}']))
+            ->getJson(self::BASE.'license-seats')->assertOk()->assertJsonPath('total', 3)->json('rows');
+
+        $this->assertSame(['id', 'license_id', 'assigned_to', 'asset_id', 'unreassignable', 'notes', 'updated_at'], array_keys($rows[0]));
+        $this->assertSame((string) $person->id, $rows[0]['assigned_to']);
+        $this->assertNull($rows[0]['asset_id']);
+        $this->assertSame('Example seat note', $rows[0]['notes']);
+        $this->assertSame((string) $asset->id, $rows[1]['asset_id']);
+        $this->assertNull($rows[2]['assigned_to']);
+        $this->assertFalse($rows[2]['unreassignable']);
+        $this->assertStringNotContainsString('excluded', strtolower(json_encode($rows)));
     }
 }
