@@ -561,30 +561,32 @@ class EmailsSettingTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_the_api_sends_an_email_sample_to_a_given_address(): void
+    public function test_the_api_sends_a_payment_sample_only_to_the_signed_in_sender(): void
     {
         Mail::fake();
-
-        $this->actingAsForApi(User::factory()->superuser()->create())
-            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => 'someone@example.test', 'from' => 'other@example.test'])
+        $actor = User::factory()->superuser()->create(['email' => 'someone@example.test']);
+        $this->actingAsForApi($actor)
+            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => $actor->email, 'from' => 'other@example.test'])
             ->assertOk()
-            ->assertJson(['status' => 'success', 'to' => 'someone@example.test']);
+            ->assertJson(['status' => 'success', 'to' => $actor->email]);
 
-        Mail::assertSent(OkayToPayMail::class, fn ($mail) => $mail->hasTo('someone@example.test') && $mail->hasFrom('other@example.test'));
+        Mail::assertSent(OkayToPayMail::class, fn ($mail) => $mail->hasTo($actor->email)
+            && $mail->hasFrom('other@example.test')
+            && str_contains($mail->envelope()->subject, 'NOT PAYMENT AUTHORIZATION'));
     }
 
-    public function test_the_api_test_send_copies_the_cc_list(): void
+    public function test_the_api_payment_sample_refuses_external_recipients_and_cc(): void
     {
         Mail::fake();
-        $csi = Supplier::factory()->create(['name' => 'Sample Lessor', 'email' => 'rep@lessor.test']);
-        config(['leasing.okp_lessor' => $csi->name, 'leasing.internal_domains' => 'example.test']);
-
-        $this->actingAsForApi(User::factory()->superuser()->create())
-            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => 'rep@lessor.test', 'cc' => ['boss@lessor.test', 'me@example.test']])
-            ->assertOk()
-            ->assertJson(['status' => 'success', 'cc' => ['boss@lessor.test', 'me@example.test']]);
-
-        Mail::assertSent(OkayToPayMail::class, fn ($mail) => $mail->hasTo('rep@lessor.test') && $mail->hasCc('boss@lessor.test') && $mail->hasCc('me@example.test'));
+        $lessor = Supplier::factory()->create(['name' => 'Sample Lessor', 'email' => 'rep@lessor.test']);
+        config(['leasing.okp_lessor' => $lessor->name, 'leasing.internal_domains' => 'example.test']);
+        $actor = User::factory()->superuser()->create(['email' => 'reviewer@example.test']);
+        $this->actingAsForApi($actor)
+            ->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => 'rep@lessor.test'])
+            ->assertStatus(409);
+        $this->postJson(route('api.settings.emails.test', 'procurement.okay_to_pay'), ['to' => $actor->email, 'cc' => ['boss@lessor.test']])
+            ->assertStatus(409);
+        Mail::assertNothingSent();
     }
 
     public function test_the_api_test_send_refuses_another_lessors_address(): void

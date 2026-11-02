@@ -80,6 +80,11 @@ class OrderInvoice extends Model
         'okp_sent_at' => 'datetime',
     ];
 
+    public function okayToPayDelivery()
+    {
+        return $this->hasOne(OkayToPayDelivery::class, 'invoice_id');
+    }
+
     /**
      * Scope invoices to a fiscal year.
      *

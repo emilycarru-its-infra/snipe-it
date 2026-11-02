@@ -298,7 +298,7 @@
                                             @if ($card['order_number']){{ $card['order_number'] }} · @endif
                                             <span class="pp-money">{{ $fmt($card['total']) }}</span>
                                         </div>
-                                        <div class="pp-chips"><span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.invoice_approval_pending') }}</span></div>
+                                        <div class="pp-chips"><span class="pp-chip pp-chip-wait">{{ trans('admin/purchase-orders/general.'.($card['okp_unresolved'] ? 'okp_delivery_unresolved' : 'invoice_approval_pending')) }}</span></div>
                                     </div>
                                 @endforeach
                             </div>
@@ -515,9 +515,12 @@
                 <form method="post" action="{{ route('reports.procurement.invoice-approval.update', $card['id']) }}" style="display:inline;">
                     @csrf
                     @method('PATCH')
+                    <a class="btn btn-default btn-sm" href="{{ route('reports.procurement.invoice-acceptance', $card['id']) }}">{{ trans('admin/purchase-orders/general.okp_acceptance_title') }}</a>
+                    @if (! $card['okp_unresolved'])
                     <button type="submit" name="approval_status" value="approved" class="btn btn-success btn-sm">
                         {{ trans('admin/purchase-orders/general.invoice_action_approve') }}
                     </button>
+                    @endif
                     <button type="submit" name="approval_status" value="disputed" class="btn btn-default btn-sm">
                         {{ trans('admin/purchase-orders/general.invoice_action_dispute') }}
                     </button>

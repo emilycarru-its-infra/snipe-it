@@ -1,4 +1,8 @@
 @component('mail::message')
+@if ($sample ?? false)
+**{{ trans('admin/purchase-orders/general.okp_test_prefix') }}**
+@endif
+
 {{ trans('mail.okay_to_pay_greeting') }}
 
 {{ trans('mail.okay_to_pay_intro', [

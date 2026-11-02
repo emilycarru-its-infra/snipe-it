@@ -1,0 +1,21 @@
+{
+  "policy": "receipt-acceptance-v1",
+  "scenarios": [
+    "missing",
+    "receipt_only",
+    "current",
+    "stale_invoice",
+    "stale_line",
+    "stale_serial",
+    "stale_quantity",
+    "revoked",
+    "cancelled",
+    "disputed",
+    "financial_mismatch",
+    "foreign_lessor",
+    "unknown_delivery",
+    "quote_unconfirmed",
+    "duplicate_supplier_invoice",
+    "null_amount"
+  ]
+}

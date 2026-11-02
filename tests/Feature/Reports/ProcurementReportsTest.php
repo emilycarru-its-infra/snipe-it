@@ -453,6 +453,42 @@ class ProcurementReportsTest extends TestCase
             ->assertDontSee('INV-AP-APPROVED');
     }
 
+    public function test_invoice_approval_queue_keeps_reserved_or_uncertain_deliveries_visible(): void
+    {
+        $order = Order::factory()->create();
+        foreach (['sending' => 'INV-RESERVED', 'uncertain' => 'INV-UNCERTAIN', 'sent' => 'INV-SETTLED'] as $state => $number) {
+            OrderInvoice::factory()->create([
+                'order_id' => $order->id, 'invoice_number' => $number,
+                'approval_status' => 'approved', 'okp_status' => $state,
+            ]);
+        }
+        $this->actingAs($this->superuser())
+            ->get(route('reports.procurement.invoice-approval'))
+            ->assertOk()->assertSee('INV-RESERVED')->assertSee('INV-UNCERTAIN')->assertDontSee('INV-SETTLED');
+        $cards = \App\Services\ProcurementPipeline::build(null)['pendingInvoices'];
+        $this->assertEqualsCanonicalizing(['INV-RESERVED', 'INV-UNCERTAIN'], $cards->pluck('invoice_number')->all());
+        $this->assertTrue($cards->every(fn ($card) => $card['okp_unresolved']));
+    }
+
+    public function test_invoice_approval_and_acceptance_respect_company_visibility(): void
+    {
+        $this->settings->enableMultipleFullCompanySupport();
+        $company = \App\Models\Company::factory()->create();
+        $other = \App\Models\Company::factory()->create();
+        $order = Order::factory()->create(['company_id' => $other->id]);
+        $invoice = OrderInvoice::factory()->create(['order_id' => $order->id, 'approval_status' => 'pending']);
+        $actor = User::factory()->create([
+            'company_id' => $company->id,
+            'permissions' => json_encode(['procurement.view' => '1', 'procurement.edit' => '1']),
+        ]);
+        $this->actingAs($actor)
+            ->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'approved'])
+            ->assertNotFound();
+        $this->get(route('reports.procurement.invoice-acceptance', $invoice))->assertNotFound();
+        $this->post(route('reports.procurement.invoice-acceptance.store', $invoice), [])->assertNotFound();
+        $this->assertSame('pending', $invoice->refresh()->approval_status);
+    }
+
     /**
      * Approving an invoice can release the lessor's OK to pay, so reading
      * procurement reports is not enough to do it.
