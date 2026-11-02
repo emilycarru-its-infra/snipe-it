@@ -10,7 +10,6 @@ use App\Presenters\LicenseSeatPresenter;
 use App\Presenters\Presentable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Query\Builder;
@@ -116,8 +115,7 @@ class LicenseSeat extends SnipeModel implements ICompanyableChild
      *
      * @return Relation
      */
-    /** @return BelongsTo<License, $this> */
-    public function license(): BelongsTo
+    public function license()
     {
         return $this->belongsTo(License::class, 'license_id');
     }
