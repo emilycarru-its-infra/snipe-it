@@ -963,6 +963,9 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.workflow-observations.contract-attributes');
     Route::get('workflow-observations/license-seats', [Api\WorkflowObservationsController::class, 'licenseSeats'])
         ->name('api.workflow-observations.license-seats');
+    Route::get('workflow-observations/{family}', [Api\WorkflowObservationsController::class, 'records'])
+        ->whereIn('family', Api\WorkflowObservationsController::recordFamilies())
+        ->name('api.workflow-observations.records');
 
     // Exhibit project CSV backfill — token-authed, drives the multi-year
     // historical import without an SSO session.
