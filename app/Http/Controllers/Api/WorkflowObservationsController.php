@@ -309,8 +309,9 @@ class WorkflowObservationsController extends Controller
      * The stored-record families, one row per table row in stable id order. Each family names its
      * table, the read ability that already shows that data in the app, and the explicit allow-list
      * of columns with their wire type; no other column is ever selected. `soft` leaves out
-     * soft-deleted rows, `parent` leaves out rows whose parent row is soft-deleted, and `asset`
-     * keeps only rows whose asset (deleted or not) the reader's company scope can see.
+     * soft-deleted rows, `asset` keeps only rows whose asset (deleted or not) the reader's company
+     * scope can see, and `parent` keeps only rows whose parent row passes its own family's
+     * visibility (see scope()).
      */
     private const RECORDS = [
         'budget-allocations' => ['table' => 'budget_allocations', 'can' => ['procurement.view'], 'soft' => true,
@@ -319,7 +320,7 @@ class WorkflowObservationsController extends Controller
             'columns' => ['fiscal_year' => 'text', 'area' => 'text', 'need' => 'text', 'type' => 'text', 'description' => 'text', 'quantity' => 'int', 'unit_cost' => 'decimal', 'preference' => 'text', 'sort_order' => 'int', 'created_at' => 'time']],
         'store-orders' => ['table' => 'store_orders', 'can' => ['view', Requisition::class],
             'columns' => ['user_id' => 'id', 'status' => 'text', 'program' => 'text', 'order_usage' => 'text', 'location_id' => 'id', 'refresh_asset_id' => 'id', 'funding_account' => 'text', 'lease_schedule' => 'text', 'gl_code' => 'text', 'department_po_number' => 'text', 'notes' => 'text', 'decision_notes' => 'text', 'decided_by' => 'id', 'decided_at' => 'time', 'requisition_id' => 'id', 'purchase_order_id' => 'id', 'deployment_wave_id' => 'id', 'vendor_sent_at' => 'time', 'quote_number' => 'text', 'quote_total' => 'decimal', 'quote_expires_at' => 'date', 'quote_received_at' => 'time', 'confirmed_at' => 'time', 'tracking_number' => 'text', 'shipped_at' => 'time', 'arrived_at' => 'time', 'created_at' => 'time']],
-        'store-order-items' => ['table' => 'store_order_items', 'can' => ['view', Requisition::class],
+        'store-order-items' => ['table' => 'store_order_items', 'can' => ['view', Requisition::class], 'parent' => ['store_order_id', 'store_orders'],
             'columns' => ['store_order_id' => 'id', 'catalog_item_id' => 'id', 'description' => 'text', 'vendor_sku' => 'text', 'mfr_part_number' => 'text', 'quantity' => 'int', 'unit_cost' => 'decimal', 'created_at' => 'time']],
         'deployment-types' => ['table' => 'deployment_types', 'can' => ['deployments.view'],
             'columns' => ['name' => 'text', 'slug' => 'text', 'color' => 'text', 'moves_devices' => 'bool', 'sort_order' => 'int', 'active' => 'bool', 'created_at' => 'time']],
@@ -373,19 +374,7 @@ class WorkflowObservationsController extends Controller
         $table = $spec['table'];
         $columns = $spec['columns'];
         $query = DB::table($table)->select(array_map(fn (string $column) => $table.'.'.$column, ['id', ...array_keys($columns)]));
-        if ($spec['soft'] ?? false) {
-            $query->whereNull($table.'.deleted_at');
-        }
-        if (isset($spec['parent'])) {
-            [$column, $parent] = $spec['parent'];
-            $query->whereNotExists(fn (QueryBuilder $gone) => $gone->from($parent)
-                ->whereColumn($parent.'.id', $table.'.'.$column)->whereNotNull($parent.'.deleted_at'));
-        }
-        if (isset($spec['asset'])) {
-            $column = $table.'.'.$spec['asset'];
-            $query->where(fn (QueryBuilder $visible) => $visible->whereNull($column)
-                ->orWhereIn($column, Asset::withTrashed()->select('id')));
-        }
+        self::scope($query, $spec);
 
         return $this->page($request, $query, function (object $row) use ($columns) {
             $out = ['id' => self::typed('id', $row->id)];
@@ -395,6 +384,33 @@ class WorkflowObservationsController extends Controller
 
             return $out;
         }, maxOffset: $spec['maxOffset'] ?? 100000, order: $table.'.id');
+    }
+
+    /**
+     * The family's visibility, applied to rows of its table: not soft-deleted, an asset the
+     * reader's company scope can see (deleted or not), and, for a child family, a parent row that
+     * itself passes its own family's visibility. A child therefore inherits every filter of the
+     * chain above it, so a reader never sees a child of a parent they cannot see.
+     */
+    private static function scope(QueryBuilder $query, array $spec): void
+    {
+        $table = $spec['table'];
+        if ($spec['soft'] ?? false) {
+            $query->whereNull($table.'.deleted_at');
+        }
+        if (isset($spec['asset'])) {
+            $column = $table.'.'.$spec['asset'];
+            $query->where(fn (QueryBuilder $visible) => $visible->whereNull($column)
+                ->orWhereIn($column, Asset::withTrashed()->select('id')));
+        }
+        if (isset($spec['parent'])) {
+            [$column, $parentTable] = $spec['parent'];
+            $parent = collect(self::RECORDS)->firstWhere('table', $parentTable) ?? ['table' => $parentTable];
+            $query->whereExists(function (QueryBuilder $visible) use ($table, $column, $parent) {
+                $visible->from($parent['table'])->whereColumn($parent['table'].'.id', $table.'.'.$column);
+                self::scope($visible, $parent);
+            });
+        }
     }
 
     /**

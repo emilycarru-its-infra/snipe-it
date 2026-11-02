@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RecordObservationsTest extends TestCase
@@ -180,5 +181,55 @@ class RecordObservationsTest extends TestCase
         $this->assertSame('0.10', $first[0]['unit_cost']);
         $this->getJson(self::BASE.'capital-request-lines?limit=101')->assertStatus(422);
         $this->getJson(self::BASE.'capital-request-lines?offset=100001')->assertStatus(422);
+    }
+
+    /** Each child family: its route, the read permission, and how to write a parent and a child. */
+    public static function childFamilies(): array
+    {
+        return [
+            'deployment items' => ['deployment-items', 'deployments.view', 'deployment_waves', 'deployment_items', 'wave_id'],
+            'buyout quotes' => ['asset-buyout-quotes', 'deployments.view', 'asset_buyouts', 'asset_buyout_quotes', 'asset_buyout_id'],
+            'pickup assets' => ['lease-pickup-assets', 'deployments.view', 'lease_pickups', 'lease_pickup_assets', 'lease_pickup_id'],
+            'store order items' => ['store-order-items', 'orders.view', 'store_orders', 'store_order_items', 'store_order_id'],
+        ];
+    }
+
+    #[DataProvider('childFamilies')]
+    public function test_children_of_parents_out_of_the_readers_scope_are_not_returned(
+        string $family, string $permission, string $parentTable, string $childTable, string $parentColumn
+    ): void {
+        $this->settings->enableMultipleFullCompanySupport();
+        $own = Company::factory()->create();
+        $other = Company::factory()->create();
+        $asset = Asset::factory()->create(['company_id' => $own->getKey(), 'asset_tag' => 'EXAMPLE-OWN']);
+        $foreign = Asset::factory()->create(['company_id' => $other->getKey(), 'asset_tag' => 'EXAMPLE-FOREIGN']);
+        $parent = fn (array $values = []) => DB::table($parentTable)->insertGetId($values + match ($parentTable) {
+            'deployment_waves' => ['name' => 'Example wave', 'slug' => 'example-'.uniqid()],
+            'asset_buyouts' => ['asset_id' => $asset->getKey(), 'status' => 'requested'],
+            'lease_pickups' => ['status' => 'requested'],
+            'store_orders' => ['status' => 'submitted'],
+        });
+        $child = fn (int $parentId) => DB::table($childTable)->insertGetId([$parentColumn => $parentId]
+            + ($childTable === 'lease_pickup_assets' ? ['asset_id' => $asset->getKey()] : []));
+
+        $visible = $child($parent());
+        $hidden = [];
+        if ($parentTable !== 'store_orders') {
+            $hidden[] = $child($parent(['deleted_at' => '2026-01-01 00:00:00']));
+        }
+        if ($parentTable === 'asset_buyouts') {
+            // The parent's own asset is in another company, so neither it nor its quotes show.
+            $hidden[] = $child($parent(['asset_id' => $foreign->getKey()]));
+        }
+        // A child whose parent row no longer exists has nothing to inherit visibility from.
+        $hidden[] = $child(999999);
+
+        $reader = User::factory()->create(['company_id' => $own->getKey(), 'permissions' => json_encode([$permission => '1'])]);
+        $rows = $this->rows($reader, $family, 1);
+
+        $this->assertSame([(string) $visible], array_column($rows, 'id'));
+        foreach ($hidden as $id) {
+            $this->assertNotContains((string) $id, array_column($rows, 'id'));
+        }
     }
 }
