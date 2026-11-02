@@ -201,7 +201,7 @@ class OkayToPay
             $reasons[] = trans('admin/purchase-orders/general.okp_reason_duplicate_invoice');
         }
         foreach (['subtotal', 'tax_gst', 'tax_pst', 'shipping', 'total'] as $field) {
-            if ($invoice->$field === null || ! is_numeric($invoice->$field) || (float) $invoice->$field < 0) {
+            if ($invoice->$field === null || (float) $invoice->$field < 0) {
                 $reasons[] = trans('admin/purchase-orders/general.okp_reason_amount_missing');
             }
         }

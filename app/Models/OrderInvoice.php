@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
+ * @property-read OkayToPayDelivery|null $okayToPayDelivery
+ *
  * A vendor invoice against an order. A single order (e.g. a CDW order)
  * is commonly billed across several invoices, so line items each point
  * at the invoice they were billed on.
@@ -80,7 +82,8 @@ class OrderInvoice extends Model
         'okp_sent_at' => 'datetime',
     ];
 
-    public function okayToPayDelivery()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasOne<OkayToPayDelivery, $this> */
+    public function okayToPayDelivery(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(OkayToPayDelivery::class, 'invoice_id');
     }

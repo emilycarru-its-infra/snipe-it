@@ -33,7 +33,7 @@ class OkayToPayAcceptance
                 $line->unit_cost, $line->warranty_cost, $line->received_at?->toISOString(),
                 $line->shipment?->received_date?->toDateString(),
                 $asset?->serial, $asset?->lessor_id, $asset?->lease_contract_id,
-                $asset?->status_id, $asset?->status?->archived, $asset?->decommission_date?->toDateString(), $asset?->deleted_at?->toISOString(),
+                $asset?->status_id, $asset?->status?->archived, $asset?->getRawOriginal('decommission_date'), $asset?->deleted_at?->toISOString(),
             ];
         })->all();
         $facts = [
@@ -115,7 +115,7 @@ class OkayToPayAcceptance
             if ($invoice->okp_status === OkayToPay::SENT || $invoice->okp_sent_at || ($invoice->okp_status === null && $invoice->approval_status === 'approved') || OkayToPayDelivery::where('invoice_id', $invoice->id)->exists()) {
                 throw ValidationException::withMessages(['decision' => trans('admin/purchase-orders/general.okp_reason_delivery_reserved')]);
             }
-            if (! hash_equals($current, $data['fingerprint']) || (int) ($data['expected_acceptance_id'] ?? 0) !== (int) ($latest?->id ?? 0)) {
+            if (! hash_equals($current, $data['fingerprint']) || (int) ($data['expected_acceptance_id'] ?? 0) !== (int) ($latest->id ?? 0)) {
                 throw ValidationException::withMessages(['fingerprint' => trans('admin/purchase-orders/general.okp_reason_acceptance_stale')]);
             }
             if ($data['decision'] === 'accept') {
