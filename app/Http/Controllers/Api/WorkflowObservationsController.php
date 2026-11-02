@@ -308,14 +308,15 @@ class WorkflowObservationsController extends Controller
     /**
      * The stored-record families, one row per table row in stable id order. Each family names its
      * table, the read ability that already shows that data in the app, and the explicit allow-list
-     * of columns with their wire type; no other column is ever selected. `soft` leaves out
-     * soft-deleted rows, `asset` keeps only rows whose asset (deleted or not) the reader's company
-     * scope can see, and `parent` keeps only rows whose parent row passes its own family's
-     * visibility (see scope()).
+     * of columns with their wire type; no other column is ever selected. `soft` marks a table with
+     * soft deletes: its deleted rows stay in the observation, with their deleted_at, so history
+     * keeps them. `asset` keeps only rows whose asset (deleted or not) the reader's company scope
+     * can see, and `parent` keeps only rows whose parent row passes its own family's visibility
+     * (see scope()) and adds parent_deleted.
      */
     private const RECORDS = [
         'budget-allocations' => ['table' => 'budget_allocations', 'can' => ['procurement.view'], 'soft' => true,
-            'columns' => ['fiscal_year' => 'text', 'area' => 'text', 'amount' => 'decimal', 'source' => 'text', 'description' => 'text', 'effective_date' => 'date', 'created_by' => 'id', 'created_at' => 'time']],
+            'columns' => ['fiscal_year' => 'text', 'area' => 'text', 'amount' => 'decimal', 'source' => 'text', 'description' => 'text', 'effective_date' => 'date', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
         'capital-request-lines' => ['table' => 'capital_request_lines', 'can' => ['procurement.view'],
             'columns' => ['fiscal_year' => 'text', 'area' => 'text', 'need' => 'text', 'type' => 'text', 'description' => 'text', 'quantity' => 'int', 'unit_cost' => 'decimal', 'preference' => 'text', 'sort_order' => 'int', 'created_at' => 'time']],
         'store-orders' => ['table' => 'store_orders', 'can' => ['view', Requisition::class],
@@ -327,33 +328,33 @@ class WorkflowObservationsController extends Controller
         'deployment-stages' => ['table' => 'deployment_stages', 'can' => ['deployments.view'],
             'columns' => ['name' => 'text', 'slug' => 'text', 'color' => 'text', 'sort_order' => 'int', 'is_terminal' => 'bool', 'is_on_hand' => 'bool', 'maps_to_status_id' => 'id', 'active' => 'bool', 'created_at' => 'time']],
         'deployment-waves' => ['table' => 'deployment_waves', 'can' => ['deployments.view'], 'soft' => true,
-            'columns' => ['name' => 'text', 'slug' => 'text', 'fiscal_year' => 'text', 'deployment_type_id' => 'id', 'wave_state' => 'text', 'announced_at' => 'time', 'arrival_window_start' => 'date', 'arrival_window_end' => 'date', 'target_start_date' => 'date', 'target_end_date' => 'date', 'location_id' => 'id', 'storage_location_id' => 'id', 'owner_id' => 'id', 'purchase_order_id' => 'id', 'form_key' => 'text', 'color' => 'text', 'sort_order' => 'int', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time']],
+            'columns' => ['name' => 'text', 'slug' => 'text', 'fiscal_year' => 'text', 'deployment_type_id' => 'id', 'wave_state' => 'text', 'announced_at' => 'time', 'arrival_window_start' => 'date', 'arrival_window_end' => 'date', 'target_start_date' => 'date', 'target_end_date' => 'date', 'location_id' => 'id', 'storage_location_id' => 'id', 'owner_id' => 'id', 'purchase_order_id' => 'id', 'form_key' => 'text', 'color' => 'text', 'sort_order' => 'int', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
         'deployment-items' => ['table' => 'deployment_items', 'can' => ['deployments.view'], 'parent' => ['wave_id', 'deployment_waves'], 'asset' => 'asset_id',
             'columns' => ['wave_id' => 'id', 'asset_id' => 'id', 'replaces_asset_id' => 'id', 'order_item_id' => 'id', 'model_id' => 'id', 'stage_id' => 'id', 'group_label' => 'text', 'assigned_user_id' => 'id', 'assigned_tech_id' => 'id', 'storage_location_id' => 'id', 'target_deploy_date' => 'date', 'deployed_at' => 'time', 'notes' => 'text', 'created_at' => 'time']],
         'staff-blackouts' => ['table' => 'staff_blackouts', 'can' => ['deployments.view'],
             'columns' => ['user_id' => 'id', 'source' => 'text', 'start_date' => 'date', 'end_date' => 'date', 'reason' => 'text', 'external_id' => 'text', 'synced_at' => 'time', 'created_at' => 'time']],
         'lease-schedules' => ['table' => 'lease_schedules', 'can' => ['view', Order::class], 'soft' => true,
-            'columns' => ['schedule_ref' => 'text', 'lessor' => 'text', 'lease_type' => 'text', 'term_months' => 'int', 'received_at' => 'date', 'expected_acquisition_cost' => 'decimal', 'expected_asset_count' => 'int', 'usage_tag' => 'text', 'lifecycle_stage' => 'text', 'signed_at' => 'time', 'signed_by' => 'id', 'vendor_on_hold' => 'bool', 'contract_id' => 'id', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time']],
+            'columns' => ['schedule_ref' => 'text', 'lessor' => 'text', 'lease_type' => 'text', 'term_months' => 'int', 'received_at' => 'date', 'expected_acquisition_cost' => 'decimal', 'expected_asset_count' => 'int', 'usage_tag' => 'text', 'lifecycle_stage' => 'text', 'signed_at' => 'time', 'signed_by' => 'id', 'vendor_on_hold' => 'bool', 'contract_id' => 'id', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
         'asset-buyouts' => ['table' => 'asset_buyouts', 'can' => ['deployments.view'], 'soft' => true, 'asset' => 'asset_id',
-            'columns' => ['asset_id' => 'id', 'lessor_id' => 'id', 'buyer_id' => 'id', 'requested_by' => 'id', 'status' => 'text', 'requested_at' => 'time', 'quote_amount' => 'decimal', 'remaining_rent' => 'decimal', 'quote_total' => 'decimal', 'quoted_at' => 'date', 'buyer_amount' => 'decimal', 'ecu_amount' => 'decimal', 'approved_at' => 'time', 'approved_by' => 'id', 'declined_at' => 'time', 'decline_reason' => 'text', 'invoice_number' => 'text', 'invoice_date' => 'date', 'invoice_due_date' => 'date', 'paid_at' => 'time', 'payment_method' => 'text', 'payment_reference' => 'text', 'completed_at' => 'time', 'notes' => 'text', 'created_at' => 'time']],
+            'columns' => ['asset_id' => 'id', 'lessor_id' => 'id', 'buyer_id' => 'id', 'requested_by' => 'id', 'status' => 'text', 'requested_at' => 'time', 'quote_amount' => 'decimal', 'remaining_rent' => 'decimal', 'quote_total' => 'decimal', 'quoted_at' => 'date', 'buyer_amount' => 'decimal', 'ecu_amount' => 'decimal', 'approved_at' => 'time', 'approved_by' => 'id', 'declined_at' => 'time', 'decline_reason' => 'text', 'invoice_number' => 'text', 'invoice_date' => 'date', 'invoice_due_date' => 'date', 'paid_at' => 'time', 'payment_method' => 'text', 'payment_reference' => 'text', 'completed_at' => 'time', 'notes' => 'text', 'created_at' => 'time', 'deleted_at' => 'time']],
         'asset-buyout-quotes' => ['table' => 'asset_buyout_quotes', 'can' => ['deployments.view'], 'parent' => ['asset_buyout_id', 'asset_buyouts'],
             'columns' => ['asset_buyout_id' => 'id', 'quote_amount' => 'decimal', 'remaining_rent' => 'decimal', 'quote_total' => 'decimal', 'quoted_at' => 'date', 'reference' => 'text', 'notes' => 'text', 'recorded_by' => 'id', 'created_at' => 'time']],
         'lease-pickups' => ['table' => 'lease_pickups', 'can' => ['deployments.view'], 'soft' => true,
-            'columns' => ['lessor_id' => 'id', 'requested_by' => 'id', 'status' => 'text', 'requested_at' => 'time', 'preferred_dates' => 'text', 'load_number' => 'text', 'scheduled_date' => 'date', 'scheduled_window' => 'text', 'receiving_notified_at' => 'time', 'receiving_notified_for' => 'text', 'picked_up_at' => 'date', 'notes' => 'text', 'created_at' => 'time']],
+            'columns' => ['lessor_id' => 'id', 'requested_by' => 'id', 'status' => 'text', 'requested_at' => 'time', 'preferred_dates' => 'text', 'load_number' => 'text', 'scheduled_date' => 'date', 'scheduled_window' => 'text', 'receiving_notified_at' => 'time', 'receiving_notified_for' => 'text', 'picked_up_at' => 'date', 'notes' => 'text', 'created_at' => 'time', 'deleted_at' => 'time']],
         'lease-pickup-assets' => ['table' => 'lease_pickup_assets', 'can' => ['deployments.view'], 'parent' => ['lease_pickup_id', 'lease_pickups'], 'asset' => 'asset_id',
             'columns' => ['lease_pickup_id' => 'id', 'asset_id' => 'id', 'created_at' => 'time']],
         'lease-decisions' => ['table' => 'lease_decisions', 'can' => ['view', Order::class], 'soft' => true, 'asset' => 'asset_id',
-            'columns' => ['contract_reference' => 'text', 'asset_id' => 'id', 'decision_type' => 'text', 'decision_date' => 'date', 'deferred_to_fy' => 'text', 'amount' => 'decimal', 'status' => 'text', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time']],
+            'columns' => ['contract_reference' => 'text', 'asset_id' => 'id', 'decision_type' => 'text', 'decision_date' => 'date', 'deferred_to_fy' => 'text', 'amount' => 'decimal', 'status' => 'text', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
         'exhibit-email-templates' => ['table' => 'exhibit_email_templates', 'can' => ['view', Order::class],
             'columns' => ['key' => 'text', 'name' => 'text', 'subject' => 'text', 'body' => 'text', 'enabled' => 'bool', 'created_at' => 'time']],
         'maintenances' => ['table' => 'maintenances', 'can' => ['view', Asset::class], 'soft' => true, 'asset' => 'asset_id',
-            'columns' => ['asset_id' => 'id', 'supplier_id' => 'id', 'asset_maintenance_type' => 'text', 'name' => 'text', 'url' => 'text', 'is_warranty' => 'bool', 'start_date' => 'date', 'completion_date' => 'date', 'asset_maintenance_time' => 'int', 'notes' => 'text', 'cost' => 'decimal', 'created_by' => 'id', 'created_at' => 'time']],
+            'columns' => ['asset_id' => 'id', 'supplier_id' => 'id', 'asset_maintenance_type' => 'text', 'name' => 'text', 'url' => 'text', 'is_warranty' => 'bool', 'start_date' => 'date', 'completion_date' => 'date', 'asset_maintenance_time' => 'int', 'notes' => 'text', 'cost' => 'decimal', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
         'permission-groups' => ['table' => 'permission_groups', 'can' => ['superadmin'],
             'columns' => ['name' => 'text', 'permissions' => 'text', 'notes' => 'text', 'created_at' => 'time']],
         'form-eligibility' => ['table' => 'form_eligibility', 'can' => ['superadmin'],
             'columns' => ['form_slug' => 'text', 'group_id' => 'id', 'created_at' => 'time']],
         'action-logs' => ['table' => 'action_logs', 'can' => ['superadmin'], 'soft' => true, 'maxOffset' => 1000000,
-            'columns' => ['created_by' => 'id', 'action_type' => 'text', 'target_id' => 'id', 'target_type' => 'text', 'location_id' => 'id', 'note' => 'text', 'item_type' => 'text', 'item_id' => 'id', 'expected_checkin' => 'date', 'quantity' => 'int', 'log_meta' => 'text', 'action_date' => 'time', 'action_source' => 'text', 'created_at' => 'time']],
+            'columns' => ['created_by' => 'id', 'action_type' => 'text', 'target_id' => 'id', 'target_type' => 'text', 'location_id' => 'id', 'note' => 'text', 'item_type' => 'text', 'item_id' => 'id', 'expected_checkin' => 'date', 'quantity' => 'int', 'log_meta' => 'text', 'action_date' => 'time', 'action_source' => 'text', 'created_at' => 'time', 'deleted_at' => 'time']],
     ];
 
     /** Every family the records route serves; the route constraint and the lookup both use it. */
@@ -375,11 +376,18 @@ class WorkflowObservationsController extends Controller
         $columns = $spec['columns'];
         $query = DB::table($table)->select(array_map(fn (string $column) => $table.'.'.$column, ['id', ...array_keys($columns)]));
         self::scope($query, $spec);
+        $child = isset($spec['parent']);
+        if ($child) {
+            $query->selectSub(self::parentDeleted($spec), 'parent_deleted');
+        }
 
-        return $this->page($request, $query, function (object $row) use ($columns) {
+        return $this->page($request, $query, function (object $row) use ($columns, $child) {
             $out = ['id' => self::typed('id', $row->id)];
             foreach ($columns as $column => $type) {
                 $out[$column] = self::typed($type, $row->{$column});
+            }
+            if ($child) {
+                $out['parent_deleted'] = (bool) $row->parent_deleted;
             }
 
             return $out;
@@ -387,30 +395,61 @@ class WorkflowObservationsController extends Controller
     }
 
     /**
-     * The family's visibility, applied to rows of its table: not soft-deleted, an asset the
-     * reader's company scope can see (deleted or not), and, for a child family, a parent row that
-     * itself passes its own family's visibility. A child therefore inherits every filter of the
-     * chain above it, so a reader never sees a child of a parent they cannot see.
+     * The family's visibility, applied to rows of its table: an asset the reader's company scope
+     * can see (deleted or not), and, for a child family, a parent row that exists and itself
+     * passes its own family's visibility. A child therefore inherits every filter of the chain
+     * above it, so a reader never sees a child of a parent they cannot see. Soft-deleted rows stay
+     * visible; deletion is reported, not filtered.
      */
     private static function scope(QueryBuilder $query, array $spec): void
     {
         $table = $spec['table'];
-        if ($spec['soft'] ?? false) {
-            $query->whereNull($table.'.deleted_at');
-        }
         if (isset($spec['asset'])) {
             $column = $table.'.'.$spec['asset'];
             $query->where(fn (QueryBuilder $visible) => $visible->whereNull($column)
                 ->orWhereIn($column, Asset::withTrashed()->select('id')));
         }
         if (isset($spec['parent'])) {
-            [$column, $parentTable] = $spec['parent'];
-            $parent = collect(self::RECORDS)->firstWhere('table', $parentTable) ?? ['table' => $parentTable];
+            [$column] = $spec['parent'];
+            $parent = self::parentSpec($spec);
             $query->whereExists(function (QueryBuilder $visible) use ($table, $column, $parent) {
                 $visible->from($parent['table'])->whereColumn($parent['table'].'.id', $table.'.'.$column);
                 self::scope($visible, $parent);
             });
         }
+    }
+
+    /** The child's parent spec: the parent family's entry, or just its table. */
+    private static function parentSpec(array $spec): array
+    {
+        return collect(self::RECORDS)->firstWhere('table', $spec['parent'][1]) ?? ['table' => $spec['parent'][1]];
+    }
+
+    /**
+     * Whether the child row's parent, or any ancestor above it, is soft-deleted: a correlated
+     * subquery on the child table that yields 1, or null when the whole chain is live.
+     */
+    private static function parentDeleted(array $spec): QueryBuilder
+    {
+        return DB::query()->selectRaw('1')->where(fn (QueryBuilder $chain) => self::deletedAbove($chain, $spec));
+    }
+
+    /** Adds "the row's parent or an ancestor is soft-deleted" for rows of the child's table. */
+    private static function deletedAbove(QueryBuilder $query, array $spec): void
+    {
+        $parent = self::parentSpec($spec);
+        $query->whereExists(function (QueryBuilder $deleted) use ($parent, $spec) {
+            $deleted->from($parent['table'])->whereColumn($parent['table'].'.id', $spec['table'].'.'.$spec['parent'][0])
+                ->where(function (QueryBuilder $any) use ($parent) {
+                    $any->whereRaw('0 = 1');
+                    if ($parent['soft'] ?? false) {
+                        $any->orWhereNotNull($parent['table'].'.deleted_at');
+                    }
+                    if (isset($parent['parent'])) {
+                        $any->orWhere(fn (QueryBuilder $higher) => self::deletedAbove($higher, $parent));
+                    }
+                });
+        });
     }
 
     /**

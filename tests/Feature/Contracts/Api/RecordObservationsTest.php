@@ -19,19 +19,22 @@ class RecordObservationsTest extends TestCase
             ->assertOk()->assertJsonPath('total', $total)->json('rows');
     }
 
-    public function test_budget_allocations_keep_exact_decimals_and_leave_out_deleted_rows(): void
+    public function test_budget_allocations_keep_exact_decimals_and_report_deleted_rows(): void
     {
         $author = User::factory()->create();
         $kept = DB::table('budget_allocations')->insertGetId(['fiscal_year' => 'FY27', 'area' => 'Example area',
             'amount' => '1234567.89', 'source' => 'forecast', 'description' => 'Example allocation',
             'effective_date' => '2026-04-01', 'created_by' => $author->id, 'created_at' => '2026-03-15 09:30:00', 'updated_at' => '2026-03-16 10:00:00']);
-        DB::table('budget_allocations')->insert(['fiscal_year' => 'FY27', 'amount' => '1.00', 'deleted_at' => '2026-03-20 00:00:00']);
+        $gone = DB::table('budget_allocations')->insertGetId(['fiscal_year' => 'FY27', 'amount' => '1.00', 'deleted_at' => '2026-03-20 00:00:00']);
 
-        $rows = $this->rows(User::factory()->create(['permissions' => '{"procurement.view":"1"}']), 'budget-allocations', 1);
+        $rows = $this->rows(User::factory()->create(['permissions' => '{"procurement.view":"1"}']), 'budget-allocations', 2);
 
-        $this->assertSame([['id' => (string) $kept, 'fiscal_year' => 'FY27', 'area' => 'Example area', 'amount' => '1234567.89',
+        $this->assertSame(['id' => (string) $kept, 'fiscal_year' => 'FY27', 'area' => 'Example area', 'amount' => '1234567.89',
             'source' => 'forecast', 'description' => 'Example allocation', 'effective_date' => '2026-04-01',
-            'created_by' => (string) $author->id, 'created_at' => '2026-03-15 09:30:00']], $rows);
+            'created_by' => (string) $author->id, 'created_at' => '2026-03-15 09:30:00', 'deleted_at' => null], $rows[0]);
+        $this->assertSame((string) $gone, $rows[1]['id']);
+        $this->assertSame('1.00', $rows[1]['amount']);
+        $this->assertSame('2026-03-20 00:00:00', $rows[1]['deleted_at']);
     }
 
     public function test_store_orders_and_items_return_exactly_their_fields(): void
@@ -56,10 +59,10 @@ class RecordObservationsTest extends TestCase
 
         $this->assertSame([['id' => (string) $item, 'store_order_id' => (string) $order, 'catalog_item_id' => null,
             'description' => 'Example laptop', 'vendor_sku' => 'EXAMPLE-SKU-1', 'mfr_part_number' => null, 'quantity' => 2,
-            'unit_cost' => '1249.9950', 'created_at' => '2026-05-01 08:00:00']], $this->rows($reader, 'store-order-items', 1));
+            'unit_cost' => '1249.9950', 'created_at' => '2026-05-01 08:00:00', 'parent_deleted' => false]], $this->rows($reader, 'store-order-items', 1));
     }
 
-    public function test_deployment_items_drop_deleted_waves_and_keep_company_scope(): void
+    public function test_deployment_items_mark_deleted_waves_and_keep_company_scope(): void
     {
         $this->settings->enableMultipleFullCompanySupport();
         $own = Company::factory()->create();
@@ -71,19 +74,21 @@ class RecordObservationsTest extends TestCase
         $item = DB::table('deployment_items')->insertGetId(['wave_id' => $wave, 'asset_id' => $asset->getKey(), 'group_label' => 'Example group',
             'target_deploy_date' => '2026-08-15', 'deployed_at' => '2026-08-16 11:15:00', 'created_at' => '2026-07-01 00:00:00']);
         $unassigned = DB::table('deployment_items')->insertGetId(['wave_id' => $wave]);
-        DB::table('deployment_items')->insert(['wave_id' => $retired, 'asset_id' => $asset->getKey()]);
+        $orphaned = DB::table('deployment_items')->insertGetId(['wave_id' => $retired, 'asset_id' => $asset->getKey()]);
         DB::table('deployment_items')->insert(['wave_id' => $wave, 'asset_id' => $foreign->getKey()]);
 
         $reader = User::factory()->create(['company_id' => $own->getKey(), 'permissions' => '{"deployments.view":"1"}']);
-        $rows = $this->rows($reader, 'deployment-items', 2);
+        $rows = $this->rows($reader, 'deployment-items', 3);
 
-        $this->assertSame([(string) $item, (string) $unassigned], array_column($rows, 'id'));
+        $this->assertSame([(string) $item, (string) $unassigned, (string) $orphaned], array_column($rows, 'id'));
+        $this->assertSame([false, false, true], array_column($rows, 'parent_deleted'));
         $this->assertSame(['id' => (string) $item, 'wave_id' => (string) $wave, 'asset_id' => (string) $asset->getKey(),
             'replaces_asset_id' => null, 'order_item_id' => null, 'model_id' => null, 'stage_id' => null,
             'group_label' => 'Example group', 'assigned_user_id' => null, 'assigned_tech_id' => null, 'storage_location_id' => null,
             'target_deploy_date' => '2026-08-15', 'deployed_at' => '2026-08-16 11:15:00', 'notes' => null,
-            'created_at' => '2026-07-01 00:00:00'], $rows[0]);
-        $this->rows($reader, 'deployment-waves', 1);
+            'created_at' => '2026-07-01 00:00:00', 'parent_deleted' => false], $rows[0]);
+        $waves = $this->rows($reader, 'deployment-waves', 2);
+        $this->assertSame([null, '2026-01-01 00:00:00'], array_column($waves, 'deleted_at'));
     }
 
     public function test_maintenances_type_booleans_ints_and_costs(): void
@@ -95,12 +100,14 @@ class RecordObservationsTest extends TestCase
         DB::table('maintenances')->insert(['asset_id' => $asset->getKey(), 'asset_maintenance_type' => 'Repair', 'name' => 'Gone',
             'is_warranty' => 0, 'start_date' => '2026-02-01', 'deleted_at' => '2026-02-02 00:00:00']);
 
-        $rows = $this->rows(User::factory()->create(['permissions' => '{"assets.view":"1"}']), 'maintenances', 1);
+        $rows = $this->rows(User::factory()->create(['permissions' => '{"assets.view":"1"}']), 'maintenances', 2);
 
         $this->assertSame(['id' => (string) $kept, 'asset_id' => (string) $asset->getKey(), 'supplier_id' => null,
             'asset_maintenance_type' => 'Repair', 'name' => 'Example repair', 'url' => null, 'is_warranty' => true,
             'start_date' => '2026-02-01', 'completion_date' => '2026-02-03', 'asset_maintenance_time' => 2, 'notes' => null,
-            'cost' => '149.50', 'created_by' => null, 'created_at' => '2026-02-01 12:00:00'], $rows[0]);
+            'cost' => '149.50', 'created_by' => null, 'created_at' => '2026-02-01 12:00:00', 'deleted_at' => null], $rows[0]);
+        $this->assertFalse($rows[1]['is_warranty']);
+        $this->assertSame('2026-02-02 00:00:00', $rows[1]['deleted_at']);
     }
 
     public function test_user_access_carries_only_sorted_group_ids_and_own_permissions(): void
@@ -126,7 +133,7 @@ class RecordObservationsTest extends TestCase
             'created_at' => null], $groups[0]);
     }
 
-    public function test_action_logs_leave_out_excluded_columns_and_deleted_rows(): void
+    public function test_action_logs_leave_out_excluded_columns_and_report_deleted_rows(): void
     {
         $actor = User::factory()->create();
         $kept = DB::table('action_logs')->insertGetId(['created_by' => $actor->id, 'action_type' => 'checkout', 'target_id' => 0,
@@ -134,19 +141,20 @@ class RecordObservationsTest extends TestCase
             'log_meta' => '{"name":{"old":"a","new":"b"}}', 'action_date' => '2026-03-01 10:00:00', 'action_source' => 'gui',
             'expected_checkin' => '2026-04-01', 'remote_ip' => '192.0.2.10', 'user_agent' => 'Example', 'filename' => 'example.pdf',
             'company_id' => 1, 'created_at' => '2026-03-01 10:00:01']);
-        DB::table('action_logs')->insert(['action_type' => 'delete', 'item_type' => 'App\\Models\\Asset', 'item_id' => 8,
+        $gone = DB::table('action_logs')->insertGetId(['action_type' => 'delete', 'item_type' => 'App\\Models\\Asset', 'item_id' => 8,
             'deleted_at' => '2026-03-02 00:00:00']);
 
         $admin = User::factory()->superuser()->create();
-        $live = DB::table('action_logs')->whereNull('deleted_at')->count();
-        $rows = collect($this->rows($admin, 'action-logs', $live))->keyBy('id');
+        $all = DB::table('action_logs')->count();
+        $rows = collect($this->rows($admin, 'action-logs', $all))->keyBy('id');
 
         $this->assertSame(['id' => (string) $kept, 'created_by' => (string) $actor->id, 'action_type' => 'checkout',
             'target_id' => null, 'target_type' => 'App\\Models\\User', 'location_id' => null, 'note' => null,
             'item_type' => 'App\\Models\\Asset', 'item_id' => '7', 'expected_checkin' => '2026-04-01', 'quantity' => 1,
             'log_meta' => '{"name":{"old":"a","new":"b"}}', 'action_date' => '2026-03-01 10:00:00', 'action_source' => 'gui',
-            'created_at' => '2026-03-01 10:00:01'], $rows[(string) $kept]);
-        $this->assertSame($live, $rows->count());
+            'created_at' => '2026-03-01 10:00:01', 'deleted_at' => null], $rows[(string) $kept]);
+        $this->assertSame('2026-03-02 00:00:00', $rows[(string) $gone]['deleted_at']);
+        $this->assertSame($all, $rows->count());
         $this->actingAsForApi($admin)
             ->getJson(self::BASE.'action-logs?offset=1000000')->assertOk();
     }
@@ -195,7 +203,7 @@ class RecordObservationsTest extends TestCase
     }
 
     #[DataProvider('childFamilies')]
-    public function test_children_of_parents_out_of_the_readers_scope_are_not_returned(
+    public function test_children_of_deleted_parents_are_marked_and_out_of_scope_parents_hidden(
         string $family, string $permission, string $parentTable, string $childTable, string $parentColumn
     ): void {
         $this->settings->enableMultipleFullCompanySupport();
@@ -203,20 +211,21 @@ class RecordObservationsTest extends TestCase
         $other = Company::factory()->create();
         $asset = Asset::factory()->create(['company_id' => $own->getKey(), 'asset_tag' => 'EXAMPLE-OWN']);
         $foreign = Asset::factory()->create(['company_id' => $other->getKey(), 'asset_tag' => 'EXAMPLE-FOREIGN']);
-        $parent = fn (array $values = []) => DB::table($parentTable)->insertGetId($values + match ($parentTable) {
+        $parent = fn (array $values = []) => DB::table($parentTable)->insertGetId($values + [
             'deployment_waves' => ['name' => 'Example wave', 'slug' => 'example-'.uniqid()],
             'asset_buyouts' => ['asset_id' => $asset->getKey(), 'status' => 'requested'],
             'lease_pickups' => ['status' => 'requested'],
             'store_orders' => ['status' => 'submitted'],
-        });
+        ][$parentTable]);
         $child = fn (int $parentId) => DB::table($childTable)->insertGetId([$parentColumn => $parentId]
             + ($childTable === 'lease_pickup_assets' ? ['asset_id' => $asset->getKey()] : []));
 
-        $visible = $child($parent());
-        $hidden = [];
+        $visible = [$child($parent()) => false];
         if ($parentTable !== 'store_orders') {
-            $hidden[] = $child($parent(['deleted_at' => '2026-01-01 00:00:00']));
+            // A soft-deleted parent keeps its children in the history, marked.
+            $visible[$child($parent(['deleted_at' => '2026-01-01 00:00:00']))] = true;
         }
+        $hidden = [];
         if ($parentTable === 'asset_buyouts') {
             // The parent's own asset is in another company, so neither it nor its quotes show.
             $hidden[] = $child($parent(['asset_id' => $foreign->getKey()]));
@@ -225,9 +234,10 @@ class RecordObservationsTest extends TestCase
         $hidden[] = $child(999999);
 
         $reader = User::factory()->create(['company_id' => $own->getKey(), 'permissions' => json_encode([$permission => '1'])]);
-        $rows = $this->rows($reader, $family, 1);
+        $rows = $this->rows($reader, $family, count($visible));
 
-        $this->assertSame([(string) $visible], array_column($rows, 'id'));
+        $this->assertSame(array_map('strval', array_keys($visible)), array_column($rows, 'id'));
+        $this->assertSame(array_values($visible), array_column($rows, 'parent_deleted'));
         foreach ($hidden as $id) {
             $this->assertNotContains((string) $id, array_column($rows, 'id'));
         }
