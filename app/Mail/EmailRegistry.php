@@ -483,7 +483,7 @@ class EmailRegistry
                     ['name' => 'from_name', 'type' => 'text', 'label' => 'From name', 'config' => 'leasing.okp_from_name', 'help' => 'The name shown beside the From address.'],
                     ['name' => 'teams_channel', 'type' => 'channel', 'label' => 'Teams channel', 'config' => 'leasing.okp_teams_channel', 'help' => 'Where held invoices are announced.'],
                 ],
-                'factory' => fn (EmailSampleData $s) => new OkayToPayMail($s->okayToPayInvoice()),
+                'factory' => fn (EmailSampleData $s) => new OkayToPayMail($s->okayToPayInvoice(), sample: true),
             ],
             [
                 'key' => 'procurement.schedule_initiation',

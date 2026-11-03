@@ -8,11 +8,13 @@ use App\Models\AssetModel;
 use App\Models\BudgetAllocation;
 use App\Models\CapitalRequestLine;
 use App\Models\Category;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\DeploymentItem;
 use App\Models\LeaseDecision;
 use App\Models\LeaseSchedule;
 use App\Models\Location;
+use App\Models\OkayToPayDelivery;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
@@ -31,6 +33,8 @@ use App\Services\FiscalYear;
 use App\Services\Leasing\LeaseClosure;
 use App\Services\Leasing\LessorGuard;
 use App\Services\Leasing\OkayToPay;
+use App\Services\Leasing\OkayToPayAcceptance;
+use App\Services\Leasing\OkayToPayHistory;
 use App\Services\LegacyFleet;
 use App\Services\ProcurementPipeline;
 use App\Services\Settings\Preferences;
@@ -39,6 +43,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use League\Csv\EscapeFormula;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
@@ -312,7 +318,7 @@ class ProcurementReportsController extends Controller
         // this?" question; pending lease decisions catch buyout/return
         // calls that haven't been logged yet.
         $pendingApprovalCount = $this->scopeInvoiceToFiscalYear(
-            OrderInvoice::where('approval_status', 'pending'),
+            OrderInvoice::where(fn ($q) => $q->where('approval_status', 'pending')->orWhereIn('okp_status', [OkayToPay::SENDING, OkayToPay::UNCERTAIN])),
             $selectedFy
         )->count();
 
@@ -1016,30 +1022,92 @@ class ProcurementReportsController extends Controller
             'notes' => 'nullable|string|max:65535',
         ]);
 
-        $invoice->approval_status = $validated['approval_status'];
-        $invoice->is_final_invoice = (bool) ($validated['is_final_invoice'] ?? false);
-        if (array_key_exists('usage_tag', $validated)) {
-            $invoice->usage_tag = $validated['usage_tag'];
-        }
-        if (array_key_exists('notes', $validated)) {
-            $invoice->notes = $validated['notes'];
-        }
+        DB::transaction(function () use ($invoice, $validated, $request) {
+            Order::whereKey($invoice->order_id)->lockForUpdate()->first();
+            $invoice = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
+            app(OkayToPayAcceptance::class)->lockFacts($invoice);
+            if ($validated['approval_status'] === 'approved' && $invoice->okp_status !== OkayToPay::SENT
+                && ($invoice->okp_status !== null || app(OkayToPay::class)->applies($invoice))) {
+                $reasons = app(OkayToPay::class)->mismatches($invoice);
+                if (OkayToPayDelivery::where('invoice_id', $invoice->id)->exists()) {
+                    $reasons[] = trans('admin/purchase-orders/general.okp_reason_delivery_reserved');
+                }
+                if ($reasons) {
+                    throw ValidationException::withMessages(['approval_status' => implode(' ', $reasons)]);
+                }
+            }
 
-        if ($validated['approval_status'] === 'approved') {
-            $invoice->approved_at = now();
-            $invoice->approved_by = auth()->id();
-        } elseif ($validated['approval_status'] === 'pending') {
-            // Re-opening sweeps the approval signature so the audit trail
-            // stays honest — an invoice that goes pending → approved →
-            // pending shouldn't keep the original approver's name on it.
-            $invoice->approved_at = null;
-            $invoice->approved_by = null;
-        }
+            $invoice->approval_status = $validated['approval_status'];
+            $invoice->is_final_invoice = (bool) ($validated['is_final_invoice'] ?? false);
+            if (array_key_exists('usage_tag', $validated)) {
+                $invoice->usage_tag = $validated['usage_tag'];
+            }
+            if (array_key_exists('notes', $validated)) {
+                $invoice->notes = $validated['notes'];
+            }
 
-        $invoice->save();
+            if ($validated['approval_status'] === 'approved') {
+                $invoice->approved_at = now();
+                $invoice->approved_by = auth()->id();
+            } elseif ($validated['approval_status'] === 'pending') {
+                // Re-opening sweeps the approval signature so the audit trail
+                // stays honest — an invoice that goes pending → approved →
+                // pending shouldn't keep the original approver's name on it.
+                $invoice->approved_at = null;
+                $invoice->approved_by = null;
+            }
+
+            $invoice->save();
+            $evidence = app(OkayToPayAcceptance::class);
+            if ($validated['approval_status'] === 'disputed' && $invoice->okp_status !== OkayToPay::SENT
+                && ! OkayToPayDelivery::where('invoice_id', $invoice->id)->exists()
+                && $evidence->latest($invoice)?->decision === 'accept') {
+                $evidence->record($invoice, $request->user(), [
+                    'decision' => 'revoke', 'fingerprint' => $evidence->fingerprint($invoice),
+                    'expected_acceptance_id' => $evidence->latest($invoice)->id,
+                ]);
+            }
+
+        });
 
         return redirect()->route('reports.procurement.invoice-approval', $request->only('status'))
             ->with('success', trans('admin/purchase-orders/general.invoice_approval_updated'));
+    }
+
+    public function invoiceAcceptance(OrderInvoice $invoice)
+    {
+        $this->authorize('procurement.edit');
+        abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
+
+        return DB::transaction(function () use ($invoice) {
+            Order::whereKey($invoice->order_id)->lockForUpdate()->first();
+            $invoice = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
+            $service = app(OkayToPayAcceptance::class);
+            $service->lockFacts($invoice);
+            $fingerprint = $service->fingerprint($invoice);
+
+            return response(view('reports.procurement.invoice-acceptance', [
+                'invoice' => $invoice,
+                'fingerprint' => $fingerprint,
+                'acceptance' => $service->latest($invoice),
+                'history' => \App\Models\OkayToPayAcceptance::where('invoice_id', $invoice->id)->latest('id')->get(),
+                'reasons' => app(OkayToPay::class)->mismatches($invoice),
+                'delivery' => OkayToPayDelivery::where('invoice_id', $invoice->id)->first(),
+                'historical' => OkayToPayHistory::blocked($invoice),
+            ])->render());
+        });
+    }
+
+    public function recordInvoiceAcceptance(Request $request, OrderInvoice $invoice): RedirectResponse
+    {
+        $this->authorize('procurement.edit');
+        abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
+        app(OkayToPayAcceptance::class)->record($invoice, $request->user(), $request->all());
+
+        return redirect()->route('reports.procurement.invoice-acceptance', $invoice)
+            ->with('success', trans('admin/purchase-orders/general.okp_acceptance_saved'));
     }
 
     public function leaseDecisions(Request $request)
@@ -3542,7 +3610,9 @@ class ProcurementReportsController extends Controller
 
         $this->scopeInvoiceToFiscalYear($query, $fy);
 
-        if ($statusFilter !== 'all') {
+        if ($statusFilter === 'pending') {
+            $query->where(fn ($q) => $q->where('approval_status', 'pending')->orWhereIn('okp_status', [OkayToPay::SENDING, OkayToPay::UNCERTAIN]));
+        } elseif ($statusFilter !== 'all') {
             $query->where('approval_status', $statusFilter);
         }
 
@@ -3606,10 +3676,14 @@ class ProcurementReportsController extends Controller
      */
     private function okayToPayCell(OrderInvoice $invoice): string
     {
+        if ($invoice->okp_status !== OkayToPay::SENT && OkayToPayHistory::blocked($invoice)) {
+            return trans('admin/purchase-orders/general.okp_reason_historical_settlement');
+        }
         $when = fn ($date) => $date ? $date->timezone(config('app.timezone'))->format('M j, g:i A') : '';
 
         return match ($invoice->okp_status) {
             OkayToPay::QUEUED => trans('admin/purchase-orders/general.okp_status_queued', ['date' => $when($invoice->okp_send_after)]),
+            OkayToPay::SENDING, OkayToPay::UNCERTAIN => trans('admin/purchase-orders/general.okp_reason_delivery_reserved'),
             OkayToPay::HELD => trim(trans('admin/purchase-orders/general.okp_status_held').' — '.implode(' ', (array) $invoice->okp_reasons), ' —'),
             OkayToPay::SENT => trans('admin/purchase-orders/general.okp_status_sent', ['date' => $when($invoice->okp_sent_at)]),
             default => '',

@@ -388,6 +388,11 @@ class EmailsController extends Controller
         }
 
         $cc = array_values(array_filter((array) $request->input('cc', [])));
+        if ($key === \App\Services\Leasing\OkayToPay::KEY
+            && (strcasecmp((string) $request->input('to'), (string) $request->user()?->email) !== 0 || $cc)) {
+            return response()->json(['status' => 'error', 'messages' => trans('admin/purchase-orders/general.okp_test_sender_only')], 409);
+        }
+
 
         // A sample of a lessor's email still goes only to that lessor and us.
         if (isset($entry['lessor'])) {

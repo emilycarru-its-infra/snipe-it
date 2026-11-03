@@ -25,27 +25,55 @@ class OkayToPayMail extends BaseMailable
 
     public OrderInvoice $invoice;
 
-    public function __construct(OrderInvoice $invoice)
+    public function __construct(OrderInvoice $invoice, public readonly bool $sample = false)
     {
         $this->invoice = $invoice->loadMissing(['order.supplier', 'items.item']);
     }
 
+    private ?string $frozenHtml = null;
+
+    private ?Envelope $frozenEnvelope = null;
+
+    private ?string $frozenCsv = null;
+
+    public function freeze(): array
+    {
+        $this->frozenEnvelope = $this->envelope();
+        $this->frozenCsv = $this->csv();
+        $this->frozenHtml = $this->render();
+
+        return [
+            'subject' => $this->frozenEnvelope->subject,
+            'from' => $this->frozenEnvelope->from->address,
+            'from_name' => $this->frozenEnvelope->from->name,
+            'html' => $this->frozenHtml,
+            'csv' => $this->frozenCsv,
+        ];
+    }
+
     public function envelope(): Envelope
     {
+        if ($this->frozenEnvelope) {
+            return $this->frozenEnvelope;
+        }
         $from = $this->fromAddress();
 
         return new Envelope(
             from: $from,
             replyTo: [$from],
-            subject: $this->overriddenSubject(OkayToPay::KEY, trans('mail.okay_to_pay_subject', $this->subjectVars())),
+            subject: ($this->sample ? trans('admin/purchase-orders/general.okp_test_prefix').' ' : '').$this->overriddenSubject(OkayToPay::KEY, trans('mail.okay_to_pay_subject', $this->subjectVars())),
         );
     }
 
     public function content(): Content
     {
+        if ($this->frozenHtml !== null) {
+            return new Content(htmlString: $this->frozenHtml);
+        }
         $order = $this->invoice->order;
 
-        return $this->bodyContent(OkayToPay::KEY, 'notifications.markdown.okay-to-pay', [
+        $data = [
+            'sample' => $this->sample,
             'invoice' => $this->invoice,
             'order' => $order,
             'supplier' => $order?->supplier,
@@ -59,7 +87,11 @@ class OkayToPayMail extends BaseMailable
                 'total' => OkayToPay::money($this->invoice->total),
             ],
             'signature' => $this->fromAddress()->name ?: $this->fromAddress()->address,
-        ]);
+        ];
+
+        return $this->sample
+            ? new Content(markdown: 'notifications.markdown.okay-to-pay', with: $data)
+            : $this->bodyContent(OkayToPay::KEY, 'notifications.markdown.okay-to-pay', $data);
     }
 
     /**
@@ -79,6 +111,9 @@ class OkayToPayMail extends BaseMailable
      */
     public function csv(): string
     {
+        if ($this->frozenCsv !== null) {
+            return $this->frozenCsv;
+        }
         $order = $this->invoice->order;
         $out = fopen('php://temp', 'r+');
 

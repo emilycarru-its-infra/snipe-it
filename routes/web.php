@@ -1563,6 +1563,12 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('invoice-approval', [ProcurementReportsController::class, 'invoiceApproval'])
             ->name('reports.procurement.invoice-approval')
             ->breadcrumbs($crumb('reports.procurement.invoice-approval', 'report_invoice_approval'));
+        Route::get('invoice-approval/{invoice}/acceptance', [ProcurementReportsController::class, 'invoiceAcceptance'])
+            ->name('reports.procurement.invoice-acceptance')
+            ->breadcrumbs(fn (Trail $trail, \App\Models\OrderInvoice $invoice) => $trail->parent('reports.procurement.invoice-approval')
+                ->push(trans('admin/purchase-orders/general.okp_acceptance_title'), route('reports.procurement.invoice-acceptance', $invoice)));
+        Route::post('invoice-approval/{invoice}/acceptance', [ProcurementReportsController::class, 'recordInvoiceAcceptance'])
+            ->name('reports.procurement.invoice-acceptance.store');
         Route::patch('invoice-approval/{invoice}', [ProcurementReportsController::class, 'updateInvoiceApproval'])
             ->name('reports.procurement.invoice-approval.update');
         Route::get('procurement/lease-decisions', [ProcurementReportsController::class, 'leaseDecisions'])

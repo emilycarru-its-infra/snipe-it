@@ -2,17 +2,34 @@
 
 namespace Tests\Feature\Leasing;
 
+use App\Mail\BaseMailable;
+use App\Mail\EmailRegistry;
 use App\Mail\OkayToPayMail;
 use App\Models\Asset;
+use App\Models\Company;
 use App\Models\EmailTemplate;
+use App\Models\OkayToPayDelivery;
+use App\Models\OkayToPayLegacySettlement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Leasing\OkayToPay;
+use App\Services\Leasing\OkayToPayAcceptance;
+use App\Services\Leasing\OkayToPayHistory;
+use App\Services\ProcurementPipeline;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
+use Illuminate\Mail\MailManager;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\Mailer\Transport\TransportInterface;
 use Tests\TestCase;
 
 /**
@@ -59,15 +76,18 @@ class OkayToPayTest extends TestCase
             'funding_account' => 'lease_admin',
             'lease_schedule' => '700100-009',
             'quote_total' => 10000.00,
+            'quote_confirmed_at' => now(),
+            'supplier_id' => Supplier::factory()->create()->id,
         ], $overrides));
     }
 
-    private function ingest(string $orderNumber, string $invoice, array $assets, float $unit = 4305.56, float $soft = 374.44, array $invoiceOverrides = [])
+    private function ingest(string $orderNumber, string $invoice, array $assets, float $unit = 4305.56, float $soft = 374.44, array $invoiceOverrides = [], bool $accepted = true)
     {
         $subtotal = round(count($assets) * ($unit + $soft), 2);
         $gst = round($subtotal * 0.05, 2);
 
-        return $this->actingAsForApi(User::factory()->superuser()->create())
+        $actor = User::factory()->superuser()->create();
+        $response = $this->actingAsForApi($actor)
             ->postJson(route('api.orders.ingest'), [
                 'order_number' => $orderNumber,
                 'invoice' => array_merge([
@@ -87,6 +107,25 @@ class OkayToPayTest extends TestCase
                     'warranty_cost' => $soft,
                 ], $assets),
             ])->assertOk();
+        $record = $this->invoice(trim($invoice));
+        if ($accepted && ! ($record->okp_status === null && $record->approval_status === 'approved')
+            && app(OkayToPay::class)->mode() !== 'off' && app(OkayToPay::class)->applies($record)
+            && ! app(OkayToPay::class)->mismatches($record, requireAcceptance: false)) {
+            $evidence = app(OkayToPayAcceptance::class);
+            if ($evidence->reasons($record)) {
+                $evidence->record($record, $actor, [
+                    'decision' => 'accept',
+                    'fingerprint' => $evidence->fingerprint($record),
+                    'expected_acceptance_id' => $evidence->latest($record)?->id,
+                    'received_in_full' => true,
+                    'satisfactory' => true,
+                    'receipt_reference' => 'Receiving record TEST-RECEIPT',
+                    'acceptance_reference' => 'Inspection record TEST-CHECK',
+                ]);
+            }
+        }
+
+        return $response;
     }
 
     private function invoice(string $number): OrderInvoice
@@ -173,13 +212,13 @@ class OkayToPayTest extends TestCase
         $this->leaseOrder();
         $this->ingest('ORD-LEASE-1', 'INV-FAIL', Asset::factory()->count(1)->create()->all());
 
-        Mail::shouldReceive('to')->andThrow(new \RuntimeException('relay refused the sender'));
+        $this->failTransport('relay refused the sender');
         $this->travel(49)->hours();
         $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
 
         $invoice = $this->invoice('INV-FAIL');
-        $this->assertSame(OkayToPay::HELD, $invoice->okp_status);
-        $this->assertStringContainsString('relay refused the sender', implode(' ', $invoice->okp_reasons));
+        $this->assertSame(OkayToPay::UNCERTAIN, $invoice->okp_status);
+        $this->assertStringContainsString('relay refused the sender', OkayToPayDelivery::where('invoice_id', $invoice->id)->value('error'));
         $this->assertNotSame('approved', $invoice->approval_status);
     }
 
@@ -201,11 +240,11 @@ class OkayToPayTest extends TestCase
 
         Mail::assertSent(OkayToPayMail::class);
         $this->assertSame(OkayToPay::SENT, $this->invoice('INV-NOW')->okp_status);
-        $this->assertSame([], $cards, 'a clean match posts nothing');
+        $this->assertCount(1, $cards, 'receipt evidence is required before a matching invoice can send');
 
         $this->ingest('ORD-LEASE-1', 'INV-BAD', [Asset::factory()->create(['serial' => ''])]);
         $this->assertSame(OkayToPay::HELD, $this->invoice('INV-BAD')->okp_status);
-        $this->assertCount(1, $cards, 'a held invoice posts one card');
+        $this->assertGreaterThanOrEqual(2, count($cards), 'each held invoice is visible');
     }
 
     public function test_the_cards_go_to_the_configured_channel()
@@ -548,5 +587,465 @@ class OkayToPayTest extends TestCase
             ->assertSessionHasErrors('cc');
 
         $this->assertNull(EmailTemplate::forKey(OkayToPay::KEY));
+    }
+
+    private function failTransport(string $message): void
+    {
+        Mail::swap(new MailManager($this->app));
+        $transport = \Mockery::mock(TransportInterface::class);
+        $transport->shouldReceive('send')->once()->andThrow(new \RuntimeException($message));
+        Mail::mailer()->setSymfonyTransport($transport);
+    }
+
+    public static function acceptancePolicyCases(): array
+    {
+        $fixture = json_decode(file_get_contents(__DIR__.'/../../fixtures/okay-to-pay-policy.json'), true, flags: JSON_THROW_ON_ERROR);
+
+        return array_combine($fixture['scenarios'], array_map(fn ($case) => [$case], $fixture['scenarios']));
+    }
+
+    #[DataProvider('acceptancePolicyCases')]
+    public function test_the_shared_receipt_acceptance_policy_guards_actual_sending(string $scenario): void
+    {
+        $order = $this->leaseOrder();
+        $asset = Asset::factory()->create();
+        $this->ingest($order->order_number, 'INV-POLICY', [$asset], invoiceOverrides: [], accepted: false);
+        $invoice = $this->invoice('INV-POLICY');
+        $service = app(OkayToPayAcceptance::class);
+        $actor = User::factory()->superuser()->create();
+        $historical = in_array($scenario, ['historical_reopen', 'historical_identity_repost'], true);
+        if ($historical) {
+            $supplierId = $order->supplier_id;
+            $invoice->forceFill(['approval_status' => 'approved', 'okp_status' => null])->save();
+            $invoice->update(['approval_status' => 'pending']);
+            if ($scenario === 'historical_identity_repost') {
+                $invoice->update(['invoice_number' => 'INV-RETIRED-REFERENCE']);
+                $order->update(['supplier_id' => Supplier::factory()->create()->id]);
+                $invoice->delete();
+                $order = $this->leaseOrder(['order_number' => 'ORD-HISTORY-REPOST', 'supplier_id' => $supplierId]);
+            }
+            $this->ingest($order->order_number, 'INV-POLICY', [$asset], accepted: false);
+            $invoice = $this->invoice('INV-POLICY');
+        }
+        $data = [
+            'decision' => 'accept', 'fingerprint' => $service->fingerprint($invoice),
+            'received_in_full' => true, 'satisfactory' => true,
+            'receipt_reference' => 'Receiving docket R-1', 'acceptance_reference' => 'Inspection T-1',
+        ];
+        if ($scenario === 'receipt_only') {
+            $data['satisfactory'] = false;
+            try {
+                $service->record($invoice, $actor, $data);
+                $this->fail('Receipt without satisfactory acceptance must be refused');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('satisfactory', $e->errors());
+            }
+        } elseif ($historical) {
+            try {
+                $service->record($invoice, $actor, $data);
+                $this->fail('Historical settlement cannot gain a fresh payment acceptance');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('decision', $e->errors());
+            }
+        } elseif ($scenario !== 'missing') {
+            $service->record($invoice, $actor, $data);
+        }
+        $invoice->refresh();
+        switch ($scenario) {
+            case 'stale_invoice':
+                $invoice->update(['invoice_number' => 'INV-CHANGED']);
+                break;
+            case 'stale_line':
+                $invoice->items()->first()->update(['description' => 'Changed goods']);
+                break;
+            case 'stale_serial':
+                $asset->update(['serial' => 'SERIAL-CHANGED']);
+                break;
+            case 'stale_quantity':
+                $invoice->items()->first()->update(['quantity' => 2]);
+                break;
+            case 'revoked':
+                $service->record($invoice, $actor, [
+                    'decision' => 'revoke', 'fingerprint' => $service->fingerprint($invoice),
+                    'expected_acceptance_id' => $service->latest($invoice)->id,
+                ]);
+                break;
+            case 'cancelled':
+                $order->update(['status' => 'cancelled']);
+                break;
+            case 'financial_mismatch':
+                $invoice->update(['total' => 1]);
+                try {
+                    $service->record($invoice, $actor, array_merge($data, [
+                        'fingerprint' => $service->fingerprint($invoice),
+                        'expected_acceptance_id' => $service->latest($invoice)->id,
+                    ]));
+                    $this->fail('Invalid invoice cannot gain acceptance');
+                } catch (ValidationException $e) {
+                    $this->assertArrayHasKey('decision', $e->errors());
+                }
+                break;
+            case 'foreign_lessor':
+                $asset->update(['lessor_id' => Supplier::factory()->create()->id]);
+                try {
+                    $service->record($invoice, $actor, array_merge($data, [
+                        'fingerprint' => $service->fingerprint($invoice),
+                        'expected_acceptance_id' => $service->latest($invoice)->id,
+                    ]));
+                    $this->fail('Invalid invoice cannot gain acceptance');
+                } catch (ValidationException $e) {
+                    $this->assertArrayHasKey('decision', $e->errors());
+                }
+                break;
+            case 'terminal_asset':
+                $asset->update(['status_id' => Statuslabel::factory()->create(['name' => 'Withdrawn', 'archived' => 1, 'deployable' => 0, 'pending' => 0])->id]);
+                break;
+            case 'closed_lease':
+                $asset->update(['decommission_date' => now()->toDateString()]);
+                break;
+            case 'quote_unconfirmed':
+                $order->update(['quote_confirmed_at' => null]);
+                break;
+            case 'duplicate_supplier_invoice':
+                $other = $this->leaseOrder(['order_number' => 'ORD-DUPLICATE', 'supplier_id' => $order->supplier_id]);
+                OrderInvoice::factory()->create(['order_id' => $other->id, 'invoice_number' => ' inv-policy ']);
+                break;
+            case 'null_amount':
+                $invoice->update(['tax_gst' => null]);
+                try {
+                    $service->record($invoice, $actor, array_merge($data, [
+                        'fingerprint' => $service->fingerprint($invoice),
+                        'expected_acceptance_id' => $service->latest($invoice)->id,
+                    ]));
+                    $this->fail('Invalid invoice cannot gain acceptance');
+                } catch (ValidationException $e) {
+                    $this->assertArrayHasKey('decision', $e->errors());
+                }
+                break;
+            case 'unknown_delivery':
+                $invoice->update(['approval_status' => 'approved']);
+                $this->failTransport('Connection lost after handoff');
+                $this->assertFalse(app(OkayToPay::class)->send($invoice));
+                $this->assertSame(OkayToPay::UNCERTAIN, $invoice->refresh()->okp_status);
+                Mail::fake();
+                break;
+        }
+        if (in_array($scenario, ['terminal_asset', 'closed_lease'], true)) {
+            try {
+                $service->record($invoice, $actor, array_merge($data, [
+                    'fingerprint' => $service->fingerprint($invoice),
+                    'expected_acceptance_id' => $service->latest($invoice)->id,
+                ]));
+                $this->fail('Withdrawn equipment cannot be accepted for payment');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('decision', $e->errors());
+            }
+        }
+        $invoice->update(['approval_status' => $scenario === 'disputed' ? 'disputed' : 'approved']);
+        $this->assertSame($scenario === 'current', app(OkayToPay::class)->send($invoice));
+        if ($scenario === 'current') {
+            Mail::assertSentCount(1);
+            $this->assertFalse(app(OkayToPay::class)->send($invoice));
+            Mail::assertSentCount(1);
+            $delivery = OkayToPayDelivery::where('invoice_id', $invoice->id)->firstOrFail();
+            $this->assertSame(hash('sha256', $delivery->payload), $delivery->payload_digest);
+            $this->assertSame($service->latest($invoice)->id, $delivery->acceptance_id);
+        } else {
+            Mail::assertNothingSent();
+        }
+    }
+
+    public function test_acceptance_form_is_bound_to_displayed_facts_and_requires_edit_permission(): void
+    {
+        $order = $this->leaseOrder();
+        $asset = Asset::factory()->create(['serial' => 'REVIEW-SERIAL']);
+        $this->ingest($order->order_number, 'INV-REVIEW', [$asset], accepted: false);
+        $invoice = $this->invoice('INV-REVIEW');
+        $service = app(OkayToPayAcceptance::class);
+        $viewer = User::factory()->create(['permissions' => json_encode(['procurement.view' => '1'])]);
+        $this->actingAs($viewer, 'web')->get(route('reports.procurement.invoice-acceptance', $invoice))->assertForbidden();
+        $actor = User::factory()->superuser()->create();
+        $this->actingAs($actor, 'web')->get(route('reports.procurement.invoice-acceptance', $invoice))
+            ->assertOk()->assertSee('REVIEW-SERIAL')->assertSee('INV-REVIEW')
+            ->assertSee('receipt_reference')->assertSee('acceptance_reference');
+        $data = [
+            'decision' => 'accept', 'fingerprint' => $service->fingerprint($invoice),
+            'received_in_full' => true, 'satisfactory' => true,
+            'receipt_reference' => 'Dock record 1', 'acceptance_reference' => 'Inspection 1',
+        ];
+        $asset->update(['serial' => 'REVISED-SERIAL']);
+        $this->post(route('reports.procurement.invoice-acceptance.store', $invoice), $data)
+            ->assertSessionHasErrors('fingerprint');
+        $this->assertNull($service->latest($invoice));
+        $this->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'approved'])
+            ->assertSessionHasErrors('approval_status');
+        $data['fingerprint'] = $service->fingerprint($invoice);
+        $this->post(route('reports.procurement.invoice-acceptance.store', $invoice), $data)->assertSessionHasNoErrors();
+        $record = $service->latest($invoice);
+        $this->assertSame($actor->id, $record->actor_id);
+        $this->assertSame('Dock record 1', $record->receipt_reference);
+        $this->assertSame('receipt-acceptance-v1', $record->snapshot['policy']);
+        $this->post(route('reports.procurement.invoice-acceptance.store', $invoice), $data)
+            ->assertSessionHasErrors('fingerprint');
+        Mail::assertNothingSent();
+    }
+
+    public function test_sample_authorization_has_an_unremovable_warning_and_is_sender_only(): void
+    {
+        $actor = User::factory()->superuser()->create(['email' => 'reviewer@example.test']);
+        EmailTemplate::create(['key' => OkayToPay::KEY, 'subject' => 'Custom approval', 'body' => 'Custom body']);
+        BaseMailable::flushSubjectCache();
+        $sample = EmailRegistry::makeMailable(OkayToPay::KEY);
+        $this->assertStringContainsString('TEST', $sample->envelope()->subject);
+        $this->assertStringContainsString('NOT PAYMENT AUTHORIZATION', $sample->render());
+        $this->actingAsForApi($actor)
+            ->postJson(route('api.settings.emails.test', OkayToPay::KEY), ['to' => 'lessor@lessor.test'])
+            ->assertStatus(409);
+        $this->postJson(route('api.settings.emails.test', OkayToPay::KEY), ['to' => $actor->email, 'cc' => ['copy@example.test']])
+            ->assertStatus(409);
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_dispute_revokes_acceptance_and_reopening_does_not_restore_it(): void
+    {
+        $order = $this->leaseOrder();
+        $this->ingest($order->order_number, 'INV-DISPUTE', [Asset::factory()->create()]);
+        $invoice = $this->invoice('INV-DISPUTE');
+        $actor = User::factory()->superuser()->create();
+        $this->actingAs($actor, 'web')
+            ->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'disputed'])
+            ->assertSessionHasNoErrors();
+        $service = app(OkayToPayAcceptance::class);
+        $this->assertSame('revoke', $service->latest($invoice)->decision);
+        $this->assertSame('disputed', $invoice->refresh()->approval_status);
+        $this->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'pending'])->assertSessionHasNoErrors();
+        $this->assertNotEmpty($service->reasons($invoice));
+        $this->assertFalse(app(OkayToPay::class)->send($invoice));
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_recipient_allowlist_change_after_reservation_blocks_handoff(): void
+    {
+        config(['leasing.okp_to' => 'rep@lessor.test']);
+        $order = $this->leaseOrder();
+        $this->ingest($order->order_number, 'INV-ROUTE', [Asset::factory()->create()]);
+        $invoice = $this->invoice('INV-ROUTE');
+        $invoice->update(['approval_status' => 'approved']);
+        OkayToPayDelivery::created(function () {
+            Supplier::where('name', 'Lessor One')->update(['email' => 'rep@changed.test']);
+        });
+        try {
+            $this->assertFalse(app(OkayToPay::class)->send($invoice));
+            $delivery = OkayToPayDelivery::where('invoice_id', $invoice->id)->firstOrFail();
+            $this->assertSame('blocked', $delivery->status);
+            $this->assertSame('pending', $invoice->refresh()->approval_status);
+            $card = ProcurementPipeline::build(null)['pendingInvoices']->firstWhere('id', $invoice->id);
+            $this->assertTrue($card['okp_unresolved']);
+            $this->assertStringContainsString('outside', $delivery->error);
+            $this->assertFalse(app(OkayToPay::class)->send($invoice));
+            Mail::assertNothingSent();
+        } finally {
+            OkayToPayDelivery::flushEventListeners();
+        }
+    }
+
+    public function test_rendered_payment_payload_is_frozen_before_later_database_changes(): void
+    {
+        $order = $this->leaseOrder();
+        $asset = Asset::factory()->create(['serial' => 'ORIGINAL-SERIAL']);
+        $this->ingest($order->order_number, 'INV-FROZEN', [$asset]);
+        $mail = new OkayToPayMail($this->invoice('INV-FROZEN'));
+        $payload = $mail->freeze();
+        $asset->update(['serial' => 'LATER-SERIAL']);
+        EmailTemplate::create(['key' => OkayToPay::KEY, 'subject' => 'Changed subject', 'body' => 'Changed body']);
+        $this->assertSame($payload['subject'], $mail->envelope()->subject);
+        $this->assertSame($payload['html'], $mail->render());
+        $this->assertSame($payload['csv'], $mail->csv());
+        $this->assertStringContainsString('ORIGINAL-SERIAL', $mail->csv());
+        $this->assertStringNotContainsString('LATER-SERIAL', $mail->render());
+    }
+
+    public function test_direct_send_cannot_bypass_the_wait_or_review_mode(): void
+    {
+        $order = $this->leaseOrder();
+        $this->ingest($order->order_number, 'INV-DUE', [Asset::factory()->create()]);
+        $invoice = $this->invoice('INV-DUE');
+        $this->assertFalse(app(OkayToPay::class)->send($invoice));
+        $this->assertSame(0, OkayToPayDelivery::count());
+        $this->travel(49)->hours();
+        config(['leasing.okp_mode' => 'review']);
+        $this->assertFalse(app(OkayToPay::class)->send($invoice));
+        $this->assertSame(0, OkayToPayDelivery::count());
+        Mail::assertNothingSent();
+        $invoice->update(['approval_status' => 'approved']);
+        $this->assertTrue(app(OkayToPay::class)->send($invoice));
+        Mail::assertSentCount(1);
+    }
+
+    public function test_another_lessors_ordinary_ledger_approval_remains_available_without_sending(): void
+    {
+        $this->leaseOrder();
+        Supplier::factory()->create(['name' => 'Other Lessor', 'contract_prefixes' => '900100']);
+        $otherOrder = Order::factory()->create(['lease_schedule' => '900100-001', 'funding_account' => 'lease_admin']);
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $otherOrder->id, 'invoice_date' => '2026-09-04', 'approval_status' => 'pending',
+        ]);
+        $actor = User::factory()->superuser()->create();
+        $this->actingAs($actor, 'web')
+            ->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'approved'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('approved', $invoice->refresh()->approval_status);
+        $this->assertNull($invoice->okp_status);
+        $this->assertFalse(app(OkayToPay::class)->send($invoice));
+        Mail::assertNothingSent();
+    }
+
+    public function test_historical_approval_cannot_be_reopened_reingested_and_sent_again(): void
+    {
+        $order = $this->leaseOrder();
+        $actor = User::factory()->superuser()->create();
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'invoice_number' => 'INV-LEGACY',
+            'approval_status' => 'approved', 'okp_status' => null,
+        ]);
+        $this->assertTrue(OkayToPayHistory::blocked($invoice));
+        $this->actingAs($actor, 'web')->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'pending'])
+            ->assertSessionHasNoErrors();
+        $this->ingest($order->order_number, 'INV-LEGACY', [Asset::factory()->create()], accepted: false);
+        $invoice->refresh();
+        $this->assertSame(OkayToPay::HELD, $invoice->okp_status);
+        $service = app(OkayToPayAcceptance::class);
+        $this->actingAs($actor, 'web')->post(route('reports.procurement.invoice-acceptance.store', $invoice), [
+            'decision' => 'accept', 'fingerprint' => $service->fingerprint($invoice),
+            'received_in_full' => true, 'satisfactory' => true,
+            'receipt_reference' => 'Receiving evidence', 'acceptance_reference' => 'Inspection evidence',
+        ])->assertSessionHasErrors('decision');
+        $this->assertNull($service->latest($invoice));
+        $this->get(route('reports.procurement.invoice-acceptance', $invoice))->assertOk()
+            ->assertSee(trans('admin/purchase-orders/general.okp_reason_historical_settlement'))
+            ->assertDontSee('name="decision" value="accept"', false);
+        $card = ProcurementPipeline::build(null)['pendingInvoices']->firstWhere('id', $invoice->id);
+        $this->assertTrue($card['okp_historical']);
+        $this->assertTrue($card['okp_unresolved']);
+        $invoice->update(['approval_status' => 'approved']);
+        $this->assertFalse(app(OkayToPay::class)->send($invoice));
+        $this->artisan('snipeit:okay-to-pay')->assertSuccessful();
+        Mail::assertNothingSent();
+    }
+
+    public function test_historical_identity_survives_invoice_vendor_edits_and_deletion(): void
+    {
+        $order = $this->leaseOrder();
+        $supplierId = $order->supplier_id;
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'invoice_number' => 'INV-ORIGINAL', 'approval_status' => 'approved', 'okp_status' => null,
+        ]);
+        $key = OkayToPayHistory::identityKey($supplierId, 'INV-ORIGINAL');
+        $invoice->update(['approval_status' => 'pending', 'invoice_number' => 'INV-EDITED']);
+        $order->update(['supplier_id' => Supplier::factory()->create()->id]);
+        $invoice->delete();
+        $retained = OkayToPayLegacySettlement::where('invoice_key', $key)->firstOrFail();
+        $this->assertSame('INV-ORIGINAL', $retained->invoice_number);
+        $newOrder = $this->leaseOrder(['order_number' => 'ORD-REPOST', 'supplier_id' => $supplierId]);
+        $this->ingest($newOrder->order_number, ' inv-original ', [Asset::factory()->create()], accepted: false);
+        $repost = $this->invoice('inv-original');
+        $this->assertTrue(OkayToPayHistory::blocked($repost));
+        $this->assertNotEmpty(app(OkayToPay::class)->mismatches($repost, requireAcceptance: false));
+        $repost->update(['approval_status' => 'approved']);
+        $this->assertFalse(app(OkayToPay::class)->send($repost));
+        $this->assertSame(0, OkayToPayDelivery::count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_company_move_is_rechecked_under_the_acceptance_lock_and_changes_the_fingerprint(): void
+    {
+        $this->settings->enableMultipleFullCompanySupport();
+        $company = Company::factory()->create();
+        $other = Company::factory()->create();
+        $order = $this->leaseOrder(['company_id' => $company->id]);
+        $this->ingest($order->order_number, 'INV-MOVE', [Asset::factory()->create()], accepted: false);
+        $invoice = $this->invoice('INV-MOVE');
+        $service = app(OkayToPayAcceptance::class);
+        $before = $service->fingerprint($invoice);
+        $order->update(['company_id' => $other->id]);
+        $this->assertNotSame($before, $service->fingerprint($invoice));
+        $actor = User::factory()->create([
+            'company_id' => $company->id,
+            'permissions' => json_encode(['procurement.view' => '1', 'procurement.edit' => '1']),
+        ]);
+        $this->actingAs($actor, 'web');
+        try {
+            $service->record($invoice, $actor, [
+                'decision' => 'accept', 'fingerprint' => $before,
+                'received_in_full' => true, 'satisfactory' => true,
+                'receipt_reference' => 'Receiving evidence', 'acceptance_reference' => 'Inspection evidence',
+            ]);
+            $this->fail('Moved company must not be attested by the former company editor');
+        } catch (HttpException $e) {
+            $this->assertSame(404, $e->getStatusCode());
+        }
+        $this->assertNull($service->latest($invoice));
+        Mail::assertNothingSent();
+    }
+
+    public function test_protective_migration_retains_duplicate_settlements_and_unknown_old_delivery_states_without_acceptance(): void
+    {
+        $default = DB::getDefaultConnection();
+        config(['database.connections.okp_migration' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
+        DB::setDefaultConnection('okp_migration');
+        try {
+            Schema::create('orders', function ($table) {
+                $table->id();
+                $table->unsignedBigInteger('supplier_id')->nullable();
+            });
+            Schema::create('order_invoices', function ($table) {
+                $table->id();
+                $table->unsignedBigInteger('order_id');
+                $table->string('invoice_number');
+                $table->string('approval_status')->nullable();
+                $table->string('okp_status')->nullable();
+                $table->timestamp('okp_sent_at')->nullable();
+            });
+            DB::table('orders')->insert(['id' => 1, 'supplier_id' => 7]);
+            foreach ([['approved', null], ['approved', null], ['pending', 'queued'], ['pending', 'held'], ['approved', 'sent'], ['pending', null]] as $i => [$approval, $status]) {
+                DB::table('order_invoices')->insert([
+                    'id' => $i + 1, 'order_id' => 1, 'invoice_number' => $i < 2 ? 'INV-DUPLICATE' : 'INV-'.$i,
+                    'approval_status' => $approval, 'okp_status' => $status,
+                ]);
+            }
+            $migration = require database_path('migrations/2026_11_02_120000_create_okay_to_pay_evidence.php');
+            $migration->up();
+            $this->assertSame(5, DB::table('okay_to_pay_legacy_settlements')->count());
+            $this->assertSame(2, DB::table('okay_to_pay_legacy_settlements')->where('invoice_number', 'INV-DUPLICATE')->count());
+            $this->assertSame(2, DB::table('okay_to_pay_legacy_settlements')->where('reason', 'legacy_delivery_unknown')->count());
+            $this->assertSame(0, DB::table('okay_to_pay_acceptances')->count());
+            $this->assertSame(0, DB::table('okay_to_pay_deliveries')->count());
+        } finally {
+            DB::setDefaultConnection($default);
+            DB::purge('okp_migration');
+        }
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_failed_settlement_barrier_write_rolls_back_the_accounting_change(): void
+    {
+        $order = $this->leaseOrder();
+        $invoice = OrderInvoice::factory()->create([
+            'order_id' => $order->id, 'invoice_number' => 'INV-ATOMIC', 'approval_status' => 'pending', 'okp_status' => null,
+        ]);
+        OkayToPayLegacySettlement::creating(fn () => throw new \RuntimeException('Audit storage unavailable'));
+        try {
+            try {
+                $invoice->update(['approval_status' => 'approved', 'invoice_number' => 'INV-CHANGED']);
+                $this->fail('Accounting changes must roll back when their settlement barrier cannot be retained');
+            } catch (\RuntimeException $e) {
+                $this->assertSame('Audit storage unavailable', $e->getMessage());
+            }
+            $this->assertSame('pending', $invoice->refresh()->approval_status);
+            $this->assertSame('INV-ATOMIC', $invoice->invoice_number);
+        } finally {
+            Event::forget('eloquent.creating: '.OkayToPayLegacySettlement::class);
+        }
+        Mail::assertNothingSent();
     }
 }

@@ -1119,6 +1119,44 @@
         "id",
         "revoked"
     ],
+    "okay_to_pay_acceptances": [
+        "acceptance_reference",
+        "actor_id",
+        "actor_name",
+        "created_at",
+        "decision",
+        "fingerprint",
+        "id",
+        "invoice_id",
+        "receipt_reference",
+        "snapshot"
+    ],
+    "okay_to_pay_deliveries": [
+        "acceptance_id",
+        "cc",
+        "claimed_at",
+        "completed_at",
+        "error",
+        "fingerprint",
+        "id",
+        "invoice_id",
+        "invoice_key",
+        "payload",
+        "payload_digest",
+        "recipients",
+        "routing_digest",
+        "status"
+    ],
+    "okay_to_pay_legacy_settlements": [
+        "created_at",
+        "id",
+        "invoice_id",
+        "invoice_key",
+        "invoice_number",
+        "reason",
+        "snapshot",
+        "supplier_id"
+    ],
     "order_invoices": [
         "approval_status",
         "approved_at",
