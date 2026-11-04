@@ -57,9 +57,31 @@ class BuyoutAgreementIssuer
             $agreement = $buyout->agreement ?? $this->adopt($buyout) ?? new UserAgreement;
 
             if ($agreement->exists && $agreement->signed_at) {
-                $this->link($buyout, $agreement);
+                if (self::matches($buyout, $agreement)) {
+                    $this->link($buyout, $agreement);
 
-                return null;
+                    return null;
+                }
+
+                // Signed for a different buyer, device or figure: that
+                // signature does not cover this buyout, so start fresh paper.
+                $agreement = new UserAgreement;
+            }
+
+            $acceptance = $agreement->checkout_acceptance_id
+                ? CheckoutAcceptance::find($agreement->checkout_acceptance_id)
+                : null;
+
+            // A pending request addressed to someone other than the current
+            // buyer (the buyer was corrected) must not be signable by them.
+            if ($acceptance && ($agreement->user_id !== $buyout->buyer_id
+                || $agreement->asset_id !== $buyout->asset_id
+                || (int) $acceptance->assigned_to_id !== (int) $buyout->buyer_id)) {
+                if ($acceptance->isPending()) {
+                    $acceptance->delete();
+                }
+                $agreement->checkout_acceptance_id = null;
+                $acceptance = null;
             }
 
             $changed = ! $agreement->exists
@@ -84,10 +106,6 @@ class BuyoutAgreementIssuer
 
             $agreement->storeUnsignedPdf();
 
-            $acceptance = $agreement->checkout_acceptance_id
-                ? CheckoutAcceptance::find($agreement->checkout_acceptance_id)
-                : null;
-
             if (! $acceptance) {
                 $agreement->sendForSignature();
             } elseif ($changed && $acceptance->isPending()) {
@@ -106,12 +124,30 @@ class BuyoutAgreementIssuer
         return null;
     }
 
+    /**
+     * Whether this agreement is the buyer's signature on this buyout as it
+     * stands: same buyer, same device, same figure, same payment route.
+     * Payroll deducts against the signature, so anything less is not one.
+     */
+    public static function matches(AssetBuyout $buyout, UserAgreement $agreement): bool
+    {
+        $amount = $buyout->buyer_amount ?? $buyout->quote_total;
+        $method = self::PAYMENT_METHODS[$buyout->payment_method ?? 'payroll_deduction'] ?? null;
+
+        return $agreement->agreement_type === 'purchase'
+            && (int) $agreement->user_id === (int) $buyout->buyer_id
+            && (int) $agreement->asset_id === (int) $buyout->asset_id
+            && $amount !== null
+            && round((float) $agreement->buyout_cost, 2) === round((float) $amount, 2)
+            && $agreement->payment_method === $method;
+    }
+
     /** Re-send the signing request for an agreement already out. */
     public function remind(AssetBuyout $buyout): ?string
     {
         $agreement = $buyout->agreement;
 
-        if (! $agreement || $agreement->signed_at) {
+        if (! $agreement || $agreement->signed_at || ! self::matches($buyout, $agreement)) {
             return $this->issue($buyout);
         }
 

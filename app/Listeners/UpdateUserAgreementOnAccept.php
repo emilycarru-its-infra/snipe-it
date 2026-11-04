@@ -33,7 +33,10 @@ class UpdateUserAgreementOnAccept
         $agreement->markSigned($acceptance);
 
         $buyout = AssetBuyout::where('user_agreement_id', $agreement->id)->latest('id')->first();
-        if ($buyout) {
+        // Only the buyer's own signature carries the buyout on.
+        if ($buyout
+            && (int) $acceptance->assigned_to_id === (int) $agreement->user_id
+            && (int) $agreement->user_id === (int) $buyout->buyer_id) {
             $buyout->setRelation('agreement', $agreement);
             app(BuyoutTracker::class)->signed($buyout, $acceptance->assignedTo);
         }

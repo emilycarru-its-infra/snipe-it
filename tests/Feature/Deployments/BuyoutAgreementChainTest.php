@@ -252,4 +252,63 @@ class BuyoutAgreementChainTest extends TestCase
             ->where('note', 'like', '%Payroll not told%')
             ->exists());
     }
+
+    public function test_a_split_changed_after_signing_needs_a_new_signature(): void
+    {
+        config(['leasing.buyout_payroll_to' => '']);
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $this->sign($buyout);
+        $signed = $buyout->fresh()->agreement;
+
+        config(['leasing.buyout_payroll_to' => 'payroll@example.test']);
+        $buyout->refresh()->forceFill(['buyer_amount' => 900.00])->save();
+
+        $admin = User::factory()->superuser()->create();
+        $this->actingAsForApi($admin)
+            ->postJson(route('api.buyouts.payroll_notice', $buyout->id))
+            ->assertStatus(422)
+            ->assertJsonPath('messages', trans('admin/deployments/general.buyout_payroll_agreement_stale'));
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
+
+        app(BuyoutAgreementIssuer::class)->remind($buyout->fresh());
+
+        $fresh = $buyout->fresh()->agreement;
+        $this->assertNotSame($signed->id, $fresh->id);
+        $this->assertNull($fresh->signed_at);
+        $this->assertEquals(900.00, (float) $fresh->buyout_cost);
+    }
+
+    public function test_a_corrected_buyer_gets_a_new_request_and_the_old_one_is_withdrawn(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $oldAcceptance = $buyout->fresh()->agreement->checkout_acceptance_id;
+
+        $other = User::factory()->create(['email' => 'other@example.test']);
+        $buyout->refresh()->forceFill(['buyer_id' => $other->id])->save();
+        app(BuyoutAgreementIssuer::class)->issue($buyout->fresh());
+
+        $agreement = $buyout->fresh()->agreement;
+        $this->assertSame($other->id, $agreement->user_id);
+        $this->assertNotSame($oldAcceptance, $agreement->checkout_acceptance_id);
+        $this->assertNull(CheckoutAcceptance::find($oldAcceptance));
+        $this->assertSame($other->id, (int) CheckoutAcceptance::find($agreement->checkout_acceptance_id)->assigned_to_id);
+        Mail::assertSent(UserAgreementSignatureRequestMail::class, fn ($mail) => $mail->hasTo('other@example.test'));
+    }
+
+    public function test_a_signature_by_someone_other_than_the_buyer_does_not_move_the_buyout(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+
+        $acceptance = CheckoutAcceptance::findOrFail($buyout->fresh()->agreement->checkout_acceptance_id);
+        $acceptance->assigned_to_id = User::factory()->create()->id;
+        $acceptance->save();
+        $acceptance->accept('sig.png', $acceptance->eula_text_override, 'x.pdf');
+        (new UpdateUserAgreementOnAccept)->handle(new CheckoutAccepted($acceptance));
+
+        $this->assertSame('quoted', $buyout->fresh()->status);
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
+    }
 }

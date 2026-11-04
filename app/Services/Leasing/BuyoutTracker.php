@@ -196,7 +196,7 @@ class BuyoutTracker
     {
         $buyout->loadMissing('agreement');
 
-        if ($buyout->agreement?->signed_at) {
+        if ($buyout->agreement?->signed_at && BuyoutAgreementIssuer::matches($buyout, $buyout->agreement)) {
             $this->tellPayroll($buyout, $actor);
 
             return;

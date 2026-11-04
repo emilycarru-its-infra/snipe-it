@@ -54,6 +54,13 @@ class BuyoutPayrollNotifier
             return 'admin/deployments/general.buyout_payroll_unsigned';
         }
 
+        // The signature is payroll's authority, so it must be for this buyer
+        // and this figure. A split or buyer corrected after signing needs a
+        // fresh signature, not a notice backed by the old one.
+        if ($buyout->agreement && ! BuyoutAgreementIssuer::matches($buyout, $buyout->agreement)) {
+            return 'admin/deployments/general.buyout_payroll_agreement_stale';
+        }
+
         $to = EmailTemplate::recipientsFor(self::KEY, config('leasing.buyout_payroll_to'));
 
         if (! $to) {

@@ -567,6 +567,7 @@ Reply to this email if the device above is not the one you are using, or if ther
     'buyout_payroll_no_quote' => 'There is no quote on this buyout yet, so there is nothing to deduct.',
     'buyout_payroll_no_recipients' => 'No payroll recipients are configured (Settings → Emails, or BUYOUT_PAYROLL_TO).',
     'buyout_payroll_failed' => 'The payroll deduction notice could not be sent.',
+    'buyout_payroll_agreement_stale' => 'The signed agreement no longer matches this buyout\'s buyer or amount. Send a new one to sign.',
     'buyout_payroll_unsigned' => 'The buyer has not signed the purchase agreement yet. Payroll is told when they sign.',
     'buyout_log_agreement_sent' => 'Purchase agreement sent to :buyer to sign',
     'buyout_log_agreement_not_sent' => 'Purchase agreement not sent: :reason',
