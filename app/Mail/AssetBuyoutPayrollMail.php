@@ -5,9 +5,11 @@ namespace App\Mail;
 use App\Models\AssetBuyout;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailables\Address;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Sent to payroll the moment a buyer approves a buyout, asking for the
@@ -29,7 +31,7 @@ class AssetBuyoutPayrollMail extends BaseMailable
 
     public function __construct(AssetBuyout $buyout)
     {
-        $this->buyout = $buyout->loadMissing(['asset.model', 'lessor', 'buyer']);
+        $this->buyout = $buyout->loadMissing(['asset.model', 'lessor', 'buyer', 'agreement']);
 
         $asset = $this->buyout->asset;
         $this->lease = [
@@ -72,9 +74,29 @@ class AssetBuyoutPayrollMail extends BaseMailable
     /**
      * @return array<int, mixed>
      */
+    /**
+     * The buyer's signed purchase agreement — what payroll deducts against.
+     * Absent only for a buyout approved before agreements were issued.
+     */
     public function attachments(): array
     {
-        return [];
+        $file = $this->buyout->agreement?->signed_pdf_path;
+
+        if (! $file) {
+            return [];
+        }
+
+        $path = 'private_uploads/eula-pdfs/'.$file;
+
+        if (! Storage::exists($path)) {
+            return [];
+        }
+
+        return [
+            Attachment::fromStorage($path)
+                ->as('signed-purchase-agreement-'.($this->buyout->asset?->asset_tag ?: $this->buyout->id).'.pdf')
+                ->withMime('application/pdf'),
+        ];
     }
 
     private function buyerName(): string

@@ -568,6 +568,8 @@ Route::group(['middleware' => 'auth'], function () {
         ->name('buyouts.quote');
     Route::post('buyouts/{buyout}/status', [AssetBuyoutsController::class, 'transition'])
         ->name('buyouts.transition');
+    Route::post('buyouts/{buyout}/agreement', [AssetBuyoutsController::class, 'agreement'])
+        ->name('buyouts.agreement');
     Route::patch('buyouts/{buyout}', [AssetBuyoutsController::class, 'update'])
         ->name('buyouts.update');
 

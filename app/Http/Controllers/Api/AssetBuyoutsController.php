@@ -7,6 +7,7 @@ use App\Http\Controllers\AssetBuyoutsController as WebBuyouts;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\AssetBuyout;
+use App\Services\Leasing\BuyoutAgreementIssuer;
 use App\Services\Leasing\BuyoutPayrollNotifier;
 use App\Services\Leasing\BuyoutTracker;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ class AssetBuyoutsController extends Controller
     {
         $this->authorize('requestBuyout', Asset::class);
 
-        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes'])
+        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->boolean('open'), fn ($q) => $q->open())
             ->when($request->filled('asset_id'), fn ($q) => $q->where('asset_id', $request->integer('asset_id')))
@@ -75,7 +76,7 @@ class AssetBuyoutsController extends Controller
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
-            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes'])),
+            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])),
             trans('admin/deployments/general.buyout_updated')
         ));
     }
@@ -90,7 +91,7 @@ class AssetBuyoutsController extends Controller
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
-            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes'])),
+            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])),
             trans('admin/deployments/general.buyout_updated')
         ));
     }
@@ -118,7 +119,7 @@ class AssetBuyoutsController extends Controller
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
-            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes'])),
+            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])),
             trans('admin/deployments/general.buyout_quote_recorded')
         ));
     }
@@ -138,8 +139,37 @@ class AssetBuyoutsController extends Controller
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
-            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes'])),
+            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])),
             trans('admin/deployments/general.buyout_payroll_sent')
+        ));
+    }
+
+    /**
+     * Send the buyer their purchase agreement to sign, or send it again. The
+     * stage change that means the buyer agreed does this on its own; this is
+     * for a buyout that got past that point before agreements were issued,
+     * or a buyer who lost the mail.
+     */
+    public function agreement(AssetBuyout $buyout)
+    {
+        $this->authorize('requestBuyout', $buyout->asset ?? Asset::class);
+
+        if ($buyout->agreement?->signed_at) {
+            return response()->json(Helper::formatStandardApiResponse(
+                'success',
+                $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])),
+                trans('admin/deployments/general.buyout_agreement_signed')
+            ));
+        }
+
+        if ($error = app(BuyoutAgreementIssuer::class)->remind($buyout)) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, trans($error)), 422);
+        }
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            $this->json($buyout->fresh(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])),
+            trans('admin/deployments/general.buyout_agreement_sent')
         ));
     }
 
@@ -186,6 +216,14 @@ class AssetBuyoutsController extends Controller
             'completed_at' => $buyout->completed_at?->toDateString(),
             'decline_reason' => $buyout->decline_reason,
             'notes' => $buyout->notes,
+            'agreement' => $buyout->agreement ? [
+                'id' => $buyout->agreement->id,
+                'stage' => $buyout->agreement->lifecycle_stage,
+                'amount' => $buyout->agreement->buyout_cost,
+                'sent' => (bool) $buyout->agreement->checkout_acceptance_id,
+                'signed_at' => $buyout->agreement->signed_at?->toDateString(),
+                'sent_to_payroll_at' => $buyout->agreement->sent_to_payroll_at?->toDateString(),
+            ] : null,
         ];
     }
 }

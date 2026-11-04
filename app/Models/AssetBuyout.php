@@ -52,6 +52,7 @@ class AssetBuyout extends Model
         'asset_id',
         'lessor_id',
         'buyer_id',
+        'user_agreement_id',
         'requested_by',
         'status',
         'requested_at',
@@ -107,6 +108,17 @@ class AssetBuyout extends Model
     public function buyer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'buyer_id')->withTrashed();
+    }
+
+    /**
+     * The purchase agreement the buyer signs. Its signature is what moves the
+     * buyout on and what payroll receives.
+     *
+     * @return BelongsTo<UserAgreement, $this>
+     */
+    public function agreement(): BelongsTo
+    {
+        return $this->belongsTo(UserAgreement::class, 'user_agreement_id');
     }
 
     /** @return BelongsTo<User, $this> */

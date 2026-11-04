@@ -133,6 +133,14 @@ class AcceptanceController extends Controller
             return redirect()->route('account.accept')->with('error', trans('general.insufficient_permissions'));
         }
 
+        // An agreement's text can be revised while the page is open. Only
+        // accept the version the person was shown, or they sign terms they
+        // never read.
+        if ($acceptance->eula_text_override
+            && ! hash_equals(hash('sha256', (string) $acceptance->eula_text_override), (string) $request->input('eula_fingerprint'))) {
+            return redirect()->back()->with('error', trans('admin/users/message.error.eula_changed'));
+        }
+
         if (! $request->filled('asset_acceptance')) {
             return redirect()->back()->with('error', trans('admin/users/message.error.accept_or_decline'));
         }

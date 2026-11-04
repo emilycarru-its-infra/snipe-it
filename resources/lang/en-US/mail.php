@@ -182,6 +182,8 @@ return [
     'asset_buyout_payroll_employee' => 'Employee',
     'asset_buyout_payroll_deduction' => 'Amount to deduct',
     'asset_buyout_payroll_approved' => 'Approved by the employee',
+    'asset_buyout_payroll_signed' => 'Agreement signed',
+    'asset_buyout_payroll_attached' => 'The employee\'s signed purchase agreement is attached.',
     'asset_buyout_payroll_quote_heading' => 'Lessor quote',
     'asset_buyout_payroll_quoted' => 'Quote date',
     'asset_buyout_payroll_quote' => 'Buyout quote',

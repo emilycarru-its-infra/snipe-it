@@ -245,6 +245,34 @@
                 @endif
             </div>
 
+            {{-- The buyer's signed purchase agreement is what payroll deducts
+                 against, so where it stands sits beside the stage moves. --}}
+            <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px;">
+                <span style="font-size:12.5px;">
+                    <strong>{{ trans('admin/deployments/general.buyout_agreement') }}:</strong>
+                    @if ($row['agreement_payroll_at'])
+                        {{ trans('admin/deployments/general.buyout_agreement_state_payroll', ['signed' => $row['agreement_signed_at'], 'payroll' => $row['agreement_payroll_at']]) }}
+                    @elseif ($row['agreement_signed_at'])
+                        {{ trans('admin/deployments/general.buyout_agreement_state_signed', ['date' => $row['agreement_signed_at']]) }}
+                    @elseif ($row['agreement_sent'])
+                        {{ trans('admin/deployments/general.buyout_agreement_state_sent') }}
+                    @else
+                        {{ trans('admin/deployments/general.buyout_agreement_state_none') }}
+                    @endif
+                    @if ($row['agreement_id'])
+                        · <a href="{{ route('user-agreements.show', $row['agreement_id']) }}">{{ trans('admin/deployments/general.buyout_agreement_open') }}</a>
+                    @endif
+                </span>
+                @if ($row['open'] && ! $row['agreement_signed_at'] && $row['status'] !== 'requested')
+                    <form method="POST" action="{{ route('buyouts.agreement', $rid) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-xs btn-default">
+                            {{ $row['agreement_sent'] ? trans('admin/deployments/general.buyout_agreement_resend') : trans('admin/deployments/general.buyout_agreement_send') }}
+                        </button>
+                    </form>
+                @endif
+            </div>
+
             @if ($row['status'] === 'paid')
                 <p class="text-muted" style="font-size:11.5px; margin-top:6px;">
                     {{ trans('admin/deployments/general.buyout_complete_hint', ['status' => \App\Services\Settings\Preferences::get('leasing.buyout_completed_status')]) }}

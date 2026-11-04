@@ -225,11 +225,11 @@ class PickupReceiptTest extends TestCase
 
         $checkout->assertRedirect(route('account.accept.item', $pickup));
 
-        $this->post(route('account.store-acceptance', $pickup), ['asset_acceptance' => 'accepted'])
+        $this->post(route('account.store-acceptance', $pickup), ['asset_acceptance' => 'accepted', 'eula_fingerprint' => $this->shownFingerprint($pickup)])
             ->assertRedirect(route('account.accept.item', $upgrade));
         $this->assertSame((int) $upgrade, (int) session('sign_in_place_acceptance_id'));
 
-        $this->post(route('account.store-acceptance', $upgrade), ['asset_acceptance' => 'accepted'])
+        $this->post(route('account.store-acceptance', $upgrade), ['asset_acceptance' => 'accepted', 'eula_fingerprint' => $this->shownFingerprint($upgrade)])
             ->assertRedirect(route('users.show', $user));
 
         $this->assertNotNull(CheckoutAcceptance::find($pickup)->accepted_at);
@@ -286,5 +286,11 @@ class PickupReceiptTest extends TestCase
         $new->saveQuietly();
 
         $this->assertSame($old->id, app(StoreOrderAssetProvisioner::class)->outgoingMachine($order)?->id);
+    }
+
+    /** The fingerprint the signing page puts on the form for the text it shows. */
+    private function shownFingerprint($acceptanceId): string
+    {
+        return hash('sha256', (string) \App\Models\CheckoutAcceptance::find($acceptanceId)->eula_text_override);
     }
 }

@@ -207,7 +207,7 @@ class DecommissionLane
      */
     private function buyouts(): array
     {
-        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes'])
+        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])
             ->orderByRaw('CASE WHEN status IN ("completed", "declined") THEN 1 ELSE 0 END')
             ->orderBy('requested_at')
             ->get();
@@ -265,6 +265,10 @@ class DecommissionLane
             'overdue' => $buyout->isOverdue(),
             'quote_count' => $buyout->quotes->count(),
             'open' => $buyout->isOpen(),
+            'agreement_id' => $buyout->agreement?->id,
+            'agreement_sent' => (bool) $buyout->agreement?->checkout_acceptance_id,
+            'agreement_signed_at' => $buyout->agreement?->signed_at?->toDateString(),
+            'agreement_payroll_at' => $buyout->agreement?->sent_to_payroll_at?->toDateString(),
         ];
     }
 

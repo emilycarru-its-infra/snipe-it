@@ -3,6 +3,7 @@
 namespace Tests\Feature\Deployments;
 
 use App\Mail\AssetBuyoutPayrollMail;
+use App\Mail\UserAgreementSignatureRequestMail;
 use App\Models\Asset;
 use App\Models\AssetBuyout;
 use App\Models\AssetModel;
@@ -15,6 +16,7 @@ use App\Services\Deployments\DecommissionLane;
 use App\Services\Leasing\BuyoutTracker;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AssetBuyoutTrackerTest extends TestCase
@@ -24,6 +26,9 @@ class AssetBuyoutTrackerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Agreeing to a buyout renders the purchase agreement PDF.
+        Storage::fake();
 
         $ownership = CustomField::factory()->create(['name' => 'Ownership Type', 'format' => 'ANY']);
         $end = CustomField::factory()->create(['name' => 'Lease End Date', 'format' => 'DATE']);
@@ -420,7 +425,7 @@ class AssetBuyoutTrackerTest extends TestCase
         ], $overrides));
     }
 
-    public function test_approving_a_buyout_asks_payroll_for_the_deduction(): void
+    public function test_approving_a_buyout_sends_the_agreement_and_waits_for_the_signature(): void
     {
         Mail::fake();
         config([
@@ -435,16 +440,10 @@ class AssetBuyoutTrackerTest extends TestCase
         $this->actingAs($admin)->post(route('buyouts.transition', $buyout->id), ['status' => 'approved'])
             ->assertSessionHas('success');
 
-        Mail::assertSent(AssetBuyoutPayrollMail::class, function (AssetBuyoutPayrollMail $mail) use ($buyout) {
-            return $mail->hasTo('payroll@example.test')
-                && $mail->hasTo('payroll-lead@example.test')
-                && $mail->hasCc('devices@example.test')
-                && $mail->hasCc('buyer@example.test')
-                && $mail->buyout->is($buyout);
-        });
-
+        Mail::assertSent(UserAgreementSignatureRequestMail::class, fn ($mail) => $mail->hasTo('buyer@example.test'));
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
         $this->assertSame('approved', $buyout->fresh()->status);
-        $this->assertSame('payroll_deduction', $buyout->fresh()->payment_method);
+        $this->assertNotNull($buyout->fresh()->user_agreement_id);
     }
 
     public function test_the_payroll_notice_carries_the_quote_and_the_deduction(): void

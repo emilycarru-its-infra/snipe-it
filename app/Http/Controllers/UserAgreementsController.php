@@ -40,7 +40,7 @@ class UserAgreementsController extends Controller
         $this->authorize('create', Order::class);
 
         $agreement = new UserAgreement;
-        $agreement->fill($request->all());
+        $agreement->fill($request->only(UserAgreement::EDITABLE_FIELDS));
         $agreement->lifecycle_stage = $request->input('lifecycle_stage', 'eligible');
         $agreement->created_by = auth()->id();
 
@@ -73,11 +73,20 @@ class UserAgreementsController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        $userAgreement->fill($request->all());
+        $input = $request->only(UserAgreement::EDITABLE_FIELDS);
+
+        if ($userAgreement->changesSignedTerms($input)) {
+            return redirect()->back()->withInput()
+                ->with('error', trans('admin/user-agreements/message.signed_terms_locked'));
+        }
+
+        $userAgreement->fill($input);
 
         if (! $userAgreement->save()) {
             return redirect()->back()->withInput()->withErrors($userAgreement->getErrors());
         }
+
+        $userAgreement->refreshPendingSignature();
 
         return redirect()->route('user-agreements.show', $userAgreement)
             ->with('success', trans('admin/user-agreements/message.updated'));
