@@ -126,20 +126,35 @@ class BuyoutAgreementIssuer
 
     /**
      * Whether this agreement is the buyer's signature on this buyout as it
-     * stands: same buyer, same device, same figure, same payment route.
-     * Payroll deducts against the signature, so anything less is not one.
+     * stands: same buyer, same device, same figure, same payment route —
+     * and, once signed, signed by that buyer on the signing page. Payroll
+     * deducts against the signature, so anything less is not one.
      */
     public static function matches(AssetBuyout $buyout, UserAgreement $agreement): bool
     {
         $amount = $buyout->buyer_amount ?? $buyout->quote_total;
         $method = self::PAYMENT_METHODS[$buyout->payment_method ?? 'payroll_deduction'] ?? null;
 
-        return $agreement->agreement_type === 'purchase'
+        $base = $agreement->agreement_type === 'purchase'
             && (int) $agreement->user_id === (int) $buyout->buyer_id
             && (int) $agreement->asset_id === (int) $buyout->asset_id
             && $amount !== null
             && round((float) $agreement->buyout_cost, 2) === round((float) $amount, 2)
             && $agreement->payment_method === $method;
+
+        if (! $base || ! $agreement->signed_at) {
+            return $base;
+        }
+
+        // Signed: the signature itself must be the buyer's, accepted through
+        // the signing page — not a stage or date typed onto the record.
+        $acceptance = $agreement->checkout_acceptance_id
+            ? CheckoutAcceptance::find($agreement->checkout_acceptance_id)
+            : null;
+
+        return $acceptance !== null
+            && $acceptance->accepted_at !== null
+            && (int) $acceptance->assigned_to_id === (int) $buyout->buyer_id;
     }
 
     /** Re-send the signing request for an agreement already out. */

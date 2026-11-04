@@ -26,7 +26,8 @@ class UpdateUserAgreementOnAccept
         }
 
         $agreement = UserAgreement::where('checkout_acceptance_id', $acceptance->id)->first();
-        if (! $agreement) {
+        // A signature only counts from the person the agreement is for.
+        if (! $agreement || (int) $acceptance->assigned_to_id !== (int) $agreement->user_id) {
             return;
         }
 

@@ -309,6 +309,29 @@ class BuyoutAgreementChainTest extends TestCase
         (new UpdateUserAgreementOnAccept)->handle(new CheckoutAccepted($acceptance));
 
         $this->assertSame('quoted', $buyout->fresh()->status);
+        $this->assertNull($buyout->fresh()->agreement->signed_at);
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
+    }
+
+    public function test_a_signed_date_typed_onto_the_agreement_is_not_a_signature(): void
+    {
+        $buyout = $this->buyout(['status' => 'invoiced']);
+        $agreement = UserAgreement::create([
+            'agreement_type' => 'purchase',
+            'user_id' => $buyout->buyer_id,
+            'asset_id' => $buyout->asset_id,
+            'lifecycle_stage' => 'agreement_signed',
+            'buyout_cost' => 675.00,
+            'payment_method' => 'payroll_deduction',
+            'signed_at' => now(),
+        ]);
+        $buyout->forceFill(['user_agreement_id' => $agreement->id])->save();
+
+        $admin = User::factory()->superuser()->create();
+        $this->actingAsForApi($admin)
+            ->postJson(route('api.buyouts.payroll_notice', $buyout->id))
+            ->assertStatus(422);
+
         Mail::assertNotSent(AssetBuyoutPayrollMail::class);
     }
 }
