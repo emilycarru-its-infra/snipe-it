@@ -14,6 +14,7 @@ use App\Services\StoreVendorOrderDispatch;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
 use App\Services\StoreOrderQuote;
+use App\Services\StoreOrderPlacement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -54,6 +55,39 @@ class StoreOrdersController extends Controller
             'total' => $total,
             'rows' => $orders->map(fn (StoreOrder $order) => $this->row($order))->all(),
         ]);
+    }
+
+    /**
+     * Place an order as the calling user — the storefront's submit without
+     * the browser. Same service as the form, so the order lands in the queue
+     * with its placeholder assets and the requester's email exactly as if
+     * it had been clicked through.
+     */
+    public function store(Request $request, StoreOrderPlacement $placement): JsonResponse
+    {
+        if (! $request->user()?->canUseStore()) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('general.insufficient_permissions')),
+                403
+            );
+        }
+
+        $validated = $request->validate(StoreOrderPlacement::rules($request));
+
+        $result = $placement->place($request->user(), $validated);
+
+        if ($result['error'] !== null) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('admin/store/general.'.$result['error'])),
+                422
+            );
+        }
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            $this->row($result['order']->fresh(['user', 'items', 'purchaseOrder'])),
+            trans('admin/store/general.order_placed')
+        ));
     }
 
     /**

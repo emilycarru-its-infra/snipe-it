@@ -694,6 +694,29 @@ class StoreFunnelTest extends TestCase
     }
 
     /**
+     * A part-number swap keeps the shelf slot and renames it, so the row
+     * stops describing the product it replaced.
+     */
+    public function test_the_catalog_api_renames_a_row_for_a_part_swap()
+    {
+        $item = $this->shelfItem(['store_sort' => 3]);
+
+        $this->actingAsForApi($this->procurement())
+            ->patchJson(route('api.catalog-items.update', $item->id), [
+                'name' => 'Desktop | Gen 2 | 16GB | 512GB',
+                'category' => 'Desktops',
+                'mfr_part_number' => 'PART-0002/A',
+            ])
+            ->assertOk();
+
+        $item->refresh();
+        $this->assertSame('Desktop | Gen 2 | 16GB | 512GB', $item->name);
+        $this->assertSame('Desktops', $item->category);
+        $this->assertSame('PART-0002/A', $item->mfr_part_number);
+        $this->assertSame(3, (int) $item->store_sort, 'a rename is not a reset');
+    }
+
+    /**
      * Prices drift — Apple's retail number once overwrote the reseller's
      * bundle price on two rows, and a reseller correction arrived on a
      * third. The import cannot fix a row it did not create, so without this
