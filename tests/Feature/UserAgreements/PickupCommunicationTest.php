@@ -77,6 +77,22 @@ class PickupCommunicationTest extends TestCase
         $this->assertEqualsWithDelta(38.05, app(CostResolver::class)->topUpAmount($asset, 2421.16, 2383.11), 0.001);
     }
 
+    public function test_subsidy_follows_store_configuration_when_vendor_lines_have_no_catalog(): void
+    {
+        $asset = \App\Models\Asset::factory()->create(['purchase_cost' => 2421.16]);
+        $catalog = CatalogItem::create(['name' => 'Base laptop', 'model_id' => $asset->model_id,
+            'product_type' => 'standard', 'price_type' => 'quoted', 'mfr_part_number' => 'BASE-LAPTOP']);
+        $order = \App\Models\StoreOrder::create(['user_id' => \App\Models\User::factory()->create()->id, 'status' => 'submitted']);
+        $asset->update(['order_number' => $order->reference()]);
+        \App\Models\StoreOrderItem::create(['store_order_id' => $order->id, 'catalog_item_id' => $catalog->id,
+            'mfr_part_number' => 'BASE-LAPTOP', 'description' => 'Laptop', 'quantity' => 1, 'unit_cost' => 2421.16]);
+        Preferences::update(['forms.pickup_auto_create.fully_subsidized_parts' => ['BASE-LAPTOP']]);
+        $this->assertSame(0.0, app(CostResolver::class)->topUpAmount($asset, 2421.16, 2383.11));
+        \App\Models\StoreOrderItem::create(['store_order_id' => $order->id, 'catalog_item_id' => $catalog->id,
+            'mfr_part_number' => 'UPGRADED-LAPTOP', 'description' => 'Upgrade', 'quantity' => 1, 'unit_cost' => 3000]);
+        $this->assertEqualsWithDelta(38.05, app(CostResolver::class)->topUpAmount($asset, 2421.16, 2383.11), 0.001);
+    }
+
     public function test_pickup_request_does_not_invent_upgrade_or_buyout_amounts(): void
     {
         \App\Models\User::factory()->create();
