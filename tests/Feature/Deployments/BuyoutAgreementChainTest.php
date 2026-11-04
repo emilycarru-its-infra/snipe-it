@@ -426,4 +426,42 @@ class BuyoutAgreementChainTest extends TestCase
         $this->assertStringContainsString('$700.00', $text);
         $this->assertStringNotContainsString('$675.00', $text);
     }
+
+    public function test_the_buyer_signs_on_the_signing_page_and_payroll_is_told(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $acceptance = CheckoutAcceptance::find($buyout->fresh()->agreement->checkout_acceptance_id);
+
+        $this->actingAs($buyout->buyer)
+            ->post(route('account.store-acceptance', $acceptance), [
+                'asset_acceptance' => 'accepted',
+                'eula_fingerprint' => hash('sha256', $acceptance->eula_text_override),
+            ]);
+
+        $this->assertNotNull($acceptance->fresh()->accepted_at);
+        $this->assertSame('approved', $buyout->fresh()->status);
+        Mail::assertSent(AssetBuyoutPayrollMail::class, 1);
+    }
+
+    public function test_a_submit_after_the_terms_changed_is_refused(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $acceptance = CheckoutAcceptance::find($buyout->fresh()->agreement->checkout_acceptance_id);
+        $shown = hash('sha256', $acceptance->eula_text_override);
+
+        $buyout->refresh()->forceFill(['buyer_amount' => 800.00])->save();
+        app(BuyoutAgreementIssuer::class)->issue($buyout->fresh());
+
+        $this->actingAs($buyout->buyer)
+            ->post(route('account.store-acceptance', $acceptance), [
+                'asset_acceptance' => 'accepted',
+                'eula_fingerprint' => $shown,
+            ])
+            ->assertSessionHas('error', trans('admin/users/message.error.eula_changed'));
+
+        $this->assertNull($acceptance->fresh()->accepted_at);
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
+    }
 }
