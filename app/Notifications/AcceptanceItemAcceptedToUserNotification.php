@@ -4,8 +4,8 @@ namespace App\Notifications;
 
 use AllowDynamicProperties;
 use App\Helpers\Helper;
-use App\Models\Setting;
 use App\Models\EmailTemplate;
+use App\Models\Setting;
 use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -16,6 +16,8 @@ use Symfony\Component\Mime\Email;
 class AcceptanceItemAcceptedToUserNotification extends Notification
 {
     use OverridableMailNotification, Queueable;
+
+    public bool $pickup_agreement;
 
     /**
      * Create a new notification instance.
@@ -87,8 +89,9 @@ class AcceptanceItemAcceptedToUserNotification extends Notification
             'intro_text' => trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name]),
         ];
 
+        $subject = $this->pickup_agreement ? trans('mail.pickup_booking_subject') : $data['intro_text'];
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject($key, trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name])))
+            ->subject($this->overriddenSubject($key, $subject))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
