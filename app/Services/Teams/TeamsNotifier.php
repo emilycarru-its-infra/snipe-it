@@ -136,6 +136,7 @@ class TeamsNotifier
         $audience = trim((string) config('ecu.teams.audience'));
         $endpoint = trim((string) config('ecu.teams.identity_endpoint'));
         $header = (string) config('ecu.teams.identity_header');
+        $clientId = trim((string) config('ecu.teams.identity_client_id'));
 
         if ($audience === '' || $endpoint === '') {
             Log::info('Teams card not sent: no managed identity or audience available for Relay.');
@@ -146,10 +147,13 @@ class TeamsNotifier
         try {
             $token = Http::withHeaders(['X-IDENTITY-HEADER' => $header])
                 ->timeout($this->timeout())
-                ->get($endpoint, [
+                ->get($endpoint, array_filter([
                     'resource' => $audience,
                     'api-version' => self::IDENTITY_API_VERSION,
-                ])
+                    // A user-assigned identity must be named; without it the
+                    // endpoint answers only for a system-assigned identity.
+                    'client_id' => $clientId,
+                ], fn ($value) => $value !== ''))
                 ->throw()
                 ->json('access_token');
         } catch (\Throwable $e) {

@@ -63,6 +63,9 @@ return [
         // config is cached, and a cached config is how production runs.
         'identity_endpoint' => env('IDENTITY_ENDPOINT', ''),
         'identity_header' => env('IDENTITY_HEADER', ''),
+        // Which user-assigned identity to ask for. Empty means the app's
+        // system-assigned identity, which is all the endpoint offers by default.
+        'identity_client_id' => env('AZURE_CLIENT_ID', ''),
     ],
 
     // Categories outside the device capital plan (decision 2026-08-13):
