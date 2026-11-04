@@ -22,7 +22,7 @@ use App\Services\Settings\Preferences;
  *           captures AppleCare and other warranty add-ons that ride
  *           alongside the Mac on the same PO; purchase_cost typically
  *           only carries the bare hardware line.
- *   top_up  max(0, device - base)
+ *   top_up  zero for configured fully subsidized catalog parts, otherwise max(0, device - base)
  *   buyout  same as device — for end-of-lease devices the residual we
  *           negotiate is computed against the FULL acquisition cost,
  *           including AppleCare. Historical lease assets predate the
@@ -54,6 +54,12 @@ class CostResolver
 
     public function topUpAmount(Asset $asset, ?float $deviceCost = null, ?float $basePrice = null): ?float
     {
+        $parts = Preferences::get('forms.pickup_auto_create.fully_subsidized_parts');
+        if ($parts && OrderItem::where('item_type', Asset::class)->where('item_id', $asset->id)
+            ->whereHas('catalogItem', fn ($query) => $query->whereIn('mfr_part_number', $parts))->exists()) {
+            return 0.0;
+        }
+
         $device = $deviceCost ?? $this->deviceCost($asset);
         $base = $basePrice ?? $this->baseProgramPrice();
 

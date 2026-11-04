@@ -464,7 +464,7 @@ class UserAgreement extends SnipeModel
         $asset = $this->asset;
         $base = (float) ($this->base_program_price ?? 0);
         $device = (float) ($this->device_cost ?? 0);
-        $top = (float) ($this->top_up_amount ?? max($device - $base, 0));
+        $top = $this->agreement_type === 'upgrade' ? (float) ($this->top_up_amount ?? max($device - $base, 0)) : 0.0;
         $buyout = (float) ($this->buyout_cost ?? 0);
 
         return [

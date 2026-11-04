@@ -52,6 +52,14 @@
 @endif
 @endcomponent
 
+@if (!empty($booking_url))
+{{ trans('mail.pickup_booking_instructions') }}
+
+@component('mail::button', ['url' => $booking_url])
+{{ trans('mail.pickup_booking_button') }}
+@endcomponent
+@endif
+
 {{ trans('mail.best_regards') }}
 
 ECU ITS Assets Management

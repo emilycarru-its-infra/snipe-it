@@ -16,13 +16,13 @@
 | :- | :- |
 | **{{ trans('admin/user-agreements/general.asset') }}** | {{ $variables['asset_tag'] ?? '—' }} — {{ $variables['model'] ?? '—' }} |
 | **{{ trans('admin/user-agreements/general.serial') }}** | {{ $variables['serial'] ?? '—' }} |
-@if (! empty($variables['base_price']))
+@if ($agreement->base_program_price !== null)
 | **{{ trans('admin/user-agreements/general.base_price') }}** | {{ $variables['base_price'] }} |
 @endif
-@if (! empty($variables['upgrade_amount']))
+@if ($agreement->agreement_type === 'upgrade' && (float) $agreement->top_up_amount > 0)
 | **{{ trans('admin/user-agreements/general.upgrade_amount') }}** | {{ $variables['upgrade_amount'] }} |
 @endif
-@if (! empty($variables['buyout_cost']))
+@if ($agreement->agreement_type === 'purchase' && $agreement->buyout_cost !== null)
 | **{{ trans('admin/user-agreements/general.buyout_cost') }}** | {{ $variables['buyout_cost'] }} |
 @endif
 

@@ -271,6 +271,10 @@ return [
             'label' => 'Signature reminders at most',
             'help' => 'Reminders sent for one agreement before they stop.',
         ],
+        'forms.pickup_auto_create.fully_subsidized_parts' => [
+            'label' => 'Fully subsidized laptop part numbers',
+            'help' => 'Manufacturer part numbers of configurations covered in full. Linked order catalog items matching these parts never generate an upgrade charge, even when acquisition costs exceed the base price.',
+        ],
         'forms.pickup_auto_create.enabled' => [
             'label' => 'Create pickup and upgrade agreements',
             'help' => 'Open pickup and upgrade agreements when a program laptop is checked out to someone whose old lease is ending.',

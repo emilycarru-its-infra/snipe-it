@@ -18,6 +18,7 @@ use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\UserAgreement;
 use App\Notifications\AcceptanceItemAcceptedNotification;
 use App\Notifications\AcceptanceItemAcceptedToUserNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
@@ -253,11 +254,15 @@ class AcceptanceController extends Controller
             // Log the acceptance
             $acceptance->accept($sig_filename, $acceptance->eula_text_override ?: $item->getEula(), $pdf_filename, $request->input('note'));
 
-            // Send the PDF to the signing user
-            if (($request->input('send_copy') === '1') && ($assignedUser->email !== '')) {
+            // Pickup instructions are required even when the optional PDF copy is declined.
+            $data['pickup_agreement'] = UserAgreement::where('checkout_acceptance_id', $acceptance->id)
+                ->where('agreement_type', 'pickup')
+                ->where('user_id', $assignedUser->id)
+                ->exists();
+            if (($data['pickup_agreement'] || $request->input('send_copy') === '1') && ($assignedUser->email !== '')) {
 
                 // Add the attachment for the signing user into the $data array
-                $data['file'] = $pdf_filename;
+                $data['file'] = $request->input('send_copy') === '1' ? $pdf_filename : null;
                 try {
                     $assignedUser->notify((new AcceptanceItemAcceptedToUserNotification($data))->locale($assignedUser->locale));
                 } catch (Exception $e) {

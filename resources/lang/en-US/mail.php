@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'pickup_booking_instructions' => 'Your pickup agreement is complete. Please book an appointment to collect your laptop using the link below.',
+    'pickup_booking_button' => 'Schedule laptop pickup',
 
     'Accessory_Checkin_Notification' => 'Accessory checked in',
     'Accessory_Checkout_Notification' => 'Accessory checked out|:count Accessories checked out',

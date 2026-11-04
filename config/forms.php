@@ -126,6 +126,8 @@ return [
     */
 
     'pickup_auto_create' => [
+        'booking_url' => env('USER_AGREEMENT_PICKUP_BOOKING_URL'),
+        'fully_subsidized_parts' => array_values(array_filter(array_map('trim', explode(',', env('USER_AGREEMENT_FULLY_SUBSIDIZED_PARTS', ''))))),
         'enabled' => env('USER_AGREEMENT_PICKUP_AUTO_CREATE_ENABLED', true),
         'base_program_price' => (float) env('USER_AGREEMENT_BASE_PROGRAM_PRICE', 2383.11),
         'lease_end_within_months' => (int) env('USER_AGREEMENT_LEASE_END_WITHIN_MONTHS', 6),

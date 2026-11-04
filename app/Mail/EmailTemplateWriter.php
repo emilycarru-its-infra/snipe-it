@@ -165,6 +165,7 @@ class EmailTemplateWriter
             'lessor' => array_key_exists($value, self::lessorChoices()),
             'number' => ctype_digit($value) && (int) $value <= 8760,
             'date' => (\DateTime::createFromFormat('Y-m-d', $value) ?: null)?->format('Y-m-d') === $value,
+            'url' => filter_var($value, FILTER_VALIDATE_URL) !== false && parse_url($value, PHP_URL_SCHEME) === 'https',
             'email' => filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
             default => mb_strlen($value) <= 255,
         };
