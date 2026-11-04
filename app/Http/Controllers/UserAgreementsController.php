@@ -229,7 +229,7 @@ class UserAgreementsController extends Controller
         try {
             $sent = $sender->send($userAgreement, false, $request->boolean('resend'));
         } catch (\Illuminate\Validation\ValidationException $e) {
-            throw $e;
+            return redirect()->back()->with('error', $e->getMessage());
         } catch (\Throwable $e) {
             report($e);
             return redirect()->back()->with('error', trans('admin/user-agreements/message.pickup_send_failed'));

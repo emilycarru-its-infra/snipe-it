@@ -91,6 +91,9 @@ class PickupInstructionsTest extends TestCase
         $this->assertNull($agreement->fresh()->pickup_instructions_sent_at);
         $this->assertNull($agreement->fresh()->pickup_instructions_sending_at);
         Notification::assertNothingSent();
+        $this->actingAs(User::factory()->superuser()->create(), 'web')
+            ->post(route('user-agreements.send-pickup-instructions', $agreement))
+            ->assertRedirect()->assertSessionHas('error', trans('admin/user-agreements/message.pickup_requires_booking_url'));
     }
 
     public function test_custom_body_keeps_booking_query_parameters(): void
