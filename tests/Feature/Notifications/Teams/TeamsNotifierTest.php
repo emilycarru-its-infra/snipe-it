@@ -62,6 +62,28 @@ class TeamsNotifierTest extends TestCase
             && $request->hasHeader('Authorization', 'Bearer test-token'));
     }
 
+    public function test_names_the_user_assigned_identity_when_one_is_configured()
+    {
+        $this->fakeRelay();
+        config()->set('ecu.teams.identity_client_id', '00000000-0000-0000-0000-000000000001');
+
+        app(TeamsNotifier::class)->send($this->card(), 'Inventory');
+
+        Http::assertSent(fn ($request) => str_starts_with($request->url(), $this->identityUrl)
+            && $request['client_id'] === '00000000-0000-0000-0000-000000000001');
+    }
+
+    public function test_asks_for_the_default_identity_when_none_is_named()
+    {
+        $this->fakeRelay();
+        config()->set('ecu.teams.identity_client_id', '');
+
+        app(TeamsNotifier::class)->send($this->card(), 'Inventory');
+
+        Http::assertSent(fn ($request) => str_starts_with($request->url(), $this->identityUrl)
+            && ! str_contains($request->url(), 'client_id'));
+    }
+
     public function test_an_unknown_channel_falls_back_to_the_default_one()
     {
         $this->fakeRelay();
