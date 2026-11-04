@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\Helper;
 use App\Models\CheckoutAcceptance;
 use App\Models\UserAgreement;
+use App\Services\UserAgreements\PickupInstructionsSender;
 use App\Models\Order;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
@@ -219,6 +220,22 @@ class UserAgreementsController extends Controller
                 'skipped'  => $skipped,
                 'errors'   => $errors,
             ]));
+    }
+
+    public function sendPickupInstructions(Request $request, UserAgreement $userAgreement, PickupInstructionsSender $sender): RedirectResponse
+    {
+        $this->authorize('update', Order::class);
+        $request->validate(['resend' => 'sometimes|boolean']);
+        try {
+            $sent = $sender->send($userAgreement, false, $request->boolean('resend'));
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+            return redirect()->back()->with('error', trans('admin/user-agreements/message.pickup_send_failed'));
+        }
+        return redirect()->route('user-agreements.show', $userAgreement)
+            ->with('success', trans('admin/user-agreements/message.'.($sent ? 'pickup_sent' : 'pickup_already_sent')));
     }
 
     public function sendForSignature(UserAgreement $userAgreement): RedirectResponse

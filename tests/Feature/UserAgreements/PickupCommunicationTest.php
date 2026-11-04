@@ -16,6 +16,12 @@ use Tests\TestCase;
 
 class PickupCommunicationTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['forms.pickup_auto_create.booking_url' => 'https://example.org/default-booking']);
+    }
+
     public function test_pickup_instructions_send_without_optional_pdf_copy(): void
     {
         Notification::fake();

@@ -23,6 +23,7 @@ use App\Notifications\AcceptanceItemAcceptedNotification;
 use App\Notifications\AcceptanceItemAcceptedToUserNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
 use App\Services\Teams\TeamsNotifier;
+use App\Services\UserAgreements\PickupInstructionsSender;
 use Exception;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -262,15 +263,16 @@ class AcceptanceController extends Controller
             // Log the acceptance
             $acceptance->accept($sig_filename, $acceptance->eula_text_override ?: $item->getEula(), $pdf_filename, $request->input('note'));
 
-            // Pickup instructions are required even when the optional PDF copy is declined.
-            $data['pickup_agreement'] = UserAgreement::where('checkout_acceptance_id', $acceptance->id)
-                ->where('agreement_type', 'pickup')
-                ->where('user_id', $assignedUser->id)
-                ->exists();
-            if (($data['pickup_agreement'] || $request->input('send_copy') === '1') && ($assignedUser->email !== '')) {
-
-                // Add the attachment for the signing user into the $data array
-                $data['file'] = $request->input('send_copy') === '1' ? $pdf_filename : null;
+            $pickup = UserAgreement::where('checkout_acceptance_id', $acceptance->id)
+                ->where('agreement_type', 'pickup')->where('user_id', $assignedUser->id)->first();
+            if ($pickup) {
+                try {
+                    app(PickupInstructionsSender::class)->send($pickup, $request->input('send_copy') === '1');
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            } elseif ($request->input('send_copy') === '1' && $assignedUser->email !== '') {
+                $data['file'] = $pdf_filename;
                 try {
                     $assignedUser->notify((new AcceptanceItemAcceptedToUserNotification($data))->locale($assignedUser->locale));
                 } catch (Exception $e) {

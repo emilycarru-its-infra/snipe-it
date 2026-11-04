@@ -1639,6 +1639,12 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             [Api\UserAgreementsController::class, 'linkAssetsToContracts']
         )->name('api.user-agreements.link-assets-to-contracts');
 
+        Route::post('{userAgreement}/cancel', [Api\UserAgreementsController::class, 'cancel'])
+            ->name('api.user-agreements.cancel');
+
+        Route::post('{userAgreement}/send-pickup-instructions', [Api\UserAgreementsController::class, 'sendPickupInstructions'])
+            ->name('api.user-agreements.send-pickup-instructions');
+
         Route::post('{userAgreement}/send-for-signature',
             [Api\UserAgreementsController::class, 'sendForSignature']
         )->name('api.user-agreements.send-for-signature');

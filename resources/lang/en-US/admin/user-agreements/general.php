@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'pickup_instructions_send' => 'Send pickup instructions',
+    'pickup_instructions_resend' => 'Resend pickup instructions',
+    'pickup_instructions_sent_at' => 'Pickup instructions emailed',
     // What faculty said they would do with the old laptop, and what happened to
     // it. Kept separate from the lifecycle stages: a stage is where the paperwork
     // is, this is whether the paperwork matches the world.
