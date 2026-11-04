@@ -86,6 +86,19 @@ class UserAgreement extends SnipeModel
         'in_repayment',
     ];
 
+    /**
+     * Written only by the signing flow (sendForSignature, markSigned) and the
+     * payroll stamp — never from a form, so a signature cannot be typed in.
+     */
+    public const SIGNATURE_FIELDS = [
+        'checkout_acceptance_id',
+        'signed_at',
+        'signed_pdf_path',
+        'terms_accepted_at',
+        'sent_to_payroll_at',
+        'sent_to_payroll_by_id',
+    ];
+
     public const PAYMENT_METHODS = [
         'payroll_deduction',
         'pay_in_full',

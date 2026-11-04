@@ -3,6 +3,7 @@
 namespace App\Services\Leasing;
 
 use App\Mail\UserAgreementSignatureRequestMail;
+use App\Models\Asset;
 use App\Models\AssetBuyout;
 use App\Models\CheckoutAcceptance;
 use App\Models\User;
@@ -152,9 +153,14 @@ class BuyoutAgreementIssuer
             ? CheckoutAcceptance::find($agreement->checkout_acceptance_id)
             : null;
 
+        // ...for this device, and over text that states this figure — the
+        // acceptance is the record of what was actually signed.
         return $acceptance !== null
             && $acceptance->accepted_at !== null
-            && (int) $acceptance->assigned_to_id === (int) $buyout->buyer_id;
+            && (int) $acceptance->assigned_to_id === (int) $buyout->buyer_id
+            && $acceptance->checkoutable_type === Asset::class
+            && (int) $acceptance->checkoutable_id === (int) $buyout->asset_id
+            && str_contains((string) $acceptance->eula_text_override, '$'.number_format((float) $amount, 2));
     }
 
     /** Re-send the signing request for an agreement already out. */

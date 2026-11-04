@@ -40,7 +40,7 @@ class UserAgreementsController extends Controller
         $this->authorize('create', Order::class);
 
         $agreement = new UserAgreement;
-        $agreement->fill($request->all());
+        $agreement->fill($request->except(UserAgreement::SIGNATURE_FIELDS));
         $agreement->lifecycle_stage = $request->input('lifecycle_stage', 'eligible');
         $agreement->created_by = auth()->id();
 
@@ -73,7 +73,7 @@ class UserAgreementsController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        $userAgreement->fill($request->all());
+        $userAgreement->fill($request->except(UserAgreement::SIGNATURE_FIELDS));
 
         if (! $userAgreement->save()) {
             return redirect()->back()->withInput()->withErrors($userAgreement->getErrors());

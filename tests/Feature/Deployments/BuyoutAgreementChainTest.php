@@ -334,4 +334,45 @@ class BuyoutAgreementChainTest extends TestCase
 
         Mail::assertNotSent(AssetBuyoutPayrollMail::class);
     }
+
+    public function test_an_acceptance_for_another_device_does_not_back_payroll(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $this->sign($buyout);
+        Mail::fake();
+
+        $acceptance = CheckoutAcceptance::find($buyout->fresh()->agreement->checkout_acceptance_id);
+        $acceptance->checkoutable_id = Asset::factory()->create()->id;
+        $acceptance->save();
+
+        $this->assertFalse(BuyoutAgreementIssuer::matches($buyout->fresh(), $buyout->fresh()->agreement));
+    }
+
+    public function test_the_agreement_form_cannot_type_in_a_signature(): void
+    {
+        $buyout = $this->buyout();
+        $agreement = UserAgreement::create([
+            'agreement_type' => 'purchase',
+            'user_id' => $buyout->buyer_id,
+            'asset_id' => $buyout->asset_id,
+            'lifecycle_stage' => 'quoted',
+            'buyout_cost' => 675.00,
+        ]);
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->put(route('user-agreements.update', $agreement), [
+                'agreement_type' => 'purchase',
+                'lifecycle_stage' => 'quoted',
+                'buyout_cost' => 675.00,
+                'signed_at' => now()->toDateTimeString(),
+                'checkout_acceptance_id' => 999,
+                'signed_pdf_path' => 'forged.pdf',
+            ]);
+
+        $agreement->refresh();
+        $this->assertNull($agreement->signed_at);
+        $this->assertNull($agreement->checkout_acceptance_id);
+        $this->assertNull($agreement->signed_pdf_path);
+    }
 }
