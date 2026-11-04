@@ -99,7 +99,8 @@
         "requested_at",
         "requested_by",
         "status",
-        "updated_at"
+        "updated_at",
+        "user_agreement_id"
     ],
     "asset_logs": [
         "accepted_at",
