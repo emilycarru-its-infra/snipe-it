@@ -27,6 +27,7 @@ use Watson\Validating\ValidatingTrait;
  *
  * @property Asset|null $asset
  * @property User|null $user
+ * @property CheckoutAcceptance|null $checkoutAcceptance
  */
 class UserAgreement extends SnipeModel
 {
@@ -217,6 +218,8 @@ class UserAgreement extends SnipeModel
     ];
 
     protected $casts = [
+        'pickup_instructions_sent_at' => 'datetime',
+        'pickup_instructions_sending_at' => 'datetime',
         'intent_reconciled_at' => 'datetime',
         'pdf_generated_at' => 'datetime',
         'signed_at' => 'datetime',

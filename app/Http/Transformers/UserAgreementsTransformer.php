@@ -26,6 +26,8 @@ class UserAgreementsTransformer
         $asset = $agreement->asset;
 
         $array = [
+            'pickup_instructions_sent_at' => Helper::getFormattedDateObject($agreement->pickup_instructions_sent_at, 'datetime'),
+            'pickup_instructions_sending_at' => Helper::getFormattedDateObject($agreement->pickup_instructions_sending_at, 'datetime'),
             'id'                => (int) $agreement->id,
             'agreement_type'    => $agreement->agreement_type,
             'lifecycle_stage'   => $agreement->lifecycle_stage,

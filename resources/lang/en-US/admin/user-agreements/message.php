@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'pickup_requires_booking_in_body' => 'Include {{booking_url}} in the Laptop pickup scheduling email body in Settings > Emails.',
+    'pickup_sent' => 'Pickup instructions emailed to the person on this agreement.',
+    'pickup_already_sent' => 'Pickup instructions have already been sent or are being sent.',
+    'pickup_send_failed' => 'Pickup instructions could not be emailed. Please retry.',
+    'pickup_requires_acceptance' => 'Pickup instructions require an accepted pickup agreement with its original person and device.',
+    'pickup_requires_booking_url' => 'Set a valid HTTPS pickup booking URL in Settings > Emails > Laptop pickup scheduling.',
+    'pickup_send_confirm' => 'Email pickup instructions to the person on this agreement?',
     'created' => 'Agreement created.',
     'updated' => 'Agreement updated.',
     'deleted' => 'Agreement deleted.',

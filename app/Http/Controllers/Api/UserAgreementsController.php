@@ -9,6 +9,7 @@ use App\Http\Transformers\UserAgreementsTransformer;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\UserAgreement;
+use App\Services\UserAgreements\PickupInstructionsSender;
 use App\Services\UserAgreements\AssetContractLinker;
 use App\Services\UserAgreements\ReconciliationReport;
 use App\Services\UserAgreements\Reconciler;
@@ -167,6 +168,25 @@ class UserAgreementsController extends Controller
             null,
             trans('admin/user-agreements/message.deleted')
         ));
+    }
+
+    /** Send the configured scheduling email for a completed pickup. */
+    public function sendPickupInstructions(Request $request, UserAgreement $userAgreement, PickupInstructionsSender $sender): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+        try {
+            $request->validate(['resend' => 'sometimes|boolean']);
+            $sent = $sender->send($userAgreement, false, $request->boolean('resend'));
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->getMessage()), 422);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json(Helper::formatStandardApiResponse('error', null,
+                trans('admin/user-agreements/message.pickup_send_failed')), 503);
+        }
+        return response()->json(Helper::formatStandardApiResponse('success',
+            (new UserAgreementsTransformer)->transformUserAgreement($userAgreement->fresh(['user', 'asset.model'])),
+            trans('admin/user-agreements/message.'.($sent ? 'pickup_sent' : 'pickup_already_sent'))));
     }
 
     /**

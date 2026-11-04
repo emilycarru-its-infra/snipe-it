@@ -343,6 +343,8 @@ Route::group(['middleware' => 'auth'], function () {
 
     Route::resource('user-agreements', UserAgreementsController::class)
         ->except(['create', 'edit', 'show']);
+    Route::post('user-agreements/{userAgreement}/send-pickup-instructions', [UserAgreementsController::class, 'sendPickupInstructions'])
+        ->name('user-agreements.send-pickup-instructions');
     Route::post('user-agreements/{userAgreement}/send-for-signature', [UserAgreementsController::class, 'sendForSignature'])
         ->name('user-agreements.send-for-signature');
     Route::post('user-agreements/{userAgreement}/pregen-pdf', [UserAgreementsController::class, 'pregen'])

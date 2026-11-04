@@ -63,6 +63,20 @@
                         </button>
                     </form>
                 @endif
+                @can('update', \App\Models\Order::class)
+                    @if ($agreement->agreement_type === 'pickup' && $agreement->signed_at && $agreement->lifecycle_stage === 'agreement_signed' && ! $agreement->isApplication())
+                        @if ($agreement->pickup_instructions_sent_at)
+                            <p>{{ trans('admin/user-agreements/general.pickup_instructions_sent_at') }}: {{ $agreement->pickup_instructions_sent_at->format('Y-m-d H:i') }}</p>
+                        @endif
+                        <form method="POST" action="{{ route('user-agreements.send-pickup-instructions', $agreement) }}" style="display:inline-block;">
+                            {{ csrf_field() }}
+                            <input type="hidden" name="resend" value="{{ $agreement->pickup_instructions_sent_at ? '1' : '0' }}">
+                            <button type="submit" class="btn btn-primary" onclick="return confirm('{{ trans('admin/user-agreements/message.pickup_send_confirm') }}')">
+                                <i class="fas fa-envelope"></i> {{ trans('admin/user-agreements/general.'.($agreement->pickup_instructions_sent_at ? 'pickup_instructions_resend' : 'pickup_instructions_send')) }}
+                            </button>
+                        </form>
+                    @endif
+                @endcan
                 @if ($agreement->canBeSent())
                     <form method="POST" action="{{ route('user-agreements.send-for-signature', $agreement) }}" class="pull-right" style="display:inline-block;">
                         {{ csrf_field() }}

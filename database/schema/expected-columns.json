@@ -1803,6 +1803,8 @@
         "payment_method",
         "pdf_generated_at",
         "pdf_path",
+        "pickup_instructions_sending_at",
+        "pickup_instructions_sent_at",
         "reminders_sent",
         "sent_to_payroll_at",
         "sent_to_payroll_by_id",
