@@ -372,6 +372,16 @@ class EmailRegistry
                 'configurable_cc' => true,
                 'factory' => fn (EmailSampleData $s) => new AssetBuyoutPayrollMail($s->buyout()),
             ],
+            [
+                'key' => 'request.asset_buyout_invoice',
+                'category' => 'requests',
+                'label' => 'Lease buyout invoice request',
+                'description' => 'Sent to accounts receivable when the buyer of a buyout settled by invoice signs their purchase agreement — someone no longer on payroll, for example after their final pay. Carries the signed agreement and the amount to invoice. Skipped when no recipients are set here or in BUYOUT_INVOICE_TO. The buyer is always CC\'d as well.',
+                'merge_vars' => ['buyout' => 'The buyout (buyout.approved_at, buyout.quoted_at)', 'buyer_name' => 'The buyer', 'buyer' => 'The buyer (buyer.email, buyer.employee_num)', 'amounts' => 'Formatted amounts (amounts.deduction, amounts.quote, amounts.quote_total, amounts.ecu)', 'asset' => 'The device (asset.asset_tag, asset.serial)', 'lease' => 'Lease facts (lease.contract_id, lease.end_date)', 'lessor' => 'The lessor (lessor.name)'],
+                'configurable_recipients' => true,
+                'configurable_cc' => true,
+                'factory' => fn (EmailSampleData $s) => new AssetBuyoutPayrollMail($s->buyout(), true),
+            ],
 
             // ---- Account & user (notification-channel; preview-only) ----
             // ---- Store & procurement ----

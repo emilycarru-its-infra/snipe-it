@@ -13,26 +13,31 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Tells payroll to deduct the buyer's share, with the buyer's signed
- * purchase agreement attached — that signature is payroll's authority to
- * deduct.
+ * Tells finance how to collect the buyer's share, with the buyer's signed
+ * purchase agreement attached — that signature is the authority to collect.
+ * A payroll-deduction buyout goes to payroll; an invoice buyout (someone no
+ * longer on payroll, such as after their final pay) goes to accounts
+ * receivable to invoice the buyer.
  *
  * Fired when the buyer signs (BuyoutTracker::signed), so the step that used
  * to be a forwarded mail thread happens the moment the record says it should.
  * A buyout whose agreement is out but unsigned is refused: payroll would only
  * ask for the paper. A buyout with no agreement at all (one approved before
  * agreements were issued) still sends, without the attachment. Skipped when the
- * buyer settles some other way (`invoice`, `other`); an unset payment method
- * is treated as payroll, since that is the usual route, and is stamped as
- * such once payroll has been told.
+ * buyer settles some other way (`other`); an unset payment method is treated
+ * as payroll, since that is the usual route, and is stamped as such once
+ * payroll has been told.
  *
- * Addressing: To the payroll list (Settings → Emails override, else the
- * `leasing.buyout_payroll_to` default), Cc the configured team list plus the
- * buyer — they asked what happens next, and this is the answer.
+ * Addressing: To the route's list (Settings → Emails override, else the
+ * `leasing.buyout_payroll_to` / `leasing.buyout_invoice_to` default), Cc the
+ * configured team list plus the buyer — they asked what happens next, and
+ * this is the answer.
  */
 class BuyoutPayrollNotifier
 {
     public const KEY = 'request.asset_buyout_payroll';
+
+    public const INVOICE_KEY = 'request.asset_buyout_invoice';
 
     /**
      * Send the notice. Returns a translation key describing why it was not
@@ -41,7 +46,7 @@ class BuyoutPayrollNotifier
      */
     public function send(AssetBuyout $buyout, ?User $actor): ?string
     {
-        if (in_array($buyout->payment_method, ['invoice', 'other'], true)) {
+        if ($buyout->payment_method === 'other') {
             return 'admin/deployments/general.buyout_payroll_not_payroll';
         }
 
@@ -61,13 +66,17 @@ class BuyoutPayrollNotifier
             return 'admin/deployments/general.buyout_payroll_agreement_stale';
         }
 
-        $to = EmailTemplate::recipientsFor(self::KEY, config('leasing.buyout_payroll_to'));
+        $invoice = $buyout->payment_method === 'invoice';
+        $key = $invoice ? self::INVOICE_KEY : self::KEY;
+        $to = $invoice
+            ? EmailTemplate::recipientsFor($key, config('leasing.buyout_invoice_to'))
+            : EmailTemplate::recipientsFor($key, config('leasing.buyout_payroll_to'));
 
         if (! $to) {
             return 'admin/deployments/general.buyout_payroll_no_recipients';
         }
 
-        $cc = EmailTemplate::ccFor(self::KEY, config('leasing.buyout_payroll_cc'));
+        $cc = EmailTemplate::ccFor($key, config($invoice ? 'leasing.buyout_invoice_cc' : 'leasing.buyout_payroll_cc'));
         $buyout->loadMissing(['asset', 'buyer']);
         if ($buyout->buyer && filled($buyout->buyer->email)) {
             $cc[] = $buyout->buyer->email;
@@ -75,7 +84,7 @@ class BuyoutPayrollNotifier
         $cc = array_values(array_diff(array_unique(array_filter($cc)), $to));
 
         try {
-            Mail::to($to)->cc($cc)->send(new AssetBuyoutPayrollMail($buyout));
+            Mail::to($to)->cc($cc)->send(new AssetBuyoutPayrollMail($buyout, $invoice));
         } catch (\Throwable $e) {
             Log::error('Buyout payroll notice failed for buyout '.$buyout->id.': '.$e->getMessage());
 
@@ -88,12 +97,12 @@ class BuyoutPayrollNotifier
 
         $buyout->agreement?->markSentToPayroll($actor?->id);
 
-        $this->log($buyout, $to, $actor);
+        $this->log($buyout, $to, $actor, $invoice);
 
         return null;
     }
 
-    private function log(AssetBuyout $buyout, array $to, ?User $actor): void
+    private function log(AssetBuyout $buyout, array $to, ?User $actor, bool $invoice): void
     {
         $asset = $buyout->asset;
 
@@ -106,7 +115,7 @@ class BuyoutPayrollNotifier
         $log->item_id = $asset->id;
         $log->setAttribute('created_by', $actor?->id);
         $log->company_id = $asset->company_id;
-        $log->note = trans('admin/deployments/general.buyout_log_payroll', [
+        $log->note = trans($invoice ? 'admin/deployments/general.buyout_log_invoice' : 'admin/deployments/general.buyout_log_payroll', [
             'amount' => number_format((float) ($buyout->buyer_amount ?? $buyout->quote_total), 2),
             'to' => implode(', ', $to),
         ]);

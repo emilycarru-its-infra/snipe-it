@@ -191,6 +191,11 @@ return [
     'asset_buyout_payroll_total' => 'Total cost',
     'asset_buyout_payroll_ecu' => 'Absorbed by ECU',
     'asset_buyout_payroll_device_heading' => 'Device',
+    'asset_buyout_invoice_subject' => 'Invoice for laptop buyout — :buyer (Asset :asset_tag)',
+    'asset_buyout_invoice_heading' => 'Laptop buyout — invoice the buyer',
+    'asset_buyout_invoice_intro' => ':buyer has signed for the buyout of their leased laptop and is not paid through payroll. Please invoice them :amount.',
+    'asset_buyout_invoice_amount' => 'Amount to invoice',
+    'asset_buyout_invoice_body' => 'The lessor invoices ECU for the device; this invoice recovers the buyer\'s share. Reply to this email with any questions and Device Services will follow up.',
     'asset_buyout_payroll_body' => 'The lessor invoices ECU for the device; this deduction recovers the employee\'s share. Reply to this email with any questions and Device Services will follow up.',
 
     // Store order lifecycle (requester-facing)
