@@ -411,4 +411,19 @@ class BuyoutAgreementChainTest extends TestCase
 
         $this->assertEquals(675.00, (float) $agreement->fresh()->buyout_cost);
     }
+
+    public function test_editing_an_unsigned_sent_agreement_rewrites_what_will_be_signed(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $agreement = $buyout->fresh()->agreement;
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->patchJson(route('api.user-agreements.update', $agreement), ['buyout_cost' => 700.00])
+            ->assertOk();
+
+        $text = CheckoutAcceptance::find($agreement->checkout_acceptance_id)->eula_text_override;
+        $this->assertStringContainsString('$700.00', $text);
+        $this->assertStringNotContainsString('$675.00', $text);
+    }
 }

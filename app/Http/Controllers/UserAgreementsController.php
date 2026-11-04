@@ -86,6 +86,8 @@ class UserAgreementsController extends Controller
             return redirect()->back()->withInput()->withErrors($userAgreement->getErrors());
         }
 
+        $userAgreement->refreshPendingSignature();
+
         return redirect()->route('user-agreements.show', $userAgreement)
             ->with('success', trans('admin/user-agreements/message.updated'));
     }

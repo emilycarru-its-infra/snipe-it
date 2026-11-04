@@ -124,6 +124,8 @@ class UserAgreement extends SnipeModel
         'top_up_amount',
         'buyout_cost',
         'payment_method',
+        'installment_count',
+        'installment_amount',
     ];
 
     /** Whether $input would change a term this agreement was signed for. */
@@ -659,6 +661,25 @@ class UserAgreement extends SnipeModel
         }
 
         return $acceptance;
+    }
+
+    /**
+     * An agreement out for signature but not yet signed shows the person the
+     * text captured when it was sent. After its terms are edited, rewrite
+     * that text so what they sign is what the record says.
+     */
+    public function refreshPendingSignature(): void
+    {
+        if ($this->signed_at || ! $this->checkout_acceptance_id) {
+            return;
+        }
+
+        $acceptance = CheckoutAcceptance::find($this->checkout_acceptance_id);
+
+        if ($acceptance && $acceptance->isPending()) {
+            $acceptance->eula_text_override = $this->eulaBody();
+            $acceptance->save();
+        }
     }
 
     /**

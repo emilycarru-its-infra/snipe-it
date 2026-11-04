@@ -147,6 +147,8 @@ class UserAgreementsController extends Controller
             return response()->json(Helper::formatStandardApiResponse('error', null, $userAgreement->getErrors()));
         }
 
+        $userAgreement->refreshPendingSignature();
+
         return response()->json(Helper::formatStandardApiResponse(
             'success',
             (new UserAgreementsTransformer)->transformUserAgreement($userAgreement->fresh(['user', 'asset.model'])),
