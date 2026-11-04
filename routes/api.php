@@ -920,6 +920,8 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     // so the two doors cannot drift.
     Route::get('store-orders', [Api\StoreOrdersController::class, 'index'])
         ->name('api.store-orders.index');
+    Route::post('store-orders', [Api\StoreOrdersController::class, 'store'])
+        ->name('api.store-orders.store');
     Route::post('store-orders/{order}/decide', [Api\StoreOrdersController::class, 'decide'])
         ->name('api.store-orders.decide');
     Route::post('store-orders/attach', [Api\StoreOrdersController::class, 'attach'])

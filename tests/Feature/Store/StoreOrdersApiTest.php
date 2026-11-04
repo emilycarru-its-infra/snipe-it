@@ -479,4 +479,60 @@ class StoreOrdersApiTest extends TestCase
 
         $this->assertNull($order->fresh()->quote_number);
     }
+
+    /**
+     * The storefront's submit over the API: the order lands pending, priced
+     * from the catalog, as the caller — the same as clicking it through.
+     */
+    public function test_an_order_is_placed_over_the_api()
+    {
+        $item = CatalogItem::create([
+            'name' => 'Tablet | 512GB | Cellular',
+            'category' => 'Tablets',
+            'product_type' => 'standard',
+            'vendor_sku' => '5550001',
+            'mfr_part_number' => 'PART-0001/A',
+            'estimated_cost' => 1729.00,
+            'price_type' => 'estimate',
+            'model_id' => AssetModel::factory()->create()->getKey(),
+            'supplier_id' => $this->supplier()->id,
+            'show_in_store' => 1,
+        ]);
+
+        $placer = $this->procurement();
+        Passport::actingAs($placer);
+
+        $response = $this->postJson(route('api.store-orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+            'notes' => 'Placed over the API',
+        ])->assertOk()->assertJsonPath('status', 'success');
+
+        $order = StoreOrder::with('items')->sole();
+        $this->assertSame($placer->id, (int) $order->user_id);
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('PART-0001/A', $order->items->first()->mfr_part_number);
+        $this->assertSame(1729.0, (float) $order->items->first()->unit_cost);
+        $this->assertSame($order->reference(), $response->json('payload.reference'));
+    }
+
+    public function test_an_order_of_only_hidden_rows_is_refused_and_not_kept()
+    {
+        $item = CatalogItem::create([
+            'name' => 'Hidden row',
+            'category' => 'Accessories',
+            'product_type' => 'standard',
+            'vendor_sku' => '1234567',
+            'estimated_cost' => 10,
+            'price_type' => 'estimate',
+            'show_in_store' => 0,
+        ]);
+
+        Passport::actingAs($this->procurement());
+
+        $this->postJson(route('api.store-orders.store'), [
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, StoreOrder::count());
+    }
 }

@@ -158,6 +158,7 @@ class CatalogItemsController extends Controller
             'source' => 'nullable|string|max:191',
             'show_in_store' => 'nullable|boolean',
             'store_sort' => 'nullable|integer|min:0|max:65535',
+            'warranty_months' => 'nullable|integer|min:0|max:120',
             'image' => 'nullable|mimes:jpg,jpeg,png,gif,webp|max:4096',
         ]);
 
@@ -211,6 +212,8 @@ class CatalogItemsController extends Controller
         $this->authorize('update', CatalogItem::class);
 
         $validated = $request->validate([
+            'name' => 'sometimes|string|max:191',
+            'category' => 'sometimes|nullable|string|max:191',
             'show_in_store' => 'sometimes|boolean',
             'store_sort' => 'sometimes|integer|min:0|max:65535',
             'model_id' => 'sometimes|nullable|integer|exists:models,id',
@@ -250,6 +253,17 @@ class CatalogItemsController extends Controller
             if ($request->has($field)) {
                 $catalogItem->{$field} = $validated[$field] ?: null;
             }
+        }
+
+        // A part-number swap (a refreshed chip, a new colour) is the same
+        // shelf slot with a new name; without this the row kept describing
+        // the product it replaced.
+        if ($request->has('name')) {
+            $catalogItem->name = trim($validated['name']);
+        }
+
+        if ($request->has('category')) {
+            $catalogItem->category = $validated['category'] ?: null;
         }
 
         if ($request->has('show_in_store')) {
