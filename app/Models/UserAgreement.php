@@ -87,17 +87,68 @@ class UserAgreement extends SnipeModel
     ];
 
     /**
-     * Written only by the signing flow (sendForSignature, markSigned) and the
-     * payroll stamp — never from a form, so a signature cannot be typed in.
+     * The only fields a person may set, from the web form or the API. The
+     * rest — the signing link, signature, rendered PDF path, payroll stamp,
+     * reminders — are written by the flows that own them, so none of them
+     * can be typed in.
      */
-    public const SIGNATURE_FIELDS = [
-        'checkout_acceptance_id',
-        'signed_at',
-        'signed_pdf_path',
-        'terms_accepted_at',
-        'sent_to_payroll_at',
-        'sent_to_payroll_by_id',
+    public const EDITABLE_FIELDS = [
+        'agreement_type',
+        'user_id',
+        'asset_id',
+        'lifecycle_stage',
+        'base_program_price',
+        'device_cost',
+        'top_up_amount',
+        'buyout_cost',
+        'payment_method',
+        'installment_count',
+        'installment_amount',
+        'old_asset_tag',
+        'old_serial',
+        'lease_contract',
+        'notes',
     ];
+
+    /**
+     * What the person signed for. Once signed these are fixed: a different
+     * figure, payment route, person or device needs a new agreement and a new
+     * signature, not an edit under the old one.
+     */
+    public const SIGNED_TERMS = [
+        'agreement_type',
+        'user_id',
+        'asset_id',
+        'base_program_price',
+        'device_cost',
+        'top_up_amount',
+        'buyout_cost',
+        'payment_method',
+    ];
+
+    /** Whether $input would change a term this agreement was signed for. */
+    public function changesSignedTerms(array $input): bool
+    {
+        if (! $this->signed_at) {
+            return false;
+        }
+
+        foreach (self::SIGNED_TERMS as $field) {
+            if (! array_key_exists($field, $input)) {
+                continue;
+            }
+            $now = $this->getAttribute($field);
+            $new = $input[$field];
+            $same = is_numeric($now) || is_numeric($new)
+                ? round((float) $now, 2) === round((float) $new, 2)
+                : (string) $now === (string) $new;
+            if (! $same) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public const PAYMENT_METHODS = [
         'payroll_deduction',

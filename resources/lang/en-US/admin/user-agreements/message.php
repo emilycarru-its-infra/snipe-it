@@ -15,4 +15,5 @@ return [
     'cancelled' => 'Agreement cancelled.',
     'sent_to_payroll' => 'Marked as sent to Payroll.',
     'payroll_requires_signed' => 'Only signed agreements can be sent to Payroll.',
+    'signed_terms_locked' => 'This agreement is signed. Its amount, payment method, person and device cannot change — cancel it and issue a new one to sign.',
 ];

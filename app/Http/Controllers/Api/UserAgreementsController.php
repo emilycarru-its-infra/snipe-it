@@ -109,23 +109,7 @@ class UserAgreementsController extends Controller
      * reminder cron). Keeping them off this list prevents a caller
      * with API access from forging a signed/sent state by hand.
      */
-    private const CLIENT_EDITABLE_FIELDS = [
-        'agreement_type',
-        'user_id',
-        'asset_id',
-        'lifecycle_stage',
-        'base_program_price',
-        'device_cost',
-        'top_up_amount',
-        'buyout_cost',
-        'payment_method',
-        'installment_count',
-        'installment_amount',
-        'old_asset_tag',
-        'old_serial',
-        'lease_contract',
-        'notes',
-    ];
+    private const CLIENT_EDITABLE_FIELDS = UserAgreement::EDITABLE_FIELDS;
 
     public function store(Request $request): JsonResponse
     {
@@ -151,7 +135,13 @@ class UserAgreementsController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        $userAgreement->fill($request->only(self::CLIENT_EDITABLE_FIELDS));
+        $input = $request->only(self::CLIENT_EDITABLE_FIELDS);
+
+        if ($userAgreement->changesSignedTerms($input)) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/user-agreements/message.signed_terms_locked')), 422);
+        }
+
+        $userAgreement->fill($input);
 
         if (! $userAgreement->save()) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $userAgreement->getErrors()));

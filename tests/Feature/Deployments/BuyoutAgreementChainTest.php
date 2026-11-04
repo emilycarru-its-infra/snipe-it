@@ -375,4 +375,40 @@ class BuyoutAgreementChainTest extends TestCase
         $this->assertNull($agreement->checkout_acceptance_id);
         $this->assertNull($agreement->signed_pdf_path);
     }
+
+    public function test_a_signed_agreement_cannot_be_edited_to_a_new_figure(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $this->sign($buyout);
+        $agreement = $buyout->fresh()->agreement;
+
+        $this->actingAs(User::factory()->superuser()->create())
+            ->put(route('user-agreements.update', $agreement), [
+                'agreement_type' => 'purchase',
+                'lifecycle_stage' => 'agreement_signed',
+                'payment_method' => 'pay_in_full',
+                'pdf_path' => '../../.env',
+            ])
+            ->assertSessionHas('error');
+
+        $agreement->refresh();
+        $this->assertEquals(675.00, (float) $agreement->buyout_cost);
+        $this->assertSame('payroll_deduction', $agreement->payment_method);
+        $this->assertStringStartsWith('private_uploads/user-agreements/', $agreement->pdf_path);
+    }
+
+    public function test_the_api_cannot_edit_a_signed_agreement_to_a_new_figure(): void
+    {
+        $buyout = $this->buyout();
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $this->sign($buyout);
+        $agreement = $buyout->fresh()->agreement;
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->patchJson(route('api.user-agreements.update', $agreement), ['buyout_cost' => 1.00])
+            ->assertStatus(422);
+
+        $this->assertEquals(675.00, (float) $agreement->fresh()->buyout_cost);
+    }
 }
