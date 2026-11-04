@@ -169,6 +169,7 @@ class Preferences
             'forms.signature_reminders.enabled' => ['group' => 'agreements', 'type' => 'bool', 'default' => true, 'config' => 'forms.signature_reminders.enabled'],
             'forms.signature_reminders.interval_days' => ['group' => 'agreements', 'type' => 'int', 'default' => 3, 'config' => 'forms.signature_reminders.interval_days', 'rules' => ['min:1', 'max:365']],
             'forms.signature_reminders.max_reminders' => ['group' => 'agreements', 'type' => 'int', 'default' => 5, 'config' => 'forms.signature_reminders.max_reminders', 'rules' => ['min:0', 'max:100']],
+            'forms.pickup_auto_create.fully_subsidized_parts' => ['group' => 'agreements', 'type' => 'list', 'default' => [], 'config' => 'forms.pickup_auto_create.fully_subsidized_parts'],
             'forms.pickup_auto_create.enabled' => ['group' => 'agreements', 'type' => 'bool', 'default' => true, 'config' => 'forms.pickup_auto_create.enabled'],
             'forms.pickup_auto_create.base_program_price' => ['group' => 'agreements', 'type' => 'decimal', 'default' => null, 'config' => 'forms.pickup_auto_create.base_program_price', 'nullable' => true, 'rules' => ['min:0']],
             'forms.pickup_auto_create.lease_end_within_months' => ['group' => 'agreements', 'type' => 'int', 'default' => 6, 'config' => 'forms.pickup_auto_create.lease_end_within_months', 'rules' => $months],

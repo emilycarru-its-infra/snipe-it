@@ -263,6 +263,17 @@ class EmailRegistry
                 'factory' => fn (EmailSampleData $s) => new UserAgreementSignatureRequestMail($s->userAgreement('pickup')),
             ],
             [
+                'key' => 'agreement.pickup_accepted',
+                'category' => 'agreements',
+                'label' => 'Laptop pickup scheduling',
+                'description' => 'Sent after a pickup agreement is accepted, including when the optional PDF copy is unchecked. Set the booking URL here; subject and body are editable below.',
+                'merge_vars' => ['assigned_to' => 'Recipient', 'item_tag' => 'Asset tag', 'item_model' => 'Model', 'item_serial' => 'Serial', 'accepted_date' => 'Acceptance date', 'intro_text' => 'Confirmation', 'booking_url' => 'Pickup booking URL'],
+                'options' => [
+                    ['name' => 'booking_url', 'type' => 'url', 'label' => 'Pickup booking URL', 'config' => 'forms.pickup_auto_create.booking_url', 'help' => 'HTTPS scheduling link included after acceptance. Blank uses the deployment default.'],
+                ],
+                'notification' => fn (EmailSampleData $s) => [new AcceptanceItemAcceptedToUserNotification(array_merge($s->acceptanceParams(), ['pickup_agreement' => true])), $s->recipient()],
+            ],
+            [
                 'key' => 'agreement.signature_reminder',
                 'category' => 'agreements',
                 'label' => 'Agreement signature reminder',

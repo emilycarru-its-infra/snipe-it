@@ -4,6 +4,8 @@ namespace App\Services\UserAgreements;
 
 use App\Models\Asset;
 use App\Models\OrderItem;
+use App\Models\StoreOrder;
+use App\Models\StoreOrderItem;
 use App\Services\Settings\Preferences;
 
 /**
@@ -22,7 +24,7 @@ use App\Services\Settings\Preferences;
  *           captures AppleCare and other warranty add-ons that ride
  *           alongside the Mac on the same PO; purchase_cost typically
  *           only carries the bare hardware line.
- *   top_up  max(0, device - base)
+ *   top_up  zero for configured fully subsidized catalog parts, otherwise max(0, device - base)
  *   buyout  same as device — for end-of-lease devices the residual we
  *           negotiate is computed against the FULL acquisition cost,
  *           including AppleCare. Historical lease assets predate the
@@ -54,6 +56,29 @@ class CostResolver
 
     public function topUpAmount(Asset $asset, ?float $deviceCost = null, ?float $basePrice = null): ?float
     {
+        $parts = Preferences::get('forms.pickup_auto_create.fully_subsidized_parts');
+        if ($parts && OrderItem::where('item_type', Asset::class)->where('item_id', $asset->id)
+            ->whereHas('catalogItem', fn ($query) => $query->whereIn('mfr_part_number', $parts))->exists()) {
+            return 0.0;
+        }
+
+        // Vendor invoice lines can lack catalog links. The original store
+        // reference still identifies the configuration selected at ordering.
+        $storeOrderId = StoreOrder::idFromReference($asset->order_number);
+        if ($parts && $storeOrderId && $asset->model_id) {
+            $lines = StoreOrderItem::with('catalogItem')
+                ->where('store_order_id', $storeOrderId)
+                ->whereHas('catalogItem', fn ($query) => $query->where('model_id', $asset->model_id))
+                ->get();
+            // A mixed order with two configurations of one model cannot be
+            // assigned to an individual asset safely from the reference alone.
+            if ($lines->isNotEmpty() && $lines->every(fn ($line) => in_array(
+                $line->mfr_part_number ?: $line->catalogItem?->mfr_part_number, $parts, true
+            ))) {
+                return 0.0;
+            }
+        }
+
         $device = $deviceCost ?? $this->deviceCost($asset);
         $base = $basePrice ?? $this->baseProgramPrice();
 

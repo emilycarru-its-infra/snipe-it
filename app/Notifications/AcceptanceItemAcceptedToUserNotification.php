@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use AllowDynamicProperties;
 use App\Helpers\Helper;
+use App\Models\EmailTemplate;
 use App\Models\Setting;
 use App\Notifications\Concerns\OverridableMailNotification;
 use Illuminate\Bus\Queueable;
@@ -16,6 +17,8 @@ class AcceptanceItemAcceptedToUserNotification extends Notification
 {
     use OverridableMailNotification, Queueable;
 
+    public bool $pickup_agreement;
+
     /**
      * Create a new notification instance.
      *
@@ -23,6 +26,7 @@ class AcceptanceItemAcceptedToUserNotification extends Notification
      */
     public function __construct($params)
     {
+        $this->pickup_agreement = (bool) ($params['pickup_agreement'] ?? false);
         $this->item_tag = $params['item_tag'];
         $this->item_name = $params['item_name'];
         $this->item_model = $params['item_model'];
@@ -61,8 +65,16 @@ class AcceptanceItemAcceptedToUserNotification extends Notification
      */
     public function toMail()
     {
+        $key = $this->pickup_agreement ? 'agreement.pickup_accepted' : 'acceptance.accepted_user';
+        $bookingUrl = $this->pickup_agreement
+            ? EmailTemplate::optionFor($key, 'booking_url', config('forms.pickup_auto_create.booking_url'))
+            : null;
+        if (! is_string($bookingUrl) || filter_var($bookingUrl, FILTER_VALIDATE_URL) === false || parse_url($bookingUrl, PHP_URL_SCHEME) !== 'https') {
+            $bookingUrl = null;
+        }
         $pdf_path = storage_path('private_uploads/eula-pdfs/'.$this->file);
         $data = [
+            'booking_url' => $bookingUrl,
             'item_tag' => $this->item_tag,
             'item_name' => $this->item_name,
             'item_model' => $this->item_model,
@@ -77,15 +89,16 @@ class AcceptanceItemAcceptedToUserNotification extends Notification
             'intro_text' => trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name]),
         ];
 
+        $subject = $this->pickup_agreement ? trans('mail.pickup_booking_subject') : $data['intro_text'];
         $message = (new MailMessage)
-            ->subject($this->overriddenSubject('acceptance.accepted_user', trans_choice('mail.acceptance_asset_accepted_to_user', $this->qty, ['qty' => $this->qty, 'site_name' => $this->settings->site_name])))
+            ->subject($this->overriddenSubject($key, $subject))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
                     'X-System-Sender', 'Snipe-IT'
                 );
             });
 
-        $message = $this->applyBody($message, 'acceptance.accepted_user', 'notifications.markdown.asset-acceptance', $data);
+        $message = $this->applyBody($message, $key, 'notifications.markdown.asset-acceptance', $data);
 
         // Attach the signed-agreement PDF when present (absent in hub previews/test-sends).
         if ($this->file && is_file($pdf_path)) {
