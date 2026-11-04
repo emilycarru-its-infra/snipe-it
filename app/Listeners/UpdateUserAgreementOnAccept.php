@@ -3,13 +3,18 @@
 namespace App\Listeners;
 
 use App\Events\CheckoutAccepted;
+use App\Models\AssetBuyout;
 use App\Models\UserAgreement;
+use App\Services\Leasing\BuyoutTracker;
 
 /**
  * When Snipe's native acceptance flow records a signature, propagate the
  * signed-at and stored-PDF path onto any UserAgreement that pointed
  * at this acceptance. The agreement's lifecycle moves from
  * agreement_sent → agreement_signed.
+ *
+ * A purchase agreement issued for a buyout then carries that buyout on: the
+ * signature approves it and sends the signed copy to payroll.
  */
 class UpdateUserAgreementOnAccept
 {
@@ -21,8 +26,16 @@ class UpdateUserAgreementOnAccept
         }
 
         $agreement = UserAgreement::where('checkout_acceptance_id', $acceptance->id)->first();
-        if ($agreement) {
-            $agreement->markSigned($acceptance);
+        if (! $agreement) {
+            return;
+        }
+
+        $agreement->markSigned($acceptance);
+
+        $buyout = AssetBuyout::where('user_agreement_id', $agreement->id)->latest('id')->first();
+        if ($buyout) {
+            $buyout->setRelation('agreement', $agreement);
+            app(BuyoutTracker::class)->signed($buyout, $acceptance->assignedTo);
         }
     }
 }

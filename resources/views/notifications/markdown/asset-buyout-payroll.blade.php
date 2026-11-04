@@ -12,6 +12,9 @@
 | {{ trans('general.employee_number') }} | {{ ($buyer->employee_num ?? null) ?: '—' }} |
 | {{ trans('mail.asset_buyout_payroll_deduction') }} | **{{ $amounts['deduction'] ?? '—' }}** |
 | {{ trans('mail.asset_buyout_payroll_approved') }} | {{ optional($buyout->approved_at)->toDateString() ?: '—' }} |
+@if ($buyout->agreement?->signed_at)
+| {{ trans('mail.asset_buyout_payroll_signed') }} | {{ $buyout->agreement->signed_at->toDateString() }} |
+@endif
 
 </x-mail::table>
 
@@ -48,5 +51,9 @@
 
 </x-mail::table>
 
+@if ($buyout->agreement?->signed_pdf_path)
+{{ trans('mail.asset_buyout_payroll_attached') }}
+
+@endif
 {{ trans('mail.asset_buyout_payroll_body') }}
 @endcomponent

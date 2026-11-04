@@ -13,10 +13,15 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Tells payroll to deduct the buyer's share once the buyer has said yes.
+ * Tells payroll to deduct the buyer's share, with the buyer's signed
+ * purchase agreement attached — that signature is payroll's authority to
+ * deduct.
  *
- * Fired by the approval transition, so the step that used to be a forwarded
- * mail thread happens the moment the record says it should. Skipped when the
+ * Fired when the buyer signs (BuyoutTracker::signed), so the step that used
+ * to be a forwarded mail thread happens the moment the record says it should.
+ * A buyout whose agreement is out but unsigned is refused: payroll would only
+ * ask for the paper. A buyout with no agreement at all (one approved before
+ * agreements were issued) still sends, without the attachment. Skipped when the
  * buyer settles some other way (`invoice`, `other`); an unset payment method
  * is treated as payroll, since that is the usual route, and is stamped as
  * such once payroll has been told.
@@ -44,6 +49,11 @@ class BuyoutPayrollNotifier
             return 'admin/deployments/general.buyout_payroll_no_quote';
         }
 
+        $buyout->loadMissing('agreement');
+        if ($buyout->agreement && ! $buyout->agreement->signed_at) {
+            return 'admin/deployments/general.buyout_payroll_unsigned';
+        }
+
         $to = EmailTemplate::recipientsFor(self::KEY, config('leasing.buyout_payroll_to'));
 
         if (! $to) {
@@ -68,6 +78,8 @@ class BuyoutPayrollNotifier
         if ($buyout->payment_method === null) {
             $buyout->forceFill(['payment_method' => 'payroll_deduction'])->save();
         }
+
+        $buyout->agreement?->markSentToPayroll($actor?->id);
 
         $this->log($buyout, $to, $actor);
 

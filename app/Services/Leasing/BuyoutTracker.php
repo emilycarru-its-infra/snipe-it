@@ -21,8 +21,10 @@ use App\Services\Settings\Preferences;
  * Everything here writes to the asset's activity timeline as well, so the
  * buyout reads in one place on the board and in another on the device.
  *
- * Approving also tells payroll to deduct the buyer's share — see
- * BuyoutPayrollNotifier.
+ * The buyer agreeing — approval, or any later stage reached without passing
+ * through it — sends them the purchase agreement to sign. Their signature
+ * then approves the buyout if it is not already, and sends the signed
+ * agreement to payroll. See BuyoutAgreementIssuer and BuyoutPayrollNotifier.
  */
 class BuyoutTracker
 {
@@ -129,6 +131,7 @@ class BuyoutTracker
      */
     public function transition(AssetBuyout $buyout, string $status, array $data, ?User $actor): void
     {
+        $from = $buyout->status;
         $fields = ['status' => $status];
 
         switch ($status) {
@@ -169,9 +172,87 @@ class BuyoutTracker
             'status' => trans('admin/deployments/general.buyout_status_'.$status),
         ]), $actor);
 
-        // The buyer said yes: payroll is the next party that has to act.
-        if ($status === 'approved') {
-            app(BuyoutPayrollNotifier::class)->send($buyout, $actor);
+        // The buyer said yes. Checked by crossing rather than by landing on
+        // `approved`, because a record is often caught up in one step — quoted
+        // straight to invoiced once the lessor's invoice turns up — and that
+        // step must not skip the agreement and the payroll notice.
+        if (in_array($from, self::BEFORE_AGREEMENT, true) && in_array($status, self::AFTER_AGREEMENT, true)) {
+            $this->agreed($buyout, $actor);
+        }
+    }
+
+    /** Stages before the buyer has said yes. */
+    private const BEFORE_AGREEMENT = ['requested', 'quoted'];
+
+    /** Stages that mean the buyer has said yes. */
+    private const AFTER_AGREEMENT = ['approved', 'invoiced', 'paid', 'completed'];
+
+    /**
+     * The buyer has agreed: the signed purchase agreement is what everything
+     * after this rests on, so get it signed — or, if it already is, send it
+     * to payroll.
+     */
+    public function agreed(AssetBuyout $buyout, ?User $actor): void
+    {
+        $buyout->loadMissing('agreement');
+
+        if ($buyout->agreement?->signed_at) {
+            $this->tellPayroll($buyout, $actor);
+
+            return;
+        }
+
+        if ($error = app(BuyoutAgreementIssuer::class)->issue($buyout, $actor)) {
+            $this->log($buyout, trans('admin/deployments/general.buyout_log_agreement_not_sent', [
+                'reason' => trans($error),
+            ]), $actor);
+
+            return;
+        }
+
+        $this->log($buyout, trans('admin/deployments/general.buyout_log_agreement_sent', [
+            'buyer' => $buyout->buyer?->getFullNameAttribute() ?: $buyout->buyer?->email,
+        ]), $actor);
+    }
+
+    /**
+     * The buyer signed the purchase agreement. That is their approval, so a
+     * buyout still waiting on it is approved now; then the signed copy goes
+     * to payroll. Called from the acceptance listener.
+     */
+    public function signed(AssetBuyout $buyout, ?User $actor = null): void
+    {
+        if ($buyout->status === 'declined') {
+            return;
+        }
+
+        if (in_array($buyout->status, self::BEFORE_AGREEMENT, true)) {
+            // Runs agreed(), which finds the signature and tells payroll.
+            $this->transition($buyout, 'approved', [], $actor);
+
+            return;
+        }
+
+        $this->tellPayroll($buyout, $actor);
+    }
+
+    /**
+     * Send the signed agreement to payroll, once. A refusal — no recipients
+     * configured, say — goes on the timeline, because a notice that silently
+     * never left is how a deduction gets lost.
+     */
+    private function tellPayroll(AssetBuyout $buyout, ?User $actor): void
+    {
+        if ($buyout->agreement?->sent_to_payroll_at) {
+            return;
+        }
+
+        $error = app(BuyoutPayrollNotifier::class)->send($buyout, $actor);
+
+        if ($error && $error !== 'admin/deployments/general.buyout_payroll_not_payroll') {
+            $this->log($buyout, trans('admin/deployments/general.buyout_log_payroll_not_sent', [
+                'reason' => trans($error),
+            ]), $actor);
         }
     }
 

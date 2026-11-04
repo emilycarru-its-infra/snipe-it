@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\AssetBuyout;
 use App\Models\User;
 use App\Services\Deployments\DecommissionLane;
+use App\Services\Leasing\BuyoutAgreementIssuer;
 use App\Services\Leasing\BuyoutTracker;
 use App\Services\Settings\Preferences;
 use Illuminate\Http\RedirectResponse;
@@ -36,7 +37,7 @@ class AssetBuyoutsController extends Controller
         $asset = Asset::where('asset_tag', $assetTag)->first()
             ?: Asset::where('serial', $assetTag)->firstOrFail();
 
-        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes'])
+        $buyouts = AssetBuyout::with(['asset.model', 'lessor', 'buyer', 'quotes', 'agreement'])
             ->where('asset_id', $asset->id)
             ->orderByRaw('CASE WHEN status IN ("completed", "declined") THEN 1 ELSE 0 END')
             ->orderByDesc('requested_at')
@@ -189,6 +190,22 @@ class AssetBuyoutsController extends Controller
             : trans('admin/deployments/general.buyout_updated');
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Send the buyer their purchase agreement to sign, or send it again —
+     * for a buyout past agreement before agreements were issued, or a buyer
+     * who lost the mail.
+     */
+    public function agreement(AssetBuyout $buyout): RedirectResponse
+    {
+        $this->authorizeBuyout($buyout);
+
+        if ($error = app(BuyoutAgreementIssuer::class)->remind($buyout)) {
+            return back()->with('error', trans($error));
+        }
+
+        return back()->with('success', trans('admin/deployments/general.buyout_agreement_sent'));
     }
 
     /**
