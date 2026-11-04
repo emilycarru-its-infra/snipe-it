@@ -170,6 +170,26 @@ class UserAgreementsController extends Controller
         ));
     }
 
+    /** API parity with the existing audited web cancellation action. */
+    public function cancel(Request $request, UserAgreement $userAgreement): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+        try {
+            $data = $request->validate(['cancellation_reason' => 'required|string|max:2000']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->getMessage()), 422);
+        }
+        if ($userAgreement->lifecycle_stage !== 'cancelled') {
+            if (! $userAgreement->cancel(auth()->id(), trim($data['cancellation_reason']))) {
+                return response()->json(Helper::formatStandardApiResponse('error', null,
+                    trans('admin/user-agreements/message.cancel_failed')), 503);
+            }
+        }
+        return response()->json(Helper::formatStandardApiResponse('success',
+            (new UserAgreementsTransformer)->transformUserAgreement($userAgreement->fresh(['user', 'asset.model'])),
+            trans('admin/user-agreements/message.cancelled')));
+    }
+
     /** Send the configured scheduling email for a completed pickup. */
     public function sendPickupInstructions(Request $request, UserAgreement $userAgreement, PickupInstructionsSender $sender): JsonResponse
     {

@@ -19,6 +19,7 @@ return [
     'pdf_rendered' => 'Unsigned PDF rendered and stored.',
     'regenerated' => 'Unsigned PDF regenerated.',
     'regen_failed' => 'Could not regenerate the PDF. Check logs.',
+    'cancel_failed' => 'Could not record the cancellation. Check the agreement and retry.',
     'cancelled' => 'Agreement cancelled.',
     'sent_to_payroll' => 'Marked as sent to Payroll.',
     'payroll_requires_signed' => 'Only signed agreements can be sent to Payroll.',

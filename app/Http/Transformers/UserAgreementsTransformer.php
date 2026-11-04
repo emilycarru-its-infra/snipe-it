@@ -26,6 +26,9 @@ class UserAgreementsTransformer
         $asset = $agreement->asset;
 
         $array = [
+            'cancelled_at' => Helper::getFormattedDateObject($agreement->cancelled_at, 'datetime'),
+            'cancelled_by_id' => $agreement->getAttribute('cancelled_by_id'),
+            'cancellation_reason' => $agreement->getAttribute('cancellation_reason'),
             'pickup_instructions_sent_at' => Helper::getFormattedDateObject($agreement->pickup_instructions_sent_at, 'datetime'),
             'pickup_instructions_sending_at' => Helper::getFormattedDateObject($agreement->pickup_instructions_sending_at, 'datetime'),
             'id'                => (int) $agreement->id,

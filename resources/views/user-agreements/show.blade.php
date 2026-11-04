@@ -14,7 +14,9 @@
                     &mdash;
                     {{ $agreement->user?->full_name ?? trans('general.unknown') }}
                 </h3>
-                @if ($agreement->signed_at)
+                @if ($agreement->lifecycle_stage === 'cancelled')
+                    <span class="label label-default">{{ trans('admin/purchase-orders/general.user_agreement_stage_value_cancelled') }}</span>
+                @elseif ($agreement->signed_at)
                     <span class="label label-success">{{ trans('admin/user-agreements/general.signed') }} {{ $agreement->signed_at->format('Y-m-d') }}</span>
                 @elseif ($agreement->lifecycle_stage === 'agreement_sent')
                     <span class="label label-warning">{{ trans('admin/user-agreements/general.awaiting_signature') }}</span>
@@ -42,6 +44,12 @@
                             {{ trans('admin/purchase-orders/general.user_agreement_payment_value_'.$agreement->payment_method) }}
                         @else — @endif
                     </dd>
+                    @if ($agreement->lifecycle_stage === 'cancelled')
+                        <dt>{{ trans('admin/user-agreements/general.cancelled_at') }}</dt>
+                        <dd>{{ $agreement->cancelled_at?->format('Y-m-d H:i') ?? '—' }}</dd>
+                        <dt>{{ trans('admin/user-agreements/general.cancellation_reason') }}</dt>
+                        <dd>{{ $agreement->cancellation_reason ?? '—' }}</dd>
+                    @endif
                 </dl>
             </div>
             <div class="box-footer">
