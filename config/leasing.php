@@ -36,6 +36,12 @@ return [
 
     'buyout_payroll_cc' => env('BUYOUT_PAYROLL_CC', env('BUYOUT_REQUEST_REPLY_TO', '')),
 
+    // A buyout settled by invoice (the buyer is no longer on payroll) goes to
+    // accounts receivable instead, with the same signed agreement attached.
+    'buyout_invoice_to' => env('BUYOUT_INVOICE_TO', ''),
+
+    'buyout_invoice_cc' => env('BUYOUT_INVOICE_CC', env('BUYOUT_REQUEST_REPLY_TO', '')),
+
     /*
     |--------------------------------------------------------------------------
     | Where a completed buyout lands the device

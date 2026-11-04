@@ -124,6 +124,41 @@ class BuyoutAgreementChainTest extends TestCase
         });
     }
 
+    public function test_an_invoice_buyout_sends_the_signed_copy_to_finance_to_invoice(): void
+    {
+        config(['leasing.buyout_invoice_to' => 'finance@example.test', 'leasing.buyout_invoice_cc' => '']);
+        $buyout = $this->buyout(['payment_method' => 'invoice']);
+
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $this->assertSame('pay_in_full', $buyout->fresh()->agreement->payment_method);
+        $this->sign($buyout);
+
+        $buyout->refresh();
+        $this->assertSame('approved', $buyout->status);
+        $this->assertNotNull($buyout->agreement->sent_to_payroll_at);
+
+        Mail::assertSent(AssetBuyoutPayrollMail::class, function (AssetBuyoutPayrollMail $mail) {
+            return $mail->invoice
+                && $mail->hasTo('finance@example.test')
+                && ! $mail->hasTo('payroll@example.test')
+                && $mail->hasCc('buyer@example.test')
+                && count($mail->attachments()) === 1
+                && str_contains($mail->render(), 'Please invoice them $675.00');
+        });
+    }
+
+    public function test_an_invoice_buyout_with_no_finance_recipients_is_noted_not_sent(): void
+    {
+        config(['leasing.buyout_invoice_to' => '']);
+        $buyout = $this->buyout(['payment_method' => 'invoice']);
+
+        app(BuyoutAgreementIssuer::class)->issue($buyout);
+        $this->sign($buyout);
+
+        Mail::assertNotSent(AssetBuyoutPayrollMail::class);
+        $this->assertNull($buyout->fresh()->agreement->sent_to_payroll_at);
+    }
+
     public function test_signing_while_quoted_approves_it(): void
     {
         $buyout = $this->buyout();

@@ -1,7 +1,8 @@
 @component('mail::message')
-# {{ trans('mail.asset_buyout_payroll_heading') }}
+@php($invoice = $invoice ?? false)
+# {{ trans($invoice ? 'mail.asset_buyout_invoice_heading' : 'mail.asset_buyout_payroll_heading') }}
 
-{{ trans('mail.asset_buyout_payroll_intro', ['buyer' => $buyer_name ?: '—', 'amount' => $amounts['deduction'] ?? '—']) }}
+{{ trans($invoice ? 'mail.asset_buyout_invoice_intro' : 'mail.asset_buyout_payroll_intro', ['buyer' => $buyer_name ?: '—', 'amount' => $amounts['deduction'] ?? '—']) }}
 
 <x-mail::table>
 
@@ -10,7 +11,7 @@
 | {{ trans('mail.asset_buyout_payroll_employee') }} | {{ $buyer_name ?: '—' }} |
 | {{ trans('general.email') }} | {{ $buyer->email ?? '—' }} |
 | {{ trans('general.employee_number') }} | {{ ($buyer->employee_num ?? null) ?: '—' }} |
-| {{ trans('mail.asset_buyout_payroll_deduction') }} | **{{ $amounts['deduction'] ?? '—' }}** |
+| {{ trans($invoice ? 'mail.asset_buyout_invoice_amount' : 'mail.asset_buyout_payroll_deduction') }} | **{{ $amounts['deduction'] ?? '—' }}** |
 | {{ trans('mail.asset_buyout_payroll_approved') }} | {{ optional($buyout->approved_at)->toDateString() ?: '—' }} |
 @if ($buyout->agreement?->signed_at)
 | {{ trans('mail.asset_buyout_payroll_signed') }} | {{ $buyout->agreement->signed_at->toDateString() }} |
@@ -55,5 +56,5 @@
 {{ trans('mail.asset_buyout_payroll_attached') }}
 
 @endif
-{{ trans('mail.asset_buyout_payroll_body') }}
+{{ trans($invoice ? 'mail.asset_buyout_invoice_body' : 'mail.asset_buyout_payroll_body') }}
 @endcomponent
