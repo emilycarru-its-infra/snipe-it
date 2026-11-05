@@ -72,7 +72,7 @@
                     </form>
                 @endif
                 @can('update', \App\Models\Order::class)
-                    @if ($agreement->agreement_type === 'pickup' && $agreement->signed_at && $agreement->lifecycle_stage === 'agreement_signed' && ! $agreement->isApplication())
+                    @if ($agreement->agreement_type === 'pickup' && $agreement->signed_at && $agreement->lifecycle_stage === 'agreement_signed' && ! $agreement->isApplication() && ! $agreement->deployed_at)
                         @if ($agreement->pickup_instructions_sent_at)
                             <p>{{ trans('admin/user-agreements/general.pickup_instructions_sent_at') }}: {{ $agreement->pickup_instructions_sent_at->format('Y-m-d H:i') }}</p>
                         @endif
@@ -88,6 +88,11 @@
                 @if ($agreement->canBeSent())
                     <form method="POST" action="{{ route('user-agreements.send-for-signature', $agreement) }}" class="pull-right" style="display:inline-block;">
                         {{ csrf_field() }}
+                        @if ($agreement->agreement_type === 'pickup')
+                            <label for="collected_on">{{ trans('admin/user-agreements/message.collected_on') }}</label>
+                            <input type="date" id="collected_on" name="collected_on" max="{{ now()->format('Y-m-d') }}">
+                            <p class="help-block">{{ trans('admin/user-agreements/message.collected_help') }}</p>
+                        @endif
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-paper-plane"></i> {{ trans('admin/user-agreements/general.send_for_signature') }}
                         </button>

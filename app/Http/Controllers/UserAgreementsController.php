@@ -238,9 +238,10 @@ class UserAgreementsController extends Controller
             ->with('success', trans('admin/user-agreements/message.'.($sent ? 'pickup_sent' : 'pickup_already_sent')));
     }
 
-    public function sendForSignature(UserAgreement $userAgreement): RedirectResponse
+    public function sendForSignature(Request $request, UserAgreement $userAgreement): RedirectResponse
     {
         $this->authorize('update', Order::class);
+        $request->validate(['collected_on' => 'sometimes|nullable|date_format:Y-m-d|before_or_equal:today']);
 
         if (! $userAgreement->asset_id || ! $userAgreement->user_id) {
             return redirect()->route('user-agreements.show', $userAgreement)
@@ -254,7 +255,7 @@ class UserAgreementsController extends Controller
 
         try {
             $userAgreement->assertKnownPrice();
-            $acceptance = $userAgreement->sendForSignature();
+            $acceptance = $userAgreement->sendForSignature($request->filled('collected_on') ? (string) $request->input('collected_on') : null);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->route('user-agreements.show', $userAgreement)
                 ->with('error', $e->getMessage());

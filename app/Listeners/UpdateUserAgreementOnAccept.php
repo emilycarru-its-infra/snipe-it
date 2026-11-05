@@ -31,7 +31,12 @@ class UpdateUserAgreementOnAccept
             return;
         }
 
-        $agreement->markSigned($acceptance);
+        if ($agreement->lifecycle_stage === 'cancelled') {
+            return;
+        }
+        if (! $agreement->signed_at) {
+            $agreement->markSigned($acceptance);
+        }
 
         $buyout = AssetBuyout::where('user_agreement_id', $agreement->id)->latest('id')->first();
         // Only the buyer's own signature carries the buyout on.

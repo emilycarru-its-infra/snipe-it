@@ -19,6 +19,9 @@ class PickupInstructionsSender
     public function send(UserAgreement $agreement, bool $includePdf = false, bool $resend = false): bool
     {
         $agreement->refresh()->loadMissing(['user', 'asset.model', 'asset.status', 'asset.company', 'checkoutAcceptance']);
+        if ($agreement->deployed_at) {
+            throw ValidationException::withMessages(['agreement' => trans('admin/user-agreements/message.pickup_already_collected')]);
+        }
         $acceptance = $agreement->checkoutAcceptance;
         if ($agreement->agreement_type !== 'pickup' || $agreement->isApplication()
             || ! in_array($agreement->lifecycle_stage, ['quoted', 'agreement_sent', 'agreement_signed'], true)

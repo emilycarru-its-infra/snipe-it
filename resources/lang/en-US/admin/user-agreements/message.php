@@ -1,6 +1,19 @@
 <?php
 
 return [
+    'collected_on' => 'Already collected on (optional)',
+    'collected_help' => 'For retrospective receipts only. This date is recorded in the receipt, and acceptance will not send another pickup booking invitation.',
+    'agreement_unavailable' => 'This agreement has been cancelled and cannot be accepted.',
+    'payment_choice_pending' => 'Choose your payment option on the signing page before accepting. No payment option has been selected yet.',
+    'payment_heading' => 'Choose your payment option',
+    'payment_help' => 'Choose an option to review its terms below. Accept the agreement after checking the updated payment terms.',
+    'review_full' => 'Pay in full — review terms',
+    'review_payroll' => 'Payroll over :months months — review terms',
+    'choose_payment' => 'Choose and review a payment option before accepting this upgrade agreement.',
+    'payment_reviewed' => 'Your payment option is recorded. Review the updated agreement before accepting.',
+    'retrospective_invalid' => 'A collected date is only valid for an unsigned pickup without a signing request, for the currently assigned recipient.',
+    'pickup_already_collected' => 'This laptop is already collected; no pickup scheduling message is needed.',
+
     'price_pending' => 'Price pending',
     'price_required' => 'Confirm the agreement price before sending it for acceptance.',
     'acceptance_mismatch' => 'The acceptance request does not match this agreement recipient and device.',

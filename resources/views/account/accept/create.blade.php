@@ -38,6 +38,12 @@
     </style>
 
 
+    @if ($upgradeAgreement)
+        <form id="upgrade-payment-form" method="POST" action="{{ route('account.accept.payment', $acceptance) }}">
+            {{ csrf_field() }}
+        </form>
+    @endif
+
     <form class="form-horizontal" method="post" action="" autocomplete="off">
         <!-- CSRF Token -->
         <input type="hidden" name="_token" value="{{ csrf_token() }}" />
@@ -70,6 +76,23 @@
                             </p>
                         </div>
 
+                    @if ($upgradeAgreement)
+                        <div class="col-md-12" style="padding-bottom: 15px;">
+                            <h3>{{ trans('admin/user-agreements/message.payment_heading') }}</h3>
+                            <p>{{ trans('admin/user-agreements/message.payment_help') }}</p>
+                            @error('payment_method')<p class="text-danger">{{ $message }}</p>@enderror
+                            <button type="submit" form="upgrade-payment-form" name="payment_method" value="pay_in_full" style="white-space: normal;" class="btn btn-block {{ $upgradeAgreement->payment_method === 'pay_in_full' ? 'btn-primary' : 'btn-default' }}" aria-pressed="{{ $upgradeAgreement->payment_method === 'pay_in_full' ? 'true' : 'false' }}">
+                                {{ trans('admin/user-agreements/message.review_full') }}
+                            </button>
+                            <button type="submit" form="upgrade-payment-form" name="payment_method" value="payroll_deduction" style="white-space: normal;" class="btn btn-block {{ $upgradeAgreement->payment_method === 'payroll_deduction' ? 'btn-primary' : 'btn-default' }}" aria-pressed="{{ $upgradeAgreement->payment_method === 'payroll_deduction' ? 'true' : 'false' }}">
+                                {{ trans('admin/user-agreements/message.review_payroll', ['months' => \App\Services\Settings\Preferences::get('agreements.loan_months')]) }}
+                            </button>
+                            @if (! $upgradeAgreement->payment_method)
+                                <p class="text-warning">{{ trans('admin/user-agreements/message.choose_payment') }}</p>
+                            @endif
+                        </div>
+                    @endif
+
                     @php
                         $eulaText = $acceptance->eula_text_override ?: $acceptance->checkoutable->getEula();
                     @endphp
@@ -84,7 +107,7 @@
                         @endif
                         <div class="col-md-12">
                             <label class="form-control">
-                                <input type="radio" name="asset_acceptance" id="accepted" value="accepted">
+                                <input type="radio" name="asset_acceptance" id="accepted" value="accepted" {{ $upgradeAgreement && ! $upgradeAgreement->payment_method ? 'disabled' : '' }}>
                                 @if ($acceptance->qty)
                                     {{trans_choice('general.i_accept_with_count', $acceptance->qty)}}
                                 @else
