@@ -457,6 +457,7 @@ Reply to this email if the device above is not the one you are using, or if ther
     'pickup_updated' => 'Pickup updated.',
     'pickup_marked' => 'Pickup recorded; :count device(s) returned.',
     'pickup_cancelled' => 'Pickup cancelled.',
+    'lease_pickups_overdue' => 'Pickup date has passed. Click Picked up once the truck has been.',
     'pickup_not_open' => 'This pickup has already been picked up or cancelled.',
     'pickup_log_requested' => 'Lease return pickup #:id requested',
     'pickup_log_picked_up' => 'Lease return pickup #:id collected (load :load)',

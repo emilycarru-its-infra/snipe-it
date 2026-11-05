@@ -256,6 +256,9 @@
                             @endif
                         </td>
                         <td>{{ trans('admin/deployments/general.lease_pickups_status_'.$leasePickup->status) }}
+                            @if ($leasePickup->isOpen() && $leasePickup->scheduled_date && $leasePickup->scheduled_date->lt(today()))
+                                <div class="text-danger" style="font-size:11.5px;"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i> {{ trans('admin/deployments/general.lease_pickups_overdue') }}</div>
+                            @endif
                             @if ($leasePickup->picked_up_at)
                                 <div class="text-muted" style="font-size:11.5px;">{{ $leasePickup->picked_up_at->toDateString() }}</div>
                             @endif

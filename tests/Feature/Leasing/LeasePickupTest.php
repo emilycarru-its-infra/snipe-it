@@ -166,6 +166,65 @@ class LeasePickupTest extends TestCase
         $this->assertSame('2026-10-08', (string) $asset->decommission_date);
     }
 
+    public function test_a_device_set_to_returned_by_hand_still_gets_the_pickup_date(): void
+    {
+        Mail::fake();
+
+        $returned = Statuslabel::factory()->archived()->create(['name' => 'Returned Lease End']);
+        $active = Statuslabel::factory()->readyToDeploy()->create(['name' => 'Active']);
+        $admin = User::factory()->superuser()->create();
+        $lessor = $this->lessor('First Leasing', 'rep@first.example');
+        $handReturned = $this->waiting($lessor, 'SCHED-1');
+        $pulledBack = $this->waiting($lessor, 'SCHED-1');
+        $stillWaiting = $this->waiting($lessor, 'SCHED-1');
+
+        $this->bundle($admin, [$handReturned, $pulledBack, $stillWaiting]);
+        $pickup = LeasePickup::first();
+
+        // Before anyone clicks Picked up: one is set to returned by hand,
+        // one goes back into service.
+        $handReturned->update(['status_id' => $returned->id]);
+        $pulledBack->update(['status_id' => $active->id]);
+
+        $this->actingAs($admin)->post(route('lease-pickups.picked-up', $pickup), [
+            'picked_up_at' => '2026-10-22',
+        ])->assertSessionHas('success');
+
+        $this->assertSame('picked_up', $pickup->fresh()->status);
+
+        $this->assertSame($returned->id, $handReturned->fresh()->status_id);
+        $this->assertSame('2026-10-22', (string) $handReturned->fresh()->decommission_date);
+
+        $this->assertSame($returned->id, $stillWaiting->fresh()->status_id);
+        $this->assertSame('2026-10-22', (string) $stillWaiting->fresh()->decommission_date);
+
+        $this->assertSame($active->id, $pulledBack->fresh()->status_id);
+        $this->assertNull($pulledBack->fresh()->decommission_date);
+    }
+
+    public function test_lane_flags_an_open_pickup_whose_date_has_passed(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->superuser()->create();
+        $lessor = $this->lessor('First Leasing', 'rep@first.example');
+        $asset = $this->waiting($lessor, 'SCHED-1');
+
+        $this->bundle($admin, [$asset]);
+        $pickup = LeasePickup::first();
+        $pickup->update(['status' => 'scheduled', 'scheduled_date' => today()->addDay()]);
+
+        $this->actingAs($admin)->get(route('deployments.decommissioning'))
+            ->assertOk()
+            ->assertDontSee(trans('admin/deployments/general.lease_pickups_overdue'));
+
+        $pickup->update(['scheduled_date' => today()->subDay()]);
+
+        $this->actingAs($admin)->get(route('deployments.decommissioning'))
+            ->assertOk()
+            ->assertSee(trans('admin/deployments/general.lease_pickups_overdue'));
+    }
+
     public function test_lane_shows_the_requested_pickup_and_flags_its_devices(): void
     {
         Mail::fake();
