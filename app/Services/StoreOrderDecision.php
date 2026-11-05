@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CsiSchedule;
 use App\Models\Requisition;
 use App\Models\StoreOrder;
 use App\Models\User;
@@ -47,8 +48,13 @@ class StoreOrderDecision
             // stored values are lease_admin and lease_curriculum, so a
             // string match on 'lease' is false for every real lease account
             // and quietly dropped the schedule off all of them.
+            //
+            // With no schedule named, the account decides it, as the funding
+            // step does: admin rides the open lease-to-return, curriculum the
+            // lease-to-own. Without this an approval on a lease account was
+            // saved but never reached the vendor.
             'lease_schedule' => SupplierAccounts::needsSchedule($data['funding_account'] ?? null)
-                ? (($data['lease_schedule'] ?? null) ?: null)
+                ? (($data['lease_schedule'] ?? null) ?: CsiSchedule::scheduleForAccount($data['funding_account']))
                 : null,
             'gl_code' => $this->glCode($data, $order),
             'decided_by' => auth()->id(),
