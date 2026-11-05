@@ -207,6 +207,28 @@ class StoreOrdersApiTest extends TestCase
         $this->assertTrue($fresh->readyForVendor());
     }
 
+    public function test_an_approval_on_a_lease_account_finds_its_schedule()
+    {
+        Mail::fake();
+        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+
+        $order = $this->orderFor(User::factory()->create());
+
+        Passport::actingAs($this->procurement());
+
+        // No schedule named: approving on the admin lease account must pick
+        // the open lease-to-return, as the funding step does, so the order
+        // can go to the vendor straight away.
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'lease_admin',
+        ])->assertOk();
+
+        $fresh = $order->fresh();
+        $this->assertSame('100000-009', $fresh->lease_schedule);
+        $this->assertTrue($fresh->readyForVendor());
+    }
+
     public function test_a_purchase_account_carries_no_schedule()
     {
         Mail::fake();
