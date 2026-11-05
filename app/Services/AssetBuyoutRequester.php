@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Enums\ActionType;
+use App\Mail\AssetBuyoutProcessingMail;
 use App\Mail\AssetBuyoutRequestMail;
 use App\Models\Actionlog;
 use App\Models\Asset;
+use App\Models\AssetBuyout;
 use App\Models\EmailTemplate;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Leasing\BuyoutAgreementIssuer;
 use App\Services\Leasing\BuyoutTracker;
 use App\Services\Leasing\LessorGuard;
 use App\Services\Settings\Preferences;
@@ -39,12 +42,20 @@ class AssetBuyoutRequester
     /**
      * The still-cooling-down request for this asset, if one exists.
      */
-    public function pendingRequest(Asset $asset): ?Actionlog
+    public function pendingRequest(Asset $asset, ?bool $processing = null): ?Actionlog
     {
+        $processing ??= $asset->buyout_cost !== null || AssetBuyout::where('asset_id', $asset->id)
+            ->open()->whereNotNull('quote_total')->exists();
+
         return Actionlog::where('item_type', Asset::class)
             ->where('item_id', $asset->id)
             ->where('action_type', ActionType::BuyoutRequested->value)
             ->where('created_at', '>=', now()->subDays(self::cooldownDays()))
+            // A quote request is not a processing request. Once priced, the
+            // thread can advance immediately, but processing is sent once.
+            ->when($processing, fn ($q) => $q->where('note', trans('mail.asset_buyout_process_subject', [
+                'asset_tag' => $asset->asset_tag, 'serial' => $asset->serial,
+            ])))
             ->latest('created_at')
             ->first();
     }
@@ -63,8 +74,17 @@ class AssetBuyoutRequester
             return 'general.request_buyout_missing_email';
         }
 
-        if ($this->pendingRequest($asset)) {
+        $open = AssetBuyout::where('asset_id', $asset->id)->open()->latest('id')->first();
+        $priced = $open?->quote_total !== null || $asset->buyout_cost !== null;
+        if ($this->pendingRequest($asset, $priced)) {
             return 'general.request_buyout_already_requested';
+        }
+        if ($open && (int) $open->lessor_id !== (int) $asset->lessor_id) {
+            return 'general.request_buyout_lessor_conflict';
+        }
+        if ($priced && (! ($asset->assignedTo instanceof User) || ! filled($asset->assignedTo->email)
+            || ($open?->buyer_id && (int) $open->buyer_id !== (int) $asset->assignedTo->id))) {
+            return 'general.request_buyout_buyer_required';
         }
 
         // To: this lessor and only this lessor. A Supplier record holds a single
@@ -83,6 +103,9 @@ class AssetBuyoutRequester
         // out to a real User with an email), and whoever asked. De-dupe and
         // drop any address already in To so it never lands in both.
         $cc = EmailTemplate::ccFor('request.asset_buyout', config('leasing.buyout_request_cc'));
+        if ($priced) {
+            $cc = EmailTemplate::ccFor('request.asset_buyout_process', implode(',', $cc));
+        }
         if (($asset->assignedTo instanceof User) && filled($asset->assignedTo->email)) {
             $cc[] = $asset->assignedTo->email;
         }
@@ -102,13 +125,27 @@ class AssetBuyoutRequester
             return 'general.request_buyout_foreign_recipient';
         }
 
-        Mail::to($to)
-            ->cc($cc)
-            ->send(new AssetBuyoutRequestMail($asset, $requester));
-
-        // Open (or re-stamp) the tracked buyout, so the request appears on the
-        // decommissioning lane rather than only in this mail thread.
-        app(BuyoutTracker::class)->opened($asset, $requester);
+        $tracker = app(BuyoutTracker::class);
+        $buyout = $tracker->opened($asset, $requester);
+        if ($priced) {
+            if (! $buyout->buyer_id && in_array($buyout->status, ['requested', 'quoted'], true)
+                && ! $buyout->agreement?->signed_at) {
+                $buyout->forceFill(['buyer_id' => $asset->assignedTo->id])->save();
+            }
+            if ($buyout->quote_total === null && $buyout->status === 'requested') {
+                // Quote history retains the source and actor. Log the request
+                // after successful mail, so a failed send stays retryable.
+                $tracker->recordQuote($buyout, ['quote_amount' => $asset->buyout_cost, 'remaining_rent' => null,
+                    'reference' => trans('mail.asset_buyout_process_price_source')], $requester, log: false);
+            }
+            if ($error = app(BuyoutAgreementIssuer::class)->issue($buyout, $requester)) {
+                return $error;
+            }
+            $mail = new AssetBuyoutProcessingMail($asset, $requester, $buyout->fresh(['buyer', 'agreement']));
+        } else {
+            $mail = new AssetBuyoutRequestMail($asset, $requester);
+        }
+        Mail::to($to)->cc($cc)->send($mail);
 
         // Record the request on the asset's activity timeline.
         $log = new Actionlog;
@@ -118,7 +155,7 @@ class AssetBuyoutRequester
         $log->target_id = $asset->lessor_id;
         $log->target_type = Supplier::class;
         $log->company_id = $asset->company_id;
-        $log->note = trans('mail.asset_buyout_request_subject', [
+        $log->note = trans($priced ? 'mail.asset_buyout_process_subject' : 'mail.asset_buyout_request_subject', [
             'asset_tag' => $asset->asset_tag,
             'serial' => $asset->serial,
         ]);

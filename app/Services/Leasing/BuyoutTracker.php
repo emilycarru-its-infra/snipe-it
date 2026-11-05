@@ -87,7 +87,7 @@ class BuyoutTracker
      * earlier ones stay on the record because a superseded figure is exactly
      * what people keep quoting back from the mail thread.
      */
-    public function recordQuote(AssetBuyout $buyout, array $data, ?User $actor): AssetBuyoutQuote
+    public function recordQuote(AssetBuyout $buyout, array $data, ?User $actor, bool $log = true): AssetBuyoutQuote
     {
         $amount = $data['quote_amount'] !== null ? (float) $data['quote_amount'] : null;
         $rent = $data['remaining_rent'] !== null ? (float) $data['remaining_rent'] : null;
@@ -117,9 +117,11 @@ class BuyoutTracker
             'ecu_amount' => $buyout->ecu_amount ?? 0,
         ])->save();
 
-        $this->log($buyout, trans('admin/deployments/general.buyout_log_quoted', [
-            'total' => number_format($total, 2),
-        ]), $actor);
+        if ($log) {
+            $this->log($buyout, trans('admin/deployments/general.buyout_log_quoted', [
+                'total' => number_format($total, 2),
+            ]), $actor);
+        }
 
         return $quote;
     }

@@ -395,7 +395,8 @@ class UserAgreement extends SnipeModel
         return $this->save();
     }
 
-    public function checkoutAcceptance()
+    /** @return BelongsTo<CheckoutAcceptance, $this> */
+    public function checkoutAcceptance(): BelongsTo
     {
         return $this->belongsTo(CheckoutAcceptance::class, 'checkout_acceptance_id');
     }
@@ -490,7 +491,11 @@ class UserAgreement extends SnipeModel
     /** Whether Send for Signature can act on this row right now. */
     public function canBeSent(): bool
     {
-        return ! $this->checkout_acceptance_id
+        $request = $this->checkout_acceptance_id
+            ? CheckoutAcceptance::withTrashed()->find($this->checkout_acceptance_id) : null;
+
+        return (! $request || ($request->trashed() && $request->isPending()))
+            && ! $this->signed_at && ! $this->signed_pdf_path
             && $this->asset_id
             && $this->user_id
             && $this->lifecycle_stage !== 'cancelled'
@@ -521,7 +526,15 @@ class UserAgreement extends SnipeModel
     {
         if ($this->checkout_acceptance_id) {
             $acceptance = $this->checkoutAcceptance;
-            if (! $acceptance
+            if ((! $acceptance || $acceptance->trashed()) && ! $this->signed_at && ! $this->signed_pdf_path
+                && CheckoutAcceptance::onlyTrashed()->whereKey($this->checkout_acceptance_id)->pending()
+                    ->where('assigned_to_id', $this->user_id)->where('checkoutable_id', $this->asset_id)
+                    ->where('checkoutable_type', Asset::class)->exists()) {
+                // Revoked pending paper is a draft again. Its new request will
+                // capture these current terms; no completed evidence changes.
+                return $this->eulaBody();
+            }
+            if (! $acceptance || $acceptance->trashed()
                 || (int) $acceptance->assigned_to_id !== (int) $this->user_id
                 || (int) $acceptance->checkoutable_id !== (int) $this->asset_id
                 || $acceptance->checkoutable_type !== Asset::class) {
@@ -706,6 +719,9 @@ class UserAgreement extends SnipeModel
             return null;
         }
 
+        $previous = $this->checkout_acceptance_id
+            ? CheckoutAcceptance::withTrashed()->find($this->checkout_acceptance_id) : null;
+
         if ($collectedOn !== null) {
             \Illuminate\Support\Facades\Validator::make(['collected_on' => $collectedOn], [
                 'collected_on' => 'required|date_format:Y-m-d|before_or_equal:today',
@@ -713,7 +729,8 @@ class UserAgreement extends SnipeModel
             if ($this->agreement_type !== 'pickup' || $this->signed_at
                 || (int) $this->asset->assigned_to !== (int) $this->user_id
                 || $this->asset->assigned_type !== User::class
-                || ($this->checkout_acceptance_id && $this->deployed_at?->format('Y-m-d') !== $collectedOn)) {
+                || ($previous && (! $previous->trashed() || ! $previous->isPending())
+                    && $this->deployed_at?->format('Y-m-d') !== $collectedOn)) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'collected_on' => trans('admin/user-agreements/message.retrospective_invalid'),
                 ]);
@@ -721,7 +738,20 @@ class UserAgreement extends SnipeModel
         }
 
         if ($this->checkout_acceptance_id) {
-            return CheckoutAcceptance::find($this->checkout_acceptance_id);
+            if ($previous && ! $previous->trashed()) {
+                return $previous;
+            }
+            // Check-in revokes pending requests. Keep that evidence and open
+            // fresh paper on recheckout; completed signatures are never replaced.
+            if ($this->signed_at || $this->signed_pdf_path || ($previous && ! $previous->isPending())) {
+                return null;
+            }
+            $this->checkout_acceptance_id = null;
+            $this->unsetRelation('checkoutAcceptance');
+        }
+
+        if ($this->signed_at || $this->signed_pdf_path) {
+            return null;
         }
 
         $this->assertKnownPrice();

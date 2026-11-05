@@ -4,6 +4,7 @@ namespace App\Services\UserAgreements;
 
 use App\Models\Asset;
 use App\Models\Contract;
+use App\Models\Statuslabel;
 use App\Models\User;
 use App\Models\UserAgreement;
 use App\Services\FormAccess;
@@ -133,7 +134,7 @@ class PickupUpgradeAutoCreator
         }
 
         // Read fresh: a relation loaded before this save names the old status.
-        $status = \App\Models\Statuslabel::find($asset->status_id);
+        $status = Statuslabel::find($asset->status_id);
         if (! Preferences::statusMatches('status.agreement_handover', $status?->name)) {
             return [];
         }
@@ -149,7 +150,7 @@ class PickupUpgradeAutoCreator
             ->where('user_id', $userId)
             ->where('asset_id', $asset->id)
             ->whereIn('agreement_type', ['pickup', 'upgrade'])
-            ->whereIn('lifecycle_stage', ['eligible', 'quoted'])
+            ->whereIn('lifecycle_stage', ['eligible', 'quoted', 'agreement_sent'])
             // Pickup first, so its signing request is the one opened first.
             ->orderByRaw("agreement_type = 'upgrade'")
             ->orderBy('id')
@@ -159,9 +160,8 @@ class PickupUpgradeAutoCreator
             if (! $agreement->canBeSent()) {
                 continue;
             }
-            if (! $agreement->pdf_path) {
-                $agreement->storeUnsignedPdf();
-            }
+            // The signature mail generates its attachment from captured terms.
+            // Reissue first: check-in may have revoked the previous request.
             if ($agreement->sendForSignature()) {
                 $sent[] = $agreement;
             }

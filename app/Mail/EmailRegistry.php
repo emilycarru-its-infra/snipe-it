@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\EmailTemplate;
 use App\Notifications\AcceptanceItemAcceptedNotification;
 use App\Notifications\AcceptanceItemAcceptedToUserNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
@@ -342,6 +343,23 @@ class EmailRegistry
                 'merge_vars' => ['asset' => 'The leased asset (asset.asset_tag, asset.serial)', 'lease' => 'Lease facts (lease.contract_id, lease.end_date, lease.buyout_cost)', 'lessor' => 'The lessor (lessor.name)', 'requester' => 'Admin who requested it (requester.full_name)'],
                 'configurable_cc' => true,
                 'factory' => fn (EmailSampleData $s) => new AssetBuyoutRequestMail($s->asset(), $s->admin()),
+            ],
+            [
+                'key' => 'request.asset_buyout_process',
+                'category' => 'requests',
+                'label' => 'Lease buyout processing — known cost',
+                'defaults' => fn () => ['cc' => implode(',', EmailTemplate::ccFor('request.asset_buyout', config('leasing.buyout_request_cc')))],
+                'description' => 'Starts the buyout thread when a cost is recorded. Asks the assigned buyer to accept their purchase agreement and the lessor to arrange invoicing. To is restricted to this lessor; the buyer and requester are always copied. An empty CC uses the Lease buyout request CC list. A request does not approve a charge or complete the buyout.',
+                'merge_vars' => ['asset' => 'Asset (asset.asset_tag, asset.serial)', 'lease' => 'Lease facts', 'lessor' => 'Lessor', 'requester' => 'Requester', 'buyer' => 'Assigned buyer (buyer.full_name)', 'buyout' => 'Tracked buyout', 'recorded_cost' => 'Recorded total cost', 'buyer_cost' => 'Buyer share to accept', 'accepted' => 'Whether the matching agreement is already signed', 'acceptance_url' => 'Buyer purchase agreement signing link'],
+                'configurable_cc' => true,
+                'factory' => function (EmailSampleData $s) {
+                    $buyout = $s->buyout();
+                    $agreement = $s->userAgreement('purchase');
+                    $agreement->checkout_acceptance_id = 123;
+                    $buyout->setRelation('agreement', $agreement);
+
+                    return new AssetBuyoutProcessingMail($buyout->asset, $s->admin(), $buyout);
+                },
             ],
             [
                 'key' => 'request.lease_pickup',
@@ -732,6 +750,7 @@ class EmailRegistry
             // reps. Recorded as external so it is obvious these are email by
             // nature rather than by an unset default.
             'request.asset_buyout',
+            'request.asset_buyout_process',
             'request.lease_pickup',
             'store.vendor_order',
             'procurement.vendor_order',
