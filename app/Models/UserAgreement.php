@@ -385,6 +385,10 @@ class UserAgreement extends SnipeModel
 
     public function markSentToPayroll(?int $byUserId): bool
     {
+        if ($this->lifecycle_stage === 'cancelled') {
+            return false;
+        }
+
         $this->sent_to_payroll_at = now();
         $this->sent_to_payroll_by_id = $byUserId;
 
@@ -448,6 +452,10 @@ class UserAgreement extends SnipeModel
      */
     public function payableValue(): float
     {
+        if ($this->lifecycle_stage === 'cancelled') {
+            return 0.0;
+        }
+
         return match ($this->agreement_type) {
             'upgrade' => (float) $this->top_up_amount,
             'purchase' => (float) $this->buyout_cost,

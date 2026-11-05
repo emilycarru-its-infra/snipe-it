@@ -130,7 +130,7 @@ class UserAgreementsController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        if (! $userAgreement->signed_at && ! $userAgreement->signed_pdf_path) {
+        if ($userAgreement->lifecycle_stage === 'cancelled' || (! $userAgreement->signed_at && ! $userAgreement->signed_pdf_path)) {
             return redirect()->route('reports.procurement.user-agreement-ledger')
                 ->with('error', trans('admin/user-agreements/message.payroll_requires_signed'));
         }
