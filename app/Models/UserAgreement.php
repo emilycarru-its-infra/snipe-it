@@ -720,7 +720,7 @@ class UserAgreement extends SnipeModel
         $this->saveQuietly();
 
         // Mail the assigned user with the sign link + attached unsigned
-        // PDF (if pre-rendered by snipeit:user-pregen-pdfs). Wrapped in
+        // PDF rendered from its captured terms. Wrapped in
         // try/catch so a flaky SMTP run can't roll back the stage
         // transition — that's a higher-cost recovery than a missed email.
         try {

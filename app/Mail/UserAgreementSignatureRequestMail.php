@@ -15,9 +15,8 @@ use Illuminate\Support\Facades\Storage;
  * Sent to the assigned user when their UserAgreement transitions
  * to `agreement_sent` (via the model's sendForSignature() helper or
  * direct stage edit in the UI). One email per agreement. The PDF is
- * attached when an unsigned copy has already been rendered by
- * `snipeit:user-pregen-pdfs`; otherwise the email just carries the
- * sign link.
+ * generated from the same captured text shown on the signing page.
+ * Persisted requests never trust an older cached attachment.
  */
 class UserAgreementSignatureRequestMail extends BaseMailable
 {
@@ -60,6 +59,11 @@ class UserAgreementSignatureRequestMail extends BaseMailable
      */
     public function attachments(): array
     {
+        // Settings previews use a synthetic, unsaved agreement and have no attachment.
+        if (! $this->agreement->exists) {
+            return [];
+        }
+
         $this->agreement->refresh();
         $this->agreement->assertKnownPrice();
         $path = $this->agreement->storeUnsignedPdf();

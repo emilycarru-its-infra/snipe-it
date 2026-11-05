@@ -24,7 +24,7 @@ class PdfRenderer
             throw new \InvalidArgumentException('Unsupported agreement type.');
         }
 
-        return $this->renderSaved($agreement);
+        return $this->renderDocument($agreement);
     }
 
     private function newPdf(string $title): TCPDF
@@ -82,10 +82,9 @@ class PdfRenderer
     }
 
     /**
-     * An agreement whose body was saved under Settings → Agreements: that
-     * text, merge variables filled, under the saved (or built-in) title.
+     * Render the captured signing body, or the canonical body for an unsent draft.
      */
-    private function renderSaved(UserAgreement $agreement): string
+    private function renderDocument(UserAgreement $agreement): string
     {
         $title = $this->title($agreement->agreement_type, match ($agreement->agreement_type) {
             'pickup' => 'Faculty Laptop Receipt Acknowledgment',
