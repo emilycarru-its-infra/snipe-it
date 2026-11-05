@@ -23,6 +23,7 @@ use App\Models\LicenseSeat;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\UserAgreement;
 use App\Notifications\CheckinAccessoryNotification;
 use App\Notifications\CheckinAssetNotification;
 use App\Notifications\CheckinComponentNotification;
@@ -276,14 +277,26 @@ class CheckoutableListener
     /**
      * Generates a checkout acceptance
      *
-     * @param  Event  $event
      * @return mixed
      */
-    private function getCheckoutAcceptance($event)
+    private function getCheckoutAcceptance(CheckoutableCheckedOut $event)
     {
         $checkedOutToType = get_class($event->checkedOutTo);
         if ($checkedOutToType != "App\Models\User") {
             return null;
+        }
+
+        if ($event->checkoutable instanceof Asset) {
+            $receipt = UserAgreement::where('asset_id', $event->checkoutable->id)
+                ->where('user_id', $event->checkedOutTo->id)->where('agreement_type', 'pickup')
+                ->where('lifecycle_stage', 'agreement_sent')->whereNull('terms_accepted_at')
+                ->whereNull('signed_at')->with('checkoutAcceptance')->latest('id')->first();
+            if ($receipt?->checkoutAcceptance?->isPending()
+                && (int) $receipt->checkoutAcceptance->assigned_to_id === (int) $event->checkedOutTo->id
+                && $receipt->checkoutAcceptance->checkoutable_type === Asset::class
+                && (int) $receipt->checkoutAcceptance->checkoutable_id === (int) $event->checkoutable->id) {
+                return $receipt->checkoutAcceptance;
+            }
         }
 
         if (! $event->checkoutable->requireAcceptance()) {
