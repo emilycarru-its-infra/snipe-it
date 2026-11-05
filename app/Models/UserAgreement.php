@@ -596,7 +596,7 @@ class UserAgreement extends SnipeModel
         $paymentTerms = match ($this->payment_method) {
             'pay_in_full' => 'I authorize payment in full in one single payroll deduction of '.$this->formatMoney($top).'.',
             'payroll_deduction' => 'I authorize '.$installments.' semi-monthly payroll deductions over '.$months.' months: '.($installments - 1).' payments of '.$this->formatMoney($regular).' and a final payment of '.$this->formatMoney($last).'.',
-            default => 'Payment method: to be confirmed.',
+            default => trans('admin/user-agreements/message.payment_choice_pending'),
         };
 
         return [
@@ -700,10 +700,24 @@ class UserAgreement extends SnipeModel
      * checkouts are affected. Returns the new acceptance, or null if the
      * agreement is missing the asset / user link.
      */
-    public function sendForSignature(): ?CheckoutAcceptance
+    public function sendForSignature(?string $collectedOn = null): ?CheckoutAcceptance
     {
         if (! $this->asset || ! $this->user || $this->isApplication()) {
             return null;
+        }
+
+        if ($collectedOn !== null) {
+            \Illuminate\Support\Facades\Validator::make(['collected_on' => $collectedOn], [
+                'collected_on' => 'required|date_format:Y-m-d|before_or_equal:today',
+            ])->validate();
+            if ($this->agreement_type !== 'pickup' || $this->signed_at
+                || (int) $this->asset->assigned_to !== (int) $this->user_id
+                || $this->asset->assigned_type !== User::class
+                || ($this->checkout_acceptance_id && $this->deployed_at?->format('Y-m-d') !== $collectedOn)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'collected_on' => trans('admin/user-agreements/message.retrospective_invalid'),
+                ]);
+            }
         }
 
         if ($this->checkout_acceptance_id) {
@@ -713,6 +727,11 @@ class UserAgreement extends SnipeModel
         $this->assertKnownPrice();
         if ($this->lifecycle_stage === 'cancelled') {
             return null;
+        }
+
+        if ($collectedOn !== null) {
+            $this->deployed_at = \Illuminate\Support\Carbon::parse($collectedOn);
+            $this->notes = trim(($this->notes ?? '')."\nRetrospective receipt: laptop collected ".$collectedOn.'.');
         }
 
         $acceptance = new CheckoutAcceptance;
@@ -753,12 +772,15 @@ class UserAgreement extends SnipeModel
             return;
         }
 
-        $acceptance = CheckoutAcceptance::find($this->checkout_acceptance_id);
-
-        if ($acceptance && $acceptance->isPending()) {
-            $acceptance->eula_text_override = $this->eulaBody();
-            $acceptance->save();
-        }
+        \Illuminate\Support\Facades\DB::transaction(function () {
+            $acceptance = CheckoutAcceptance::query()->lockForUpdate()->find($this->checkout_acceptance_id);
+            $current = self::query()->lockForUpdate()->find($this->id);
+            if ($acceptance?->isPending() && $current && ! $current->signed_at
+                && $current->checkout_acceptance_id === $acceptance->id) {
+                $acceptance->eula_text_override = $current->eulaBody();
+                $acceptance->save();
+            }
+        });
     }
 
     /**

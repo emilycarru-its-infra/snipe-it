@@ -29,6 +29,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -87,7 +88,10 @@ class AcceptanceController extends Controller
         $checkedOutAt = Helper::getFormattedDateObject($acceptance->created_at, 'datetime', false);
         $checkedOutBy = $this->resolveCheckoutActorName($acceptance);
 
-        return view('account/accept.create', compact('acceptance', 'isSignInPlaceAdminFlow', 'checkedOutAt', 'checkedOutBy'));
+        $upgradeAgreement = UserAgreement::where('checkout_acceptance_id', $acceptance->id)
+            ->where('agreement_type', 'upgrade')->where('lifecycle_stage', 'agreement_sent')->first();
+
+        return view('account/accept.create', compact('acceptance', 'isSignInPlaceAdminFlow', 'checkedOutAt', 'checkedOutBy', 'upgradeAgreement'));
     }
 
     /**
@@ -95,7 +99,23 @@ class AcceptanceController extends Controller
      *
      * @param  int  $id
      */
+    public function reviewPayment(Request $request, $id, \App\Services\UserAgreements\UpgradePaymentChoice $choices): RedirectResponse
+    {
+        $request->validate(['payment_method' => 'required|in:pay_in_full,payroll_deduction']);
+        $user = auth()->user();
+        abort_unless($user instanceof User, 403);
+        $choices->review((int) $id, $user, $request->string('payment_method')->toString());
+
+        return redirect()->route('account.accept.item', $id)
+            ->with('success', trans('admin/user-agreements/message.payment_reviewed'));
+    }
+
     public function store(Request $request, $id): RedirectResponse
+    {
+        return DB::transaction(fn () => $this->storeLocked($request, $id));
+    }
+
+    private function storeLocked(Request $request, $id): RedirectResponse
     {
         $currentUser = auth()->user();
 
@@ -103,7 +123,7 @@ class AcceptanceController extends Controller
             abort(403, trans('general.insufficient_permissions'));
         }
 
-        $acceptance = CheckoutAcceptance::find($id);
+        $acceptance = CheckoutAcceptance::query()->lockForUpdate()->find($id);
 
         if (! $acceptance) {
             return redirect()->route('account.accept')->with('error', trans('admin/hardware/message.does_not_exist'));
@@ -134,9 +154,16 @@ class AcceptanceController extends Controller
             return redirect()->route('account.accept')->with('error', trans('general.insufficient_permissions'));
         }
 
-        $agreement = UserAgreement::where('checkout_acceptance_id', $acceptance->id)->first();
+        $agreement = UserAgreement::where('checkout_acceptance_id', $acceptance->id)->lockForUpdate()->first();
         if ($agreement) {
             try {
+                if ($request->input('asset_acceptance') === 'accepted' && $agreement->agreement_type === 'upgrade'
+                    && ! in_array($agreement->payment_method, UserAgreement::PAYMENT_METHODS, true)) {
+                    return redirect()->back()->with('error', trans('admin/user-agreements/message.choose_payment'));
+                }
+                if ($agreement->lifecycle_stage === 'cancelled') {
+                    return redirect()->back()->with('error', trans('admin/user-agreements/message.agreement_unavailable'));
+                }
                 $agreement->assertKnownPrice();
                 $agreement->documentBody();
             } catch (\Illuminate\Validation\ValidationException $e) {
@@ -264,37 +291,45 @@ class AcceptanceController extends Controller
 
         if ($request->input('asset_acceptance') === 'accepted') {
 
-            $pdf_filename = 'accepted-'.$username_slug.$asset_tag_slug.'-'.date('Y-m-d-h-i-s').'.pdf';
+            $pdf_filename = 'accepted-'.$username_slug.$asset_tag_slug.'-'.$acceptance->id.'-'.Str::uuid().'.pdf';
 
             // Generate the PDF content
             $pdf_content = $acceptance->generateAcceptancePdf($data, $acceptance);
-            Storage::put('private_uploads/eula-pdfs/'.$pdf_filename, $pdf_content);
+            if (! Storage::put('private_uploads/eula-pdfs/'.$pdf_filename, $pdf_content)) {
+                throw new \RuntimeException('The accepted agreement PDF could not be stored.');
+            }
 
             // Log the acceptance
             $acceptance->accept($sig_filename, $acceptance->eula_text_override ?: $item->getEula(), $pdf_filename, $request->input('note'));
-
-            $pickup = UserAgreement::where('checkout_acceptance_id', $acceptance->id)
-                ->where('agreement_type', 'pickup')->where('user_id', $assignedUser->id)->first();
-            if ($pickup) {
-                try {
-                    app(PickupInstructionsSender::class)->send($pickup, $request->input('send_copy') === '1');
-                } catch (\Throwable $e) {
-                    report($e);
-                }
-            } elseif ($request->input('send_copy') === '1' && $assignedUser->email !== '') {
-                $data['file'] = $pdf_filename;
-                try {
-                    $assignedUser->notify((new AcceptanceItemAcceptedToUserNotification($data))->locale($assignedUser->locale));
-                } catch (Exception $e) {
-                    Log::warning($e);
-                }
+            if ($agreement) {
+                $agreement->markSigned($acceptance);
             }
-            $this->announceAcceptanceResponse(
-                new AcceptanceItemAcceptedNotification($data),
-                'acceptance.accepted_admin',
-                fn ($notification) => $acceptance->notify($notification->locale(Setting::getSettings()->locale)),
-            );
-            event(new CheckoutAccepted($acceptance));
+
+            DB::afterCommit(function () use ($acceptance, $assignedUser, $request, $data, $pdf_filename) {
+                $pickup = UserAgreement::where('checkout_acceptance_id', $acceptance->id)
+                    ->where('agreement_type', 'pickup')->where('user_id', $assignedUser->id)->first();
+                if ($pickup && ! $pickup->deployed_at) {
+                    try {
+                        app(PickupInstructionsSender::class)->send($pickup, $request->input('send_copy') === '1');
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                } elseif ($request->input('send_copy') === '1' && $assignedUser->email !== '') {
+                    $data['file'] = $pdf_filename;
+                    try {
+                        $assignedUser->notify((new AcceptanceItemAcceptedToUserNotification($data))->locale($assignedUser->locale));
+                    } catch (Exception $e) {
+                        Log::warning($e);
+                    }
+                }
+                $this->announceAcceptanceResponse(
+                    new AcceptanceItemAcceptedNotification($data),
+                    'acceptance.accepted_admin',
+                    fn ($notification) => $acceptance->notify($notification->locale(Setting::getSettings()->locale)),
+                );
+                event(new CheckoutAccepted($acceptance));
+
+            });
 
             $return_msg = trans('admin/users/message.accepted');
 
@@ -305,35 +340,40 @@ class AcceptanceController extends Controller
                 $acceptance->decline($sig_filename, $request->input('note'));
             }
 
-            $this->announceAcceptanceResponse(
-                new AcceptanceItemDeclinedNotification($data),
-                'acceptance.declined',
-                fn ($notification) => $acceptance->notify($notification),
-            );
-            Log::debug('New event acceptance.');
-            event(new CheckoutDeclined($acceptance));
+            DB::afterCommit(function () use ($acceptance, $data) {
+                $this->announceAcceptanceResponse(
+                    new AcceptanceItemDeclinedNotification($data),
+                    'acceptance.declined',
+                    fn ($notification) => $acceptance->notify($notification),
+                );
+                Log::debug('New event acceptance.');
+                event(new CheckoutDeclined($acceptance));
+            });
             $return_msg = trans('admin/users/message.declined');
         }
 
-        // Send an email notification if one is requested
-        if ($acceptance->alert_on_response_id) {
-            try {
-                $recipient = User::find($acceptance->alert_on_response_id);
+        DB::afterCommit(function () use ($acceptance, $request) {
+            // Send an email notification if one is requested
+            if ($acceptance->alert_on_response_id) {
+                try {
+                    $recipient = User::find($acceptance->alert_on_response_id);
 
-                if ($recipient?->email && EmailDelivery::shouldEmail('acceptance.response')) {
-                    Log::debug('Attempting to send email acceptance.');
-                    Mail::to($recipient)->send(new CheckoutAcceptanceResponseMail(
-                        $acceptance,
-                        $recipient,
-                        $request->input('asset_acceptance') === 'accepted',
-                    ));
-                    Log::debug('Send email notification success on checkout acceptance response.');
+                    if ($recipient?->email && EmailDelivery::shouldEmail('acceptance.response')) {
+                        Log::debug('Attempting to send email acceptance.');
+                        Mail::to($recipient)->send(new CheckoutAcceptanceResponseMail(
+                            $acceptance,
+                            $recipient,
+                            $request->input('asset_acceptance') === 'accepted',
+                        ));
+                        Log::debug('Send email notification success on checkout acceptance response.');
+                    }
+                } catch (Exception $e) {
+                    Log::error($e->getMessage());
+                    Log::warning($e);
                 }
-            } catch (Exception $e) {
-                Log::error($e->getMessage());
-                Log::warning($e);
             }
-        }
+
+        });
 
         if ($isSignInPlaceAdminFlow) {
             // Another request waiting on the same item for the same person (a pickup's

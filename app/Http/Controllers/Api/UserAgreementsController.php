@@ -230,9 +230,10 @@ class UserAgreementsController extends Controller
      * CheckoutAcceptance and mails the assigned user with the unsigned
      * PDF attached (if one has been pre-rendered).
      */
-    public function sendForSignature(UserAgreement $userAgreement): JsonResponse
+    public function sendForSignature(Request $request, UserAgreement $userAgreement): JsonResponse
     {
         $this->authorize('update', Order::class);
+        $request->validate(['collected_on' => 'sometimes|nullable|date_format:Y-m-d|before_or_equal:today']);
 
         if (! $userAgreement->asset_id || ! $userAgreement->user_id) {
             return response()->json(Helper::formatStandardApiResponse(
@@ -252,7 +253,7 @@ class UserAgreementsController extends Controller
 
         try {
             $userAgreement->assertKnownPrice();
-            $acceptance = $userAgreement->sendForSignature();
+            $acceptance = $userAgreement->sendForSignature($request->filled('collected_on') ? (string) $request->input('collected_on') : null);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
         }

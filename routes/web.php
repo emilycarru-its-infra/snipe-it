@@ -1083,6 +1083,9 @@ Route::group(['prefix' => 'account', 'middleware' => ['auth']], function () {
         ->name('account.accept.item')
         ->breadcrumbs(fn (Trail $trail, mixed $acceptance) => BuildAcceptanceBreadcrumbs::forAcceptance($trail, $acceptance));
 
+    Route::post('accept/{acceptance}/payment', [Account\AcceptanceController::class, 'reviewPayment'])
+        ->name('account.accept.payment');
+
     Route::post('accept/{acceptance}', [Account\AcceptanceController::class, 'store'])
         ->name('account.store-acceptance');
 
