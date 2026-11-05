@@ -385,6 +385,10 @@ class UserAgreement extends SnipeModel
 
     public function markSentToPayroll(?int $byUserId): bool
     {
+        if ($this->lifecycle_stage === 'cancelled') {
+            return false;
+        }
+
         $this->sent_to_payroll_at = now();
         $this->sent_to_payroll_by_id = $byUserId;
 
@@ -448,6 +452,10 @@ class UserAgreement extends SnipeModel
      */
     public function payableValue(): float
     {
+        if ($this->lifecycle_stage === 'cancelled') {
+            return 0.0;
+        }
+
         return match ($this->agreement_type) {
             'upgrade' => (float) $this->top_up_amount,
             'purchase' => (float) $this->buyout_cost,
@@ -486,7 +494,47 @@ class UserAgreement extends SnipeModel
             && $this->asset_id
             && $this->user_id
             && $this->lifecycle_stage !== 'cancelled'
-            && ! $this->isApplication();
+            && ! $this->isApplication()
+            && $this->hasKnownPrice();
+    }
+
+    public function hasKnownPrice(): bool
+    {
+        return match ($this->agreement_type) {
+            'purchase' => $this->buyout_cost !== null,
+            'upgrade' => $this->top_up_amount !== null,
+            default => true,
+        };
+    }
+
+    public function assertKnownPrice(): void
+    {
+        if (! $this->hasKnownPrice()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                ($this->agreement_type === 'upgrade' ? 'top_up_amount' : 'buyout_cost') => trans('admin/user-agreements/message.price_required'),
+            ]);
+        }
+    }
+
+    /** The captured signing text wins over later settings or date changes. */
+    public function documentBody(): string
+    {
+        if ($this->checkout_acceptance_id) {
+            $acceptance = $this->checkoutAcceptance;
+            if (! $acceptance
+                || (int) $acceptance->assigned_to_id !== (int) $this->user_id
+                || (int) $acceptance->checkoutable_id !== (int) $this->asset_id
+                || $acceptance->checkoutable_type !== Asset::class) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'agreement' => trans('admin/user-agreements/message.acceptance_mismatch'),
+                ]);
+            }
+            if ($acceptance->eula_text_override !== null && $acceptance->eula_text_override !== '') {
+                return (string) $acceptance->eula_text_override;
+            }
+        }
+
+        return $this->eulaBody();
     }
 
     /** Scope: open form applications (pickup rows the form wrote). */
@@ -504,6 +552,12 @@ class UserAgreement extends SnipeModel
         // the CheckoutAcceptance with the rendered EULA so the user
         // member sees it in Snipe's native signing UI. Idempotent: an
         // agreement that already has a linked acceptance is skipped.
+        static::saving(function (UserAgreement $agreement) {
+            if ($agreement->lifecycle_stage === 'agreement_sent' && ! $agreement->signed_at) {
+                $agreement->assertKnownPrice();
+            }
+        });
+
         static::saved(function (UserAgreement $agreement) {
             if (
                 $agreement->lifecycle_stage === 'agreement_sent'
@@ -534,7 +588,16 @@ class UserAgreement extends SnipeModel
         $base = (float) ($this->base_program_price ?? 0);
         $device = (float) ($this->device_cost ?? 0);
         $top = $this->agreement_type === 'upgrade' ? (float) ($this->top_up_amount ?? max($device - $base, 0)) : 0.0;
-        $buyout = (float) ($this->buyout_cost ?? 0);
+        $buyout = $this->buyout_cost !== null ? (float) $this->buyout_cost : null;
+        $installments = max(1, (int) ($this->installment_count ?? \App\Services\Settings\Preferences::get('agreements.loan_installments')));
+        $regular = round($top / $installments, 2);
+        $last = round($top - $regular * ($installments - 1), 2);
+        $months = (int) \App\Services\Settings\Preferences::get('agreements.loan_months');
+        $paymentTerms = match ($this->payment_method) {
+            'pay_in_full' => 'I authorize payment in full in one single payroll deduction of '.$this->formatMoney($top).'.',
+            'payroll_deduction' => 'I authorize '.$installments.' semi-monthly payroll deductions over '.$months.' months: '.($installments - 1).' payments of '.$this->formatMoney($regular).' and a final payment of '.$this->formatMoney($last).'.',
+            default => 'Payment method: to be confirmed.',
+        };
 
         return [
             'faculty_name' => (string) ($this->user?->full_name ?? ''),
@@ -548,10 +611,18 @@ class UserAgreement extends SnipeModel
             'base_price' => $this->formatMoney($base),
             'full_price' => $this->formatMoney($device),
             'upgrade_amount' => $this->formatMoney($top),
-            'buyout_cost' => $this->formatMoney($buyout),
+            'buyout_cost' => $buyout !== null ? $this->formatMoney($buyout) : trans('admin/user-agreements/message.price_pending'),
+            'lease_years' => (string) \App\Services\Settings\Preferences::get('agreements.lease_years'),
+            'loan_months' => (string) $months,
+            'loan_installments' => (string) $installments,
+            'return_term_months' => (string) \App\Services\Settings\Preferences::get('agreements.return_term_months'),
+            'upgrade_payment_terms' => $paymentTerms,
             'monthly_12' => $this->formatMoney($top > 0 ? $top / 12 : 0),
             'monthly_24' => $this->formatMoney($top > 0 ? $top / 24 : 0),
             'payment_phrase' => $this->paymentPhrase(),
+            'purchase_price_terms' => $buyout !== null
+                ? 'I agree to pay the residual cost of '.$this->formatMoney($buyout).' '.$this->paymentPhrase().'.'
+                : 'Purchase price: '.trans('admin/user-agreements/message.price_pending').'. '.trans('admin/user-agreements/message.price_required'),
         ];
     }
 
@@ -639,6 +710,11 @@ class UserAgreement extends SnipeModel
             return CheckoutAcceptance::find($this->checkout_acceptance_id);
         }
 
+        $this->assertKnownPrice();
+        if ($this->lifecycle_stage === 'cancelled') {
+            return null;
+        }
+
         $acceptance = new CheckoutAcceptance;
         $acceptance->checkoutable()->associate($this->asset);
         $acceptance->assignedTo()->associate($this->user);
@@ -652,7 +728,7 @@ class UserAgreement extends SnipeModel
         $this->saveQuietly();
 
         // Mail the assigned user with the sign link + attached unsigned
-        // PDF (if pre-rendered by snipeit:user-pregen-pdfs). Wrapped in
+        // PDF rendered from its captured terms. Wrapped in
         // try/catch so a flaky SMTP run can't roll back the stage
         // transition — that's a higher-cost recovery than a missed email.
         try {
@@ -724,12 +800,28 @@ class UserAgreement extends SnipeModel
      */
     public function storeUnsignedPdf(): ?string
     {
-        if (! $this->asset || ! $this->user) {
+        if ($this->isApplication() && ! $this->signed_at && ! $this->signed_pdf_path) {
+            $this->pdf_path = null;
+            $this->pdf_generated_at = null;
+            $this->saveQuietly();
+
             return null;
         }
 
-        $relative = 'private_uploads/user-agreements/'.$this->id.'-'.$this->agreement_type.'.pdf';
-        Storage::put($relative, $this->renderUnsignedPdfBytes());
+        if (! $this->asset || ! $this->user || $this->signed_at || $this->signed_pdf_path) {
+            return null;
+        }
+
+        $this->load('user', 'asset.model', 'checkoutAcceptance');
+        $fingerprint = hash('sha256', json_encode([
+            $this->id, $this->agreement_type, $this->user_id, $this->user->full_name, $this->user->email,
+            $this->asset_id, $this->asset->asset_tag, $this->asset->serial, $this->asset->model?->name,
+            $this->documentBody(), self::eulaTitle($this->agreement_type),
+        ], JSON_THROW_ON_ERROR));
+        $relative = 'private_uploads/user-agreements/'.$this->id.'-'.$fingerprint.'.pdf';
+        if (! Storage::put($relative, $this->renderUnsignedPdfBytes())) {
+            throw new \RuntimeException('The unsigned agreement PDF could not be stored.');
+        }
 
         $this->pdf_path = $relative;
         $this->pdf_generated_at = now();

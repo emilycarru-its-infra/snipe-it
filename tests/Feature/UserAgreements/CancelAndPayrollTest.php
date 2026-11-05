@@ -88,6 +88,25 @@ class CancelAndPayrollTest extends TestCase
         $this->assertSame($admin->id, $agreement->sent_to_payroll_by_id);
     }
 
+    public function test_cancelled_signed_terms_are_retained_but_not_payable_or_forwardable(): void
+    {
+        $admin = $this->superuser();
+        $agreement = UserAgreement::create([
+            'agreement_type' => 'upgrade', 'lifecycle_stage' => 'agreement_signed',
+            'user_id' => User::factory()->create()->id, 'asset_id' => $this->newAsset()->id,
+            'top_up_amount' => 665.89, 'signed_at' => now(), 'signed_pdf_path' => 'accepted-original.pdf',
+        ]);
+        $agreement->cancel($admin->id, 'Superseded by corrected terms.');
+        $this->assertSame(0.0, $agreement->payableValue());
+        $this->assertEquals(665.89, $agreement->top_up_amount);
+        $this->assertSame('accepted-original.pdf', $agreement->signed_pdf_path);
+        $this->assertFalse($agreement->markSentToPayroll($admin->id));
+        $this->actingAs($admin)->post(route('user-agreements.send-to-payroll', $agreement))
+            ->assertRedirect(route('reports.procurement.user-agreement-ledger'))
+            ->assertSessionHas('error');
+        $this->assertNull($agreement->fresh()->sent_to_payroll_at);
+    }
+
     public function test_ledger_renders_with_type_filter(): void
     {
         $admin = $this->superuser();

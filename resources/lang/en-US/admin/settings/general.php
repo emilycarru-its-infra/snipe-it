@@ -83,7 +83,7 @@ return [
     'agreements_field_title' => 'Title',
     'agreements_field_body' => 'Body',
     'agreements_blank_help' => 'Leave blank to use the built-in default.',
-    'agreements_merge_vars' => 'Available merge variables: <code>{{faculty_name}}</code> <code>{{asset_tag}}</code> <code>{{serial}}</code> <code>{{model}}</code> <code>{{date}}</code> <code>{{pickup_date}}</code> <code>{{base_price}}</code> <code>{{full_price}}</code> <code>{{upgrade_amount}}</code> <code>{{buyout_cost}}</code> <code>{{payment_phrase}}</code> <code>{{monthly_12}}</code> <code>{{monthly_24}}</code>',
+    'agreements_merge_vars' => 'Available merge variables: <code>{{faculty_name}}</code> <code>{{asset_tag}}</code> <code>{{serial}}</code> <code>{{model}}</code> <code>{{date}}</code> <code>{{pickup_date}}</code> <code>{{base_price}}</code> <code>{{full_price}}</code> <code>{{upgrade_amount}}</code> <code>{{buyout_cost}}</code> <code>{{payment_phrase}}</code> <code>{{monthly_12}}</code> <code>{{monthly_24}}</code> <code>{{lease_years}}</code> <code>{{loan_months}}</code> <code>{{loan_installments}}</code> <code>{{return_term_months}}</code> <code>{{upgrade_payment_terms}}</code> <code>{{purchase_price_terms}}</code>',
     'agreements_default_heading' => 'Default acceptance text (fallback)',
     'agreements_default_intro' => 'Used only for ordinary asset checkouts that require a signature — outside the User Agreement program above. Leave the text blank to fall back to the built-in default.',
     'emails' => 'Emails',

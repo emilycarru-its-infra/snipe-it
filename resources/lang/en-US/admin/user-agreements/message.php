@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'price_pending' => 'Price pending',
+    'price_required' => 'Confirm the agreement price before sending it for acceptance.',
+    'acceptance_mismatch' => 'The acceptance request does not match this agreement recipient and device.',
     'pickup_requires_booking_in_body' => 'Include {{booking_url}} in the Laptop pickup scheduling email body in Settings > Emails.',
     'pickup_sent' => 'Pickup instructions emailed to the person on this agreement.',
     'pickup_already_sent' => 'Pickup instructions have already been sent or are being sent.',
@@ -22,6 +25,6 @@ return [
     'cancel_failed' => 'Could not record the cancellation. Check the agreement and retry.',
     'cancelled' => 'Agreement cancelled.',
     'sent_to_payroll' => 'Marked as sent to Payroll.',
-    'payroll_requires_signed' => 'Only signed agreements can be sent to Payroll.',
+    'payroll_requires_signed' => 'Only non-cancelled signed agreements can be sent to Payroll.',
     'signed_terms_locked' => 'This agreement is signed. Its amount, payment method, person and device cannot change — cancel it and issue a new one to sign.',
 ];
