@@ -195,7 +195,11 @@ class PickupRequester
             foreach ($pickup->assets()->with('lessor')->get() as $asset) {
                 // A device pulled back out of the pile since the request is
                 // left alone: only what is still waiting went on the truck.
-                if ($asset->decommission_date || ! Preferences::statusMatches('status.decommission_lane', $asset->status?->name)) {
+                // One already set to the returned status by hand went too;
+                // it still needs the pickup date, or the run never closes.
+                $waiting = Preferences::statusMatches('status.decommission_lane', $asset->status?->name);
+                $markedReturned = $returned && $asset->status_id === $returned->id;
+                if ($asset->decommission_date || (! $waiting && ! $markedReturned)) {
                     continue;
                 }
                 if ($returned) {
