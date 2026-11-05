@@ -252,7 +252,13 @@ class UserAgreementsController extends Controller
                 ->with('error', trans('admin/user-agreements/message.application_not_sendable'));
         }
 
-        $acceptance = $userAgreement->sendForSignature();
+        try {
+            $userAgreement->assertKnownPrice();
+            $acceptance = $userAgreement->sendForSignature();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->route('user-agreements.show', $userAgreement)
+                ->with('error', $e->getMessage());
+        }
 
         if (! $acceptance) {
             return redirect()->route('user-agreements.show', $userAgreement)

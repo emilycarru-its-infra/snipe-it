@@ -60,16 +60,15 @@ class UserAgreementSignatureRequestMail extends BaseMailable
      */
     public function attachments(): array
     {
-        if (! $this->agreement->pdf_path) {
-            return [];
-        }
-
-        if (! Storage::exists($this->agreement->pdf_path)) {
-            return [];
+        $this->agreement->refresh();
+        $this->agreement->assertKnownPrice();
+        $path = $this->agreement->storeUnsignedPdf();
+        if (! $path) {
+            throw new \RuntimeException('An unsigned agreement attachment could not be generated.');
         }
 
         return [
-            Attachment::fromStorage($this->agreement->pdf_path)
+            Attachment::fromStorage($path)
                 ->as('user-agreement-'.$this->agreement->id.'.pdf')
                 ->withMime('application/pdf'),
         ];

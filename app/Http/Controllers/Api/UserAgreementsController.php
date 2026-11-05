@@ -121,6 +121,14 @@ class UserAgreementsController extends Controller
         $agreement->lifecycle_stage = $request->input('lifecycle_stage', 'eligible');
         $agreement->created_by      = auth()->id();
 
+        if ($agreement->lifecycle_stage === 'agreement_sent') {
+            try {
+                $agreement->assertKnownPrice();
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
+            }
+        }
+
         if (! $agreement->save()) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $agreement->getErrors()));
         }
@@ -143,6 +151,14 @@ class UserAgreementsController extends Controller
         }
 
         $userAgreement->fill($input);
+
+        if ($userAgreement->lifecycle_stage === 'agreement_sent') {
+            try {
+                $userAgreement->assertKnownPrice();
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
+            }
+        }
 
         if (! $userAgreement->save()) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $userAgreement->getErrors()));
@@ -234,7 +250,12 @@ class UserAgreementsController extends Controller
             ), 422);
         }
 
-        $acceptance = $userAgreement->sendForSignature();
+        try {
+            $userAgreement->assertKnownPrice();
+            $acceptance = $userAgreement->sendForSignature();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
+        }
 
         if (! $acceptance) {
             return response()->json(Helper::formatStandardApiResponse(

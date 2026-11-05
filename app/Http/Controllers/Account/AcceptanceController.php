@@ -134,6 +134,16 @@ class AcceptanceController extends Controller
             return redirect()->route('account.accept')->with('error', trans('general.insufficient_permissions'));
         }
 
+        $agreement = UserAgreement::where('checkout_acceptance_id', $acceptance->id)->first();
+        if ($agreement) {
+            try {
+                $agreement->assertKnownPrice();
+                $agreement->documentBody();
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return redirect()->back()->with('error', $e->getMessage());
+            }
+        }
+
         // An agreement's text can be revised while the page is open. Only
         // accept the version the person was shown, or they sign terms they
         // never read.
