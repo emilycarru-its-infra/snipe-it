@@ -77,6 +77,10 @@ class CheckoutPaperworkTest extends TestCase
         $receipt = $this->receipt();
         $old = $receipt->checkoutAcceptance;
         $old->delete();
+        $receipt->deployed_at = \Illuminate\Support\Carbon::parse('2025-02-03');
+        $this->assertStringContainsString('Date of pickup: 2025-02-03', $receipt->documentBody());
+        $pdf = (new Parser)->parseContent($receipt->renderUnsignedPdfBytes())->getText();
+        $this->assertStringContainsString('Date of pickup: 2025-02-03', $pdf);
         $new = $receipt->sendForSignature('2025-02-03');
         $this->assertStringContainsString('Date of pickup: 2025-02-03', $new->eula_text_override);
         $this->assertNotEquals($old->id, $new->id);
@@ -95,6 +99,8 @@ class CheckoutPaperworkTest extends TestCase
         $this->assertFalse($receipt->fresh()->canBeSent());
         $this->assertNull($receipt->sendForSignature());
         $this->assertSame($old->id, $receipt->fresh()->checkout_acceptance_id);
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $receipt->documentBody();
     }
 
     public function test_generic_acceptance_is_not_evidence_of_program_terms(): void

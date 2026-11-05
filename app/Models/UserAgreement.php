@@ -526,7 +526,15 @@ class UserAgreement extends SnipeModel
     {
         if ($this->checkout_acceptance_id) {
             $acceptance = $this->checkoutAcceptance;
-            if (! $acceptance
+            if ((! $acceptance || $acceptance->trashed()) && ! $this->signed_at && ! $this->signed_pdf_path
+                && CheckoutAcceptance::onlyTrashed()->whereKey($this->checkout_acceptance_id)->pending()
+                    ->where('assigned_to_id', $this->user_id)->where('checkoutable_id', $this->asset_id)
+                    ->where('checkoutable_type', Asset::class)->exists()) {
+                // Revoked pending paper is a draft again. Its new request will
+                // capture these current terms; no completed evidence changes.
+                return $this->eulaBody();
+            }
+            if (! $acceptance || $acceptance->trashed()
                 || (int) $acceptance->assigned_to_id !== (int) $this->user_id
                 || (int) $acceptance->checkoutable_id !== (int) $this->asset_id
                 || $acceptance->checkoutable_type !== Asset::class) {
