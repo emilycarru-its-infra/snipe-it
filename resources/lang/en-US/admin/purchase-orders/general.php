@@ -292,6 +292,8 @@ return [
     'capital_view_requisition' => 'Edit in the PO Builder',
     'capital_envelope_row' => 'Envelope — :fy',
     'capital_envelope_gap' => 'Left in the envelope',
+    'capital_envelope_projected_row' => 'Projected envelope (assumption, not contracted)',
+    'capital_envelope_projected_hint' => ':devices devices expected back from leases not signed yet: refreshes on lease one term earlier, by the lease terms in settings. Not counted in the envelope above.',
     'capital_draft_confirm' => 'Create a draft requisition in the PO Builder with every :fy refresh line?',
     'capital_draft_created' => 'Draft created from the :fy capital request — refine the lines here, then submit for a REQM.',
     'lease_detail_terms' => 'Terms',
