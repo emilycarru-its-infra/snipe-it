@@ -4,19 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
-use App\Models\Requisition;
 use App\Models\CsiSchedule;
 use App\Models\PurchaseOrder;
+use App\Models\Requisition;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
-use App\Services\SupplierAccounts;
-use App\Services\StoreVendorOrderDispatch;
+use App\Models\User;
 use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
-use App\Services\StoreOrderQuote;
 use App\Services\StoreOrderPlacement;
+use App\Services\StoreOrderQuote;
+use App\Services\StoreVendorOrderDispatch;
+use App\Services\SupplierAccounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The webhook-facing side of a store order's lifecycle: when
@@ -58,8 +60,7 @@ class StoreOrdersController extends Controller
     }
 
     /**
-     * Place an order as the calling user — the storefront's submit without
-     * the browser. Same service as the form, so the order lands in the queue
+     * Place an order as the caller. Procurement staff may select a requester. Same service as the form, so the order lands in the queue
      * with its placeholder assets and the requester's email exactly as if
      * it had been clicked through.
      */
@@ -72,9 +73,19 @@ class StoreOrdersController extends Controller
             );
         }
 
-        $validated = $request->validate(StoreOrderPlacement::rules($request));
+        $selection = $request->validate([
+            'requester_id' => 'nullable|integer|exists:users,id,deleted_at,NULL,activated,1',
+        ]);
 
-        $result = $placement->place($request->user(), $validated);
+        $requester = $request->user();
+        if (isset($selection['requester_id']) && (int) $selection['requester_id'] !== (int) $requester->id) {
+            $this->authorize('create', Requisition::class);
+            $requester = User::findOrFail($selection['requester_id']);
+            abort_unless($requester->canUseStore(), 403);
+        }
+
+        $validated = $request->validate(StoreOrderPlacement::rules($request, $requester));
+        $result = $placement->place($requester, $validated);
 
         if ($result['error'] !== null) {
             return response()->json(
@@ -82,6 +93,12 @@ class StoreOrdersController extends Controller
                 422
             );
         }
+
+        Log::info('Store order placed through API', [
+            'order_id' => $result['order']->id,
+            'actor_id' => $request->user()->id,
+            'requester_id' => $requester->id,
+        ]);
 
         return response()->json(Helper::formatStandardApiResponse(
             'success',
@@ -107,6 +124,7 @@ class StoreOrdersController extends Controller
             'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
             'gl_code' => 'nullable|string|max:64',
+            'cc_requester' => 'nullable|boolean',
         ]);
 
         if ($order->status !== 'pending') {
@@ -143,6 +161,7 @@ class StoreOrdersController extends Controller
             'funding_account' => 'nullable|string|in:'.implode(',', StoreOrder::fundingAccounts()),
             'lease_schedule' => 'nullable|string|max:32',
             'gl_code' => 'nullable|string|max:64',
+            'cc_requester' => 'nullable|boolean',
         ]);
 
         $account = $validated['funding_account'] ?? null;
@@ -172,7 +191,7 @@ class StoreOrdersController extends Controller
         ] + (filled($validated['gl_code'] ?? null) ? ['gl_code' => trim($validated['gl_code'])] : []));
 
         // An approved order was only waiting on this; it goes now.
-        $vendor = app(StoreOrderDecision::class)->sendIfReady($order, $request->user());
+        $vendor = app(StoreOrderDecision::class)->sendIfReady($order, $request->user(), $request->boolean('cc_requester'));
         $outcome = StoreOrderDecision::outcome('approved', $vendor, 'funding_saved_');
 
         return response()->json(Helper::formatStandardApiResponse(
@@ -254,6 +273,7 @@ class StoreOrdersController extends Controller
             'orders' => 'required|array|min:1',
             'orders.*' => 'integer|exists:store_orders,id',
             'test' => 'nullable|boolean',
+            'cc_requester' => 'nullable|boolean',
         ]);
 
         $test = (bool) ($validated['test'] ?? false);
@@ -264,7 +284,7 @@ class StoreOrdersController extends Controller
             ->orderBy('id')
             ->get();
 
-        $result = app(StoreVendorOrderDispatch::class)->send($orders, $request->user(), $test);
+        $result = app(StoreVendorOrderDispatch::class)->send($orders, $request->user(), $test, $request->boolean('cc_requester'));
 
         if (! $result['sent']) {
             return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
@@ -273,6 +293,7 @@ class StoreOrdersController extends Controller
         return response()->json(Helper::formatStandardApiResponse('success', [
             'test' => $test,
             'recipients' => $result['recipients'],
+            'cc' => $result['cc'],
             'count' => $orders->count(),
             'orders' => $orders->map(fn (StoreOrder $order) => $order->reference())->all(),
         ], $test

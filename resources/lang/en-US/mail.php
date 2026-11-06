@@ -239,6 +239,15 @@ return [
     'store_order_ordered_subject' => 'Your order is with the vendor',
     'store_order_ordered_heading' => 'Order sent to the vendor',
     'store_order_ordered_intro' => 'Your order request has gone to the vendor, who will confirm pricing and availability before it is placed. We will update you when it ships.',
+    'store_order_quoted_subject' => 'The vendor quote is ready for review',
+    'store_order_quoted_heading' => 'Quote received',
+    'store_order_quoted_intro' => 'The vendor quote has been recorded. Nothing has been purchased. Please review the quote; for department-funded equipment, provide the approved requisition or purchase order so procurement can proceed.',
+    'store_order_confirmed_subject' => 'Your purchase has been confirmed',
+    'store_order_confirmed_heading' => 'Purchase confirmed',
+    'store_order_confirmed_intro' => 'Procurement has confirmed the purchase. We will update you when it ships.',
+    'store_order_quote_number' => 'Quote number',
+    'store_order_quote_total' => 'Quoted total',
+    'store_order_quote_expires' => 'Quote expires',
     'store_order_shipped_subject' => 'Your order has shipped',
     'store_order_shipped_heading' => 'On its way',
     'store_order_shipped_intro' => 'The vendor has shipped your order.',
@@ -265,11 +274,11 @@ return [
     'store_order_ready_intro' => 'Your new laptop is set up and ready. Come pick it up at the ITS service desk (B1116) — bring your old laptop if you are returning it.',
 
     // Vendor order request (to the reseller's reps)
-    'store_vendor_order_subject' => 'Emily Carr University — order request :reference',
+    'store_vendor_order_subject' => 'Quote request :reference',
     'store_vendor_order_subject_unreferenced' => '(purchase order to follow)',
     'store_vendor_order_test_prefix' => '[TEST]',
-    'store_vendor_order_heading' => 'Order request',
-    'store_vendor_order_intro' => 'Hello :supplier team, please place the following order for Emily Carr University of Art + Design:',
+    'store_vendor_order_heading' => 'Quote request',
+    'store_vendor_order_intro' => 'Hello :supplier team, please provide a quote for the following items. This is a quote request only; do not place an order.',
     'store_vendor_col_ref' => 'Ref',
     'store_vendor_col_sku' => 'CDW #',
     'store_vendor_col_mfr' => 'MFR #',
@@ -285,7 +294,7 @@ return [
     // honour — the note below asks them to replace it with a real one.
     'store_vendor_order_estimate_column' => 'Our estimate',
     'store_vendor_order_estimate_total' => 'Estimated total',
-    'store_vendor_order_reference' => 'Please quote the purchase order above on the order confirmation and invoice.',
+    'store_vendor_order_reference' => 'Please reply with pricing, availability, delivery estimates and quote expiry. Where no approved requisition or purchase order is supplied, it will follow after the quote is reviewed. Wait for explicit purchase authorization before placing an order.',
     'store_vendor_order_footer' => 'Reply to all on this email and our team will follow up. Thank you.',
 
     // Columns of the attached part list. These are the headings the

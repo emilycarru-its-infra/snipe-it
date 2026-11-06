@@ -29,7 +29,7 @@ class StoreOrderPlacement
      *
      * @return array<string, mixed>
      */
-    public static function rules(Request $request): array
+    public static function rules(Request $request, ?User $requester = null): array
     {
         return [
             'items' => 'required|array|min:1',
@@ -52,14 +52,14 @@ class StoreOrderPlacement
                 'integer',
                 'exists:locations,id',
                 Rule::requiredIf(fn () => $request->input('order_usage') === 'shared'
-                    && $request->user()?->canOrderShared()),
+                    && ($requester ?? $request->user())?->canOrderShared()),
             ],
         ];
     }
 
     /**
      * @param  array<string, mixed>  $validated
-     * @return array{order: ?StoreOrder, error: ?string}  error is a key under admin/store/general
+     * @return array{order: ?StoreOrder, error: ?string} error is a key under admin/store/general
      */
     public function place(User $user, array $validated): array
     {
