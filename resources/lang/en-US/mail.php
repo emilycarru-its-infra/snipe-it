@@ -265,11 +265,11 @@ return [
     'store_order_ready_intro' => 'Your new laptop is set up and ready. Come pick it up at the ITS service desk (B1116) — bring your old laptop if you are returning it.',
 
     // Vendor order request (to the reseller's reps)
-    'store_vendor_order_subject' => 'Emily Carr University — order request :reference',
+    'store_vendor_order_subject' => 'Quote request :reference',
     'store_vendor_order_subject_unreferenced' => '(purchase order to follow)',
     'store_vendor_order_test_prefix' => '[TEST]',
-    'store_vendor_order_heading' => 'Order request',
-    'store_vendor_order_intro' => 'Hello :supplier team, please place the following order for Emily Carr University of Art + Design:',
+    'store_vendor_order_heading' => 'Quote request',
+    'store_vendor_order_intro' => 'Hello :supplier team, please provide a quote for the following items. This is a quote request only; do not place an order.',
     'store_vendor_col_ref' => 'Ref',
     'store_vendor_col_sku' => 'CDW #',
     'store_vendor_col_mfr' => 'MFR #',
@@ -285,7 +285,7 @@ return [
     // honour — the note below asks them to replace it with a real one.
     'store_vendor_order_estimate_column' => 'Our estimate',
     'store_vendor_order_estimate_total' => 'Estimated total',
-    'store_vendor_order_reference' => 'Please quote the purchase order above on the order confirmation and invoice.',
+    'store_vendor_order_reference' => 'Please reply with pricing, availability, delivery estimates and quote expiry. Where no approved requisition or purchase order is supplied, it will follow after the quote is reviewed. Wait for explicit purchase authorization before placing an order.',
     'store_vendor_order_footer' => 'Reply to all on this email and our team will follow up. Thank you.',
 
     // Columns of the attached part list. These are the headings the

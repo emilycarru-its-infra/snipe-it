@@ -27,9 +27,9 @@ class StoreVendorOrderDispatch
 {
     /**
      * @param  Collection<int, StoreOrder>  $orders
-     * @return array{sent: bool, error: ?string, recipients: array<int, string>, orders: Collection<int, StoreOrder>}
+     * @return array{sent: bool, error: ?string, recipients: array<int, string>, cc: array<int, string>, orders: Collection<int, StoreOrder>}
      */
-    public function send(Collection $orders, User $actor, bool $test = false): array
+    public function send(Collection $orders, User $actor, bool $test = false, bool $ccRequester = false): array
     {
         if ($orders->isEmpty()) {
             return $this->failure(trans('admin/store/general.vendor_send_not_approved'));
@@ -50,6 +50,12 @@ class StoreVendorOrderDispatch
         } else {
             $to = EmailTemplate::recipientsFor('store.vendor_order', $orders->first()->supplier()?->order_emails);
             $cc = EmailTemplate::ccFor('store.vendor_order', Preferences::csv('contacts.device_team'));
+
+            if ($ccRequester) {
+                $cc = array_merge($cc, $orders->map(fn (StoreOrder $order) => $order->user?->email)->filter()->all());
+            }
+
+            $cc = array_values(array_unique(array_filter(array_map('strtolower', $cc))));
         }
 
         $to = array_values(array_filter($to));
@@ -74,7 +80,7 @@ class StoreVendorOrderDispatch
 
         // A test changes nothing — that is the whole point of it.
         if ($test) {
-            return ['sent' => true, 'error' => null, 'recipients' => $to, 'orders' => $orders];
+            return ['sent' => true, 'error' => null, 'recipients' => $to, 'cc' => $cc, 'orders' => $orders];
         }
 
         foreach ($orders as $order) {
@@ -82,12 +88,12 @@ class StoreVendorOrderDispatch
             StoreOrderNotifier::requester($order, 'ordered');
         }
 
-        return ['sent' => true, 'error' => null, 'recipients' => $to, 'orders' => $orders];
+        return ['sent' => true, 'error' => null, 'recipients' => $to, 'cc' => $cc, 'orders' => $orders];
     }
 
-    /** @return array{sent: bool, error: string, recipients: array<int, string>, orders: Collection<int, StoreOrder>} */
+    /** @return array{sent: bool, error: string, recipients: array<int, string>, cc: array<int, string>, orders: Collection<int, StoreOrder>} */
     private function failure(string $error): array
     {
-        return ['sent' => false, 'error' => $error, 'recipients' => [], 'orders' => collect()];
+        return ['sent' => false, 'error' => $error, 'recipients' => [], 'cc' => [], 'orders' => collect()];
     }
 }

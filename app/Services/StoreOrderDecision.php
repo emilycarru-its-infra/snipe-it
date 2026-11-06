@@ -6,7 +6,6 @@ use App\Models\CsiSchedule;
 use App\Models\Requisition;
 use App\Models\StoreOrder;
 use App\Models\User;
-use App\Services\SupplierAccounts;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -33,8 +32,8 @@ class StoreOrderDecision
      * decider is allowed and that the order is still pending.
      *
      * @param  array<string, mixed>  $data
-     * @return array{sent: bool, error: ?string, recipients: array<int, string>}|null
-     *         the vendor send an approval triggered, or null when none was attempted
+     * @return array{sent: bool, error: ?string, recipients: array<int, string>, cc: array<int, string>}|null
+     *                                                                                                        the vendor send an approval triggered, or null when none was attempted
      */
     public function decide(StoreOrder $order, array $data): ?array
     {
@@ -66,7 +65,7 @@ class StoreOrderDecision
             app(StoreOrderAssetProvisioner::class)->release($order);
         }
 
-        $vendor = $data['decision'] === 'approved' ? $this->sendIfReady($order) : null;
+        $vendor = $data['decision'] === 'approved' ? $this->sendIfReady($order, null, (bool) ($data['cc_requester'] ?? false)) : null;
 
         // A send already tells the requester their order is with the vendor;
         // an "approved" email a second earlier would only be noise.
@@ -82,9 +81,9 @@ class StoreOrderDecision
      * it has an account (and for a lease, a schedule) and has not gone yet.
      * Called on approval and again whenever the account is set afterwards.
      *
-     * @return array{sent: bool, error: ?string, recipients: array<int, string>}|null
+     * @return array{sent: bool, error: ?string, recipients: array<int, string>, cc: array<int, string>}|null
      */
-    public function sendIfReady(StoreOrder $order, ?User $actor = null): ?array
+    public function sendIfReady(StoreOrder $order, ?User $actor = null, bool $ccRequester = false): ?array
     {
         $actor ??= auth()->user();
 
@@ -97,7 +96,7 @@ class StoreOrderDecision
 
         // Row-locked so two clicks, or an approval racing an account save,
         // cannot both see "not sent yet" and email the vendor twice.
-        return DB::transaction(function () use ($order, $actor) {
+        return DB::transaction(function () use ($order, $actor, $ccRequester) {
             $locked = StoreOrder::whereKey($order->getKey())->lockForUpdate()->first();
 
             if (! $locked || $locked->status !== 'approved' || $locked->vendor_sent_at !== null || ! $locked->readyForVendor()) {
@@ -105,10 +104,10 @@ class StoreOrderDecision
             }
 
             $locked->load('items.catalogItem.supplier', 'user');
-            $result = app(StoreVendorOrderDispatch::class)->send(collect([$locked]), $actor);
+            $result = app(StoreVendorOrderDispatch::class)->send(collect([$locked]), $actor, false, $ccRequester);
             $order->refresh();
 
-            return ['sent' => $result['sent'], 'error' => $result['error'], 'recipients' => $result['recipients']];
+            return ['sent' => $result['sent'], 'error' => $result['error'], 'recipients' => $result['recipients'], 'cc' => $result['cc']];
         });
     }
 
@@ -118,7 +117,7 @@ class StoreOrderDecision
      * The level is "success" or "warning" so both doors can flash or
      * report it the same way.
      *
-     * @param  array{sent: bool, error: ?string, recipients: array<int, string>}|null  $vendor
+     * @param  array{sent: bool, error: ?string, recipients: array<int, string>, cc: array<int, string>}|null  $vendor
      * @return array{level: string, message: string}
      */
     public static function outcome(string $decision, ?array $vendor, string $prefix = 'queue_decided_'): array

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Store;
 
+use App\Mail\StoreOrderStatusMail;
 use App\Mail\StoreVendorOrderMail;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
@@ -11,6 +12,7 @@ use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\Supplier;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Passport\Passport;
 use Tests\TestCase;
@@ -210,7 +212,7 @@ class StoreOrdersApiTest extends TestCase
     public function test_an_approval_on_a_lease_account_finds_its_schedule()
     {
         Mail::fake();
-        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+        Carbon::setTestNow('2026-08-24');
 
         $order = $this->orderFor(User::factory()->create());
 
@@ -335,7 +337,7 @@ class StoreOrdersApiTest extends TestCase
 
     public function test_the_schedule_defaults_from_the_account()
     {
-        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+        Carbon::setTestNow('2026-08-24');
 
         $order = $this->orderFor(User::factory()->create());
         $order->update(['status' => 'approved']);
@@ -354,7 +356,7 @@ class StoreOrdersApiTest extends TestCase
 
     public function test_an_explicit_schedule_still_wins()
     {
-        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+        Carbon::setTestNow('2026-08-24');
 
         $order = $this->orderFor(User::factory()->create());
         $order->update(['status' => 'approved']);
@@ -379,7 +381,7 @@ class StoreOrdersApiTest extends TestCase
 
         // With the cadence in place a CSI account always derives one, so
         // the refusal is reachable only when the derivation yields nothing.
-        \Illuminate\Support\Carbon::setTestNow('2026-08-24');
+        Carbon::setTestNow('2026-08-24');
 
         $this->postJson(route('api.store-orders.funding', $order->id), [
             'funding_account' => 'lease_curriculum',
@@ -556,5 +558,122 @@ class StoreOrdersApiTest extends TestCase
         ])->assertStatus(422);
 
         $this->assertSame(0, StoreOrder::count());
+    }
+
+    public function test_procurement_can_place_a_request_for_an_existing_requester()
+    {
+        Mail::fake();
+        $requester = User::factory()->create();
+        $item = CatalogItem::create([
+            'name' => 'Wireless keyboard and mouse',
+            'product_type' => 'standard',
+            'price_type' => 'estimate',
+            'category' => 'Accessories',
+            'estimated_cost' => 60,
+            'show_in_store' => true,
+        ]);
+        $actor = $this->procurement();
+        Passport::actingAs($actor);
+
+        $this->postJson(route('api.store-orders.store'), [
+            'requester_id' => $requester->id,
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 2]],
+        ])->assertOk()->assertJsonPath('payload.requester.id', $requester->id);
+
+        $order = StoreOrder::sole();
+        $this->assertSame($requester->id, (int) $order->user_id);
+        $this->assertNull($order->purchase_order_id);
+        $this->assertNull($order->department_po_number);
+        $this->assertNull($order->confirmed_at);
+        Mail::assertSent(StoreOrderStatusMail::class,
+            fn ($mail) => $mail->event === 'requested' && $mail->hasTo($requester->email));
+    }
+
+    public function test_an_ordinary_user_cannot_place_an_order_for_someone_else()
+    {
+        Mail::fake();
+        $item = CatalogItem::create([
+            'name' => 'Wireless keyboard and mouse',
+            'product_type' => 'standard',
+            'price_type' => 'estimate',
+            'category' => 'Accessories',
+            'estimated_cost' => 60,
+            'show_in_store' => true,
+        ]);
+        Passport::actingAs(User::factory()->create());
+        $this->postJson(route('api.store-orders.store'), [
+            'requester_id' => User::factory()->create()->id,
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertForbidden();
+        $this->assertSame(0, StoreOrder::count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_an_inactive_requester_is_rejected()
+    {
+        Mail::fake();
+        $item = CatalogItem::create([
+            'name' => 'Wireless keyboard and mouse',
+            'product_type' => 'standard',
+            'price_type' => 'estimate',
+            'category' => 'Accessories',
+            'estimated_cost' => 60,
+            'show_in_store' => true,
+        ]);
+        Passport::actingAs($this->procurement());
+        $this->postJson(route('api.store-orders.store'), [
+            'requester_id' => User::factory()->create(['activated' => false])->id,
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertOk()->assertJsonPath('status', 'error')->assertJsonStructure(['messages' => ['requester_id']]);
+        $this->assertSame(0, StoreOrder::count());
+    }
+
+    public function test_approval_can_copy_the_requester_on_a_quote_request_without_a_po()
+    {
+        Mail::fake();
+        $requester = User::factory()->create();
+        $order = $this->orderFor($requester);
+        Passport::actingAs($this->procurement());
+        $this->postJson(route('api.store-orders.decide', $order->id), [
+            'decision' => 'approved',
+            'funding_account' => 'purchase_admin',
+            'cc_requester' => true,
+        ])->assertOk()
+            ->assertJsonPath('payload.vendor_send.sent', true)
+            ->assertJsonPath('payload.vendor_send.cc', fn ($cc) => in_array($requester->email, $cc));
+
+        Mail::assertSent(StoreVendorOrderMail::class, fn ($mail) => $mail->hasCc($requester->email));
+        $this->assertNull($order->fresh()->confirmed_at);
+        $this->assertNull($order->fresh()->purchase_order_id);
+        Mail::assertSent(StoreOrderStatusMail::class,
+            fn ($mail) => $mail->event === 'ordered' && $mail->hasTo($requester->email));
+    }
+
+    public function test_explicit_requester_copy_is_kept_out_of_test_sends()
+    {
+        Mail::fake();
+        $requester = User::factory()->create();
+        $order = $this->orderFor($requester);
+        $order->update(['status' => 'approved']);
+        $actor = $this->procurement();
+        Passport::actingAs($actor);
+        $this->postJson(route('api.store-orders.send-vendor'), [
+            'orders' => [$order->id],
+            'test' => true,
+            'cc_requester' => true,
+        ])->assertOk()->assertJsonPath('payload.cc', []);
+        Mail::assertSent(StoreVendorOrderMail::class,
+            fn ($mail) => $mail->hasTo($actor->email) && ! $mail->hasCc($requester->email));
+        $this->assertNull($order->fresh()->vendor_sent_at);
+    }
+
+    public function test_the_vendor_message_requests_a_quote_without_authorizing_a_purchase()
+    {
+        $mail = new StoreVendorOrderMail(collect([$this->orderFor(User::factory()->create())]));
+        $this->assertStringContainsString('Quote request', $mail->envelope()->subject);
+        $html = $mail->render();
+        $this->assertStringContainsString('do not place an order', $html);
+        $this->assertStringContainsString('Wait for explicit purchase authorization', $html);
+        $this->assertStringNotContainsString('please place the following order', $html);
     }
 }
