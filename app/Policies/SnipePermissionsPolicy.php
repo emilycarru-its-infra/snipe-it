@@ -27,7 +27,7 @@ abstract class SnipePermissionsPolicy
     /**
      * This should return the key of the model in the users json permission string.
      *
-     * @return bool
+     * @return string
      */
 
     //

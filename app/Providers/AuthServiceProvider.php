@@ -47,6 +47,7 @@ use App\Policies\MaintenancePolicy;
 use App\Policies\ManufacturerPolicy;
 use App\Policies\OrderPolicy;
 use App\Policies\PredefinedKitPolicy;
+use App\Policies\ProductIdentityPolicy;
 use App\Policies\CatalogItemPolicy;
 use App\Policies\PurchaseOrderPolicy;
 use App\Policies\RequisitionPolicy;
@@ -85,6 +86,7 @@ class AuthServiceProvider extends ServiceProvider
         Depreciation::class => DepreciationPolicy::class,
         License::class => LicensePolicy::class,
         \App\Models\LicenseModel::class => LicenseModelPolicy::class,
+        \App\Models\ProductIdentity::class => ProductIdentityPolicy::class,
         Location::class => LocationPolicy::class,
         Maintenance::class => MaintenancePolicy::class,
         Order::class => OrderPolicy::class,
