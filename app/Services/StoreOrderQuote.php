@@ -46,7 +46,13 @@ class StoreOrderQuote
             return ['recorded' => false, 'error' => null];
         }
 
+        $firstQuote = $order->quote_received_at === null;
+        $firstConfirmation = $confirm && $order->confirmed_at === null;
         $order->update($updates);
+
+        if ($firstConfirmation || $firstQuote) {
+            StoreOrderNotifier::requester($order->load('items', 'user'), $firstConfirmation ? 'confirmed' : 'quoted');
+        }
 
         return ['recorded' => true, 'error' => null];
     }

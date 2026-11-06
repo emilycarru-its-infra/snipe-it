@@ -5,6 +5,18 @@
 
 {{ trans('mail.store_order_'.$event.'_intro') }}
 
+@if (in_array($event, ['quoted', 'confirmed'], true))
+@if ($order->quote_number)
+**{{ trans('mail.store_order_quote_number') }}:** {{ $order->quote_number }}
+@endif
+@if ($order->quote_total !== null)
+**{{ trans('mail.store_order_quote_total') }}:** {{ \App\Helpers\Helper::formatCurrencyOutput($order->quote_total) }}
+@endif
+@if ($order->quote_expires_at)
+**{{ trans('mail.store_order_quote_expires') }}:** {{ $order->quote_expires_at->format('Y-m-d') }}
+@endif
+@endif
+
 {{-- Any decision note, not only a refusal. An approval note is written to
      be read, and this printed it nowhere for approvals — so the note sat on
      the order while the requester got a bare "approved". --}}

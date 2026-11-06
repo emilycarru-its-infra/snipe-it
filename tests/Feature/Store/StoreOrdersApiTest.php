@@ -676,4 +676,27 @@ class StoreOrdersApiTest extends TestCase
         $this->assertStringContainsString('Wait for explicit purchase authorization', $html);
         $this->assertStringNotContainsString('please place the following order', $html);
     }
+
+    public function test_recording_and_confirming_a_quote_notify_the_requester_once_per_transition()
+    {
+        Mail::fake();
+        $requester = User::factory()->create();
+        $order = $this->orderFor($requester);
+        $order->update(['status' => 'ordered', 'vendor_sent_at' => now()]);
+        Passport::actingAs($this->procurement());
+        $quote = ['quote_number' => 'Q-202', 'quote_total' => 250, 'quote_expires_at' => '2027-02-01'];
+
+        $this->postJson(route('api.store-orders.quote', $order->id), $quote)->assertOk();
+        $this->postJson(route('api.store-orders.quote', $order->id), $quote)->assertOk();
+        Mail::assertSent(StoreOrderStatusMail::class, 1);
+        Mail::assertSent(StoreOrderStatusMail::class,
+            fn ($mail) => $mail->event === 'quoted' && $mail->hasTo($requester->email));
+        $this->assertNull($order->fresh()->confirmed_at);
+
+        $this->postJson(route('api.store-orders.quote', $order->id), ['confirm' => true])->assertOk();
+        $this->postJson(route('api.store-orders.quote', $order->id), ['confirm' => true])->assertOk();
+        Mail::assertSent(StoreOrderStatusMail::class, 2);
+        Mail::assertSent(StoreOrderStatusMail::class,
+            fn ($mail) => $mail->event === 'confirmed' && $mail->hasTo($requester->email));
+    }
 }

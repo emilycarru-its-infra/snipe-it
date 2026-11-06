@@ -437,6 +437,22 @@ class EmailRegistry
                 'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('ordered'), 'ordered'),
             ],
             [
+                'key' => 'store.quoted',
+                'category' => 'store',
+                'label' => 'Store quote received',
+                'description' => 'Sent to the requester when the vendor quote is first recorded, before purchase confirmation.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order and vendor quote'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('ordered'), 'quoted'),
+            ],
+            [
+                'key' => 'store.confirmed',
+                'category' => 'store',
+                'label' => 'Store purchase confirmed',
+                'description' => 'Sent to the requester when procurement first confirms the purchase.',
+                'merge_vars' => ['target' => 'Requester', 'order' => 'The order and vendor quote'],
+                'factory' => fn (EmailSampleData $s) => new StoreOrderStatusMail($s->storeOrder('ordered'), 'confirmed'),
+            ],
+            [
                 'key' => 'store.shipped',
                 'category' => 'store',
                 'label' => 'Store order shipped',
