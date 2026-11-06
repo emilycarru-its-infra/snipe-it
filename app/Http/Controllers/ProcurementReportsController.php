@@ -1748,6 +1748,7 @@ class ProcurementReportsController extends Controller
                         'cost' => $qty * $unit,
                         'preference' => '—',
                         'waves' => [],
+                        'wave_counts' => [],
                         'requisition_id' => $req->id,
                         'reqm' => $req->requisition_number ? 'REQM '.$req->requisition_number : $req->title,
                         'po' => $req->purchaseOrder?->po_number,
@@ -1843,6 +1844,10 @@ class ProcurementReportsController extends Controller
                         'cost' => 0.0,
                         'preference' => $preference ?: '—',
                         'waves' => [],
+                        // How many of the line's devices each wave carries:
+                        // a line aggregates by contract, model and area, so
+                        // one wave member must not label the whole line.
+                        'wave_counts' => [],
                         'requisition_id' => null,
                         'reqm' => null,
                         'po' => null,
@@ -1864,6 +1869,7 @@ class ProcurementReportsController extends Controller
 
                 if ($waveItem?->wave) {
                     $refresh[$key]['waves'][$waveItem->wave->id] = $waveItem->wave->name;
+                    $refresh[$key]['wave_counts'][$waveItem->wave->id] = ($refresh[$key]['wave_counts'][$waveItem->wave->id] ?? 0) + 1;
                 }
             }
         }
@@ -1880,6 +1886,14 @@ class ProcurementReportsController extends Controller
             }
             unset($row);
         }
+
+        foreach ($refresh as &$row) {
+            $row['wave_shares'] = [];
+            foreach (array_keys($row['waves']) as $waveId) {
+                $row['wave_shares'][$waveId] = $this->capitalWaveShare($row, $waveId);
+            }
+        }
+        unset($row);
 
         $refresh = $requisitionBacked
             ? collect($refresh)->values()
@@ -1925,7 +1939,10 @@ class ProcurementReportsController extends Controller
                 $row['contract_id'], $row['area'], $row['preference'], $row['type'],
                 $row['qty'], $row['model'],
                 $this->money($row['cost']), $this->money($row['unit']),
-                implode(', ', $row['waves']), (string) $row['reqm'], (string) $row['po'],
+                implode(', ', array_map(
+                    fn ($waveId, $waveName) => trim($this->capitalWaveShare($row, $waveId).' '.$waveName),
+                    array_keys($row['waves']), $row['waves'],
+                )), (string) $row['reqm'], (string) $row['po'],
             ]];
         }
         foreach ($newAskLines as $line) {
@@ -1979,6 +1996,24 @@ class ProcurementReportsController extends Controller
                 ],
             ],
         ];
+    }
+
+    /**
+     * The "n of qty on" prefix for a wave on an aggregated capital line, or
+     * '' when the wave carries every device on it. Only wave members are
+     * pinned to the wave's plan, so a line that is partly on a wave says
+     * how much of it is.
+     */
+    private function capitalWaveShare(array $row, int|string $waveId): string
+    {
+        $count = (int) ($row['wave_counts'][$waveId] ?? 0);
+        $qty = (int) $row['qty'];
+
+        if ($count === 0 || $count >= $qty) {
+            return '';
+        }
+
+        return trans('admin/purchase-orders/general.capital_wave_share', ['count' => $count, 'qty' => $qty]);
     }
 
     /** Add one manually entered New Ask line to the year's capital request. */
