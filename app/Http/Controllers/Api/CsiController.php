@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CsiAsset;
 use App\Models\CsiInprocessAsset;
 use App\Models\CsiInvoice;
+use App\Models\CsiInvoiceAsset;
 use App\Models\CsiLease;
 use App\Models\CsiSchedule;
 use App\Models\Order;
@@ -27,6 +28,7 @@ class CsiController extends Controller
         'assets' => [CsiAsset::class, ['serial', 'schedule_name']],
         'inprocess' => [CsiInprocessAsset::class, ['serial']],
         'invoices' => [CsiInvoice::class, ['csi_invoice_number']],
+        'invoice_assets' => [CsiInvoiceAsset::class, ['csi_invoice_number', 'csi_asset_id', 'serial']],
     ];
 
     public function snapshot(Request $request): array
@@ -36,7 +38,7 @@ class CsiController extends Controller
         $this->authorize('create', Order::class);
 
         $data = $request->validate([
-            'entity' => 'required|string|in:leases,schedules,assets,inprocess,invoices',
+            'entity' => 'required|string|in:'.implode(',', array_keys(self::ENTITIES)),
             'items' => 'present|array',
             'items.*' => 'array',
         ]);
@@ -66,9 +68,37 @@ class CsiController extends Controller
             $upserted++;
         }
 
+        // Either side of the hand-off can arrive first in a sync — schedules
+        // post before in-process — so check after both.
+        $purged = in_array($data['entity'], ['schedules', 'inprocess'], true)
+            ? $this->purgeActivatedInprocess()
+            : 0;
+
         return Helper::formatStandardApiResponse('success', [
             'entity' => $data['entity'],
             'upserted' => $upserted,
+            'purged_inprocess' => $purged,
         ], 'CSI '.$data['entity'].' snapshot ingested ('.$upserted.' rows).');
+    }
+
+    /**
+     * Drop in-process rows for schedules that have gone active. CSI publishes
+     * a schedule only once it commences, and by then its equipment is on the
+     * accepted feed, so an in-process row left behind is stale: it stops
+     * being returned but would otherwise sit in the mirror indefinitely.
+     * Reconciliation already suppresses accepted serials, so this is
+     * housekeeping rather than a correction to any count.
+     */
+    private function purgeActivatedInprocess(): int
+    {
+        $active = CsiSchedule::query()
+            ->where(fn ($q) => $q->whereNull('term_start_date')->orWhere('term_start_date', '<=', now()->toDateString()))
+            ->pluck('schedule_name');
+
+        if ($active->isEmpty()) {
+            return 0;
+        }
+
+        return CsiInprocessAsset::whereIn('schedule_name', $active)->delete();
     }
 }
