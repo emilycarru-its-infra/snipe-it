@@ -11,7 +11,7 @@ class AgreementObservationsTransformer
         'id', 'agreement_type', 'lifecycle_stage', 'user_id', 'asset_id', 'stated_intent', 'intent_reconciled_at',
         'base_program_price', 'device_cost', 'top_up_amount', 'buyout_cost', 'payment_method',
         'installment_count', 'installment_amount', 'balance_paid', 'balance_remaining',
-        'terms_accepted_at', 'signed_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
+        'terms_accepted_at', 'signed_at', 'pickup_instructions_sent_at', 'pickup_instructions_sending_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
         'cancelled_at', 'created_at', 'updated_at',
     ];
 

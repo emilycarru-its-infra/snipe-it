@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Asset;
+use App\Models\AssetBuyout;
 use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
@@ -163,7 +164,7 @@ class WorkflowObservationsTest extends TestCase
         $this->assertEqualsCanonicalizing(['id', 'agreement_type', 'lifecycle_stage', 'user_id', 'asset_id', 'stated_intent', 'intent_reconciled_at', 'is_application',
             'base_program_price', 'device_cost', 'top_up_amount', 'buyout_cost', 'payment_method',
             'installment_count', 'installment_amount', 'balance_paid', 'balance_remaining',
-            'terms_accepted_at', 'signed_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
+            'terms_accepted_at', 'signed_at', 'pickup_instructions_sent_at', 'pickup_instructions_sending_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
             'cancelled_at', 'created_at', 'updated_at', 'pdf_reference_present', 'signed_pdf_reference_present'], array_keys($row));
         $this->assertSame((string) $agreement->id, $row['id']);
         $this->assertSame((string) $person->id, $row['user_id']);
@@ -239,4 +240,52 @@ class WorkflowObservationsTest extends TestCase
         }
         $this->postJson('/api/v1/workflow-observations/'.$profile, [])->assertMethodNotAllowed();
     }
+    public function test_buyout_observation_keeps_only_the_agreement_id_on_live_and_deleted_rows(): void
+    {
+        Mail::fake();
+        $person = User::factory()->create(['email' => 'excluded@example.test']);
+        $asset = Asset::factory()->create();
+        $agreement = UserAgreement::create([
+            'agreement_type' => 'purchase', 'lifecycle_stage' => 'eligible',
+            'user_id' => $person->id, 'asset_id' => $asset->id,
+            'pdf_path' => 'private/not-exported.pdf',
+        ]);
+        $live = AssetBuyout::create(['asset_id' => $asset->id, 'buyer_id' => $person->id,
+            'user_agreement_id' => $agreement->id, 'status' => 'requested']);
+        $deleted = AssetBuyout::create(['asset_id' => $asset->id, 'buyer_id' => $person->id,
+            'user_agreement_id' => $agreement->id, 'status' => 'requested']);
+        $deleted->delete();
+        $before = $live->fresh()->getRawOriginal();
+        $reader = User::factory()->create(['permissions' => '{"deployments.view":"1"}']);
+        $response = $this->actingAsForApi($reader)->getJson('/api/v1/workflow-observations/asset-buyouts')->assertOk();
+        $response->assertJsonPath('total', 2)
+            ->assertJsonPath('rows.0.user_agreement_id', (string) $agreement->id)
+            ->assertJsonPath('rows.1.user_agreement_id', (string) $agreement->id);
+        $this->assertNotNull($response->json('rows.1.deleted_at'));
+        $this->assertArrayNotHasKey('agreement', $response->json('rows.0'));
+        $this->assertStringNotContainsString('excluded@example.test', $response->getContent());
+        $this->assertStringNotContainsString('not-exported.pdf', $response->getContent());
+        $this->assertSame($before, $live->fresh()->getRawOriginal());
+        Mail::assertNothingSent();
+    }
+
+    public function test_pickup_observation_retains_delivery_timestamps_without_running_delivery(): void
+    {
+        Mail::fake();
+        $agreement = UserAgreement::create([
+            'agreement_type' => 'pickup', 'lifecycle_stage' => 'agreement_signed',
+            'user_id' => User::factory()->create()->id, 'asset_id' => Asset::factory()->create()->id,
+            'pickup_instructions_sent_at' => '2026-10-12 13:14:15',
+            'pickup_instructions_sending_at' => null,
+        ]);
+        $agreement->forceFill(['pickup_instructions_sent_at' => '2026-10-12 13:14:15'])->saveQuietly();
+        $before = $agreement->fresh()->getRawOriginal();
+        $reader = User::factory()->create(['permissions' => '{"orders.view":"1"}']);
+        $this->actingAsForApi($reader)->getJson('/api/v1/workflow-observations/user-agreements')->assertOk()
+            ->assertJsonPath('rows.0.pickup_instructions_sent_at', '2026-10-12 13:14:15')
+            ->assertJsonPath('rows.0.pickup_instructions_sending_at', null);
+        $this->assertSame($before, $agreement->fresh()->getRawOriginal());
+        Mail::assertNothingSent();
+    }
+
 }
