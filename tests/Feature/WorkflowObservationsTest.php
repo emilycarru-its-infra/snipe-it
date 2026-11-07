@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Asset;
+use App\Models\AssetBuyout;
 use App\Models\Company;
 use App\Models\Consumable;
 use App\Models\ConsumableTransaction;
@@ -239,4 +240,33 @@ class WorkflowObservationsTest extends TestCase
         }
         $this->postJson('/api/v1/workflow-observations/'.$profile, [])->assertMethodNotAllowed();
     }
+    public function test_buyout_observation_keeps_only_the_agreement_id_on_live_and_deleted_rows(): void
+    {
+        Mail::fake();
+        $person = User::factory()->create(['email' => 'excluded@example.test']);
+        $asset = Asset::factory()->create();
+        $agreement = UserAgreement::create([
+            'agreement_type' => 'purchase', 'lifecycle_stage' => 'eligible',
+            'user_id' => $person->id, 'asset_id' => $asset->id,
+            'pdf_path' => 'private/not-exported.pdf',
+        ]);
+        $live = AssetBuyout::create(['asset_id' => $asset->id, 'buyer_id' => $person->id,
+            'user_agreement_id' => $agreement->id, 'status' => 'requested']);
+        $deleted = AssetBuyout::create(['asset_id' => $asset->id, 'buyer_id' => $person->id,
+            'user_agreement_id' => $agreement->id, 'status' => 'requested']);
+        $deleted->delete();
+        $before = $live->fresh()->getRawOriginal();
+        $reader = User::factory()->create(['permissions' => '{"deployments.view":"1"}']);
+        $response = $this->actingAsForApi($reader)->getJson('/api/v1/workflow-observations/asset-buyouts')->assertOk();
+        $response->assertJsonPath('total', 2)
+            ->assertJsonPath('rows.0.user_agreement_id', (string) $agreement->id)
+            ->assertJsonPath('rows.1.user_agreement_id', (string) $agreement->id);
+        $this->assertNotNull($response->json('rows.1.deleted_at'));
+        $this->assertArrayNotHasKey('agreement', $response->json('rows.0'));
+        $this->assertStringNotContainsString('excluded@example.test', $response->getContent());
+        $this->assertStringNotContainsString('not-exported.pdf', $response->getContent());
+        $this->assertSame($before, $live->fresh()->getRawOriginal());
+        Mail::assertNothingSent();
+    }
+
 }
