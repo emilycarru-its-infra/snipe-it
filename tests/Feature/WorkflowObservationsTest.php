@@ -164,7 +164,7 @@ class WorkflowObservationsTest extends TestCase
         $this->assertEqualsCanonicalizing(['id', 'agreement_type', 'lifecycle_stage', 'user_id', 'asset_id', 'stated_intent', 'intent_reconciled_at', 'is_application',
             'base_program_price', 'device_cost', 'top_up_amount', 'buyout_cost', 'payment_method',
             'installment_count', 'installment_amount', 'balance_paid', 'balance_remaining',
-            'terms_accepted_at', 'signed_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
+            'terms_accepted_at', 'signed_at', 'pickup_instructions_sent_at', 'pickup_instructions_sending_at', 'sent_to_payroll_at', 'deployed_at', 'closed_at',
             'cancelled_at', 'created_at', 'updated_at', 'pdf_reference_present', 'signed_pdf_reference_present'], array_keys($row));
         $this->assertSame((string) $agreement->id, $row['id']);
         $this->assertSame((string) $person->id, $row['user_id']);
@@ -266,6 +266,25 @@ class WorkflowObservationsTest extends TestCase
         $this->assertStringNotContainsString('excluded@example.test', $response->getContent());
         $this->assertStringNotContainsString('not-exported.pdf', $response->getContent());
         $this->assertSame($before, $live->fresh()->getRawOriginal());
+        Mail::assertNothingSent();
+    }
+
+    public function test_pickup_observation_retains_delivery_timestamps_without_running_delivery(): void
+    {
+        Mail::fake();
+        $agreement = UserAgreement::create([
+            'agreement_type' => 'pickup', 'lifecycle_stage' => 'agreement_signed',
+            'user_id' => User::factory()->create()->id, 'asset_id' => Asset::factory()->create()->id,
+            'pickup_instructions_sent_at' => '2026-10-12 13:14:15',
+            'pickup_instructions_sending_at' => null,
+        ]);
+        $agreement->forceFill(['pickup_instructions_sent_at' => '2026-10-12 13:14:15'])->saveQuietly();
+        $before = $agreement->fresh()->getRawOriginal();
+        $reader = User::factory()->create(['permissions' => '{"orders.view":"1"}']);
+        $this->actingAsForApi($reader)->getJson('/api/v1/workflow-observations/user-agreements')->assertOk()
+            ->assertJsonPath('rows.0.pickup_instructions_sent_at', '2026-10-12 13:14:15')
+            ->assertJsonPath('rows.0.pickup_instructions_sending_at', null);
+        $this->assertSame($before, $agreement->fresh()->getRawOriginal());
         Mail::assertNothingSent();
     }
 
