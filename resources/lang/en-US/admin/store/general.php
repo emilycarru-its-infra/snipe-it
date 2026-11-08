@@ -338,7 +338,7 @@ return [
 
     // What a department-funded order needs before it is placed.
     'prereqs_title' => 'Paying from your department budget?',
-    'prereqs_body' => 'Raise a requisition (REQM) in Colleague first and wait for finance to turn it into a purchase order. Then enter the PO number and GL code below. An order with a PO number goes straight to ordering; without one, procurement reviews it first and may come back to you for these.',
+    'prereqs_body' => 'Raise a requisition (REQM) in Colleague first and wait for finance to turn it into a purchase order. Then enter the PO number and GL code below. Procurement reviews every request and verifies the PO before authorizing an order; a PO number entered here does not approve the request.',
     'department_po_label' => 'Purchase order number',
     'department_po_placeholder' => 'PO number from Colleague',
     'preapproved_by_po' => 'Approved by department purchase order :po.',
