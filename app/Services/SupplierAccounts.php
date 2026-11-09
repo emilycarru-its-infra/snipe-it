@@ -258,6 +258,13 @@ class SupplierAccounts
         ]));
     }
 
+    /** Whether a new order can use this schedule on the selected account. */
+    public static function scheduleIsOpen(?string $account, ?string $schedule): bool
+    {
+        return ! self::needsSchedule($account)
+            || in_array($schedule, self::schedulesFor($account, CsiSchedule::openScheduleNames()), true);
+    }
+
     /**
      * Of the open schedules, the one this account's orders belong on.
      *

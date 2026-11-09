@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Mail\PurchaseOrderQuoteAcceptanceMail;
 use App\Mail\RequisitionVendorOrderMail;
 use App\Models\Asset;
-use App\Models\CsiSchedule;
 use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\User;
@@ -61,8 +60,7 @@ class VendorOrderDispatch
 
         $account = $fields['funding_account'] ?? $order->funding_account;
         $schedule = $fields['lease_schedule'] ?? $order->lease_schedule;
-        if (SupplierAccounts::needsSchedule($account)
-            && ! in_array($schedule, SupplierAccounts::schedulesFor($account, CsiSchedule::openScheduleNames()), true)) {
+        if (! SupplierAccounts::scheduleIsOpen($account, $schedule)) {
             return $this->failure(trans('admin/store/general.funding_schedule_not_open'), $test);
         }
 

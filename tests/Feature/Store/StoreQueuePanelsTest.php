@@ -5,6 +5,7 @@ namespace Tests\Feature\Store;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\CsiSchedule;
+use App\Models\ProcurementSetting;
 use App\Models\StoreOrder;
 use App\Models\Supplier;
 use App\Models\User;
@@ -17,6 +18,15 @@ use Tests\TestCase;
  */
 class StoreQueuePanelsTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-009', 'type' => 'return', 'scope' => 'admin', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+            ['schedule' => '100000-010', 'type' => 'own', 'scope' => 'curriculum', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+        ]));
+    }
+
     public function test_the_queue_offers_only_open_lease_schedules_and_gates_the_send()
     {
         CsiSchedule::create(['schedule_name' => '100000-009', 'lease_number' => '100000',
