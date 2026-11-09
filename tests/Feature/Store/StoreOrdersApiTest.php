@@ -699,4 +699,26 @@ class StoreOrdersApiTest extends TestCase
         Mail::assertSent(StoreOrderStatusMail::class,
             fn ($mail) => $mail->event === 'confirmed' && $mail->hasTo($requester->email));
     }
+
+    public function test_a_requester_supplied_po_cannot_approve_an_order_over_the_api(): void
+    {
+        Mail::fake();
+        $requester = User::factory()->create();
+        Passport::actingAs($requester);
+        $item = CatalogItem::create([
+            'name' => 'Example keyboard', 'product_type' => 'standard',
+            'price_type' => 'estimate', 'category' => 'Accessories',
+            'estimated_cost' => 60, 'show_in_store' => true,
+        ]);
+        $this->postJson(route('api.store-orders.store'), [
+            'department_po_number' => 'PO-EXAMPLE-APPROVAL',
+            'items' => [['catalog_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertOk()->assertJsonPath('payload.status', 'pending');
+        $order = StoreOrder::sole();
+        $this->assertSame('PO-EXAMPLE-APPROVAL', $order->department_po_number);
+        $this->assertNull($order->decided_at);
+        $this->assertNull($order->decided_by);
+        $this->assertNull($order->vendor_sent_at);
+        Mail::assertNotSent(StoreVendorOrderMail::class);
+    }
 }

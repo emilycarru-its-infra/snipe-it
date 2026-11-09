@@ -88,10 +88,8 @@ class StoreOrderPlacement
             ? ''
             : trim((string) ($validated['gl_code'] ?? ''));
 
-        // A department that has already taken its requisition through
-        // Colleague to a purchase order has finance's approval in hand, so
-        // the order skips review and waits only to be sent. Same faculty
-        // rule as the GL code: the program pays, so there is no PO to give.
+        // A requester-supplied PO reference is retained for procurement review.
+        // Only the separately authorized decision path can approve an order.
         $departmentPo = $user->isFacultyProgramMember()
             ? ''
             : trim((string) ($validated['department_po_number'] ?? ''));
@@ -131,11 +129,9 @@ class StoreOrderPlacement
 
             $order = StoreOrder::create([
                 'user_id' => $user->id,
-                'status' => $departmentPo !== '' ? 'approved' : 'pending',
-                'decided_at' => $departmentPo !== '' ? now() : null,
-                'decision_notes' => $departmentPo !== ''
-                    ? trans('admin/store/general.preapproved_by_po', ['po' => $departmentPo])
-                    : null,
+                'status' => 'pending',
+                'decided_at' => null,
+                'decision_notes' => null,
                 'program' => $isFaculty ? 'faculty' : null,
                 'deployment_wave_id' => $wave?->id,
                 'order_usage' => $shared ? 'shared' : 'assigned',

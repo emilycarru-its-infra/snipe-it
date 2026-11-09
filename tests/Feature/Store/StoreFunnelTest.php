@@ -1130,7 +1130,7 @@ class StoreFunnelTest extends TestCase
         $this->assertSame(0, StoreOrder::count());
     }
 
-    public function test_an_order_with_a_department_po_skips_review()
+    public function test_a_requester_supplied_department_po_is_retained_but_still_requires_review()
     {
         $item = $this->shelfItem();
 
@@ -1144,10 +1144,12 @@ class StoreFunnelTest extends TestCase
 
         $order = StoreOrder::first();
 
-        $this->assertSame('approved', $order->status);
+        $this->assertSame('pending', $order->status);
         $this->assertSame('PO-55012', $order->department_po_number);
-        $this->assertNotNull($order->decided_at);
-        $this->assertStringContainsString('PO-55012', (string) $order->decision_notes);
+        $this->assertNull($order->decided_at);
+        $this->assertNull($order->decided_by);
+        $this->assertNull($order->decision_notes);
+        $this->assertNull($order->vendor_sent_at);
     }
 
     public function test_an_order_without_a_po_still_waits_for_review()
@@ -1174,6 +1176,8 @@ class StoreFunnelTest extends TestCase
             ->get(route('store.index'))
             ->assertOk()
             ->assertSee(trans('admin/store/general.prereqs_title'))
+            ->assertSee('Procurement reviews every request')
+            ->assertDontSee('goes straight to ordering')
             ->assertSee('name="department_po_number"', false);
     }
 }
