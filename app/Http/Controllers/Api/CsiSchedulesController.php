@@ -8,13 +8,8 @@ use App\Models\Requisition;
 use Illuminate\Http\JsonResponse;
 
 /**
- * The CSI lease schedules, and which pair is open for ordering.
- *
- * Worth reading together, because they disagree by design: the pair being
- * ordered against commences at the start of the next quarter, and CSI does
- * not publish a schedule until it commences — so the open pair is normally
- * absent from the mirror. Showing both makes that expected gap legible and
- * a genuinely stalled poller obvious.
+ * Report the lessor mirror beside confirmed ordering windows. A calendar
+ * projection is returned separately and never establishes that ordering is open.
  */
 class CsiSchedulesController extends Controller
 {
@@ -27,9 +22,11 @@ class CsiSchedulesController extends Controller
 
         return response()->json([
             'open_pair' => $pair,
+            'projected_pair' => CsiSchedule::projectedPair(),
+            'open_schedules' => CsiSchedule::orderingWindows(),
             'open_pair_in_mirror' => [
-                'return' => $known->contains('schedule_name', $pair['return']),
-                'own' => $known->contains('schedule_name', $pair['own']),
+                'return' => $pair['return'] !== null && $known->contains('schedule_name', $pair['return']),
+                'own' => $pair['own'] !== null && $known->contains('schedule_name', $pair['own']),
             ],
             'mirror_last_seen_at' => $known->max('last_seen_at')?->toDateTimeString(),
             'total' => $known->count(),

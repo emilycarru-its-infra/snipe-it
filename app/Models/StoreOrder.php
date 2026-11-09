@@ -345,7 +345,7 @@ class StoreOrder extends Model
         // is "Lease" — a curriculum order's invoice has to reach the right
         // Exhibit A too. App\Services\SupplierAccounts holds that mapping so the
         // store funnel and the requisition send cannot disagree about it.
-        return ! SupplierAccounts::needsSchedule($this->funding_account) || $this->lease_schedule !== null;
+        return SupplierAccounts::scheduleIsOpen($this->funding_account, $this->lease_schedule);
     }
 
     /** The account, and for a lease the schedule it rides. */

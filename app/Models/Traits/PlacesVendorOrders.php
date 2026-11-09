@@ -47,6 +47,7 @@ trait PlacesVendorOrders
     {
         return $this->vendorOrderLines()->isNotEmpty()
             && $this->fundingResolved()
+            && SupplierAccounts::scheduleIsOpen($this->funding_account, $this->lease_schedule)
             && $this->linesMissingPartNumbers()->isEmpty();
     }
 

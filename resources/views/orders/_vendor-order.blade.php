@@ -27,6 +27,7 @@
         'needs_schedule' => SupplierAccounts::needsSchedule($key),
         'schedules' => SupplierAccounts::schedulesFor($key, $leaseSchedules ?? []),
         'default_schedule' => SupplierAccounts::defaultSchedule($key, $leaseSchedules ?? []),
+        'schedule_labels' => collect($leaseSchedules ?? [])->mapWithKeys(fn ($schedule) => [$schedule => \App\Models\CsiSchedule::scheduleLabel($schedule)])->all(),
     ])->values();
     $selectedRow = $accountRows->firstWhere('key', $selectedAccount);
 @endphp
@@ -149,18 +150,16 @@
                 <label for="lease-schedule">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule') }}</label>
                 @php $scheduleOptions = $selectedRow['schedules'] ?? []; @endphp
                 @if (empty($scheduleOptions))
-                    {{-- Free text only when the CSI mirror lags a schedule CSI
-                         has already issued — which is exactly when the newest
-                         one is the one an order needs. --}}
-                    <input type="text" name="lease_schedule" id="lease-schedule" class="form-control"
-                           value="{{ old('lease_schedule', $order->lease_schedule) }}" placeholder="100000-000">
-                    <p class="help-block">{{ trans('admin/store/general.funding_schedule_none') }}</p>
+                    <select name="lease_schedule" id="lease-schedule" class="form-control" disabled>
+                        <option value="">{{ trans('admin/store/general.funding_schedule_none') }}</option>
+                    </select>
+                    <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule_help') }}</p>
                 @else
                     <select name="lease_schedule" id="lease-schedule" class="form-control">
                         @foreach ($scheduleOptions as $schedule)
                             <option value="{{ $schedule }}"
                                 {{ old('lease_schedule', $order->lease_schedule ?: ($selectedRow['default_schedule'] ?? null)) === $schedule ? 'selected' : '' }}>
-                                {{ $schedule }}
+                                {{ \App\Models\CsiSchedule::scheduleLabel($schedule) }}
                             </option>
                         @endforeach
                     </select>
@@ -441,10 +440,11 @@
 
         var current = field.value;
         field.innerHTML = '';
+        field.disabled = ! (row.schedules || []).length;
         (row.schedules || []).forEach(function (schedule) {
             var option = document.createElement('option');
             option.value = schedule;
-            option.textContent = schedule;
+            option.textContent = (row.schedule_labels || {})[schedule] || schedule;
             option.selected = schedule === current;
             field.appendChild(option);
         });

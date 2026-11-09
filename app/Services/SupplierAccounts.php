@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CsiSchedule;
 use App\Models\SupplierAccount;
 
 /**
@@ -168,7 +169,6 @@ class SupplierAccounts
         self::$cache = null;
     }
 
-
     /** @var array<string, array<string, mixed>>|null */
     private static ?array $cache = null;
 
@@ -258,6 +258,13 @@ class SupplierAccounts
         ]));
     }
 
+    /** Whether a new order can use this schedule on the selected account. */
+    public static function scheduleIsOpen(?string $account, ?string $schedule): bool
+    {
+        return ! self::needsSchedule($account)
+            || in_array($schedule, self::schedulesFor($account, CsiSchedule::openScheduleNames()), true);
+    }
+
     /**
      * Of the open schedules, the one this account's orders belong on.
      *
@@ -288,8 +295,15 @@ class SupplierAccounts
             return [];
         }
 
-        return array_values(array_filter($openSchedules, function (string $schedule) use ($type) {
-            if (! preg_match('/(\d+)\s*$/', $schedule, $matches)) {
+        return array_values(array_filter($openSchedules, function (string $schedule) use ($type, $account) {
+            $window = CsiSchedule::orderingWindow($schedule, false);
+            if ($window) {
+                return CsiSchedule::orderingWindow($schedule) !== null
+                    && $window['type'] === $type
+                    && (empty($window['scope']) || $window['scope'] === (self::find($account)['scope'] ?? null));
+            }
+
+            if (! preg_match('/-(\d+)(?:\.\d+)?\s*$/', $schedule, $matches)) {
                 return false;
             }
 

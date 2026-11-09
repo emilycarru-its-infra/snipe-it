@@ -39,6 +39,12 @@
 <td style="padding: 2px 0; text-align: left;">{{ $order->lease_schedule }}</td>
 </tr>
 @endif
+@if ($bpoReference = \App\Models\CsiSchedule::bpoReference($order->lease_schedule))
+<tr>
+<td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.store_vendor_csv_bpo') }}</td>
+<td style="padding: 2px 0; text-align: left;">{{ $bpoReference }}</td>
+</tr>
+@endif
 </table>
 
 {{-- One row per line, in columns, because the reseller's desk reads down a

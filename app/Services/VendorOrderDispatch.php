@@ -58,6 +58,12 @@ class VendorOrderDispatch
     {
         $order->load('supplier', 'purchaseOrder', 'items.catalogItem');
 
+        $account = $fields['funding_account'] ?? $order->funding_account;
+        $schedule = $fields['lease_schedule'] ?? $order->lease_schedule;
+        if (! SupplierAccounts::scheduleIsOpen($account, $schedule)) {
+            return $this->failure(trans('admin/store/general.funding_schedule_not_open'), $test);
+        }
+
         // The quote and the account are recorded whether or not the send
         // succeeds: they are facts about the order — one from the vendor, one
         // our own decision — not side effects of emailing anybody.

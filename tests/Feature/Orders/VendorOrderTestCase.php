@@ -5,6 +5,7 @@ namespace Tests\Feature\Orders;
 use App\Models\CatalogItem;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\ProcurementSetting;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
@@ -19,6 +20,15 @@ use Tests\TestCase;
  */
 abstract class VendorOrderTestCase extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-009', 'type' => 'return', 'scope' => 'admin', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+            ['schedule' => '100000-010', 'type' => 'own', 'scope' => 'curriculum', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+        ]));
+    }
+
     protected function procurement(): User
     {
         return User::factory()->superuser()->create();
@@ -32,7 +42,7 @@ abstract class VendorOrderTestCase extends TestCase
     /**
      * @param  array<string, mixed>  $orderOverrides  columns on the vendor order
      * @param  array<string, mixed>  $lineOverrides  the one line's columns; a null
-     *                                                part number is a real null
+     *                                               part number is a real null
      * @param  array<string, mixed>  $poOverrides  columns on the purchase order
      */
     protected function vendorOrder(array $orderOverrides = [], array $lineOverrides = [], array $poOverrides = []): Order

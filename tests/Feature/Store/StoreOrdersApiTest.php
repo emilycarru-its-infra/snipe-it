@@ -6,12 +6,14 @@ use App\Mail\StoreOrderStatusMail;
 use App\Mail\StoreVendorOrderMail;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
+use App\Models\ProcurementSetting;
 use App\Models\PurchaseOrder;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\StoreVendorOrderDispatch;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Passport\Passport;
@@ -25,6 +27,16 @@ use Tests\TestCase;
  */
 class StoreOrdersApiTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-009', 'type' => 'return', 'scope' => 'admin', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+            ['schedule' => '100000-010', 'type' => 'own', 'scope' => 'curriculum', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+            ['schedule' => '100000-007', 'type' => 'return', 'scope' => 'admin', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+        ]));
+    }
+
     private function procurement(): User
     {
         return User::factory()->superuser()->create();
@@ -719,6 +731,20 @@ class StoreOrdersApiTest extends TestCase
         $this->assertNull($order->decided_at);
         $this->assertNull($order->decided_by);
         $this->assertNull($order->vendor_sent_at);
+        Mail::assertNotSent(StoreVendorOrderMail::class);
+    }
+
+    public function test_a_closed_schedule_does_not_place_or_email_an_approved_order()
+    {
+        Mail::fake();
+        ProcurementSetting::put('lease_open_schedules', '[]');
+        $order = $this->orderFor(User::factory()->create());
+        $order->update(['status' => 'approved', 'funding_account' => 'lease_admin', 'lease_schedule' => '100000-009']);
+        $this->assertFalse($order->readyForVendor());
+        $result = app(StoreVendorOrderDispatch::class)->send(collect([$order]), $this->procurement());
+        $this->assertFalse($result['sent']);
+        $this->assertSame('approved', $order->fresh()->status);
+        $this->assertNull($order->fresh()->vendor_sent_at);
         Mail::assertNotSent(StoreVendorOrderMail::class);
     }
 }

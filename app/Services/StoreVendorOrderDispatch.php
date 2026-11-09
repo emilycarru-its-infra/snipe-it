@@ -40,6 +40,10 @@ class StoreVendorOrderDispatch
         // account: CDW places each line against a blanket purchase order
         // and cannot pick which, so sending anyway would buy nothing but a
         // round trip through their desk.
+        if (! $test && $orders->contains(fn (StoreOrder $order) => ! SupplierAccounts::scheduleIsOpen($order->funding_account, $order->lease_schedule))) {
+            return $this->failure(trans('admin/store/general.funding_schedule_not_open'));
+        }
+
         if (! $test && $orders->contains(fn (StoreOrder $order) => ! $order->readyForVendor())) {
             return $this->failure(trans('admin/store/general.funding_required'));
         }

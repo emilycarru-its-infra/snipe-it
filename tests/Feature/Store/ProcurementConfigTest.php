@@ -2,10 +2,11 @@
 
 namespace Tests\Feature\Store;
 
-use App\Models\SupplierAccount;
 use App\Models\CsiSchedule;
 use App\Models\ProcurementSetting;
 use App\Models\StoreOrder;
+use App\Models\Supplier;
+use App\Models\SupplierAccount;
 use App\Models\User;
 use App\Services\SupplierAccounts;
 use Illuminate\Support\Carbon;
@@ -81,13 +82,13 @@ class ProcurementConfigTest extends TestCase
     {
         Carbon::setTestNow('2026-08-24');
 
-        $this->assertSame('100000-009', CsiSchedule::openPair()['return']);
+        $this->assertSame('100000-009', CsiSchedule::projectedPair()['return']);
 
         // The vendor skips a quarter, or a pair opens early: move the anchor.
         ProcurementSetting::put('lease_anchor_number', '11');
 
-        $this->assertSame('100000-011', CsiSchedule::openPair()['return']);
-        $this->assertSame('100000-012', CsiSchedule::openPair()['own']);
+        $this->assertSame('100000-011', CsiSchedule::projectedPair()['return']);
+        $this->assertSame('100000-012', CsiSchedule::projectedPair()['own']);
     }
 
     public function test_the_cadence_endpoint_reports_what_it_resolves_to()
@@ -98,16 +99,16 @@ class ProcurementConfigTest extends TestCase
         $this->getJson(route('api.procurement.cadence'))
             ->assertOk()
             ->assertJsonPath('anchor_number', 9)
-            ->assertJsonPath('open_pair.return', '100000-009');
+            ->assertJsonPath('projected_pair.return', '100000-009');
 
         $this->putJson(route('api.procurement.cadence'), ['anchor_number' => 13])
             ->assertOk()
-            ->assertJsonPath('payload.open_pair.return', '100000-013');
+            ->assertJsonPath('payload.projected_pair.return', '100000-013');
     }
 
     public function test_accounts_belong_to_a_supplier_not_to_a_hardcoded_name()
     {
-        $other = \App\Models\Supplier::create(['name' => 'Another Reseller Inc']);
+        $other = Supplier::create(['name' => 'Another Reseller Inc']);
 
         Passport::actingAs(User::factory()->superuser()->create());
 

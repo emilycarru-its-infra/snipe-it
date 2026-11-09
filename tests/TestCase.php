@@ -4,6 +4,7 @@ namespace Tests;
 
 use App\Http\Middleware\SecurityHeaders;
 use App\Models\Asset;
+use App\Models\ProcurementSetting;
 use App\Services\FormAccess;
 use App\Services\Settings\Preferences;
 use App\Services\SupplierAccounts;
@@ -62,6 +63,7 @@ abstract class TestCase extends BaseTestCase
         // Supplier accounts are cached the same way, and a test that seeds
         // its own accounts otherwise decides the list the next test reads.
         SupplierAccounts::flush();
+        ProcurementSetting::flush();
     }
 
     // ...existing code...

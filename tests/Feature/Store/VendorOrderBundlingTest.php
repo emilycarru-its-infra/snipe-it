@@ -5,6 +5,7 @@ namespace Tests\Feature\Store;
 use App\Mail\StoreVendorOrderMail;
 use App\Models\AssetModel;
 use App\Models\CatalogItem;
+use App\Models\ProcurementSetting;
 use App\Models\PurchaseOrder;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
@@ -119,5 +120,21 @@ class VendorOrderBundlingTest extends TestCase
         $quantities = array_map(fn ($line) => (int) str_getcsv($line)[4], array_slice($lines, 1));
         sort($quantities);
         $this->assertSame([2, 13], $quantities);
+    }
+
+    public function test_the_batch_csv_preserves_the_schedule_and_adds_the_bpo_revision()
+    {
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-009', 'type' => 'return', 'scope' => 'admin',
+                'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01',
+                'bpo_reference' => '100000-009.1'],
+        ]));
+        $po = PurchaseOrder::factory()->create(['po_number' => 'P0099999']);
+        $item = $this->shelfItem('Laptop | Base', 'TEST-SKU', 1000.00);
+        $this->orderFor($item, $po);
+        $csv = new VendorOrderCsv(StoreOrder::with('items.catalogItem', 'user')->get());
+        $this->assertSame('100000-009', $csv->rows()[0][3]);
+        $this->assertSame('100000-009.1', $csv->rows()[0][11]);
+        $this->assertCount(count($csv->headers()), $csv->rows()[0]);
     }
 }

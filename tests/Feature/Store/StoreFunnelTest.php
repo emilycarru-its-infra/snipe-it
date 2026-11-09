@@ -9,6 +9,7 @@ use App\Models\AssetModel;
 use App\Models\CatalogItem;
 use App\Models\Group;
 use App\Models\Location;
+use App\Models\ProcurementSetting;
 use App\Models\Requisition;
 use App\Models\StoreApprover;
 use App\Models\StoreOrder;
@@ -26,6 +27,15 @@ use Tests\TestCase;
  */
 class StoreFunnelTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-009', 'type' => 'return', 'scope' => 'admin', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+            ['schedule' => '100000-010', 'type' => 'own', 'scope' => 'curriculum', 'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01'],
+        ]));
+    }
+
     /** A user with no procurement permissions at all. */
     private function endUser(): User
     {
@@ -915,7 +925,7 @@ class StoreFunnelTest extends TestCase
         // reseller opens this in Excel and a split line is a wrong order.
         $lines = array_values(array_filter(explode("\n", str_replace("\r", '', $csv))));
         $this->assertCount(2, $lines);
-        $this->assertSame(11, count(str_getcsv($lines[1])));
+        $this->assertSame(12, count(str_getcsv($lines[1])));
         $this->assertSame('3', str_getcsv($lines[1])[4]);
     }
 
@@ -948,8 +958,8 @@ class StoreFunnelTest extends TestCase
             ->assertRedirect();
         Mail::assertNotSent(StoreVendorOrderMail::class);
 
-        // Named schedule, and it goes.
-        $order->update(['lease_schedule' => '100000-010']);
+        // An open schedule for this account, and it goes.
+        $order->update(['lease_schedule' => '100000-009']);
         $this->actingAs($this->procurement())
             ->post(route('procurement.queue.send-vendor'), ['orders' => [$order->id]])
             ->assertRedirect();

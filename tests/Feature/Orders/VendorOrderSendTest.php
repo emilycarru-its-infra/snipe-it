@@ -5,11 +5,14 @@ namespace Tests\Feature\Orders;
 use App\Mail\PurchaseOrderQuoteAcceptanceMail;
 use App\Mail\RequisitionVendorOrderMail;
 use App\Models\OrderItem;
+use App\Models\ProcurementSetting;
 use App\Models\StoreOrder;
 use App\Models\User;
 use App\Services\RequisitionVendorCsv;
 use App\Services\SupplierAccounts;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -170,6 +173,48 @@ class VendorOrderSendTest extends VendorOrderTestCase
         Mail::assertNotSent(RequisitionVendorOrderMail::class);
     }
 
+    public function test_the_bpo_revision_is_separate_from_the_schedule_in_email_and_csv()
+    {
+        $staff = $this->procurement();
+        $order = $this->vendorOrder();
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-009', 'type' => 'return', 'scope' => 'admin',
+                'ordering_until' => '2100-12-31', 'confirmed_at' => '2020-01-01',
+                'bpo_reference' => '100000-009.1'],
+        ]));
+
+        $csv = new RequisitionVendorCsv($order);
+        $this->assertSame('100000-009', $csv->rows()[0][9]);
+        $this->assertSame('100000-009.1', $csv->rows()[0][10]);
+        $body = (new RequisitionVendorOrderMail($order))->render();
+        $this->assertStringContainsString('Lessor Blanket PO', $body);
+        $this->assertStringContainsString('100000-009.1', $body);
+        $this->assertSame('100000-009', $order->fresh()->lease_schedule);
+
+        $this->actingAs($staff)->get(route('orders.show', $order))
+            ->assertOk()->assertSee('Lease schedule')->assertDontSee('CSI lease schedule')
+            ->assertSee('Lease to return')->assertSee('BPO 100000-009.1')
+            ->assertDontSee('value="100000-007"', false)->assertDontSee('value="100000-011"', false);
+    }
+
+    public function test_a_closed_schedule_is_refused_before_an_order_or_email_changes()
+    {
+        Mail::fake();
+        $order = $this->vendorOrder();
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-007', 'type' => 'return', 'scope' => 'admin',
+                'ordering_until' => '2020-01-01', 'confirmed_at' => '2019-01-01'],
+        ]));
+
+        $this->actingAs($this->procurement())
+            ->post(route('orders.send-vendor', $order), ['lease_schedule' => '100000-007'])
+            ->assertSessionHas('error');
+
+        Mail::assertNotSent(RequisitionVendorOrderMail::class);
+        $this->assertSame('100000-009', $order->fresh()->lease_schedule);
+        $this->assertNull($order->fresh()->vendor_sent_at);
+    }
+
     public function test_a_lease_order_also_needs_its_csi_schedule()
     {
         Mail::fake();
@@ -184,13 +229,13 @@ class VendorOrderSendTest extends VendorOrderTestCase
         Mail::assertNotSent(RequisitionVendorOrderMail::class);
 
         $this->actingAs($staff)
-            ->post(route('orders.send-vendor', $order), ['lease_schedule' => '100000-012'])
+            ->post(route('orders.send-vendor', $order), ['lease_schedule' => '100000-010'])
             ->assertRedirect();
 
         Mail::assertSent(RequisitionVendorOrderMail::class);
         $order->refresh();
         $this->assertNotNull($order->vendor_sent_at);
-        $this->assertStringContainsString('100000-012', (new RequisitionVendorCsv($order))->contents());
+        $this->assertStringContainsString('100000-010', (new RequisitionVendorCsv($order))->contents());
     }
 
     /**
@@ -457,14 +502,14 @@ class VendorOrderSendTest extends VendorOrderTestCase
      */
     public function test_documents_filed_against_the_purchase_order_are_not_attached()
     {
-        \Illuminate\Support\Facades\Storage::fake('local');
+        Storage::fake('local');
 
         $order = $this->vendorOrder();
         $staff = $this->procurement();
 
         $this->actingAsForApi($staff)
             ->postJson(route('api.files.store', ['object_type' => 'purchase-orders', 'id' => $order->purchaseOrder->id]), [
-                'file' => [\Illuminate\Http\UploadedFile::fake()->create('P0026000.pdf', 40, 'application/pdf')],
+                'file' => [UploadedFile::fake()->create('P0026000.pdf', 40, 'application/pdf')],
                 'notes' => 'Issued purchase order',
             ])->assertOk();
 

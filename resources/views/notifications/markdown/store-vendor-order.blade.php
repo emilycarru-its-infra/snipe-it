@@ -28,6 +28,12 @@
 <td style="padding: 2px 0; text-align: left; font-weight: 700;">{{ $group['schedule'] }}</td>
 </tr>
 @endif
+@if ($bpoReference = \App\Models\CsiSchedule::bpoReference($group['schedule'] ?? null))
+<tr>
+<td style="padding: 2px 18px 2px 0; text-align: left; white-space: nowrap; opacity: .7;">{{ trans('mail.store_vendor_csv_bpo') }}</td>
+<td style="padding: 2px 0; text-align: left;">{{ $bpoReference }}</td>
+</tr>
+@endif
 </table>
 
 {{-- Built from <table> elements rather than a markdown table: a catalog

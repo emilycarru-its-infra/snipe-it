@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CsiSchedule;
 use App\Models\StoreOrder;
 use Illuminate\Support\Collection;
 
@@ -64,6 +65,7 @@ class VendorOrderCsv
             trans('mail.store_vendor_csv_warranty'),
             trans('mail.store_vendor_csv_bundle'),
             trans('mail.store_vendor_csv_estimated_unit'),
+            trans('mail.store_vendor_csv_bpo'),
         ];
     }
 
@@ -92,6 +94,7 @@ class VendorOrderCsv
                     (string) ($line['warranty'] ?? ''),
                     (string) ($line['bundle_url'] ?? ''),
                     number_format((float) $line['unit_cost'], 2, '.', ''),
+                    (string) CsiSchedule::bpoReference($group['schedule'] ?? null),
                 ];
             }
         }
