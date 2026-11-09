@@ -153,7 +153,7 @@
                     <select name="lease_schedule" id="lease-schedule" class="form-control" disabled>
                         <option value="">{{ trans('admin/store/general.funding_schedule_none') }}</option>
                     </select>
-                    <p class="help-block">{{ trans('admin/store/general.funding_schedule_none') }}</p>
+                    <p class="help-block">{{ trans('admin/purchase-orders/general.vendor_send_lease_schedule_help') }}</p>
                 @else
                     <select name="lease_schedule" id="lease-schedule" class="form-control">
                         @foreach ($scheduleOptions as $schedule)
