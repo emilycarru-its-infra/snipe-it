@@ -310,6 +310,7 @@ return [
     'store_vendor_csv_warranty' => 'Warranty',
     'store_vendor_csv_account' => 'Account',
     'store_vendor_csv_schedule' => 'Lease Schedule',
+    'store_vendor_csv_bpo' => 'Lessor Blanket PO',
     'store_vendor_csv_bundle' => 'CDW Bundle',
     'store_vendor_csv_requested_by' => 'Requested By',
     'store_vendor_csv_estimated_unit' => 'Our Estimated Unit Price (CAD)',

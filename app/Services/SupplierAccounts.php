@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CsiSchedule;
 use App\Models\SupplierAccount;
 
 /**
@@ -168,7 +169,6 @@ class SupplierAccounts
         self::$cache = null;
     }
 
-
     /** @var array<string, array<string, mixed>>|null */
     private static ?array $cache = null;
 
@@ -288,8 +288,15 @@ class SupplierAccounts
             return [];
         }
 
-        return array_values(array_filter($openSchedules, function (string $schedule) use ($type) {
-            if (! preg_match('/(\d+)\s*$/', $schedule, $matches)) {
+        return array_values(array_filter($openSchedules, function (string $schedule) use ($type, $account) {
+            $window = CsiSchedule::orderingWindow($schedule, false);
+            if ($window) {
+                return CsiSchedule::orderingWindow($schedule) !== null
+                    && $window['type'] === $type
+                    && (empty($window['scope']) || $window['scope'] === (self::find($account)['scope'] ?? null));
+            }
+
+            if (! preg_match('/-(\d+)(?:\.\d+)?\s*$/', $schedule, $matches)) {
                 return false;
             }
 

@@ -29,16 +29,14 @@
         {{ trans('admin/store/general.funding_schedule_label') }}
     </label>
     @if (empty($leaseSchedules))
-        {{-- Free text rather than nothing: the CSI mirror can lag behind a
-             schedule CSI has already issued, and that is exactly when the
-             newest one is what an order needs to go against. --}}
-        <input type="text" name="lease_schedule" id="{{ $formId }}-schedule-input" form="{{ $formId }}"
-               class="form-control input-sm" value="{{ $order->lease_schedule }}" placeholder="100000-000">
+        <select name="lease_schedule" id="{{ $formId }}-schedule-input" form="{{ $formId }}" class="form-control input-sm" disabled>
+            <option value="">{{ trans('admin/store/general.funding_schedule_none') }}</option>
+        </select>
         <span class="help-block" style="margin:2px 0 0; font-size:11px;">{{ trans('admin/store/general.funding_schedule_none') }}</span>
     @else
         <select name="lease_schedule" id="{{ $formId }}-schedule-input" form="{{ $formId }}" class="form-control input-sm">
             @foreach ($leaseSchedules as $schedule)
-                <option value="{{ $schedule }}" @selected($order->lease_schedule === $schedule)>{{ $schedule }}</option>
+                <option value="{{ $schedule }}" @selected($order->lease_schedule === $schedule)>{{ \App\Models\CsiSchedule::scheduleLabel($schedule) }}</option>
             @endforeach
         </select>
     @endif

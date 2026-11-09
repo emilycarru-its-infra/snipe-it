@@ -6,8 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Small procurement facts that change without code: the lease master
- * contract, and the anchor that fixes which schedule pair is open for
- * ordering this quarter.
+ * contract, planning cadence and explicitly confirmed ordering windows.
  *
  * Deliberately a plain key/value table. These are a handful of values a
  * person edits once or twice a year, and giving each one a column would

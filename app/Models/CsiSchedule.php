@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\SupplierAccounts;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -55,25 +57,12 @@ class CsiSchedule extends Model
     public const ANCHOR_QUARTER_START = '2026-07-01';
 
     /**
-     * The two schedules an order can be placed against today, keyed by the
-     * kind of lease each one is.
-     *
-     * A new pair opens every three months: an odd-numbered four-year
-     * lease-to-return and the even-numbered five-year lease-to-own beside
-     * it. You order against the pair that COMMENCES at the start of the
-     * next quarter — the equipment ships during this one — which is why
-     * the answer cannot come from the mirror. CSI does not publish a
-     * schedule until it commences, so the schedule being ordered against
-     * is always the one the mirror has never heard of.
-     *
-     * Reading the mirror instead is what this replaces: it returned every
-     * schedule whose TERM had not ended, which is every live lease. The
-     * form offered six schedules, all of them signed and closed to new
-     * equipment, and none of them the one to order against.
+     * Candidate numbers from the planning cadence, not opening confirmation.
+     * A lessor can extend an existing schedule instead of opening this pair.
      *
      * @return array{return: string, own: string}
      */
-    public static function openPair(): array
+    public static function projectedPair(): array
     {
         // Read from procurement_settings so moving the anchor — a new pair
         // opening, or a quarter the vendor skipped — is an edit, not a
@@ -81,8 +70,8 @@ class CsiSchedule extends Model
         $anchorNumber = (int) (ProcurementSetting::get('lease_anchor_number') ?: self::ANCHOR_NUMBER);
         $anchorStart = ProcurementSetting::get('lease_anchor_quarter_start') ?: self::ANCHOR_QUARTER_START;
 
-        $anchor = \Carbon\CarbonImmutable::parse($anchorStart)->startOfQuarter();
-        $current = \Carbon\CarbonImmutable::now()->startOfQuarter();
+        $anchor = CarbonImmutable::parse($anchorStart)->startOfQuarter();
+        $current = CarbonImmutable::now()->startOfQuarter();
 
         // Whole quarters elapsed since the anchor. Never negative: a clock
         // set before the anchor should read the anchor pair, not a lower
@@ -103,9 +92,7 @@ class CsiSchedule extends Model
      */
     public static function scheduleForAccount(?string $account): ?string
     {
-        $kind = \App\Services\SupplierAccounts::scheduleType($account);
-
-        return $kind ? (self::openPair()[$kind] ?? null) : null;
+        return SupplierAccounts::defaultSchedule($account, self::openScheduleNames());
     }
 
     /** "100000-009" from 9. */
@@ -116,24 +103,74 @@ class CsiSchedule extends Model
         return $contract.'-'.str_pad((string) $number, 3, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * What the form offers: the open pair first, because those are the only
-     * two an order can actually be placed against, followed by any live
-     * schedule the mirror knows so a correction onto an earlier one is
-     * still possible.
-     *
-     * @return array<int, string>
-     */
+    /** Confirmed ordering windows, independent of signed lease term dates. */
+    public static function orderingWindows(bool $currentOnly = true): array
+    {
+        $windows = json_decode(ProcurementSetting::get('lease_open_schedules', '[]'), true);
+        if (! is_array($windows)) {
+            return [];
+        }
+
+        $today = now()->toDateString();
+
+        return array_values(array_filter($windows, function ($window) use ($currentOnly, $today) {
+            if (! is_array($window) || empty($window['schedule'])
+                || ! in_array($window['type'] ?? null, ['return', 'own'], true)
+                || empty($window['ordering_until']) || empty($window['confirmed_at'])) {
+                return false;
+            }
+
+            return ! $currentOnly || (
+                empty($window['closed_at'])
+                && (empty($window['ordering_from']) || $window['ordering_from'] <= $today)
+                && $window['ordering_until'] >= $today
+            );
+        }));
+    }
+
+    /** A forecast is never evidence that a lessor has opened a schedule. */
+    public static function openPair(): array
+    {
+        $windows = collect(self::orderingWindows());
+
+        return [
+            'return' => $windows->firstWhere('type', 'return')['schedule'] ?? null,
+            'own' => $windows->firstWhere('type', 'own')['schedule'] ?? null,
+        ];
+    }
+
+    public static function orderingWindow(?string $schedule, bool $currentOnly = true): ?array
+    {
+        return collect(self::orderingWindows($currentOnly))->firstWhere('schedule', $schedule);
+    }
+
+    /** Only explicitly confirmed windows can be used for new orders. */
     public static function openScheduleNames(): array
     {
-        $pair = array_values(self::openPair());
+        return array_column(self::orderingWindows(), 'schedule');
+    }
 
-        $known = static::query()
-            ->where(fn ($q) => $q->whereNull('term_end_date')->orWhere('term_end_date', '>=', now()->toDateString()))
-            ->orderByDesc('schedule_name')
-            ->pluck('schedule_name')
-            ->all();
+    public static function scheduleLabel(string $schedule): string
+    {
+        $window = self::orderingWindow($schedule, false);
+        if (! $window) {
+            return $schedule;
+        }
 
-        return array_values(array_unique(array_merge($pair, $known)));
+        $parts = [$schedule, trans('admin/store/general.funding_schedule_type_'.$window['type'])];
+        if (! empty($window['scope'])) {
+            $parts[] = trans('admin/store/general.funding_scope_'.$window['scope']);
+        }
+        if (! empty($window['bpo_reference'])) {
+            $parts[] = trans('admin/store/general.funding_schedule_bpo', ['reference' => $window['bpo_reference']]);
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /** The vendor BPO revision does not change the underlying lease number. */
+    public static function bpoReference(?string $schedule): ?string
+    {
+        return self::orderingWindow($schedule, false)['bpo_reference'] ?? null;
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Orders;
 
 use App\Models\CsiSchedule;
+use App\Models\ProcurementSetting;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
@@ -24,7 +25,7 @@ class LeaseScheduleCadenceTest extends TestCase
 
         $this->assertSame(
             ['return' => '100000-009', 'own' => '100000-010'],
-            CsiSchedule::openPair()
+            CsiSchedule::projectedPair()
         );
     }
 
@@ -32,21 +33,26 @@ class LeaseScheduleCadenceTest extends TestCase
     {
         // Same quarter, later day: unchanged.
         Carbon::setTestNow('2026-09-30');
-        $this->assertSame('100000-009', CsiSchedule::openPair()['return']);
+        $this->assertSame('100000-009', CsiSchedule::projectedPair()['return']);
 
         // Next quarter: the next odd number.
         Carbon::setTestNow('2026-10-01');
-        $this->assertSame('100000-011', CsiSchedule::openPair()['return']);
-        $this->assertSame('100000-012', CsiSchedule::openPair()['own']);
+        $this->assertSame('100000-011', CsiSchedule::projectedPair()['return']);
+        $this->assertSame('100000-012', CsiSchedule::projectedPair()['own']);
 
         // A year on is four quarters, so eight numbers.
         Carbon::setTestNow('2027-07-15');
-        $this->assertSame('100000-017', CsiSchedule::openPair()['return']);
+        $this->assertSame('100000-017', CsiSchedule::projectedPair()['return']);
     }
 
     public function test_the_account_decides_which_of_the_pair()
     {
         Carbon::setTestNow('2026-08-24');
+
+        ProcurementSetting::put('lease_open_schedules', json_encode([
+            ['schedule' => '100000-009', 'type' => 'return', 'scope' => 'admin', 'ordering_until' => '2026-09-30', 'confirmed_at' => '2026-07-01'],
+            ['schedule' => '100000-010', 'type' => 'own', 'scope' => 'curriculum', 'ordering_until' => '2026-09-30', 'confirmed_at' => '2026-07-01'],
+        ]));
 
         // Admin rides the four-year return, curriculum the five-year own.
         $this->assertSame('100000-009', CsiSchedule::scheduleForAccount('lease_admin'));
@@ -57,7 +63,7 @@ class LeaseScheduleCadenceTest extends TestCase
         $this->assertNull(CsiSchedule::scheduleForAccount(null));
     }
 
-    public function test_the_open_pair_leads_the_list_even_when_the_mirror_has_never_seen_it()
+    public function test_unconfirmed_projections_and_unexpired_mirror_leases_are_not_ordering_options()
     {
         Carbon::setTestNow('2026-08-24');
 
@@ -68,11 +74,7 @@ class LeaseScheduleCadenceTest extends TestCase
             'term_end_date' => '2030-06-30',
         ]);
 
-        $names = CsiSchedule::openScheduleNames();
-
-        $this->assertSame('100000-009', $names[0]);
-        $this->assertSame('100000-010', $names[1]);
-        // The signed one stays reachable, for a correction onto it.
-        $this->assertContains('100000-007', $names);
+        $this->assertSame([], CsiSchedule::openScheduleNames());
+        $this->assertSame(['return' => null, 'own' => null], CsiSchedule::openPair());
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CsiSchedule;
 use App\Models\Order;
 
 /**
@@ -51,6 +52,7 @@ class RequisitionVendorCsv
             trans('mail.requisition_vendor_csv_line_total'),
             trans('mail.store_vendor_csv_account'),
             trans('mail.store_vendor_csv_schedule'),
+            trans('mail.store_vendor_csv_bpo'),
         ];
     }
 
@@ -79,6 +81,7 @@ class RequisitionVendorCsv
             number_format($line->lineTotal(), 2, '.', ''),
             $account,
             (string) $this->order->lease_schedule,
+            (string) CsiSchedule::bpoReference($this->order->lease_schedule),
         ])->all();
     }
 
