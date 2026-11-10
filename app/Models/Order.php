@@ -6,12 +6,14 @@ use App\Models\Traits\HasStableRouteKey;
 use App\Models\Traits\Loggable;
 use App\Models\Traits\PlacesVendorOrders;
 use App\Models\Traits\Searchable;
+use App\Services\OrderRequesterNotifier;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Watson\Validating\ValidatingTrait;
 
 /**
@@ -33,8 +35,8 @@ use Watson\Validating\ValidatingTrait;
  */
 class Order extends SnipeModel
 {
-    use HasStableRouteKey;
     use HasFactory;
+    use HasStableRouteKey;
     use Loggable;
     use PlacesVendorOrders;
     use Searchable;
@@ -187,7 +189,8 @@ class Order extends SnipeModel
      */
     public function storeOrderRequesterEmails(): array
     {
-        return $this->purchaseOrder?->storeOrderRequesterEmails() ?? [];
+        return app(OrderRequesterNotifier::class)->requesters($this)
+            ->map(fn ($request) => $request->user?->email)->filter()->unique()->values()->all();
     }
 
     /**
@@ -321,6 +324,9 @@ class Order extends SnipeModel
         if ($this->status !== $status) {
             $this->status = $status;
             $this->saveQuietly();
+            if ($status === 'received') {
+                DB::afterCommit(fn () => app(OrderRequesterNotifier::class)->arrived($this));
+            }
         }
     }
 

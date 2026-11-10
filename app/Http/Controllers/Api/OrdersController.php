@@ -8,6 +8,8 @@ use App\Http\Requests\FilterRequest;
 use App\Http\Transformers\OrdersTransformer;
 use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\AssetModel;
+use App\Models\CatalogItem;
 use App\Models\Component;
 use App\Models\Consumable;
 use App\Models\License;
@@ -16,18 +18,15 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
 use App\Models\PurchaseOrder;
-use App\Models\StoreOrder;
 use App\Services\Leasing\OkayToPay;
-use App\Services\StoreOrderNotifier;
+use App\Services\OrderAssetProvisioner;
+use App\Services\OrderEtaRequest;
+use App\Services\OrderRequesterNotifier;
+use App\Services\SupplierAccounts;
+use App\Services\VendorOrderDispatch;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Models\CatalogItem;
-use App\Models\AssetModel;
-use App\Services\OrderAssetProvisioner;
-use App\Services\SupplierAccounts;
-use App\Services\OrderEtaRequest;
-use App\Services\VendorOrderDispatch;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -516,26 +515,14 @@ class OrdersController extends Controller
 
         $tracking = collect($data['items'] ?? [])->pluck('tracking_number')->filter()->first();
 
-        $storeOrders = StoreOrder::query()
-            ->whereHas('requisition', fn ($q) => $q->where('purchase_order_id', $order->purchase_order_id))
-            ->with('user')
-            ->get();
-
-        foreach ($storeOrders as $storeOrder) {
-            // Stamp the order before telling anybody, so a re-pushed webhook
-            // does not read as a second shipment.
-            $alreadyShipped = $storeOrder->shipped_at !== null;
-
-            if (! $alreadyShipped) {
-                $storeOrder->update(['shipped_at' => now(), 'tracking_number' => $tracking ?: $storeOrder->tracking_number]);
-            }
-
-            if (! $alreadyShipped) {
-                StoreOrderNotifier::requester($storeOrder, 'shipped', array_filter([
-                    'tracking' => $tracking,
-                    'serials' => $serials,
-                ]));
-            }
+        $hasShipment = filled($tracking)
+            || collect($data['items'] ?? [])->contains(fn ($line) => ! empty($line['shipped_date']))
+            || $order->shipments()->whereNotNull('shipped_date')->exists();
+        if ($hasShipment) {
+            app(OrderRequesterNotifier::class)->shipped($order, array_filter([
+                'tracking' => $tracking ?: $order->shipments()->whereNotNull('tracking_number')->value('tracking_number'),
+                'serials' => $serials,
+            ]));
         }
     }
 

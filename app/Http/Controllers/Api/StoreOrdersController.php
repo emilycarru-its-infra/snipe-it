@@ -14,6 +14,7 @@ use App\Services\StoreOrderDecision;
 use App\Services\StoreOrderNotifier;
 use App\Services\StoreOrderPlacement;
 use App\Services\StoreOrderQuote;
+use App\Services\StoreOrderRevision;
 use App\Services\StoreVendorOrderDispatch;
 use App\Services\SupplierAccounts;
 use Illuminate\Http\JsonResponse;
@@ -105,6 +106,28 @@ class StoreOrdersController extends Controller
             $this->row($result['order']->fresh(['user', 'items', 'purchaseOrder'])),
             trans('admin/store/general.order_placed')
         ));
+    }
+
+    public function revise(Request $request, StoreOrder $order, StoreOrderRevision $revision): JsonResponse
+    {
+        $this->authorize('update', Requisition::class);
+        $data = $request->validate([
+            'revision' => 'required|string|size:64',
+            'reason' => 'required|string|max:2000',
+            'notes' => 'nullable|string|max:65535',
+            'decision_notes' => 'nullable|string|max:65535',
+            'gl_code' => 'nullable|string|max:64',
+            'items' => 'required|array|min:1|max:50',
+            'items.*.catalog_item_id' => 'required|integer|distinct|exists:catalog_items,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_cost' => 'required|numeric|min:0',
+        ]);
+        $result = $revision->revise($order, $data);
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'order' => $this->row($result['order']),
+            'released_asset_ids' => $result['released_asset_ids'],
+        ], 'Request revised. No purchase confirmation or email was sent.'));
     }
 
     /**
@@ -341,6 +364,7 @@ class StoreOrdersController extends Controller
         return [
             'id' => $order->id,
             'reference' => $order->reference(),
+            'revision' => StoreOrderRevision::fingerprint($order),
             'status' => $order->status,
             'requester' => [
                 'id' => $order->user_id,
@@ -363,6 +387,8 @@ class StoreOrdersController extends Controller
             'quote_expires_at' => $order->quote_expires_at?->format('Y-m-d'),
             'confirmed_at' => $order->confirmed_at?->format('Y-m-d H:i:s'),
             'items' => $order->items->map(fn ($line) => [
+                'id' => $line->id,
+                'catalog_item_id' => $line->catalog_item_id,
                 'description' => $line->description,
                 'quantity' => (int) $line->quantity,
                 'unit_cost' => (float) $line->unit_cost,
