@@ -86,7 +86,7 @@ class StoreOrderRevision
             $log = new Actionlog;
             $log->item_type = StoreOrder::class;
             $log->item_id = $order->id;
-            $log->created_by = auth()->id();
+            $log->setAttribute('created_by', auth()->id());
             $log->action_type = 'update';
             $log->note = $data['reason'];
             $log->log_meta = json_encode(['items' => ['old' => $before, 'new' => $data['items']], 'released_asset_ids' => ['old' => [], 'new' => $release->pluck('id')->all()]], JSON_THROW_ON_ERROR);

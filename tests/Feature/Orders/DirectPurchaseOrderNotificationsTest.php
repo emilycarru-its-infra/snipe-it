@@ -24,7 +24,7 @@ class DirectPurchaseOrderNotificationsTest extends TestCase
         Passport::actingAs(User::factory()->superuser()->create());
         $po = PurchaseOrder::factory()->create();
         $request = StoreOrder::create(['user_id' => User::factory()->create()->id, 'status' => 'ordered', 'purchase_order_id' => $po->id]);
-        $order = Order::factory()->create(['purchase_order_id' => $po->id]);
+        $order = Order::factory()->create(['purchase_order_id' => $po->id, 'status' => 'ordered']);
 
         return [$po, $request, $order];
     }
