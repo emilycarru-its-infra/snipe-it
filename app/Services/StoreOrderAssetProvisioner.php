@@ -92,7 +92,16 @@ class StoreOrderAssetProvisioner
      */
     public function assetsFor(StoreOrder $order): Collection
     {
-        return Asset::where('order_number', $order->reference())
+        $references = [$order->reference()];
+        // A dedicated PO's vendor number replaces the original request
+        // reference when the supplier confirms it. Keep those same devices
+        // visible to their requester without adopting a shared PO's stock.
+        $po = $order->purchaseOrder;
+        if ($po && $po->orders()->count() === 1 && $po->storeOrders()->count() === 1) {
+            $references[] = $po->orders()->value('order_number');
+        }
+
+        return Asset::whereIn('order_number', array_filter($references))
             ->with('model', 'status')
             ->orderBy('id')
             ->get();

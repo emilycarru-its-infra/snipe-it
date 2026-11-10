@@ -922,6 +922,8 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.store-orders.index');
     Route::post('store-orders', [Api\StoreOrdersController::class, 'store'])
         ->name('api.store-orders.store');
+    Route::patch('store-orders/{order}', [Api\StoreOrdersController::class, 'revise'])
+        ->name('api.store-orders.revise');
     Route::post('store-orders/{order}/decide', [Api\StoreOrdersController::class, 'decide'])
         ->name('api.store-orders.decide');
     Route::post('store-orders/attach', [Api\StoreOrdersController::class, 'attach'])
