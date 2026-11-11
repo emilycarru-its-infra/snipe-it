@@ -61,7 +61,7 @@ class TopSearchPaperTrailTest extends TestCase
         $this->assertSame(route('purchase-orders.show', $po), $group['items'][0]['url']);
     }
 
-    public function test_an_invoice_number_opens_the_order_that_carries_it(): void
+    public function test_an_invoice_number_opens_the_invoice_page(): void
     {
         $order = Order::factory()->create(['order_number' => 'TESTPM2']);
         OrderInvoice::create([
@@ -73,8 +73,8 @@ class TopSearchPaperTrailTest extends TestCase
 
         $this->assertNotNull($group, 'invoices must be a search group');
         $this->assertSame('TESTAJ2', $group['items'][0]['title']);
-        // Invoices have no page of their own, so the hit opens its parent.
-        $this->assertSame(route('orders.show', $order), $group['items'][0]['url']);
+        $this->assertSame(route('invoices.show', OrderInvoice::where('invoice_number', 'TESTAJ2')->first()), $group['items'][0]['url']);
+        $this->assertStringContainsString('TESTPM2', $group['items'][0]['subtitle']);
     }
 
     public function test_a_lease_schedule_number_finds_its_contract(): void
