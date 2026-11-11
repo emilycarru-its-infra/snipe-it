@@ -7,7 +7,6 @@ use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Transformers\OrdersTransformer;
 use App\Models\Actionlog;
-use App\Models\Company;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Services\InvoiceApproval;
@@ -66,8 +65,8 @@ class OrderInvoicesController extends Controller
     }
 
     /**
-     * The list's filters applied to a query. Invoices are an order's
-     * documents, so only those whose order the reader may see come back.
+     * The list's filters applied to a query. Only the invoices the reader's
+     * company may see come back; see OrderInvoice::scopeVisibleToCurrentUser().
      *
      * @param  Builder<OrderInvoice>  $query
      * @param  array<string, mixed>  $filters
@@ -75,9 +74,7 @@ class OrderInvoicesController extends Controller
      */
     public static function filtered(Builder $query, array $filters): Builder
     {
-        $query->where(fn (Builder $visible) => $visible
-            ->whereNull('order_invoices.order_id')
-            ->orWhereHas('order', fn (Builder $order) => Company::scopeCompanyables($order)));
+        $query->visibleToCurrentUser();
 
         $value = fn (string $key) => trim((string) ($filters[$key] ?? ''));
 
@@ -189,7 +186,7 @@ class OrderInvoicesController extends Controller
         }
 
         $invoice = OrderInvoice::findOrFail($invoiceId);
-        abort_unless($invoice->order === null || Company::isCurrentUserHasAccess($invoice->order), 404);
+        abort_unless($invoice->isVisibleToCurrentUser(), 404);
 
         $invoice = DB::transaction(function () use ($invoice, $validated, $request) {
             $invoice = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();

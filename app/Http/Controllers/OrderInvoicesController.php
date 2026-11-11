@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Helpers\Helper;
 use App\Http\Controllers\Api\OrderInvoicesController as ApiOrderInvoicesController;
 use App\Models\Actionlog;
-use App\Models\Company;
 use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\Supplier;
@@ -56,7 +55,7 @@ class OrderInvoicesController extends Controller
     public function show(OrderInvoice $invoice): View
     {
         $this->authorize('view', Order::class);
-        abort_unless($invoice->order === null || Company::isCurrentUserHasAccess($invoice->order), 404);
+        abort_unless($invoice->isVisibleToCurrentUser(), 404);
 
         $invoice->load([
             'order.supplier', 'order.purchaseOrder', 'purchaseOrder', 'approver', 'okayToPayDelivery',

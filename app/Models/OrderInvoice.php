@@ -128,6 +128,42 @@ class OrderInvoice extends Model
     }
 
     /**
+     * The invoices the signed-in user's company may see. An invoice belongs
+     * to its order's company (a deleted order still owns its invoices), or —
+     * when its order record is gone — its purchase order's; the purchase
+     * order it is charged to must be visible too, as on the
+     * workflow-observations feed. One with neither parent belongs to nobody
+     * and is left to superusers. Without full multiple company support, or
+     * for a superuser, everything.
+     */
+    public function scopeVisibleToCurrentUser($query)
+    {
+        $user = auth()->user();
+        if (Setting::getSettings()?->full_multiple_companies_support != '1' || ! $user || $user->isSuperUser()) {
+            return $query;
+        }
+
+        return $query
+            ->where(fn ($charged) => $charged
+                ->whereNull('order_invoices.purchase_order_id')
+                ->orWhereHas('purchaseOrder', fn ($po) => Company::scopeCompanyables($po)))
+            ->where(fn ($owner) => $owner
+                ->whereHas('order', fn ($order) => Company::scopeCompanyables($order->withTrashed()))
+                ->orWhere(fn ($poOnly) => $poOnly
+                    ->whereDoesntHave('order', fn ($order) => $order->withTrashed())
+                    ->whereHas('purchaseOrder', fn ($po) => Company::scopeCompanyables($po))));
+    }
+
+    /**
+     * Whether the signed-in user's company may see this invoice; see
+     * scopeVisibleToCurrentUser().
+     */
+    public function isVisibleToCurrentUser(): bool
+    {
+        return static::query()->whereKey($this->getKey())->visibleToCurrentUser()->exists();
+    }
+
+    /**
      * Scope invoices to a fiscal year.
      *
      * Attribution follows the booking order — a blanket purchase order spans

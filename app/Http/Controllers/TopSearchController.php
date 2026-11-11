@@ -261,7 +261,7 @@ class TopSearchController extends Controller
     private function invoices(string $query): ?array
     {
         return $this->group('view', Order::class, 'invoices', trans('admin/purchase-orders/general.search_group_invoices'), 'invoices.index', function () use ($query) {
-            $builder = $this->like(OrderInvoice::query()->with(['order', 'purchaseOrder']), ['invoice_number'], $query);
+            $builder = $this->like(OrderInvoice::query()->visibleToCurrentUser()->with(['order', 'purchaseOrder']), ['invoice_number'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderByDesc('id')->limit(self::PER_GROUP)->get()
