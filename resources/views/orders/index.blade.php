@@ -89,7 +89,10 @@
     @endphp
     <details class="ecu-card ord-card">
         <summary>
-            <span class="ord-num">{{ $order->order_number }}</span>
+            <span class="ord-num">{{ $order->primaryNumber() }}</span>
+            @if ($order->secondaryNumber())
+                <span class="ord-meta">{{ $order->secondaryNumber() }}</span>
+            @endif
             <span class="label {{ $labelClass }}">{{ trans('admin/orders/general.status_'.$order->status) }}</span>
             @if ($total)
                 <span class="ord-meta">{{ trans('admin/orders/general.received_progress', ['received' => $received, 'total' => $total]) }}</span>
@@ -133,7 +136,7 @@
                     @endforeach
                     @if ($order->shipments->isNotEmpty() && $order->invoices->isNotEmpty()) &nbsp;|&nbsp; @endif
                     @foreach ($order->invoices as $invoice)
-                        {{ trans('admin/orders/general.invoice_number') }} {{ $invoice->invoice_number }}@if(!$loop->last) · @endif
+                        {{ trans('admin/orders/general.invoice_number') }} <a href="{{ route('invoices.show', $invoice) }}">{{ $invoice->invoice_number }}</a>@if(!$loop->last) · @endif
                     @endforeach
                 </p>
             @endif

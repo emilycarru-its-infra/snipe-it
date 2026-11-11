@@ -1159,6 +1159,13 @@
         "supplier_id"
     ],
     "order_invoices": [
+        "ap_paid_amount",
+        "ap_paid_at",
+        "ap_payment_method",
+        "ap_payment_reference",
+        "ap_status",
+        "ap_synced_at",
+        "ap_voucher_number",
         "approval_status",
         "approved_at",
         "approved_by",
@@ -1230,6 +1237,7 @@
         "fiscal_year",
         "funding_account",
         "id",
+        "internal_order_number",
         "is_planned",
         "lease_schedule",
         "notes",

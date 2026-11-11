@@ -1026,10 +1026,14 @@ class ProcurementReportsController extends Controller
         // The queue's checkbox posts nothing when unticked, so here a missing
         // flag means "not final" rather than "leave it as it was".
         $validated['is_final_invoice'] = (bool) ($validated['is_final_invoice'] ?? false);
-        app(InvoiceApproval::class)->apply($invoice, $request->user(), $validated);
+        $invoice = app(InvoiceApproval::class)->apply($invoice, $request->user(), $validated);
 
-        return redirect()->route('reports.procurement.invoice-approval', $request->only('status'))
-            ->with('success', trans('admin/purchase-orders/general.invoice_approval_updated'));
+        // The invoice's own page posts here too, and goes back to itself.
+        $back = $request->input('return_to') === 'invoice'
+            ? redirect()->route('invoices.show', $invoice)
+            : redirect()->route('reports.procurement.invoice-approval', $request->only('status'));
+
+        return $back->with('success', trans('admin/purchase-orders/general.invoice_approval_updated'));
     }
 
     public function invoiceAcceptance(OrderInvoice $invoice)
@@ -2156,10 +2160,11 @@ class ProcurementReportsController extends Controller
                     0 => $invoice->order?->purchaseOrder
                         ? route('purchase-orders.show', $invoice->order->purchaseOrder) : null,
                     1 => $invoice->order ? route('orders.show', $invoice->order) : null,
+                    2 => route('invoices.show', $invoice),
                 ]),
                 'cells' => [
                     (string) $invoice->order?->purchaseOrder?->po_number,
-                    (string) $invoice->order?->order_number,
+                    (string) $invoice->order?->primaryNumber(),
                     $invoice->invoice_number,
                     $this->dateString($invoice->invoice_date),
                     $this->money($invoice->subtotal),
@@ -3596,10 +3601,16 @@ class ProcurementReportsController extends Controller
                 // Variance over a dollar gets the danger class — that's
                 // the threshold below which Mark is happy to wave through.
                 'class' => abs($variance) > self::varianceTolerance() && $invoice->isPendingApproval() ? 'danger' : '',
+                'links' => array_filter([
+                    1 => $invoice->order?->purchaseOrder
+                        ? route('purchase-orders.show', $invoice->order->purchaseOrder) : null,
+                    2 => $invoice->order ? route('orders.show', $invoice->order) : null,
+                    3 => route('invoices.show', $invoice),
+                ]),
                 'cells' => [
                     trans('admin/purchase-orders/general.attestation_'.($invoice->attestation_type ?: 'vendor_invoice')),
                     (string) $invoice->order?->purchaseOrder?->po_number,
-                    (string) $invoice->order?->order_number,
+                    (string) $invoice->order?->primaryNumber(),
                     $invoice->invoice_number,
                     $this->dateString($invoice->invoice_date),
                     $this->money($invoice->subtotal),
@@ -3633,18 +3644,7 @@ class ProcurementReportsController extends Controller
      */
     private function okayToPayCell(OrderInvoice $invoice): string
     {
-        if ($invoice->okp_status !== OkayToPay::SENT && OkayToPayHistory::blocked($invoice)) {
-            return trans('admin/purchase-orders/general.okp_reason_historical_settlement');
-        }
-        $when = fn ($date) => $date ? $date->timezone(config('app.timezone'))->format('M j, g:i A') : '';
-
-        return match ($invoice->okp_status) {
-            OkayToPay::QUEUED => trans('admin/purchase-orders/general.okp_status_queued', ['date' => $when($invoice->okp_send_after)]),
-            OkayToPay::SENDING, OkayToPay::UNCERTAIN => trans('admin/purchase-orders/general.okp_reason_delivery_reserved'),
-            OkayToPay::HELD => trim(trans('admin/purchase-orders/general.okp_status_held').' — '.implode(' ', (array) $invoice->okp_reasons), ' —'),
-            OkayToPay::SENT => trans('admin/purchase-orders/general.okp_status_sent', ['date' => $when($invoice->okp_sent_at)]),
-            default => '',
-        };
+        return $invoice->okayToPayLabel();
     }
 
     /**
@@ -4737,7 +4737,7 @@ class ProcurementReportsController extends Controller
                         'class' => 'warning',
                         'links' => [0 => $orderLink],
                         'cells' => [
-                            (string) $order->order_number,
+                            (string) $order->primaryNumber(),
                             trans('admin/purchase-orders/general.po_drilldown_no_invoice'),
                             '',
                             $order->items->count(),
@@ -4765,9 +4765,9 @@ class ProcurementReportsController extends Controller
 
                     $childRows[] = [
                         'class' => $offBy ? 'danger' : '',
-                        'links' => [0 => $orderLink],
+                        'links' => [0 => $orderLink, 1 => route('invoices.show', $invoice)],
                         'cells' => [
-                            (string) $order->order_number,
+                            (string) $order->primaryNumber(),
                             $invoice->invoice_number,
                             $this->dateString($invoice->invoice_date),
                             $invoice->items->count(),
@@ -5161,6 +5161,7 @@ class ProcurementReportsController extends Controller
 
             $records[] = [
                 'class' => $invoice->invoice_type === 'credit' ? 'success' : ($invoice->invoice_type === 'termination' ? 'info' : ''),
+                'links' => [1 => route('invoices.show', $invoice)],
                 'cells' => [
                     (string) $invoice->contract_reference,
                     $invoice->invoice_number,

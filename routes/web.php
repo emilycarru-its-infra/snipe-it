@@ -40,6 +40,7 @@ use App\Http\Controllers\LicenseModelsController;
 use App\Http\Controllers\ManufacturersController;
 use App\Http\Controllers\ModalController;
 use App\Http\Controllers\NotesController;
+use App\Http\Controllers\OrderInvoicesController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\PreferencesController;
 use App\Http\Controllers\PrintingReportsController;
@@ -65,6 +66,7 @@ use App\Http\Controllers\UserAgreementsController;
 use App\Http\Controllers\ViewAssetsController;
 use App\Livewire\Importer;
 use App\Mail\CheckoutComponentMail;
+use App\Models\OrderInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\ReportTemplate;
 use App\Services\Deployments\DecommissionLane;
@@ -165,6 +167,19 @@ Route::group(['middleware' => 'auth'], function () {
     Route::post('procurement/orders/{order}/invoices', [OrdersController::class, 'storeInvoice'])->name('orders.invoices.store');
     Route::put('procurement/orders/{order}/invoices/{invoice}', [OrdersController::class, 'updateInvoice'])->name('orders.invoices.update');
     Route::delete('procurement/orders/{order}/invoices/{invoice}', [OrdersController::class, 'destroyInvoice'])->name('orders.invoices.destroy');
+
+    /*
+    * Invoices — every vendor invoice across orders, and each one's own page,
+    * addressed by the vendor's invoice number.
+    */
+    Route::get('procurement/invoices', [OrderInvoicesController::class, 'index'])
+        ->name('invoices.index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('procurement.index')
+            ->push(trans('admin/orders/general.invoices'), route('invoices.index')));
+    Route::get('procurement/invoices/{invoice}', [OrderInvoicesController::class, 'show'])
+        ->name('invoices.show')
+        ->breadcrumbs(fn (Trail $trail, OrderInvoice $invoice) => $trail->parent('invoices.index')
+            ->push($invoice->invoice_number, route('invoices.show', $invoice)));
 
     /*
     * Purchase Orders
@@ -1527,7 +1542,9 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('po-budget', [ProcurementReportsController::class, 'poBudget'])
             ->name('reports.procurement.po-budget')
             ->breadcrumbs($crumb('reports.procurement.po-budget', 'report_po_budget'));
-        Route::get('invoices', [ProcurementReportsController::class, 'invoices'])
+        // The reconciliation report moved off /procurement/invoices, which is
+        // now the invoices list; that list takes the same ?fiscal_year=.
+        Route::get('invoice-reconciliation', [ProcurementReportsController::class, 'invoices'])
             ->name('reports.procurement.invoices')
             ->breadcrumbs($crumb('reports.procurement.invoices', 'report_invoices'));
         Route::get('receiving', [ProcurementReportsController::class, 'receiving'])

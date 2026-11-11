@@ -228,7 +228,7 @@
                     <tbody>
                     @forelse ($purchaseOrder->orders as $childOrder)
                         <tr>
-                            <td><a class="js-lightbox" href="{{ route('orders.show', $childOrder) }}">{{ $childOrder->order_number }}</a></td>
+                            <td><a class="js-lightbox" href="{{ route('orders.show', $childOrder) }}">{{ $childOrder->primaryNumber() }}</a></td>
                             <td>{{ trans('admin/orders/general.status_'.$childOrder->status) }}</td>
                             <td>{{ $childOrder->supplier?->name }}</td>
                             <td>{{ $childOrder->order_date ? $childOrder->order_date->format('Y-m-d') : '' }}</td>

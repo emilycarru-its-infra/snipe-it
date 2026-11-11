@@ -218,13 +218,14 @@ class TopSearchController extends Controller
     private function orders(string $query): ?array
     {
         return $this->group('view', Order::class, 'orders', trans('admin/orders/general.orders'), 'orders.index', function () use ($query) {
-            $builder = $this->like($this->scoped(Order::query(), 'orders')->with('supplier'), ['order_number'], $query);
+            $builder = $this->like($this->scoped(Order::query(), 'orders')->with('supplier'), ['order_number', 'vendor_order_number', 'internal_order_number'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderByDesc('order_date')->limit(self::PER_GROUP)->get()
                 ->map(fn (Order $order) => [
-                    'title' => $order->order_number,
+                    'title' => $order->primaryNumber(),
                     'subtitle' => trim(collect([
+                        $order->secondaryNumber(),
                         $order->supplier?->name,
                         $order->status ? trans('admin/orders/general.status_'.$order->status) : null,
                     ])->filter()->implode(' · ')),
@@ -253,35 +254,25 @@ class TopSearchController extends Controller
     }
 
     /**
-     * Invoices have no page of their own — they are rows on the order or the
-     * purchase order that carries them — so a hit opens its parent. Gated on
-     * orders: an invoice is an order's document, and anyone who cannot see
-     * the order has no business being handed its invoice number.
+     * A hit opens the invoice's own page. Gated on orders: an invoice is an
+     * order's document, and anyone who cannot see the order has no business
+     * being handed its invoice number.
      */
     private function invoices(string $query): ?array
     {
-        return $this->group('view', Order::class, 'invoices', trans('admin/purchase-orders/general.search_group_invoices'), 'reports.procurement.invoices', function () use ($query) {
+        return $this->group('view', Order::class, 'invoices', trans('admin/purchase-orders/general.search_group_invoices'), 'invoices.index', function () use ($query) {
             $builder = $this->like(OrderInvoice::query()->with(['order', 'purchaseOrder']), ['invoice_number'], $query);
             $count = (clone $builder)->count();
 
             $rows = $builder->orderByDesc('id')->limit(self::PER_GROUP)->get()
-                ->map(function (OrderInvoice $invoice) {
-                    $parent = $invoice->order
-                        ? route('orders.show', $invoice->order)
-                        : ($invoice->purchaseOrder ? route('purchase-orders.show', $invoice->purchaseOrder) : null);
-
-                    return [
-                        'title' => $invoice->invoice_number,
-                        'subtitle' => trim(collect([
-                            $invoice->order?->order_number,
-                            $invoice->purchaseOrder?->po_number,
-                        ])->filter()->unique()->implode(' · ')),
-                        'url' => $parent,
-                    ];
-                })
-                // An invoice orphaned from both parents has nowhere to open.
-                ->filter(fn ($row) => $row['url'] !== null)
-                ->values()
+                ->map(fn (OrderInvoice $invoice) => [
+                    'title' => $invoice->invoice_number,
+                    'subtitle' => trim(collect([
+                        $invoice->order?->primaryNumber(),
+                        $invoice->purchaseOrder?->po_number,
+                    ])->filter()->unique()->implode(' · ')),
+                    'url' => route('invoices.show', $invoice),
+                ])
                 ->all();
 
             return [$rows, $count];

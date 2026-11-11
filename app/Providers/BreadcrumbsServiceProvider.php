@@ -451,11 +451,11 @@ class BreadcrumbsServiceProvider extends ServiceProvider
         );
 
         Breadcrumbs::for('orders.show', fn (Trail $trail, Order $order) => $trail->parent('orders.index', route('orders.index'))
-            ->push($order->order_number, route('orders.show', $order))
+            ->push($order->primaryNumber(), route('orders.show', $order))
         );
 
         Breadcrumbs::for('orders.edit', fn (Trail $trail, Order $order) => $trail->parent('orders.index', route('orders.index'))
-            ->push($order->order_number, route('orders.show', $order))
+            ->push($order->primaryNumber(), route('orders.show', $order))
             ->push(trans('general.update'))
         );
 

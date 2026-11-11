@@ -526,6 +526,9 @@
                     </button>
                 </form>
                 @endcan
+                <a href="{{ $card['url'] }}" class="btn btn-default btn-sm">
+                    {{ trans('admin/purchase-orders/general.invoice_page_open') }}
+                </a>
                 <a href="{{ route('reports.procurement.invoice-approval') }}" class="btn btn-default btn-sm">
                     {{ trans('admin/purchase-orders/general.pipeline_open_invoice_queue') }}
                 </a>

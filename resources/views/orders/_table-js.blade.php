@@ -13,7 +13,11 @@
         }
 
         window.ordersLinkFormatter = function (value, row) {
-            return '<a href="' + esc(row.url || (ordersBaseUrl + '/' + row.id)) + '">' + esc(value) + '</a>';
+            var html = '<a href="' + esc(row.url || (ordersBaseUrl + '/' + row.id)) + '">' + esc(row.display_number || value) + '</a>';
+            if (row.secondary_number) {
+                html += ' <small class="text-muted">' + esc(row.secondary_number) + '</small>';
+            }
+            return html;
         };
 
         window.ordersObjNameFormatter = function (value) {

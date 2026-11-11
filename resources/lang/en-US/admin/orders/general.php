@@ -187,5 +187,6 @@ return [
     'board_ask_eta' => 'Ask for ETA',
     'board_ask_eta_help' => 'Sends the standard ETA request to this order\'s supplier with the team copied. Open the order to change the recipients or wording first.',
     'board_empty' => 'Nothing here.',
-    'list_search' => 'Search order, PO or supplier',
+    'list_search' => 'Search order (ours or the vendor\'s), PO or supplier',
+    'internal_order_number' => 'Our order number',
 ];

@@ -20,7 +20,9 @@ class ProcurementObservationsTransformer
         'order-shipments' => ['id', 'order_id', 'tracking_number', 'tracking_carrier', 'shipped_date', 'received_date'],
         'order-invoices' => ['id', 'order_id', 'purchase_order_id', 'invoice_number', 'invoice_date',
             'subtotal', 'tax_gst', 'tax_pst', 'shipping', 'total', 'invoice_type', 'approval_status',
-            'approved_at', 'is_final_invoice', 'usage_tag', 'contract_reference', 'attestation_type'],
+            'approved_at', 'is_final_invoice', 'usage_tag', 'contract_reference', 'attestation_type',
+            'ap_voucher_number', 'ap_status', 'ap_paid_at', 'ap_paid_amount', 'ap_payment_method',
+            'ap_payment_reference', 'ap_synced_at'],
     ];
 
     public function transform(Model $row, string $family): array

@@ -2,10 +2,10 @@
 @section('title', trans('admin/purchase-orders/general.okp_acceptance_title'))
 @section('content')
 <div class="box box-default">
-    <div class="box-header"><h2 class="box-title">{{ trans('admin/purchase-orders/general.okp_acceptance_title') }} — {{ $invoice->invoice_number }}</h2></div>
+    <div class="box-header"><h2 class="box-title">{{ trans('admin/purchase-orders/general.okp_acceptance_title') }} — <a href="{{ route('invoices.show', $invoice) }}">{{ $invoice->invoice_number }}</a></h2></div>
     <div class="box-body">
         <p class="alert alert-warning">{{ trans('admin/purchase-orders/general.okp_acceptance_warning') }}</p>
-        <p>{{ $invoice->order?->order_number }} · {{ $invoice->order?->lease_schedule }} · {{ $invoice->invoice_date?->format('Y-m-d') }} · {{ \App\Services\Leasing\OkayToPay::money($invoice->total) }}</p>
+        <p>{{ $invoice->order?->primaryNumber() }} · {{ $invoice->order?->lease_schedule }} · {{ $invoice->invoice_date?->format('Y-m-d') }} · {{ \App\Services\Leasing\OkayToPay::money($invoice->total) }}</p>
         @foreach ($reasons as $reason)<p class="text-danger">{{ $reason }}</p>@endforeach
         @foreach ($errors->all() as $error)<p class="text-danger">{{ $error }}</p>@endforeach
         <div class="table-responsive"><table class="table table-striped">

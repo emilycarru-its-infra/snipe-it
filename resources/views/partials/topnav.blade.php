@@ -126,6 +126,9 @@
                     <li{!! (request()->is('procurement/orders*') ? ' class="active"' : '') !!}>
                         <a href="{{ route('orders.index') }}">{{ trans('admin/orders/general.orders') }}</a>
                     </li>
+                    <li{!! (request()->is('procurement/invoices*') ? ' class="active"' : '') !!}>
+                        <a href="{{ route('invoices.index') }}">{{ trans('admin/orders/general.invoices') }}</a>
+                    </li>
                     @can('procurement.view')
                         <li{!! (request()->is('procurement/capital') ? ' class="active"' : '') !!}>
                             <a href="{{ route('reports.procurement.capital-request') }}">{{ trans('admin/purchase-orders/general.capital_nav') }}</a>

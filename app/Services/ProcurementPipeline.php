@@ -221,7 +221,7 @@ class ProcurementPipeline
 
         return self::cap($orders->map(fn (Order $order) => [
             'id' => $order->id,
-            'order_number' => $order->order_number,
+            'order_number' => $order->primaryNumber(),
             'total' => (float) $order->items->sum->lineTotal(),
             'items_count' => $order->items->count(),
             'po_number' => $order->purchaseOrder?->po_number,
@@ -243,7 +243,7 @@ class ProcurementPipeline
 
         return self::cap($orders->map(fn (Order $order) => [
             'id' => $order->id,
-            'order_number' => $order->order_number,
+            'order_number' => $order->primaryNumber(),
             'status' => $order->status,
             'supplier' => $order->supplier?->name,
             'expected_date' => $order->expected_date?->format('Y-m-d'),
@@ -286,7 +286,7 @@ class ProcurementPipeline
 
             $card = [
                 'id' => $order->id,
-                'order_number' => $order->order_number,
+                'order_number' => $order->primaryNumber(),
                 'status' => $order->status,
                 'received_date' => $order->received_date?->format('Y-m-d'),
                 'staged_count' => $staged->count(),
@@ -335,9 +335,10 @@ class ProcurementPipeline
             return [
                 'id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
+                'url' => route('invoices.show', $invoice),
                 'okp_historical' => $historical,
                 'okp_unresolved' => $historical || $invoice->okayToPayDelivery !== null || in_array($invoice->okp_status, [OkayToPay::SENDING, OkayToPay::UNCERTAIN], true),
-                'order_number' => $invoice->order?->order_number,
+                'order_number' => $invoice->order?->primaryNumber(),
                 'invoice_date' => $invoice->invoice_date?->format('Y-m-d'),
                 'subtotal' => (float) $invoice->subtotal,
                 'total' => (float) $invoice->total,

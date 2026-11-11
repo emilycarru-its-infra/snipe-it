@@ -27,6 +27,7 @@ use Watson\Validating\ValidatingTrait;
  * @property Carbon|null $vendor_changes_at
  * @property string|null $vendor_changes_notes
  * @property string|null $vendor_order_number
+ * @property string|null $internal_order_number
  * @property string|null $order_cc
  * @property string|null $order_cc_users
  * @property string|null $order_number
@@ -124,7 +125,7 @@ class Order extends SnipeModel
      *
      * @var array
      */
-    protected $searchableAttributes = ['order_number', 'status', 'notes'];
+    protected $searchableAttributes = ['order_number', 'vendor_order_number', 'internal_order_number', 'status', 'notes'];
 
     /**
      * The relations and their attributes that should be included when searching the model.
@@ -281,13 +282,40 @@ class Order extends SnipeModel
 
     /**
      * An order has no `name` column, so the shared display_name accessor
-     * (which returns `name`) would be empty. Use the order number instead.
+     * (which returns `name`) would be empty. Use the order's number instead.
      */
     protected function displayName(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->order_number,
+            get: fn () => $this->primaryNumber(),
         );
+    }
+
+    /**
+     * The number people know this order by: the vendor's once they issued
+     * one, otherwise ours.
+     */
+    public function primaryNumber(): string
+    {
+        return (string) ($this->vendor_order_number ?: $this->order_number);
+    }
+
+    /**
+     * Our own number for an order the vendor has numbered, shown beside
+     * theirs so a link or email made before the vendor answered still reads
+     * as the same order. Null when there is only one number.
+     */
+    public function secondaryNumber(): ?string
+    {
+        $primary = $this->primaryNumber();
+
+        foreach ([$this->internal_order_number, $this->order_number] as $candidate) {
+            if (filled($candidate) && $candidate !== $primary) {
+                return (string) $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -331,12 +359,15 @@ class Order extends SnipeModel
     }
 
     /**
-     * Its pages are addressed by this rather than the database id; see HasStableRouteKey.
+     * Its pages are addressed by the vendor's number once they issued one,
+     * then by ours; see HasStableRouteKey. The number it carried before the
+     * vendor's is listed last, so an older link still opens the order and is
+     * forwarded to the vendor-number address.
      *
      * @return array<int, string>
      */
     public function stableRouteKeyColumns(): array
     {
-        return ['order_number'];
+        return ['vendor_order_number', 'order_number', 'internal_order_number'];
     }
 }
