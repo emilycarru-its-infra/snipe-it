@@ -1557,6 +1557,15 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     Route::post('orders/{order_id}/receive', [Api\OrdersController::class, 'receive'])
         ->name('api.orders.receive');
 
+    // Linking an order to the purchase order it was raised under, and an
+    // invoice's approval to pay — reconciliation against the accounting
+    // system needs both, and neither had a path outside the browser.
+    Route::patch('orders/{order_id}/purchase-order', [Api\OrdersController::class, 'purchaseOrder'])
+        ->name('api.orders.purchase-order');
+    Route::patch('order-invoices/{invoice_id}/approval', [Api\OrderInvoicesController::class, 'approval'])
+        ->whereNumber('invoice_id')
+        ->name('api.order-invoices.approval');
+
     Route::post('orders/{order_id}/send-vendor', [Api\OrdersController::class, 'sendVendor'])
         ->name('api.orders.send-vendor');
     Route::post('orders/{order_id}/vendor-response', [Api\OrdersController::class, 'vendorResponse'])

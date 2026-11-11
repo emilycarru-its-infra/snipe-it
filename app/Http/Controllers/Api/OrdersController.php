@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FilterRequest;
+use App\Enums\ActionType;
 use App\Http\Transformers\OrdersTransformer;
 use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\Actionlog;
 use App\Models\AssetModel;
+use App\Models\Company;
 use App\Models\CatalogItem;
 use App\Models\Component;
 use App\Models\Consumable;
@@ -709,6 +712,70 @@ class OrdersController extends Controller
             'status' => $order->status,
             'items_open' => $order->items()->whereNull('received_at')->count(),
         ], trans('admin/orders/message.item.receive_success')));
+    }
+
+    /**
+     * Link an order to the purchase order it was really raised under, or
+     * unlink it with null. Its line items and invoices follow, because each
+     * carries its own purchase_order_id and a budget read per line would
+     * otherwise still count them against the old one. Planning state is left
+     * alone: this only links, and converting a planned order stays the edit
+     * form's decision.
+     */
+    public function purchaseOrder(Request $request, $orderId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        try {
+            $validated = $request->validate([
+                'purchase_order_id' => 'present|nullable|integer|exists:purchase_orders,id,deleted_at,NULL',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
+        }
+
+        $order = Order::findOrFail($orderId);
+        abort_unless(Company::isCurrentUserHasAccess($order), 404);
+        $target = $validated['purchase_order_id'] ?? null;
+
+        $order = DB::transaction(function () use ($order, $target, $request) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $from = $order->purchase_order_id;
+
+            $order->purchase_order_id = $target;
+            $order->save();
+            $items = $order->items()->update(['purchase_order_id' => $target]);
+            $invoices = $order->invoices()->update(['purchase_order_id' => $target]);
+
+            $poLabel = fn ($id) => $id ? (PurchaseOrder::withTrashed()->whereKey($id)->value('po_number') ?? '#'.$id)
+                : trans('admin/orders/message.purchase_order.none');
+            $log = new Actionlog;
+            $log->item_type = Order::class;
+            $log->item_id = $order->id;
+            $log->setAttribute('created_by', $request->user()->id);
+            if ($target) {
+                $log->target_type = PurchaseOrder::class;
+                $log->target_id = $target;
+            }
+            $log->note = trans('admin/orders/message.purchase_order.log_note', [
+                'from' => $poLabel($from), 'to' => $poLabel($target), 'items' => $items, 'invoices' => $invoices,
+            ]);
+            $log->log_meta = json_encode(['purchase_order_id' => ['old' => $from, 'new' => $target]]);
+            $log->logaction(ActionType::Update);
+
+            return $order;
+        });
+
+        $order = Order::with('supplier', 'company', 'adminuser', 'purchaseOrder', 'items.item', 'items.invoice', 'invoices')
+            ->findOrFail($order->id);
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            (new OrdersTransformer)->transformOrder($order),
+            $target
+                ? trans('admin/orders/message.purchase_order.linked', ['po' => $order->purchaseOrder?->po_number])
+                : trans('admin/orders/message.purchase_order.unlinked')
+        ));
     }
 
     public function sendVendor(Request $request, $orderId): JsonResponse

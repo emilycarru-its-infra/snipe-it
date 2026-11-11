@@ -17,6 +17,13 @@ return [
         'success' => 'Order deleted successfully.',
     ],
 
+    'purchase_order' => [
+        'linked' => 'Order linked to purchase order :po.',
+        'unlinked' => 'Order unlinked from its purchase order.',
+        'log_note' => 'Purchase order changed from :from to :to; :items line items and :invoices invoices moved with it.',
+        'none' => 'none',
+    ],
+
     'cancel_success' => 'Order cancelled.',
     'reopen_success' => 'Order reopened.',
 

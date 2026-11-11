@@ -297,6 +297,32 @@ class OkayToPayTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_the_api_approval_is_held_back_by_the_same_okay_to_pay_guard()
+    {
+        $this->leaseOrder();
+        $this->ingest('ORD-LEASE-1', 'INV-API', Asset::factory()->count(1)->create()->all(), invoiceOverrides: [
+            'subtotal' => 5500.00,
+            'tax_gst' => 275.00,
+            'total' => 5775.00,
+        ]);
+        $invoice = $this->invoice('INV-API');
+        $this->assertNotEmpty(app(OkayToPay::class)->mismatches($invoice));
+
+        $this->actingAsForApi(User::factory()->superuser()->create())
+            ->patchJson(route('api.order-invoices.approval', $invoice->id), [
+                'approval_status' => 'approved',
+                'approved_at' => '2026-09-10',
+            ])
+            ->assertStatus(422)
+            ->assertJson(['status' => 'error'])
+            ->assertJsonPath('messages.approval_status.0', fn ($message) => str_contains($message, '5,500.00'));
+
+        $invoice->refresh();
+        $this->assertNotSame('approved', $invoice->approval_status);
+        $this->assertNull($invoice->approved_at);
+        Mail::assertNothingSent();
+    }
+
     public function test_a_device_without_a_serial_is_held()
     {
         $this->leaseOrder();
