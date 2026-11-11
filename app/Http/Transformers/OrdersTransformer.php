@@ -28,6 +28,11 @@ class OrdersTransformer
             'id' => (int) $order->id,
             'route_key' => StableRouteKeys::keyOf($order),
             'order_number' => e($order->order_number),
+            // What tables and links show: the vendor's number once there is
+            // one, with ours beside it.
+            'display_number' => e($order->primaryNumber()),
+            'secondary_number' => $order->secondaryNumber() !== null ? e($order->secondaryNumber()) : null,
+            'internal_order_number' => $order->internal_order_number !== null ? e($order->internal_order_number) : null,
             'url' => route('orders.show', $order),
             'status' => $order->status,
             'is_planned' => (bool) $order->is_planned,
@@ -148,6 +153,66 @@ class OrdersTransformer
             'is_final_invoice' => (bool) $invoice->is_final_invoice,
             'usage_tag' => $invoice->usage_tag !== null ? e($invoice->usage_tag) : null,
             'notes' => $invoice->notes !== null ? e($invoice->notes) : null,
+            'invoice_type' => $invoice->invoice_type,
+            'payment' => $this->transformPayment($invoice),
         ];
+    }
+
+    /**
+     * Where the invoice stands in accounts payable, as the finance system
+     * last reported it.
+     */
+    public function transformPayment(OrderInvoice $invoice): array
+    {
+        return [
+            'voucher_number' => $invoice->ap_voucher_number !== null ? e($invoice->ap_voucher_number) : null,
+            'status' => $invoice->ap_status,
+            'paid_at' => Helper::getFormattedDateObject($invoice->ap_paid_at, 'date'),
+            'paid_amount' => $invoice->ap_paid_amount !== null ? Helper::formatCurrencyOutput($invoice->ap_paid_amount) : null,
+            'payment_method' => $invoice->ap_payment_method !== null ? e($invoice->ap_payment_method) : null,
+            'payment_reference' => $invoice->ap_payment_reference !== null ? e($invoice->ap_payment_reference) : null,
+            'synced_at' => Helper::getFormattedDateObject($invoice->ap_synced_at, 'datetime'),
+            'difference' => $invoice->paymentDifference(),
+        ];
+    }
+
+    /**
+     * One row of the invoices list: the invoice with what it hangs off.
+     */
+    public function transformInvoiceRow(OrderInvoice $invoice): array
+    {
+        $order = $invoice->order;
+        $purchaseOrder = $invoice->purchaseOrder ?? $order?->purchaseOrder;
+
+        return $this->transformInvoice($invoice) + [
+            'route_key' => StableRouteKeys::keyOf($invoice),
+            'url' => route('invoices.show', $invoice),
+            'supplier' => $order?->supplier ? [
+                'id' => (int) $order->supplier->id,
+                'name' => e($order->supplier->name),
+            ] : null,
+            'order' => $order ? [
+                'id' => (int) $order->id,
+                'display_number' => e($order->primaryNumber()),
+                'secondary_number' => $order->secondaryNumber() !== null ? e($order->secondaryNumber()) : null,
+                'url' => route('orders.show', $order),
+            ] : null,
+            'purchase_order' => $purchaseOrder ? [
+                'id' => (int) $purchaseOrder->id,
+                'po_number' => e($purchaseOrder->po_number),
+                'url' => route('purchase-orders.show', $purchaseOrder),
+            ] : null,
+            'tax_total' => Helper::formatCurrencyOutput($invoice->taxTotal()),
+            'okp_status' => $invoice->okp_status,
+            'okp_label' => e($invoice->okayToPayLabel()),
+        ];
+    }
+
+    public function transformInvoiceRows(Collection $invoices, int $total): array
+    {
+        return (new DatatablesTransformer)->transformDatatables(
+            $invoices->map(fn (OrderInvoice $invoice) => $this->transformInvoiceRow($invoice))->all(),
+            $total
+        );
     }
 }

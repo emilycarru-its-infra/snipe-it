@@ -2,7 +2,7 @@
 
 {{-- Page title --}}
 @section('title')
-    {{ trans('admin/orders/general.view') }} - {{ $order->order_number }}
+    {{ trans('admin/orders/general.view') }} - {{ $order->primaryNumber() }}
     @parent
 @stop
 
@@ -19,7 +19,11 @@
     <div class="col-lg-10 col-lg-offset-1 col-md-12 col-sm-12 col-sm-offset-0">
         <div class="box box-default">
             <div class="box-header with-border">
-                <h2 class="box-title"><x-icon type="order" /> {{ $order->order_number }}</h2>
+                <h2 class="box-title"><x-icon type="order" /> {{ $order->primaryNumber() }}
+                    @if ($order->secondaryNumber())
+                        <small class="text-muted">{{ $order->secondaryNumber() }}</small>
+                    @endif
+                </h2>
                 <div class="pull-right">
                     @can('update', \App\Models\Order::class)
                         <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-sm btn-primary">
@@ -106,8 +110,14 @@
                 <div class="order-summary-grid">
                     <div>
                         <span class="order-fact-label">{{ trans('general.order_number') }}</span>
-                        <span class="order-fact-value"><strong>{{ $order->order_number }}</strong></span>
+                        <span class="order-fact-value"><strong>{{ $order->primaryNumber() }}</strong></span>
                     </div>
+                    @if ($order->secondaryNumber())
+                        <div>
+                            <span class="order-fact-label">{{ trans('admin/orders/general.internal_order_number') }}</span>
+                            <span class="order-fact-value">{{ $order->secondaryNumber() }}</span>
+                        </div>
+                    @endif
                     <div>
                         <span class="order-fact-label">{{ trans('admin/orders/general.status') }}</span>
                         <span class="order-fact-value">
@@ -195,7 +205,7 @@
                     <tbody>
                     @forelse ($order->invoices as $invoice)
                         <tr>
-                            <td>{{ $invoice->invoice_number }}</td>
+                            <td><a href="{{ route('invoices.show', $invoice) }}">{{ $invoice->invoice_number }}</a></td>
                             <td>{{ $invoice->invoice_date ? $invoice->invoice_date->format('Y-m-d') : '' }}</td>
                             <td>{{ $invoice->subtotal !== null ? Helper::formatCurrencyOutput($invoice->subtotal) : '' }}</td>
                             <td>{{ $invoice->tax_gst !== null ? Helper::formatCurrencyOutput($invoice->tax_gst) : '' }}</td>
@@ -493,7 +503,7 @@
                                     <span><i class="fas fa-truck fa-fw text-muted" aria-hidden="true"></i> {{ $lineItem->shipment->tracking_number ?: trans('admin/orders/general.shipment').' #'.$lineItem->shipment->id }}</span>
                                 @endif
                                 @if ($lineItem->invoice)
-                                    <span><i class="fas fa-file-invoice-dollar fa-fw text-muted" aria-hidden="true"></i> {{ $lineItem->invoice->invoice_number }}</span>
+                                    <span><i class="fas fa-file-invoice-dollar fa-fw text-muted" aria-hidden="true"></i> <a href="{{ route('invoices.show', $lineItem->invoice) }}">{{ $lineItem->invoice->invoice_number }}</a></span>
                                 @endif
                             </td>
                             <td class="text-nowrap">

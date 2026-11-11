@@ -1562,9 +1562,21 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     // system needs both, and neither had a path outside the browser.
     Route::patch('orders/{order_id}/purchase-order', [Api\OrdersController::class, 'purchaseOrder'])
         ->name('api.orders.purchase-order');
+    // The vendor's order number, which becomes the order's address. The
+    // vendor-response step records it too, but also accepts the quote; this
+    // only sets the number, or clears it with null.
+    Route::patch('orders/{order_id}/vendor-order', [Api\OrdersController::class, 'vendorOrder'])
+        ->name('api.orders.vendor-order');
     Route::patch('order-invoices/{invoice_id}/approval', [Api\OrderInvoicesController::class, 'approval'])
         ->whereNumber('invoice_id')
         ->name('api.order-invoices.approval');
+    // Every invoice, for the invoices list and the procurement hub; and where
+    // one stands in accounts payable, as the finance system reports it.
+    Route::get('order-invoices', [Api\OrderInvoicesController::class, 'index'])
+        ->name('api.order-invoices.index');
+    Route::patch('order-invoices/{invoice_id}/payment', [Api\OrderInvoicesController::class, 'payment'])
+        ->whereNumber('invoice_id')
+        ->name('api.order-invoices.payment');
 
     Route::post('orders/{order_id}/send-vendor', [Api\OrdersController::class, 'sendVendor'])
         ->name('api.orders.send-vendor');

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Mail\PurchaseOrderQuoteAcceptanceMail;
 use App\Mail\RequisitionVendorOrderMail;
-use App\Models\Asset;
 use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\User;
@@ -243,18 +242,10 @@ class VendorOrderDispatch
                 ? 'admin/purchase-orders/general.vendor_quote_confirmed_sent'
                 : 'admin/purchase-orders/general.vendor_quote_confirmed';
         } else {
-            $order->vendor_order_number = $fields['vendor_order_number'] ?? null;
-
             // Their number becomes the order's own: the shipment webhook and
             // their invoices arrive under it, and both match on order_number.
-            if (filled($order->vendor_order_number) && $order->order_number !== $order->vendor_order_number) {
-                // The devices provisioned under our interim name follow it:
-                // an asset's order number is the vendor's, its PO number ours.
-                Asset::where('order_number', $order->order_number)
-                    ->update(['order_number' => $order->vendor_order_number]);
-
-                $order->order_number = $order->vendor_order_number;
-            }
+            // Our interim number is kept, so links already sent still open it.
+            app(OrderVendorNumber::class)->assign($order, $fields['vendor_order_number'] ?? null);
 
             // An order number means they placed it, so the quote we were
             // waiting on is accepted whether or not anyone pressed accept.

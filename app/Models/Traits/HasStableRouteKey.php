@@ -4,6 +4,7 @@ namespace App\Models\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -51,9 +52,12 @@ trait HasStableRouteKey
 
     public function resolveSoftDeletableRouteBinding($value, $field = null): ?static
     {
-        $query = in_array(SoftDeletes::class, class_uses_recursive(static::class), true)
-            ? $this->newQuery()->withTrashed()
-            : $this->newQuery();
+        // withTrashed() is only a builder macro on soft-deleting models; this
+        // is what it does, and is safe on a model without deletes.
+        $query = $this->newQuery();
+        if (in_array(SoftDeletes::class, class_uses_recursive(static::class), true)) {
+            $query->withoutGlobalScope(SoftDeletingScope::class);
+        }
 
         return $this->resolveStableRouteBinding($query, $value, $field);
     }
@@ -100,9 +104,11 @@ trait HasStableRouteKey
     }
 
     /**
-     * Whether the value appears more than once across all the key columns,
-     * deleted records included, so it could not name one record. One query
-     * per request finds every such value at once.
+     * Whether the value belongs to more than one record across all the key
+     * columns, deleted records included, so it could not name one record. A
+     * record carrying the same value in two of its own columns — an order
+     * renamed to the vendor's number, which it also holds as that number —
+     * still names only itself. One query per request finds every such value.
      */
     protected static function sharedRouteKey(string $value): bool
     {
@@ -115,7 +121,7 @@ trait HasStableRouteKey
             $values = null;
             foreach ($model->stableRouteKeyColumns() as $column) {
                 $select = static::query()->withoutGlobalScopes()->toBase()
-                    ->select($column.' as route_key_value')
+                    ->select([$model->getKeyName().' as route_key_owner', $column.' as route_key_value'])
                     ->whereNotNull($column)
                     ->where($column, '!=', '');
                 $values = $values === null ? $select : $values->unionAll($select);
@@ -125,7 +131,7 @@ trait HasStableRouteKey
                 ->query()
                 ->fromSub($values, 'route_keys')
                 ->groupBy('route_key_value')
-                ->havingRaw('COUNT(*) > 1')
+                ->havingRaw('COUNT(DISTINCT route_key_owner) > 1')
                 ->pluck('route_key_value')
                 ->all()));
             $request->attributes->set($cacheKey, $shared);

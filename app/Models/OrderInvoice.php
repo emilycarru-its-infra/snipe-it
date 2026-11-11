@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Helpers\Helper;
+use App\Models\Traits\HasStableRouteKey;
+use App\Services\Leasing\OkayToPay;
 use App\Services\Leasing\OkayToPayHistory;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 class OrderInvoice extends Model
 {
     use HasFactory;
+    use HasStableRouteKey;
 
     protected $table = 'order_invoices';
 
@@ -47,6 +50,19 @@ class OrderInvoice extends Model
         'buyout',
         'credit',
         'termination',
+    ];
+
+    /**
+     * Where an invoice can stand in accounts payable, as the finance system
+     * reports it. Recorded, not enforced: the finance system owns payment.
+     */
+    public const AP_STATUSES = [
+        'entered',
+        'scheduled',
+        'paid',
+        'partially_paid',
+        'on_hold',
+        'voided',
     ];
 
     public const ATTESTATION_TYPES = [
@@ -83,6 +99,9 @@ class OrderInvoice extends Model
         'okp_send_after' => 'datetime',
         'okp_reminded_at' => 'datetime',
         'okp_sent_at' => 'datetime',
+        'ap_paid_at' => 'date',
+        'ap_paid_amount' => 'decimal:2',
+        'ap_synced_at' => 'datetime',
     ];
 
     public function save(array $options = [])
@@ -106,6 +125,42 @@ class OrderInvoice extends Model
     public function okayToPayDelivery(): HasOne
     {
         return $this->hasOne(OkayToPayDelivery::class, 'invoice_id');
+    }
+
+    /**
+     * The invoices the signed-in user's company may see. An invoice belongs
+     * to its order's company (a deleted order still owns its invoices), or —
+     * when its order record is gone — its purchase order's; the purchase
+     * order it is charged to must be visible too, as on the
+     * workflow-observations feed. One with neither parent belongs to nobody
+     * and is left to superusers. Without full multiple company support, or
+     * for a superuser, everything.
+     */
+    public function scopeVisibleToCurrentUser($query)
+    {
+        $user = auth()->user();
+        if (Setting::getSettings()?->full_multiple_companies_support != '1' || ! $user || $user->isSuperUser()) {
+            return $query;
+        }
+
+        return $query
+            ->where(fn ($charged) => $charged
+                ->whereNull('order_invoices.purchase_order_id')
+                ->orWhereHas('purchaseOrder', fn ($po) => Company::scopeCompanyables($po)))
+            ->where(fn ($owner) => $owner
+                ->whereHas('order', fn ($order) => Company::scopeCompanyables($order->withTrashed()))
+                ->orWhere(fn ($poOnly) => $poOnly
+                    ->whereDoesntHave('order', fn ($order) => $order->withTrashed())
+                    ->whereHas('purchaseOrder', fn ($po) => Company::scopeCompanyables($po))));
+    }
+
+    /**
+     * Whether the signed-in user's company may see this invoice; see
+     * scopeVisibleToCurrentUser().
+     */
+    public function isVisibleToCurrentUser(): bool
+    {
+        return static::query()->whereKey($this->getKey())->visibleToCurrentUser()->exists();
     }
 
     /**
@@ -243,5 +298,75 @@ class OrderInvoice extends Model
     public function isPendingApproval(): bool
     {
         return ($this->approval_status ?? 'pending') === 'pending';
+    }
+
+    /**
+     * Where the lessor's OK to pay stands for this invoice: blank when it
+     * does not apply, otherwise queued (with its send time), held (with why)
+     * or sent. See App\Services\Leasing\OkayToPay.
+     */
+    public function okayToPayLabel(): string
+    {
+        if ($this->okp_status !== OkayToPay::SENT && OkayToPayHistory::blocked($this)) {
+            return trans('admin/purchase-orders/general.okp_reason_historical_settlement');
+        }
+        $when = fn ($date) => $date ? $date->timezone(config('app.timezone'))->format('M j, g:i A') : '';
+
+        return match ($this->okp_status) {
+            OkayToPay::QUEUED => trans('admin/purchase-orders/general.okp_status_queued', ['date' => $when($this->okp_send_after)]),
+            OkayToPay::SENDING, OkayToPay::UNCERTAIN => trans('admin/purchase-orders/general.okp_reason_delivery_reserved'),
+            OkayToPay::HELD => trim(trans('admin/purchase-orders/general.okp_status_held').' — '.implode(' ', (array) $this->okp_reasons), ' —'),
+            OkayToPay::SENT => trans('admin/purchase-orders/general.okp_status_sent', ['date' => $when($this->okp_sent_at)]),
+            default => '',
+        };
+    }
+
+    /**
+     * Whether accounts payable has reported anything for this invoice.
+     */
+    public function hasPaymentRecord(): bool
+    {
+        return filled($this->ap_status) || filled($this->ap_voucher_number) || $this->ap_paid_at !== null
+            || $this->ap_paid_amount !== null;
+    }
+
+    /**
+     * What was paid minus what was invoiced; null until a paid amount is
+     * recorded. Anything other than zero is worth a look — a short payment,
+     * a duplicate, or a credit applied on the finance side.
+     */
+    public function paymentDifference(): ?float
+    {
+        if ($this->ap_paid_amount === null) {
+            return null;
+        }
+
+        return round((float) $this->ap_paid_amount - (float) $this->total, 2);
+    }
+
+    /**
+     * Subtotal + GST + PST + shipping, against the total the vendor printed.
+     * Null when the invoice carries no total to check.
+     */
+    public function componentsDifference(): ?float
+    {
+        if ($this->total === null) {
+            return null;
+        }
+
+        return round((float) $this->total
+            - ((float) $this->subtotal + (float) $this->tax_gst + (float) $this->tax_pst + (float) $this->shipping), 2);
+    }
+
+    /**
+     * Its page is addressed by the vendor's invoice number; see
+     * HasStableRouteKey. Two suppliers can issue the same number, and then
+     * the id is used instead.
+     *
+     * @return array<int, string>
+     */
+    public function stableRouteKeyColumns(): array
+    {
+        return ['invoice_number'];
     }
 }

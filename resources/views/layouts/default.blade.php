@@ -3453,6 +3453,11 @@
                                                 {{ trans('admin/purchase-orders/general.purchase_orders') }}
                                             </a>
                                         </li>
+                                        <li {!! (request()->is('procurement/invoices*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('invoices.index') }}">
+                                                {{ trans('admin/orders/general.invoices') }}
+                                            </a>
+                                        </li>
                                     @endcan
                                     @can('view', \App\Models\Supplier::class)
                                         <li {{!! (request()->is('suppliers*') ? ' class="active"' : '') !!}}>

@@ -86,6 +86,8 @@ class OrdersController extends Controller
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->where('order_number', 'like', '%'.$search.'%')
+                ->orWhere('vendor_order_number', 'like', '%'.$search.'%')
+                ->orWhere('internal_order_number', 'like', '%'.$search.'%')
                 ->orWhereHas('purchaseOrder', fn ($p) => $p->where('po_number', 'like', '%'.$search.'%'))
                 ->orWhereHas('supplier', fn ($p) => $p->where('name', 'like', '%'.$search.'%'))))
             ->orderBy('created_at', 'desc')

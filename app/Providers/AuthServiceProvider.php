@@ -20,6 +20,7 @@ use App\Models\Location;
 use App\Models\Maintenance;
 use App\Models\Manufacturer;
 use App\Models\Order;
+use App\Models\OrderInvoice;
 use App\Models\PredefinedKit;
 use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
@@ -45,6 +46,7 @@ use App\Policies\LicensePolicy;
 use App\Policies\LocationPolicy;
 use App\Policies\MaintenancePolicy;
 use App\Policies\ManufacturerPolicy;
+use App\Policies\OrderInvoicePolicy;
 use App\Policies\OrderPolicy;
 use App\Policies\PredefinedKitPolicy;
 use App\Policies\CatalogItemPolicy;
@@ -88,6 +90,7 @@ class AuthServiceProvider extends ServiceProvider
         Location::class => LocationPolicy::class,
         Maintenance::class => MaintenancePolicy::class,
         Order::class => OrderPolicy::class,
+        OrderInvoice::class => OrderInvoicePolicy::class,
         PurchaseOrder::class => PurchaseOrderPolicy::class,
         Requisition::class => RequisitionPolicy::class,
         CatalogItem::class => CatalogItemPolicy::class,

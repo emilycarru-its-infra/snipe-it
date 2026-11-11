@@ -204,7 +204,7 @@
                                 <div class="pp-col-cards">
                                     @foreach ($board[$column] as $order)
                                         <div class="pp-card" data-pp-modal="order-{{ $order->id }}" tabindex="0" role="button">
-                                            <div class="pp-t">{{ $order->order_number }}@if ($order->supplier) · {{ $order->supplier->name }}@endif</div>
+                                            <div class="pp-t">{{ $order->primaryNumber() }}@if ($order->supplier) · {{ $order->supplier->name }}@endif</div>
                                             <div class="pp-d">
                                                 @if ($column === 'arriving')
                                                     {{ $t('board_received', ['received' => $order->items->filter->isReceived()->count(), 'total' => $order->items->count()]) }}
@@ -233,7 +233,7 @@
                             <div class="pp-col-cards">
                                 @foreach ($board['allocate'] as $group)
                                     <div class="pp-card" data-pp-modal="alloc-{{ $group['order']?->id ?? 0 }}" tabindex="0" role="button">
-                                        <div class="pp-t">{{ $group['order']?->order_number ?? $t('board_arrivals_no_order') }}@if ($group['order']?->supplier) · {{ $group['order']->supplier->name }}@endif</div>
+                                        <div class="pp-t">{{ $group['order']?->primaryNumber() ?? $t('board_arrivals_no_order') }}@if ($group['order']?->supplier) · {{ $group['order']->supplier->name }}@endif</div>
                                         <div class="pp-d">{{ $t('board_note_devices', ['count' => $group['assets']->count()]) }}</div>
                                         <div class="pp-chips">
                                             @foreach ($group['assets']->pluck('model.name')->filter()->unique()->take(2) as $model)
@@ -255,7 +255,7 @@
                             <div class="pp-col-cards">
                                 @foreach ($board['done'] as $order)
                                     <div class="pp-card" data-pp-modal="done-{{ $order->id }}" tabindex="0" role="button">
-                                        <div class="pp-t">{{ $order->order_number }}@if ($order->supplier) · {{ $order->supplier->name }}@endif</div>
+                                        <div class="pp-t">{{ $order->primaryNumber() }}@if ($order->supplier) · {{ $order->supplier->name }}@endif</div>
                                         <div class="pp-d">{{ ($order->order_date ?? $order->created_at)?->format('Y-m-d') }} · <span class="pp-money">{{ $fmt($order->order_cost ?? 0) }}</span></div>
                                         <div class="pp-chips"><span class="pp-chip pp-chip-done">{{ trans('admin/orders/general.status_received') }}</span></div>
                                     </div>
@@ -327,7 +327,7 @@
 
     @foreach ($board['ordered']->merge($board['arriving']) as $order)
         @php($column = $board['ordered']->contains($order) ? 'ordered' : 'arriving')
-        <div data-pp-content="order-{{ $order->id }}" data-pp-color="{{ $stages[$column]['color'] }}" data-pp-title="{{ $order->order_number }}">
+        <div data-pp-content="order-{{ $order->id }}" data-pp-color="{{ $stages[$column]['color'] }}" data-pp-title="{{ $order->primaryNumber() }}">
             <div class="pp-facts">
                 <span>{{ trans('general.total_cost') }}<b class="pp-money">{{ $fmt(\App\Services\OrdersBoard::orderTotal($order)) }}</b></span>
                 <span>{{ $t('board_lines') }}<b>{{ $t('board_received', ['received' => $order->items->filter->isReceived()->count(), 'total' => $order->items->count()]) }}</b></span>
@@ -355,7 +355,7 @@
     @endforeach
 
     @foreach ($board['allocate'] as $group)
-        <div data-pp-content="alloc-{{ $group['order']?->id ?? 0 }}" data-pp-color="{{ $stages['allocate']['color'] }}" data-pp-title="{{ $group['order']?->order_number ?? $t('board_arrivals_no_order') }}">
+        <div data-pp-content="alloc-{{ $group['order']?->id ?? 0 }}" data-pp-color="{{ $stages['allocate']['color'] }}" data-pp-title="{{ $group['order']?->primaryNumber() ?? $t('board_arrivals_no_order') }}">
             <div class="table-responsive">
                 <table class="table table-striped">
                     <thead><tr>
@@ -384,7 +384,7 @@
     @endforeach
 
     @foreach ($showDone ? $board['done'] : [] as $order)
-        <div data-pp-content="done-{{ $order->id }}" data-pp-color="{{ $stages['done']['color'] }}" data-pp-title="{{ $order->order_number }}" data-pp-url="{{ route('orders.show', $order) }}"></div>
+        <div data-pp-content="done-{{ $order->id }}" data-pp-color="{{ $stages['done']['color'] }}" data-pp-title="{{ $order->primaryNumber() }}" data-pp-url="{{ route('orders.show', $order) }}"></div>
     @endforeach
 
     {{-- The forms the lightbox buttons submit through form="…". --}}

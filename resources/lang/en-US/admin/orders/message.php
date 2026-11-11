@@ -24,6 +24,13 @@ return [
         'none' => 'none',
     ],
 
+    'vendor_order' => [
+        'set' => 'Vendor order number set to :number.',
+        'cleared' => 'Vendor order number cleared.',
+        'log_note' => 'Vendor order number changed from :from to :to; order number :order_from → :order_to.',
+        'none' => 'none',
+    ],
+
     'cancel_success' => 'Order cancelled.',
     'reopen_success' => 'Order reopened.',
 

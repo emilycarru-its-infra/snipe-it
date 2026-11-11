@@ -25,6 +25,7 @@ use App\Services\Leasing\OkayToPay;
 use App\Services\OrderAssetProvisioner;
 use App\Services\OrderEtaRequest;
 use App\Services\OrderRequesterNotifier;
+use App\Services\OrderVendorNumber;
 use App\Services\SupplierAccounts;
 use App\Services\VendorOrderDispatch;
 use Carbon\Carbon;
@@ -775,6 +776,72 @@ class OrdersController extends Controller
             $target
                 ? trans('admin/orders/message.purchase_order.linked', ['po' => $order->purchaseOrder?->po_number])
                 : trans('admin/orders/message.purchase_order.unlinked')
+        ));
+    }
+
+    /**
+     * Record the vendor's order number, change it, or clear it with null.
+     * Their number becomes the order's address and its `order_number` —
+     * see {@see OrderVendorNumber} — while our interim number keeps opening
+     * the order. Nothing else about the vendor loop moves: recording the
+     * number from the order page also accepts the quote, and that stays
+     * the vendor-response step's decision.
+     */
+    public function vendorOrder(Request $request, $orderId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+
+        try {
+            $validated = $request->validate([
+                'vendor_order_number' => 'present|nullable|string|max:191',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
+        }
+
+        $order = Order::findOrFail($orderId);
+        abort_unless(Company::isCurrentUserHasAccess($order), 404);
+        $target = $validated['vendor_order_number'] ?? null;
+
+        $order = DB::transaction(function () use ($order, $target, $request) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $change = app(OrderVendorNumber::class)->assign($order, $target);
+
+            if (! $order->isDirty()) {
+                return $order;
+            }
+
+            $order->save();
+
+            $none = trans('admin/orders/message.vendor_order.none');
+            $log = new Actionlog;
+            $log->item_type = Order::class;
+            $log->item_id = $order->id;
+            $log->setAttribute('created_by', $request->user()->id);
+            $log->note = trans('admin/orders/message.vendor_order.log_note', [
+                'from' => $change['old'] ?? $none,
+                'to' => $change['new'] ?? $none,
+                'order_from' => $change['order_number_old'] ?? $none,
+                'order_to' => $change['order_number_new'] ?? $none,
+            ]);
+            $log->log_meta = json_encode([
+                'vendor_order_number' => ['old' => $change['old'], 'new' => $change['new']],
+                'order_number' => ['old' => $change['order_number_old'], 'new' => $change['order_number_new']],
+            ]);
+            $log->logaction(ActionType::Update);
+
+            return $order;
+        });
+
+        $order = Order::with('supplier', 'company', 'adminuser', 'purchaseOrder', 'items.item', 'items.invoice', 'invoices')
+            ->findOrFail($order->id);
+
+        return response()->json(Helper::formatStandardApiResponse(
+            'success',
+            (new OrdersTransformer)->transformOrder($order),
+            $order->vendor_order_number
+                ? trans('admin/orders/message.vendor_order.set', ['number' => $order->vendor_order_number])
+                : trans('admin/orders/message.vendor_order.cleared')
         ));
     }
 
