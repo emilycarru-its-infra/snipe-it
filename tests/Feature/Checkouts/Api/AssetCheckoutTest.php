@@ -234,6 +234,40 @@ class AssetCheckoutTest extends TestCase
         ];
     }
 
+    public function test_checkout_to_location_makes_it_the_default_location()
+    {
+        $original = Location::factory()->create();
+        $destination = Location::factory()->create();
+        $asset = Asset::factory()->for($original)->for($original, 'defaultLoc')->create();
+
+        $this->actingAsForApi(User::factory()->checkoutAssets()->create())
+            ->postJson(route('api.asset.checkout', $asset), [
+                'checkout_to_type' => 'location',
+                'assigned_location' => $destination->id,
+            ])
+            ->assertOk();
+
+        $asset->refresh();
+        $this->assertEquals($destination->id, $asset->location_id);
+        $this->assertEquals($destination->id, $asset->rtd_location_id);
+    }
+
+    public function test_checkout_to_user_keeps_the_default_location()
+    {
+        $original = Location::factory()->create();
+        $asset = Asset::factory()->for($original)->for($original, 'defaultLoc')->create();
+        $user = User::factory()->for(Location::factory())->create();
+
+        $this->actingAsForApi(User::factory()->checkoutAssets()->create())
+            ->postJson(route('api.asset.checkout', $asset), [
+                'checkout_to_type' => 'user',
+                'assigned_user' => $user->id,
+            ])
+            ->assertOk();
+
+        $this->assertEquals($original->id, $asset->refresh()->rtd_location_id);
+    }
+
     #[DataProvider('checkoutTargets')]
     public function test_asset_can_be_checked_out($data)
     {
