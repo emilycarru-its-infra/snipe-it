@@ -726,9 +726,13 @@ class OrdersController extends Controller
     {
         $this->authorize('update', Order::class);
 
-        $validated = $request->validate([
-            'purchase_order_id' => 'present|nullable|integer|exists:purchase_orders,id,deleted_at,NULL',
-        ]);
+        try {
+            $validated = $request->validate([
+                'purchase_order_id' => 'present|nullable|integer|exists:purchase_orders,id,deleted_at,NULL',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
+        }
 
         $order = Order::findOrFail($orderId);
         abort_unless(Company::isCurrentUserHasAccess($order), 404);

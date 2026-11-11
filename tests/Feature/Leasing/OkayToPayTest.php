@@ -313,6 +313,7 @@ class OkayToPayTest extends TestCase
                 'approval_status' => 'approved',
                 'approved_at' => '2026-09-10',
             ])
+            ->assertStatus(422)
             ->assertJson(['status' => 'error'])
             ->assertJsonPath('messages.approval_status.0', fn ($message) => str_contains($message, '5,500.00'));
 

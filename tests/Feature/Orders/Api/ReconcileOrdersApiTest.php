@@ -8,6 +8,7 @@ use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\PurchaseOrder;
 use App\Models\User;
+use App\Services\Leasing\OkayToPay;
 use Tests\TestCase;
 
 /**
@@ -97,12 +98,123 @@ class ReconcileOrdersApiTest extends TestCase
                 'approval_status' => 'approved',
                 'approved_at' => now()->addDays(3)->toDateString(),
             ])
+            ->assertStatus(422)
             ->assertJson(['status' => 'error']);
         $this->actingAsForApi($actor)
             ->patchJson(route('api.order-invoices.approval', $invoice->id), ['approval_status' => 'paid'])
+            ->assertStatus(422)
             ->assertJson(['status' => 'error']);
 
         $this->assertSame('pending', $invoice->refresh()->approval_status);
+    }
+
+    public function test_a_paid_date_before_the_invoice_is_refused()
+    {
+        $invoice = $this->pendingInvoice();
+
+        $this->actingAsForApi($this->superuser())
+            ->patchJson(route('api.order-invoices.approval', $invoice->id), [
+                'approval_status' => 'approved',
+                'approved_at' => '2026-03-01',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('messages.approved_at.0', trans('admin/purchase-orders/general.invoice_approval_date_before_invoice'));
+
+        $this->assertSame('pending', $invoice->refresh()->approval_status);
+        $this->assertNull($invoice->approved_at);
+    }
+
+    public function test_an_existing_approval_is_never_redated_or_resigned()
+    {
+        $invoice = $this->pendingInvoice();
+        $signer = $this->superuser();
+        $invoice->update(['approval_status' => 'approved', 'approved_at' => '2026-03-10 09:00:00', 'approved_by' => $signer->id]);
+        $other = $this->superuser();
+
+        $this->actingAsForApi($other)
+            ->patchJson(route('api.order-invoices.approval', $invoice->id), [
+                'approval_status' => 'approved',
+                'approved_at' => '2026-03-20',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('messages.approved_at.0', trans('admin/purchase-orders/general.invoice_approval_already_signed'));
+
+        // Saving it again without a date keeps the original signature.
+        $this->actingAsForApi($other)
+            ->patchJson(route('api.order-invoices.approval', $invoice->id), ['approval_status' => 'approved', 'usage_tag' => 'Research'])
+            ->assertOk();
+
+        $invoice->refresh();
+        $this->assertSame('2026-03-10 09:00:00', $invoice->approved_at->toDateTimeString());
+        $this->assertSame($signer->id, $invoice->approved_by);
+        $this->assertSame('Research', $invoice->usage_tag);
+    }
+
+    public function test_the_queue_keeps_an_existing_signature_too()
+    {
+        $invoice = $this->pendingInvoice();
+        $signer = $this->superuser();
+        $invoice->update(['approval_status' => 'approved', 'approved_at' => '2026-03-10 09:00:00', 'approved_by' => $signer->id]);
+
+        $this->actingAs($this->superuser())
+            ->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'approved'])
+            ->assertSessionHasNoErrors();
+
+        $invoice->refresh();
+        $this->assertSame('2026-03-10 09:00:00', $invoice->approved_at->toDateTimeString());
+        $this->assertSame($signer->id, $invoice->approved_by);
+    }
+
+    public function test_a_sent_okay_to_pay_freezes_the_signature()
+    {
+        $invoice = $this->pendingInvoice();
+        $signer = $this->superuser();
+        $invoice->forceFill([
+            'approval_status' => 'approved', 'approved_at' => '2026-03-10 09:00:00', 'approved_by' => $signer->id,
+            'okp_status' => OkayToPay::SENT, 'okp_sent_at' => '2026-03-11 10:00:00',
+        ])->save();
+
+        $this->actingAsForApi($this->superuser())
+            ->patchJson(route('api.order-invoices.approval', $invoice->id), ['approval_status' => 'pending'])
+            ->assertStatus(422)
+            ->assertJsonPath('messages.approval_status.0', trans('admin/purchase-orders/general.invoice_approval_okp_sent'));
+        $this->actingAs($this->superuser(), 'web')
+            ->patch(route('reports.procurement.invoice-approval.update', $invoice), ['approval_status' => 'pending'])
+            ->assertSessionHasErrors('approval_status');
+
+        $invoice->refresh();
+        $this->assertSame('approved', $invoice->approval_status);
+        $this->assertSame('2026-03-10 09:00:00', $invoice->approved_at->toDateTimeString());
+        $this->assertSame($signer->id, $invoice->approved_by);
+    }
+
+    public function test_every_approval_change_is_logged_with_old_and_new_values()
+    {
+        $invoice = $this->pendingInvoice();
+        $actor = $this->superuser();
+
+        $this->actingAsForApi($actor)
+            ->patchJson(route('api.order-invoices.approval', $invoice->id), ['approval_status' => 'approved', 'approved_at' => '2026-03-20'])
+            ->assertOk();
+        $this->actingAsForApi($actor)
+            ->patchJson(route('api.order-invoices.approval', $invoice->id), ['approval_status' => 'pending'])
+            ->assertOk();
+
+        $logs = Actionlog::where('item_type', OrderInvoice::class)->where('item_id', $invoice->id)->orderBy('id')->get();
+        $this->assertCount(2, $logs);
+        $this->assertSame(Order::class, $logs[0]->target_type);
+        $this->assertSame($invoice->order_id, $logs[0]->target_id);
+        $this->assertSame($actor->id, $logs[0]->created_by);
+
+        $approved = json_decode($logs[0]->log_meta, true);
+        $this->assertSame(['old' => 'pending', 'new' => 'approved'], $approved['approval_status']);
+        $this->assertSame(['old' => null, 'new' => '2026-03-20 00:00:00'], $approved['approved_at']);
+        $this->assertSame(['old' => null, 'new' => $actor->id], $approved['approved_by']);
+
+        $reopened = json_decode($logs[1]->log_meta, true);
+        $this->assertSame(['old' => 'approved', 'new' => 'pending'], $reopened['approval_status']);
+        $this->assertSame(['old' => '2026-03-20 00:00:00', 'new' => null], $reopened['approved_at']);
+        $this->assertSame(['old' => $actor->id, 'new' => null], $reopened['approved_by']);
     }
 
     public function test_approving_needs_procurement_edit()
@@ -172,9 +284,11 @@ class ReconcileOrdersApiTest extends TestCase
 
         $this->actingAsForApi($actor)
             ->patchJson(route('api.orders.purchase-order', $order->id), ['purchase_order_id' => 999999])
+            ->assertStatus(422)
             ->assertJson(['status' => 'error']);
         $this->actingAsForApi($actor)
             ->patchJson(route('api.orders.purchase-order', $order->id), [])
+            ->assertStatus(422)
             ->assertJson(['status' => 'error']);
 
         $this->assertSame($po->id, $order->refresh()->purchase_order_id);

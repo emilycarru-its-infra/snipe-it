@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\ActionType;
+use App\Models\Actionlog;
 use App\Models\Company;
 use App\Models\OkayToPayDelivery;
 use App\Models\Order;
@@ -52,6 +54,9 @@ class InvoiceApproval
                 }
             }
 
+            $before = $this->signature($invoice);
+            $this->guardSignature($invoice, $status, $approvedAt);
+
             $invoice->approval_status = $status;
             foreach (['is_final_invoice', 'usage_tag', 'notes'] as $field) {
                 if (array_key_exists($field, $changes)) {
@@ -60,8 +65,12 @@ class InvoiceApproval
             }
 
             if ($status === 'approved') {
-                $invoice->approved_at = $approvedAt ?? now();
-                $invoice->approved_by = $actor->id;
+                // An approval already on the invoice is the attestation of
+                // record: saving the row again keeps who signed it and when.
+                if ($before['approval_status'] !== 'approved') {
+                    $invoice->approved_at = $approvedAt ?? now();
+                    $invoice->approved_by = $actor->id;
+                }
             } elseif ($status === 'pending') {
                 // Re-opening sweeps the approval signature so the audit trail
                 // stays honest — an invoice that goes pending → approved →
@@ -70,7 +79,20 @@ class InvoiceApproval
                 $invoice->approved_by = null;
             }
 
+            // Once the lessor has been told to pay, the signature behind it
+            // is evidence: no status change may rewrite or clear it.
+            if (($invoice->okp_status === OkayToPay::SENT || $invoice->okp_sent_at !== null)
+                && $invoice->isDirty(['approved_at', 'approved_by'])) {
+                throw ValidationException::withMessages([
+                    'approval_status' => trans('admin/purchase-orders/general.invoice_approval_okp_sent'),
+                ]);
+            }
+
+            $dirty = array_keys($invoice->getDirty());
             $invoice->save();
+            if ($dirty) {
+                $this->log($invoice, $actor, $before, $dirty);
+            }
 
             if ($status === 'disputed' && $invoice->okp_status !== OkayToPay::SENT
                 && ! OkayToPayDelivery::where('invoice_id', $invoice->id)->exists()
@@ -83,5 +105,84 @@ class InvoiceApproval
 
             return $invoice;
         });
+    }
+
+    /**
+     * The approval signature can only be written onto an invoice that does
+     * not already carry one, can only be dated between the invoice and now,
+     * and cannot be re-dated once it exists.
+     */
+    private function guardSignature(OrderInvoice $invoice, string $status, ?Carbon $approvedAt): void
+    {
+        $sent = $invoice->okp_status === OkayToPay::SENT || $invoice->okp_sent_at !== null;
+        $signed = $invoice->approval_status === 'approved';
+
+        if ($approvedAt === null) {
+            return;
+        }
+
+        if ($status !== 'approved') {
+            throw ValidationException::withMessages([
+                'approved_at' => trans('admin/purchase-orders/general.invoice_approval_date_needs_approval'),
+            ]);
+        }
+
+        if ($sent || $signed) {
+            $kept = $invoice->approved_at?->toDateString();
+            if ($kept !== $approvedAt->toDateString()) {
+                throw ValidationException::withMessages([
+                    'approved_at' => trans('admin/purchase-orders/general.invoice_approval_already_signed'),
+                ]);
+            }
+
+            return;
+        }
+
+        if ($approvedAt->isFuture()) {
+            throw ValidationException::withMessages([
+                'approved_at' => trans('admin/purchase-orders/general.invoice_approval_date_future'),
+            ]);
+        }
+
+        if ($invoice->invoice_date && $approvedAt->lt($invoice->invoice_date->copy()->startOfDay())) {
+            throw ValidationException::withMessages([
+                'approved_at' => trans('admin/purchase-orders/general.invoice_approval_date_before_invoice'),
+            ]);
+        }
+    }
+
+    /** @return array{approval_status: ?string, approved_at: ?string, approved_by: ?int} */
+    private function signature(OrderInvoice $invoice): array
+    {
+        return [
+            'approval_status' => $invoice->approval_status,
+            'approved_at' => $invoice->approved_at?->toDateTimeString(),
+            'approved_by' => $invoice->approved_by ? (int) $invoice->approved_by : null,
+        ];
+    }
+
+    /** Every change to an invoice's approval is kept on the order's history. */
+    private function log(OrderInvoice $invoice, User $actor, array $before, array $dirty): void
+    {
+        $after = $this->signature($invoice);
+        $meta = [];
+        foreach ($after as $field => $value) {
+            $meta[$field] = ['old' => $before[$field], 'new' => $value];
+        }
+
+        $log = new Actionlog;
+        $log->item_type = OrderInvoice::class;
+        $log->item_id = $invoice->id;
+        $log->target_type = Order::class;
+        $log->target_id = $invoice->order_id;
+        $log->setAttribute('created_by', $actor->id);
+        $log->note = trans('admin/purchase-orders/general.invoice_approval_log', [
+            'invoice' => $invoice->invoice_number,
+            'from' => $before['approval_status'] ?? '—',
+            'to' => $after['approval_status'],
+            'fields' => implode(', ', $dirty),
+        ]);
+        $log->log_meta = json_encode($meta);
+        $log->logaction(ActionType::Update);
     }
 }

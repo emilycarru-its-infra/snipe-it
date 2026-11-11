@@ -10,6 +10,7 @@ use App\Services\InvoiceApproval;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class OrderInvoicesController extends Controller
 {
@@ -23,6 +24,16 @@ class OrderInvoicesController extends Controller
     {
         $this->authorize('procurement.edit');
 
+        try {
+            return $this->approve($request, $invoiceId);
+        } catch (ValidationException $e) {
+            // A refused approval is a client error, not a success-shaped 200.
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()), 422);
+        }
+    }
+
+    private function approve(Request $request, $invoiceId): JsonResponse
+    {
         $validated = $request->validate([
             'approval_status' => 'required|string|in:'.implode(',', InvoiceApproval::STATUSES),
             'approved_at' => 'nullable|date|before_or_equal:now',
