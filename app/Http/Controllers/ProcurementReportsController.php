@@ -30,6 +30,7 @@ use App\Services\AssetCommitted;
 use App\Services\BudgetCarry;
 use App\Services\CsiReconciliation;
 use App\Services\FiscalYear;
+use App\Services\InvoiceApproval;
 use App\Services\Leasing\LeaseClosure;
 use App\Services\Leasing\LessorGuard;
 use App\Services\Leasing\OkayToPay;
@@ -1016,60 +1017,16 @@ class ProcurementReportsController extends Controller
         $this->authorize('procurement.edit');
 
         $validated = $request->validate([
-            'approval_status' => 'required|string|in:pending,approved,disputed',
+            'approval_status' => 'required|string|in:'.implode(',', InvoiceApproval::STATUSES),
             'is_final_invoice' => 'nullable|boolean',
             'usage_tag' => 'nullable|string|max:191',
             'notes' => 'nullable|string|max:65535',
         ]);
 
-        DB::transaction(function () use ($invoice, $validated, $request) {
-            Order::whereKey($invoice->order_id)->lockForUpdate()->first();
-            $invoice = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
-            abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
-            app(OkayToPayAcceptance::class)->lockFacts($invoice);
-            if ($validated['approval_status'] === 'approved' && $invoice->okp_status !== OkayToPay::SENT
-                && ($invoice->okp_status !== null || app(OkayToPay::class)->applies($invoice))) {
-                $reasons = app(OkayToPay::class)->mismatches($invoice);
-                if (OkayToPayDelivery::where('invoice_id', $invoice->id)->exists()) {
-                    $reasons[] = trans('admin/purchase-orders/general.okp_reason_delivery_reserved');
-                }
-                if ($reasons) {
-                    throw ValidationException::withMessages(['approval_status' => implode(' ', $reasons)]);
-                }
-            }
-
-            $invoice->approval_status = $validated['approval_status'];
-            $invoice->is_final_invoice = (bool) ($validated['is_final_invoice'] ?? false);
-            if (array_key_exists('usage_tag', $validated)) {
-                $invoice->usage_tag = $validated['usage_tag'];
-            }
-            if (array_key_exists('notes', $validated)) {
-                $invoice->notes = $validated['notes'];
-            }
-
-            if ($validated['approval_status'] === 'approved') {
-                $invoice->approved_at = now();
-                $invoice->approved_by = auth()->id();
-            } elseif ($validated['approval_status'] === 'pending') {
-                // Re-opening sweeps the approval signature so the audit trail
-                // stays honest — an invoice that goes pending → approved →
-                // pending shouldn't keep the original approver's name on it.
-                $invoice->approved_at = null;
-                $invoice->approved_by = null;
-            }
-
-            $invoice->save();
-            $evidence = app(OkayToPayAcceptance::class);
-            if ($validated['approval_status'] === 'disputed' && $invoice->okp_status !== OkayToPay::SENT
-                && ! OkayToPayDelivery::where('invoice_id', $invoice->id)->exists()
-                && $evidence->latest($invoice)?->decision === 'accept') {
-                $evidence->record($invoice, $request->user(), [
-                    'decision' => 'revoke', 'fingerprint' => $evidence->fingerprint($invoice),
-                    'expected_acceptance_id' => $evidence->latest($invoice)->id,
-                ]);
-            }
-
-        });
+        // The queue's checkbox posts nothing when unticked, so here a missing
+        // flag means "not final" rather than "leave it as it was".
+        $validated['is_final_invoice'] = (bool) ($validated['is_final_invoice'] ?? false);
+        app(InvoiceApproval::class)->apply($invoice, $request->user(), $validated);
 
         return redirect()->route('reports.procurement.invoice-approval', $request->only('status'))
             ->with('success', trans('admin/purchase-orders/general.invoice_approval_updated'));

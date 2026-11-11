@@ -5,6 +5,7 @@ namespace App\Http\Transformers;
 use App\Routing\StableRouteKeys;
 use App\Helpers\Helper;
 use App\Models\Order;
+use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -122,18 +123,31 @@ class OrdersTransformer
     {
         $array = [];
         foreach ($invoices as $invoice) {
-            $array[] = [
-                'id' => (int) $invoice->id,
-                'invoice_number' => e($invoice->invoice_number),
-                'invoice_date' => Helper::getFormattedDateObject($invoice->invoice_date, 'date'),
-                'subtotal' => Helper::formatCurrencyOutput($invoice->subtotal),
-                'tax_gst' => Helper::formatCurrencyOutput($invoice->tax_gst),
-                'tax_pst' => Helper::formatCurrencyOutput($invoice->tax_pst),
-                'shipping' => Helper::formatCurrencyOutput($invoice->shipping),
-                'total' => Helper::formatCurrencyOutput($invoice->total),
-            ];
+            $array[] = $this->transformInvoice($invoice);
         }
 
         return $array;
+    }
+
+    public function transformInvoice(OrderInvoice $invoice)
+    {
+        return [
+            'id' => (int) $invoice->id,
+            'invoice_number' => e($invoice->invoice_number),
+            'invoice_date' => Helper::getFormattedDateObject($invoice->invoice_date, 'date'),
+            'subtotal' => Helper::formatCurrencyOutput($invoice->subtotal),
+            'tax_gst' => Helper::formatCurrencyOutput($invoice->tax_gst),
+            'tax_pst' => Helper::formatCurrencyOutput($invoice->tax_pst),
+            'shipping' => Helper::formatCurrencyOutput($invoice->shipping),
+            'total' => Helper::formatCurrencyOutput($invoice->total),
+            'order_id' => $invoice->order_id ? (int) $invoice->order_id : null,
+            'purchase_order_id' => $invoice->purchase_order_id ? (int) $invoice->purchase_order_id : null,
+            'approval_status' => $invoice->approval_status,
+            'approved_at' => Helper::getFormattedDateObject($invoice->approved_at, 'datetime'),
+            'approved_by' => $invoice->approved_by ? (int) $invoice->approved_by : null,
+            'is_final_invoice' => (bool) $invoice->is_final_invoice,
+            'usage_tag' => $invoice->usage_tag !== null ? e($invoice->usage_tag) : null,
+            'notes' => $invoice->notes !== null ? e($invoice->notes) : null,
+        ];
     }
 }
