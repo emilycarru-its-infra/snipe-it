@@ -827,6 +827,13 @@ class Asset extends Depreciable
             }
         }
 
+        // A check-out to a location is a move: make it the asset's default
+        // location too, so check-in returns it there and anything reading the
+        // default location (exports, reports) sees where it now lives.
+        if ($target instanceof Location) {
+            $this->rtd_location_id = $target->id;
+        }
+
         $originalValues = $this->getRawOriginal();
 
         // attempt to detect change in value if different from today's date
