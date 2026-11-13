@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\RemembersQuotedQuantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  */
 class OrderItem extends Model
 {
-    use HasFactory;
+    use HasFactory, RemembersQuotedQuantity;
 
     protected $table = 'order_items';
 
@@ -38,6 +39,7 @@ class OrderItem extends Model
         'vendor_sku',
         'mfr_part_number',
         'quantity',
+        'quoted_quantity',
         'unit_of_measure',
         'unit_cost',
         'warranty_cost',
@@ -45,6 +47,7 @@ class OrderItem extends Model
     ];
 
     protected $casts = [
+        'quoted_quantity' => 'integer',
         'received_at' => 'datetime',
     ];
 
@@ -308,5 +311,11 @@ class OrderItem extends Model
             ]);
             $log->logaction('checkin from');
         }
+    }
+
+    /** A quote on the vendor order this line belongs to. */
+    public function quoteOnFile(): bool
+    {
+        return filled($this->order?->quote_number);
     }
 }

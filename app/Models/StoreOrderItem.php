@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\RemembersQuotedQuantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class StoreOrderItem extends Model
 {
-    use HasFactory;
+    use HasFactory, RemembersQuotedQuantity;
 
     protected $table = 'store_order_items';
 
@@ -24,11 +25,13 @@ class StoreOrderItem extends Model
         'vendor_sku',
         'mfr_part_number',
         'quantity',
+        'quoted_quantity',
         'unit_cost',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
+        'quoted_quantity' => 'integer',
         'unit_cost' => 'decimal:4',
     ];
 
@@ -51,5 +54,11 @@ class StoreOrderItem extends Model
     public function lineTotal(): float
     {
         return round((float) $this->unit_cost * (int) $this->quantity, 2);
+    }
+
+    /** A quote on the store request this line belongs to. */
+    public function quoteOnFile(): bool
+    {
+        return filled($this->order?->quote_number);
     }
 }

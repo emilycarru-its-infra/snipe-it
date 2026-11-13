@@ -153,6 +153,19 @@ class Order extends SnipeModel
     }
 
     /**
+     * The lines we are ordering in a different quantity from the vendor's
+     * quote. Empty without a quote on file: there is nothing to differ from.
+     */
+    public function quoteDifferences()
+    {
+        if (blank($this->quote_number)) {
+            return collect();
+        }
+
+        return $this->vendorOrderLines()->filter(fn ($line) => $line->differsFromQuote())->values();
+    }
+
+    /**
      * The lines still to arrive — what an ETA request asks about. Through the
      * loaded relation when there is one, for the same reason as
      * vendorOrderLines(): the email previewer renders against an unsaved order.

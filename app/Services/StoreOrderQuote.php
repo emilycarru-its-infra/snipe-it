@@ -16,7 +16,7 @@ use App\Models\StoreOrder;
 class StoreOrderQuote
 {
     /**
-     * @param  array<string, mixed>  $data  quote_number, quote_total, quote_expires_at; blanks are ignored
+     * @param  array<string, mixed>  $data  quote_number, quote_total, quote_expires_at, quoted_lines; blanks are ignored
      * @return array{recorded: bool, error: ?string}
      */
     public function record(StoreOrder $order, array $data, bool $confirm = false): array
@@ -42,8 +42,15 @@ class StoreOrderQuote
             $updates['confirmed_at'] = $order->confirmed_at ?? now();
         }
 
+        // The quote's own quantity per line, when it differs from what was
+        // asked for. Written straight to the line so the order mail can put
+        // the difference in front of the vendor.
+        foreach ($data['quoted_lines'] ?? [] as $line) {
+            $order->items()->whereKey((int) $line['id'])->update(['quoted_quantity' => (int) $line['quantity']]);
+        }
+
         if ($updates === []) {
-            return ['recorded' => false, 'error' => null];
+            return ['recorded' => ($data['quoted_lines'] ?? []) !== [], 'error' => null];
         }
 
         $firstQuote = $order->quote_received_at === null;

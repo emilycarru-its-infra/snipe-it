@@ -443,7 +443,9 @@ class EmailSampleData
         $requisition->setRelation('items', collect([
             $line('Apple MacBook Air | 13" | M5 | 16GB | 1TB | Silver', '9094662', 'MDH84LL/A', 42, 2150.48),
             $line('AppleCare+ for Schools | 4 Year | 13" MacBook Air', '8154132', 'SLTC2Z/A', 42, 239.20),
-            $line('LocknCharge Joey 30 Cart', '8004629', 'LNC9-10559', 2, 2236.32),
+            // Quoted at three, ordered at two: the previewer shows the
+            // banner a vendor sees when the order departs from the quote.
+            tap($line('LocknCharge Joey 30 Cart', '8004629', 'LNC9-10559', 2, 2236.32), fn ($cart) => $cart->quoted_quantity = 3),
         ]));
 
         $order = new PurchaseOrder([

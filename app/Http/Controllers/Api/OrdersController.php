@@ -859,6 +859,9 @@ class OrdersController extends Controller
             'cc_users' => 'nullable|array',
             'cc_users.*' => 'integer|exists:users,id',
             'test' => 'nullable|boolean',
+            'quoted_lines' => 'nullable|array',
+            'quoted_lines.*.id' => 'required|integer',
+            'quoted_lines.*.quantity' => 'required|integer|min:0',
         ]);
 
         $order = Order::findOrFail($orderId);
@@ -903,6 +906,9 @@ class OrdersController extends Controller
             'quote_expires_at' => 'nullable|date',
             'vendor_order_number' => 'nullable|string|max:191',
             'notify_vendor' => 'nullable|boolean',
+            'quoted_lines' => 'nullable|array',
+            'quoted_lines.*.id' => 'required|integer',
+            'quoted_lines.*.quantity' => 'required|integer|min:0',
         ]);
 
         $order = Order::findOrFail($orderId);

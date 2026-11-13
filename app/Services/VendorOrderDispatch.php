@@ -36,6 +36,26 @@ class VendorOrderDispatch
 {
     public function __construct(private CatalogQuoteWriteback $catalog) {}
 
+    /**
+     * Record what the vendor's quote says for each line, as read off the
+     * quote: `[['id' => <order line id>, 'quantity' => <quoted>], …]`. Lines
+     * of other orders are ignored. The order mail compares these against the
+     * quantities we order and banners every difference.
+     *
+     * @param  array<int, array{id: int, quantity: int}>  $lines
+     */
+    public function recordQuotedLines(Order $order, array $lines): void
+    {
+        foreach ($lines as $line) {
+            $order->items()->whereKey((int) $line['id'])
+                ->update(['quoted_quantity' => (int) $line['quantity']]);
+        }
+
+        if ($lines !== []) {
+            $order->unsetRelation('items');
+        }
+    }
+
     /** The facts recorded on a send, whether or not the send succeeds. */
     public const SEND_FIELDS = ['quote_number', 'quote_total', 'quote_expires_at', 'funding_account', 'lease_schedule', 'order_cc'];
 
@@ -81,6 +101,8 @@ class VendorOrderDispatch
         if ($order->isDirty()) {
             $order->save();
         }
+
+        $this->recordQuotedLines($order, $fields['quoted_lines'] ?? []);
 
         // CDW places every line against a purchase order number, so an order
         // with no purchase order behind it — or no lines — is not sendable.
@@ -196,6 +218,8 @@ class VendorOrderDispatch
                 $order->{$field} = $fields[$field];
             }
         }
+
+        $this->recordQuotedLines($order, $fields['quoted_lines'] ?? []);
 
         $recipients = [];
 

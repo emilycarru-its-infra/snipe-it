@@ -112,6 +112,7 @@ class PurchaseOrderProvisioning
                 'replaces_asset_id' => $line->replaces_asset_id,
                 'description' => $line->description,
                 'quantity' => (int) $line->quantity,
+                'quoted_quantity' => $line->setRelation('requisition', $requisition)->quotedQuantityForward(),
                 'unit_cost' => (float) $line->unit_cost,
             ]);
         }
