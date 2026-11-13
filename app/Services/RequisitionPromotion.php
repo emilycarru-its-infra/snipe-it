@@ -150,6 +150,7 @@ class RequisitionPromotion
                 'vendor_sku' => $line->vendor_sku,
                 'mfr_part_number' => $line->mfr_part_number,
                 'quantity' => (int) $line->quantity,
+                'quoted_quantity' => $line->setRelation('requisition', $requisition)->quotedQuantityForward(),
                 'unit_of_measure' => $line->unit_of_measure ?: 'EA',
                 'unit_cost' => (float) $line->unit_cost,
             ]);

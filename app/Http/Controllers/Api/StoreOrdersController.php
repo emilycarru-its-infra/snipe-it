@@ -338,6 +338,9 @@ class StoreOrdersController extends Controller
             'quote_total' => 'nullable|numeric|min:0',
             'quote_expires_at' => 'nullable|date',
             'confirm' => 'nullable|boolean',
+            'quoted_lines' => 'nullable|array',
+            'quoted_lines.*.id' => 'required|integer',
+            'quoted_lines.*.quantity' => 'required|integer|min:0',
         ]);
 
         $result = app(StoreOrderQuote::class)->record($order, $validated, $request->boolean('confirm'));

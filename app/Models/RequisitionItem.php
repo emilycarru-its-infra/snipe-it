@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\RemembersQuotedQuantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,10 +15,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * must never silently re-total a requisition that is already sitting in
  * someone's approval queue or has been keyed into Colleague.
  * catalog_item_id is kept as provenance, not as the source of the numbers.
+ *
+ * @property int|null $quoted_quantity
  */
 class RequisitionItem extends Model
 {
-    use HasFactory;
+    use HasFactory, RemembersQuotedQuantity;
 
     protected $table = 'requisition_items';
 
@@ -30,6 +33,7 @@ class RequisitionItem extends Model
         'mfr_part_number',
         'gl_number',
         'quantity',
+        'quoted_quantity',
         'unit_of_measure',
         'unit_cost',
         'pst_applicable',
@@ -39,6 +43,7 @@ class RequisitionItem extends Model
 
     protected $casts = [
         'quantity' => 'integer',
+        'quoted_quantity' => 'integer',
         'unit_cost' => 'decimal:4',
         'pst_applicable' => 'boolean',
     ];
@@ -86,5 +91,11 @@ class RequisitionItem extends Model
     public function isEstimate(): bool
     {
         return $this->catalogItem === null || $this->catalogItem->isEstimate();
+    }
+
+    /** A quote on the requisition this line belongs to. */
+    public function quoteOnFile(): bool
+    {
+        return filled($this->requisition?->quote_number);
     }
 }

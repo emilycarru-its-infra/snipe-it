@@ -388,6 +388,7 @@ class ProcurementController extends Controller
                         'vendor_sku' => $line->vendor_sku,
                         'mfr_part_number' => $line->mfr_part_number,
                         'quantity' => $line->quantity,
+                        'quoted_quantity' => $line->setRelation('order', $order)->quotedQuantityForward(),
                         'unit_cost' => (float) $line->unit_cost,
                         'notes' => trans('admin/store/general.line_requested_by', [
                             'name' => $order->user?->username ?: ('#'.$order->user_id),

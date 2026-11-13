@@ -120,6 +120,13 @@ class RequisitionBasket
         }
 
         DB::transaction(function () use ($requisition, $validated) {
+            // Lines are rewritten, so the quoted quantity each one remembers
+            // is read off first and handed to its replacement: a quoted
+            // requisition cut from three to two must still know it was three.
+            $quoted = $requisition->items()->get()
+                ->each(fn (RequisitionItem $line) => $line->setRelation('requisition', $requisition))
+                ->mapWithKeys(fn (RequisitionItem $line) => [self::lineKey($line->toArray()) => $line->quotedQuantityForward()]);
+
             $requisition->items()->delete();
 
             // The builder always sends the part numbers it displayed, but an
@@ -141,6 +148,7 @@ class RequisitionBasket
                     'mfr_part_number' => $line['mfr_part_number'] ?? $source?->mfr_part_number,
                     'gl_number' => $line['gl_number'] ?? $validated['default_gl_number'] ?? null,
                     'quantity' => (int) $line['quantity'],
+                    'quoted_quantity' => $quoted->get(self::lineKey($line)),
                     'unit_of_measure' => $line['unit_of_measure'] ?? 'EA',
                     'unit_cost' => (float) $line['unit_cost'],
                     'pst_applicable' => (bool) ($line['pst_applicable'] ?? true),
@@ -151,5 +159,13 @@ class RequisitionBasket
         });
 
         return $requisition->fresh(['items']);
+    }
+
+    /** The same catalog row, or the same free-text part, is the same line. */
+    private static function lineKey(array $line): string
+    {
+        return filled($line['catalog_item_id'] ?? null)
+            ? 'catalog:'.$line['catalog_item_id']
+            : 'text:'.mb_strtolower(trim((string) ($line['description'] ?? ''))).'|'.($line['mfr_part_number'] ?? '');
     }
 }

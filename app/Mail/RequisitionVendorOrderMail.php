@@ -90,6 +90,10 @@ class RequisitionVendorOrderMail extends BaseMailable
             // Called out in the body rather than left to be noticed: these are
             // the lines the vendor has to price and issue numbers for.
             'specialLines' => $this->order->specialRequestLines(),
+            // Lines ordered in a different quantity from the quote. The
+            // vendor's desk keys from their quote, so a difference that is
+            // only in the table gets shipped as quoted; it leads the mail.
+            'quoteDifferences' => $this->order->quoteDifferences(),
         ]);
     }
 

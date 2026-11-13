@@ -1,6 +1,41 @@
 @component('mail::message')
 <div style="text-align: left;">
 
+{{-- The vendor's desk keys from their own quote, so an order that differs
+     from it gets shipped as quoted unless the difference is the first thing
+     they read. Built as a bgcolor table rather than a styled div: Outlook
+     drops div backgrounds, and this one has to survive every client. --}}
+@if (($quoteDifferences ?? collect())->isNotEmpty())
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#fdecea" style="border-collapse: collapse; margin: 0 0 20px; background: #fdecea; border: 2px solid #c62828;">
+<tr>
+<td style="padding: 14px 16px; text-align: left; color: #7f1d1d;">
+<p style="margin: 0 0 6px; font-size: 20px; line-height: 1.25; font-weight: 800; color: #b71c1c; text-align: left;">&#9888;&#xFE0E; {{ trans('mail.requisition_vendor_order_quote_differs_heading', ['quote' => $order->quote_number]) }}</p>
+<p style="margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #7f1d1d; text-align: left;">{{ trans('mail.requisition_vendor_order_quote_differs_intro') }}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 13px; color: #7f1d1d;">
+<thead>
+<tr>
+<th style="text-align: left; padding: 0 12px 4px 0; border-bottom: 1px solid #e5a3a3; font-weight: 700;">{{ trans('mail.store_vendor_csv_description') }}</th>
+<th style="text-align: left; padding: 0 12px 4px 0; border-bottom: 1px solid #e5a3a3; font-weight: 700; white-space: nowrap;">{{ trans('mail.store_vendor_csv_mfr') }}</th>
+<th style="text-align: left; padding: 0 12px 4px 0; border-bottom: 1px solid #e5a3a3; font-weight: 700; white-space: nowrap;">{{ trans('mail.requisition_vendor_order_quote_differs_quoted') }}</th>
+<th style="text-align: left; padding: 0 0 4px 0; border-bottom: 1px solid #e5a3a3; font-weight: 700; white-space: nowrap;">{{ trans('mail.requisition_vendor_order_quote_differs_ordered') }}</th>
+</tr>
+</thead>
+<tbody>
+@foreach ($quoteDifferences as $line)
+<tr>
+<td style="text-align: left; padding: 5px 12px 5px 0;">{{ $line->description }}</td>
+<td style="text-align: left; padding: 5px 12px 5px 0; white-space: nowrap; font-family: ui-monospace, Menlo, monospace;">{{ $line->mfr_part_number ?: '—' }}</td>
+<td style="text-align: left; padding: 5px 12px 5px 0; white-space: nowrap; text-decoration: line-through;">{{ $line->quoted_quantity }}</td>
+<td style="text-align: left; padding: 5px 0; white-space: nowrap; font-size: 16px; font-weight: 800; color: #b71c1c;">{{ $line->quantity }}</td>
+</tr>
+@endforeach
+</tbody>
+</table>
+</td>
+</tr>
+</table>
+@endif
+
 {{-- Written as markup rather than "## …" so it inherits the left alignment of
      this block: the layout centres headings by default, and on an order every
      line should start at the same left edge as the numbers under it. --}}
