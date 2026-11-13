@@ -492,7 +492,8 @@ class EmailRegistry
                 'label' => 'Vendor order (to reps)',
                 'description' => 'The order emailed to the vendor\'s reps from the order page — one vendor order under its purchase order, agreed prices, not an estimate. Recipients default to the supplier\'s order email list; CC defaults to the procurement admin lists.',
                 'merge_vars' => ['order' => 'The purchase order (account, quote, totals)', 'lines' => 'The lines being ordered', 'reference' => 'The purchase order number', 'supplier' => 'The vendor'],
-                'factory' => fn (EmailSampleData $s) => new RequisitionVendorOrderMail($s->vendorOrder()),
+                // Marked [TEST]: a sample sent to a real rep must never read as an order to place.
+                'factory' => fn (EmailSampleData $s) => new RequisitionVendorOrderMail($s->vendorOrder(), test: true),
                 'configurable_recipients' => true,
                 'configurable_cc' => true,
             ],
