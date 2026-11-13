@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property string|null $vendor_sku
  * @property string|null $mfr_part_number
  * @property int $quantity
+ * @property int|null $quoted_quantity
  * @property string|null $unit_of_measure
  * @property float|string|null $unit_cost
  * @property float|string|null $warranty_cost

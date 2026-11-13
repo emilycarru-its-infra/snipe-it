@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * must never silently re-total a requisition that is already sitting in
  * someone's approval queue or has been keyed into Colleague.
  * catalog_item_id is kept as provenance, not as the source of the numbers.
+ *
+ * @property int|null $quoted_quantity
  */
 class RequisitionItem extends Model
 {

@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * One line on a store order. Description, SKUs and price are snapshotted
  * from the catalog at submit time — the same rule as requisition lines: a
  * price-list refresh must never re-total an order already in the queue.
+ *
+ * @property int|null $quoted_quantity
  */
 class StoreOrderItem extends Model
 {
