@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Orders;
 
+use App\Mail\EmailRegistry;
 use App\Mail\RequisitionVendorOrderMail;
 use App\Models\CatalogItem;
 use App\Models\StoreOrder;
@@ -30,6 +31,14 @@ class QuoteDifferenceBannerTest extends VendorOrderTestCase
         $this->assertStringContainsString('This order does not match quote TESTPZ7', $rendered);
         $this->assertStringContainsString('Please place the quantities on this order, not the ones on the quote.', $rendered);
         $this->assertLessThan(strpos($rendered, 'Purchase order P0026000'), strpos($rendered, 'does not match quote'));
+    }
+
+    public function test_the_vendor_order_sample_shows_the_banner()
+    {
+        $this->actingAs($this->procurement());
+        $rendered = EmailRegistry::makeMailable('procurement.vendor_order')->render();
+
+        $this->assertStringContainsString('This order does not match quote TESTPZ3', $rendered);
     }
 
     public function test_no_banner_when_the_order_matches_the_quote_or_there_is_none()
