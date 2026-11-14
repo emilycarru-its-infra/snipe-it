@@ -196,7 +196,13 @@ class ProfileController extends Controller
             $eulas = auth()->user()->eulas;
         }
 
-        return response()->json($transformer->transformFiles($eulas, $eulas->count()));
+        return response()->json(
+            \App\Services\UserAgreements\EulaAgreementAnnotator::annotate(
+                $transformer->transformFiles($eulas, $eulas->count()),
+                $eulas,
+                auth()->user()
+            )
+        );
 
     }
 }
