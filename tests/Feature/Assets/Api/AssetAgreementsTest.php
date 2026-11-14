@@ -51,4 +51,13 @@ class AssetAgreementsTest extends TestCase
             ->getJson(route('api.assets.agreements', $asset))
             ->assertForbidden();
     }
+
+    public function test_requires_files_and_orders_permission_in_addition_to_assets_view()
+    {
+        $asset = Asset::factory()->create();
+
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
+            ->getJson(route('api.assets.agreements', $asset))
+            ->assertForbidden();
+    }
 }

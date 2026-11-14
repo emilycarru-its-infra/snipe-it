@@ -1648,6 +1648,8 @@ class AssetsController extends Controller
     public function agreements(Asset $asset): JsonResponse
     {
         $this->authorize('view', $asset);
+        $this->authorize('files', $asset);
+        $this->authorize('view', \App\Models\Order::class);
 
         $agreements = \App\Models\UserAgreement::with('user')
             ->where('asset_id', $asset->id)
