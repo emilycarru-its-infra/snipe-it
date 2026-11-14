@@ -121,6 +121,7 @@ class StoreOrdersController extends Controller
             'items.*.catalog_item_id' => 'required|integer|distinct|exists:catalog_items,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_cost' => 'required|numeric|min:0',
+            'items.*.replaces_catalog_item_id' => 'nullable|integer|distinct|exists:catalog_items,id',
         ]);
         $result = $revision->revise($order, $data);
 

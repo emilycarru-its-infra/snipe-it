@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Actionlog;
 use App\Models\Asset;
+use App\Models\CatalogItem;
 use App\Models\StoreOrder;
 use App\Services\Settings\Preferences;
 use Illuminate\Support\Facades\DB;
@@ -40,18 +41,27 @@ class StoreOrderRevision
             }
 
             $lines = $order->items->keyBy('catalog_item_id');
-            $incoming = collect($data['items'])->keyBy('catalog_item_id');
+            // A line is matched by the catalog item it already carries. When the
+            // vendor replaces a part, the incoming line names the new item and
+            // says which line it replaces.
+            $incoming = collect($data['items'])->keyBy(fn ($line) => $line['replaces_catalog_item_id'] ?? $line['catalog_item_id']);
             if ($lines->count() !== $order->items->count()
                 || $incoming->keys()->sort()->values()->all() !== $lines->keys()->sort()->values()->all()) {
                 $this->reject('A revision must contain the same catalog lines as the request.');
             }
+            $substitutes = CatalogItem::whereIn('id', $incoming->pluck('catalog_item_id'))->get()->keyBy('id');
             foreach ($incoming as $id => $line) {
+                $replacement = (int) $line['catalog_item_id'];
+                if ($replacement !== (int) $id && $lines->has($replacement)) {
+                    $this->reject('A replacement part is already a line on the request.');
+                }
                 if ($line['quantity'] > $lines[$id]->quantity) {
                     $this->reject('A quotation revision can reduce quantities, but cannot add units.');
                 }
             }
 
             $release = collect();
+            $remodel = collect();
             foreach ($order->items->filter(fn ($line) => $line->catalogItem?->model_id)->groupBy(fn ($line) => $line->catalogItem->model_id) as $modelId => $modelLines) {
                 $before = $modelLines->sum('quantity');
                 $wanted = $modelLines->sum(fn ($line) => $incoming[$line->catalog_item_id]['quantity']);
@@ -68,14 +78,38 @@ class StoreOrderRevision
                     }
                 }
                 $release = $release->concat($surplus);
+                $repoint = $this->repointedModel($modelLines, $incoming, $substitutes);
+                if ($repoint !== null && $repoint !== (int) $modelId) {
+                    $retained = $assets->slice($surplus->count());
+                    foreach ($retained as $asset) {
+                        if ($asset->assigned_to !== null || filled($asset->serial)) {
+                            $this->reject('A reserved device has already been assigned or fulfilled; its model cannot change.');
+                        }
+                    }
+                    $remodel = $remodel->concat($retained->map(fn ($asset) => [$asset, $repoint]));
+                }
             }
 
             $before = $order->items->map(fn ($line) => $line->only(['id', 'catalog_item_id', 'quantity', 'unit_cost']))->all();
             foreach ($incoming as $id => $line) {
-                $lines[$id]->update(['quantity' => $line['quantity'], 'unit_cost' => $line['unit_cost']]);
+                $update = ['quantity' => $line['quantity'], 'unit_cost' => $line['unit_cost']];
+                if ((int) $line['catalog_item_id'] !== (int) $id) {
+                    $item = $substitutes[$line['catalog_item_id']];
+                    $update += [
+                        'catalog_item_id' => $item->id,
+                        'description' => $item->name,
+                        'vendor_sku' => $item->vendor_sku,
+                        'mfr_part_number' => $item->mfr_part_number,
+                    ];
+                }
+                $lines[$id]->update($update);
             }
             foreach ($release as $asset) {
                 $asset->delete();
+            }
+            foreach ($remodel as [$asset, $modelId]) {
+                $asset->model_id = $modelId;
+                $asset->save();
             }
             foreach (['notes', 'decision_notes', 'gl_code'] as $field) {
                 if (array_key_exists($field, $data)) {
@@ -94,6 +128,24 @@ class StoreOrderRevision
 
             return ['order' => $order->fresh(['items', 'user', 'purchaseOrder']), 'released_asset_ids' => $release->pluck('id')->all()];
         });
+    }
+
+    /**
+     * The model a group of lines moves to when every line in it is replaced
+     * by parts of one other model; null when the group keeps its model or the
+     * replacements disagree, so reserved devices are never guessed at.
+     */
+    private function repointedModel($modelLines, $incoming, $substitutes): ?int
+    {
+        $models = $modelLines->map(function ($line) use ($incoming, $substitutes) {
+            $target = (int) $incoming[$line->catalog_item_id]['catalog_item_id'];
+
+            return $target === (int) $line->catalog_item_id
+                ? (int) $line->catalogItem->model_id
+                : ($substitutes[$target]->model_id ? (int) $substitutes[$target]->model_id : null);
+        })->unique();
+
+        return $models->count() === 1 ? $models->first() : null;
     }
 
     private function reject(string $message): never
