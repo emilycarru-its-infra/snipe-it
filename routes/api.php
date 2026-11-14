@@ -647,6 +647,13 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ]
         )->name('api.assets.history')->withTrashed();
 
+        Route::get('{asset}/agreements',
+            [
+                Api\AssetsController::class,
+                'agreements',
+            ]
+        )->name('api.assets.agreements');
+
         Route::get('bytag/{tag}',
             [
                 Api\AssetsController::class,
