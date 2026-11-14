@@ -97,4 +97,44 @@ class StoreOrderRevisionTest extends TestCase
         $this->patchJson(route('api.store-orders.revise', $order), $data)->assertForbidden();
         $this->assertSame(3, $line->fresh()->quantity);
     }
+
+    public function test_a_replaced_part_repoints_the_line_and_its_reserved_devices(): void
+    {
+        [$order, $line, $assets, $data] = $this->request();
+        $newModel = AssetModel::factory()->create();
+        $replacement = CatalogItem::create(['name' => 'Replacement display', 'model_id' => $newModel->id, 'unit_cost' => 520, 'vendor_sku' => '999', 'mfr_part_number' => 'NEW-1', 'price_type' => 'quoted', 'category' => 'Displays', 'product_type' => 'standard']);
+        $data['items'] = [['catalog_item_id' => $replacement->id, 'replaces_catalog_item_id' => $line->catalog_item_id, 'quantity' => 2, 'unit_cost' => 520]];
+
+        $this->patchJson(route('api.store-orders.revise', $order), $data)->assertOk()->assertJsonPath('status', 'success');
+
+        $line->refresh();
+        $this->assertSame($replacement->id, $line->catalog_item_id);
+        $this->assertSame('Replacement display', $line->description);
+        $this->assertSame('NEW-1', $line->mfr_part_number);
+        $this->assertEquals(520, $line->unit_cost);
+        $this->assertSoftDeleted($assets->last());
+        $this->assertSame([$newModel->id], Asset::where('order_number', $order->reference())->pluck('model_id')->unique()->values()->all());
+    }
+
+    public function test_a_replacement_cannot_name_a_part_that_is_not_on_the_request(): void
+    {
+        [$order, $line, , $data] = $this->request();
+        $other = CatalogItem::create(['name' => 'Other', 'unit_cost' => 1, 'price_type' => 'estimate', 'category' => 'Displays', 'product_type' => 'standard']);
+        $replacement = CatalogItem::create(['name' => 'Replacement', 'unit_cost' => 1, 'price_type' => 'estimate', 'category' => 'Displays', 'product_type' => 'standard']);
+        $data['items'] = [['catalog_item_id' => $replacement->id, 'replaces_catalog_item_id' => $other->id, 'quantity' => 2, 'unit_cost' => 1]];
+
+        $this->patchJson(route('api.store-orders.revise', $order), $data)->assertJsonPath('status', 'error');
+        $this->assertSame($line->catalog_item_id, $line->fresh()->catalog_item_id);
+    }
+
+    public function test_a_replacement_without_a_model_cannot_strand_reserved_devices(): void
+    {
+        [$order, $line, $assets, $data] = $this->request();
+        $replacement = CatalogItem::create(['name' => 'Modelless', 'unit_cost' => 1, 'price_type' => 'estimate', 'category' => 'Displays', 'product_type' => 'standard']);
+        $data['items'] = [['catalog_item_id' => $replacement->id, 'replaces_catalog_item_id' => $line->catalog_item_id, 'quantity' => 2, 'unit_cost' => 1]];
+
+        $this->patchJson(route('api.store-orders.revise', $order), $data)->assertJsonPath('status', 'error');
+        $this->assertSame($line->catalog_item_id, $line->fresh()->catalog_item_id);
+        $this->assertNotSoftDeleted($assets->last());
+    }
 }
