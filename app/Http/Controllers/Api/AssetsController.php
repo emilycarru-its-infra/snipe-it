@@ -1640,4 +1640,49 @@ class AssetsController extends Controller
 
         return response()->json((new ActionlogsTransformer)->transformActionlogs($history, $total), 200, ['Content-Type' => 'application/json;charset=utf8'], JSON_UNESCAPED_UNICODE);
     }
+
+    /**
+     * The asset's user agreements: the same rows the Files tab on the asset
+     * page lists, newest first, with type, stage and signing details.
+     */
+    public function agreements(Asset $asset): JsonResponse
+    {
+        $this->authorize('view', $asset);
+
+        $agreements = \App\Models\UserAgreement::with('user')
+            ->where('asset_id', $asset->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        $rows = $agreements->map(function (\App\Models\UserAgreement $agreement) {
+            $type = $agreement->agreement_type;
+            $stage = $agreement->lifecycle_stage;
+            $signedFile = $agreement->signed_pdf_path;
+
+            return [
+                'id' => (int) $agreement->id,
+                'type' => [
+                    'key' => $type,
+                    'name' => trans('admin/user-agreements/general.type_'.$type),
+                ],
+                'stage' => [
+                    'key' => $stage,
+                    'name' => trans('admin/purchase-orders/general.user_agreement_stage_value_'.$stage),
+                ],
+                'user' => $agreement->user ? [
+                    'id' => (int) $agreement->user->id,
+                    'name' => e($agreement->user->present()->fullName),
+                ] : null,
+                'generated_at' => Helper::getFormattedDateObject($agreement->pdf_generated_at, 'datetime'),
+                'signed_at' => Helper::getFormattedDateObject($agreement->signed_at, 'datetime'),
+                'created_at' => Helper::getFormattedDateObject($agreement->created_at, 'datetime'),
+                'file' => $signedFile ? [
+                    'filename' => $signedFile,
+                    'url' => route('api.user-agreements.pdf', $agreement->id),
+                ] : null,
+            ];
+        })->values();
+
+        return response()->json(['total' => $rows->count(), 'rows' => $rows]);
+    }
 }
