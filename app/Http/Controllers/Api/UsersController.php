@@ -872,7 +872,11 @@ class UsersController extends Controller
         $eulas = $user->eulas;
 
         return response()->json(
-            $transformer->transformActionlogs($eulas, $eulas->count())
+            \App\Services\UserAgreements\EulaAgreementAnnotator::annotate(
+                $transformer->transformActionlogs($eulas, $eulas->count()),
+                $eulas,
+                auth()->user()
+            )
         );
     }
 
