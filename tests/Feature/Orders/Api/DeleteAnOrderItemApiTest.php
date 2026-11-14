@@ -21,7 +21,7 @@ class DeleteAnOrderItemApiTest extends TestCase
 
     public function test_a_line_item_can_be_deleted_through_the_api()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $item = OrderItem::factory()->create(['order_id' => $order->id]);
 
         $this->actingAsForApi($this->superuser())
@@ -37,8 +37,8 @@ class DeleteAnOrderItemApiTest extends TestCase
 
     public function test_a_line_belonging_to_another_order_is_refused()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
-        $other = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
+        $other = Order::factory()->create();
         $item = OrderItem::factory()->create(['order_id' => $other->id]);
 
         $this->actingAsForApi($this->superuser())
@@ -55,7 +55,7 @@ class DeleteAnOrderItemApiTest extends TestCase
 
     public function test_a_missing_line_is_refused_rather_than_erroring()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
 
         $this->actingAsForApi($this->superuser())
             ->deleteJson(route('api.orders.items.destroy', [
@@ -68,7 +68,7 @@ class DeleteAnOrderItemApiTest extends TestCase
 
     public function test_a_user_without_order_rights_cannot_delete_a_line()
     {
-        $order = Order::factory()->create(['status' => 'ordered']);
+        $order = Order::factory()->create();
         $item = OrderItem::factory()->create(['order_id' => $order->id]);
 
         $this->actingAsForApi(User::factory()->create())
