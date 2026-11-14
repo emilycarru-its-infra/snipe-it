@@ -37,4 +37,10 @@ class CsiInvoice extends Model
     {
         return $this->belongsTo(OrderInvoice::class, 'matched_order_invoice_id');
     }
+
+    /** The per-device lines this invoice total is made of. */
+    public function assetLines()
+    {
+        return $this->hasMany(CsiInvoiceAsset::class, 'csi_invoice_number', 'csi_invoice_number');
+    }
 }
