@@ -79,6 +79,9 @@ class StoreOrderRevision
                 }
                 $release = $release->concat($surplus);
                 $repoint = $this->repointedModel($modelLines, $incoming, $substitutes);
+                if ($repoint === null && $assets->count() > $surplus->count()) {
+                    $this->reject('Reserved devices cannot follow these replacements to a single model; reconcile them first.');
+                }
                 if ($repoint !== null && $repoint !== (int) $modelId) {
                     $retained = $assets->slice($surplus->count());
                     foreach ($retained as $asset) {

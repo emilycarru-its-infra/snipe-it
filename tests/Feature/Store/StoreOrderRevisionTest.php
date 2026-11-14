@@ -126,4 +126,15 @@ class StoreOrderRevisionTest extends TestCase
         $this->patchJson(route('api.store-orders.revise', $order), $data)->assertJsonPath('status', 'error');
         $this->assertSame($line->catalog_item_id, $line->fresh()->catalog_item_id);
     }
+
+    public function test_a_replacement_without_a_model_cannot_strand_reserved_devices(): void
+    {
+        [$order, $line, $assets, $data] = $this->request();
+        $replacement = CatalogItem::create(['name' => 'Modelless', 'unit_cost' => 1, 'price_type' => 'estimate', 'category' => 'Displays', 'product_type' => 'standard']);
+        $data['items'] = [['catalog_item_id' => $replacement->id, 'replaces_catalog_item_id' => $line->catalog_item_id, 'quantity' => 2, 'unit_cost' => 1]];
+
+        $this->patchJson(route('api.store-orders.revise', $order), $data)->assertJsonPath('status', 'error');
+        $this->assertSame($line->catalog_item_id, $line->fresh()->catalog_item_id);
+        $this->assertNotSoftDeleted($assets->last());
+    }
 }
