@@ -106,6 +106,34 @@ class CatalogRecordObservationsTest extends TestCase
         $this->assertContains((string) $foreignGone, $all);
     }
 
+    public function test_consumables_keep_deleted_rows_inside_the_company_scope(): void
+    {
+        $this->settings->enableMultipleFullCompanySupport();
+        $own = Company::factory()->create();
+        $other = Company::factory()->create();
+        $kept = DB::table('consumables')->insertGetId(['name' => 'Example Toner', 'company_id' => $own->getKey(), 'item_no' => 'EX-1',
+            'qty' => 4, 'min_amt' => 1, 'purchase_cost' => '12.50', 'purchase_date' => '2026-01-02', 'created_at' => '2026-01-03 00:00:00']);
+        $gone = DB::table('consumables')->insertGetId(['name' => 'Example Retired Toner', 'company_id' => $own->getKey(), 'qty' => 2,
+            'deleted_at' => '2026-05-01 00:00:00']);
+        $foreign = DB::table('consumables')->insertGetId(['name' => 'Example Foreign Toner', 'company_id' => $other->getKey(), 'qty' => 1]);
+        $foreignGone = DB::table('consumables')->insertGetId(['name' => 'Example Foreign Retired', 'company_id' => $other->getKey(), 'qty' => 1,
+            'deleted_at' => '2026-05-01 00:00:00']);
+
+        $reader = User::factory()->create(['company_id' => $own->getKey(), 'permissions' => '{"consumables.view":"1"}']);
+        $rows = collect($this->rows($reader, 'consumables', 2))->keyBy('id');
+
+        $this->assertSame('Example Toner', $rows[(string) $kept]['name']);
+        $this->assertSame(4, $rows[(string) $kept]['qty']);
+        $this->assertSame('2026-01-02', $rows[(string) $kept]['purchase_date']);
+        $this->assertNull($rows[(string) $kept]['deleted_at']);
+        $this->assertSame('Example Retired Toner', $rows[(string) $gone]['name']);
+        $this->assertSame('2026-05-01 00:00:00', $rows[(string) $gone]['deleted_at']);
+
+        $all = array_column($this->rows(User::factory()->superuser()->create(), 'consumables', 4), 'id');
+        $this->assertContains((string) $foreign, $all);
+        $this->assertContains((string) $foreignGone, $all);
+    }
+
     public function test_asset_statuses_keep_labels_that_were_soft_deleted_and_the_company_scope(): void
     {
         $this->settings->enableMultipleFullCompanySupport();
@@ -163,6 +191,7 @@ class CatalogRecordObservationsTest extends TestCase
             'status labels' => ['status-labels', 'statuslabels.view'],
             'categories' => ['categories', 'categories.view'],
             'departments' => ['departments', 'departments.view'],
+            'consumables' => ['consumables', 'consumables.view'],
             'asset statuses' => ['asset-statuses', 'assets.view'],
         ];
     }
