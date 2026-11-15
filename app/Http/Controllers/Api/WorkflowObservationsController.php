@@ -373,6 +373,11 @@ class WorkflowObservationsController extends Controller
             'columns' => ['name' => 'text', 'category_type' => 'text', 'require_acceptance' => 'bool', 'checkin_email' => 'bool', 'use_default_eula' => 'bool', 'alert_on_response' => 'bool', 'eula_text' => 'text', 'notes' => 'text', 'image' => 'text', 'tag_color' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
         'departments' => ['table' => 'departments', 'can' => ['view', Department::class], 'soft' => true, 'model' => Department::class,
             'columns' => ['name' => 'text', 'company_id' => 'id', 'location_id' => 'id', 'manager_id' => 'id', 'phone' => 'text', 'fax' => 'text', 'notes' => 'text', 'procurement_access' => 'bool', 'image' => 'text', 'tag_color' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
+        // A consumable's stored columns, live or deleted. The REST list leaves a soft-deleted
+        // consumable out, but its action log rows stay, so a reader needs the record to give that
+        // history a home.
+        'consumables' => ['table' => 'consumables', 'can' => ['view', Consumable::class], 'soft' => true, 'model' => Consumable::class,
+            'columns' => ['name' => 'text', 'category_id' => 'id', 'company_id' => 'id', 'location_id' => 'id', 'manufacturer_id' => 'id', 'supplier_id' => 'id', 'item_no' => 'text', 'model_number' => 'text', 'order_number' => 'text', 'tracking_number' => 'text', 'tracking_carrier' => 'text', 'purchase_cost' => 'decimal', 'purchase_date' => 'date', 'qty' => 'int', 'min_amt' => 'int', 'requestable' => 'bool', 'on_maintenance_contract' => 'bool', 'status' => 'text', 'notes' => 'text', 'created_by' => 'id', 'created_at' => 'time', 'deleted_at' => 'time']],
         // Each asset's stored status label id, live or deleted, even when that label is itself
         // soft-deleted; the asset API's status relation leaves such a label out.
         'asset-statuses' => ['table' => 'assets', 'can' => ['view', Asset::class], 'soft' => true, 'model' => Asset::class,
@@ -434,6 +439,7 @@ class WorkflowObservationsController extends Controller
             $query->whereIn($table.'.id', match ($spec['model']) {
                 Asset::class => Asset::withTrashed()->select('assets.id'),
                 Department::class => Department::withTrashed()->select('departments.id'),
+                Consumable::class => Consumable::withTrashed()->select('consumables.id'),
                 default => throw new \LogicException('No visibility scope for '.$table.'.'),
             });
         }
