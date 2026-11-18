@@ -19,7 +19,7 @@
                     @if (! empty($email->cc_addresses))
                         <br><small class="text-muted">{{ trans('admin/email-log/general.cc') }}: {{ implode(', ', $email->cc_addresses) }}</small>
                     @endif
-                    @if (! empty($email->bcc_addresses))
+                    @if (! empty($email->bcc_addresses) && auth()->user()?->hasAccess('admin'))
                         <br><small class="text-muted">{{ trans('admin/email-log/general.bcc') }}: {{ implode(', ', $email->bcc_addresses) }}</small>
                     @endif
                 </td>

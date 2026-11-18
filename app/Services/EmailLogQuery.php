@@ -59,7 +59,7 @@ class EmailLogQuery
             'from' => $log->from_address,
             'to' => $log->to_addresses ?? [],
             'cc' => $log->cc_addresses ?? [],
-            'bcc' => $log->bcc_addresses ?? [],
+            'bcc' => auth()->user()?->hasAccess('admin') ? ($log->bcc_addresses ?? []) : [],
             'kind' => $log->kind(),
             'source' => $log->source,
             'status' => $log->status,

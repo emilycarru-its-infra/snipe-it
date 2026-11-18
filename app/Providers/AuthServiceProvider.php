@@ -25,6 +25,7 @@ use App\Models\PredefinedKit;
 use App\Models\CatalogItem;
 use App\Models\PurchaseOrder;
 use App\Models\Requisition;
+use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -309,8 +310,14 @@ class AuthServiceProvider extends ServiceProvider
         });
 
         // The email log names recipients and subjects, so it sits with the
-        // reports rather than with each record's own view permission.
+        // reports rather than with each record's own view permission. Its
+        // rows are not scoped by company, so with full multiple-company
+        // support on only a superuser, who sees every company, may read it.
         Gate::define('email-log.view', function ($user) {
+            if (Setting::getSettings()?->full_multiple_companies_support == 1) {
+                return $user->isSuperUser();
+            }
+
             return $user->hasAccess('reports.view') || $user->hasAccess('admin');
         });
 
