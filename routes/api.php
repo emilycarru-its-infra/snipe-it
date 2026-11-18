@@ -939,6 +939,10 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.store-orders.funding');
     Route::post('store-orders/vendor-order', [Api\StoreOrdersController::class, 'vendorOrder'])
         ->name('api.store-orders.vendor-order');
+    Route::get('email-logs', [Api\EmailLogsController::class, 'index'])
+        ->name('api.email-logs.index');
+    Route::post('email-logs/import', [Api\EmailLogsController::class, 'import'])
+        ->name('api.email-logs.import');
     Route::post('store-orders/send-vendor', [Api\StoreOrdersController::class, 'sendVendor'])
         ->name('api.store-orders.send-vendor');
 

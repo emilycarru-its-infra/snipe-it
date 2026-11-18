@@ -16,6 +16,9 @@
                 <input type="checkbox" name="orders[]" value="{{ $order->id }}" aria-label="{{ $order->reference() }}">
             @endif
             <span class="pq-ref">{{ $order->reference() }}</span>
+            @can('email-log.view')
+                <a href="{{ route('reports.emails', ['type' => 'store_order', 'id' => $order->id]) }}" title="{{ trans('admin/email-log/general.tab_label') }}" aria-label="{{ trans('admin/email-log/general.tab_label') }}"><x-icon type="email"/></a>
+            @endcan
             <span class="pq-amount">${{ \App\Helpers\Helper::formatCurrencyOutput($order->total()) }}</span>
         </div>
 

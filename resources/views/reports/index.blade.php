@@ -152,6 +152,14 @@
         </a>
     </div>
 
+    @can('email-log.view')
+        <div class="col-md-3 col-sm-6">
+            <a href="{{ route('reports.emails') }}" class="btn btn-theme btn-block" style="margin-bottom: 10px; white-space: normal;">
+                <x-icon type="email"/> {{ trans('admin/email-log/general.title') }}
+            </a>
+        </div>
+    @endcan
+
     <div class="col-md-3 col-sm-6">
         <a href="{{ url('reports/custom') }}" class="btn btn-theme btn-block" style="margin-bottom: 10px; white-space: normal;">
             <x-icon type="reports"/> {{ trans('general.custom_report') }}

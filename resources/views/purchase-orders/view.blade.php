@@ -214,6 +214,12 @@
                     </table>
                 @endif
 
+                @can('email-log.view')
+                    <h3>{{ trans('admin/email-log/general.tab_label') }}</h3>
+                    @include('partials.email-log-table', ['emails' => \App\Models\EmailLog::about($purchaseOrder)->limit(50)->get()])
+                    <a href="{{ route('reports.emails', ['type' => 'purchase_order', 'id' => $purchaseOrder->id]) }}">{{ trans('admin/email-log/general.see_all') }}</a>
+                @endcan
+
                 <h3>{{ trans('admin/purchase-orders/general.orders') }}</h3>
                 <table class="table table-striped">
                     <thead>

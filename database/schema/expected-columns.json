@@ -696,6 +696,28 @@
         "name",
         "updated_at"
     ],
+    "email_log_links": [
+        "email_log_id",
+        "id",
+        "linkable_id",
+        "linkable_type"
+    ],
+    "email_logs": [
+        "bcc_addresses",
+        "cc_addresses",
+        "created_at",
+        "created_by",
+        "from_address",
+        "id",
+        "mailable",
+        "message_id",
+        "sent_at",
+        "source",
+        "status",
+        "subject",
+        "to_addresses",
+        "updated_at"
+    ],
     "email_templates": [
         "body",
         "cc",

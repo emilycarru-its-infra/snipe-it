@@ -29,7 +29,12 @@
                     @if ($selectedStatus === 'approved')
                         <td><input type="checkbox" name="orders[]" value="{{ $order->id }}" aria-label="{{ $order->reference() }}"></td>
                     @endif
-                    <td><strong>{{ $order->reference() }}</strong></td>
+                    <td>
+                        <strong>{{ $order->reference() }}</strong>
+                        @can('email-log.view')
+                            <a href="{{ route('reports.emails', ['type' => 'store_order', 'id' => $order->id]) }}" title="{{ trans('admin/email-log/general.tab_label') }}" aria-label="{{ trans('admin/email-log/general.tab_label') }}"><x-icon type="email"/></a>
+                        @endcan
+                    </td>
                     <td>
                         {{ $order->user?->present()->fullName ?: trans('general.na') }}
                         @if ($order->user?->department)
