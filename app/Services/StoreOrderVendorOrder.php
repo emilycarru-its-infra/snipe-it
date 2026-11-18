@@ -149,7 +149,7 @@ class StoreOrderVendorOrder
         $order->supplier_id = $first->supplier()?->id;
         $order->company_id = $purchaseOrder->company_id;
         $order->fiscal_year = $purchaseOrder->fiscal_year;
-        $order->order_date = now()->toDateString();
+        $order->order_date = now()->startOfDay();
         $order->status = 'ordered';
         $order->is_planned = false;
         $order->funding_account = $first->funding_account;
