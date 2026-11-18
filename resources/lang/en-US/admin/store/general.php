@@ -347,4 +347,13 @@ return [
     'department_po_placeholder' => 'PO number from Colleague',
     'preapproved_by_po' => 'Approved by department purchase order :po.',
     'queue_department_po' => 'PO :po',
+    'vendor_order_recorded' => 'Vendor order :number recorded under :po.',
+    'vendor_order_already_recorded' => 'Vendor order :number was already recorded under :po.',
+    'vendor_order_number_required' => 'A vendor order number is required.',
+    'vendor_order_nothing_open' => 'None of those orders exist.',
+    'vendor_order_wrong_state' => ':reference has not gone to the vendor, so it cannot carry their order number.',
+    'vendor_order_no_purchase_order' => 'These orders draw on no single purchase order. Attach them to one first, or pass purchase_order_id.',
+    'vendor_order_other_purchase_order' => ':reference already draws on :po.',
+    'vendor_order_number_taken' => 'Order :number already exists under another purchase order.',
+    'vendor_order_notes' => 'Placed by the vendor for :references.',
 ];
