@@ -1,0 +1,27 @@
+<?php
+
+return [
+    'title' => 'Email Log',
+    'tab_label' => 'Emails',
+    'help' => 'Every email Snipe sends, with its recipients, subject and the records it was about. Mail sent before the log existed is imported from the mail system\'s delivery trace where it can be.',
+    'sent_at' => 'Sent',
+    'recipients' => 'Recipients',
+    'subject' => 'Subject',
+    'kind' => 'Email',
+    'status' => 'Status',
+    'cc' => 'CC',
+    'bcc' => 'BCC',
+    'none' => 'No emails logged.',
+    'search_placeholder' => 'Recipient or subject',
+    'record' => 'Record',
+    'record_id' => 'Record ID',
+    'any_record' => 'Any record',
+    'type_asset' => 'Asset',
+    'type_user' => 'User',
+    'type_order' => 'Order',
+    'type_purchase_order' => 'Purchase order',
+    'type_store_order' => 'Store order',
+    'source_exchange' => 'Imported from mail trace',
+    'see_all' => 'See all in the email log',
+    'imported' => ':created imported, :updated already logged, :linked links added.',
+];

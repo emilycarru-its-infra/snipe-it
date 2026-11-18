@@ -34,6 +34,11 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\CheckoutDeclined::class => [
             \App\Listeners\UpdateUserAgreementOnDecline::class,
         ],
+
+        // Every email handed to the mail relay is written to the email log.
+        \Illuminate\Mail\Events\MessageSent::class => [
+            \App\Services\EmailLogRecorder::class,
+        ],
     ];
 
     /**

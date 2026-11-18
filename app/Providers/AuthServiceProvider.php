@@ -308,6 +308,12 @@ class AuthServiceProvider extends ServiceProvider
             }
         });
 
+        // The email log names recipients and subjects, so it sits with the
+        // reports rather than with each record's own view permission.
+        Gate::define('email-log.view', function ($user) {
+            return $user->hasAccess('reports.view') || $user->hasAccess('admin');
+        });
+
         // -----------------------------------------
         // Self
         // -----------------------------------------

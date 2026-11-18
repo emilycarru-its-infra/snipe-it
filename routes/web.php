@@ -1338,6 +1338,12 @@ Route::group(['prefix' => 'reports', 'middleware' => ['auth']], function () {
     Route::post('activity', [ReportsController::class, 'postActivityReport'])
         ->name('reports.activity.post');
 
+    Route::get('emails', [\App\Http\Controllers\EmailLogController::class, 'index'])
+        ->name('reports.emails')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')
+            ->push(trans('general.reports'), route('reports.index'))
+            ->push(trans('admin/email-log/general.title'), route('reports.emails')));
+
     Route::get('unaccepted_assets/{deleted?}', [ReportsController::class, 'getAssetAcceptanceReport'])
         ->name('reports/unaccepted_assets')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('home')

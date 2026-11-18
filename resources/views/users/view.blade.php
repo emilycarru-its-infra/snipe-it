@@ -680,6 +680,20 @@
                 </div>
             @endif
 
+            @can('email-log.view')
+                <div class="box user-section">
+                    <div class="box-body">
+                        <x-tabs.pane name="emails" class="in active">
+                            <x-slot:table_header>
+                                {{ trans('admin/email-log/general.tab_label') }} <span class="badge">{{ \App\Models\EmailLog::about($user)->count() }}</span>
+                            </x-slot:table_header>
+                            @include('partials.email-log-table', ['emails' => \App\Models\EmailLog::about($user)->limit(25)->get()])
+                            <a href="{{ route('reports.emails', ['type' => 'user', 'id' => $user->id]) }}">{{ trans('admin/email-log/general.see_all') }}</a>
+                        </x-tabs.pane>
+                    </div>
+                </div>
+            @endcan
+
             <div class="box user-section">
                 <div class="box-body">
                     <x-tabs.pane name="history" class="in active">

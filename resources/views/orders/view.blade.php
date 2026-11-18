@@ -667,6 +667,12 @@
 
 
                 @include('orders._vendor-order')
+
+                @can('email-log.view')
+                    <h3 style="overflow:hidden">{{ trans('admin/email-log/general.tab_label') }}</h3>
+                    @include('partials.email-log-table', ['emails' => \App\Models\EmailLog::about($order)->limit(50)->get()])
+                    <a href="{{ route('reports.emails', ['type' => 'order', 'id' => $order->id]) }}">{{ trans('admin/email-log/general.see_all') }}</a>
+                @endcan
             </div>
         </div>
     </div>

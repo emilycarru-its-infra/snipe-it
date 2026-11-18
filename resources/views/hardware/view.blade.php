@@ -90,6 +90,16 @@
                         />
                     @endcan
 
+                    @can('email-log.view')
+                        <x-tabs.nav-item
+                            name="emails"
+                            icon_type="email"
+                            label="{{ trans('admin/email-log/general.tab_label') }}"
+                            count="{{ \App\Models\EmailLog::about($asset)->count() }}"
+                            tooltip="{{ trans('admin/email-log/general.tab_label') }}"
+                        />
+                    @endcan
+
                     <x-tabs.nav-item
                         name="audits"
                         icon_type="audit"
@@ -503,6 +513,13 @@
                             </table>
                         </x-tabs.pane>
                         <!-- end orders tab pane -->
+                    @endcan
+
+                    @can('email-log.view')
+                        <x-tabs.pane name="emails">
+                            @include('partials.email-log-table', ['emails' => \App\Models\EmailLog::about($asset)->limit(100)->get()])
+                            <a href="{{ route('reports.emails', ['type' => 'asset', 'id' => $asset->id]) }}">{{ trans('admin/email-log/general.see_all') }}</a>
+                        </x-tabs.pane>
                     @endcan
 
                     <!-- start history tab pane -->
