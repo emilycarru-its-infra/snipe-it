@@ -276,6 +276,7 @@ return [
     // Vendor order request (to the reseller's reps)
     'store_vendor_order_subject' => 'Quote request :reference',
     'store_vendor_order_subject_unreferenced' => '(purchase order to follow)',
+    'store_vendor_order_subject_store_referenced' => ':references (purchase order to follow)',
     'store_vendor_order_test_prefix' => '[TEST]',
     'store_vendor_order_heading' => 'Quote request',
     'store_vendor_order_intro' => 'Hello :supplier team, please provide a quote for the following items. This is a quote request only; do not place an order.',

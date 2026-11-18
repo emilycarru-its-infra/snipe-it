@@ -15,6 +15,7 @@ use App\Services\StoreOrderNotifier;
 use App\Services\StoreOrderPlacement;
 use App\Services\StoreOrderQuote;
 use App\Services\StoreOrderRevision;
+use App\Services\StoreOrderVendorOrder;
 use App\Services\StoreVendorOrderDispatch;
 use App\Services\SupplierAccounts;
 use Illuminate\Http\JsonResponse;
@@ -399,6 +400,53 @@ class StoreOrdersController extends Controller
                 'line_total' => $line->lineTotal(),
             ])->all(),
         ];
+    }
+
+    /**
+     * The vendor's order number for store orders they placed: raises the
+     * vendor order under the purchase order they draw on, or reuses the one
+     * already carrying that number. `purchase_order_id` is only needed when
+     * neither the orders nor their lease schedule already name one.
+     */
+    public function vendorOrder(Request $request): JsonResponse
+    {
+        $this->authorize('update', Requisition::class);
+
+        $validated = $request->validate([
+            'orders' => 'required|array|min:1',
+            'orders.*' => 'integer|exists:store_orders,id',
+            'vendor_order_number' => 'required|string|max:191',
+            'purchase_order_id' => 'nullable|integer|exists:purchase_orders,id',
+        ]);
+
+        $orders = StoreOrder::with('items.catalogItem.supplier', 'purchaseOrder')
+            ->whereIn('id', $validated['orders'])
+            ->orderBy('id')
+            ->get();
+
+        $purchaseOrder = isset($validated['purchase_order_id'])
+            ? PurchaseOrder::find($validated['purchase_order_id'])
+            : null;
+
+        $result = app(StoreOrderVendorOrder::class)->record($orders, $validated['vendor_order_number'], $purchaseOrder);
+
+        if (! $result['ok']) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $result['error']), 422);
+        }
+
+        $order = $result['order'];
+
+        return response()->json(Helper::formatStandardApiResponse('success', [
+            'order_id' => $order->id,
+            'order' => $order->order_number,
+            'vendor_order_number' => $order->vendor_order_number,
+            'purchase_order' => $order->purchaseOrder?->po_number,
+            'created' => $result['created'],
+            'store_orders' => $orders->map(fn (StoreOrder $o) => $o->reference())->all(),
+        ], trans($result['created'] ? 'admin/store/general.vendor_order_recorded' : 'admin/store/general.vendor_order_already_recorded', [
+            'number' => $order->order_number,
+            'po' => $order->purchaseOrder?->po_number,
+        ])));
     }
 
     public function shipment(Request $request, StoreOrder $order): JsonResponse

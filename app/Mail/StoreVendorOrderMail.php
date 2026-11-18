@@ -19,9 +19,10 @@ use Illuminate\Support\Collection;
  *
  * What reaches them is the purchase order their invoice must quote, the
  * account and lease schedule the lines are placed against, and the parts
- * themselves bundled by model. Our store references and the names of the
- * people who asked stay on our side: sixteen laptops is one line saying
- * sixteen, not sixteen blocks naming sixteen faculty.
+ * themselves bundled by model. The names of the people who asked stay on
+ * our side: sixteen laptops is one line saying sixteen, not sixteen blocks
+ * naming sixteen faculty. A short request with no purchase order yet names
+ * its store references in the subject, so the reply can be matched back.
  *
  * Deliberately plain — it reads like the email a purchaser would have
  * typed, because that is exactly what it replaces.
@@ -29,6 +30,9 @@ use Illuminate\Support\Collection;
 class StoreVendorOrderMail extends BaseMailable
 {
     use Queueable, SerializesModels;
+
+    /** Most store references a subject names before it stops naming them. */
+    private const SUBJECT_REFERENCE_LIMIT = 3;
 
     /**
      * @param  Collection<int, StoreOrder>  $orders
@@ -99,9 +103,19 @@ class StoreVendorOrderMail extends BaseMailable
             ->unique()
             ->values();
 
-        return $numbers->isEmpty()
-            ? trans('mail.store_vendor_order_subject_unreferenced')
-            : $numbers->implode(', ');
+        if ($numbers->isNotEmpty()) {
+            return $numbers->implode(', ');
+        }
+
+        // With no purchase order yet, the store reference is the only thing
+        // the vendor's "order #X submitted" reply can be matched back on.
+        // A short request names its orders; a long one would bury the
+        // subject, so it stays unreferenced.
+        if ($this->orders->count() <= self::SUBJECT_REFERENCE_LIMIT) {
+            return trans('mail.store_vendor_order_subject_store_referenced', ['references' => $this->references()]);
+        }
+
+        return trans('mail.store_vendor_order_subject_unreferenced');
     }
 
     /**

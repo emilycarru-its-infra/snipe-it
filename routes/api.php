@@ -937,6 +937,8 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
         ->name('api.store-orders.attach');
     Route::post('store-orders/{order}/funding', [Api\StoreOrdersController::class, 'funding'])
         ->name('api.store-orders.funding');
+    Route::post('store-orders/vendor-order', [Api\StoreOrdersController::class, 'vendorOrder'])
+        ->name('api.store-orders.vendor-order');
     Route::post('store-orders/send-vendor', [Api\StoreOrdersController::class, 'sendVendor'])
         ->name('api.store-orders.send-vendor');
 
