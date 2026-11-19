@@ -132,7 +132,7 @@ class AcceptanceItemDeclinedNotification extends Notification
             ->subject($this->overriddenSubject('acceptance.declined', trans('mail.acceptance_declined', ['user' => $this->assigned_to, 'item' => $this->item_name])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 

@@ -66,7 +66,7 @@ class ExpectedCheckinNotification extends Notification
             ->subject($this->overriddenSubject('account.expected_checkin_user', $subjectText))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 
