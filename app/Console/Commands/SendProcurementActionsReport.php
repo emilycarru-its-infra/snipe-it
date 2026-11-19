@@ -171,7 +171,7 @@ class SendProcurementActionsReport extends Command
     }
 
     /**
-     * @param  array{action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}  $row
+     * @param  array{identity: string, action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}  $row
      * @return array<int, mixed>
      */
     private function cells(array $row): array
@@ -189,7 +189,7 @@ class SendProcurementActionsReport extends Command
     /**
      * Oldest first within each step, so what has waited longest is read first.
      *
-     * @return Collection<int, array{action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}>
+     * @return Collection<int, array{identity: string, action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}>
      */
     private function rows(): Collection
     {
