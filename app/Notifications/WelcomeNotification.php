@@ -50,7 +50,7 @@ class WelcomeNotification extends Notification
             ->subject($this->overriddenSubject('account.welcome', trans('mail.welcome', ['name' => $this->user->first_name.' '.$this->user->last_name])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 

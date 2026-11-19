@@ -74,14 +74,40 @@ class TeamsNotifier
         return $cards !== [];
     }
 
+    /** Send one already-sized card, optionally as a Relay thread root or reply. */
+    public function sendContent(array $content, ?string $channel = null, ?string $key = null, array $thread = []): bool
+    {
+        if (! $this->enabled()) {
+            return false;
+        }
+
+        // A saved thread must keep its destination even if settings later
+        // remove that channel from the choices for new notifications.
+        $channel = $thread !== [] && filled($channel) ? $channel : TeamsChannels::resolve($channel);
+        $url = trim((string) config('ecu.teams.post_card_url'));
+        if ($url === '') {
+            $this->audit('skipped', $channel, $key, null, ['reason' => 'no post-card endpoint configured']);
+
+            return false;
+        }
+
+        $token = $this->token();
+        if ($token === null) {
+            $this->audit('skipped', $channel, $key, null, ['reason' => 'no managed identity available']);
+
+            return false;
+        }
+
+        return $this->post($url, $token, $channel, $content, 1, 1, $key, $thread);
+    }
+
     /**
      * Post one card and swallow whatever goes wrong, logging at a level that
      * matches whose problem it is.
      */
-    private function post(string $url, string $token, string $channel, array $content, int $part, int $parts, ?string $key = null): bool
+    private function post(string $url, string $token, string $channel, array $content, int $part, int $parts, ?string $key = null, array $thread = []): bool
     {
         $context = ['channel' => $channel];
-
         if ($parts > 1) {
             $context['part'] = $part.'/'.$parts;
         }
@@ -90,7 +116,7 @@ class TeamsNotifier
             $response = Http::withToken($token)
                 ->asJson()
                 ->timeout($this->timeout())
-                ->post($url, ['channel' => $channel, 'card' => $content])
+                ->post($url, ['channel' => $channel, 'card' => $content] + $thread)
                 ->throw();
 
             // Unlike a Power Automate webhook, Relay answers after it has

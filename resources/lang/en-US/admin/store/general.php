@@ -325,6 +325,9 @@ return [
     'tab_loading' => 'Loading…',
 
     // The daily digest of what is waiting on procurement.
+    'actions_update_title' => 'Store — procurement action update',
+    'actions_previous' => 'Previous action — resolved',
+    'actions_unavailable' => 'Order no longer available',
     'actions_report_title' => 'Procurement — waiting on us',
     'actions_col_action' => 'Needs',
     'actions_col_reference' => 'Order',

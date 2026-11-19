@@ -339,7 +339,7 @@ return [
     'teams_target_location' => 'location',
     'teams_view_item' => 'View item',
     'teams_view_license' => 'View license',
-    'teams_view_report' => 'Open in Snipe-IT',
+    'teams_view_report' => 'Open in Store',
     'teams_remaining' => 'Remaining',
     'teams_report_subtitle' => '{1} 1 item|[2,*] :count items',
     // Card titles. The mail strings these replace are built for a subject line
@@ -355,7 +355,7 @@ return [
     'teams_license_checked_out' => 'Licence seat assigned',
     'teams_license_checked_in' => 'Licence seat released',
     'teams_assets_checked_out' => 'Assets checked out',
-    'webhook_test_msg' => 'Oh hai! It looks like your :app integration with Snipe-IT is working!',
+    'webhook_test_msg' => 'Oh hai! It looks like your :app integration with Store is working!',
     'some_features_disabled' => 'DEMO MODE: Some features are disabled for this installation.',
     'site_name' => 'Site Name',
     'state' => 'State',

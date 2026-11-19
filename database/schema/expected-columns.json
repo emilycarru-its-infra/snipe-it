@@ -1299,6 +1299,16 @@
         "scim_externalid",
         "updated_at"
     ],
+    "procurement_digest_threads": [
+        "cards",
+        "channel",
+        "completed_at",
+        "created_at",
+        "id",
+        "next_part",
+        "pending",
+        "updated_at"
+    ],
     "procurement_settings": [
         "created_at",
         "id",

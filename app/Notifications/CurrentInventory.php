@@ -52,7 +52,7 @@ class CurrentInventory extends Notification
             ->subject($this->overriddenSubject('account.inventory', trans('mail.inventory_report')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 

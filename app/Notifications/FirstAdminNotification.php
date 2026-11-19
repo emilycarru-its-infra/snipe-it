@@ -51,7 +51,7 @@ class FirstAdminNotification extends Notification
             ->subject($this->overriddenSubject('account.first_admin', trans('mail.welcome', ['name' => $this->_data['first_name'].' '.$this->_data['last_name']])))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 

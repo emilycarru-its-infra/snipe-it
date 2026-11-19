@@ -58,7 +58,7 @@ class InventoryAlert extends Notification
             ->subject($this->overriddenSubject('report.low_inventory', trans('mail.Low_Inventory_Report')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 

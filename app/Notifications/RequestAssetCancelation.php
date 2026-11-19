@@ -174,7 +174,7 @@ class RequestAssetCancelation extends Notification
             ->subject($this->overriddenSubject('request.cancel', trans('general.request_canceled')))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 

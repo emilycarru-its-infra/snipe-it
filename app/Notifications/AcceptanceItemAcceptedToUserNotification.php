@@ -94,7 +94,7 @@ class AcceptanceItemAcceptedToUserNotification extends Notification
             ->subject($this->overriddenSubject($key, $subject))
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
 

@@ -31,6 +31,7 @@ class Kernel extends ConsoleKernel
         }
         // Weekdays, and outside the alerts_enabled gate: this is the list of
         // what procurement still has to do, not an optional alert.
+        $schedule->command('snipeit:procurement-actions --updates-only')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('snipeit:procurement-actions')->weekdays()->dailyAt(self::at('schedule.procurement_actions'));
 
         $schedule->command('snipeit:backup')->weekly();

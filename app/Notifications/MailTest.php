@@ -44,7 +44,7 @@ class MailTest extends Notification
             ->markdown('notifications.Test')
             ->withSymfonyMessage(function (Email $message) {
                 $message->getHeaders()->addTextHeader(
-                    'X-System-Sender', 'Snipe-IT'
+                    'X-System-Sender', 'Store'
                 );
             });
     }

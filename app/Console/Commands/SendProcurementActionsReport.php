@@ -2,13 +2,16 @@
 
 namespace App\Console\Commands;
 
-use App\Console\Commands\Concerns\PostsReportCards;
 use App\Mail\EmailDelivery;
+use App\Models\ProcurementDigestThread;
 use App\Models\PurchaseOrder;
 use App\Models\StoreOrder;
+use App\Services\Teams\ReportCard;
+use App\Services\Teams\TeamsNotifier;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -28,24 +31,17 @@ use Illuminate\Support\Facades\Log;
  */
 class SendProcurementActionsReport extends Command
 {
-    use PostsReportCards;
-
     public const KEY = 'report.procurement_actions';
 
     protected $signature = 'snipeit:procurement-actions
-                            {--dry-run : List what would be posted without posting it}';
+                            {--dry-run : List what would be posted without posting it}
+                            {--updates-only : Reply to existing digests without posting a new digest}';
 
     protected $description = 'Post the store orders and vendor quotes waiting on procurement to Teams.';
 
     public function handle(): int
     {
         $rows = $this->rows();
-
-        if ($rows->isEmpty()) {
-            $this->info('Nothing waiting on procurement.');
-
-            return self::SUCCESS;
-        }
 
         if ($this->option('dry-run')) {
             $this->table($this->columns(), $rows->map(fn (array $row) => $this->cells($row))->all());
@@ -62,8 +58,13 @@ class SendProcurementActionsReport extends Command
             return self::SUCCESS;
         }
 
-        $this->postReportCard(
-            self::KEY,
+        $this->updateThreads($rows);
+
+        if ($this->option('updates-only') || $rows->isEmpty()) {
+            return self::SUCCESS;
+        }
+
+        $card = ReportCard::make(
             trans('admin/store/general.actions_report_title'),
             'attention',
             $this->columns(),
@@ -72,10 +73,88 @@ class SendProcurementActionsReport extends Command
             $rows->countBy('action')->all(),
             route('procurement.approvals'),
         );
+        $thread = ProcurementDigestThread::create([
+            'channel' => EmailDelivery::channelFor(self::KEY),
+            'pending' => $rows->mapWithKeys(fn ($row) => [$row['identity'] => [
+                'reference' => $row['reference'], 'action' => $row['action'],
+            ]])->all(),
+            'cards' => $card->cards(),
+        ]);
+        $this->updateThread($thread->id, $rows->keyBy('identity'));
 
-        $this->info('Posted '.$rows->count().' item(s).');
+        $this->info('Queued '.$rows->count().' item(s).');
 
         return self::SUCCESS;
+    }
+
+    /** Keep every digest that mentioned an action informed, including after the queue empties. */
+    private function updateThreads(Collection $rows): void
+    {
+        $current = $rows->keyBy('identity');
+        ProcurementDigestThread::whereNull('completed_at')->select('id')->chunkById(100, function ($threads) use ($current) {
+            foreach ($threads as $thread) {
+                $this->updateThread($thread->id, $current);
+            }
+        });
+    }
+
+    private function updateThread(string $id, Collection $current): void
+    {
+        // Both scheduled commands can run together. Serialize each thread and
+        // checkpoint every accepted part/reply before another worker can send it.
+        DB::transaction(function () use ($id, $current) {
+            $thread = ProcurementDigestThread::whereKey($id)->lockForUpdate()->firstOrFail();
+            if ($thread->completed_at) {
+                return;
+            }
+            $notifier = app(TeamsNotifier::class);
+            $routing = ['thread_repo' => 'StoreProcurement', 'thread_key' => $thread->id];
+            $cards = $thread->cards;
+            while ($thread->next_part < count($cards)) {
+                if (! $notifier->sendContent($cards[$thread->next_part], $thread->channel, self::KEY,
+                    $routing + ['is_root' => $thread->next_part === 0])) {
+                    return;
+                }
+                $thread->increment('next_part');
+            }
+
+            $pending = $thread->pending;
+            foreach ($pending as $identity => $previous) {
+                if ($current->has($identity)) {
+                    continue;
+                }
+                [$type, $orderId] = explode(':', $identity);
+                $order = $type === 'store' ? StoreOrder::find($orderId) : PurchaseOrder::find($orderId);
+                $status = $order === null
+                    ? trans('admin/store/general.actions_unavailable')
+                    : ($type === 'store'
+                        ? trans('admin/store/general.order_status_'.$order->displayStatus())
+                        : ($order->quote_confirmed_at || filled($order->vendor_order_number)
+                            ? trans('admin/store/general.order_status_ordered')
+                            : trans('admin/purchase-orders/general.status_'.$order->status)));
+                $reply = ReportCard::make(
+                    trans('admin/store/general.actions_update_title'), 'good',
+                    [trans('admin/store/general.actions_col_reference'),
+                        trans('admin/store/general.actions_previous'), trans('general.status')],
+                    [[$previous['reference'], $previous['action'], $status]], fn ($row) => $row,
+                    url: route('procurement.approvals'),
+                );
+                foreach ($reply->cards() as $content) {
+                    if (! $notifier->sendContent($content, $thread->channel, self::KEY, $routing)) {
+                        return;
+                    }
+                }
+                unset($pending[$identity]);
+                $thread->pending = $pending;
+                $thread->save();
+            }
+            if ($pending === []) {
+                $thread->completed_at = now();
+                // Keep the thread receipt, not a permanent copy of the digest.
+                $thread->cards = [];
+                $thread->save();
+            }
+        });
     }
 
     /** @return array<int, string> */
@@ -92,7 +171,7 @@ class SendProcurementActionsReport extends Command
     }
 
     /**
-     * @param  array{action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}  $row
+     * @param  array{identity: string, action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}  $row
      * @return array<int, mixed>
      */
     private function cells(array $row): array
@@ -110,7 +189,7 @@ class SendProcurementActionsReport extends Command
     /**
      * Oldest first within each step, so what has waited longest is read first.
      *
-     * @return Collection<int, array{action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}>
+     * @return Collection<int, array{identity: string, action: string, reference: string, for: ?string, gl: ?string, total: ?float, since: ?CarbonInterface}>
      */
     private function rows(): Collection
     {
@@ -125,6 +204,9 @@ class SendProcurementActionsReport extends Command
             ->get();
 
         $row = fn (StoreOrder $order, string $action, ?CarbonInterface $since) => [
+            'identity' => 'store:'.$order->id.':'.match ($order->status) {
+                'pending' => 'review', 'approved' => 'send', default => 'quote',
+            },
             'action' => $action,
             'reference' => $order->reference(),
             'for' => $order->user?->getAttribute('display_name') ?: $order->user?->username,
@@ -211,6 +293,7 @@ class SendProcurementActionsReport extends Command
                 };
 
                 return $action === null ? null : [
+                    'identity' => 'po:'.$po->id.':quote',
                     'action' => $action,
                     'reference' => $po->po_number,
                     'for' => $po->title ?: $po->supplier?->name,
