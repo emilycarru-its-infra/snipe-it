@@ -128,6 +128,7 @@ return [
     |
     */
     'okp_mode' => env('LEASING_OKP_MODE', 'off'),
+    'okp_acceptance_mode' => env('LEASING_OKP_ACCEPTANCE_MODE', 'explicit'),
     // Hours a matching invoice waits before it sends. 0 sends on the next
     // scheduled pass and posts a card only for invoices that are held.
     'okp_review_hours' => (int) env('LEASING_OKP_REVIEW_HOURS', 0),

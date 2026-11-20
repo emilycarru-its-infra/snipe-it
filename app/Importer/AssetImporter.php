@@ -175,8 +175,8 @@ class AssetImporter extends ItemImporter
         }
 
         if ($editingAsset) {
-            $asset->update($item);
             $asset->setImported(true);
+            $asset->update($item);
         } else {
             $asset->fill($item);
             $asset->setImported(true);

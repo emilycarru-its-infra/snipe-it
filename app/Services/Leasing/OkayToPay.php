@@ -114,6 +114,7 @@ class OkayToPay
             return;
         }
 
+        app(OkayToPayInventoryReceipt::class)->acceptIfReady($invoice);
         $reasons = $this->mismatches($invoice);
         $before = [$invoice->okp_status, $invoice->okp_reasons];
 
@@ -297,6 +298,11 @@ class OkayToPay
             ->get();
 
         foreach ($invoices as $invoice) {
+            // A receiving action or corrected commercial facts may have released a held invoice.
+            if ($invoice->okp_status === self::HELD) {
+                $this->consider($invoice);
+                $invoice->refresh();
+            }
             // An approval can release the wait, but never bypass receipt,
             // acceptance, ownership, dispute or monetary safety checks.
             if ($invoice->approval_status === 'approved') {
