@@ -4,7 +4,7 @@
 
 {{ trans($invoice ? 'mail.asset_buyout_invoice_intro' : 'mail.asset_buyout_payroll_intro', ['buyer' => $buyer_name ?: '—', 'amount' => $amounts['deduction'] ?? '—']) }}
 
-<x-mail::table>
+<x-mail::table :key-value="true">
 
 | | |
 | :- | :- |
@@ -21,7 +21,7 @@
 
 ## {{ trans('mail.asset_buyout_payroll_quote_heading') }}
 
-<x-mail::table>
+<x-mail::table :key-value="true">
 
 | | |
 | :- | :- |
@@ -40,7 +40,7 @@
 
 ## {{ trans('mail.asset_buyout_payroll_device_heading') }}
 
-<x-mail::table>
+<x-mail::table :key-value="true">
 
 | | |
 | :- | :- |

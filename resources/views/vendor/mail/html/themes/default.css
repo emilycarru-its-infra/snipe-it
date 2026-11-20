@@ -214,6 +214,32 @@ img {
     -premailer-width: 100%;
 }
 
+/* Detail tables share one label/value boundary across separate sections. */
+.table-key-value table {
+    table-layout: fixed;
+}
+
+.table-key-value thead {
+    display: none;
+}
+
+.table-key-value td {
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-wrap: break-word;
+}
+
+.table-key-value th:first-child,
+.table-key-value td:first-child {
+    width: 40%;
+    padding-right: 16px;
+}
+
+.table-key-value th:last-child,
+.table-key-value td:last-child {
+    width: 60%;
+}
+
 .table th {
     border-bottom: 1px solid #e5e7eb;
     color: #6b7280;
