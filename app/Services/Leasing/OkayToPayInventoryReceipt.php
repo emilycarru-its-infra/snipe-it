@@ -50,7 +50,7 @@ class OkayToPayInventoryReceipt
         $log->forceFill([
             'item_type' => Asset::class, 'item_id' => $asset->id, 'created_by' => Auth::id(),
             'action_date' => now(), 'note' => 'Inventory receipt invalidated by equipment changes.',
-            'log_meta' => json_encode([self::SOURCE => null], JSON_THROW_ON_ERROR),
+            'log_meta' => json_encode([self::SOURCE => ['old' => null, 'new' => null]], JSON_THROW_ON_ERROR),
         ]);
         $log->logaction('update');
     }
@@ -76,7 +76,7 @@ class OkayToPayInventoryReceipt
             'created_by' => $actor->id,
             'action_date' => now(),
             'note' => 'Inventory receipt: equipment and its associated coverage received in good order.',
-            'log_meta' => json_encode([self::SOURCE => $this->identity($asset)], JSON_THROW_ON_ERROR),
+            'log_meta' => json_encode([self::SOURCE => ['old' => null, 'new' => $this->identity($asset)]], JSON_THROW_ON_ERROR),
         ]);
         if (! $log->logaction('update')) {
             return;
@@ -144,7 +144,7 @@ class OkayToPayInventoryReceipt
 
             $log = Actionlog::where('item_type', Asset::class)->where('item_id', $asset->id)
                 ->where('log_meta', 'like', '%"'.self::SOURCE.'"%')->latest('id')->first();
-            $facts = $log ? (json_decode($log->log_meta, true)[self::SOURCE] ?? null) : null;
+            $facts = $log ? (json_decode($log->log_meta, true)[self::SOURCE]['new'] ?? null) : null;
             $actor = $log?->adminuser;
             if ($facts !== $this->identity($asset) || ! $actor instanceof User || $actor->deleted_at || ! $actor->activated
                 || ! Gate::forUser($actor)->allows('procurement.edit')

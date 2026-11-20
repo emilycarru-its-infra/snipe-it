@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Leasing;
 
+use App\Http\Transformers\ActionlogsTransformer;
 use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
 use App\Mail\OkayToPayMail;
+use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\EmailTemplate;
@@ -12,6 +14,7 @@ use App\Models\OkayToPayDelivery;
 use App\Models\OkayToPayLegacySettlement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
@@ -161,6 +164,9 @@ class OkayToPayTest extends TestCase
         $proof = app(OkayToPayAcceptance::class)->latest($invoice);
         $this->assertSame($actor->id, $proof->actor_id);
         $this->assertStringStartsWith('inventory-receipt-v1:', $proof->receipt_reference);
+        $log = Actionlog::findOrFail($proof->snapshot['inventory_receipt_log_ids'][0]);
+        $display = (new ActionlogsTransformer)->transformActionlog($log, Setting::getSettings());
+        $this->assertArrayHasKey('inventory-receipt-v1', $display['log_meta']);
         $this->assertTrue($invoice->items()->first()->received_at !== null);
         $this->travel(1)->seconds();
         $okayToPay->dispatchDue();
