@@ -40,6 +40,27 @@ class CapitalRequestLine extends Model
         'sort_order' => 'integer',
     ];
 
+    /**
+     * What a New Ask line accepts, shared by the capital page's form and
+     * the API so the two cannot drift. `sort_order` is optional on both.
+     *
+     * @return array<string, string>
+     */
+    public static function rules(): array
+    {
+        return [
+            'fiscal_year' => 'required|string|max:16',
+            'area' => 'nullable|string|max:191',
+            'need' => 'required|string|max:191',
+            'type' => 'nullable|string|max:191',
+            'description' => 'required|string|max:191',
+            'quantity' => 'required|integer|min:1',
+            'unit_cost' => 'required|numeric|min:0',
+            'preference' => 'nullable|string|max:191',
+            'sort_order' => 'nullable|integer|min:0',
+        ];
+    }
+
     public function lineTotal(): float
     {
         return (float) $this->quantity * (float) $this->unit_cost;
