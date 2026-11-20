@@ -30,6 +30,7 @@
     </form>
     <a href="{{ route('reports.deployments', ['fiscal_year' => $fy]) }}" class="btn btn-default">{{ trans('admin/deployments/general.dashboard_title') }}</a>
     <a href="{{ route('deployment-waves.index') }}" class="btn btn-default"><i class="fas fa-water"></i> {{ trans('admin/deployments/general.waves_title') }}</a>
+    <a href="{{ route('deployments.planning.horizon') }}" class="btn btn-default"><i class="fas fa-columns"></i> {{ trans('admin/deployments/general.horizon_title') }}</a>
     <a href="{{ route('deployments.storage') }}" class="btn btn-default"><i class="fas fa-boxes"></i> {{ trans('admin/deployments/general.storage_title') }}</a>
     {{-- Early renewal / criteria, behind a button — the entry form is a
          once-in-a-while tool and was costing a whole box of the page. --}}
