@@ -255,6 +255,8 @@ return [
     'store_order_arrived_heading' => 'It\'s here',
     'store_order_arrived_intro' => 'Your order has arrived on campus. We will prepare it and reach out about pickup or delivery.',
     'store_order_col_item' => 'Item',
+    'store_order_settled_total' => 'Order total',
+    'store_order_quoted_total' => 'Quoted total',
     'store_order_total' => 'Estimated total',
     'store_order_estimate_note' => 'Prices are estimates until the vendor quotes the order.',
     'store_order_notes_label' => 'Your note to us',

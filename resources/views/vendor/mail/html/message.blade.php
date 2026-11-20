@@ -20,16 +20,10 @@
 
 @if (isset($snipeSettings) && ($snipeSettings::setupCompleted()))
 
-    @if ($snipeSettings->show_url_in_emails=='1' )
-        @component('mail::header', ['url' => config('app.url')])
-    @else
-        @component('mail::header', ['url' => ''])
-    @endif
-
-    @include('vendor.mail.partials.wordmark')
-
+    @component('mail::header', ['url' => $snipeSettings->show_url_in_emails == '1' ? config('app.url') : ''])
+        @include('vendor.mail.partials.wordmark')
+    @endcomponent
 @endif
-@endcomponent
 @endslot
 
 {{-- Body --}}
