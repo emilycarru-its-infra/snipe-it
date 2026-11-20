@@ -845,6 +845,48 @@ class OrdersController extends Controller
         ));
     }
 
+    /** Receive exactly one tracked package, independently of invoice acceptance. */
+    public function receiveShipment(Request $request, $orderId, $shipmentId): JsonResponse
+    {
+        $this->authorize('update', Order::class);
+        $validated = $request->validate([
+            'tracking_number' => 'required|string|max:191',
+            'received_date' => 'sometimes|date_format:Y-m-d|before_or_equal:today',
+        ]);
+
+        return DB::transaction(function () use ($orderId, $shipmentId, $validated) {
+            $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            abort_if($order->status === 'cancelled' || $order->is_planned, 422);
+            $shipment = $order->shipments()->whereKey($shipmentId)->lockForUpdate()->first();
+            abort_unless($shipment, 404);
+            abort_unless(hash_equals((string) $shipment->tracking_number, $validated['tracking_number']), 409);
+            $lines = $shipment->items()->lockForUpdate()->get();
+            abort_if($lines->contains(fn ($line) => (int) $line->order_id !== (int) $order->id), 409);
+            $open = $lines->whereNull('received_at')->count();
+            if (is_null($shipment->received_date)) {
+                $shipment->received_date = $validated['received_date'] ?? now()->toDateString();
+                $shipment->save();
+            }
+            $shipment->receive();
+            $order->recalculateStatus();
+            $order->refresh();
+            if ($order->status === 'received' && is_null($order->received_date)) {
+                $order->received_date = $order->shipments()->max('received_date') ?? now()->toDateString();
+                $order->save();
+            }
+
+            return response()->json(Helper::formatStandardApiResponse('success', [
+                'order_id' => $order->id,
+                'shipment_id' => $shipment->id,
+                'tracking_number' => $shipment->tracking_number,
+                'received_date' => $shipment->received_date->toDateString(),
+                'received_item_ids' => $lines->pluck('id')->values()->all(),
+                'newly_received' => $open,
+                'status' => $order->fresh()->status,
+            ], trans('admin/orders/message.shipment.receive_success')));
+        });
+    }
+
     public function sendVendor(Request $request, $orderId): JsonResponse
     {
         $this->authorize('update', Order::class);
