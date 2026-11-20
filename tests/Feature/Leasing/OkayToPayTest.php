@@ -279,6 +279,21 @@ class OkayToPayTest extends TestCase
         $this->assertSame(OkayToPay::HELD, $invoice->fresh()->okp_status);
     }
 
+    public function test_inventory_operator_does_not_need_a_separate_payment_approval_permission(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $asset = Asset::factory()->create();
+        $this->ingest('ORD-LEASE-1', 'INV-OPERATOR', [$asset], accepted: false);
+        $actor = User::factory()->editAssets()->create();
+        $this->actingAs($actor, 'web');
+        $asset->update(['status_id' => Statuslabel::factory()->pending()->create(['name' => 'New (Inventoried)'])->id]);
+        $invoice = $this->invoice('INV-OPERATOR');
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertSame(OkayToPay::QUEUED, $invoice->fresh()->okp_status);
+        $this->assertSame($actor->id, app(OkayToPayAcceptance::class)->latest($invoice)->actor_id);
+    }
+
     public function test_a_matching_lease_invoice_is_queued_for_the_review_window()
     {
         $this->leaseOrder();

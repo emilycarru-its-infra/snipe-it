@@ -60,7 +60,7 @@ class OkayToPayInventoryReceipt
     {
         $actor = Auth::user();
         if (! $this->enabled() || $asset->imported || ! $actor instanceof User || ! $this->received($asset)
-            || blank($asset->serial) || ! Gate::forUser($actor)->allows('procurement.edit')) {
+            || blank($asset->serial) || ! $this->canReceive($actor, $asset)) {
             return;
         }
 
@@ -147,7 +147,7 @@ class OkayToPayInventoryReceipt
             $facts = $log ? (json_decode($log->log_meta, true)[self::SOURCE]['new'] ?? null) : null;
             $actor = $log?->adminuser;
             if ($facts !== $this->identity($asset) || ! $actor instanceof User || $actor->deleted_at || ! $actor->activated
-                || ! Gate::forUser($actor)->allows('procurement.edit')
+                || ! $this->canReceive($actor, $asset)
                 || ((Setting::getSettings()?->full_multiple_companies_support == '1')
                     && $actor->company_id !== null && ! $actor->isSuperUser()
                     && (int) $actor->company_id !== (int) $invoice->order->company_id)) {
@@ -185,5 +185,11 @@ class OkayToPayInventoryReceipt
             'lessor_id' => $asset->lessor_id,
             'lease_contract_id' => $asset->lease_contract_id,
         ];
+    }
+
+    private function canReceive(User $actor, Asset $asset): bool
+    {
+        return Gate::forUser($actor)->allows('update', $asset)
+            || Gate::forUser($actor)->allows('checkout', $asset);
     }
 }
