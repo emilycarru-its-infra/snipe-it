@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Leasing;
 
+use App\Http\Transformers\ActionlogsTransformer;
 use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
 use App\Mail\OkayToPayMail;
+use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\EmailTemplate;
@@ -12,16 +14,19 @@ use App\Models\OkayToPayDelivery;
 use App\Models\OkayToPayLegacySettlement;
 use App\Models\Order;
 use App\Models\OrderInvoice;
+use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Leasing\OkayToPay;
 use App\Services\Leasing\OkayToPayAcceptance;
 use App\Services\Leasing\OkayToPayHistory;
+use App\Services\Leasing\OkayToPayInventoryReceipt;
 use App\Services\ProcurementPipeline;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Mail\MailManager;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
@@ -131,6 +136,162 @@ class OkayToPayTest extends TestCase
     private function invoice(string $number): OrderInvoice
     {
         return OrderInvoice::where('invoice_number', $number)->firstOrFail();
+    }
+
+    public static function inventoryReceiptStatuses(): array
+    {
+        return [['New (Inventoried)'], ['New (Provisioned)'], ['Active']];
+    }
+
+    #[DataProvider('inventoryReceiptStatuses')]
+    public function test_inventory_receipt_automatically_accepts_and_sends_matching_invoices(string $name): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory', 'leasing.okp_review_hours' => 0]);
+        $this->leaseOrder();
+        $ordered = Statuslabel::factory()->pending()->create(['name' => 'New (Ordered)']);
+        $received = $name === 'Active'
+            ? Statuslabel::factory()->rtd()->create(['name' => $name])
+            : Statuslabel::factory()->pending()->create(['name' => $name]);
+        $asset = Asset::factory()->create(['status_id' => $ordered->id]);
+        $this->ingest('ORD-LEASE-1', 'INV-INVENTORY', [$asset], accepted: false);
+        $actor = User::factory()->superuser()->create();
+        $this->actingAs($actor, 'web');
+        $asset->update(['status_id' => $received->id]);
+        $okayToPay = app(OkayToPay::class);
+        $invoice = $this->invoice('INV-INVENTORY');
+        $okayToPay->consider($invoice);
+        $this->assertSame(OkayToPay::QUEUED, $invoice->fresh()->okp_status);
+        $proof = app(OkayToPayAcceptance::class)->latest($invoice);
+        $this->assertSame($actor->id, $proof->actor_id);
+        $this->assertStringStartsWith('inventory-receipt-v1:', $proof->receipt_reference);
+        $log = Actionlog::findOrFail($proof->snapshot['inventory_receipt_log_ids'][0]);
+        $display = (new ActionlogsTransformer)->transformActionlog($log, Setting::getSettings());
+        $this->assertArrayHasKey('inventory-receipt-v1', $display['log_meta']);
+        $this->assertTrue($invoice->items()->first()->received_at !== null);
+        $this->travel(1)->seconds();
+        $okayToPay->dispatchDue();
+        $this->assertSame(OkayToPay::SENT, $invoice->fresh()->okp_status);
+        $okayToPay->dispatchDue();
+        Mail::assertSent(OkayToPayMail::class, 1);
+    }
+
+    public function test_arrived_or_imported_active_status_does_not_create_acceptance(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $asset = Asset::factory()->create();
+        $this->ingest('ORD-LEASE-1', 'INV-NO-RECEIPT', [$asset], accepted: false);
+        $invoice = $this->invoice('INV-NO-RECEIPT');
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertNull(app(OkayToPayAcceptance::class)->latest($invoice));
+        $arrived = Statuslabel::factory()->pending()->create(['name' => 'New (Arrived)']);
+        $this->actingAs(User::factory()->superuser()->create(), 'web');
+        $asset->update(['status_id' => $arrived->id]);
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertSame(OkayToPay::HELD, $invoice->fresh()->okp_status);
+        $this->assertNull(app(OkayToPayAcceptance::class)->latest($invoice));
+        Mail::assertNothingSent();
+    }
+
+    public function test_later_coverage_invoice_reuses_inventory_receipt_and_revocation_stays_held(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $asset = Asset::factory()->create(['status_id' => Statuslabel::factory()->rtd()->create(['name' => 'Active'])->id]);
+        $actor = User::factory()->superuser()->create();
+        $this->actingAs($actor, 'web');
+        app(OkayToPayInventoryReceipt::class)->capture($asset);
+        $this->ingest('ORD-LEASE-1', 'INV-COVERAGE', [$asset], unit: 0, soft: 100, accepted: false);
+        $invoice = $this->invoice('INV-COVERAGE');
+        $this->assertSame(OkayToPay::QUEUED, $invoice->okp_status);
+        $this->actingAs($actor, 'web');
+        $acceptance = app(OkayToPayAcceptance::class);
+        $acceptance->record($invoice, $actor, [
+            'decision' => 'revoke', 'fingerprint' => $acceptance->fingerprint($invoice),
+            'expected_acceptance_id' => $acceptance->latest($invoice)->id,
+        ]);
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertSame('revoke', $acceptance->latest($invoice)->decision);
+        $this->assertSame(OkayToPay::HELD, $invoice->fresh()->okp_status);
+    }
+
+    public function test_importer_cannot_restore_invalidated_inventory_receipt(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $asset = Asset::factory()->create(['status_id' => Statuslabel::factory()->rtd()->create(['name' => 'Active'])->id]);
+        $original = $asset->status_id;
+        $this->actingAs(User::factory()->superuser()->create(), 'web');
+        app(OkayToPayInventoryReceipt::class)->capture($asset);
+        Auth::guard('web')->logout();
+        $asset->update(['status_id' => Statuslabel::factory()->pending()->create()->id]);
+        $asset->update(['status_id' => $original]);
+        $this->ingest('ORD-LEASE-1', 'INV-IMPORT', [$asset], accepted: false);
+        $invoice = $this->invoice('INV-IMPORT');
+        $this->assertSame(OkayToPay::HELD, $invoice->okp_status);
+        $this->assertNull(app(OkayToPayAcceptance::class)->latest($invoice));
+    }
+
+    public function test_partial_inventory_receipt_holds_until_every_billed_device_is_confirmed(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $ordered = Statuslabel::factory()->pending()->create(['name' => 'New (Ordered)']);
+        $inventoried = Statuslabel::factory()->pending()->create(['name' => 'New (Inventoried)']);
+        $assets = Asset::factory()->count(2)->create(['status_id' => $ordered->id]);
+        $this->ingest('ORD-LEASE-1', 'INV-PARTIAL', $assets->all(), accepted: false);
+        $this->actingAs(User::factory()->superuser()->create(), 'web');
+        $assets[0]->update(['status_id' => $inventoried->id]);
+        $invoice = $this->invoice('INV-PARTIAL');
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertSame(OkayToPay::HELD, $invoice->fresh()->okp_status);
+        $this->assertNull(app(OkayToPayAcceptance::class)->latest($invoice));
+        $assets[1]->update(['status_id' => $inventoried->id]);
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertSame(OkayToPay::QUEUED, $invoice->fresh()->okp_status);
+    }
+
+    public function test_active_checkout_confirms_receipt_without_a_second_status_change(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $asset = Asset::factory()->create(['status_id' => Statuslabel::factory()->rtd()->create(['name' => 'Active'])->id]);
+        $this->ingest('ORD-LEASE-1', 'INV-CHECKOUT', [$asset], accepted: false);
+        $actor = User::factory()->superuser()->create();
+        $this->actingAs($actor, 'web');
+        $asset->checkOut(User::factory()->create(), $actor, now());
+        $invoice = $this->invoice('INV-CHECKOUT');
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertSame(OkayToPay::QUEUED, $invoice->fresh()->okp_status);
+        $this->assertSame($actor->id, app(OkayToPayAcceptance::class)->latest($invoice)->actor_id);
+    }
+
+    public function test_service_key_status_change_cannot_confirm_inventory_receipt(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $asset = Asset::factory()->create();
+        $this->ingest('ORD-LEASE-1', 'INV-SERVICE', [$asset], accepted: false);
+        $asset->update(['status_id' => Statuslabel::factory()->pending()->create(['name' => 'New (Inventoried)'])->id]);
+        $invoice = $this->invoice('INV-SERVICE');
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertNull(app(OkayToPayAcceptance::class)->latest($invoice));
+        $this->assertSame(OkayToPay::HELD, $invoice->fresh()->okp_status);
+    }
+
+    public function test_inventory_operator_does_not_need_a_separate_payment_approval_permission(): void
+    {
+        config(['leasing.okp_acceptance_mode' => 'inventory']);
+        $this->leaseOrder();
+        $asset = Asset::factory()->create();
+        $this->ingest('ORD-LEASE-1', 'INV-OPERATOR', [$asset], accepted: false);
+        $actor = User::factory()->editAssets()->create();
+        $this->actingAs($actor, 'web');
+        $asset->update(['status_id' => Statuslabel::factory()->pending()->create(['name' => 'New (Inventoried)'])->id]);
+        $invoice = $this->invoice('INV-OPERATOR');
+        app(OkayToPay::class)->consider($invoice);
+        $this->assertSame(OkayToPay::QUEUED, $invoice->fresh()->okp_status);
+        $this->assertSame($actor->id, app(OkayToPayAcceptance::class)->latest($invoice)->actor_id);
     }
 
     public function test_a_matching_lease_invoice_is_queued_for_the_review_window()

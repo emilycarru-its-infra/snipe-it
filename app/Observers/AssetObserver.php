@@ -11,6 +11,7 @@ use App\Models\StoreOrder;
 use App\Models\User;
 use App\Services\ArrivalAllocator;
 use App\Services\AssetChangeNotifier;
+use App\Services\Leasing\OkayToPayInventoryReceipt;
 use App\Services\Settings\Preferences;
 use App\Services\StoreOrderNotifier;
 use App\Services\UserAgreements\PickupUpgradeAutoCreator;
@@ -27,6 +28,7 @@ class AssetObserver
      */
     public function updating(Asset $asset)
     {
+        app(OkayToPayInventoryReceipt::class)->invalidate($asset);
         $attributes = $asset->getAttributes();
         $attributesOriginal = $asset->getRawOriginal();
         $same_checkout_counter = false;
@@ -173,6 +175,15 @@ class AssetObserver
 
         $justCheckedOut = $this->wasJustCheckedOutToUser($asset);
 
+        $receiptCheckout = $asset->assigned_to && ($asset->wasChanged('assigned_to') || $asset->wasChanged('assigned_type'));
+        if ($asset->wasChanged('status_id') || $receiptCheckout) {
+            try {
+                app(OkayToPayInventoryReceipt::class)->capture($asset);
+            } catch (\Throwable $e) {
+                Log::warning('Inventory receipt could not be recorded', ['asset_id' => $asset->id, 'exception' => $e]);
+            }
+        }
+
         if ($justCheckedOut) {
             $this->autoCreatePickupOnCheckout($asset);
         }
@@ -282,7 +293,7 @@ class AssetObserver
     {
         $status = $asset->status_id ? Statuslabel::find($asset->status_id) : null;
 
-        if (! $status || ! $status->deployable) {
+        if (! $status || (! $status->deployable && ! app(OkayToPayInventoryReceipt::class)->received($asset))) {
             return;
         }
 
@@ -304,6 +315,7 @@ class AssetObserver
      */
     public function deleting(Asset $asset)
     {
+        app(OkayToPayInventoryReceipt::class)->invalidate($asset, force: true);
         $logAction = new Actionlog;
         $logAction->item_type = Asset::class;
         $logAction->item_id = $asset->id;

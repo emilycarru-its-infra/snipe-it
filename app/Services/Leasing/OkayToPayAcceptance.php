@@ -3,7 +3,6 @@
 namespace App\Services\Leasing;
 
 use App\Models\Asset;
-use App\Models\Company;
 use App\Models\EmailTemplate;
 use App\Models\OkayToPayAcceptance as Acceptance;
 use App\Models\OkayToPayDelivery;
@@ -11,6 +10,7 @@ use App\Models\Order;
 use App\Models\OrderInvoice;
 use App\Models\OrderItem;
 use App\Models\OrderShipment;
+use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -79,6 +79,9 @@ class OkayToPayAcceptance
     {
         $current = $this->fingerprint($invoice);
         $acceptance = $this->latest($invoice);
+        if (! $acceptance && app(OkayToPayInventoryReceipt::class)->enabled()) {
+            return [trans('admin/purchase-orders/general.okp_reason_inventory_receipt')];
+        }
         if (! $acceptance || $acceptance->decision !== 'accept') {
             return [trans('admin/purchase-orders/general.okp_reason_acceptance_missing')];
         }
@@ -89,7 +92,7 @@ class OkayToPayAcceptance
         return [];
     }
 
-    public function record(OrderInvoice $invoice, User $actor, array $data): Acceptance
+    public function record(OrderInvoice $invoice, User $actor, array $data, array $inventoryReceiptIds = []): Acceptance
     {
         $data = Validator::make($data, [
             'decision' => 'required|in:accept,revoke',
@@ -104,11 +107,11 @@ class OkayToPayAcceptance
             throw ValidationException::withMessages(['receipt_reference' => trans('validation.required', ['attribute' => 'evidence'])]);
         }
 
-        return DB::transaction(function () use ($invoice, $actor, $data) {
+        return DB::transaction(function () use ($invoice, $actor, $data, $inventoryReceiptIds) {
             Order::whereKey($invoice->order_id)->lockForUpdate()->first();
             $invoice = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
             $this->lockFacts($invoice);
-            abort_unless(Company::isCurrentUserHasAccess($invoice->order), 404);
+            abort_unless($this->actorHasAccess($actor, $invoice->order), 404);
             OkayToPayHistory::protect($invoice);
             if ($data['decision'] === 'accept' && OkayToPayHistory::blocked($invoice)) {
                 throw ValidationException::withMessages(['decision' => trans('admin/purchase-orders/general.okp_reason_historical_settlement')]);
@@ -138,7 +141,7 @@ class OkayToPayAcceptance
                 'invoice_id' => $invoice->id,
                 'decision' => $data['decision'],
                 'fingerprint' => $current,
-                'snapshot' => $this->snapshot($invoice),
+                'snapshot' => $this->snapshot($invoice) + ($inventoryReceiptIds ? ['inventory_receipt_log_ids' => $inventoryReceiptIds] : []),
                 'actor_id' => $actor->id,
                 'actor_name' => mb_substr((string) $actor->full_name, 0, 191),
                 'receipt_reference' => $data['decision'] === 'accept' ? trim($data['receipt_reference']) : null,
@@ -150,5 +153,12 @@ class OkayToPayAcceptance
 
             return $acceptance;
         });
+    }
+
+    private function actorHasAccess(User $actor, ?Order $order): bool
+    {
+        return $order !== null && (! (Setting::getSettings()?->full_multiple_companies_support == '1')
+            || $actor->isSuperUser() || $actor->company_id === null
+            || (int) $actor->company_id === (int) $order->company_id);
     }
 }

@@ -533,6 +533,10 @@ class EmailRegistry
                         'review' => 'Only when approved in the Invoice Approval Queue',
                         'off' => 'Off — nothing is queued or sent',
                     ], 'help' => 'Whether the OK to pay goes out by itself.'],
+                    ['name' => 'acceptance_mode', 'type' => 'select', 'label' => trans('admin/purchase-orders/general.okp_receipt_mode'), 'config' => 'leasing.okp_acceptance_mode', 'choices' => [
+                        'explicit' => trans('admin/purchase-orders/general.okp_receipt_mode_explicit'),
+                        'inventory' => trans('admin/purchase-orders/general.okp_receipt_mode_inventory'),
+                    ], 'help' => trans('admin/purchase-orders/general.okp_receipt_mode_help')],
                     ['name' => 'invoices_from', 'type' => 'date', 'label' => 'Only invoices dated on or after', 'config' => 'leasing.okp_invoices_from', 'help' => 'Older invoices are ignored, so a vendor re-sending old invoices cannot trigger an OK to pay for equipment already paid for.'],
                     ['name' => 'review_hours', 'type' => 'number', 'label' => 'Hours to wait before sending', 'config' => 'leasing.okp_review_hours', 'help' => '0 sends on the next pass. Anything higher announces the invoice in Teams first and sends when the wait ends.'],
                     ['name' => 'from_address', 'type' => 'email', 'label' => 'From address', 'config' => 'leasing.okp_from_address', 'help' => 'Who the lessor sees it from. Must be an address the mail relay accepts.'],
