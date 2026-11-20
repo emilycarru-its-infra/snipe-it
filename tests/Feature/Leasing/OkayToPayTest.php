@@ -159,6 +159,7 @@ class OkayToPayTest extends TestCase
             $this->assertStringContainsString('INV-BATCH-A', $mail->render());
             $this->assertStringContainsString('INV-BATCH-B', $mail->render());
             $this->assertStringContainsString('$157.50', $mail->render());
+            $this->assertStringNotContainsString('## INV-BATCH-B', $mail->render());
             $this->assertStringContainsString('ORD-LEASE-1', $mail->envelope()->subject);
             $this->assertSame(3, count(array_filter(explode("\n", trim($mail->csv())))));
 

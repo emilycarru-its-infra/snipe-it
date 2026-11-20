@@ -16,7 +16,7 @@
 **{{ trans('mail.okay_to_pay_batch_total', ['total' => $total]) }}**
 
 @foreach ($sections as $section)
-## {{ $section['invoice']->invoice_number }}
+<h2>{{ $section['invoice']->invoice_number }}</h2>
 
 @if ($section['custom_body'] !== null)
 {!! $section['custom_body'] !!}
