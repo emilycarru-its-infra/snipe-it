@@ -1567,6 +1567,9 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
     // Receiving over the API, because the browser form only ever suited a
     // shipment arriving today — not the backlog of orders delivered long ago
     // and never ticked off.
+    Route::post('orders/{order_id}/shipments/{shipment_id}/receive', [Api\OrdersController::class, 'receiveShipment'])
+        ->name('api.orders.shipments.receive');
+
     Route::post('orders/{order_id}/receive', [Api\OrdersController::class, 'receive'])
         ->name('api.orders.receive');
 
