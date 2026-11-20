@@ -27,21 +27,27 @@
 body, .wrapper, .content { background-color: #15171a !important; }
 .body { background-color: #1e2023 !important; border-top-color: #2a2d31 !important; border-bottom-color: #2a2d31 !important; }
 .inner-body, .content-cell { background-color: #1e2023 !important; }
-.header { background-color: #ffffff !important; } /* keep the dark ECU wordmark legible */
+.header, .footer-wrapper, .footer, .footer-cell { background-color: #15171a !important; }
+.header .email-wordmark { color: #f3f4f6 !important; }
+.header .email-tagline { color: #cbd1d8 !important; }
+.content-cell, .content-cell td, .content-cell div, .content-cell span,
+.content-cell li, .content-cell blockquote { color: #dbe2ea !important; }
 h1, h2, h3 { color: #f3f4f6 !important; }
 p { color: #cbd1d8 !important; }
 a { color: #6aa8e0 !important; }
-.footer td, .footer p { color: #8a8f98 !important; }
+.footer td, .footer p { color: #b6bfca !important; }
 .table { border-color: #3a3f44 !important; }
 .table td { color: #cbd1d8 !important; border-top-color: #2f3338 !important; }
 .table td strong { color: #9aa1aa !important; }
 .table th { color: #9aa1aa !important; border-bottom-color: #3a3f44 !important; }
 .li-card { background-color: #232629 !important; border-color: #3a3f44 !important; }
-.li-card-title { color: #f3f4f6 !important; }
-.li-card-meta { color: #9aa1aa !important; }
+.content-cell .li-card-title { color: #f3f4f6 !important; }
+.content-cell .li-card-meta, .content-cell .li-card-meta span { color: #b6bfca !important; }
 .li-pill { background-color: #2f3338 !important; color: #cbd1d8 !important; }
 .li-name a { color: #6aa8e0 !important; }
-.li-min { color: #7f868f !important; }
+.li-min { color: #b6bfca !important; }
+a.button, a.button:link, a.button:visited { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+.panel-content, .promotion { background-color: #232629 !important; }
 }
 </style>
 

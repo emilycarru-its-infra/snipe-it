@@ -163,20 +163,36 @@ img {
     font-size: 12px;
 }
 
+/* Semantic product text also needs explicit light-mode fallback colours. */
+.content-cell { color: #374151; }
+.li-card-title { color: #111827; }
+.li-card-meta { color: #64748b; }
+.li-card-detail { color: #374151; }
+
 /* Footer */
+
+.footer-wrapper {
+    background-color: #f8fafc;
+}
 
 .footer {
     margin: 0 auto;
     padding: 0;
     text-align: center;
-    width: 570px;
+    width: 90%;
     -premailer-cellpadding: 0;
     -premailer-cellspacing: 0;
     -premailer-width: 570px;
 }
 
+.footer-cell {
+    padding: 24px;
+    text-align: center;
+}
+
 .footer p {
-    color: #aeaeae;
+    color: #64748b;
+    margin: 0 0 8px;
     font-size: 12px;
     text-align: center;
 }
@@ -274,20 +290,20 @@ img {
 
 .button-green,
 .button-success {
-    background-color: #38c172;
-    border-top: 10px solid #38c172;
-    border-right: 18px solid #38c172;
-    border-bottom: 10px solid #38c172;
-    border-left: 18px solid #38c172;
+    background-color: #15803d;
+    border-top: 10px solid #15803d;
+    border-right: 18px solid #15803d;
+    border-bottom: 10px solid #15803d;
+    border-left: 18px solid #15803d;
 }
 
 .button-red,
 .button-error {
-    background-color: #e3342f;
-    border-top: 10px solid #e3342f;
-    border-right: 18px solid #e3342f;
-    border-bottom: 10px solid #e3342f;
-    border-left: 18px solid #e3342f;
+    background-color: #b91c1c;
+    border-top: 10px solid #b91c1c;
+    border-right: 18px solid #b91c1c;
+    border-bottom: 10px solid #b91c1c;
+    border-left: 18px solid #b91c1c;
 }
 
 /* Panels */

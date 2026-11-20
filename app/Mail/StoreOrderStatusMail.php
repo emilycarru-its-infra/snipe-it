@@ -45,9 +45,21 @@ class StoreOrderStatusMail extends BaseMailable
         // specs and photo, so load them once rather than per line.
         $this->order->loadMissing('items.catalogItem.model');
 
+        $settled = $this->order->confirmed_at !== null
+            || in_array($this->event, ['shipped', 'arrived', 'inventoried', 'ready'], true);
+        $hasQuote = $this->order->quote_total !== null;
+
         return $this->bodyContent($this->key(), 'notifications.markdown.store-order-status', [
             'order' => $this->order,
             'event' => $this->event,
+            'priceIsEstimate' => ! $settled && ! $hasQuote,
+            // Line costs are the catalog snapshot, not allocated vendor prices.
+            'showLinePrices' => ! $settled && ! $hasQuote,
+            'orderTotal' => $hasQuote ? (float) $this->order->quote_total
+                : ($settled ? null : $this->order->total()),
+            'totalLabel' => trans($hasQuote
+                ? ($settled ? 'mail.store_order_settled_total' : 'mail.store_order_quoted_total')
+                : 'mail.store_order_total'),
             // The asset tag exists from the moment the order is sent, long
             // before a serial does, so every email in the journey can name
             // the machine the person and the desk will both look it up by.
