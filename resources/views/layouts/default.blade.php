@@ -3186,7 +3186,7 @@
                             </li>
                         @endcan
                         @if (Gate::allows('view', \App\Models\Contract::class) || Gate::allows('view', \App\Models\License::class))
-                            <li id="contracts-sidenav-option" class="treeview {{ (request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*')) ? 'active' : '' }}">
+                            <li id="contracts-sidenav-option" class="treeview {{ (request()->is('contracts*') || request()->is('licenses*') || request()->is('admin/license-models*') || request()->is('admin/product-identities*')) ? 'active' : '' }}">
                                 <a href="{{ route('contracts.index') }}">
                                     <x-icon type="contracts" class="fa-fw"/>
                                     <span>{{ trans('admin/contracts/general.contracts') }}</span>
@@ -3211,6 +3211,13 @@
                                         <li {!! (request()->is('admin/license-models*') ? ' class="active"' : '') !!}>
                                             <a href="{{ route('license-models.index') }}">
                                                 {{ trans('admin/licensemodels/general.sidebar_label') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+                                    @can('view', \App\Models\ProductIdentity::class)
+                                        <li {!! (request()->is('admin/product-identities*') ? ' class="active"' : '') !!}>
+                                            <a href="{{ route('product-identities.index') }}">
+                                                {{ trans('admin/productidentities/general.sidebar_label') }}
                                             </a>
                                         </li>
                                     @endcan

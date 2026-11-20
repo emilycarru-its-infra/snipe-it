@@ -158,6 +158,7 @@ class RouteSmokeTest extends TestCase
         // to a real one so the crawl exercises /license-models/{id} instead of
         // binding a License id onto an unrelated LicenseModel.
         $seed(['licenseModel'], fn () => \App\Models\LicenseModel::create(['name' => 'Smoke License Model', 'type_code' => 'SMOKE-LM'])->id);
+        $seed(['productIdentity'], fn () => \App\Models\ProductIdentity::factory()->withAliases([['any', 'prefix', 'Smoke']])->create()->id);
         $seed(['model', 'modelId', 'model_id'], fn () => \App\Models\AssetModel::factory()->create()->id);
         $seed(['user', 'userId'], fn () => \App\Models\User::factory()->create()->id);
         $seed(['category'], fn () => \App\Models\Category::factory()->create()->id);
