@@ -201,6 +201,10 @@ class CheckoutAcceptance extends Model
 
     public function generateAcceptancePdf($data, $pdf_filename)
     {
+        $agreement = UserAgreement::where('checkout_acceptance_id', $this->id)->first();
+        if ($agreement && in_array($agreement->agreement_type, UserAgreement::AGREEMENT_TYPES, true)) {
+            return app(\App\Services\UserAgreements\PdfRenderer::class)->renderAccepted($agreement, $data);
+        }
 
         // set some language dependent data:
         $lg = [];

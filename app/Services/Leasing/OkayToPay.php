@@ -3,6 +3,7 @@
 namespace App\Services\Leasing;
 
 use App\Mail\BaseMailable;
+use App\Mail\OkayToPayBatchMail;
 use App\Mail\OkayToPayMail;
 use App\Models\Asset;
 use App\Models\EmailTemplate;
@@ -14,6 +15,7 @@ use App\Services\Settings\Preferences;
 use App\Services\Teams\TeamsCard;
 use App\Services\Teams\TeamsNotifier;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -297,6 +299,7 @@ class OkayToPay
             ->with(['order', 'items.item'])
             ->get();
 
+        $ready = collect();
         foreach ($invoices as $invoice) {
             // A receiving action or corrected commercial facts may have released a held invoice.
             if ($invoice->okp_status === self::HELD) {
@@ -306,13 +309,7 @@ class OkayToPay
             // An approval can release the wait, but never bypass receipt,
             // acceptance, ownership, dispute or monetary safety checks.
             if ($invoice->approval_status === 'approved') {
-                // Failed safety checks return to pending. A retained delivery
-                // reservation remains blocked regardless of later approvals.
-                if (! $this->send($invoice)) {
-                    $invoice->forceFill(['approval_status' => 'pending', 'approved_at' => null, 'approved_by' => null])->save();
-                } else {
-                    $counts['sent']++;
-                }
+                $ready->push($invoice);
 
                 continue;
             }
@@ -341,7 +338,7 @@ class OkayToPay
                     $this->hold($invoice, $reasons);
                     $counts['held']++;
                 } else {
-                    $counts['sent'] += (int) $this->send($invoice);
+                    $ready->push($invoice);
                 }
 
                 continue;
@@ -354,6 +351,18 @@ class OkayToPay
             }
         }
 
+        $groups = config('leasing.okp_group_by_order')
+            ? $ready->groupBy('order_id') : $ready->map(fn ($invoice) => collect([$invoice]));
+        foreach ($groups as $group) {
+            $counts['sent'] += $group->count() > 1 ? $this->sendTogether($group) : (int) $this->send($group->first());
+            foreach ($group as $invoice) {
+                $invoice->refresh();
+                if ($invoice->approval_status === 'approved' && $invoice->okp_status !== self::SENT) {
+                    $invoice->forceFill(['approval_status' => 'pending', 'approved_at' => null, 'approved_by' => null])->save();
+                }
+            }
+        }
+
         return $counts;
     }
 
@@ -363,7 +372,142 @@ class OkayToPay
      */
     public function send(OrderInvoice $invoice): bool
     {
-        $reservation = DB::transaction(function () use ($invoice) {
+        $reservation = $this->reserve($invoice);
+        if (! $reservation) {
+            return false;
+        }
+        [$current, $delivery, $to, $cc, $mail] = $reservation;
+        $sent = DB::transaction(function () use ($current, $delivery, $to, $cc, $mail) {
+            Order::whereKey($current->order_id)->lockForUpdate()->first();
+            $checked = OrderInvoice::whereKey($current->id)->lockForUpdate()->firstOrFail();
+            $reasons = $this->deliveryReasons($checked, $delivery, $to, $cc);
+            if ($reasons) {
+                $delivery->forceFill(['status' => 'blocked', 'error' => implode(' ', $reasons)])->save();
+                $this->hold($checked, $reasons);
+
+                return false;
+            }
+            try {
+                Mail::to($to)->cc($cc)->send($mail);
+            } catch (\Throwable $e) {
+                Log::error('OK to pay transport outcome uncertain for invoice '.$checked->invoice_number.': '.$e->getMessage());
+                $delivery->forceFill(['status' => self::UNCERTAIN, 'error' => mb_substr($e->getMessage(), 0, 1000)])->save();
+                $checked->forceFill([
+                    'okp_status' => self::UNCERTAIN,
+                    'okp_reasons' => [trans('admin/purchase-orders/general.okp_reason_delivery_reserved')],
+                    'approval_status' => 'pending',
+                    'approved_at' => null,
+                    'approved_by' => null,
+                ])->save();
+                $this->announce($checked, 'held', false);
+
+                return false;
+            }
+            $delivery->forceFill(['status' => self::SENT, 'completed_at' => now()])->save();
+            $checked->forceFill([
+                'okp_status' => self::SENT,
+                'okp_sent_at' => now(),
+                'okp_sent_to' => implode(', ', $to),
+                'approval_status' => 'approved',
+                'approved_at' => $checked->approved_at ?? now(),
+            ])->save();
+
+            return true;
+        });
+        $invoice->refresh();
+        if ($sent) {
+            $this->announce($invoice, 'sent', false);
+        }
+
+        return $sent;
+    }
+
+    public function sendTogether(Collection $invoices): int
+    {
+        if ($invoices->isEmpty()) {
+            return 0;
+        }
+        if ($invoices->pluck('order_id')->unique()->count() !== 1) {
+            throw new \InvalidArgumentException('Payment batches must belong to one order.');
+        }
+        $batch = DB::transaction(function () use ($invoices) {
+            Order::whereKey($invoices->first()->order_id)->lockForUpdate()->first();
+            $reservations = [];
+            foreach ($invoices->sortBy('id') as $invoice) {
+                if ($reservation = $this->reserve($invoice)) {
+                    $reservations[] = $reservation;
+                }
+            }
+            if ($reservations === []) {
+                return null;
+            }
+            $mail = count($reservations) === 1 ? $reservations[0][4]
+                : new OkayToPayBatchMail(collect($reservations)->map(fn ($row) => $row[0]));
+            $payload = json_encode($mail->freeze(), JSON_THROW_ON_ERROR);
+            foreach ($reservations as $row) {
+                $row[1]->forceFill(['payload' => $payload, 'payload_digest' => hash('sha256', $payload)])->save();
+            }
+
+            return [$reservations, $mail];
+        });
+        if (! $batch) {
+            return 0;
+        }
+        [$reservations, $mail] = $batch;
+        $sent = DB::transaction(function () use ($reservations, $mail) {
+            Order::whereKey($reservations[0][0]->order_id)->lockForUpdate()->first();
+            $members = [];
+            $blocked = [];
+            foreach ($reservations as [$invoice, $delivery, $to, $cc]) {
+                $current = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+                $reasons = $this->deliveryReasons($current, $delivery, $to, $cc);
+                $members[] = [$current, $delivery];
+                $blocked = array_merge($blocked, $reasons);
+            }
+            if ($blocked) {
+                $blocked = array_values(array_unique($blocked));
+                foreach ($members as [$current, $delivery]) {
+                    $delivery->forceFill(['status' => 'blocked', 'error' => implode(' ', $blocked)])->save();
+                    $this->hold($current, $blocked);
+                }
+
+                return 0;
+            }
+            try {
+                Mail::to($reservations[0][2])->cc($reservations[0][3])->send($mail);
+            } catch (\Throwable $exception) {
+                Log::error('OK to pay grouped transport outcome uncertain: '.$exception->getMessage());
+                foreach ($members as [$current, $delivery]) {
+                    $delivery->forceFill(['status' => self::UNCERTAIN, 'error' => mb_substr($exception->getMessage(), 0, 1000)])->save();
+                    $current->forceFill(['okp_status' => self::UNCERTAIN,
+                        'okp_reasons' => [trans('admin/purchase-orders/general.okp_reason_delivery_reserved')],
+                        'approval_status' => 'pending', 'approved_at' => null, 'approved_by' => null])->save();
+                    $this->announce($current, 'held', false);
+                }
+
+                return 0;
+            }
+            foreach ($members as [$current, $delivery]) {
+                $delivery->forceFill(['status' => self::SENT, 'completed_at' => now()])->save();
+                $current->forceFill(['okp_status' => self::SENT, 'okp_sent_at' => now(),
+                    'okp_sent_to' => implode(', ', $reservations[0][2]), 'approval_status' => 'approved',
+                    'approved_at' => $current->approved_at ?? now()])->save();
+            }
+
+            return count($members);
+        });
+        if ($sent) {
+            foreach ($reservations as $row) {
+                $this->announce($row[0]->fresh(), 'sent', false);
+            }
+        }
+
+        return $sent;
+    }
+
+    private function reserve(OrderInvoice $invoice): ?array
+    {
+        return DB::transaction(function () use ($invoice) {
             Order::whereKey($invoice->order_id)->lockForUpdate()->first();
             $current = OrderInvoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
             if ($current->okp_status === self::SENT || $current->okp_sent_at
@@ -421,70 +565,29 @@ class OkayToPay
             // the reservation transaction; later edits cannot change its contents.
             return [$current, $delivery, $to, $cc, $mail];
         });
-        if (! $reservation) {
-            return false;
+    }
+
+    private function deliveryReasons(OrderInvoice $checked, OkayToPayDelivery $delivery, array $to, array $cc): array
+    {
+        $acceptance = app(OkayToPayAcceptance::class);
+        $acceptance->lockFacts($checked);
+        Preferences::flush();
+        app(LessorGuard::class)->forgetPrefixes();
+        $reasons = $this->mismatches($checked);
+        $currentTo = $this->recipients();
+        $currentCc = array_values(array_diff(EmailTemplate::ccFor(self::KEY, config('leasing.okp_cc')), $currentTo));
+        if (! $this->dueForSending($checked, reserved: true) || $this->mode() === 'off' || ! $this->applies($checked)
+            || ! hash_equals($delivery->fingerprint, $acceptance->fingerprint($checked))
+            || ! hash_equals($delivery->routing_digest, $this->routingDigest())
+            || $to !== $currentTo || $cc !== $currentCc) {
+            $reasons[] = trans('admin/purchase-orders/general.okp_reason_acceptance_stale');
         }
-        [$current, $delivery, $to, $cc, $mail] = $reservation;
-        $sent = DB::transaction(function () use ($current, $delivery, $to, $cc, $mail) {
-            Order::whereKey($current->order_id)->lockForUpdate()->first();
-            $checked = OrderInvoice::whereKey($current->id)->lockForUpdate()->firstOrFail();
-            $acceptance = app(OkayToPayAcceptance::class);
-            $acceptance->lockFacts($checked);
-            Preferences::flush();
-            app(LessorGuard::class)->forgetPrefixes();
-            $reasons = $this->mismatches($checked);
-            $currentTo = $this->recipients();
-            $currentCc = array_values(array_diff(EmailTemplate::ccFor(self::KEY, config('leasing.okp_cc')), $currentTo));
-            if (! $this->dueForSending($checked, reserved: true) || $this->mode() === 'off' || ! $this->applies($checked)
-                || ! hash_equals($delivery->fingerprint, $acceptance->fingerprint($checked))
-                || ! hash_equals($delivery->routing_digest, $this->routingDigest())
-                || $to !== $currentTo || $cc !== $currentCc) {
-                $reasons[] = trans('admin/purchase-orders/general.okp_reason_acceptance_stale');
-            }
-            $lessor = self::lessor();
-            $foreign = $lessor ? app(LessorGuard::class)->foreignRecipients($lessor, array_merge($currentTo, $currentCc)) : array_merge($currentTo, $currentCc);
-            if ($foreign) {
-                $reasons[] = trans('admin/purchase-orders/general.okp_reason_foreign_recipient', ['addresses' => implode(', ', $foreign)]);
-            }
-            if ($reasons) {
-                $delivery->forceFill(['status' => 'blocked', 'error' => implode(' ', $reasons)])->save();
-                $this->hold($checked, $reasons);
-
-                return false;
-            }
-            try {
-                Mail::to($to)->cc($cc)->send($mail);
-            } catch (\Throwable $e) {
-                Log::error('OK to pay transport outcome uncertain for invoice '.$checked->invoice_number.': '.$e->getMessage());
-                $delivery->forceFill(['status' => self::UNCERTAIN, 'error' => mb_substr($e->getMessage(), 0, 1000)])->save();
-                $checked->forceFill([
-                    'okp_status' => self::UNCERTAIN,
-                    'okp_reasons' => [trans('admin/purchase-orders/general.okp_reason_delivery_reserved')],
-                    'approval_status' => 'pending',
-                    'approved_at' => null,
-                    'approved_by' => null,
-                ])->save();
-                $this->announce($checked, 'held', false);
-
-                return false;
-            }
-            $delivery->forceFill(['status' => self::SENT, 'completed_at' => now()])->save();
-            $checked->forceFill([
-                'okp_status' => self::SENT,
-                'okp_sent_at' => now(),
-                'okp_sent_to' => implode(', ', $to),
-                'approval_status' => 'approved',
-                'approved_at' => $checked->approved_at ?? now(),
-            ])->save();
-
-            return true;
-        });
-        $invoice->refresh();
-        if ($sent) {
-            $this->announce($invoice, 'sent', false);
+        $lessor = self::lessor();
+        $foreign = $lessor ? app(LessorGuard::class)->foreignRecipients($lessor, array_merge($currentTo, $currentCc)) : array_merge($currentTo, $currentCc);
+        if ($foreign) {
+            $reasons[] = trans('admin/purchase-orders/general.okp_reason_foreign_recipient', ['addresses' => implode(', ', $foreign)]);
         }
-
-        return $sent;
+        return $reasons;
     }
 
     private function dueForSending(OrderInvoice $invoice, bool $reserved = false): bool
@@ -502,7 +605,7 @@ class OkayToPay
 
         return hash('sha256', json_encode([
             $this->recipients(), EmailTemplate::ccFor(self::KEY, config('leasing.okp_cc')),
-            $this->mode(), self::setting('invoices_from'), self::setting('from_address'), self::setting('from_name'),
+            $this->mode(), config('leasing.okp_group_by_order'), self::setting('invoices_from'), self::setting('from_address'), self::setting('from_name'),
             $template?->subject, $template?->body,
             $lessor?->id, $lessor?->email, $lessor?->lease_emails, $lessor?->contract_prefixes,
             app(LessorGuard::class)->internalDomains(),

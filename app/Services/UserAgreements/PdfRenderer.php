@@ -102,6 +102,60 @@ class PdfRenderer
         return $pdf->Output('user-agreement-'.$agreement->agreement_type.'.pdf', 'S');
     }
 
+    /** Render only the text and acceptance data captured at the signing boundary. */
+    public function renderAccepted(UserAgreement $agreement, array $data): string
+    {
+        $title = $this->title($agreement->agreement_type, match ($agreement->agreement_type) {
+            'pickup' => 'Faculty Laptop Receipt Acknowledgment',
+            'upgrade' => 'Faculty Laptop Upgrade Agreement',
+            default => 'Faculty Laptop Purchase Agreement',
+        });
+        $pdf = $this->newPdf($title);
+        $pdf->SetAuthor((string) ($data['assigned_to'] ?? ''));
+        $this->drawHeader($pdf, $title);
+        $rows = [
+            trans('general.assignee') => trim(($data['assigned_to'] ?? '').(! empty($data['employee_num']) ? ' ('.$data['employee_num'].')' : '')),
+            trans('general.email') => $data['email'] ?? '',
+            trans('general.company') => $data['company_name'] ?? '',
+            trans('general.name') => $data['item_name'] ?? '',
+            trans('general.asset_model') => $data['item_model'] ?? '',
+            trans('general.asset_tag') => $data['item_tag'] ?? '',
+            trans('admin/hardware/form.serial') => $data['item_serial'] ?? '',
+        ];
+        foreach (($data['custom_fields'] ?? []) as $field) {
+            if (isset($field['label'], $field['value']) && $field['value'] !== '') {
+                $rows[(string) $field['label']] = (string) $field['value'];
+            }
+        }
+        if (($data['qty'] ?? 0) > 1) {
+            $rows[trans('general.qty')] = (string) $data['qty'];
+        }
+        $html = '<table cellpadding="4">';
+        foreach ($rows as $label => $value) {
+            if ($value !== '') {
+                $html .= '<tr><td width="28%"><b>'.e($label).'</b></td><td width="72%">'.e($value).'</td></tr>';
+            }
+        }
+        $pdf->writeHTML($html.'</table><br><hr><br>');
+        foreach (preg_split('/\\r\\n|\\n|\\r/', (string) ($data['eula'] ?? '')) as $line) {
+            $pdf->writeHTML(Helper::parseEscapedMarkedown($line), true, false, true, false, '');
+        }
+        $pdf->Ln(6);
+        $pdf->writeHTML('<hr>');
+        if (! empty($data['signature'])) {
+            $pdf->Image('@'.base64_decode($data['signature']), $pdf->GetX(), $pdf->GetY(), 55);
+            $pdf->Ln(20);
+        }
+        $pdf->writeHTML('<b>'.e(trans('general.assignee')).':</b> '.e($data['assigned_to'] ?? ''));
+        $pdf->writeHTML('<b>'.e(trans('general.assigned_date')).':</b> '.e($data['check_out_date'] ?? ''));
+        $pdf->writeHTML('<b>'.e(trans('general.accepted_date')).':</b> '.e($data['accepted_date'] ?? ''));
+        if (! empty($data['note'])) {
+            $pdf->writeHTML('<b>'.e(trans('general.notes')).':</b> '.e($data['note']));
+        }
+
+        return $pdf->Output('accepted-user-agreement.pdf', 'S');
+    }
+
     /** A Settings → Agreements field, or null when it is blank. */
     private function override(string $type, string $part): ?string
     {

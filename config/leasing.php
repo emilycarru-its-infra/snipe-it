@@ -127,6 +127,7 @@ return [
     | nothing is queued.
     |
     */
+    'okp_group_by_order' => (bool) env('LEASING_OKP_GROUP_BY_ORDER', false),
     'okp_mode' => env('LEASING_OKP_MODE', 'off'),
     'okp_acceptance_mode' => env('LEASING_OKP_ACCEPTANCE_MODE', 'explicit'),
     // Hours a matching invoice waits before it sends. 0 sends on the next

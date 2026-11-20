@@ -64,7 +64,9 @@ class CheckoutPaperworkTest extends TestCase
             'eula_fingerprint' => hash('sha256', $acceptance->eula_text_override)])->assertSessionHasNoErrors();
         $receipt->refresh();
         $this->assertNotNull($receipt->signed_at);
-        $pdf = (new Parser)->parseContent(Storage::get('private_uploads/eula-pdfs/'.$receipt->signed_pdf_path))->getText();
+        $bytes = Storage::get('private_uploads/eula-pdfs/'.$receipt->signed_pdf_path);
+        $this->assertStringContainsString('/Subtype /Image', $bytes);
+        $pdf = (new Parser)->parseContent($bytes)->getText();
         $this->assertStringContainsString('Laptop Receipt', $pdf);
         $this->assertStringContainsString($receipt->asset->serial, $pdf);
         Notification::assertSentTo($receipt->user, AcceptanceItemAcceptedToUserNotification::class,

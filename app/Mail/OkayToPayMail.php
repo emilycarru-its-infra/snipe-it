@@ -30,11 +30,11 @@ class OkayToPayMail extends BaseMailable
         $this->invoice = $invoice->loadMissing(['order.supplier', 'items.item']);
     }
 
-    private ?string $frozenHtml = null;
+    protected ?string $frozenHtml = null;
 
-    private ?Envelope $frozenEnvelope = null;
+    protected ?Envelope $frozenEnvelope = null;
 
-    private ?string $frozenCsv = null;
+    protected ?string $frozenCsv = null;
 
     public function freeze(): array
     {
@@ -70,9 +70,18 @@ class OkayToPayMail extends BaseMailable
         if ($this->frozenHtml !== null) {
             return new Content(htmlString: $this->frozenHtml);
         }
+        $data = $this->viewData();
+
+        return $this->sample
+            ? new Content(markdown: 'notifications.markdown.okay-to-pay', with: $data)
+            : $this->bodyContent(OkayToPay::KEY, 'notifications.markdown.okay-to-pay', $data);
+    }
+
+    protected function viewData(): array
+    {
         $order = $this->invoice->order;
 
-        $data = [
+        return [
             'sample' => $this->sample,
             'invoice' => $this->invoice,
             'order' => $order,
@@ -89,9 +98,6 @@ class OkayToPayMail extends BaseMailable
             'signature' => $this->fromAddress()->name ?: $this->fromAddress()->address,
         ];
 
-        return $this->sample
-            ? new Content(markdown: 'notifications.markdown.okay-to-pay', with: $data)
-            : $this->bodyContent(OkayToPay::KEY, 'notifications.markdown.okay-to-pay', $data);
     }
 
     /**
@@ -196,7 +202,7 @@ class OkayToPayMail extends BaseMailable
      * The lessor knows its approver by name, so this can come from a person
      * rather than the app's service address; unset, it falls back to that.
      */
-    private function fromAddress(): Address
+    protected function fromAddress(): Address
     {
         $address = (string) OkayToPay::setting('from_address');
 

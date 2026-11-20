@@ -6,6 +6,7 @@ use App\Http\Transformers\ActionlogsTransformer;
 use App\Mail\BaseMailable;
 use App\Mail\EmailRegistry;
 use App\Mail\OkayToPayMail;
+use App\Mail\OkayToPayBatchMail;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\Company;
@@ -136,6 +137,131 @@ class OkayToPayTest extends TestCase
     private function invoice(string $number): OrderInvoice
     {
         return OrderInvoice::where('invoice_number', $number)->firstOrFail();
+    }
+
+    private function readyBatch(): array
+    {
+        config(['leasing.okp_group_by_order' => true]);
+        $order = $this->leaseOrder();
+        $this->ingest($order->order_number, 'INV-BATCH-A', [Asset::factory()->create()], unit: 100, soft: 0);
+        $this->ingest($order->order_number, 'INV-BATCH-B', [Asset::factory()->create()], unit: 50, soft: 0);
+        $this->travel(49)->hours();
+
+        return [$this->invoice('INV-BATCH-A'), $this->invoice('INV-BATCH-B')];
+    }
+
+    public function test_ready_invoices_on_one_order_share_email_with_individual_frozen_delivery_records(): void
+    {
+        [$first, $second] = $this->readyBatch();
+        $this->assertSame(2, app(OkayToPay::class)->dispatchDue()['sent']);
+        Mail::assertSentCount(1);
+        Mail::assertSent(OkayToPayBatchMail::class, function ($mail) {
+            $this->assertStringContainsString('INV-BATCH-A', $mail->render());
+            $this->assertStringContainsString('INV-BATCH-B', $mail->render());
+            $this->assertStringContainsString('$157.50', $mail->render());
+            $this->assertStringNotContainsString('## INV-BATCH-B', $mail->render());
+            $this->assertStringContainsString('ORD-LEASE-1', $mail->envelope()->subject);
+            $this->assertSame(3, count(array_filter(explode("\n", trim($mail->csv())))));
+
+            return true;
+        });
+        $deliveries = OkayToPayDelivery::orderBy('invoice_id')->get();
+        $this->assertCount(2, $deliveries);
+        $this->assertSame(1, $deliveries->pluck('payload_digest')->unique()->count());
+        $payload = json_decode($deliveries[0]->payload, true);
+        $this->assertSame([$first->id, $second->id], $payload['invoice_ids']);
+        foreach ([$first, $second] as $invoice) {
+            $this->assertSame(OkayToPay::SENT, $invoice->fresh()->okp_status);
+        }
+        $this->assertSame(0, app(OkayToPay::class)->dispatchDue()['sent']);
+        $this->assertSame(0, app(OkayToPay::class)->sendTogether(collect([$first, $second])));
+        Mail::assertSentCount(1);
+    }
+
+    public function test_batch_excludes_not_due_and_unaccepted_invoices(): void
+    {
+        [$first, $second] = $this->readyBatch();
+        $this->ingest($first->order->order_number, 'INV-UNACCEPTED', [Asset::factory()->create()], unit: 10, soft: 0, accepted: false);
+        $second->refresh()->forceFill(['okp_send_after' => now()->addDay()])->save();
+        $this->assertSame(1, app(OkayToPay::class)->dispatchDue()['sent']);
+        Mail::assertSent(OkayToPayMail::class, 1);
+        Mail::assertNotSent(OkayToPayBatchMail::class);
+        $this->assertSame(OkayToPay::QUEUED, $second->fresh()->okp_status);
+        $this->assertSame(OkayToPay::HELD, $this->invoice('INV-UNACCEPTED')->okp_status);
+    }
+
+    public function test_grouping_never_combines_different_orders(): void
+    {
+        [$first, $second] = $this->readyBatch();
+        $order = $this->leaseOrder(['order_number' => 'ORD-SECOND']);
+        $this->ingest($order->order_number, 'INV-SECOND', [Asset::factory()->create()], unit: 10, soft: 0);
+        $this->travel(49)->hours();
+        $this->assertSame(3, app(OkayToPay::class)->dispatchDue()['sent']);
+        Mail::assertSentCount(2);
+        Mail::assertSent(OkayToPayBatchMail::class, 1);
+        $this->assertCount(1, Mail::sent(OkayToPayMail::class, fn ($mail) => get_class($mail) === OkayToPayMail::class));
+    }
+
+    public function test_uncertain_batch_transport_reserves_every_invoice_without_retry(): void
+    {
+        [$first, $second] = $this->readyBatch();
+        $this->failTransport('Uncertain batch handoff');
+        $this->assertSame(0, app(OkayToPay::class)->dispatchDue()['sent']);
+        foreach ([$first, $second] as $invoice) {
+            $this->assertSame(OkayToPay::UNCERTAIN, $invoice->fresh()->okp_status);
+        }
+        $this->assertSame(2, OkayToPayDelivery::where('status', OkayToPay::UNCERTAIN)->count());
+        $this->assertSame(0, app(OkayToPay::class)->dispatchDue()['sent']);
+        $this->assertSame(0, app(OkayToPay::class)->sendTogether(collect([$first, $second])));
+    }
+
+    public function test_a_fact_change_after_batch_claim_blocks_the_frozen_group(): void
+    {
+        [$first, $second] = $this->readyBatch();
+        $claims = 0;
+        OkayToPayDelivery::created(function () use (&$claims, $first) {
+            if (++$claims === 2) {
+                $first->items()->first()->item->update(['serial' => 'CHANGED-AFTER-CLAIM']);
+            }
+        });
+        try {
+            $this->assertSame(0, app(OkayToPay::class)->dispatchDue()['sent']);
+            Mail::assertNothingSent();
+            $this->assertSame(2, OkayToPayDelivery::where('status', 'blocked')->count());
+        } finally {
+            OkayToPayDelivery::flushEventListeners();
+        }
+    }
+
+    public function test_later_invoice_uses_new_message_and_never_reincludes_sent_members(): void
+    {
+        [$first, $second] = $this->readyBatch();
+        $this->assertSame(2, app(OkayToPay::class)->dispatchDue()['sent']);
+        $this->ingest($first->order->order_number, 'INV-LATER', [Asset::factory()->create()], unit: 10, soft: 0);
+        $this->travel(49)->hours();
+        $this->assertSame(1, app(OkayToPay::class)->dispatchDue()['sent']);
+        Mail::assertSentCount(2);
+        $this->assertSame(3, OkayToPayDelivery::where('status', OkayToPay::SENT)->count());
+        Mail::assertSent(OkayToPayMail::class, fn ($mail) => get_class($mail) === OkayToPayMail::class
+            && $mail->invoice->invoice_number === 'INV-LATER'
+            && ! str_contains($mail->render(), 'INV-BATCH-A'));
+    }
+
+    public function test_grouped_payload_keeps_custom_body_serials_and_csv_escaping_frozen(): void
+    {
+        [$first, $second] = $this->readyBatch();
+        $first->items()->first()->update(['description' => '=FORMULA']);
+        EmailTemplate::create(['key' => OkayToPay::KEY, 'body' => 'Approved {{invoice.invoice_number}} for {{amounts.total}}']);
+        BaseMailable::flushSubjectCache();
+        $mail = new OkayToPayBatchMail(collect([$first->fresh(), $second]));
+        $payload = $mail->freeze();
+        $this->assertStringContainsString('INV-BATCH-A', $payload['html']);
+        $this->assertStringContainsString('INV-BATCH-B', $payload['html']);
+        $this->assertStringContainsString("'=FORMULA", $payload['csv']);
+        $first->items()->first()->item->update(['serial' => 'LATER-SERIAL']);
+        $this->assertSame($payload['html'], $mail->render());
+        $this->assertSame($payload['csv'], $mail->csv());
+        $this->assertStringNotContainsString('LATER-SERIAL', $mail->csv());
     }
 
     public static function inventoryReceiptStatuses(): array

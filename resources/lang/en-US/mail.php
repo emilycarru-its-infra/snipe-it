@@ -361,6 +361,9 @@ return [
     'order_eta_request_signoff' => 'Thanks,',
 
     // OK to pay, sent to the lessor as each lease invoice lands.
+    'okay_to_pay_batch_subject' => 'OK to pay — :supplier order :order',
+    'okay_to_pay_batch_intro' => 'The following invoices for :supplier, order :order, equipment schedule :schedule have been checked and are OK to pay. This authorization covers only the invoices listed below.',
+    'okay_to_pay_batch_total' => 'Combined total: :total CAD',
     'okay_to_pay_subject' => 'OK to pay — :supplier invoice :invoice',
     'okay_to_pay_greeting' => 'Hello,',
     'okay_to_pay_intro' => 'We have received :supplier invoice :invoice (dated :date) for Equipment Schedule :schedule and checked it against our order: every line and serial below is accounted for.',
